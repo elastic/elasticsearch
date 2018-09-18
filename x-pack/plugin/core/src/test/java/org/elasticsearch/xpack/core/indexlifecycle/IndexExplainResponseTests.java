@@ -71,10 +71,10 @@ public class IndexExplainResponseTests extends AbstractSerializingTestCase<Index
         String action = instance.getAction();
         String step = instance.getStep();
         String failedStep = instance.getFailedStep();
-        long policyTime = instance.getLifecycleDate();
-        long phaseTime = instance.getPhaseTime();
-        long actionTime = instance.getActionTime();
-        long stepTime = instance.getStepTime();
+        Long policyTime = instance.getLifecycleDate();
+        Long phaseTime = instance.getPhaseTime();
+        Long actionTime = instance.getActionTime();
+        Long stepTime = instance.getStepTime();
         boolean managed = instance.managedByILM();
         boolean skip = instance.skip();
         BytesReference stepInfo = instance.getStepInfo();

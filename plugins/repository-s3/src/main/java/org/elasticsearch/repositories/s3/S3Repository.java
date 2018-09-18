@@ -35,7 +35,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
-import java.util.Map;
 import java.util.function.Function;
 
 /**
@@ -163,6 +162,8 @@ class S3Repository extends BlobStoreRepository {
 
     private final String clientName;
 
+    private AmazonS3Reference reference;
+
     /**
      * Constructs an s3 backed repository
      */
@@ -200,21 +201,40 @@ class S3Repository extends BlobStoreRepository {
 
         this.storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
         this.cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
+
+        if (CLIENT_NAME.exists(metadata.settings()) && S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
+            logger.warn("ignoring use of named client [" + metadata.name() + "] as insecure credentials were specified");
+        }
+
         this.clientName = CLIENT_NAME.get(metadata.settings());
 
         logger.debug("using bucket [{}], chunk_size [{}], server_side_encryption [{}], " +
                 "buffer_size [{}], cannedACL [{}], storageClass [{}]",
             bucket, chunkSize, serverSideEncryption, bufferSize, cannedACL, storageClass);
-
-        // (repository settings)
-        if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
-            overrideCredentialsFromClusterState(service);
-        }
     }
 
     @Override
     protected S3BlobStore createBlobStore() {
-        return new S3BlobStore(settings, service, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
+        // (repository settings)
+        if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
+            deprecationLogger.deprecated("Using s3 access/secret key from repository settings. Instead "
+                    + "store these in named clients and the elasticsearch keystore for secure settings.");
+            final BasicAWSCredentials insecureCredentials = S3ClientSettings.loadDeprecatedCredentials(metadata.settings());
+            final S3ClientSettings s3ClientSettings = S3ClientSettings.getClientSettings(metadata, insecureCredentials);
+            this.reference = new AmazonS3Reference(service.buildClient(s3ClientSettings));
+            return new S3BlobStore(settings, service, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass) {
+                @Override
+                public AmazonS3Reference clientReference() {
+                    if (reference.tryIncRef()) {
+                        return reference;
+                    } else {
+                        throw new IllegalStateException("S3 client is closed");
+                    }
+                }
+            };
+        } else {
+            return new S3BlobStore(settings, service, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
+        }
     }
 
     // only use for testing
@@ -244,13 +264,13 @@ class S3Repository extends BlobStoreRepository {
         return chunkSize;
     }
 
-    void overrideCredentialsFromClusterState(final S3Service s3Service) {
-        deprecationLogger.deprecated("Using s3 access/secret key from repository settings. Instead "
-                + "store these in named clients and the elasticsearch keystore for secure settings.");
-        final BasicAWSCredentials insecureCredentials = S3ClientSettings.loadDeprecatedCredentials(metadata.settings());
-        // hack, but that's ok because the whole if branch should be axed
-        final Map<String, S3ClientSettings> prevSettings = s3Service.refreshAndClearCache(S3ClientSettings.load(Settings.EMPTY));
-        final Map<String, S3ClientSettings> newSettings = S3ClientSettings.overrideCredentials(prevSettings, insecureCredentials);
-        s3Service.refreshAndClearCache(newSettings);
+    @Override
+    protected void doClose() {
+        if (reference != null) {
+            assert S3ClientSettings.checkDeprecatedCredentials(metadata.settings()) : metadata.name();
+            reference.decRef();
+        }
+        super.doClose();
     }
+
 }

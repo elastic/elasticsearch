@@ -351,12 +351,15 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         });
     }
 
-    public void testPollIntervalUpdate() {
+    public void testPollIntervalUpdate() throws Exception {
         TimeValue pollInterval = TimeValue.timeValueSeconds(randomLongBetween(1, 5));
         final String server_1 = internalCluster().startMasterOnlyNode(
             Settings.builder().put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, pollInterval.getStringRep()).build());
         IndexLifecycleService indexLifecycleService = internalCluster().getInstance(IndexLifecycleService.class, server_1);
-        assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
+        assertBusy(() -> {
+            assertNotNull(indexLifecycleService.getScheduler());
+            assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
+        });
         {
             TimeValueSchedule schedule = (TimeValueSchedule) indexLifecycleService.getScheduledJob().getSchedule();
             assertThat(schedule.getInterval(), equalTo(pollInterval));

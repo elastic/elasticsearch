@@ -25,7 +25,6 @@ esplugin {
 integTestCluster {
   module project.project(':modules:mapper-extras')
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
-  systemProperty 'es.http.cname_in_publish_address', 'true'
 }
 
 dependencies {

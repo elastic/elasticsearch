@@ -32,6 +32,8 @@ import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.ForecastJobResponse;
+import org.elasticsearch.client.ml.GetCalendarsRequest;
+import org.elasticsearch.client.ml.GetCalendarsResponse;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
@@ -483,13 +485,36 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testPutCalendar() throws IOException {
-
         Calendar calendar = CalendarTests.testInstance();
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         PutCalendarResponse putCalendarResponse = execute(new PutCalendarRequest(calendar), machineLearningClient::putCalendar,
                 machineLearningClient::putCalendarAsync);
 
         assertThat(putCalendarResponse.getCalendar(), equalTo(calendar));
+    }
+
+    public void testGetCalendars() throws Exception {
+        Calendar calendar1 = CalendarTests.testInstance();
+        Calendar calendar2 = CalendarTests.testInstance();
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putCalendar(new PutCalendarRequest(calendar1), RequestOptions.DEFAULT);
+        machineLearningClient.putCalendar(new PutCalendarRequest(calendar2), RequestOptions.DEFAULT);
+
+        GetCalendarsRequest getCalendarsRequest = new GetCalendarsRequest();
+        getCalendarsRequest.setCalendarId("_all");
+        GetCalendarsResponse getCalendarsResponse = execute(getCalendarsRequest, machineLearningClient::getCalendars,
+                machineLearningClient::getCalendarsAsync);
+        assertEquals(2, getCalendarsResponse.count());
+        assertEquals(2, getCalendarsResponse.calendars().size());
+        assertThat(getCalendarsResponse.calendars().stream().map(Calendar::getId).collect(Collectors.toList()),
+                hasItems(calendar1.getId(), calendar1.getId()));
+
+        getCalendarsRequest.setCalendarId(calendar1.getId());
+        getCalendarsResponse = execute(getCalendarsRequest, machineLearningClient::getCalendars,
+                machineLearningClient::getCalendarsAsync);
+        assertEquals(1, getCalendarsResponse.count());
+        assertEquals(calendar1, getCalendarsResponse.calendars().get(0));
     }
 
     public static String randomValidJobId() {

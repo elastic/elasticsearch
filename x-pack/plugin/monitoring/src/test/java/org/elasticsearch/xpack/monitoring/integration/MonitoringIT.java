@@ -417,7 +417,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
         // particular field values checked in the index stats tests
         final Map<String, Object> indexStats = (Map<String, Object>) source.get(IndexStatsMonitoringDoc.TYPE);
-        assertEquals(8, indexStats.size());
+        assertEquals(7, indexStats.size());
         assertThat((String) indexStats.get("index"), not(isEmptyOrNullString()));
         assertThat((String) indexStats.get("uuid"), not(isEmptyOrNullString()));
         assertThat(indexStats.get("created"), notNullValue());

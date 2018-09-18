@@ -6,16 +6,23 @@
 
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -35,9 +42,10 @@ public class IndexExplainResponseTests extends AbstractSerializingTestCase<Index
 
     private static IndexLifecycleExplainResponse randomManagedIndexExplainResponse() {
         return IndexLifecycleExplainResponse.newManagedIndexResponse(randomAlphaOfLength(10), randomAlphaOfLength(10), randomBoolean(),
-                randomNonNegativeLong(), randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
-                randomBoolean() ? null : randomAlphaOfLength(10), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-                randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()));
+            randomNonNegativeLong(), randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
+            randomBoolean() ? null : randomAlphaOfLength(10), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+            randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
+            randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo(""));
     }
 
     @Override
@@ -70,8 +78,9 @@ public class IndexExplainResponseTests extends AbstractSerializingTestCase<Index
         boolean managed = instance.managedByILM();
         boolean skip = instance.skip();
         BytesReference stepInfo = instance.getStepInfo();
+        PhaseExecutionInfo phaseExecutionInfo = instance.getPhaseExecutionInfo();
         if (managed) {
-            switch (between(0, 12)) {
+            switch (between(0, 13)) {
             case 0:
                 index = index + randomAlphaOfLengthBetween(1, 5);
                 break;
@@ -122,12 +131,15 @@ public class IndexExplainResponseTests extends AbstractSerializingTestCase<Index
                 skip = skip == false;
                 break;
             case 12:
+                phaseExecutionInfo = randomValueOtherThan(phaseExecutionInfo, () -> PhaseExecutionInfoTests.randomPhaseExecutionInfo(""));
+                break;
+            case 13:
                 return IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index);
             default:
                 throw new AssertionError("Illegal randomisation branch");
             }
             return IndexLifecycleExplainResponse.newManagedIndexResponse(index, policy, skip, policyTime, phase, action, step, failedStep,
-                    phaseTime, actionTime, stepTime, stepInfo);
+                    phaseTime, actionTime, stepTime, stepInfo, phaseExecutionInfo);
         } else {
             switch (between(0, 1)) {
             case 0:
@@ -138,6 +150,18 @@ public class IndexExplainResponseTests extends AbstractSerializingTestCase<Index
                 throw new AssertionError("Illegal randomisation branch");
             }
         }
+    }
+
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(Arrays
+            .asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new)));
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
+        entries.add(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MockAction.NAME), MockAction::parse));
+        return new NamedXContentRegistry(entries);
     }
 
     private static class RandomStepInfo implements ToXContentObject {

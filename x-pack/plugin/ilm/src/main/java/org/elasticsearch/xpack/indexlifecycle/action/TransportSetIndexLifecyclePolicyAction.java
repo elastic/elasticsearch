@@ -19,12 +19,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.xpack.core.indexlifecycle.SetIndexLifecyclePolicyResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.action.SetIndexLifecyclePolicyAction;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunner;
 
@@ -76,14 +76,14 @@ public class TransportSetIndexLifecyclePolicyAction
                             throw new ResourceNotFoundException("Policy does not exist [{}]", newPolicyName);
                         }
 
-                        LifecyclePolicy newPolicy = ilmMetadata.getPolicies().get(newPolicyName);
+                        LifecyclePolicyMetadata newPolicyMetadata = ilmMetadata.getPolicyMetadatas().get(newPolicyName);
 
-                        if (newPolicy == null) {
+                        if (newPolicyMetadata == null) {
                             throw new ResourceNotFoundException("Policy does not exist [{}]", newPolicyName);
                         }
 
-                        return IndexLifecycleRunner.setPolicyForIndexes(newPolicyName, indices, currentState, newPolicy, failedIndexes,
-                                () -> System.currentTimeMillis());
+                        return IndexLifecycleRunner.setPolicyForIndexes(newPolicyName, indices, currentState, newPolicyMetadata,
+                            failedIndexes, System::currentTimeMillis);
                     }
 
                     @Override

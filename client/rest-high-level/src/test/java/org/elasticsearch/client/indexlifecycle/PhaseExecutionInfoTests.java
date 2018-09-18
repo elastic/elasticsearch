@@ -23,28 +23,34 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
-public class ExplainLifecycleResponseTests extends AbstractXContentTestCase<ExplainLifecycleResponse> {
+public class PhaseExecutionInfoTests extends AbstractXContentTestCase<PhaseExecutionInfo> {
 
-    @Override
-    protected ExplainLifecycleResponse createTestInstance() {
-        Map<String, IndexLifecycleExplainResponse> indexResponses = new HashMap<>();
-        for (int i = 0; i < randomIntBetween(0, 2); i++) {
-            IndexLifecycleExplainResponse indexResponse = IndexExplainResponseTests.randomIndexExplainResponse();
-            indexResponses.put(indexResponse.getIndex(), indexResponse);
-        }
-        return new ExplainLifecycleResponse(indexResponses);
+    static PhaseExecutionInfo randomPhaseExecutionInfo(String phaseName) {
+        return new PhaseExecutionInfo(randomAlphaOfLength(5), PhaseTests.randomPhase(phaseName),
+            randomNonNegativeLong(), randomNonNegativeLong());
+    }
+
+    String phaseName;
+
+    @Before
+    public void setupPhaseName() {
+        phaseName = randomAlphaOfLength(7);
     }
 
     @Override
-    protected ExplainLifecycleResponse doParseInstance(XContentParser parser) throws IOException {
-        return ExplainLifecycleResponse.fromXContent(parser);
+    protected PhaseExecutionInfo createTestInstance() {
+        return randomPhaseExecutionInfo(phaseName);
+    }
+
+    @Override
+    protected PhaseExecutionInfo doParseInstance(XContentParser parser) throws IOException {
+        return PhaseExecutionInfo.parse(parser, phaseName);
     }
 
     @Override

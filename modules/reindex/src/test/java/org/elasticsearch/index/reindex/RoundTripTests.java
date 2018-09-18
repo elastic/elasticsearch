@@ -20,7 +20,6 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -103,7 +102,7 @@ public class RoundTripTests extends ESTestCase {
     }
 
     public void testDeleteByQueryRequest() throws IOException {
-        DeleteByQueryRequest delete = new DeleteByQueryRequest(new SearchRequest());
+        DeleteByQueryRequest delete = new DeleteByQueryRequest();
         randomRequest(delete);
         DeleteByQueryRequest tripped = new DeleteByQueryRequest(toInputByteStream(delete));
         assertRequestEquals(delete, tripped);

@@ -17,6 +17,10 @@ abstract class IdentifierBuilder extends AbstractBuilder {
 
     @Override
     public TableIdentifier visitTableIdentifier(TableIdentifierContext ctx) {
+        if (ctx == null) {
+            return null;
+        }
+
         Location source = source(ctx);
         ParseTree tree = ctx.name != null ? ctx.name : ctx.TABLE_IDENTIFIER();
         String index = tree.getText();

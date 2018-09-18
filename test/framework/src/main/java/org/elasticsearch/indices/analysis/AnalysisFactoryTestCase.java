@@ -29,7 +29,6 @@ import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
-import org.elasticsearch.index.analysis.StandardTokenFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
 import org.elasticsearch.index.analysis.SynonymGraphTokenFilterFactory;
@@ -167,7 +166,6 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("soraninormalization",       MovedToAnalysisCommon.class)
         .put("soranistem",                MovedToAnalysisCommon.class)
         .put("spanishlightstem",          MovedToAnalysisCommon.class)
-        .put("standard",                  StandardTokenFilterFactory.class)
         .put("stemmeroverride",           MovedToAnalysisCommon.class)
         .put("stop",                      StopTokenFilterFactory.class)
         .put("swedishlightstem",          MovedToAnalysisCommon.class)
@@ -267,8 +265,9 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
      */
     protected Map<String, Class<?>> getPreConfiguredTokenFilters() {
         Map<String, Class<?>> filters = new HashMap<>();
-        filters.put("standard", null);
         filters.put("lowercase", null);
+        // for old indices
+        filters.put("standard", Void.class);
         return filters;
     }
 

@@ -23,7 +23,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ExceptionsHelper;
@@ -168,7 +171,9 @@ public class FetchPhase implements SearchPhase {
                 }
             }
 
-            context.fetchResult().hits(new SearchHits(hits, context.queryResult().getTotalHits(), context.queryResult().getMaxScore()));
+            TotalHits totalHits = context.queryResult().getTotalHits();
+            long totalHitsAsLong = totalHits.relation == Relation.EQUAL_TO ? totalHits.value : -1;
+            context.fetchResult().hits(new SearchHits(hits, totalHitsAsLong, context.queryResult().getMaxScore()));
         } catch (IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
         }
@@ -192,20 +197,15 @@ public class FetchPhase implements SearchPhase {
                                       int subDocId,
                                       Map<String, Set<String>> storedToRequestedFields,
                                       LeafReaderContext subReaderContext) {
+        DocumentMapper documentMapper = context.mapperService().documentMapper();
+        Text typeText = documentMapper.typeText();
         if (fieldsVisitor == null) {
-            return new SearchHit(docId);
+            return new SearchHit(docId, null, typeText, null);
         }
 
         Map<String, DocumentField> searchFields = getSearchFields(context, fieldsVisitor, subDocId,
             storedToRequestedFields, subReaderContext);
 
-        DocumentMapper documentMapper = context.mapperService().documentMapper(fieldsVisitor.uid().type());
-        Text typeText;
-        if (documentMapper == null) {
-            typeText = new Text(fieldsVisitor.uid().type());
-        } else {
-            typeText = documentMapper.typeText();
-        }
         SearchHit searchHit = new SearchHit(docId, fieldsVisitor.uid().id(), typeText, searchFields);
         // Set _source if requested.
         SourceLookup sourceLookup = context.lookup().source();
@@ -275,7 +275,7 @@ public class FetchPhase implements SearchPhase {
                 storedToRequestedFields, subReaderContext);
         }
 
-        DocumentMapper documentMapper = context.mapperService().documentMapper(uid.type());
+        DocumentMapper documentMapper = context.mapperService().documentMapper();
         SourceLookup sourceLookup = context.lookup().source();
         sourceLookup.setSegmentAndDocument(subReaderContext, nestedSubDocId);
 
@@ -362,7 +362,8 @@ public class FetchPhase implements SearchPhase {
                 current = nestedParentObjectMapper;
                 continue;
             }
-            final Weight childWeight = context.searcher().createNormalizedWeight(childFilter, false);
+            final Weight childWeight = context.searcher()
+                .createWeight(context.searcher().rewrite(childFilter), ScoreMode.COMPLETE_NO_SCORES, 1f);
             Scorer childScorer = childWeight.scorer(subReaderContext);
             if (childScorer == null) {
                 current = nestedParentObjectMapper;

@@ -142,7 +142,7 @@ This request can be executed asynchronously:
 --------------------------------------------------
 include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-put-job-execute-async]
 --------------------------------------------------
-<1> The `PutMlJobRequest` to execute and the `ActionListener` to use when
+<1> The `PutJobRequest` to execute and the `ActionListener` to use when
 the execution completes
 
 The asynchronous method does not block and returns immediately. Once it is

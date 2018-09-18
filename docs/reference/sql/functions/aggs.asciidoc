@@ -1,0 +1,168 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-functions-aggs]]
+=== Aggregate Functions
+
+Functions for computing a _single_ result from a set of input values.
+{es-sql} supports aggregate functions only alongside <<sql-syntax-group-by,grouping>> (implicit or explicit).
+
+==== General Purpose
+
+[[sql-functions-aggs-avg]]
+===== `AVG`
+
+*Input*: Numeric, *Output*: `double`
+
+https://en.wikipedia.org/wiki/Arithmetic_mean[Average] (arithmetic mean) of input values.
+
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[aggAvg]
+----
+
+[[sql-functions-aggs-count]]
+===== `COUNT`
+
+*Input*: Any, *Output*: `bigint`
+
+Total number (count) of input values.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[aggCountStar]
+----
+
+[[sql-functions-aggs-count-distinct]]
+===== `COUNT(DISTINCT)`
+
+*Input*: Any, *Output*: `bigint`
+
+Total number of _distinct_ values in input values.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[aggCountDistinct]
+----
+
+[[sql-functions-aggs-max]]
+===== `MAX`
+
+*Input*: Numeric, *Output*: Same as input
+
+Maximum value across input values.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[aggMax]
+----
+
+[[sql-functions-aggs-min]]
+===== `MIN`
+
+*Input*: Numeric, *Output*: Same as input
+
+Minimum value across input values.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[aggMin]
+----
+
+[[sql-functions-aggs-sum]]
+===== `SUM`
+
+*Input*: Numeric, *Output*: `bigint` for integer input, `double` for floating points
+
+Sum of input values.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[aggSum]
+----
+
+==== Statistics
+
+[[sql-functions-aggs-kurtosis]]
+===== `KURTOSIS`
+
+*Input*: Numeric, *Output*: `double`
+
+https://en.wikipedia.org/wiki/Kurtosis[Quantify] the shape of the distribution of input values.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[aggKurtosis]
+----
+
+[[sql-functions-aggs-percentile]]
+===== `PERCENTILE`
+
+*Input*: Numeric, *Output*: `double`
+
+The nth https://en.wikipedia.org/wiki/Percentile[percentile] of input values.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[aggPercentile]
+----
+
+[[sql-functions-aggs-percentile-rank]]
+===== `PERCENTILE_RANK`
+
+*Input*: Numeric, *Output*: `double`
+
+The https://en.wikipedia.org/wiki/Percentile_rank[percentile rank] of input values of input values.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[aggPercentileRank]
+----
+
+[[sql-functions-aggs-skewness]]
+===== `SKEWNESS`
+
+*Input*: Numeric, *Output*: `double`
+
+https://en.wikipedia.org/wiki/Skewness[Quantify] the asymmetric distribution of input values.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[aggSkewness]
+----
+
+[[sql-functions-aggs-stddev-pop]]
+===== `STDDEV_POP`
+
+*Input*: Numeric, *Output*: `double`
+
+https://en.wikipedia.org/wiki/Standard_deviations[Population standard deviation] of input values.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[aggStddevPop]
+----
+
+[[sql-functions-aggs-sum-squares]]
+===== `SUM_OF_SQUARES`
+
+*Input*: Numeric, *Output*: `double`
+
+https://en.wikipedia.org/wiki/Total_sum_of_squares[Sum of squares] of input values.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[aggSumOfSquares]
+----
+
+[[sql-functions-aggs-var-pop]]
+===== `VAR_POP`
+
+*Input*: Numeric, *Output*: `double`
+
+https://en.wikipedia.org/wiki/Variance[Population] variance of input values.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[aggVarPop]
+----

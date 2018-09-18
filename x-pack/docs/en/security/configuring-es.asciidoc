@@ -136,10 +136,15 @@ By default, events are logged to a dedicated `elasticsearch-access.log` file in
 easier analysis and control what events are logged. 
 --
 
-include::securing-communications/securing-elasticsearch.asciidoc[]
-include::securing-communications/configuring-tls-docker.asciidoc[]
-include::securing-communications/enabling-cipher-suites.asciidoc[]
-include::securing-communications/separating-node-client-traffic.asciidoc[]
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/security/securing-communications/securing-elasticsearch.asciidoc
+include::{es-repo-dir}/security/securing-communications/securing-elasticsearch.asciidoc[]
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/security/securing-communications/configuring-tls-docker.asciidoc
+include::{es-repo-dir}/security/securing-communications/configuring-tls-docker.asciidoc[]
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/security/securing-communications/enabling-cipher-suites.asciidoc
+include::{es-repo-dir}/security/securing-communications/enabling-cipher-suites.asciidoc[]
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/security/securing-communications/separating-node-client-traffic.asciidoc
+include::{es-repo-dir}/security/securing-communications/separating-node-client-traffic.asciidoc[]
+:edit_url:
 include::authentication/configuring-active-directory-realm.asciidoc[]
 include::authentication/configuring-file-realm.asciidoc[]
 include::authentication/configuring-ldap-realm.asciidoc[]
@@ -148,6 +153,9 @@ include::authentication/configuring-pki-realm.asciidoc[]
 include::authentication/configuring-saml-realm.asciidoc[]
 :edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/authentication/configuring-kerberos-realm.asciidoc
 include::authentication/configuring-kerberos-realm.asciidoc[]
+:edit_url: 
 include::fips-140-compliance.asciidoc[]
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/settings/security-settings.asciidoc
 include::{es-repo-dir}/settings/security-settings.asciidoc[]
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/settings/audit-settings.asciidoc
 include::{es-repo-dir}/settings/audit-settings.asciidoc[]

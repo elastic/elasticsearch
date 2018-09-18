@@ -115,7 +115,7 @@ public class TriggeredWatchStore extends AbstractComponent {
     public void delete(Wid wid) {
         DeleteRequest request = new DeleteRequest(TriggeredWatchStoreField.INDEX_NAME, TriggeredWatchStoreField.DOC_TYPE, wid.value());
         try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
-            client.delete(request); // FIXME shouldn't we wait before saying the delete was successful
+            client.delete(request).actionGet(defaultBulkTimeout);
         }
         logger.trace("successfully deleted triggered watch with id [{}]", wid);
     }

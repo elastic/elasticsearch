@@ -410,7 +410,7 @@ public class CoordinatorTests extends ESTestCase {
                 });
                 masterService.start();
 
-                transportService = capturingTransport.createCapturingTransportService(
+                transportService = capturingTransport.createTransportService(
                     settings, deterministicTaskQueue.getThreadPool(), NOOP_TRANSPORT_INTERCEPTOR, a -> localNode, null, emptySet());
                 transportService.start();
                 transportService.acceptIncomingRequests();

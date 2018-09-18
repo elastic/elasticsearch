@@ -162,31 +162,27 @@ public class DisruptableMockTransportTests extends ESTestCase {
     }
 
 
-    static class DummyRequest extends TransportRequest {
-
-    }
-
-    private TransportRequestHandler<DummyRequest> requestHandlerShouldNotBeCalled() {
+    private TransportRequestHandler<TransportRequest.Empty> requestHandlerShouldNotBeCalled() {
         return (request, channel, task) -> {
             throw new AssertionError("should not be called");
         };
     }
 
-    private TransportRequestHandler<DummyRequest> requestHandlerRepliesNormally() {
+    private TransportRequestHandler<TransportRequest.Empty> requestHandlerRepliesNormally() {
         return (request, channel, task) -> {
             logger.debug("got a dummy request, replying normally...");
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         };
     }
 
-    private TransportRequestHandler<DummyRequest> requestHandlerRepliesExceptionally(Exception e) {
+    private TransportRequestHandler<TransportRequest.Empty> requestHandlerRepliesExceptionally(Exception e) {
         return (request, channel, task) -> {
             logger.debug("got a dummy request, replying exceptionally...");
             channel.sendResponse(e);
         };
     }
 
-    private TransportRequestHandler<DummyRequest> requestHandlerCaptures(Consumer<TransportChannel> channelConsumer) {
+    private TransportRequestHandler<TransportRequest.Empty> requestHandlerCaptures(Consumer<TransportChannel> channelConsumer) {
         return (request, channel, task) -> {
             logger.debug("got a dummy request...");
             channelConsumer.accept(channel);
@@ -250,13 +246,13 @@ public class DisruptableMockTransportTests extends ESTestCase {
         };
     }
 
-    private void registerRequestHandler(TransportService transportService, TransportRequestHandler<DummyRequest> handler) {
-        transportService.registerRequestHandler("internal:dummy", DummyRequest::new, ThreadPool.Names.GENERIC, handler);
+    private void registerRequestHandler(TransportService transportService, TransportRequestHandler<TransportRequest.Empty> handler) {
+        transportService.registerRequestHandler("internal:dummy", () -> TransportRequest.Empty.INSTANCE, ThreadPool.Names.GENERIC, handler);
     }
 
     private void send(TransportService transportService, DiscoveryNode destinationNode,
                       TransportResponseHandler<TransportResponse> responseHandler) {
-        transportService.sendRequest(destinationNode, "internal:dummy", new DummyRequest(), responseHandler);
+        transportService.sendRequest(destinationNode, "internal:dummy", TransportRequest.Empty.INSTANCE, responseHandler);
     }
 
     public void testSuccessfulResponse() {

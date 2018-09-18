@@ -101,7 +101,8 @@ public abstract class DisruptableMockTransport extends MockTransport {
                         Optional<DisruptableMockTransport> destinationTransport = getDisruptedCapturingTransport(destination);
                         assert destinationTransport.isPresent();
 
-                        final RequestHandlerRegistry requestHandler = destinationTransport.get().getRequestHandler(action);
+                        final RequestHandlerRegistry<TransportRequest> requestHandler =
+                            destinationTransport.get().getRequestHandler(action);
 
                         final TransportChannel transportChannel = new TransportChannel() {
                             @Override
@@ -111,7 +112,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
                             @Override
                             public String getChannelType() {
-                                return "test-channel";
+                                return "disruptable-mock-transport-channel";
                             }
 
                             @Override

@@ -86,6 +86,7 @@ public class MockTransport implements Transport, LifecycleComponent {
     /**
      * simulate a response for the given requestId
      */
+    @SuppressWarnings("unchecked")
     public void handleResponse(final long requestId, final TransportResponse response) {
         responseHandlers.onResponseReceived(requestId, listener).handleResponse(response);
     }
@@ -153,6 +154,7 @@ public class MockTransport implements Transport, LifecycleComponent {
             @Override
             public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
                 throws TransportException {
+                requests.put(requestId, Tuple.tuple(node, action));
                 onSendRequest(requestId, action, request, node);
             }
 
@@ -172,7 +174,7 @@ public class MockTransport implements Transport, LifecycleComponent {
     }
 
     protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
-        requests.put(requestId, Tuple.tuple(node, action));
+
     }
 
     protected boolean nodeConnected(DiscoveryNode discoveryNode) {
@@ -244,8 +246,9 @@ public class MockTransport implements Transport, LifecycleComponent {
         return responseHandlers;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
-    public RequestHandlerRegistry getRequestHandler(String action) {
+    public RequestHandlerRegistry<TransportRequest> getRequestHandler(String action) {
         return requestHandlers.get(action);
     }
 

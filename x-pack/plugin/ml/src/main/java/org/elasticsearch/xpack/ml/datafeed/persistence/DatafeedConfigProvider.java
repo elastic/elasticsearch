@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -41,8 +42,10 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -57,6 +60,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -86,17 +91,40 @@ public class DatafeedConfigProvider extends AbstractComponent {
      * @param config The datafeed configuration
      * @param listener Index response listener
      */
-    public void putDatafeedConfig(DatafeedConfig config, ActionListener<IndexResponse> listener) {
+    public void putDatafeedConfig(DatafeedConfig config, Map<String, String> headers, ActionListener<IndexResponse> listener) {
+
+        if (headers.isEmpty() == false) {
+            // Filter any values in headers that aren't security fields
+            DatafeedConfig.Builder builder = new DatafeedConfig.Builder(config);
+            Map<String, String> securityHeaders = headers.entrySet().stream()
+                    .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            builder.setHeaders(securityHeaders);
+            config = builder.build();
+        }
+
+        final String datafeedId = config.getId();
+
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = config.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
             IndexRequest indexRequest =  client.prepareIndex(AnomalyDetectorsIndex.configIndexName(),
-                    ElasticsearchMappings.DOC_TYPE, DatafeedConfig.documentId(config.getId()))
+                    ElasticsearchMappings.DOC_TYPE, DatafeedConfig.documentId(datafeedId))
                     .setSource(source)
                     .setOpType(DocWriteRequest.OpType.CREATE)
                     .request();
 
-            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, listener);
+            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
+                    listener::onResponse,
+                    e -> {
+                        if (e instanceof VersionConflictEngineException) {
+                            // the dafafeed already exists
+                            listener.onFailure(ExceptionsHelper.datafeedAlreadyExists(datafeedId));
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    }
+            ));
 
         } catch (IOException e) {
             listener.onFailure(new ElasticsearchParseException("Failed to serialise datafeed config with id [" + config.getId() + "]", e));
@@ -132,6 +160,43 @@ public class DatafeedConfigProvider extends AbstractComponent {
     }
 
     /**
+     * Find any datafeeds that are used by job {@code jobid} i.e. the
+     * datafeed that references job {@code jobid}.
+     *
+     * In theory there should never be more than one datafeed referencing a
+     * particular job.
+     *
+     * @param jobId     The job to find
+     * @param listener  Datafeed Id listener
+     */
+    public void findDatafeedForJobId(String jobId, ActionListener<Set<String>> listener) {
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedJobIdQuery(jobId));
+        sourceBuilder.fetchSource(false);
+        sourceBuilder.docValueField(DatafeedConfig.ID.getPreferredName());
+
+        SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setSource(sourceBuilder).request();
+
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
+                ActionListener.<SearchResponse>wrap(
+                        response -> {
+                            Set<String> datafeedIds = new HashSet<>();
+                            SearchHit[] hits = response.getHits().getHits();
+                            // There should be 0 or 1 datafeeds referencing the same job
+                            assert hits.length <= 1;
+
+                            for (SearchHit hit : hits) {
+                                datafeedIds.add(hit.field(DatafeedConfig.ID.getPreferredName()).getValue());
+                            }
+
+                            listener.onResponse(datafeedIds);
+                        },
+                        listener::onFailure)
+                , client::search);
+    }
+
+    /**
      * Delete the datafeed config document
      *
      * @param datafeedId The datafeed id
@@ -161,12 +226,19 @@ public class DatafeedConfigProvider extends AbstractComponent {
      * Get the datafeed config and apply the {@code update}
      * then index the modified config setting the version in the request.
      *
+     * The {@code validator} consumer can be used to perform extra validation
+     * but it must call the passed ActionListener. For example a no-op validator
+     * would be {@code (updatedConfig, listener) -> listener.onResponse(Boolean.TRUE)}
+     *
      * @param datafeedId The Id of the datafeed to update
      * @param update The update
      * @param headers Datafeed headers applied with the update
+     * @param validator BiConsumer that accepts the updated config and can perform
+     *                  extra validations. {@code validator} must call the passed listener
      * @param updatedConfigListener Updated datafeed config listener
      */
     public void updateDatefeedConfig(String datafeedId, DatafeedUpdate update, Map<String, String> headers,
+                          BiConsumer<DatafeedConfig, ActionListener<Boolean>> validator,
                           ActionListener<DatafeedConfig> updatedConfigListener) {
         GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(),
                 ElasticsearchMappings.DOC_TYPE, DatafeedConfig.documentId(datafeedId));
@@ -197,26 +269,19 @@ public class DatafeedConfigProvider extends AbstractComponent {
                     return;
                 }
 
-                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                    XContentBuilder updatedSource = updatedConfig.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                    IndexRequest indexRequest = client.prepareIndex(AnomalyDetectorsIndex.configIndexName(),
-                            ElasticsearchMappings.DOC_TYPE, DatafeedConfig.documentId(updatedConfig.getId()))
-                            .setSource(updatedSource)
-                            .setVersion(version)
-                            .request();
+                ActionListener<Boolean> validatedListener = ActionListener.wrap(
+                        ok -> {
+                            indexUpdatedConfig(updatedConfig, version, ActionListener.wrap(
+                                    indexResponse -> {
+                                        assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
+                                        updatedConfigListener.onResponse(updatedConfig);
+                                    },
+                                    updatedConfigListener::onFailure));
+                        },
+                        updatedConfigListener::onFailure
+                );
 
-                    executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
-                            indexResponse -> {
-                                assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
-                                updatedConfigListener.onResponse(updatedConfig);
-                            },
-                            updatedConfigListener::onFailure
-                    ));
-
-                } catch (IOException e) {
-                    updatedConfigListener.onFailure(
-                            new ElasticsearchParseException("Failed to serialise datafeed config with id [" + datafeedId + "]", e));
-                }
+                validator.accept(updatedConfig, validatedListener);
             }
 
             @Override
@@ -224,6 +289,23 @@ public class DatafeedConfigProvider extends AbstractComponent {
                 updatedConfigListener.onFailure(e);
             }
         });
+    }
+
+    private void indexUpdatedConfig(DatafeedConfig updatedConfig, long version, ActionListener<IndexResponse> listener) {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            XContentBuilder updatedSource = updatedConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
+            IndexRequest indexRequest = client.prepareIndex(AnomalyDetectorsIndex.configIndexName(),
+                    ElasticsearchMappings.DOC_TYPE, DatafeedConfig.documentId(updatedConfig.getId()))
+                    .setSource(updatedSource)
+                    .setVersion(version)
+                    .request();
+
+            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, listener);
+
+        } catch (IOException e) {
+            listener.onFailure(
+                    new ElasticsearchParseException("Failed to serialise datafeed config with id [" + updatedConfig.getId() + "]", e));
+        }
     }
 
     /**
@@ -252,10 +334,10 @@ public class DatafeedConfigProvider extends AbstractComponent {
      */
     public void expandDatafeedIds(String expression, boolean allowNoDatafeeds, ActionListener<Set<String>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens));
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedIdQuery(tokens));
         sourceBuilder.sort(DatafeedConfig.ID.getPreferredName());
-        String [] includes = new String[] {DatafeedConfig.ID.getPreferredName()};
-        sourceBuilder.fetchSource(includes, null);
+        sourceBuilder.fetchSource(false);
+        sourceBuilder.docValueField(DatafeedConfig.ID.getPreferredName());
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
@@ -269,7 +351,7 @@ public class DatafeedConfigProvider extends AbstractComponent {
                             Set<String> datafeedIds = new HashSet<>();
                             SearchHit[] hits = response.getHits().getHits();
                             for (SearchHit hit : hits) {
-                                datafeedIds.add((String)hit.getSourceAsMap().get(DatafeedConfig.ID.getPreferredName()));
+                                datafeedIds.add(hit.field(DatafeedConfig.ID.getPreferredName()).getValue());
                             }
 
                             requiredMatches.filterMatchedIds(datafeedIds);
@@ -301,7 +383,7 @@ public class DatafeedConfigProvider extends AbstractComponent {
     // NORELEASE datafeed configs should be paged or have a mechanism to return all jobs if there are many of them
     public void expandDatafeedConfigs(String expression, boolean allowNoDatafeeds, ActionListener<List<DatafeedConfig.Builder>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens));
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedIdQuery(tokens));
         sourceBuilder.sort(DatafeedConfig.ID.getPreferredName());
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
@@ -342,15 +424,15 @@ public class DatafeedConfigProvider extends AbstractComponent {
 
     }
 
-    private QueryBuilder buildQuery(String [] tokens) {
-        QueryBuilder jobQuery = new TermQueryBuilder(DatafeedConfig.CONFIG_TYPE.getPreferredName(), DatafeedConfig.TYPE);
+    private QueryBuilder buildDatafeedIdQuery(String [] tokens) {
+        QueryBuilder datafeedQuery = new TermQueryBuilder(DatafeedConfig.CONFIG_TYPE.getPreferredName(), DatafeedConfig.TYPE);
         if (Strings.isAllOrWildcard(tokens)) {
             // match all
-            return jobQuery;
+            return datafeedQuery;
         }
 
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.filter(jobQuery);
+        boolQueryBuilder.filter(datafeedQuery);
         BoolQueryBuilder shouldQueries = new BoolQueryBuilder();
 
         List<String> terms = new ArrayList<>();
@@ -370,6 +452,13 @@ public class DatafeedConfigProvider extends AbstractComponent {
             boolQueryBuilder.filter(shouldQueries);
         }
 
+        return boolQueryBuilder;
+    }
+
+    private QueryBuilder buildDatafeedJobIdQuery(String jobId) {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.filter(new TermQueryBuilder(DatafeedConfig.CONFIG_TYPE.getPreferredName(), DatafeedConfig.TYPE));
+        boolQueryBuilder.filter(new TermQueryBuilder(Job.ID.getPreferredName(), jobId));
         return boolQueryBuilder;
     }
 

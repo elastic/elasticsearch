@@ -30,6 +30,10 @@ public class ExceptionsHelper {
         return new ResourceNotFoundException(Messages.getMessage(Messages.DATAFEED_NOT_FOUND, datafeedId));
     }
 
+    public static ResourceAlreadyExistsException datafeedAlreadyExists(String datafeedId) {
+        return new ResourceAlreadyExistsException(Messages.getMessage(Messages.DATAFEED_ID_ALREADY_TAKEN, datafeedId));
+    }
+
     public static ElasticsearchException serverError(String msg) {
         return new ElasticsearchException(msg);
     }

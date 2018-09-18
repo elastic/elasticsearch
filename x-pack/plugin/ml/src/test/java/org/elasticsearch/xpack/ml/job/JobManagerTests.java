@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -57,6 +58,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
@@ -441,20 +443,10 @@ public class JobManagerTests extends ESTestCase {
     }
 
     public void testUpdateProcessOnCalendarChanged() throws IOException {
-        List<BytesReference> docsAsBytes = new ArrayList<>();
-        Job.Builder job1 = buildJobBuilder("job-1");
-        docsAsBytes.add(toBytesReference(job1.build()));
-        Job.Builder job2 = buildJobBuilder("job-2");
-//        docsAsBytes.add(toBytesReference(job2.build()));
-        Job.Builder job3 = buildJobBuilder("job-3");
-        docsAsBytes.add(toBytesReference(job3.build()));
-        Job.Builder job4 = buildJobBuilder("job-4");
-        docsAsBytes.add(toBytesReference(job4.build()));
-
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
-        addJobTask(job1.getId(), "node_id", JobState.OPENED, tasksBuilder);
-        addJobTask(job2.getId(), "node_id", JobState.OPENED, tasksBuilder);
-        addJobTask(job3.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        addJobTask("job-1", "node_id", JobState.OPENED, tasksBuilder);
+        addJobTask("job-2", "node_id", JobState.OPENED, tasksBuilder);
+        addJobTask("job-3", "node_id", JobState.OPENED, tasksBuilder);
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder()
@@ -463,7 +455,10 @@ public class JobManagerTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
 
         MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
-        mockClientBuilder.prepareSearch(AnomalyDetectorsIndex.configIndexName(), docsAsBytes);
+        // For the JobConfigProvider expand groups search.
+        // The search will not return any results
+        mockClientBuilder.prepareSearchFields(AnomalyDetectorsIndex.configIndexName(), Collections.emptyList());
+
         JobManager jobManager = createJobManager(mockClientBuilder.build());
 
         jobManager.updateProcessOnCalendarChanged(Arrays.asList("job-1", "job-3", "job-4"),
@@ -477,28 +472,17 @@ public class JobManagerTests extends ESTestCase {
 
         List<UpdateParams> capturedUpdateParams = updateParamsCaptor.getAllValues();
         assertThat(capturedUpdateParams.size(), equalTo(2));
-        assertThat(capturedUpdateParams.get(0).getJobId(), equalTo(job1.getId()));
+        assertThat(capturedUpdateParams.get(0).getJobId(), equalTo("job-1"));
         assertThat(capturedUpdateParams.get(0).isUpdateScheduledEvents(), is(true));
-        assertThat(capturedUpdateParams.get(1).getJobId(), equalTo(job3.getId()));
+        assertThat(capturedUpdateParams.get(1).getJobId(), equalTo("job-3"));
         assertThat(capturedUpdateParams.get(1).isUpdateScheduledEvents(), is(true));
     }
 
     public void testUpdateProcessOnCalendarChanged_GivenGroups() throws IOException {
-        Job.Builder job1 = buildJobBuilder("job-1");
-        job1.setGroups(Collections.singletonList("group-1"));
-        Job.Builder job2 = buildJobBuilder("job-2");
-        job2.setGroups(Collections.singletonList("group-1"));
-        Job.Builder job3 = buildJobBuilder("job-3");
-
-        List<BytesReference> docsAsBytes = new ArrayList<>();
-        docsAsBytes.add(toBytesReference(job1.build()));
-        docsAsBytes.add(toBytesReference(job2.build()));
-//        docsAsBytes.add(toBytesReference(job3.build()));
-
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
-        addJobTask(job1.getId(), "node_id", JobState.OPENED, tasksBuilder);
-        addJobTask(job2.getId(), "node_id", JobState.OPENED, tasksBuilder);
-        addJobTask(job3.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        addJobTask("job-1", "node_id", JobState.OPENED, tasksBuilder);
+        addJobTask("job-2", "node_id", JobState.OPENED, tasksBuilder);
+        addJobTask("job-3", "node_id", JobState.OPENED, tasksBuilder);
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder()
@@ -507,7 +491,16 @@ public class JobManagerTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
 
         MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
-        mockClientBuilder.prepareSearch(AnomalyDetectorsIndex.configIndexName(), docsAsBytes);
+        // For the JobConfigProvider expand groups search.
+        // group-1 will expand to job-1 and job-2
+        List<Map<String, DocumentField>> fieldHits = new ArrayList<>();
+        fieldHits.add(Collections.singletonMap(Job.ID.getPreferredName(),
+                new DocumentField(Job.ID.getPreferredName(), Collections.singletonList("job-1"))));
+        fieldHits.add(Collections.singletonMap(Job.ID.getPreferredName(),
+                new DocumentField(Job.ID.getPreferredName(), Collections.singletonList("job-2"))));
+
+
+        mockClientBuilder.prepareSearchFields(AnomalyDetectorsIndex.configIndexName(), fieldHits);
         JobManager jobManager = createJobManager(mockClientBuilder.build());
 
         jobManager.updateProcessOnCalendarChanged(Collections.singletonList("group-1"),
@@ -521,9 +514,9 @@ public class JobManagerTests extends ESTestCase {
 
         List<UpdateParams> capturedUpdateParams = updateParamsCaptor.getAllValues();
         assertThat(capturedUpdateParams.size(), equalTo(2));
-        assertThat(capturedUpdateParams.get(0).getJobId(), equalTo(job1.getId()));
+        assertThat(capturedUpdateParams.get(0).getJobId(), equalTo("job-1"));
         assertThat(capturedUpdateParams.get(0).isUpdateScheduledEvents(), is(true));
-        assertThat(capturedUpdateParams.get(1).getJobId(), equalTo(job2.getId()));
+        assertThat(capturedUpdateParams.get(1).getJobId(), equalTo("job-2"));
         assertThat(capturedUpdateParams.get(1).isUpdateScheduledEvents(), is(true));
     }
 

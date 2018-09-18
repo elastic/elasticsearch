@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
@@ -108,7 +109,8 @@ public class NamedDateTimeProcessorTests extends AbstractWireSerializingTestCase
         }
         String beforeJava9CompatibleLocale = System.getProperty("java.locale.providers");
         // and COMPAT setting needs to be first on the list
-        boolean isBeforeJava9Compatible = beforeJava9CompatibleLocale != null && beforeJava9CompatibleLocale.split(",")[0].equals("COMPAT");
+        boolean isBeforeJava9Compatible = beforeJava9CompatibleLocale != null 
+                && Strings.tokenizeToStringArray(beforeJava9CompatibleLocale, ",")[0].equals("COMPAT");
         Assume.assumeTrue(isBeforeJava9Compatible);
     }
 }

@@ -45,7 +45,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -178,8 +177,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         // have to iterate over possibleLockId as NodeEnvironment; on a contrast to it - we have to fail if node is busy
         for (int possibleLockId = fromNodeId; possibleLockId < toNodeId; possibleLockId++) {
             try {
-                final NodeEnvironment.NodeLock nodeLock = new NodeEnvironment.NodeLock(possibleLockId, logger, environment, Files::exists);
-                try (Releasable nLock = nodeLock) {
+                try (NodeEnvironment.NodeLock nodeLock = new NodeEnvironment.NodeLock(possibleLockId, logger, environment, Files::exists)) {
                     final NodeEnvironment.NodePath[] nodePaths = nodeLock.getNodePaths();
                     for (NodeEnvironment.NodePath nodePath : nodePaths) {
                         if (Files.exists(nodePath.indicesPath)) {

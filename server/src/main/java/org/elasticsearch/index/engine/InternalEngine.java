@@ -922,11 +922,13 @@ public class InternalEngine extends Engine {
 
     protected final IndexingStrategy planIndexingAsPrimary(Index index) throws IOException {
         assert index.origin() == Operation.Origin.PRIMARY : "planing as primary but origin isn't. got " + index.origin();
+        assert getMaxSeqNoOfUpdatesOrDeletes() != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is not initialized";
         final IndexingStrategy plan;
         // resolve an external operation into an internal one which is safe to replay
         if (canOptimizeAddDocument(index)) {
             if (mayHaveBeenIndexedBefore(index)) {
                 plan = IndexingStrategy.overrideExistingAsIfNotThere(generateSeqNoForOperation(index), 1L);
+                advanceMaxSeqNoOfUpdatesOrDeletes(plan.seqNoForIndexing);
                 versionMap.enforceSafeAccess();
             } else {
                 plan = IndexingStrategy.optimizedAppendOnly(generateSeqNoForOperation(index));
@@ -954,6 +956,10 @@ public class InternalEngine extends Engine {
                     generateSeqNoForOperation(index),
                     index.versionType().updateVersion(currentVersion, index.version())
                 );
+                final boolean toAppend = plan.indexIntoLucene && plan.useLuceneUpdateDocument == false;
+                if (toAppend == false) {
+                    advanceMaxSeqNoOfUpdatesOrDeletes(plan.seqNoForIndexing);
+                }
             }
         }
         return plan;
@@ -1245,6 +1251,7 @@ public class InternalEngine extends Engine {
 
     protected final DeletionStrategy planDeletionAsPrimary(Delete delete) throws IOException {
         assert delete.origin() == Operation.Origin.PRIMARY : "planing as primary but got " + delete.origin();
+        assert getMaxSeqNoOfUpdatesOrDeletes() != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is not initialized";
         // resolve operation from external to internal
         final VersionValue versionValue = resolveDocVersion(delete);
         assert incrementVersionLookup();
@@ -1266,6 +1273,7 @@ public class InternalEngine extends Engine {
                     currentlyDeleted,
                     generateSeqNoForOperation(delete),
                     delete.versionType().updateVersion(currentVersion, delete.version()));
+            advanceMaxSeqNoOfUpdatesOrDeletes(plan.seqNoOfDeletion);
         }
         return plan;
     }

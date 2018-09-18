@@ -679,6 +679,7 @@ public class InternalEngineTests extends EngineTestCase {
         expectThrows(IllegalStateException.class, () -> engine.flush(true, true));
         assertTrue(engine.isRecovering());
         engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+        engine.advanceMaxSeqNoOfUpdatesOrDeletes(engine.getLocalCheckpointTracker().getMaxSeqNo());
         assertFalse(engine.isRecovering());
         doc = testParsedDocument("2", null, testDocumentWithTextField(), SOURCE, null);
         engine.index(indexForDoc(doc));
@@ -2678,6 +2679,7 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }) {
                 engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+                engine.advanceMaxSeqNoOfUpdatesOrDeletes(engine.getLocalCheckpointTracker().getMaxSeqNo());
                 final ParsedDocument doc1 = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
                 engine.index(indexForDoc(doc1));
                 globalCheckpoint.set(engine.getLocalCheckpoint());
@@ -3461,9 +3463,11 @@ public class InternalEngineTests extends EngineTestCase {
             engine.index(appendOnlyPrimary(doc, true, timestamp1));
             assertEquals(timestamp1, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
         }
-        try (Store store = createStore(newFSDirectory(storeDir)); Engine engine = new InternalEngine(configSupplier.apply(store))) {
+        try (Store store = createStore(newFSDirectory(storeDir));
+             InternalEngine engine = new InternalEngine(configSupplier.apply(store))) {
             assertEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
             engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+            engine.advanceMaxSeqNoOfUpdatesOrDeletes(engine.getLocalCheckpointTracker().getMaxSeqNo());
             assertEquals(timestamp1, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
             final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(),
                 new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
@@ -4353,7 +4357,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         final EngineConfig engineConfig = config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null,
             () -> globalCheckpoint.get());
-        try (Engine engine = new InternalEngine(engineConfig) {
+        try (InternalEngine engine = new InternalEngine(engineConfig) {
                 @Override
                 protected void commitIndexWriter(IndexWriter writer, Translog translog, String syncId) throws IOException {
                     // Advance the global checkpoint during the flush to create a lag between a persisted global checkpoint in the translog
@@ -4365,6 +4369,7 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }) {
             engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+            engine.advanceMaxSeqNoOfUpdatesOrDeletes(engine.getLocalCheckpointTracker().getMaxSeqNo());
             int numDocs = scaledRandomIntBetween(10, 100);
             for (int docId = 0; docId < numDocs; docId++) {
                 ParseContext.Document document = testDocumentWithTextField();
@@ -5031,6 +5036,47 @@ public class InternalEngineTests extends EngineTestCase {
     public void testAcquireSearcherOnClosingEngine() throws Exception {
         engine.close();
         expectThrows(AlreadyClosedException.class, () -> engine.acquireSearcher("test"));
+    }
+
+    public void testTrackMaxSeqNoOfUpdatesOrDeletes() throws Exception {
+        engine.close();
+        Set<String> liveDocIds = new HashSet<>();
+        engine = new InternalEngine(engine.config());
+        assertThat(engine.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(-2L));
+        engine.advanceMaxSeqNoOfUpdatesOrDeletes(randomLongBetween(-1L, 50L));
+        int numOps = between(1, 500);
+        for (int i = 0; i < numOps; i++) {
+            long currentMaxSeqNoOfUpdates = engine.getMaxSeqNoOfUpdatesOrDeletes();
+            ParsedDocument doc = createParsedDoc(Integer.toString(between(1, 100)), null);
+            if (randomBoolean()) {
+                if (randomBoolean()) {
+                    Engine.IndexResult result = engine.index(indexForDoc(doc));
+                    if (liveDocIds.add(doc.id()) == false) {
+                        assertThat("update operations on primary must advance max_seq_no_of_updates",
+                            engine.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(Math.max(currentMaxSeqNoOfUpdates, result.getSeqNo())));
+                    } else {
+                        assertThat(engine.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(currentMaxSeqNoOfUpdates));
+                    }
+                } else {
+                    Engine.DeleteResult result = engine.delete(new Engine.Delete(doc.type(), doc.id(), newUid(doc.id()), primaryTerm.get()));
+                    liveDocIds.remove(doc.id());
+                    assertThat("delete operations on primary must advance max_seq_no_of_updates",
+                        engine.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(Math.max(currentMaxSeqNoOfUpdates, result.getSeqNo())));
+                }
+            } else {
+                long maxSeqNo = engine.getLocalCheckpointTracker().getMaxSeqNo();
+                long seqNo = randomLongBetween(maxSeqNo + 1, maxSeqNo + 10);
+                if (randomBoolean()) {
+                    engine.index(replicaIndexForDoc(doc, 1, seqNo, randomBoolean()));
+                    liveDocIds.add(doc.id());
+                } else {
+                    engine.delete(replicaDeleteForDoc(doc.id(), 1, seqNo, threadPool.relativeTimeInMillis()));
+                    liveDocIds.remove(doc.id());
+                }
+                assertThat("non-primary operations should not advance max_seq_no_of_updates",
+                    engine.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(currentMaxSeqNoOfUpdates));
+            }
+        }
     }
 
     static void trimUnsafeCommits(EngineConfig config) throws IOException {

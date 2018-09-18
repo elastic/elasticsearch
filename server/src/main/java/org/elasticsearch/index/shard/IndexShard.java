@@ -516,6 +516,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  */
                                 engine.rollTranslogGeneration();
                                 engine.fillSeqNoGaps(newPrimaryTerm);
+                                engine.advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats().getMaxSeqNo());
                                 replicationTracker.updateLocalCheckpoint(currentRouting.allocationId().getId(), getLocalCheckpoint());
                                 primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
                                     @Override
@@ -1324,6 +1325,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         };
         innerOpenEngineAndTranslog();
         getEngine().recoverFromTranslog(translogRecoveryRunner, Long.MAX_VALUE);
+        advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats().getMaxSeqNo());
     }
 
     /**
@@ -1947,6 +1949,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId()).getLocalCheckpoint();
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
+            advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats().getMaxSeqNo());
         }
     }
 
@@ -2719,5 +2722,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // TODO: add a dedicate recovery stats for the reset translog
             });
         newEngine.recoverFromTranslog(translogRunner, globalCheckpoint);
+    }
+
+    /**
+     * Returns the maximum sequence number of either update operations (overwrite existing documents) or delete operations
+     * have been processed in this shard or the sequence number from {@link #advanceMaxSeqNoOfUpdatesOrDeletes(long)}.
+     * <p>
+     * The primary captures this value after executes a replication request, then transfers it to a replica before executing
+     * that replication request on a replica.
+     */
+    public long getMaxSeqNoOfUpdatesOrDeletes() {
+        return getEngine().getMaxSeqNoOfUpdatesOrDeletes();
+    }
+
+    /**
+     * Advances the max_seq_no_of_updates marker of the engine of this shard to at least the given sequence number.
+     * <p>
+     * A primary calls this method only once to initialize this maker after being promoted or when it finishes its
+     * recovery or relocation. Whereas a replica calls this method before executing a replication request or before
+     * applying translog operations in peer-recovery.
+     */
+    public void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {
+        getEngine().advanceMaxSeqNoOfUpdatesOrDeletes(seqNo);
+        assert seqNo <= getMaxSeqNoOfUpdatesOrDeletes();
     }
 }

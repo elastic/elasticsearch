@@ -88,6 +88,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -126,6 +127,9 @@ public abstract class Engine implements Closeable {
      *  inactive shards.
      */
     protected volatile long lastWriteNanos = System.nanoTime();
+    // The maximum sequence number of either update or delete operations have been processed by this engine.
+    // This value is started with an unassigned status (-2) and will be initialized from outside.
+    private final AtomicLong maxSeqNoOfUpdatesOrDeletes = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
 
     protected Engine(EngineConfig engineConfig) {
         Objects.requireNonNull(engineConfig.getStore(), "Store must be provided to the engine");
@@ -1693,5 +1697,26 @@ public abstract class Engine implements Closeable {
     @FunctionalInterface
     public interface TranslogRecoveryRunner {
         int run(Engine engine, Translog.Snapshot snapshot) throws IOException;
+    }
+
+    /**
+     * Returns the maximum sequence number of either update or delete operations have been processed
+     * in this engine or the sequence number from {@link #advanceMaxSeqNoOfUpdatesOrDeletes(long)}.
+     * <p>
+     * For a primary engine, this value is initialized once, then advanced internally when it processes
+     * an update or a delete operation. Whereas a replica engine never updates this value by itself but
+     * only inherits the latest value from its primary. In both cases, this value never goes backwards.
+     */
+    public long getMaxSeqNoOfUpdatesOrDeletes() {
+        return maxSeqNoOfUpdatesOrDeletes.get();
+    }
+
+    /**
+     * Advances the max_seq_no_of_updates marker of this engine to at least the given sequence number.
+     * @see #getMaxSeqNoOfUpdatesOrDeletes()
+     */
+    public void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {
+        maxSeqNoOfUpdatesOrDeletes.updateAndGet(curr -> Math.max(curr, seqNo));
+        assert maxSeqNoOfUpdatesOrDeletes.get() >= seqNo;
     }
 }

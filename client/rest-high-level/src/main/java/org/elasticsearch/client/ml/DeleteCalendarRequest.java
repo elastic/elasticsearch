@@ -24,10 +24,17 @@ import org.elasticsearch.action.ActionRequestValidationException;
 
 import java.util.Objects;
 
+/**
+ * Request to delete a Machine Learning Calendar
+ */
 public class DeleteCalendarRequest extends ActionRequest {
 
     private final String calendarId;
 
+    /**
+     * The constructor requires a single calendar id.
+     * @param calendarId The calendar to delete. Must be {@code non-null}
+     */
     public DeleteCalendarRequest(String calendarId) {
         this.calendarId = Objects.requireNonNull(calendarId, "[calendar_id] must not be null");
     }

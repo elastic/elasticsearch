@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script;
 
-import java.util.function.DoubleSupplier;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Doc;

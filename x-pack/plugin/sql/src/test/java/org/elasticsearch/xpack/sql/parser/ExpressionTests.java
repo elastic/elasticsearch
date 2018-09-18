@@ -104,11 +104,11 @@ public class ExpressionTests extends ESTestCase {
 
     public void testLiteralIntegerInvalid() throws Exception {
         ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("123456789098765432101"));
-        assertEquals(ex.getErrorMessage(), "Cannot parse number [123456789098765432101]");
+        assertEquals("Number [123456789098765432101] is too large", ex.getErrorMessage());
     }
 
     public void testLiteralDecimalTooBig() throws Exception {
         ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("1.9976931348623157e+308"));
-        assertEquals(ex.getErrorMessage(), "Number [1.9976931348623157e+308] is too large");
+        assertEquals("Number [1.9976931348623157e+308] is too large", ex.getErrorMessage());
     }
 }

@@ -95,6 +95,7 @@ import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.DateTimeFormatterBuilder;
 import org.joda.time.format.ISODateTimeFormat;
 
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -483,7 +484,6 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         } catch (NumberFormatException nfe) {
             throw new ParsingException(source(ctx), "Cannot parse number [{}]", ctx.getText());
         }
-
         if (Double.isInfinite(value)) {
             throw new ParsingException(source(ctx), "Number [{}] is too large", ctx.getText());
         }
@@ -499,6 +499,16 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         try {
             value = Long.parseLong(ctx.getText());
         } catch (NumberFormatException nfe) {
+            try {
+                BigInteger bi = new BigInteger(ctx.getText());
+                try {
+                    bi.longValueExact();
+                } catch (ArithmeticException ae) {
+                    throw new ParsingException(source(ctx), "Number [{}] is too large", ctx.getText());
+                }
+            } catch (NumberFormatException ex) {
+                // parsing fails, go through
+            }
             throw new ParsingException(source(ctx), "Cannot parse number [{}]", ctx.getText());
         }
 

@@ -393,7 +393,7 @@ public class SearchTransportService extends AbstractComponent {
                 (Supplier<TransportResponse>) SearchService.CanMatchResponse::new);
     }
 
-    private static class ChannelActionListener<T extends TransportResponse> implements ActionListener<T>{
+    public static class ChannelActionListener<T extends TransportResponse> implements ActionListener<T>{
 
         private final TransportChannel channel;
 

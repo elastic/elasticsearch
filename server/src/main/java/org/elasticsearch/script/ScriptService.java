@@ -281,15 +281,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             options = source.getOptions();
         }
 
-        // TODO: fix this through some API or something, that's wrong
-        // special exception to prevent expressions from compiling as update or mapping scripts
-        boolean expression = "expression".equals(lang);
-        boolean notSupported = context.name.equals(UpdateScript.CONTEXT.name);
-        if (expression && notSupported) {
-            throw new UnsupportedOperationException("scripts of type [" + script.getType() + "]," +
-                " operation [" + context.name + "] and lang [" + lang + "] are not supported");
-        }
-
         ScriptEngine scriptEngine = getEngine(lang);
 
         if (isTypeEnabled(type) == false) {

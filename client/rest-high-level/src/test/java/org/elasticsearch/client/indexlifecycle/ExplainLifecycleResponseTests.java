@@ -18,14 +18,19 @@
  */
 package org.elasticsearch.client.indexlifecycle;
 
+import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
-public class ExplainLifecycleResponseTests extends AbstractStreamableXContentTestCase<ExplainLifecycleResponse> {
+public class ExplainLifecycleResponseTests extends AbstractXContentTestCase<ExplainLifecycleResponse> {
 
     @Override
     protected ExplainLifecycleResponse createTestInstance() {
@@ -38,19 +43,6 @@ public class ExplainLifecycleResponseTests extends AbstractStreamableXContentTes
     }
 
     @Override
-    protected ExplainLifecycleResponse createBlankInstance() {
-        return new ExplainLifecycleResponse();
-    }
-
-    @Override
-    protected ExplainLifecycleResponse mutateInstance(ExplainLifecycleResponse response) {
-        Map<String, IndexLifecycleExplainResponse> indexResponses = new HashMap<>(response.getIndexResponses());
-        IndexLifecycleExplainResponse indexResponse = IndexExplainResponseTests.randomIndexExplainResponse();
-        indexResponses.put(indexResponse.getIndex(), indexResponse);
-        return new ExplainLifecycleResponse(indexResponses);
-    }
-
-    @Override
     protected ExplainLifecycleResponse doParseInstance(XContentParser parser) throws IOException {
         return ExplainLifecycleResponse.fromXContent(parser);
     }
@@ -58,5 +50,12 @@ public class ExplainLifecycleResponseTests extends AbstractStreamableXContentTes
     @Override
     protected boolean supportsUnknownFields() {
         return false;
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
+        entries.add(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse));
+        return new NamedXContentRegistry(entries);
     }
 }

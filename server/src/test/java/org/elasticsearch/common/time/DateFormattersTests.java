@@ -31,17 +31,15 @@ import static org.hamcrest.Matchers.is;
 
 public class DateFormattersTests extends ESTestCase {
 
-    // the epoch milli parser is a bit special, as it does not use date formatter, see comments in DateFormatters
     public void testEpochMilliParser() {
-        CompoundDateTimeFormatter formatter = DateFormatters.forPattern("epoch_millis");
+        DateFormatter formatter = DateFormatters.forPattern("epoch_millis");
 
         DateTimeParseException e = expectThrows(DateTimeParseException.class, () -> formatter.parse("invalid"));
         assertThat(e.getMessage(), containsString("invalid number"));
 
-        // different zone, should still yield the same output, as epoch is time zoned independent
+        // different zone, should still yield the same output, as epoch is time zone independent
         ZoneId zoneId = randomZone();
-        CompoundDateTimeFormatter zonedFormatter = formatter.withZone(zoneId);
-        assertThat(zonedFormatter.printer.getZone(), is(zoneId));
+        DateFormatter zonedFormatter = formatter.withZone(zoneId);
 
         // test with negative and non negative values
         assertThatSameDateTime(formatter, zonedFormatter, randomNonNegativeLong() * -1);
@@ -58,14 +56,21 @@ public class DateFormattersTests extends ESTestCase {
         assertSameFormat(formatter, 1);
     }
 
-    private void assertThatSameDateTime(CompoundDateTimeFormatter formatter, CompoundDateTimeFormatter zonedFormatter, long millis) {
+    public void testEpochMilliParsersWithDifferentFormatters() {
+        DateFormatter formatter = DateFormatters.forPattern("strict_date_optional_time||epoch_millis");
+        TemporalAccessor accessor = formatter.parse("123");
+        assertThat(DateFormatters.toZonedDateTime(accessor).toInstant().toEpochMilli(), is(123L));
+        assertThat(formatter.pattern(), is("strict_date_optional_time||epoch_millis"));
+    }
+
+    private void assertThatSameDateTime(DateFormatter formatter, DateFormatter zonedFormatter, long millis) {
         String millisAsString = String.valueOf(millis);
         ZonedDateTime formatterZonedDateTime = DateFormatters.toZonedDateTime(formatter.parse(millisAsString));
         ZonedDateTime zonedFormatterZonedDateTime = DateFormatters.toZonedDateTime(zonedFormatter.parse(millisAsString));
         assertThat(formatterZonedDateTime.toInstant().toEpochMilli(), is(zonedFormatterZonedDateTime.toInstant().toEpochMilli()));
     }
 
-    private void assertSameFormat(CompoundDateTimeFormatter formatter, long millis) {
+    private void assertSameFormat(DateFormatter formatter, long millis) {
         String millisAsString = String.valueOf(millis);
         TemporalAccessor accessor = formatter.parse(millisAsString);
         assertThat(millisAsString, is(formatter.format(accessor)));

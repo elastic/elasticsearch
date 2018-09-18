@@ -95,7 +95,7 @@ public class InternalSettingsPreparerTests extends ESTestCase {
             Files.createDirectory(config);
             Files.copy(garbage, config.resolve("elasticsearch.yml"));
             InternalSettingsPreparer.prepareEnvironment(Settings.builder().put(baseEnvSettings).build(),
-                    emptyMap(), null, DEFAULT_NODE_NAME_SHOULDNT_BE_CALLED);
+                    emptyMap(), null, () -> "default_node_name");
         } catch (SettingsException e) {
             assertEquals("Failed to load settings from [elasticsearch.yml]", e.getMessage());
         }
@@ -126,7 +126,7 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         secureSettings.setString("foo", "secret");
         Settings input = Settings.builder().put(baseEnvSettings).setSecureSettings(secureSettings).build();
         Environment env = InternalSettingsPreparer.prepareEnvironment(input, emptyMap(),
-                null, DEFAULT_NODE_NAME_SHOULDNT_BE_CALLED);
+                null, () -> "default_node_name");
         Setting<SecureString> fakeSetting = SecureSetting.secureString("foo", null);
         assertEquals("secret", fakeSetting.get(env.settings()).toString());
     }
@@ -134,7 +134,7 @@ public class InternalSettingsPreparerTests extends ESTestCase {
     public void testDefaultPropertiesDoNothing() throws Exception {
         Map<String, String> props = Collections.singletonMap("default.setting", "foo");
         Environment env = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, props,
-                null, DEFAULT_NODE_NAME_SHOULDNT_BE_CALLED);
+                null, () -> "default_node_name");
         assertEquals("foo", env.settings().get("default.setting"));
         assertNull(env.settings().get("setting"));
     }

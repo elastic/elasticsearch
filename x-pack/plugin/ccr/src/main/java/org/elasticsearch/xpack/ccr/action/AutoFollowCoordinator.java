@@ -302,7 +302,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                     pattern.getMaxBatchOperationCount(), pattern.getMaxConcurrentReadBatches(),
                     pattern.getMaxOperationSizeInBytes(), pattern.getMaxConcurrentWriteBatches(),
                     pattern.getMaxWriteBufferSize(), pattern.getMaxRetryDelay(),
-                    pattern.getIdleShardRetryDelay());
+                    pattern.getPollTimeout());
 
             // Execute if the create and follow api call succeeds:
             Runnable successHandler = () -> {

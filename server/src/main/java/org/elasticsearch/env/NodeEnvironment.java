@@ -180,6 +180,10 @@ public final class NodeEnvironment  implements Closeable {
         private final Lock[] locks;
         private final NodePath[] nodePaths;
 
+        /**
+         * Tries to acquire a node lock for a node id, throws {@code IOException} if it is unable to acquire it
+         * @param pathFunction function to check node path before attempt of acquiring a node lock
+         */
         public NodeLock(final int nodeId, final Logger logger,
                         final Environment environment,
                         final CheckedFunction<Path, Boolean, IOException> pathFunction) throws IOException {

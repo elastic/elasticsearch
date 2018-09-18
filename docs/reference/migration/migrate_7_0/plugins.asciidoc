@@ -23,3 +23,11 @@ See {plugins}/repository-gcs-client.html#repository-gcs-client[Google Cloud Stor
 
 * The misspelled helper method `requriesAnalysisSettings(AnalyzerProvider<T> provider)` has been
 renamed to `requiresAnalysisSettings`
+
+==== File-based discovery plugin
+
+* This plugin has been removed since its functionality is now part of
+Elasticsearch and requires no plugin. The location of the hosts file has moved
+from `$ES_PATH_CONF/file-discovery/unicast_hosts.txt` to
+`$ES_PATH_CONF/unicast_hosts.txt`. See <<file-based-hosts-provider, the
+file-based hosts provider documentation>> for further information.

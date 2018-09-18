@@ -19,18 +19,14 @@
 
 package org.elasticsearch.client.indexlifecycle;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -43,9 +39,9 @@ import java.util.stream.Collectors;
  * Since the API can be run over multiple indices the response provides a map of
  * index to the explanation of the lifecycle status for that index.
  */
-public class ExplainLifecycleResponse extends ActionResponse implements ToXContentObject {
+public class ExplainLifecycleResponse implements ToXContentObject {
 
-    public static final ParseField INDICES_FIELD = new ParseField("indices");
+    private static final ParseField INDICES_FIELD = new ParseField("indices");
 
     private Map<String, IndexLifecycleExplainResponse> indexResponses;
 
@@ -60,9 +56,6 @@ public class ExplainLifecycleResponse extends ActionResponse implements ToXConte
 
     public static ExplainLifecycleResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
-    }
-
-    public ExplainLifecycleResponse() {
     }
 
     public ExplainLifecycleResponse(Map<String, IndexLifecycleExplainResponse> indexResponses) {
@@ -89,25 +82,6 @@ public class ExplainLifecycleResponse extends ActionResponse implements ToXConte
         builder.endObject();
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        Map<String, IndexLifecycleExplainResponse> indexResponses = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            IndexLifecycleExplainResponse indexResponse = new IndexLifecycleExplainResponse(in);
-            indexResponses.put(indexResponse.getIndex(), indexResponse);
-        }
-        this.indexResponses = indexResponses;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(indexResponses.size());
-        for (IndexLifecycleExplainResponse e : indexResponses.values()) {
-            e.writeTo(out);
-        }
     }
 
     @Override

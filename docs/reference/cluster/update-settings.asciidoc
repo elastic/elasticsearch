@@ -11,6 +11,14 @@ GET /_cluster/settings
 --------------------------------------------------
 // CONSOLE
 
+This API only returns settings explicitly defined. The default cluster settings can also be returned using the `?include_defaults` parameter:
+
+[source,js]
+--------------------------------------------------
+GET /_cluster/settings?include_defaults=true
+--------------------------------------------------
+// CONSOLE
+
 Updates to settings can be persistent, meaning they apply across restarts, or transient, where they don't 
 survive a full cluster restart. Here is an example of a persistent update:
 

@@ -37,6 +37,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -1223,6 +1224,41 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
             () -> execute(request, highLevelClient()::fieldCaps, highLevelClient()::fieldCapsAsync));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
+    }
+
+    public void testStringQueryAndAutoGenerateSynonymsPhraseEnabled() throws IOException {
+        testStringQueryAndAutoGenerateSynonymsPhrase(Boolean.TRUE);
+    }
+
+    public void testStringQueryAndAutoGenerateSynonymsPhraseDisabled() throws IOException {
+        testStringQueryAndAutoGenerateSynonymsPhrase(Boolean.FALSE);
+    }
+
+    private void testStringQueryAndAutoGenerateSynonymsPhrase(Boolean autoGenerateSynonymsPhraseQuery) throws IOException {
+        try {
+            createIndex("some_index", Settings.EMPTY);
+
+            for (int i = 0; i < 100; i++) {
+                XContentBuilder builder = jsonBuilder().startObject().field("foo", "bar" + i).endObject();
+                Request doc = new Request(HttpPut.METHOD_NAME, "/some_index/type1/" + Integer.toString(i));
+                doc.setJsonEntity(Strings.toString(builder));
+                client().performRequest(doc);
+            }
+            client().performRequest(new Request(HttpPost.METHOD_NAME, "/some_index/_refresh"));
+
+            SearchRequest searchRequest = new SearchRequest();
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            searchSourceBuilder.query(QueryBuilders
+                .queryStringQuery("foo:bar1")
+                .lenient(Boolean.TRUE)
+                .autoGenerateSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery));
+            searchRequest.source(searchSourceBuilder);
+
+            final SearchResponse searchResponse = highLevelClient().search(searchRequest, RequestOptions.DEFAULT);
+            assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        } finally {
+            deleteIndex("some_index");
+        }
     }
 
     private static void assertSearchHeader(SearchResponse searchResponse) {

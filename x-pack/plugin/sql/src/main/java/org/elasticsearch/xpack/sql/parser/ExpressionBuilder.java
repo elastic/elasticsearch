@@ -95,7 +95,7 @@ import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.DateTimeFormatterBuilder;
 import org.joda.time.format.ISODateTimeFormat;
 
-import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -458,7 +458,13 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitBooleanLiteral(BooleanLiteralContext ctx) {
-        return new Literal(source(ctx), Booleans.parseBoolean(ctx.getText().toLowerCase(Locale.ROOT), false), DataType.BOOLEAN);
+        boolean value;
+        try {
+            value = Booleans.parseBoolean(ctx.getText().toLowerCase(Locale.ROOT), false);
+        } catch(IllegalArgumentException iae) {
+            throw new ParsingException(source(ctx), iae.getMessage());
+        }
+        return new Literal(source(ctx), Boolean.valueOf(value), DataType.BOOLEAN);
     }
 
     @Override
@@ -472,14 +478,40 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Literal visitDecimalLiteral(DecimalLiteralContext ctx) {
-        return new Literal(source(ctx), new BigDecimal(ctx.getText()).doubleValue(), DataType.DOUBLE);
+        double value;
+        try {
+            value = Double.parseDouble(ctx.getText());
+        } catch (NumberFormatException nfe) {
+            throw new ParsingException(source(ctx), "Cannot parse number [{}]", ctx.getText());
+        }
+        if (Double.isInfinite(value)) {
+            throw new ParsingException(source(ctx), "Number [{}] is too large", ctx.getText());
+        }
+        if (Double.isNaN(value)) {
+            throw new ParsingException(source(ctx), "[{}] cannot be parsed as a number (NaN)", ctx.getText());
+        }
+        return new Literal(source(ctx), Double.valueOf(value), DataType.DOUBLE);
     }
 
     @Override
     public Literal visitIntegerLiteral(IntegerLiteralContext ctx) {
-        BigDecimal bigD = new BigDecimal(ctx.getText());
+        long value;
+        try {
+            value = Long.parseLong(ctx.getText());
+        } catch (NumberFormatException nfe) {
+            try {
+                BigInteger bi = new BigInteger(ctx.getText());
+                try {
+                    bi.longValueExact();
+                } catch (ArithmeticException ae) {
+                    throw new ParsingException(source(ctx), "Number [{}] is too large", ctx.getText());
+                }
+            } catch (NumberFormatException ex) {
+                // parsing fails, go through
+            }
+            throw new ParsingException(source(ctx), "Cannot parse number [{}]", ctx.getText());
+        }
 
-        long value = bigD.longValueExact();
         DataType type = DataType.LONG;
         // try to downsize to int if possible (since that's the most common type)
         if ((int) value == value) {

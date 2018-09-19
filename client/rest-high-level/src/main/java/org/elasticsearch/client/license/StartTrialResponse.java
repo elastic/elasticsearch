@@ -70,37 +70,43 @@ public class StartTrialResponse {
         PARSER.declareString(optionalConstructorArg(), new ParseField("error_message"));
         // todo consolidate this parsing with the parsing in PutLicenseResponse
         PARSER.declareObject(optionalConstructorArg(), (parser, aVoid) -> {
-            Map<String, String[]> acknowledgeMessages = new HashMap<>();
+            final Map<String, String[]> acknowledgeMessages = new HashMap<>();
             String message = null;
-            XContentParser.Token token;
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else {
-                    if (currentFieldName == null) {
-                        throw new XContentParseException(parser.getTokenLocation(), "expected message header or acknowledgement");
-                    }
-                    if (new ParseField("message").getPreferredName().equals(currentFieldName)) {
-                        if (token != XContentParser.Token.VALUE_STRING) {
-                            throw new XContentParseException(parser.getTokenLocation(), "unexpected message header type");
-                        }
-                        message = parser.text();
-                    } else if (token == XContentParser.Token.START_ARRAY){
-                        List<String> acknowledgeMessagesList = new ArrayList<>();
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            if (token != XContentParser.Token.VALUE_STRING) {
-                                throw new XContentParseException(parser.getTokenLocation(), "unexpected acknowledgement text");
-                            }
-                            acknowledgeMessagesList.add(parser.text());
-                        }
-                        acknowledgeMessages.put(currentFieldName, acknowledgeMessagesList.toArray(new String[0]));
+
+            final Map<String, Object> parsedMap = parser.map();
+            for (Map.Entry<String, Object> entry : parsedMap.entrySet()) {
+                if (entry.getKey().equals("message")) {
+                    if (entry.getValue() instanceof String) {
+                        message = (String) entry.getValue();
                     } else {
-                        throw new XContentParseException(parser.getTokenLocation(), "unexpected acknowledgement type");
+                        throw new XContentParseException(parser.getTokenLocation(), "unexpected acknowledgement header type");
+                    }
+                } else {
+                    if (entry.getValue() instanceof List) {
+                        final List<String> messageStrings = new ArrayList<>();
+                        @SuppressWarnings("unchecked")
+                        final List<Object> messageObjects = (List<Object>) entry.getValue();
+                        for (Object messageObject : messageObjects) {
+                            if (messageObject instanceof String) {
+                                messageStrings.add((String) messageObject);
+                            } else {
+                                throw new XContentParseException(parser.getTokenLocation(), "expected text in acknowledgement message");
+                            }
+                        }
+
+                        acknowledgeMessages.put(entry.getKey(), messageStrings.toArray(new String[messageStrings.size()]));
+                    } else {
+                        throw new XContentParseException(parser.getTokenLocation(), "unexpected acknowledgement message type");
                     }
                 }
             }
+
+            if (message == null) {
+                throw new XContentParseException(parser.getTokenLocation(), "expected acknowledgement header");
+            }
+
             return new Tuple<>(message, acknowledgeMessages);
+
         }, new ParseField("acknowledge"));
     }
 

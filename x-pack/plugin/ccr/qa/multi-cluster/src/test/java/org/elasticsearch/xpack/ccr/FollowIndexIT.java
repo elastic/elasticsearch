@@ -9,6 +9,7 @@ import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -81,6 +83,18 @@ public class FollowIndexIT extends ESRestTestCase {
         }
     }
 
+    public void testFollowNonExistingLeaderIndex() throws Exception {
+        assumeFalse("Test should only run when both clusters are running", runningAgainstLeaderCluster);
+        ResponseException e = expectThrows(ResponseException.class,
+            () -> followIndex("leader_cluster:non-existing-index", "non-existing-index"));
+        assertThat(e.getMessage(), containsString("no such index"));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+
+        e = expectThrows(ResponseException.class, () -> createAndFollowIndex("leader_cluster:non-existing-index", "non-existing-index"));
+        assertThat(e.getMessage(), containsString("no such index"));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+    }
+
     public void testAutoFollowPatterns() throws Exception {
         assumeFalse("Test should only run when both clusters are running", runningAgainstLeaderCluster);
 
@@ -127,13 +141,13 @@ public class FollowIndexIT extends ESRestTestCase {
 
     private static void followIndex(String leaderIndex, String followIndex) throws IOException {
         final Request request = new Request("POST", "/" + followIndex + "/_ccr/follow");
-        request.setJsonEntity("{\"leader_index\": \"" + leaderIndex + "\", \"idle_shard_retry_delay\": \"10ms\"}");
+        request.setJsonEntity("{\"leader_index\": \"" + leaderIndex + "\", \"poll_timeout\": \"10ms\"}");
         assertOK(client().performRequest(request));
     }
 
     private static void createAndFollowIndex(String leaderIndex, String followIndex) throws IOException {
         final Request request = new Request("POST", "/" + followIndex + "/_ccr/create_and_follow");
-        request.setJsonEntity("{\"leader_index\": \"" + leaderIndex + "\", \"idle_shard_retry_delay\": \"10ms\"}");
+        request.setJsonEntity("{\"leader_index\": \"" + leaderIndex + "\", \"poll_timeout\": \"10ms\"}");
         assertOK(client().performRequest(request));
     }
 
@@ -160,11 +174,14 @@ public class FollowIndexIT extends ESRestTestCase {
     }
 
     private static void verifyCcrMonitoring(final String expectedLeaderIndex, final String expectedFollowerIndex) throws IOException {
-        ensureYellow(".monitoring-*");
-
         Request request = new Request("GET", "/.monitoring-*/_search");
         request.setJsonEntity("{\"query\": {\"term\": {\"ccr_stats.leader_index\": \"leader_cluster:" + expectedLeaderIndex + "\"}}}");
-        Map<String, ?> response = toMap(client().performRequest(request));
+        Map<String, ?> response;
+        try {
+            response = toMap(client().performRequest(request));
+        } catch (ResponseException e) {
+            throw new AssertionError("error while searching", e);
+        }
 
         int numberOfOperationsReceived = 0;
         int numberOfOperationsIndexed = 0;

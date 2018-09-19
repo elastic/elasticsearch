@@ -56,8 +56,6 @@ integTestCluster {
 
   // TODO: remove this for 7.0, this exists to allow the doc examples in 6.x to continue using the defaults
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
-  //TODO: remove this once the cname is prepended to the address by default in 7.0
-  systemProperty 'es.http.cname_in_publish_address', 'true'
 }
 
 // remove when https://github.com/elastic/elasticsearch/issues/31305 is fixed

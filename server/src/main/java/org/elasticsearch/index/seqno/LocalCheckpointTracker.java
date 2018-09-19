@@ -161,7 +161,8 @@ public class LocalCheckpointTracker {
     /**
      * Checks if the given sequence number was marked as completed in this tracker.
      */
-    public synchronized boolean contains(long seqNo) {
+    public boolean contains(long seqNo) {
+        assert seqNo >= 0 : "invalid seq_no [" + seqNo + "]";
         if (seqNo >= nextSeqNo) {
             return false;
         }
@@ -169,7 +170,10 @@ public class LocalCheckpointTracker {
             return true;
         }
         final long bitSetKey = getBitSetKey(seqNo);
-        final CountedBitSet bitSet = processedSeqNo.get(bitSetKey);
+        final CountedBitSet bitSet;
+        synchronized (this) {
+            bitSet = processedSeqNo.get(bitSetKey);
+        }
         return bitSet != null && bitSet.get(seqNoToBitSetOffset(seqNo));
     }
 
@@ -221,7 +225,6 @@ public class LocalCheckpointTracker {
      * @return the bit set corresponding to the provided sequence number
      */
     private long getBitSetKey(final long seqNo) {
-        assert Thread.holdsLock(this);
         return seqNo / BIT_SET_SIZE;
     }
 
@@ -247,7 +250,6 @@ public class LocalCheckpointTracker {
      * @return the position in the bit set corresponding to the provided sequence number
      */
     private int seqNoToBitSetOffset(final long seqNo) {
-        assert Thread.holdsLock(this);
         return Math.toIntExact(seqNo % BIT_SET_SIZE);
     }
 

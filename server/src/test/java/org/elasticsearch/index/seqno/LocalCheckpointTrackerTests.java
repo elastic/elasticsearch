@@ -295,4 +295,23 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         });
         assertThat(tracker.generateSeqNo(), equalTo((long) (maxSeqNo + 1)));
     }
+
+    public void testContains() {
+        final long maxSeqNo = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, 100);
+        final long localCheckpoint = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, maxSeqNo);
+        final LocalCheckpointTracker tracker = new LocalCheckpointTracker(maxSeqNo, localCheckpoint);
+        if (localCheckpoint >= 0) {
+            assertThat(tracker.contains(randomLongBetween(0, localCheckpoint)), equalTo(true));
+        }
+        assertThat(tracker.contains(randomLongBetween(localCheckpoint + 1, Long.MAX_VALUE)), equalTo(false));
+        final int numOps = between(1, 100);
+        final List<Long> seqNos = new ArrayList<>();
+        for (int i = 0; i < numOps; i++) {
+            long seqNo = randomLongBetween(0, 1000);
+            seqNos.add(seqNo);
+            tracker.markSeqNoAsCompleted(seqNo);
+        }
+        final long seqNo = randomNonNegativeLong();
+        assertThat(tracker.contains(seqNo), equalTo(seqNo <= localCheckpoint || seqNos.contains(seqNo)));
+    }
 }

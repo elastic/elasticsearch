@@ -163,12 +163,16 @@ expression
 booleanExpression
     : NOT booleanExpression                                                                 #logicalNot
     | EXISTS '(' query ')'                                                                  #exists
-    | QUERY '(' queryString=string (',' options=string)* ')'                                #stringQuery
-    | MATCH '(' singleField=qualifiedName ',' queryString=string (',' options=string)* ')'  #matchQuery
-    | MATCH '(' multiFields=string ',' queryString=string (',' options=string)* ')'         #multiMatchQuery
+    | QUERY '(' queryString=string matchQueryOptions ')'                                    #stringQuery
+    | MATCH '(' singleField=qualifiedName ',' queryString=string matchQueryOptions ')'      #matchQuery
+    | MATCH '(' multiFields=string ',' queryString=string matchQueryOptions ')'             #multiMatchQuery
     | predicated                                                                            #booleanDefault
     | left=booleanExpression operator=AND right=booleanExpression                           #logicalBinary
     | left=booleanExpression operator=OR right=booleanExpression                            #logicalBinary
+    ;
+
+matchQueryOptions
+    : (',' string)*
     ;
 
 // workaround for:
@@ -305,8 +309,8 @@ unquoteIdentifier
     ;
 
 number
-    : DECIMAL_VALUE  #decimalLiteral
-    | INTEGER_VALUE  #integerLiteral
+    : (PLUS | MINUS)? DECIMAL_VALUE  #decimalLiteral
+    | (PLUS | MINUS)? INTEGER_VALUE  #integerLiteral
     ;
 
 string

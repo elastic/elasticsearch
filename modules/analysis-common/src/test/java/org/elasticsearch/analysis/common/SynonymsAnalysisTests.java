@@ -20,6 +20,7 @@
 package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.Version;
@@ -117,6 +118,26 @@ public class SynonymsAnalysisTests extends ESTestCase {
         }
     }
 
+    public void testSynonymsWithMultiplexer() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.synonyms.type", "synonym")
+            .putList("index.analysis.filter.synonyms.synonyms", "programmer, developer")
+            .put("index.analysis.filter.my_english.type", "stemmer")
+            .put("index.analysis.filter.my_english.language", "porter2")
+            .put("index.analysis.filter.stem_repeat.type", "multiplexer")
+            .putList("index.analysis.filter.stem_repeat.filters", "my_english, synonyms")
+            .put("index.analysis.analyzer.synonymAnalyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.synonymAnalyzer.filter", "lowercase", "stem_repeat")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+
+        BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("synonymAnalyzer"), "Some developers are odd",
+            new String[]{ "some", "developers", "develop", "programm", "are", "odd" },
+            new int[]{ 1, 1, 0, 0, 1, 1 });
+    }
 
     private void match(String analyzerName, String source, String target) throws IOException {
         Analyzer analyzer = indexAnalyzers.get(analyzerName).analyzer();

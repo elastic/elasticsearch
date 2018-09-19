@@ -66,6 +66,17 @@ option in `kibana.yml` to the same value.
 You can update this setting through the
 <<cluster-update-settings,Cluster Update Settings API>>.
 
+`xpack.monitoring.elasticsearch.collection.enabled`::
+
+Controls whether statistics about your {es} cluster should be collected. Defaults to `true`.
+This is different from xpack.monitoring.collection.enabled, which allows you to enable or disable
+all monitoring collection. However, this setting simply disables the collection of Elasticsearch
+data while still allowing other data (e.g., Kibana, Logstash, Beats, or APM Server monitoring data)
+to pass through this cluster.
++
+You can update this setting through the
+<<cluster-update-settings,Cluster Update Settings API>>.
+
 `xpack.monitoring.collection.cluster.stats.timeout`::
 
 Sets the timeout for collecting the cluster statistics. Defaults to `10s`.

@@ -59,9 +59,9 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             PARSER.declareField(Request::setMaxRetryDelay,
                 (p, c) -> TimeValue.parseTimeValue(p.text(), AutoFollowPattern.MAX_RETRY_DELAY.getPreferredName()),
                 AutoFollowPattern.MAX_RETRY_DELAY, ObjectParser.ValueType.STRING);
-            PARSER.declareField(Request::setIdleShardRetryDelay,
-                (p, c) -> TimeValue.parseTimeValue(p.text(), AutoFollowPattern.IDLE_SHARD_RETRY_DELAY.getPreferredName()),
-                AutoFollowPattern.IDLE_SHARD_RETRY_DELAY, ObjectParser.ValueType.STRING);
+            PARSER.declareField(Request::setPollTimeout,
+                (p, c) -> TimeValue.parseTimeValue(p.text(), AutoFollowPattern.POLL_TIMEOUT.getPreferredName()),
+                AutoFollowPattern.POLL_TIMEOUT, ObjectParser.ValueType.STRING);
         }
 
         public static Request fromXContent(XContentParser parser, String remoteClusterAlias) throws IOException {
@@ -88,16 +88,31 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
         private Integer maxConcurrentWriteBatches;
         private Integer maxWriteBufferSize;
         private TimeValue maxRetryDelay;
-        private TimeValue idleShardRetryDelay;
+        private TimeValue pollTimeout;
 
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
             if (leaderClusterAlias == null) {
-                validationException = addValidationError("leaderClusterAlias is missing", validationException);
+                validationException = addValidationError("[" + LEADER_CLUSTER_ALIAS_FIELD.getPreferredName() +
+                    "] is missing", validationException);
             }
             if (leaderIndexPatterns == null || leaderIndexPatterns.isEmpty()) {
-                validationException = addValidationError("leaderIndexPatterns is missing", validationException);
+                validationException = addValidationError("[" + LEADER_INDEX_PATTERNS_FIELD.getPreferredName() +
+                    "] is missing", validationException);
+            }
+            if (maxRetryDelay != null) {
+                if (maxRetryDelay.millis() <= 0) {
+                    String message = "[" + AutoFollowPattern.MAX_RETRY_DELAY.getPreferredName() + "] must be positive but was [" +
+                        maxRetryDelay.getStringRep() + "]";
+                    validationException = addValidationError(message, validationException);
+                }
+                if (maxRetryDelay.millis() > FollowIndexAction.MAX_RETRY_DELAY.millis()) {
+                    String message = "[" + AutoFollowPattern.MAX_RETRY_DELAY.getPreferredName() + "] must be less than [" +
+                        FollowIndexAction.MAX_RETRY_DELAY +
+                        "] but was [" + maxRetryDelay.getStringRep() + "]";
+                    validationException = addValidationError(message, validationException);
+                }
             }
             return validationException;
         }
@@ -174,12 +189,12 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             this.maxRetryDelay = maxRetryDelay;
         }
 
-        public TimeValue getIdleShardRetryDelay() {
-            return idleShardRetryDelay;
+        public TimeValue getPollTimeout() {
+            return pollTimeout;
         }
 
-        public void setIdleShardRetryDelay(TimeValue idleShardRetryDelay) {
-            this.idleShardRetryDelay = idleShardRetryDelay;
+        public void setPollTimeout(TimeValue pollTimeout) {
+            this.pollTimeout = pollTimeout;
         }
 
         @Override
@@ -194,7 +209,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             maxConcurrentWriteBatches = in.readOptionalVInt();
             maxWriteBufferSize = in.readOptionalVInt();
             maxRetryDelay = in.readOptionalTimeValue();
-            idleShardRetryDelay = in.readOptionalTimeValue();
+            pollTimeout = in.readOptionalTimeValue();
         }
 
         @Override
@@ -209,7 +224,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             out.writeOptionalVInt(maxConcurrentWriteBatches);
             out.writeOptionalVInt(maxWriteBufferSize);
             out.writeOptionalTimeValue(maxRetryDelay);
-            out.writeOptionalTimeValue(idleShardRetryDelay);
+            out.writeOptionalTimeValue(pollTimeout);
         }
 
         @Override
@@ -239,8 +254,8 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
                 if (maxRetryDelay != null) {
                     builder.field(AutoFollowPattern.MAX_RETRY_DELAY.getPreferredName(), maxRetryDelay.getStringRep());
                 }
-                if (idleShardRetryDelay != null) {
-                    builder.field(AutoFollowPattern.IDLE_SHARD_RETRY_DELAY.getPreferredName(), idleShardRetryDelay.getStringRep());
+                if (pollTimeout != null) {
+                    builder.field(AutoFollowPattern.POLL_TIMEOUT.getPreferredName(), pollTimeout.getStringRep());
                 }
             }
             builder.endObject();
@@ -261,7 +276,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
                 Objects.equals(maxConcurrentWriteBatches, request.maxConcurrentWriteBatches) &&
                 Objects.equals(maxWriteBufferSize, request.maxWriteBufferSize) &&
                 Objects.equals(maxRetryDelay, request.maxRetryDelay) &&
-                Objects.equals(idleShardRetryDelay, request.idleShardRetryDelay);
+                Objects.equals(pollTimeout, request.pollTimeout);
         }
 
         @Override
@@ -276,7 +291,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
                 maxConcurrentWriteBatches,
                 maxWriteBufferSize,
                 maxRetryDelay,
-                idleShardRetryDelay
+                pollTimeout
             );
         }
     }

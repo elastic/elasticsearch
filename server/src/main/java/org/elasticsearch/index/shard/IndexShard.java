@@ -21,13 +21,9 @@ package org.elasticsearch.index.shard;
 
 import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -879,32 +875,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public DocsStats docStats() {
-        // we calculate the doc stats based on the internal reader that is more up-to-date and not subject
-        // to external refreshes. For instance we don't refresh an external reader if we flush and indices with
-        // index.refresh_interval=-1 won't see any doc stats updates at all. This change will give more accurate statistics
-        // when indexing but not refreshing in general. Yet, if a refresh happens the internal reader is refresh as well so we are
-        // safe here.
-        long numDocs = 0;
-        long numDeletedDocs = 0;
-        long sizeInBytes = 0;
-        try (Engine.Searcher searcher = acquireSearcher("docStats", Engine.SearcherScope.INTERNAL)) {
-            // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
-            // the next scheduled refresh to go through and refresh the stats as well
-            markSearcherAccessed();
-            for (LeafReaderContext reader : searcher.reader().leaves()) {
-                // we go on the segment level here to get accurate numbers
-                final SegmentReader segmentReader = Lucene.segmentReader(reader.reader());
-                SegmentCommitInfo info = segmentReader.getSegmentInfo();
-                numDocs += reader.reader().numDocs();
-                numDeletedDocs += reader.reader().numDeletedDocs();
-                try {
-                    sizeInBytes += info.sizeInBytes();
-                } catch (IOException e) {
-                    logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
-                }
-            }
-        }
-        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
+        readAllowed();
+        DocsStats docsStats = getEngine().docStats();
+        markSearcherAccessed();
+        return docsStats;
     }
 
     /**
@@ -1781,19 +1755,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Add a global checkpoint listener. If the global checkpoint is above the current global checkpoint known to the listener then the
-     * listener will fire immediately on the calling thread. If the specified timeout elapses before the listener is notified, the listener
-     * will be notified with an {@link TimeoutException}. A caller may pass null to specify no timeout.
+     * Add a global checkpoint listener. If the global checkpoint is equal to or above the global checkpoint the listener is waiting for,
+     * then the listener will be notified immediately via an executor (so possibly not on the current thread). If the specified timeout
+     * elapses before the listener is notified, the listener will be notified with an {@link TimeoutException}. A caller may pass null to
+     * specify no timeout.
      *
-     * @param currentGlobalCheckpoint the current global checkpoint known to the listener
-     * @param listener                the listener
-     * @param timeout                 the timeout
+     * @param waitingForGlobalCheckpoint the global checkpoint the listener is waiting for
+     * @param listener                   the listener
+     * @param timeout                    the timeout
      */
     public void addGlobalCheckpointListener(
-            final long currentGlobalCheckpoint,
+            final long waitingForGlobalCheckpoint,
             final GlobalCheckpointListeners.GlobalCheckpointListener listener,
             final TimeValue timeout) {
-        this.globalCheckpointListeners.add(currentGlobalCheckpoint, listener, timeout);
+        this.globalCheckpointListeners.add(waitingForGlobalCheckpoint, listener, timeout);
     }
 
     /**

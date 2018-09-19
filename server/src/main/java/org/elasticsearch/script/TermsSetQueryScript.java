@@ -88,9 +88,7 @@ public abstract class TermsSetQueryScript {
      * Set the current document to run the script on next.
      */
     public void setDocument(int docid) {
-        if (leafLookup != null) {
-            leafLookup.setDocument(docid);
-        }
+        leafLookup.setDocument(docid);
     }
 
     /**

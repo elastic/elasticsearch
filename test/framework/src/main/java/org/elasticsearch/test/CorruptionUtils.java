@@ -93,7 +93,8 @@ public final class CorruptionUtils {
                 // rewrite
                 raf.position(filePointer);
                 raf.write(bb);
-                logger.info("Corrupting file --  flipping at position {} from {} to {} file: {}", filePointer, Integer.toHexString(oldValue), Integer.toHexString(newValue), fileToCorrupt.getFileName());
+                logger.info("Corrupting file --  flipping at position {} from {} to {} file: {}", filePointer,
+                        Integer.toHexString(oldValue), Integer.toHexString(newValue), fileToCorrupt.getFileName());
             }
             long checksumAfterCorruption;
             long actualChecksumAfterCorruption;
@@ -109,7 +110,8 @@ public final class CorruptionUtils {
             msg.append("before: [").append(checksumBeforeCorruption).append("] ");
             msg.append("after: [").append(checksumAfterCorruption).append("] ");
             msg.append("checksum value after corruption: ").append(actualChecksumAfterCorruption).append("] ");
-            msg.append("file: ").append(fileToCorrupt.getFileName()).append(" length: ").append(dir.fileLength(fileToCorrupt.getFileName().toString()));
+            msg.append("file: ").append(fileToCorrupt.getFileName()).append(" length: ");
+            msg.append(dir.fileLength(fileToCorrupt.getFileName().toString()));
             logger.info("Checksum {}", msg);
             assumeTrue("Checksum collision - " + msg.toString(),
                     checksumAfterCorruption != checksumBeforeCorruption // collision

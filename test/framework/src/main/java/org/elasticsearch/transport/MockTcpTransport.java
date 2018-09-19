@@ -182,6 +182,7 @@ public class MockTcpTransport extends TcpTransport {
         executor.submit(() -> {
             try {
                 socket.connect(address);
+                socket.setSoLinger(false, 0);
                 channel.loopRead(executor);
                 connectListener.onResponse(null);
             } catch (Exception ex) {

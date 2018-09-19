@@ -90,7 +90,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (request.realtime()) { // it's a realtime request which is not subject to refresh cycles
-            listener.onResponse(shardOperation(request, shardId));
+            super.asyncShardOperation(request, shardId, listener);
         } else {
             indexShard.awaitShardSearchActive(b -> {
                 try {

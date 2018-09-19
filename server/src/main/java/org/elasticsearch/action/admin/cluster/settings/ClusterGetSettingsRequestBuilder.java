@@ -21,15 +21,12 @@ package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
-
-import java.util.Map;
 
 /**
  * Builder for a cluster get settings request
  */
-public class ClusterGetSettingsRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterGetSettingsRequest, ClusterGetSettingsResponse, ClusterGetSettingsRequestBuilder> {
+public class ClusterGetSettingsRequestBuilder extends
+    MasterNodeReadOperationRequestBuilder<ClusterGetSettingsRequest, ClusterGetSettingsResponse, ClusterGetSettingsRequestBuilder> {
 
     public ClusterGetSettingsRequestBuilder(ElasticsearchClient client, ClusterGetSettingsAction action) {
         super(client, action, new ClusterGetSettingsRequest());

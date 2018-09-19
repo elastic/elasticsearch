@@ -78,7 +78,7 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleSecurityTr
             new NoneCircuitBreakerService(), createSSLService()) {
 
             @Override
-            protected Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout) throws IOException,
+            public Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout) throws IOException,
                 InterruptedException {
                 if (doHandshake) {
                     return super.executeHandshake(node, channel, timeout);

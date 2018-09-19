@@ -2438,6 +2438,23 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(sourceShard, targetShard);
     }
 
+    public void testCompletionStatsMarksSearcherAccessed() throws Exception {
+        IndexShard indexShard = null;
+        try {
+            indexShard = newStartedShard();
+            IndexShard shard = indexShard;
+            assertBusy(() -> {
+                ThreadPool threadPool = shard.getThreadPool();
+                assertThat(threadPool.relativeTimeInMillis(), greaterThan(shard.getLastSearcherAccess()));
+            });
+            long prevAccessTime = shard.getLastSearcherAccess();
+            indexShard.completionStats();
+            assertThat("searcher was not marked as accessed", shard.getLastSearcherAccess(), greaterThan(prevAccessTime));
+        } finally {
+            closeShards(indexShard);
+        }
+    }
+
     public void testDocStats() throws Exception {
         IndexShard indexShard = null;
         try {

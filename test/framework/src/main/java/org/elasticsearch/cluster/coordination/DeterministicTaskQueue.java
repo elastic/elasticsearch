@@ -313,10 +313,10 @@ public class DeterministicTaskQueue extends AbstractComponent {
 
             @Override
             public ScheduledFuture<?> schedule(TimeValue delay, String executor, Runnable command) {
-                final AtomicInteger taskState = new AtomicInteger();
                 final int NOT_STARTED = 0;
                 final int STARTED = 1;
                 final int CANCELLED = 2;
+                final AtomicInteger taskState = new AtomicInteger(NOT_STARTED);
 
                 scheduleAt(currentTimeMillis + delay.millis(), new Runnable() {
                     @Override

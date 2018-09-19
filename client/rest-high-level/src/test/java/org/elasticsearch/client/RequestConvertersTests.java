@@ -1739,6 +1739,17 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
+    static void setRandomMasterTimeout(Consumer<TimeValue> setter, TimeValue defaultTimeout,
+                                       Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            TimeValue masterTimeout = TimeValue.parseTimeValue(randomTimeValue(), "random_master_timeout");
+            setter.accept(masterTimeout);
+            expectedParams.put("master_timeout", masterTimeout.getStringRep());
+        } else {
+            expectedParams.put("master_timeout", defaultTimeout.getStringRep());
+        }
+    }
+
     static void setRandomWaitForActiveShards(Consumer<ActiveShardCount> setter, Map<String, String> expectedParams) {
         setRandomWaitForActiveShards(setter, ActiveShardCount.DEFAULT, expectedParams);
     }

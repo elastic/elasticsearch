@@ -423,8 +423,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
     }
 
-    public void executeQueryPhase(InternalScrollSearchRequest request, SearchTask task,
-                                                     ActionListener<ScrollQuerySearchResult> listener) {
+    public void executeQueryPhase(InternalScrollSearchRequest request, SearchTask task, ActionListener<ScrollQuerySearchResult> listener) {
         runAsync(request.id(), () -> {
             final SearchContext context = findContext(request.id(), request);
             SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
@@ -1105,7 +1104,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         public CanMatchResponse(boolean canMatch) {
             this.canMatch = canMatch;
         }
-
 
         @Override
         public void readFrom(StreamInput in) throws IOException {

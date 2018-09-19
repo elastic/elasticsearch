@@ -136,7 +136,7 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
             request.setMaxRetryDelay(TimeValue.timeValueMillis(500));
         }
         if (randomBoolean()) {
-            request.setIdleShardRetryDelay(TimeValue.timeValueMillis(500));
+            request.setPollTimeout(TimeValue.timeValueMillis(500));
         }
         assertTrue(client().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
 
@@ -167,8 +167,8 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
             if (request.getMaxRetryDelay() != null) {
                 assertThat(shardFollowTask.getMaxRetryDelay(), equalTo(request.getMaxRetryDelay()));
             }
-            if (request.getIdleShardRetryDelay() != null) {
-                assertThat(shardFollowTask.getPollTimeout(), equalTo(request.getIdleShardRetryDelay()));
+            if (request.getPollTimeout() != null) {
+                assertThat(shardFollowTask.getPollTimeout(), equalTo(request.getPollTimeout()));
             }
         });
     }

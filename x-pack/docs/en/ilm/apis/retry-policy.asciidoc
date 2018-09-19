@@ -1,0 +1,93 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-put-policy]]
+=== Retry Policy Execution API
+++++
+<titleabbrev>Retry Policy Execution</titleabbrev>
+++++
+
+This API will re-run a policy that has errored out. It will start the policy
+back to the step where the error occurred.
+
+==== Request
+
+`POST <index>/_ilm/retry`
+
+==== Description
+
+This action assigns a policy to an index. It is effectively the same as setting an index's
+`index.lifecycle.name` setting.
+
+==== Path Parameters
+
+`index` (required)::
+  (string) Identifier for the indices to retry in comma-separated format.
+
+==== Request Parameters
+
+`timeout`::
+  (time units) Specifies the period of time to wait for the completion of the 
+  move operation. When this period of time elapses, the API fails and returns
+  an error. The default value is `30s`. For more information about time units, 
+  see <<time-units>>.
+
+`master_timeout`::
+  (time units) Specifies the period of time to wait for the connection with master.
+  When this period of time elapses, the API fails and returns an error.
+  The default value is `30s`. For more information about time units, see <<time-units>>.
+
+
+==== Examples
+
+The following example assigns a policy `my_policy` to an index `my_index`.
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT _ilm/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "minimum_age": "10d",
+        "actions": {
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "delete": {
+        "minimum_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+
+PUT my_index
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT my_index/_ilm/my_policy
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+If the request does not encounter errors, you receive the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------
+// CONSOLE
+// TESTRESPONSE

@@ -1,0 +1,112 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-put-policy]]
+=== Move To Step API
+++++
+<titleabbrev>Move To Step</titleabbrev>
+++++
+
+Moves a managed index into a specific execution step its policy
+
+==== Request
+
+`POST _ilm/move/<index>`
+
+==== Description
+
+This is an advanced API that may lead to unintended data loss. When used,
+an index's policy will begin executing at the specified step. It will execute
+the step specified even if it has already executed it. Since this is a, potentionally,
+dangerous action, specifying both the current step and next step to move to is
+required in the body of the request.
+
+==== Path Parameters
+
+`index` (required)::
+  (string) Identifier for the index.
+
+==== Request Parameters
+
+`timeout`::
+  (time units) Specifies the period of time to wait for the completion of the 
+  move operation. When this period of time elapses, the API fails and returns
+  an error. The default value is `30s`. For more information about time units, 
+  see <<time-units>>.
+
+`master_timeout`::
+  (time units) Specifies the period of time to wait for the connection with master.
+  When this period of time elapses, the API fails and returns an error.
+  The default value is `30s`. For more information about time units, see <<time-units>>.
+
+
+==== Examples
+
+The following example creates a new policy named `my_policy`:
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT _ilm/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "minimum_age": "10d",
+        "actions": {
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "delete": {
+        "minimum_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+
+PUT my_index
+{
+  "settings": {
+    "index.lifecycle.name": "my_policy"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+POST _ilm/move/my_index
+{
+  "current_step": {
+    "phase": "new",
+    "action": "complete",
+    "step": "complete"
+  },
+  "next_step": {
+    "phase": "warm",
+    "action": "forcemerge",
+    "step": "forcemerge"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+If the request does not encounter errors, you receive the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------
+// CONSOLE
+// TESTRESPONSE

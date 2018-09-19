@@ -117,7 +117,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     @Override
     protected String getExecutor(TermVectorsRequest request, ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        return indexService.getIndexSettings().getSearchSequential() ? ThreadPool.Names.SEARCH_SEQUENTIAL : super.getExecutor(request,
+        return indexService.getIndexSettings().isSearchThrottled() ? ThreadPool.Names.SEARCH_THROTTLED : super.getExecutor(request,
             shardId);
     }
 }

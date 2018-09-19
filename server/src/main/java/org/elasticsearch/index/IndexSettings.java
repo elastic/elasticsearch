@@ -278,9 +278,9 @@ public final class IndexSettings {
        }, Property.Dynamic, Property.IndexScope);
 
     /**
-     * Marks an index to be searched sequentially. This means that never more than one shard of such an index will be searched concurrently
+     * Marks an index to be searched throttled. This means that never more than one shard of such an index will be searched concurrently
      */
-    public static final Setting<Boolean> INDEX_SEARCH_SEQUENTIAL = Setting.boolSetting("index.search.sequential", false,
+    public static final Setting<Boolean> INDEX_SEARCH_THROTTLED = Setting.boolSetting("index.search.throttled", false,
         Property.IndexScope, Property.PrivateIndex, Property.Dynamic);
 
     private final Index index;
@@ -325,7 +325,7 @@ public final class IndexSettings {
     private volatile int maxAnalyzedOffset;
     private volatile int maxTermsCount;
     private volatile String defaultPipeline;
-    private volatile boolean searchSequential;
+    private volatile boolean searchThrottled;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -409,7 +409,7 @@ public final class IndexSettings {
         this.indexMetaData = indexMetaData;
         numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
 
-        this.searchSequential = INDEX_SEARCH_SEQUENTIAL.get(settings);
+        this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
         this.queryStringAllowLeadingWildcard = QUERY_STRING_ALLOW_LEADING_WILDCARD.get(nodeSettings);
@@ -486,7 +486,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_SEQUENTIAL, this::setSearchSequential);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_THROTTLED, this::setSearchThrottled);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) { this.searchIdleAfter = searchIdleAfter; }
@@ -890,14 +890,14 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns true if the this index should be searched sequentially ie. using the
-     * {@link org.elasticsearch.threadpool.ThreadPool.Names#SEARCH_SEQUENTIAL} threadpool
+     * Returns true if the this index should be searched throttled ie. using the
+     * {@link org.elasticsearch.threadpool.ThreadPool.Names#SEARCH_THROTTLED} thread-pool
      */
-    public boolean getSearchSequential() {
-        return searchSequential;
+    public boolean isSearchThrottled() {
+        return searchThrottled;
     }
 
-    private void setSearchSequential(boolean searchSequential) {
-        this.searchSequential = searchSequential;
+    private void setSearchThrottled(boolean searchThrottled) {
+        this.searchThrottled = searchThrottled;
     }
 }

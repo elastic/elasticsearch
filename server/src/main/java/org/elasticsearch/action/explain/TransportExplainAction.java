@@ -156,7 +156,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     @Override
     protected String getExecutor(ExplainRequest request, ShardId shardId) {
         IndexService indexService = searchService.getIndicesService().indexServiceSafe(shardId.getIndex());
-        return indexService.getIndexSettings().getSearchSequential() ? ThreadPool.Names.SEARCH_SEQUENTIAL : super.getExecutor(request,
+        return indexService.getIndexSettings().isSearchThrottled() ? ThreadPool.Names.SEARCH_THROTTLED : super.getExecutor(request,
             shardId);
     }
 }

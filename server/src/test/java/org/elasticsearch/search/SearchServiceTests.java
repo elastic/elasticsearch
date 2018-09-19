@@ -119,7 +119,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             indexModule.addSearchOperationListener(new SearchOperationListener() {
                 @Override
                 public void onNewContext(SearchContext context) {
-                    if ("sequential_theadpool_index".equals(context.indexShard().shardId().getIndex().getName())) {
+                    if ("throttled_threadpool_index".equals(context.indexShard().shardId().getIndex().getName())) {
                         assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search_sequential]"));
                     } else {
                         assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search]"));
@@ -128,7 +128,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
                 @Override
                 public void onFetchPhase(SearchContext context, long tookInNanos) {
-                    if ("sequential_theadpool_index".equals(context.indexShard().shardId().getIndex().getName())) {
+                    if ("throttled_threadpool_index".equals(context.indexShard().shardId().getIndex().getName())) {
                         assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search_sequential]"));
                     } else {
                         assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search]"));
@@ -137,7 +137,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
                 @Override
                 public void onQueryPhase(SearchContext context, long tookInNanos) {
-                    if ("sequential_theadpool_index".equals(context.indexShard().shardId().getIndex().getName())) {
+                    if ("throttled_threadpool_index".equals(context.indexShard().shardId().getIndex().getName())) {
                         assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search_sequential]"));
                     } else {
                         assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search]"));
@@ -520,37 +520,36 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
     }
 
-    public void testSetSearchThreadPool() {
-        createIndex("sequential_theadpool_index");
+    public void testSetSearchThrottled() {
+        createIndex("throttled_threadpool_index");
         client().execute(
             InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.INSTANCE,
-            new InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.Request("sequential_theadpool_index",
-                IndexSettings.INDEX_SEARCH_SEQUENTIAL.getKey(), "true"))
+            new InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.Request("throttled_threadpool_index",
+                IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), "true"))
             .actionGet();
         final SearchService service = getInstanceFromNode(SearchService.class);
-        Index index = resolveIndex("sequential_theadpool_index");
-        assertTrue(service.getIndicesService().indexServiceSafe(index).getIndexSettings().getSearchSequential());
-        client().prepareIndex("sequential_theadpool_index", "_doc", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-        SearchResponse searchResponse = client().prepareSearch("sequential_theadpool_index").setSize(1).get();
+        Index index = resolveIndex("throttled_threadpool_index");
+        assertTrue(service.getIndicesService().indexServiceSafe(index).getIndexSettings().isSearchThrottled());
+        client().prepareIndex("throttled_threadpool_index", "_doc", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        SearchResponse searchResponse = client().prepareSearch("throttled_threadpool_index").setSize(1).get();
         assertSearchHits(searchResponse, "1");
-        ShardSearchLocalRequest req = new ShardSearchLocalRequest(new ShardId(index, 0), 1, SearchType.QUERY_THEN_FETCH, null,
-            Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, false, null, null);
-        service.canMatch(req, ActionListener.wrap(r -> assertThat(Thread.currentThread().getName(),
-            startsWith("elasticsearch[node_s_0][search_sequential]")), e -> fail("unexpected")));
         // we add a search action listener in a plugin above to assert that this is actually used
         client().execute(
             InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.INSTANCE,
-            new InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.Request("sequential_theadpool_index",
-                IndexSettings.INDEX_SEARCH_SEQUENTIAL.getKey(), "false"))
+            new InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.Request("throttled_threadpool_index",
+                IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), "false"))
             .actionGet();
 
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
-            client().admin().indices().prepareUpdateSettings("sequential_theadpool_index").setSettings(Settings.builder().put(IndexSettings
-                .INDEX_SEARCH_SEQUENTIAL.getKey(), false)).get());
+            client().admin().indices().prepareUpdateSettings("throttled_threadpool_index").setSettings(Settings.builder().put(IndexSettings
+                .INDEX_SEARCH_THROTTLED.getKey(), false)).get());
         assertEquals("can not update private setting [index.search.sequential]; this setting is managed by Elasticsearch",
             iae.getMessage());
-        assertFalse(service.getIndicesService().indexServiceSafe(index).getIndexSettings().getSearchSequential());
+        assertFalse(service.getIndicesService().indexServiceSafe(index).getIndexSettings().isSearchThrottled());
+        ShardSearchLocalRequest req = new ShardSearchLocalRequest(new ShardId(index, 0), 1, SearchType.QUERY_THEN_FETCH, null,
+            Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, false, null, null);
         Thread currentThread = Thread.currentThread();
+        // we still make sure can match is executed on the network thread
         service.canMatch(req, ActionListener.wrap(r -> assertSame(Thread.currentThread(), currentThread), e -> fail("unexpected")));
     }
 }

@@ -503,7 +503,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private Executor getExecutor(IndexShard indexShard) {
         assert indexShard != null;
-        return threadPool.executor(indexShard.indexSettings().getSearchSequential() ? Names.SEARCH_SEQUENTIAL : Names.SEARCH);
+        return threadPool.executor(indexShard.indexSettings().isSearchThrottled() ? Names.SEARCH_THROTTLED : Names.SEARCH);
     }
 
     public void executeFetchPhase(InternalScrollSearchRequest request, SearchTask task,
@@ -1008,7 +1008,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return indicesService.buildAliasFilter(state, index, expressions);
     }
 
-    boolean canMatch(ShardSearchRequest request) throws IOException {
+    /**
+     * This method does a very quick rewrite of the query and returns true if the query can potentially match any documents.
+     * This method can have false positives while if it returns <code>false</code> the query won't match any documents on the current
+     * shard.
+     */
+    public boolean canMatch(ShardSearchRequest request) throws IOException {
         assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
         try (DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout, false)) {
             SearchSourceBuilder source = context.request().source();
@@ -1020,30 +1025,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    /**
-     * This method does a very quick rewrite of the query and returns true if the query can potentially match any documents.
-     * This method can have false positives while if it returns <code>false</code> the query won't match any documents on the current
-     * shard.
-     */
-    public void canMatch(ShardSearchRequest request, ActionListener<CanMatchResponse> listener) {
-        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        String searchThreadPool = Names.SAME;
-        if (indexService.getIndexSettings().getSearchSequential()) {
-            // special case - if we are marked as search sequential we fork off to the seq threadpool to guarantee we never concurrently
-            // search such an index on the same node.
-            searchThreadPool = Names.SEARCH_SEQUENTIAL;
-        }
-        threadPool.executor(searchThreadPool).execute(new AbstractRunnable() {
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
 
-            @Override
-            protected void doRun() throws IOException {
-                listener.onResponse(new CanMatchResponse(canMatch(request)));
-            }
-        });
+    public void canMatch(ShardSearchRequest request, ActionListener<CanMatchResponse> listener) {
+        try {
+            listener.onResponse(new CanMatchResponse(canMatch(request)));
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
     }
 
     /**

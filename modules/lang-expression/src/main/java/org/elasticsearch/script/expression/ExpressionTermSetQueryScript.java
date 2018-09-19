@@ -20,7 +20,6 @@
 package org.elasticsearch.script.expression;
 
 import java.io.IOException;
-import java.util.Collections;
 import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.expressions.SimpleBindings;
@@ -50,7 +49,7 @@ class ExpressionTermSetQueryScript implements TermsSetQueryScript.LeafFactory {
 
     @Override
     public TermsSetQueryScript newInstance(final LeafReaderContext leaf) throws IOException {
-        return new TermsSetQueryScript(Collections.emptyMap(), null, null) {
+        return new TermsSetQueryScript() {
             // Fake the scorer until setScorer is called.
             DoubleValues values = source.getValues(leaf, null);
 

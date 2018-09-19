@@ -70,6 +70,11 @@ public abstract class TermsSetQueryScript {
         }
     }
 
+    protected TermsSetQueryScript() {
+        params = null;
+        leafLookup = null;
+    }
+
     /**
      * Return the parameters for this script.
      */

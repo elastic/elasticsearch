@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class AutoFollowStatsAction extends Action<AutoFollowStatsAction.Response> {
 
@@ -34,6 +35,13 @@ public class AutoFollowStatsAction extends Action<AutoFollowStatsAction.Response
 
     public static class Request extends MasterNodeRequest<Request> {
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        public Request() {
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -43,11 +51,6 @@ public class AutoFollowStatsAction extends Action<AutoFollowStatsAction.Response
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
         }
     }
 
@@ -82,6 +85,19 @@ public class AutoFollowStatsAction extends Action<AutoFollowStatsAction.Response
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             stats.toXContent(builder, params);
             return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response response = (Response) o;
+            return Objects.equals(stats, response.stats);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(stats);
         }
     }
 

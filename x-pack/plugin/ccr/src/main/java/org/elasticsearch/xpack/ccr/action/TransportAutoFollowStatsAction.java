@@ -51,8 +51,8 @@ public class TransportAutoFollowStatsAction
             clusterService,
             threadPool,
             actionFilters,
-            indexNameExpressionResolver,
-            AutoFollowStatsAction.Request::new
+            AutoFollowStatsAction.Request::new,
+            indexNameExpressionResolver
         );
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
         this.autoFollowCoordinator = Objects.requireNonNull(autoFollowCoordinator);

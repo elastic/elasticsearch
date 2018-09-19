@@ -62,8 +62,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
     }
 
     public void testActualProcessor() throws Exception {
-        TestProcessor actualProcessor = new TestProcessor(ingestDocument -> {
-        });
+        TestProcessor actualProcessor = new TestProcessor(ingestDocument -> {});
         TrackingResultProcessor trackingProcessor = new TrackingResultProcessor(false, actualProcessor, resultList);
         trackingProcessor.execute(ingestDocument);
 
@@ -79,9 +78,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
     public void testActualCompoundProcessorWithoutOnFailure() throws Exception {
         RuntimeException exception = new RuntimeException("processor failed");
-        TestProcessor testProcessor = new TestProcessor(ingestDocument -> {
-            throw exception;
-        });
+        TestProcessor testProcessor = new TestProcessor(ingestDocument -> {  throw exception; });
         CompoundProcessor actualProcessor = new CompoundProcessor(testProcessor);
         CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList, pipelinesSeen);
 
@@ -102,11 +99,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
     public void testActualCompoundProcessorWithOnFailure() throws Exception {
         RuntimeException exception = new RuntimeException("fail");
-        TestProcessor failProcessor = new TestProcessor("fail", "test", ingestDocument -> {
-            throw exception;
-        });
-        TestProcessor onFailureProcessor = new TestProcessor("success", "test", ingestDocument -> {
-        });
+        TestProcessor failProcessor = new TestProcessor("fail", "test", ingestDocument -> {  throw exception; });
+        TestProcessor onFailureProcessor = new TestProcessor("success", "test", ingestDocument -> {});
         CompoundProcessor actualProcessor = new CompoundProcessor(false,
             Arrays.asList(new CompoundProcessor(false,
                 Arrays.asList(failProcessor, onFailureProcessor),
@@ -147,9 +141,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
     public void testActualCompoundProcessorWithIgnoreFailure() throws Exception {
         RuntimeException exception = new RuntimeException("processor failed");
-        TestProcessor testProcessor = new TestProcessor(ingestDocument -> {
-            throw exception;
-        });
+        TestProcessor testProcessor = new TestProcessor(ingestDocument -> {  throw exception; });
         CompoundProcessor actualProcessor = new CompoundProcessor(true, Collections.singletonList(testProcessor),
             Collections.emptyList());
         CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList, pipelinesSeen);
@@ -177,15 +169,9 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         Pipeline inner = new Pipeline(
             innerPipelineId, null, null, new CompoundProcessor(
-            new TestProcessor(ingestDocument -> {
-                ingestDocument.setFieldValue(key1, randomInt());
-            }),
-            new TestProcessor(ingestDocument -> {
-                ingestDocument.setFieldValue(key2, randomInt());
-            }),
-            new TestProcessor(ingestDocument -> {
-                ingestDocument.setFieldValue(key3, randomInt());
-            }))
+            new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key1, randomInt()); }),
+            new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key2, randomInt()); }),
+            new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key3, randomInt()); }))
         );
         when(ingestService.getPipeline(innerPipelineId)).thenReturn(inner);
 
@@ -234,16 +220,10 @@ public class TrackingResultProcessorTests extends ESTestCase {
             }),
             new CompoundProcessor(
                 false,
-                Collections.singletonList(new TestProcessor(ingestDocument -> {
-                    throw exception;
-                })),
-                Collections.singletonList(new TestProcessor(ingestDocument -> {
-                    ingestDocument.setFieldValue(key2, randomInt());
-                }))
+                Collections.singletonList(new TestProcessor(ingestDocument -> { throw exception; })),
+                Collections.singletonList(new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key2, randomInt()); }))
             ),
-            new TestProcessor(ingestDocument -> {
-                ingestDocument.setFieldValue(key3, randomInt());
-            }))
+            new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key3, randomInt()); }))
         );
         when(ingestService.getPipeline(innerPipelineId)).thenReturn(inner);
 

@@ -61,7 +61,6 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
     // all nodes must see the same content
     private static final ConcurrentMap<String, byte[]> blobs = new ConcurrentHashMap<>();
     private static String bucket;
-    private static String client;
     private static String accessKey;
     private static String secureKey;
     private static ByteSizeValue bufferSize;
@@ -72,7 +71,6 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
     @BeforeClass
     public static void setUpRepositorySettings() {
         bucket = "bucket_" + randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
-        client = "client_" + randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
         accessKey = "accessKey_" + randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
         secureKey = "secureKey_" + randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
         bufferSize = new ByteSizeValue(randomIntBetween(5, 50), ByteSizeUnit.MB);
@@ -149,7 +147,6 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
                 try {
                     final String responseContent = response.content().utf8ToString();
                     assertThat(responseContent, containsString(bucket));
-                    assertThat(responseContent, containsString(client));
                     assertThat(responseContent, not(containsString(accessKey)));
                     assertThat(responseContent, not(containsString(secureKey)));
                 } catch (final AssertionError ex) {

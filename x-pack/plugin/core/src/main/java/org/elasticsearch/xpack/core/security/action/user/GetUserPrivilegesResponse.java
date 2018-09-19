@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 /**
  * Response for a {@link GetUserPrivilegesRequest}
@@ -101,22 +102,22 @@ public class GetUserPrivilegesResponse extends ActionResponse {
         private final Collection<BytesReference> queries;
 
         public Indices(Collection<String> indices, Collection<String> privileges,
-                       Collection<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity, Collection<BytesReference> queries) {
-            this.indices = Collections.unmodifiableCollection(new TreeSet<>(Objects.requireNonNull(indices)));
-            this.privileges = Collections.unmodifiableCollection(new TreeSet<>(Objects.requireNonNull(privileges)));
-            this.fieldSecurity = Collections.unmodifiableCollection(Objects.requireNonNull(fieldSecurity));
-            this.queries = Collections.unmodifiableCollection(Objects.requireNonNull(queries));
+                       Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity, Set<BytesReference> queries) {
+            this.indices = Collections.unmodifiableSet(new TreeSet<>(Objects.requireNonNull(indices)));
+            this.privileges = Collections.unmodifiableSet(new TreeSet<>(Objects.requireNonNull(privileges)));
+            this.fieldSecurity = Collections.unmodifiableSet(Objects.requireNonNull(fieldSecurity));
+            this.queries = Collections.unmodifiableSet(Objects.requireNonNull(queries));
         }
 
         public Indices(StreamInput in) throws IOException {
-            indices = Collections.unmodifiableCollection(in.readList(StreamInput::readString));
-            privileges = Collections.unmodifiableCollection(in.readList(StreamInput::readString));
-            fieldSecurity = Collections.unmodifiableCollection(in.readList(input -> {
+            indices = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
+            privileges = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
+            fieldSecurity = Collections.unmodifiableSet(in.readSet(input -> {
                 final String[] grant = input.readOptionalStringArray();
                 final String[] exclude = input.readOptionalStringArray();
                 return new FieldPermissionsDefinition.FieldGrantExcludeGroup(grant, exclude);
             }));
-            queries = Collections.unmodifiableCollection(in.readList(StreamInput::readBytesReference));
+            queries = Collections.unmodifiableSet(in.readSet(StreamInput::readBytesReference));
         }
 
         public Collection<String> getIndices() {
@@ -146,7 +147,9 @@ public class GetUserPrivilegesResponse extends ActionResponse {
                 sb.append(", fls=[").append(Strings.collectionToCommaDelimitedString(fieldSecurity)).append("]");
             }
             if (queries.isEmpty() == false) {
-                sb.append(", dls=[").append(Strings.collectionToCommaDelimitedString(queries)).append("]");
+                sb.append(", dls=[")
+                    .append(queries.stream().map(BytesReference::utf8ToString).collect(Collectors.joining(",")))
+                    .append("]");
             }
             sb.append("]");
             return sb.toString();

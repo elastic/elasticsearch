@@ -101,7 +101,18 @@ public final class ApplicationPermission {
             .collect(Collectors.toSet());
     }
 
-    public Set<String> getDeclaredResources(ApplicationPrivilege privilege) {
+    /**
+     * Returns a set of resource patterns that are permitted for the provided privilege.
+     * The returned set may include patterns that overlap (e.g. "object/*" and "object/1") and may
+     * also include patterns that are defined again a more permissive privilege.
+     * e.g. If a permission grants
+     * <ul>
+     *     <li>"my-app", "read", [ "user/*" ]</li>
+     *     <li>"my-app", "all", [ "user/kimchy", "config/*" ]</li>
+     * </ul>
+     * Then <code>getResourcePatterns( myAppRead )</code> would return <code>"user/*", "user/kimchy", "config/*"</code>.
+     */
+    public Set<String> getResourcePatterns(ApplicationPrivilege privilege) {
         return permissions.stream()
             .filter(e -> e.matchesPrivilege(privilege))
             .map(e -> e.resourceNames)

@@ -7,8 +7,6 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 
-import java.util.Collections;
-import java.util.Set;
 import java.util.function.Predicate;
 
 /**

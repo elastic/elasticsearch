@@ -6,12 +6,12 @@
 package org.elasticsearch.xpack.security.rest.action.user;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -28,8 +28,6 @@ import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -57,26 +55,7 @@ public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String username = getUsername(request);
         GetUserPrivilegesRequestBuilder requestBuilder = new SecurityClient(client).prepareGetUserPrivileges(username);
-        return channel -> requestBuilder.execute(new RestBuilderListener<GetUserPrivilegesResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(GetUserPrivilegesResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-
-                builder.field(RoleDescriptor.Fields.CLUSTER.getPreferredName(), response.getClusterPrivileges());
-                builder.startArray(RoleDescriptor.Fields.GLOBAL.getPreferredName());
-                for (ConditionalClusterPrivilege ccp : response.getConditionalClusterPrivileges()) {
-                    ConditionalClusterPrivileges.toXContent(builder, ToXContent.EMPTY_PARAMS, Collections.singleton(ccp));
-                }
-                builder.endArray();
-
-                builder.field(RoleDescriptor.Fields.INDICES.getPreferredName(), response.getIndexPrivileges());
-                builder.field(RoleDescriptor.Fields.APPLICATIONS.getPreferredName(), response.getApplicationPrivileges());
-                builder.field(RoleDescriptor.Fields.RUN_AS.getPreferredName(), response.getRunAs());
-
-                builder.endObject();
-                return new BytesRestResponse(RestStatus.OK, builder);
-            }
-        });
+        return channel -> requestBuilder.execute(new RestListener(channel));
     }
 
     private String getUsername(RestRequest request) {
@@ -87,4 +66,29 @@ public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
         return securityContext.getUser().principal();
     }
 
+    // Package protected for testing
+    static class RestListener extends RestBuilderListener<GetUserPrivilegesResponse> {
+        RestListener(RestChannel channel) {
+            super(channel);
+        }
+
+        @Override
+        public RestResponse buildResponse(GetUserPrivilegesResponse response, XContentBuilder builder) throws Exception {
+            builder.startObject();
+
+            builder.field(RoleDescriptor.Fields.CLUSTER.getPreferredName(), response.getClusterPrivileges());
+            builder.startArray(RoleDescriptor.Fields.GLOBAL.getPreferredName());
+            for (ConditionalClusterPrivilege ccp : response.getConditionalClusterPrivileges()) {
+                ConditionalClusterPrivileges.toXContent(builder, ToXContent.EMPTY_PARAMS, Collections.singleton(ccp));
+            }
+            builder.endArray();
+
+            builder.field(RoleDescriptor.Fields.INDICES.getPreferredName(), response.getIndexPrivileges());
+            builder.field(RoleDescriptor.Fields.APPLICATIONS.getPreferredName(), response.getApplicationPrivileges());
+            builder.field(RoleDescriptor.Fields.RUN_AS.getPreferredName(), response.getRunAs());
+
+            builder.endObject();
+            return new BytesRestResponse(RestStatus.OK, builder);
+        }
+    }
 }

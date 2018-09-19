@@ -105,7 +105,7 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
         final Set<RoleDescriptor.ApplicationResourcePrivileges> application = new LinkedHashSet<>();
         for (String applicationName : userRole.application().getApplicationNames()) {
             for (ApplicationPrivilege privilege : userRole.application().getPrivileges(applicationName)) {
-                final Set<String> resources = userRole.application().getDeclaredResources(privilege);
+                final Set<String> resources = userRole.application().getResourcePatterns(privilege);
                 if (resources.isEmpty()) {
                     logger.trace("No resources defined in application privilege {}", privilege);
                 } else {

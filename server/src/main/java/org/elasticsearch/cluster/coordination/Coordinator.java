@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
@@ -440,10 +441,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     return;
                 }
 
-                // the DiscoveryNodes part can be different as we adapt it in getStateForMasterService when becoming master
-                assert clusterChangedEvent.previousState().term() == coordinationState.get().getLastAcceptedState().term() &&
-                    clusterChangedEvent.previousState().version() == coordinationState.get().getLastAcceptedState().version() &&
-                    clusterChangedEvent.previousState().metaData() == coordinationState.get().getLastAcceptedState().metaData();
+                // there is no equals on cluster state, so we just serialize it to XContent and compare JSON representation
+                assert clusterChangedEvent.previousState() == coordinationState.get().getLastAcceptedState() ||
+                    Strings.toString(clusterChangedEvent.previousState()).equals(
+                        Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState())));
 
                 final ClusterState clusterState = clusterChangedEvent.state();
 

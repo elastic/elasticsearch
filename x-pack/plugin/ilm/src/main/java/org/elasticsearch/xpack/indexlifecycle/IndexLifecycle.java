@@ -123,17 +123,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         return Arrays.asList(
             LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING,
             LifecycleSettings.LIFECYCLE_NAME_SETTING,
-            LifecycleSettings.LIFECYCLE_PHASE_SETTING,
-            LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE_SETTING,
-            LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING,
-            LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING,
-            LifecycleSettings.LIFECYCLE_ACTION_SETTING,
-            LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING,
-            LifecycleSettings.LIFECYCLE_STEP_SETTING,
-            LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING,
-            LifecycleSettings.LIFECYCLE_FAILED_STEP_SETTING,
             LifecycleSettings.LIFECYCLE_SKIP_SETTING,
-            LifecycleSettings.LIFECYCLE_PHASE_DEFINITION_SETTING,
             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING);
     }
 

@@ -24,11 +24,12 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleResponse;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleExplainResponse;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction;
@@ -76,10 +77,16 @@ public class TransportExplainLifecycleAction
         for (String index : concreteIndices) {
             IndexMetaData idxMetadata = state.metaData().index(index);
             Settings idxSettings = idxMetadata.getSettings();
+            LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMetadata);
             String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxSettings);
-            String currentPhase = LifecycleSettings.LIFECYCLE_PHASE_SETTING.get(idxSettings);
+            String currentPhase = lifecycleState.getPhase();
+            String stepInfo = lifecycleState.getStepInfo();
+            BytesArray stepInfoBytes = null;
+            if (stepInfo != null) {
+                stepInfoBytes = new BytesArray(stepInfo);
+            }
             // parse existing phase steps from the phase definition in the index settings
-            String phaseDef = idxSettings.get(LifecycleSettings.LIFECYCLE_PHASE_DEFINITION);
+            String phaseDef = lifecycleState.getPhaseDefinition();
             PhaseExecutionInfo phaseExecutionInfo = null;
             if (Strings.isNullOrEmpty(phaseDef) == false) {
                 try (XContentParser parser = JsonXContent.jsonXContent.createParser(xContentRegistry,
@@ -87,7 +94,7 @@ public class TransportExplainLifecycleAction
                     phaseExecutionInfo = PhaseExecutionInfo.parse(parser, currentPhase);
                 } catch (IOException e) {
                     listener.onFailure(new ElasticsearchParseException(
-                        "failed to parse [" + LifecycleSettings.LIFECYCLE_PHASE_DEFINITION + "] for index [" + index + "]", e));
+                        "failed to parse phase definition for index [" + index + "]", e));
                     return;
                 }
             }
@@ -95,15 +102,15 @@ public class TransportExplainLifecycleAction
             if (Strings.hasLength(policyName)) {
                 indexResponse = IndexLifecycleExplainResponse.newManagedIndexResponse(index, policyName,
                     LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(idxSettings),
-                    LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE_SETTING.get(idxSettings),
-                    LifecycleSettings.LIFECYCLE_PHASE_SETTING.get(idxSettings),
-                    LifecycleSettings.LIFECYCLE_ACTION_SETTING.get(idxSettings),
-                    LifecycleSettings.LIFECYCLE_STEP_SETTING.get(idxSettings),
-                    LifecycleSettings.LIFECYCLE_FAILED_STEP_SETTING.get(idxSettings),
-                    LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(idxSettings),
-                    LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(idxSettings),
-                    LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING.get(idxSettings),
-                    new BytesArray(LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(idxSettings)),
+                    lifecycleState.getLifecycleDate(),
+                    lifecycleState.getPhase(),
+                    lifecycleState.getAction(),
+                    lifecycleState.getStep(),
+                    lifecycleState.getFailedStep(),
+                    lifecycleState.getPhaseTime(),
+                    lifecycleState.getActionTime(),
+                    lifecycleState.getStepTime(),
+                    stepInfoBytes,
                     phaseExecutionInfo);
             } else {
                 indexResponse = IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index);

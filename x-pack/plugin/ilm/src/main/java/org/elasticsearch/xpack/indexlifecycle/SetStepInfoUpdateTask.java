@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 
@@ -55,8 +56,9 @@ public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
             return currentState;
         }
         Settings indexSettings = idxMeta.getSettings();
+        LifecycleExecutionState indexILMData = LifecycleExecutionState.fromIndexMetadata(idxMeta);
         if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
-                && currentStepKey.equals(IndexLifecycleRunner.getCurrentStepKey(indexSettings))) {
+                && currentStepKey.equals(IndexLifecycleRunner.getCurrentStepKey(indexILMData))) {
             return IndexLifecycleRunner.addStepInfoToClusterState(index, currentState, stepInfo);
         } else {
             // either the policy has changed or the step is now

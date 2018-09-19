@@ -21,19 +21,15 @@ package org.elasticsearch.client.license;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 
-public class PostStartBasicRequest extends AcknowledgedRequest<PostStartBasicRequest> {
-    private boolean acknowledge = false;
+public class StartBasicRequest extends AcknowledgedRequest<StartBasicRequest> {
+    private final boolean acknowledge = false;
 
-    public PostStartBasicRequest() {
+    public StartBasicRequest() {
     }
 
     @Override
     public ActionRequestValidationException validate() {
         return null;
-    }
-
-    public void setAcknowledge(boolean acknowledge) {
-        this.acknowledge = acknowledge;
     }
 
     public boolean isAcknowledge() {

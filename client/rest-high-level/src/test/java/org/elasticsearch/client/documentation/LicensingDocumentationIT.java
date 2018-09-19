@@ -26,8 +26,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.license.PostStartBasicRequest;
-import org.elasticsearch.client.license.PostStartBasicResponse;
+import org.elasticsearch.client.license.StartBasicRequest;
+import org.elasticsearch.client.license.StartBasicResponse;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
@@ -221,25 +221,26 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testPostStartBasic() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
-            //tag::post-start-basic-execute
-            PostStartBasicRequest request = new PostStartBasicRequest();
+            //tag::start-basic-execute
+            StartBasicRequest request = new StartBasicRequest();
 
-            PostStartBasicResponse response = client.license().startBasic(request, RequestOptions.DEFAULT);
-            //end::post-start-basic-execute
+            StartBasicResponse response = client.license().startBasic(request, RequestOptions.DEFAULT);
+            //end::start-basic-execute
 
-            //tag::post-start-basic-response
-            boolean acknowledged = response.isAcknowledged(); // <1>
-            String acknowledgeMessage = response.acknowledgeMessage(); // <2>
-            Map<String, String[]> acknowledgeMessages = response.acknowledgeMessages(); // <3>
-            String errorMessage = response.getStatus().getErrorMessage(); // <4>
-            //end::post-start-basic-response
+            //tag::start-basic-response
+            boolean acknowledged = response.isAcknowledged();                              // <1>
+            boolean basicStarted = response.isBasicStarted();                              // <2>
+            String errorMessage = response.getErrorMessage();                              // <3>
+            String acknowledgeMessage = response.getAcknowledgeMessage();                  // <4>
+            Map<String, String[]> acknowledgeMessages = response.getAcknowledgeMessages(); // <5>
+            //end::start-basic-response
         }
         {
-            PostStartBasicRequest request = new PostStartBasicRequest();
-            // tag::post-start-basic-listener
-            ActionListener<PostStartBasicResponse> listener = new ActionListener<PostStartBasicResponse>() {
+            StartBasicRequest request = new StartBasicRequest();
+            // tag::start-basic-listener
+            ActionListener<StartBasicResponse> listener = new ActionListener<StartBasicResponse>() {
                 @Override
-                public void onResponse(PostStartBasicResponse indexResponse) {
+                public void onResponse(StartBasicResponse indexResponse) {
                     // <1>
                 }
 
@@ -248,16 +249,16 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
                     // <2>
                 }
             };
-            // end::post-start-basic-listener
+            // end::start-basic-listener
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
-            // tag::post-start-basic-execute-async
+            // tag::start-basic-execute-async
             client.license().startBasicAsync(
                 request, RequestOptions.DEFAULT, listener); // <1>
-            // end::post-start-basic-execute-async
+            // end::start-basic-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

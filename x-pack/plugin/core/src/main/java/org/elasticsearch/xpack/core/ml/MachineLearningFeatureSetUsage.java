@@ -29,7 +29,7 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
 
     private final Map<String, Object> jobsUsage;
     private final Map<String, Object> datafeedsUsage;
-    private int nodeCount;
+    private final int nodeCount;
 
     public MachineLearningFeatureSetUsage(boolean available, boolean enabled, Map<String, Object> jobsUsage,
                                           Map<String, Object> datafeedsUsage, int nodeCount) {
@@ -45,6 +45,8 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
         this.datafeedsUsage = in.readMap();
         if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
             this.nodeCount = in.readInt();
+        } else {
+            this.nodeCount = -1;
         }
     }
 
@@ -67,7 +69,9 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
         if (datafeedsUsage != null) {
             builder.field(DATAFEEDS_FIELD, datafeedsUsage);
         }
-        builder.field(NODE_COUNT, nodeCount);
+        if (nodeCount >= 0) {
+            builder.field(NODE_COUNT, nodeCount);
+        }
     }
 
 }

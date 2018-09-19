@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -273,7 +272,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
             oldSource = new XContentSource(builder);
         }
 
-        assertThat(oldSource.getValue("node_count"), equalTo(0));
+        assertNull(oldSource.getValue("node_count"));
     }
 
     public void testUsageGivenMlMetadataNotInstalled() throws Exception {

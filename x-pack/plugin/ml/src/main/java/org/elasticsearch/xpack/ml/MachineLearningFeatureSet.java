@@ -173,7 +173,8 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
 
         public void execute(ActionListener<Usage> listener) {
             if (enabled == false) {
-                listener.onResponse(new MachineLearningFeatureSetUsage(available, enabled, Collections.emptyMap(), Collections.emptyMap(), 0));
+                listener.onResponse(
+                    new MachineLearningFeatureSetUsage(available, enabled, Collections.emptyMap(), Collections.emptyMap(), 0));
                 return;
             }
 

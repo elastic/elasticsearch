@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.ClientConfiguration;
+import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.StorageClass;
@@ -126,7 +128,7 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
             return Collections.singletonMap(S3Repository.TYPE,
                     (metadata) -> new S3Repository(metadata, env.settings(), registry, new S3Service(env.settings()) {
                         @Override
-                        AmazonS3 buildClient(S3ClientSettings clientSettings) {
+                        AmazonS3 buildClient(final AWSCredentialsProvider provider, final ClientConfiguration configuration) {
                             return new MockAmazonS3(blobs, bucket, serverSideEncryption, cannedACL, storageClass);
                         }
                     }));

@@ -217,7 +217,10 @@ class S3Repository extends BlobStoreRepository {
                     + "store these in named clients and the elasticsearch keystore for secure settings.");
             final BasicAWSCredentials insecureCredentials = S3ClientSettings.loadDeprecatedCredentials(metadata.settings());
             final S3ClientSettings s3ClientSettings = S3ClientSettings.getClientSettings(metadata, insecureCredentials);
-            this.reference = new AmazonS3Reference(service.buildClient(s3ClientSettings));
+            this.reference =
+                    new AmazonS3Reference(service.buildClient(
+                            S3Service.buildCredentials(logger, s3ClientSettings),
+                            S3Service.buildConfiguration(s3ClientSettings)));
         } else {
             reference = null;
         }

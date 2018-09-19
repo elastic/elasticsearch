@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
@@ -109,6 +110,11 @@ public final class CcrLicenseChecker {
                 onFailure,
                 leaderClusterState -> {
                     IndexMetaData leaderIndexMetaData = leaderClusterState.getMetaData().index(leaderIndex);
+                    if (leaderIndexMetaData == null) {
+                        onFailure.accept(new IndexNotFoundException(leaderIndex));
+                        return;
+                    }
+
                     final Client leaderClient = client.getRemoteClusterClient(clusterAlias);
                     fetchLeaderHistoryUUIDs(leaderClient, leaderIndexMetaData, onFailure, historyUUIDs -> {
                         consumer.accept(historyUUIDs, leaderIndexMetaData);

@@ -532,6 +532,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterMatchQueryOptions(SqlBaseParser.MatchQueryOptionsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitMatchQueryOptions(SqlBaseParser.MatchQueryOptionsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterPredicated(SqlBaseParser.PredicatedContext ctx) { }
   /**
    * {@inheritDoc}

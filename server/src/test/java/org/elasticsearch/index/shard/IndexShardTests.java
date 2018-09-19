@@ -23,7 +23,6 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
@@ -2439,7 +2438,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(sourceShard, targetShard);
     }
 
-    public void testDocStats() throws IOException, InterruptedException {
+    public void testDocStats() throws Exception {
         IndexShard indexShard = null;
         try {
             indexShard = newStartedShard(
@@ -2456,7 +2455,14 @@ public class IndexShardTests extends IndexShardTestCase {
                 indexShard.flush(new FlushRequest());
             }
             {
+                IndexShard shard = indexShard;
+                assertBusy(() -> {
+                    ThreadPool threadPool = shard.getThreadPool();
+                    assertThat(threadPool.relativeTimeInMillis(), greaterThan(shard.getLastSearcherAccess()));
+                });
+                long prevAccessTime = shard.getLastSearcherAccess();
                 final DocsStats docsStats = indexShard.docStats();
+                assertThat("searcher was not marked as accessed", shard.getLastSearcherAccess(), greaterThan(prevAccessTime));
                 assertThat(docsStats.getCount(), equalTo(numDocs));
                 try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
                     assertTrue(searcher.reader().numDocs() <= docsStats.getCount());
@@ -2641,7 +2647,8 @@ public class IndexShardTests extends IndexShardTestCase {
 
         final ShardPath shardPath = indexShard.shardPath();
 
-        final Path indexPath = corruptIndexFile(shardPath);
+        final Path indexPath = shardPath.getDataPath().resolve(ShardPath.INDEX_FOLDER_NAME);
+        CorruptionUtils.corruptIndex(random(), indexPath, false);
 
         final AtomicInteger corruptedMarkerCount = new AtomicInteger();
         final SimpleFileVisitor<Path> corruptedVisitor = new SimpleFileVisitor<Path>() {
@@ -2748,22 +2755,6 @@ public class IndexShardTests extends IndexShardTestCase {
         corruptedMarkerCount.set(0);
         Files.walkFileTree(indexPath, corruptedVisitor);
         assertThat("store still has a single corrupt marker", corruptedMarkerCount.get(), equalTo(1));
-    }
-
-    private Path corruptIndexFile(ShardPath shardPath) throws IOException {
-        final Path indexPath = shardPath.getDataPath().resolve(ShardPath.INDEX_FOLDER_NAME);
-        final Path[] filesToCorrupt =
-            Files.walk(indexPath)
-                .filter(p -> {
-                    final String name = p.getFileName().toString();
-                    return Files.isRegularFile(p)
-                        && name.startsWith("extra") == false // Skip files added by Lucene's ExtrasFS
-                        && IndexWriter.WRITE_LOCK_NAME.equals(name) == false
-                        && name.startsWith("segments_") == false && name.endsWith(".si") == false;
-                })
-                .toArray(Path[]::new);
-        CorruptionUtils.corruptFile(random(), filesToCorrupt);
-        return indexPath;
     }
 
     /**
@@ -3427,5 +3418,10 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(shard.seqNoStats().getMaxSeqNo(), equalTo(globalCheckpoint));
         assertThat(shard.translogStats().estimatedNumberOfOperations(), equalTo(translogStats.estimatedNumberOfOperations()));
         closeShard(shard, false);
+    }
+
+    @Override
+    public Settings threadPoolSettings() {
+        return Settings.builder().put(super.threadPoolSettings()).put("thread_pool.estimated_time_interval", "5ms").build();
     }
 }

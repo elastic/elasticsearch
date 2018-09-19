@@ -81,7 +81,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (request.realtime()) { // we are not tied to a refresh cycle here anyway
-            listener.onResponse(shardOperation(request, shardId));
+            super.asyncShardOperation(request, shardId, listener);
         } else {
             indexShard.awaitShardSearchActive(b -> {
                 try {

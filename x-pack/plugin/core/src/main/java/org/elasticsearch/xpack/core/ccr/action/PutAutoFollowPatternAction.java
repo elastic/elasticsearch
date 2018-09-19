@@ -67,9 +67,9 @@ public class PutAutoFollowPatternAction
             PARSER.declareField(Request::setMaxRetryDelay,
                 (p, c) -> TimeValue.parseTimeValue(p.text(), AutoFollowPattern.MAX_RETRY_DELAY.getPreferredName()),
                 AutoFollowPattern.MAX_RETRY_DELAY, ObjectParser.ValueType.STRING);
-            PARSER.declareField(Request::setIdleShardRetryDelay,
-                (p, c) -> TimeValue.parseTimeValue(p.text(), AutoFollowPattern.IDLE_SHARD_RETRY_DELAY.getPreferredName()),
-                AutoFollowPattern.IDLE_SHARD_RETRY_DELAY, ObjectParser.ValueType.STRING);
+            PARSER.declareField(Request::setPollTimeout,
+                (p, c) -> TimeValue.parseTimeValue(p.text(), AutoFollowPattern.POLL_TIMEOUT.getPreferredName()),
+                AutoFollowPattern.POLL_TIMEOUT, ObjectParser.ValueType.STRING);
         }
 
         public static Request fromXContent(XContentParser parser, String remoteClusterAlias) throws IOException {
@@ -96,7 +96,7 @@ public class PutAutoFollowPatternAction
         private Integer maxConcurrentWriteBatches;
         private Integer maxWriteBufferSize;
         private TimeValue maxRetryDelay;
-        private TimeValue idleShardRetryDelay;
+        private TimeValue pollTimeout;
 
         @Override
         public ActionRequestValidationException validate() {
@@ -197,12 +197,12 @@ public class PutAutoFollowPatternAction
             this.maxRetryDelay = maxRetryDelay;
         }
 
-        public TimeValue getIdleShardRetryDelay() {
-            return idleShardRetryDelay;
+        public TimeValue getPollTimeout() {
+            return pollTimeout;
         }
 
-        public void setIdleShardRetryDelay(TimeValue idleShardRetryDelay) {
-            this.idleShardRetryDelay = idleShardRetryDelay;
+        public void setPollTimeout(TimeValue pollTimeout) {
+            this.pollTimeout = pollTimeout;
         }
 
         @Override
@@ -217,7 +217,7 @@ public class PutAutoFollowPatternAction
             maxConcurrentWriteBatches = in.readOptionalVInt();
             maxWriteBufferSize = in.readOptionalVInt();
             maxRetryDelay = in.readOptionalTimeValue();
-            idleShardRetryDelay = in.readOptionalTimeValue();
+            pollTimeout = in.readOptionalTimeValue();
         }
 
         @Override
@@ -232,7 +232,7 @@ public class PutAutoFollowPatternAction
             out.writeOptionalVInt(maxConcurrentWriteBatches);
             out.writeOptionalVInt(maxWriteBufferSize);
             out.writeOptionalTimeValue(maxRetryDelay);
-            out.writeOptionalTimeValue(idleShardRetryDelay);
+            out.writeOptionalTimeValue(pollTimeout);
         }
 
         @Override
@@ -262,8 +262,8 @@ public class PutAutoFollowPatternAction
                 if (maxRetryDelay != null) {
                     builder.field(AutoFollowPattern.MAX_RETRY_DELAY.getPreferredName(), maxRetryDelay.getStringRep());
                 }
-                if (idleShardRetryDelay != null) {
-                    builder.field(AutoFollowPattern.IDLE_SHARD_RETRY_DELAY.getPreferredName(), idleShardRetryDelay.getStringRep());
+                if (pollTimeout != null) {
+                    builder.field(AutoFollowPattern.POLL_TIMEOUT.getPreferredName(), pollTimeout.getStringRep());
                 }
             }
             builder.endObject();
@@ -284,7 +284,7 @@ public class PutAutoFollowPatternAction
                 Objects.equals(maxConcurrentWriteBatches, request.maxConcurrentWriteBatches) &&
                 Objects.equals(maxWriteBufferSize, request.maxWriteBufferSize) &&
                 Objects.equals(maxRetryDelay, request.maxRetryDelay) &&
-                Objects.equals(idleShardRetryDelay, request.idleShardRetryDelay);
+                Objects.equals(pollTimeout, request.pollTimeout);
         }
 
         @Override
@@ -299,7 +299,7 @@ public class PutAutoFollowPatternAction
                 maxConcurrentWriteBatches,
                 maxWriteBufferSize,
                 maxRetryDelay,
-                idleShardRetryDelay
+                pollTimeout
             );
         }
     }

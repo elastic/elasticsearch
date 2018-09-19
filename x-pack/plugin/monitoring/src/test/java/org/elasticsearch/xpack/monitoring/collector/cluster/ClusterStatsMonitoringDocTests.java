@@ -9,7 +9,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsNodeResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -76,7 +75,6 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
     private List<XPackFeatureSet.Usage> usages;
     private ClusterStatsResponse clusterStats;
     private ClusterState clusterState;
-    private ClusterGetSettingsResponse clusterSettings;
     private License license;
     private final boolean needToEnableTLS = randomBoolean();
     private final boolean apmIndicesExist = randomBoolean();
@@ -91,7 +89,6 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         usages = emptyList();
         clusterStats = mock(ClusterStatsResponse.class);
         clusterState = mock(ClusterState.class);
-        clusterSettings = mock(ClusterGetSettingsResponse.class);
         license = License.builder()
                          .uid(randomAlphaOfLength(5))
                          .type(randomFrom(License.OperationMode.values()).name())
@@ -118,7 +115,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         return new ClusterStatsMonitoringDoc(cluster, timestamp, interval, node,
                                              clusterName, version, clusterStatus, license,
                                              apmIndicesExist, usages, clusterStats, clusterState,
-                                             clusterSettings, needToEnableTLS);
+                                             needToEnableTLS);
     }
 
     @Override
@@ -141,21 +138,21 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         expectThrows(NullPointerException.class,
                 () -> new ClusterStatsMonitoringDoc(cluster, timestamp, interval, node,
                         null, version, clusterStatus, license, apmIndicesExist, usages, clusterStats, clusterState,
-                         clusterSettings, needToEnableTLS));
+                         needToEnableTLS));
     }
 
     public void testConstructorVersionMustNotBeNull() {
         expectThrows(NullPointerException.class,
                 () -> new ClusterStatsMonitoringDoc(cluster, timestamp, interval, node,
                         clusterName, null, clusterStatus, license, apmIndicesExist, usages, clusterStats, clusterState,
-                        clusterSettings, needToEnableTLS));
+                        needToEnableTLS));
     }
 
     public void testConstructorClusterHealthStatusMustNotBeNull() {
         expectThrows(NullPointerException.class,
                 () -> new ClusterStatsMonitoringDoc(cluster, timestamp, interval, node,
                         clusterName, version, null, license, apmIndicesExist, usages, clusterStats, clusterState,
-                        clusterSettings, needToEnableTLS));
+                        needToEnableTLS));
     }
 
     public void testNodesHash() {

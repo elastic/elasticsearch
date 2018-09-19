@@ -84,10 +84,6 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsActi
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
-import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequestBuilder;
-import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
@@ -763,21 +759,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public ClusterUpdateSettingsRequestBuilder prepareUpdateSettings() {
             return new ClusterUpdateSettingsRequestBuilder(this, ClusterUpdateSettingsAction.INSTANCE);
-        }
-
-        @Override
-        public ActionFuture<ClusterGetSettingsResponse> getSettings(final ClusterGetSettingsRequest request) {
-            return execute(ClusterGetSettingsAction.INSTANCE, request);
-        }
-
-        @Override
-        public void getSettings(final ClusterGetSettingsRequest request, final ActionListener<ClusterGetSettingsResponse> listener) {
-            execute(ClusterGetSettingsAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public ClusterGetSettingsRequestBuilder prepareGetSettings() {
-            return new ClusterGetSettingsRequestBuilder(this, ClusterGetSettingsAction.INSTANCE);
         }
 
         @Override

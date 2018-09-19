@@ -65,9 +65,6 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequestBuilder;
-import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
@@ -183,21 +180,6 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Update settings in the cluster.
      */
     ClusterUpdateSettingsRequestBuilder prepareUpdateSettings();
-
-    /**
-     * Get settings from cluster
-     */
-    ActionFuture<ClusterGetSettingsResponse> getSettings(ClusterGetSettingsRequest request);
-
-    /**
-     * Get settings from cluster
-     */
-    void getSettings(ClusterGetSettingsRequest request, ActionListener<ClusterGetSettingsResponse> listener);
-
-    /**
-     * Get settings from cluster
-     */
-    ClusterGetSettingsRequestBuilder prepareGetSettings();
 
     /**
      * Re initialize each cluster node and pass them the secret store password.

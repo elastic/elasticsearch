@@ -9,7 +9,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
@@ -93,13 +92,10 @@ public class ClusterStatsCollector extends Collector {
                                                   final ClusterState clusterState) throws Exception {
         final Supplier<ClusterStatsResponse> clusterStatsSupplier =
                 () -> client.admin().cluster().prepareClusterStats().get(getCollectionTimeout());
-        final Supplier<ClusterGetSettingsResponse> clusterGetSettingsSupplier =
-                () -> client.admin().cluster().prepareGetSettings().get(getCollectionTimeout());
         final Supplier<List<XPackFeatureSet.Usage>> usageSupplier =
                 () -> new XPackUsageRequestBuilder(client).get().getUsages();
 
         final ClusterStatsResponse clusterStats = clusterStatsSupplier.get();
-        final ClusterGetSettingsResponse clusterSettings = clusterGetSettingsSupplier.get();
 
         final String clusterName = clusterService.getClusterName().value();
         final String clusterUuid = clusterUuid(clusterState);
@@ -116,7 +112,7 @@ public class ClusterStatsCollector extends Collector {
         // Adds a cluster stats document
         return Collections.singleton(
                 new ClusterStatsMonitoringDoc(clusterUuid, timestamp(), interval, node, clusterName, version,  clusterStats.getStatus(),
-                                              license, apmIndicesExist, xpackUsage, clusterStats, clusterState, clusterSettings,
+                                              license, apmIndicesExist, xpackUsage, clusterStats, clusterState,
                                               clusterNeedsTLSEnabled));
     }
 

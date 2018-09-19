@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
-import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -56,7 +55,6 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
     private final List<XPackFeatureSet.Usage> usages;
     private final ClusterStatsResponse clusterStats;
     private final ClusterState clusterState;
-    private final ClusterGetSettingsResponse clusterSettings;
     private final ClusterHealthStatus status;
     private final boolean clusterNeedsTLSEnabled;
 
@@ -72,7 +70,6 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
                               @Nullable final List<XPackFeatureSet.Usage> usages,
                               @Nullable final ClusterStatsResponse clusterStats,
                               @Nullable final ClusterState clusterState,
-                              @Nullable final ClusterGetSettingsResponse clusterSettings,
                               final boolean clusterNeedsTLSEnabled) {
 
         super(cluster, timestamp, intervalMillis, node, MonitoredSystem.ES, TYPE, null);
@@ -84,7 +81,6 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
         this.usages = usages;
         this.clusterStats = clusterStats;
         this.clusterState = clusterState;
-        this.clusterSettings = clusterSettings;
         this.clusterNeedsTLSEnabled = clusterNeedsTLSEnabled;
     }
 
@@ -124,23 +120,8 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
         return clusterNeedsTLSEnabled;
     }
 
-    Settings getClusterMetadata() {
-        Settings persistentSettings = clusterSettings.getPersistentSettings();
-        if (persistentSettings.hasValue(SETTING_CLUSTER_METADATA)) {
-            return persistentSettings.getAsSettings(SETTING_CLUSTER_METADATA);
-        }
-
-        Settings transientSettings = clusterSettings.getTransientSettings();
-        if (transientSettings.hasValue(SETTING_CLUSTER_METADATA)) {
-            return transientSettings.getAsSettings(SETTING_CLUSTER_METADATA);
-        }
-
-        Settings defaultSettings = clusterSettings.getDefaultSettings();
-        if (defaultSettings.hasValue(SETTING_CLUSTER_METADATA)) {
-            return defaultSettings.getAsSettings(SETTING_CLUSTER_METADATA);
-        }
-
-        return null;
+    Settings getClusterSettings() {
+        return this.clusterState.getMetaData().settings();
     }
 
     @Override
@@ -181,11 +162,11 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
             builder.endObject();
         }
 
-        Settings clusterMetadata = getClusterMetadata();
-        if (clusterMetadata != null) {
-            builder.startObject("cluster_metadata");
+        Settings clusterSettings = getClusterSettings();
+        if (clusterSettings != null) {
+            builder.startObject("cluster_settings");
             {
-                clusterMetadata.toXContent(builder, params);
+                clusterSettings.toXContent(builder, params);
             }
             builder.endObject();
         }

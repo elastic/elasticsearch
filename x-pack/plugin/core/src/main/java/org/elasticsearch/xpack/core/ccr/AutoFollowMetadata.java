@@ -171,7 +171,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         public static final ParseField MAX_CONCURRENT_WRITE_BATCHES = new ParseField("max_concurrent_write_batches");
         public static final ParseField MAX_WRITE_BUFFER_SIZE = new ParseField("max_write_buffer_size");
         public static final ParseField MAX_RETRY_DELAY = new ParseField("max_retry_delay");
-        public static final ParseField IDLE_SHARD_RETRY_DELAY = new ParseField("idle_shard_retry_delay");
+        public static final ParseField POLL_TIMEOUT = new ParseField("poll_timeout");
         private static final ParseField HEADERS = new ParseField("headers");
 
         @SuppressWarnings("unchecked")
@@ -193,8 +193,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
                 (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_RETRY_DELAY.getPreferredName()),
                 MAX_RETRY_DELAY, ObjectParser.ValueType.STRING);
             PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> TimeValue.parseTimeValue(p.text(), IDLE_SHARD_RETRY_DELAY.getPreferredName()),
-                IDLE_SHARD_RETRY_DELAY, ObjectParser.ValueType.STRING);
+                (p, c) -> TimeValue.parseTimeValue(p.text(), POLL_TIMEOUT.getPreferredName()),
+                POLL_TIMEOUT, ObjectParser.ValueType.STRING);
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), HEADERS);
         }
 
@@ -206,7 +206,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         private final Integer maxConcurrentWriteBatches;
         private final Integer maxWriteBufferSize;
         private final TimeValue maxRetryDelay;
-        private final TimeValue idleShardRetryDelay;
+        private final TimeValue pollTimeout;
         private final Map<String, String> headers;
 
         public AutoFollowPattern(List<String> leaderIndexPatterns,
@@ -217,7 +217,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
                                  Integer maxConcurrentWriteBatches,
                                  Integer maxWriteBufferSize,
                                  TimeValue maxRetryDelay,
-                                 TimeValue idleShardRetryDelay,
+                                 TimeValue pollTimeout,
                                  Map<String, String> headers) {
             this.leaderIndexPatterns = leaderIndexPatterns;
             this.followIndexPattern = followIndexPattern;
@@ -227,7 +227,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             this.maxConcurrentWriteBatches = maxConcurrentWriteBatches;
             this.maxWriteBufferSize = maxWriteBufferSize;
             this.maxRetryDelay = maxRetryDelay;
-            this.idleShardRetryDelay = idleShardRetryDelay;
+            this.pollTimeout = pollTimeout;
             this.headers = headers != null ? Collections.unmodifiableMap(headers) : Collections.emptyMap();
         }
 
@@ -240,7 +240,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             maxConcurrentWriteBatches = in.readOptionalVInt();
             maxWriteBufferSize = in.readOptionalVInt();
             maxRetryDelay = in.readOptionalTimeValue();
-            idleShardRetryDelay = in.readOptionalTimeValue();
+            pollTimeout = in.readOptionalTimeValue();
             this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
         }
 
@@ -284,8 +284,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             return maxRetryDelay;
         }
 
-        public TimeValue getIdleShardRetryDelay() {
-            return idleShardRetryDelay;
+        public TimeValue getPollTimeout() {
+            return pollTimeout;
         }
 
         public Map<String, String> getHeaders() {
@@ -302,7 +302,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             out.writeOptionalVInt(maxConcurrentWriteBatches);
             out.writeOptionalVInt(maxWriteBufferSize);
             out.writeOptionalTimeValue(maxRetryDelay);
-            out.writeOptionalTimeValue(idleShardRetryDelay);
+            out.writeOptionalTimeValue(pollTimeout);
             out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
         }
 
@@ -330,8 +330,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             if (maxRetryDelay != null) {
                 builder.field(MAX_RETRY_DELAY.getPreferredName(), maxRetryDelay);
             }
-            if (idleShardRetryDelay != null) {
-                builder.field(IDLE_SHARD_RETRY_DELAY.getPreferredName(), idleShardRetryDelay);
+            if (pollTimeout != null) {
+                builder.field(POLL_TIMEOUT.getPreferredName(), pollTimeout);
             }
             builder.field(HEADERS.getPreferredName(), headers);
             return builder;
@@ -355,7 +355,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
                 Objects.equals(maxConcurrentWriteBatches, that.maxConcurrentWriteBatches) &&
                 Objects.equals(maxWriteBufferSize, that.maxWriteBufferSize) &&
                 Objects.equals(maxRetryDelay, that.maxRetryDelay) &&
-                Objects.equals(idleShardRetryDelay, that.idleShardRetryDelay) &&
+                Objects.equals(pollTimeout, that.pollTimeout) &&
                 Objects.equals(headers, that.headers);
         }
 
@@ -370,7 +370,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
                 maxConcurrentWriteBatches,
                 maxWriteBufferSize,
                 maxRetryDelay,
-                idleShardRetryDelay,
+                pollTimeout,
                 headers
             );
         }

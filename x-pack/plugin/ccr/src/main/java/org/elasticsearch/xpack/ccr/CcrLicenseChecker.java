@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
@@ -77,7 +78,7 @@ public final class CcrLicenseChecker {
      * @param isCcrAllowed  a boolean supplier that should return true if CCR is allowed and false otherwise
      * @param isAuthAllowed a boolean supplier that should return true if security, authentication and authorization are be enabled
      */
-    CcrLicenseChecker(final BooleanSupplier isCcrAllowed, final BooleanSupplier isAuthAllowed) {
+    public CcrLicenseChecker(final BooleanSupplier isCcrAllowed, final BooleanSupplier isAuthAllowed) {
         this.isAuthAllowed = Objects.requireNonNull(isAuthAllowed);
         this.isCcrAllowed = Objects.requireNonNull(isCcrAllowed);
     }
@@ -123,6 +124,11 @@ public final class CcrLicenseChecker {
                 onFailure,
                 leaderClusterState -> {
                     IndexMetaData leaderIndexMetaData = leaderClusterState.getMetaData().index(leaderIndex);
+                    if (leaderIndexMetaData == null) {
+                        onFailure.accept(new IndexNotFoundException(leaderIndex));
+                        return;
+                    }
+
                     final Client leaderClient = client.getRemoteClusterClient(clusterAlias);
                     hasPrivilegesToFollowIndex(leaderClient, new String[] {leaderIndex}, e -> {
                         if (e == null) {

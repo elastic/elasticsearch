@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -80,6 +81,18 @@ public class FollowIndexIT extends ESRestTestCase {
             assertBusy(() -> verifyDocuments(followIndexName, numDocs + 3));
             assertBusy(() -> verifyCcrMonitoring(leaderIndexName, followIndexName));
         }
+    }
+
+    public void testFollowNonExistingLeaderIndex() throws Exception {
+        assumeFalse("Test should only run when both clusters are running", runningAgainstLeaderCluster);
+        ResponseException e = expectThrows(ResponseException.class,
+            () -> followIndex("leader_cluster:non-existing-index", "non-existing-index"));
+        assertThat(e.getMessage(), containsString("no such index"));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+
+        e = expectThrows(ResponseException.class, () -> createAndFollowIndex("leader_cluster:non-existing-index", "non-existing-index"));
+        assertThat(e.getMessage(), containsString("no such index"));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
     public void testAutoFollowPatterns() throws Exception {

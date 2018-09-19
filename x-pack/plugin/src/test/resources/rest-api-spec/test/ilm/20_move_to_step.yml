@@ -84,13 +84,13 @@ teardown:
             name: "forcemerge"
 
   - do:
-      acknowledge: true
-      indices.get:
-        index: my_index
-  - match: { my_index.settings.index.lifecycle.name: "my_moveable_timeseries_lifecycle" }
-  - match: { my_index.settings.index.lifecycle.step: "forcemerge" }
-  - match: { my_index.settings.index.lifecycle.action: "forcemerge" }
-  - match: { my_index.settings.index.lifecycle.phase: "warm" }
+        acknowledge: true
+        ilm.explain_lifecycle:
+          index: "my_index"
+  - match: { indices.my_index.policy: "my_moveable_timeseries_lifecycle" }
+  - match: { indices.my_index.step: "forcemerge" }
+  - match: { indices.my_index.action: "forcemerge" }
+  - match: { indices.my_index.phase: "warm" }
 
 ---
 "Test Invalid Move To Step With Incorrect Current Step":
@@ -111,14 +111,15 @@ teardown:
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.root_cause.0.reason: "index [my_index] is not on current step [{\"phase\":\"warm\",\"action\":\"forcemerge\",\"name\":\"forcemerge\"}]" }
 
+
   - do:
       acknowledge: true
-      indices.get:
-        index: my_index
-  - match: { my_index.settings.index.lifecycle.name: "my_moveable_timeseries_lifecycle" }
-  - match: { my_index.settings.index.lifecycle.step: "complete" }
-  - match: { my_index.settings.index.lifecycle.action: "complete" }
-  - match: { my_index.settings.index.lifecycle.phase: "new" }
+      ilm.explain_lifecycle:
+        index: "my_index"
+  - match: { indices.my_index.policy: "my_moveable_timeseries_lifecycle" }
+  - match: { indices.my_index.step: "complete" }
+  - match: { indices.my_index.action: "complete" }
+  - match: { indices.my_index.phase: "new" }
 
 ---
 "Test Invalid Move To Step With Invalid Next Step":
@@ -141,12 +142,12 @@ teardown:
 
   - do:
       acknowledge: true
-      indices.get:
-        index: my_index
-  - match: { my_index.settings.index.lifecycle.name: "my_moveable_timeseries_lifecycle" }
-  - match: { my_index.settings.index.lifecycle.step: "complete" }
-  - match: { my_index.settings.index.lifecycle.action: "complete" }
-  - match: { my_index.settings.index.lifecycle.phase: "new" }
+      ilm.explain_lifecycle:
+        index: "my_index"
+  - match: { indices.my_index.policy: "my_moveable_timeseries_lifecycle" }
+  - match: { indices.my_index.step: "complete" }
+  - match: { indices.my_index.action: "complete" }
+  - match: { indices.my_index.phase: "new" }
 
 ---
 "Test Invalid Move To Step With Invalid Policy":

@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.indexlifecycle;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleResponse;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleExplainResponse;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
@@ -176,9 +177,9 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
         assertNotNull(indexLifecycleService.getScheduledJob());
         assertBusy(() -> {
-            GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("test").get();
-            String step = settingsResponse.getSetting("test", "index.lifecycle.step");
-            assertThat(step, equalTo(TerminalPolicyStep.KEY.getName()));
+            LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(client().admin().cluster()
+                .prepareState().execute().actionGet().getState().getMetaData().index("test"));
+            assertThat(lifecycleState.getStep(), equalTo(TerminalPolicyStep.KEY.getName()));
         });
     }
 
@@ -273,9 +274,9 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
             assertEquals(true, client().admin().indices().prepareExists("test").get().isExists());
         });
         assertBusy(() -> {
-            GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("test").get();
-            String step = settingsResponse.getSetting("test", "index.lifecycle.step");
-            assertThat(step, equalTo(TerminalPolicyStep.KEY.getName()));
+            LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(client().admin().cluster()
+                .prepareState().execute().actionGet().getState().getMetaData().index("test"));
+            assertThat(lifecycleState.getStep(), equalTo(TerminalPolicyStep.KEY.getName()));
         });
     }
 
@@ -313,9 +314,9 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
 
         // check step in progress in lifecycle
         assertBusy(() -> {
-            GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("test").get();
-            String step = settingsResponse.getSetting("test", "index.lifecycle.step");
-            assertThat(step, equalTo(ObservableClusterStateWaitStep.NAME));
+            LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(client().admin().cluster()
+                .prepareState().execute().actionGet().getState().getMetaData().index("test"));
+            assertThat(lifecycleState.getStep(), equalTo(ObservableClusterStateWaitStep.NAME));
         });
 
         if (randomBoolean()) {
@@ -335,19 +336,20 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
 
         // check that index lifecycle picked back up where it
         assertBusy(() -> {
-            GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("test").get();
-            String step = settingsResponse.getSetting("test", "index.lifecycle.step");
-            assertThat(step, equalTo(ObservableClusterStateWaitStep.NAME));
+            LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(client().admin().cluster()
+                .prepareState().execute().actionGet().getState().getMetaData().index("test"));
+            assertThat(lifecycleState.getStep(), equalTo(ObservableClusterStateWaitStep.NAME));
         });
 
+        logger.info("new master is operation");
         // complete the step
-        client().admin().indices().prepareUpdateSettings("test")
+        AcknowledgedResponse repsonse = client().admin().indices().prepareUpdateSettings("test")
             .setSettings(Collections.singletonMap("index.lifecycle.test.complete", true)).get();
 
         assertBusy(() -> {
-            GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("test").get();
-            String step = settingsResponse.getSetting("test", "index.lifecycle.step");
-            assertThat(step, equalTo(TerminalPolicyStep.KEY.getName()));
+            LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(client().admin().cluster()
+                .prepareState().execute().actionGet().getState().getMetaData().index("test"));
+            assertThat(lifecycleState.getStep(), equalTo(TerminalPolicyStep.KEY.getName()));
         });
     }
 

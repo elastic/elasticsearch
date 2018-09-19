@@ -10,8 +10,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+
+import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 public final class InitializePolicyContextStep extends ClusterStateActionStep {
     public static final String INITIALIZATION_PHASE = "new";
@@ -30,18 +31,19 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
             // Index must have been since deleted, ignore it
             return clusterState;
         }
-        Settings settings = indexMetaData.getSettings();
-        if (settings.hasValue(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE)) {
+        LifecycleExecutionState lifecycleState = LifecycleExecutionState
+            .fromIndexMetadata(indexMetaData);
+        if (lifecycleState.getLifecycleDate() != null) {
             return clusterState;
         }
 
         ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
-        IndexMetaData idxMeta = clusterState.getMetaData().index(index);
-        Settings.Builder indexSettings = Settings.builder().put(idxMeta.getSettings())
-            .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, idxMeta.getCreationDate());
+
+        LifecycleExecutionState.Builder newCustomData = LifecycleExecutionState.builder(lifecycleState);
+        newCustomData.setIndexCreationDate(indexMetaData.getCreationDate());
         newClusterStateBuilder.metaData(MetaData.builder(clusterState.getMetaData()).put(IndexMetaData
-            .builder(clusterState.getMetaData().index(index))
-            .settings(indexSettings)));
+            .builder(indexMetaData)
+            .putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap())));
         return newClusterStateBuilder.build();
     }
 }

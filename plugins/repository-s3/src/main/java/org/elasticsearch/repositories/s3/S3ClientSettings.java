@@ -237,9 +237,9 @@ final class S3ClientSettings {
     static S3ClientSettings getClientSettings(final RepositoryMetaData metadata, final AWSCredentials credentials) {
         final Settings.Builder builder = Settings.builder();
         for (final String key : metadata.settings().keySet()) {
-            builder.put(PREFIX + "dummy" + "." + key, metadata.settings().get(key));
+            builder.put(PREFIX + "provided" + "." + key, metadata.settings().get(key));
         }
-        return getClientSettings(builder.build(), "dummy", credentials);
+        return getClientSettings(builder.build(), "provided", credentials);
     }
 
     private static <T> T getConfigValue(Settings settings, String clientName,

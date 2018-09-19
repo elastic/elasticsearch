@@ -89,7 +89,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
                     handleException(validateQueryRequest, finalBodyParsingException.getMessage(), channel);
                 }
             } else {
-                client.admin().indices().validateQuery(validateQueryRequest, new RestToXContentListener<>(channel));
+                validateQuery(client, validateQueryRequest, channel);
             }
         };
     }
@@ -106,5 +106,9 @@ public class RestValidateQueryAction extends BaseRestHandler {
         }
         builder.endObject();
         return new BytesRestResponse(OK, builder);
+    }
+
+    void validateQuery(NodeClient client, ValidateQueryRequest request, RestChannel channel) {
+        client.admin().indices().validateQuery(request, new RestToXContentListener<>(channel));
     }
 }

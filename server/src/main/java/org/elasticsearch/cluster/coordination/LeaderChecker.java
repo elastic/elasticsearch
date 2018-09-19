@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -184,16 +185,23 @@ public class LeaderChecker extends AbstractComponent {
                             return;
                         }
 
+                        if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
+                            logger.debug(new ParameterizedMessage("leader [{}] disconnected, failing immediately", leader), exp);
+                            leaderFailed();
+                            return;
+                        }
+
                         long failureCount = failureCountSinceLastSuccess.incrementAndGet();
                         if (failureCount >= leaderCheckRetryCount) {
-                            logger.debug(new ParameterizedMessage("{} consecutive failures (limit [{}] is {}) so leader has failed",
-                                failureCount, LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), leaderCheckRetryCount), exp);
+                            logger.debug(new ParameterizedMessage("{} consecutive failures (limit [{}] is {}) so leader [{}] has failed",
+                                failureCount, LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), leaderCheckRetryCount, leader), exp);
                             leaderFailed();
-                        } else {
-                            logger.debug(new ParameterizedMessage("{} consecutive failures (limit [{}] is {})",
-                                failureCount, LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), leaderCheckRetryCount), exp);
-                            scheduleNextWakeUp();
+                            return;
                         }
+
+                        logger.debug(new ParameterizedMessage("{} consecutive failures (limit [{}] is {}) with leader [{}]",
+                            failureCount, LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), leaderCheckRetryCount, leader), exp);
+                        scheduleNextWakeUp();
                     }
 
                     @Override

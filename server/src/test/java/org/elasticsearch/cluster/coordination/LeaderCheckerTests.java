@@ -31,6 +31,7 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse.Empty;
@@ -38,6 +39,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.emptySet;
@@ -182,6 +184,96 @@ public class LeaderCheckerTests extends ESTestCase {
                 lessThanOrEqualTo((leaderCheckIntervalMillis + leaderCheckTimeoutMillis) * leaderCheckRetryCount
                     + leaderCheckTimeoutMillis // needed because a successful check response might be in flight at the time of failure
                 ));
+        }
+    }
+
+    enum Response {
+        SUCCESS, REMOTE_ERROR, DIRECT_ERROR
+    }
+
+    public void testFollowerFailsImmediatelyOnDisconnection() {
+        final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode leader = new DiscoveryNode("leader", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        final Response[] responseHolder = new Response[]{Response.SUCCESS};
+
+        final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getId()).build();
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings);
+        final MockTransport mockTransport = new MockTransport() {
+            @Override
+            protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
+                assertThat(action, equalTo(LEADER_CHECK_ACTION_NAME));
+                assertTrue(node.equals(leader));
+                final Response response = responseHolder[0];
+
+                deterministicTaskQueue.scheduleNow(new Runnable() {
+                    @Override
+                    public void run() {
+                        switch (response) {
+                            case SUCCESS:
+                                handleResponse(requestId, Empty.INSTANCE);
+                                break;
+                            case REMOTE_ERROR:
+                                handleRemoteError(requestId, new ConnectTransportException(leader, "simulated error"));
+                                break;
+                            case DIRECT_ERROR:
+                                handleError(requestId, new ConnectTransportException(leader, "simulated error"));
+                        }
+                    }
+
+                    @Override
+                    public String toString() {
+                        return response + " response to request " + requestId;
+                    }
+                });
+            }
+        };
+
+        final TransportService transportService = mockTransport.createTransportService(settings,
+            deterministicTaskQueue.getThreadPool(), NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
+        transportService.start();
+        transportService.acceptIncomingRequests();
+
+        final AtomicBoolean leaderFailed = new AtomicBoolean();
+        final LeaderChecker leaderChecker = new LeaderChecker(settings, transportService,
+            () -> assertTrue(leaderFailed.compareAndSet(false, true)));
+
+        try (Releasable ignored = leaderChecker.startLeaderChecker(leader)) {
+            while (deterministicTaskQueue.getCurrentTimeMillis() < 10 * LEADER_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).millis()) {
+                deterministicTaskQueue.runAllRunnableTasks(random());
+                deterministicTaskQueue.advanceTime();
+            }
+
+            deterministicTaskQueue.runAllRunnableTasks(random());
+            assertFalse(leaderFailed.get());
+
+            responseHolder[0] = Response.REMOTE_ERROR;
+
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks(random());
+
+            assertTrue(leaderFailed.get());
+        }
+
+        deterministicTaskQueue.runAllTasks(random());
+        leaderFailed.set(false);
+        responseHolder[0] = Response.SUCCESS;
+
+        try (Releasable ignored = leaderChecker.startLeaderChecker(leader)) {
+            while (deterministicTaskQueue.getCurrentTimeMillis() < 10 * LEADER_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).millis()) {
+                deterministicTaskQueue.runAllRunnableTasks(random());
+                deterministicTaskQueue.advanceTime();
+            }
+
+            deterministicTaskQueue.runAllRunnableTasks(random());
+            assertFalse(leaderFailed.get());
+
+            responseHolder[0] = Response.DIRECT_ERROR;
+
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks(random());
+
+            assertTrue(leaderFailed.get());
         }
     }
 

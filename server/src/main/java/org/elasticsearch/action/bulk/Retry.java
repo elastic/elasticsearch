@@ -99,7 +99,7 @@ public class Retry {
      * @param bulkRequest The bulk request that should be executed.
      * @param settings settings
      * @return a future representing the bulk response returned by the client.
-     * @deprecated prefer {@link #withBackoff(BiConsumer, BulkRequest))}. The {@link Settings} isn't used.
+     * @deprecated prefer {@link #withBackoff(BiConsumer, BulkRequest)}. The {@link Settings} isn't used.
      */
     @Deprecated
     public PlainActionFuture<BulkResponse> withBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,

@@ -48,7 +48,7 @@ dependencies {
   compile "org.apache.hadoop:hadoop-hdfs:${versions.hadoop2}"
   compile "org.apache.hadoop:hadoop-hdfs-client:${versions.hadoop2}"
   compile 'org.apache.htrace:htrace-core4:4.0.1-incubating'
-  compile 'com.google.guava:guava:11.0.2'
+  compile "com.google.guava:guava:${versions.guava}"
   compile 'com.google.protobuf:protobuf-java:2.5.0'
   compile 'commons-logging:commons-logging:1.1.3'
   compile 'commons-cli:commons-cli:1.2'

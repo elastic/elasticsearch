@@ -5038,7 +5038,7 @@ public class InternalEngineTests extends EngineTestCase {
         expectThrows(AlreadyClosedException.class, () -> engine.acquireSearcher("test"));
     }
 
-    public void testTrackMaxSeqNoOfUpdatesOrDeletes() throws Exception {
+    public void testTrackMaxSeqNoOfUpdatesOrDeletesOnPrimary() throws Exception {
         engine.close();
         Set<String> liveDocIds = new HashSet<>();
         engine = new InternalEngine(engine.config());
@@ -5049,32 +5049,19 @@ public class InternalEngineTests extends EngineTestCase {
             long currentMaxSeqNoOfUpdates = engine.getMaxSeqNoOfUpdatesOrDeletes();
             ParsedDocument doc = createParsedDoc(Integer.toString(between(1, 100)), null);
             if (randomBoolean()) {
-                if (randomBoolean()) {
-                    Engine.IndexResult result = engine.index(indexForDoc(doc));
-                    if (liveDocIds.add(doc.id()) == false) {
-                        assertThat("update operations on primary must advance max_seq_no_of_updates",
-                            engine.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(Math.max(currentMaxSeqNoOfUpdates, result.getSeqNo())));
-                    } else {
-                        assertThat(engine.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(currentMaxSeqNoOfUpdates));
-                    }
-                } else {
-                    Engine.DeleteResult result = engine.delete(new Engine.Delete(doc.type(), doc.id(), newUid(doc.id()), primaryTerm.get()));
-                    liveDocIds.remove(doc.id());
-                    assertThat("delete operations on primary must advance max_seq_no_of_updates",
+                Engine.IndexResult result = engine.index(indexForDoc(doc));
+                if (liveDocIds.add(doc.id()) == false) {
+                    assertThat("update operations on primary must advance max_seq_no_of_updates",
                         engine.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(Math.max(currentMaxSeqNoOfUpdates, result.getSeqNo())));
+                } else {
+                    assertThat("append operations should not advance max_seq_no_of_updates",
+                        engine.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(currentMaxSeqNoOfUpdates));
                 }
             } else {
-                long maxSeqNo = engine.getLocalCheckpointTracker().getMaxSeqNo();
-                long seqNo = randomLongBetween(maxSeqNo + 1, maxSeqNo + 10);
-                if (randomBoolean()) {
-                    engine.index(replicaIndexForDoc(doc, 1, seqNo, randomBoolean()));
-                    liveDocIds.add(doc.id());
-                } else {
-                    engine.delete(replicaDeleteForDoc(doc.id(), 1, seqNo, threadPool.relativeTimeInMillis()));
-                    liveDocIds.remove(doc.id());
-                }
-                assertThat("non-primary operations should not advance max_seq_no_of_updates",
-                    engine.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(currentMaxSeqNoOfUpdates));
+                Engine.DeleteResult result = engine.delete(new Engine.Delete(doc.type(), doc.id(), newUid(doc.id()), primaryTerm.get()));
+                liveDocIds.remove(doc.id());
+                assertThat("delete operations on primary must advance max_seq_no_of_updates",
+                    engine.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(Math.max(currentMaxSeqNoOfUpdates, result.getSeqNo())));
             }
         }
     }

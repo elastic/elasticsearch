@@ -127,8 +127,13 @@ public abstract class Engine implements Closeable {
      *  inactive shards.
      */
     protected volatile long lastWriteNanos = System.nanoTime();
-    // The maximum sequence number of either update or delete operations have been processed by this engine.
-    // This value is started with an unassigned status (-2) and will be initialized from outside.
+
+    /*
+     * This marker tracks the max seq_no of either update operations or delete operations have been processed in this engine.
+     * An update operation is just an index request which overwrites existing documents with the same docId in the Lucene index.
+     * This marker is started with an unassigned status(-2), then will be initialized from outside (via advanceMaxSeqNoOfUpdatesOrDeletes).
+     * The optimization using seq_no will be disabled (regardless of other conditions) if this marker is still uninitialized (-2).
+     */
     private final AtomicLong maxSeqNoOfUpdatesOrDeletes = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
 
     protected Engine(EngineConfig engineConfig) {
@@ -1702,6 +1707,9 @@ public abstract class Engine implements Closeable {
     /**
      * Returns the maximum sequence number of either update or delete operations have been processed
      * in this engine or the sequence number from {@link #advanceMaxSeqNoOfUpdatesOrDeletes(long)}.
+     * An index request is considered as an update operation if it overwritten the existing documents
+     * in Lucene index with the same document id.
+     *
      * <p>
      * For a primary engine, this value is initialized once, then advanced internally when it processes
      * an update or a delete operation. Whereas a replica engine never updates this value by itself but

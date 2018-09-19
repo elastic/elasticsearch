@@ -516,7 +516,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  */
                                 engine.rollTranslogGeneration();
                                 engine.fillSeqNoGaps(newPrimaryTerm);
-                                engine.advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats().getMaxSeqNo());
+                                if (getMaxSeqNoOfUpdatesOrDeletes() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                                    // TODO: Enable this assertion after we replicate max_seq_no_updates during replication
+                                    // assert indexSettings.getIndexVersionCreated().before(Version.V_7_0_0_alpha1) :
+                                    //    indexSettings.getIndexVersionCreated();
+                                    advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats().getMaxSeqNo());
+                                }
                                 replicationTracker.updateLocalCheckpoint(currentRouting.allocationId().getId(), getLocalCheckpoint());
                                 primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
                                     @Override
@@ -1949,7 +1954,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId()).getLocalCheckpoint();
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
-            advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats().getMaxSeqNo());
+            // If the old primary was on an old version, this primary (was replica before)
+            // does not have max_of_updates yet. Thus we need to bootstrap it manually.
+            if (getMaxSeqNoOfUpdatesOrDeletes() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                // TODO: Enable this assertion after we replicate max_seq_no_updates during replication
+                // assert indexSettings.getIndexVersionCreated().before(Version.V_7_0_0_alpha1) : indexSettings.getIndexVersionCreated();
+                advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats().getMaxSeqNo());
+            }
         }
     }
 
@@ -2725,11 +2736,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Returns the maximum sequence number of either update operations (overwrite existing documents) or delete operations
-     * have been processed in this shard or the sequence number from {@link #advanceMaxSeqNoOfUpdatesOrDeletes(long)}.
+     * Returns the maximum sequence number of either update or delete operations have been processed in this shard
+     * or the sequence number from {@link #advanceMaxSeqNoOfUpdatesOrDeletes(long)}. An index request is considered
+     * as an update operation if it overwritten the existing documents in Lucene index with the same document id.
      * <p>
-     * The primary captures this value after executes a replication request, then transfers it to a replica before executing
-     * that replication request on a replica.
+     * The primary captures this value after executes a replication request, then transfers it to a replica before
+     * executing that replication request on a replica.
      */
     public long getMaxSeqNoOfUpdatesOrDeletes() {
         return getEngine().getMaxSeqNoOfUpdatesOrDeletes();
@@ -2738,9 +2750,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Advances the max_seq_no_of_updates marker of the engine of this shard to at least the given sequence number.
      * <p>
-     * A primary calls this method only once to initialize this maker after being promoted or when it finishes its
-     * recovery or relocation. Whereas a replica calls this method before executing a replication request or before
-     * applying translog operations in peer-recovery.
+     * A primary calls this method once to initialize this maker after it finishes the local recovery. Whereas a replica
+     * calls this method before executing a replication request or before applying translog operations in peer-recovery.
      */
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {
         getEngine().advanceMaxSeqNoOfUpdatesOrDeletes(seqNo);

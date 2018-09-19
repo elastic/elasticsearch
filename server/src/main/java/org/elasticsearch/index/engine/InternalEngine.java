@@ -928,7 +928,6 @@ public class InternalEngine extends Engine {
         if (canOptimizeAddDocument(index)) {
             if (mayHaveBeenIndexedBefore(index)) {
                 plan = IndexingStrategy.overrideExistingAsIfNotThere(generateSeqNoForOperation(index), 1L);
-                advanceMaxSeqNoOfUpdatesOrDeletes(plan.seqNoForIndexing);
                 versionMap.enforceSafeAccess();
             } else {
                 plan = IndexingStrategy.optimizedAppendOnly(generateSeqNoForOperation(index));
@@ -956,11 +955,11 @@ public class InternalEngine extends Engine {
                     generateSeqNoForOperation(index),
                     index.versionType().updateVersion(currentVersion, index.version())
                 );
-                final boolean toAppend = plan.indexIntoLucene && plan.useLuceneUpdateDocument == false;
-                if (toAppend == false) {
-                    advanceMaxSeqNoOfUpdatesOrDeletes(plan.seqNoForIndexing);
-                }
             }
+        }
+        final boolean toAppend = plan.indexIntoLucene && plan.useLuceneUpdateDocument == false;
+        if (toAppend == false) {
+            advanceMaxSeqNoOfUpdatesOrDeletes(plan.seqNoForIndexing);
         }
         return plan;
     }

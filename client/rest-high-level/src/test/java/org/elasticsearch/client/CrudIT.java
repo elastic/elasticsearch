@@ -655,16 +655,14 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 .build();
             createIndex(sourceIndex, settings);
             createIndex(destinationIndex, settings);
-            BulkRequest setRefreshPolicy = new BulkRequest()
-            .add(new IndexRequest(sourceIndex, "type", "1")
-                .source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
-            .add(new IndexRequest(sourceIndex, "type", "2")
-                .source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
-            .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+            BulkRequest bulkRequest = new BulkRequest()
+                    .add(new IndexRequest(sourceIndex, "type", "1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
+                    .add(new IndexRequest(sourceIndex, "type", "2").source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
+                    .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
             assertEquals(
                 RestStatus.OK,
                 highLevelClient().bulk(
-                    setRefreshPolicy,
+                    bulkRequest,
                     RequestOptions.DEFAULT
                 ).status()
             );

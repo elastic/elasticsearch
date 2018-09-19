@@ -44,6 +44,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
 
 public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     private String index;
@@ -108,6 +109,18 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertFalse(indexExists(index)));
     }
 
+    public void testDeleteOnlyShouldNotMakeIndexReadonly() throws Exception {
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        createNewSingletonPolicy("delete", new DeleteAction(), TimeValue.timeValueHours(1));
+        updatePolicy(index, policy);
+        assertBusy(() -> {
+            assertThat(getStepKeyForIndex(index).getAction(), equalTo("complete"));
+            Map<String, Object> settings = getOnlyIndexSettings(index);
+            assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), not("true"));
+        });
+    }
+
     public void testReadOnly() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
@@ -150,7 +163,9 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
         assertBusy(() -> {
             assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
+            Map<String, Object> settings = getOnlyIndexSettings(index);
             assertThat(numSegments.get(), equalTo(1));
+            assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
         });
     }
 
@@ -169,11 +184,16 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Map<String, Object> settings = getOnlyIndexSettings(shrunkenIndex);
             assertThat(getStepKeyForIndex(shrunkenIndex), equalTo(TerminalPolicyStep.KEY));
             assertThat(settings.get(IndexMetaData.SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
+            assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
         });
     }
 
     private void createNewSingletonPolicy(String phaseName, LifecycleAction action) throws IOException {
-        Phase phase = new Phase(phaseName, TimeValue.ZERO, singletonMap(action.getWriteableName(), action));
+        createNewSingletonPolicy(phaseName, action, TimeValue.ZERO);
+    }
+
+    private void createNewSingletonPolicy(String phaseName, LifecycleAction action, TimeValue after) throws IOException {
+        Phase phase = new Phase(phaseName, after, singletonMap(action.getWriteableName(), action));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, singletonMap(phase.getName(), phase));
         XContentBuilder builder = jsonBuilder();
         lifecyclePolicy.toXContent(builder, null);

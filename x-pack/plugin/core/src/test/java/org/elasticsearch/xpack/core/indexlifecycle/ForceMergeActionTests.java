@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -66,13 +67,16 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         List<Step> steps = instance.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
-        int nextFirstIndex = 0;
-        assertEquals(2, steps.size());
-        ForceMergeStep firstStep = (ForceMergeStep)  steps.get(nextFirstIndex);
-        SegmentCountStep secondStep = (SegmentCountStep) steps.get(nextFirstIndex + 1);
-        assertThat(firstStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
-        assertThat(firstStep.getNextStepKey(), equalTo(secondStep.getKey()));
-        assertThat(secondStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, SegmentCountStep.NAME)));
-        assertThat(secondStep.getNextStepKey(), equalTo(nextStepKey));
+        assertEquals(3, steps.size());
+        UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(0);
+        ForceMergeStep secondStep = (ForceMergeStep) steps.get(1);
+        SegmentCountStep thirdStep = (SegmentCountStep) steps.get(2);
+        assertThat(firstStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ReadOnlyAction.NAME)));
+        assertThat(firstStep.getNextStepKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
+        assertTrue(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.get(firstStep.getSettings()));
+        assertThat(secondStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
+        assertThat(secondStep.getNextStepKey(), equalTo(thirdStep.getKey()));
+        assertThat(thirdStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, SegmentCountStep.NAME)));
+        assertThat(thirdStep.getNextStepKey(), equalTo(nextStepKey));
     }
 }

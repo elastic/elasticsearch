@@ -375,7 +375,7 @@ public final class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void forceUpdateMaxUnsafeAutoIdTimestamp(long newTimestamp) {
+    public void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {
 
     }
 }

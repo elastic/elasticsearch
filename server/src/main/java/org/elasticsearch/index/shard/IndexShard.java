@@ -1218,10 +1218,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Returns the maximum auto_id_timestamp of all append-only requests have been processed (or force-updated) by this shard.
-     * A primary propagates this timestamp to replicas at the beginning of a peer-recovery or a primary-replica resync.
+     * Returns the maximum auto_id_timestamp of all append-only requests have been processed by this shard or the auto_id_timestamp received
+     * from the primary via {@link #updateMaxUnsafeAutoIdTimestamp(long)} at the beginning of a peer-recovery or a primary-replica resync.
      *
-     * @see #forceUpdateMaxUnsafeAutoIdTimestamp(long)
+     * @see #updateMaxUnsafeAutoIdTimestamp(long)
      */
     public long getMaxSeenAutoIdTimestamp() {
         return getEngine().getMaxSeenAutoIdTimestamp();
@@ -1236,8 +1236,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Without this force-update, a replica can generate duplicate documents (for the same id) if it first receives
      * a retry append-only (without timestamp) via recovery, then an original append-only (with timestamp) via replication.
      */
-    public void forceUpdateMaxUnsafeAutoIdTimestamp(long maxSeenAutoIdTimestampFromPrimary) {
-        getEngine().forceUpdateMaxUnsafeAutoIdTimestamp(maxSeenAutoIdTimestampFromPrimary);
+    public void updateMaxUnsafeAutoIdTimestamp(long maxSeenAutoIdTimestampFromPrimary) {
+        getEngine().updateMaxUnsafeAutoIdTimestamp(maxSeenAutoIdTimestampFromPrimary);
     }
 
     public Engine.Result applyTranslogOperation(Translog.Operation operation, Engine.Operation.Origin origin) throws IOException {

@@ -394,7 +394,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         if (indexShard().state() != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, indexShard().state());
         }
-        indexShard().forceUpdateMaxUnsafeAutoIdTimestamp(maxSeenAutoIdTimestampOnPrimary);
+        indexShard().updateMaxUnsafeAutoIdTimestamp(maxSeenAutoIdTimestampOnPrimary);
         for (Translog.Operation operation : operations) {
             Engine.Result result = indexShard().applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY);
             if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {

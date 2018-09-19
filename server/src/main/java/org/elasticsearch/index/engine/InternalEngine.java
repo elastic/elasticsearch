@@ -2539,7 +2539,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public final void forceUpdateMaxUnsafeAutoIdTimestamp(long newTimestamp) {
+    public final void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {
         autoIdTimestamp.onNewTimestamp(newTimestamp, true);
     }
 

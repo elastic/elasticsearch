@@ -213,7 +213,7 @@ public class LeaderChecker extends AbstractComponent {
 
         private void scheduleNextWakeUp() {
             logger.trace("scheduling next check of {} for [{}] = {}", leader, LEADER_CHECK_INTERVAL_SETTING.getKey(), leaderCheckInterval);
-            transportService.getThreadPool().schedule(leaderCheckInterval, Names.GENERIC, new Runnable() {
+            transportService.getThreadPool().schedule(leaderCheckInterval, Names.SAME, new Runnable() {
                 @Override
                 public void run() {
                     handleWakeUp();

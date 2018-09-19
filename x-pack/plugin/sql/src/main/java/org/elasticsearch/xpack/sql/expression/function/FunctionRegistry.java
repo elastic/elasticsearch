@@ -332,13 +332,17 @@ public class FunctionRegistry {
     static <T extends Function> FunctionDefinition def(Class<T> function,
             BinaryFunctionBuilder<T> ctorRef, String... aliases) {
         FunctionBuilder builder = (location, children, distinct, tz) -> {
-            if (children.size() != 2) {
+            boolean isBinaryOptionalParamFunction = function.isAssignableFrom(Round.class) || function.isAssignableFrom(Truncate.class);
+            if (isBinaryOptionalParamFunction && (children.size() > 2 || children.size() < 1)) {
+                throw new IllegalArgumentException("expects one or two arguments");
+            } else if (!isBinaryOptionalParamFunction && children.size() != 2) {
                 throw new IllegalArgumentException("expects exactly two arguments");
             }
+
             if (distinct) {
                 throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
             }
-            return ctorRef.build(location, children.get(0), children.get(1));
+            return ctorRef.build(location, children.get(0), children.size() == 2 ? children.get(1) : null);
         };
         return def(function, builder, false, aliases);
     }

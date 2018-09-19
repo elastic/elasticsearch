@@ -153,6 +153,9 @@ SELECT ROUND(134.51, 1) AS rounded;
 roundInline6
 SELECT ROUND(134.56, 1) AS rounded;
 
+roundInline7
+SELECT ROUND(-345.123) AS rounded;
+
 truncateInline1
 SELECT TRUNCATE(-345.123, -2) AS trimmed;
 
@@ -170,6 +173,9 @@ SELECT TRUNCATE(134.51, 1) AS trimmed;
 
 truncateInline6
 SELECT TRUNCATE(134.56, 1) AS trimmed;
+
+truncateInline7
+SELECT TRUNCATE(-345.123) AS trimmed;
 
 truncateAndRoundInline
 SELECT ROUND(134.56,1) AS rounded, TRUNCATE(134.56,1) AS trimmed;

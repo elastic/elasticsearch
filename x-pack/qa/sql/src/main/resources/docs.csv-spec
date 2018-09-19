@@ -549,7 +549,7 @@ M              |63
 
 groupByAndAggExpression
 // tag::groupByAndAggExpression
-SELECT gender AS g, ROUND((MIN(salary) / 100), 0) AS salary FROM emp GROUP BY gender;
+SELECT gender AS g, ROUND((MIN(salary) / 100)) AS salary FROM emp GROUP BY gender;
 
        g       |    salary     
 ---------------+---------------
@@ -1124,4 +1124,44 @@ SELECT YEAR(CAST('2018-05-19T11:23:45Z' AS TIMESTAMP)) AS year;
 ---------------
 2018
 // end::conversionStringToDateCast
+;
+
+mathRoundWithNegativeParameter
+// tag::mathRoundWithNegativeParameter
+SELECT ROUND(-345.153, -1) AS rounded;
+
+    rounded
+---------------
+-350.0
+// end::mathRoundWithNegativeParameter
+;
+
+mathRoundWithPositiveParameter
+// tag::mathRoundWithPositiveParameter
+SELECT ROUND(-345.153, 1) AS rounded;
+
+    rounded
+---------------
+-345.2
+// end::mathRoundWithPositiveParameter
+;
+
+mathTruncateWithNegativeParameter
+// tag::mathTruncateWithNegativeParameter
+SELECT TRUNCATE(-345.153, -1) AS trimmed;
+
+    trimmed
+---------------
+-340.0
+// end::mathTruncateWithNegativeParameter
+;
+
+mathTruncateWithPositiveParameter
+// tag::mathTruncateWithPositiveParameter
+SELECT TRUNCATE(-345.153, 1) AS trimmed;
+
+    trimmed
+---------------
+-345.1
+// end::mathTruncateWithPositiveParameter
 ;

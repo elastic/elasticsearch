@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
@@ -13,7 +14,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTempl
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.Locale;
 import java.util.function.BiFunction;
@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.script.Para
 public class Truncate extends BinaryNumericFunction {
     
     public Truncate(Location location, Expression left, Expression right) {
-        super(location, left, right);
+        super(location, left, right == null ? Literal.of(Location.EMPTY, 0) : right);
     }
 
     @Override
@@ -59,7 +59,7 @@ public class Truncate extends BinaryNumericFunction {
     @Override
     protected ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {
         return new ScriptTemplate(format(Locale.ROOT, ScriptTemplate.formatTemplate("{sql}.%s(%s,%s)"), 
-                StringUtils.underscoreToLowerCamelCase(operation().toString()), 
+                mathFunction(), 
                 leftScript.template(), 
                 rightScript.template()),
                 paramsBuilder()

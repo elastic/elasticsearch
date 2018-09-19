@@ -32,7 +32,7 @@ public class BinaryMathProcessor extends BinaryNumericProcessor<BinaryMathOperat
                 return l;
             }
             if (r instanceof Float || r instanceof Double) {
-                throw new SqlIllegalArgumentException("An integer number is required; received [{}] as second parameter", l);
+                throw new SqlIllegalArgumentException("An integer number is required; received [{}] as second parameter", r);
             }
 
             double tenAtScale = Math.pow(10., r.longValue());
@@ -48,7 +48,7 @@ public class BinaryMathProcessor extends BinaryNumericProcessor<BinaryMathOperat
                 return l;
             }
             if (r instanceof Float || r instanceof Double) {
-                throw new SqlIllegalArgumentException("An integer number is required; received [{}] as second parameter", l);
+                throw new SqlIllegalArgumentException("An integer number is required; received [{}] as second parameter", r);
             }
 
             double tenAtScale = Math.pow(10., r.longValue());

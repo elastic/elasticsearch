@@ -37,7 +37,7 @@ public class RestValidateQueryActionTests extends ESTestCase {
         expectParsingException(content);
     }
 
-    public void testRestValidateQueryAction_malformed() {
+    public void testRestValidateQueryAction_malformedQuery() {
         final String content = "{malformed_json}";
 
         expectParsingException(content);

@@ -73,8 +73,7 @@ public final class TrackingResultProcessor implements Processor {
             if (processor instanceof PipelineProcessor) {
                 PipelineProcessor pipelineProcessor = ((PipelineProcessor) processor);
                 if (pipelinesSeen.add(pipelineProcessor) == false) {
-                    throw new IllegalStateException("Recursive invocation of pipeline ["
-                        + pipelineProcessor.getPipeline().getId() + "] detected.");
+                    throw new IllegalStateException("Cycle detected for pipeline: " + pipelineProcessor.getPipeline().getId());
                 }
                 processors.add(decorate(pipelineProcessor.getPipeline().getCompoundProcessor(), processorResultList, pipelinesSeen));
                 pipelinesSeen.remove(pipelineProcessor);
@@ -89,8 +88,7 @@ public final class TrackingResultProcessor implements Processor {
             if (processor instanceof PipelineProcessor) {
                 PipelineProcessor pipelineProcessor = ((PipelineProcessor) processor);
                 if (pipelinesSeen.add(pipelineProcessor) == false) {
-                    throw new IllegalStateException("Recursive invocation of pipeline ["
-                        + pipelineProcessor.getPipeline().getId() + "] detected.");
+                    throw new IllegalStateException("Cycle detected for pipeline: " + pipelineProcessor.getPipeline().getId());
                 }
                 onFailureProcessors.add(decorate(pipelineProcessor.getPipeline().getCompoundProcessor(), processorResultList,
                     pipelinesSeen));

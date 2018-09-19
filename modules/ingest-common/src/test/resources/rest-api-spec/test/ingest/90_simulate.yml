@@ -668,7 +668,7 @@ teardown:
           ]
         }
 - match: { error.root_cause.0.type: "illegal_state_exception" }
-- match: { error.root_cause.0.reason: "Recursive invocation of pipeline [inner] detected." }
+- match: { error.root_cause.0.reason: "Cycle detected for pipeline: inner" }
 
 ---
 "Test verbose simulate with Pipeline Processor with Multiple Pipelines":

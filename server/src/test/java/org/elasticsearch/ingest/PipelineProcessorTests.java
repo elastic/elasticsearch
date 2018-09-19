@@ -111,7 +111,7 @@ public class PipelineProcessorTests extends ESTestCase {
             () -> factory.create(Collections.emptyMap(), null, outerConfig).execute(testIngestDocument)
         );
         assertEquals(
-            "Recursive invocation of pipeline [inner] detected.", e.getRootCause().getMessage()
+            "Cycle detected for pipeline: inner", e.getRootCause().getMessage()
         );
     }
 

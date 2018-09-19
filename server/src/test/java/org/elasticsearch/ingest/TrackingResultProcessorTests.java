@@ -269,7 +269,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         IllegalStateException exception = expectThrows(IllegalStateException.class,
             () -> decorate(actualProcessor, resultList, pipelinesSeen));
-        assertThat(exception.getMessage(), equalTo("Recursive invocation of pipeline [pipeline1] detected."));
+        assertThat(exception.getMessage(), equalTo("Cycle detected for pipeline: pipeline1"));
     }
 
 

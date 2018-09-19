@@ -94,7 +94,7 @@ public class TransportExplainLifecycleAction
                     phaseExecutionInfo = PhaseExecutionInfo.parse(parser, currentPhase);
                 } catch (IOException e) {
                     listener.onFailure(new ElasticsearchParseException(
-                        "failed to parse [phase_definition] for index [" + index + "]", e));
+                        "failed to parse phase definition for index [" + index + "]", e));
                     return;
                 }
             }
@@ -102,7 +102,7 @@ public class TransportExplainLifecycleAction
             if (Strings.hasLength(policyName)) {
                 indexResponse = IndexLifecycleExplainResponse.newManagedIndexResponse(index, policyName,
                     LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(idxSettings),
-                    lifecycleState.getIndexCreationDate(),
+                    lifecycleState.getLifecycleDate(),
                     lifecycleState.getPhase(),
                     lifecycleState.getAction(),
                     lifecycleState.getStep(),

@@ -44,7 +44,7 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
         String phase = lifecycleState.getPhase();
         String action = lifecycleState.getAction();
-        long lifecycleDate = lifecycleState.getIndexCreationDate();
+        long lifecycleDate = lifecycleState.getLifecycleDate();
 
         LifecycleExecutionState.Builder relevantTargetCustomData = LifecycleExecutionState.builder();
         relevantTargetCustomData.setIndexCreationDate(lifecycleDate);

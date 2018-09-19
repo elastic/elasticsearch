@@ -69,7 +69,7 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
         ClusterState newState = step.performAction(indexMetaData.getIndex(), clusterState);
         long actualRolloverTime = LifecycleExecutionState
             .fromIndexMetadata(newState.metaData().index(indexMetaData.getIndex()))
-            .getIndexCreationDate();
+            .getLifecycleDate();
         assertThat(actualRolloverTime, equalTo(rolloverTime));
     }
 

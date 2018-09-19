@@ -62,11 +62,11 @@ public class IndexLifecycleRunner {
      */
     boolean isReadyToTransitionToThisPhase(final String policy, final IndexMetaData indexMetaData, final String phase) {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
-        if (lifecycleState.getIndexCreationDate() == null) {
+        if (lifecycleState.getLifecycleDate() == null) {
             logger.trace("no index creation date has been set yet");
             return true;
         }
-        final Long lifecycleDate = lifecycleState.getIndexCreationDate();
+        final Long lifecycleDate = lifecycleState.getLifecycleDate();
         assert lifecycleDate != null && lifecycleDate >= 0 : "expected index to have a lifecycle date but it did not";
         final TimeValue after = stepRegistry.getIndexAgeForPhase(policy, phase);
         final long now = nowSupplier.getAsLong();

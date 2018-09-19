@@ -33,7 +33,7 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
         }
         LifecycleExecutionState lifecycleState = LifecycleExecutionState
             .fromIndexMetadata(indexMetaData);
-        if (lifecycleState.getIndexCreationDate() != null) {
+        if (lifecycleState.getLifecycleDate() != null) {
             return clusterState;
         }
 

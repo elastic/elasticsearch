@@ -111,7 +111,7 @@ public class LifecycleExecutionStateTests extends ESTestCase {
             changed = true;
         }
         if (randomBoolean()) {
-            newState.setIndexCreationDate(randomValueOtherThan(toMutate.getIndexCreationDate(), ESTestCase::randomLong));
+            newState.setIndexCreationDate(randomValueOtherThan(toMutate.getLifecycleDate(), ESTestCase::randomLong));
             changed = true;
         }
 

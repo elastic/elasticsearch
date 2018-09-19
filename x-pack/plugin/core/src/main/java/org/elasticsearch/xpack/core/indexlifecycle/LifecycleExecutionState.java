@@ -39,13 +39,13 @@ public class LifecycleExecutionState {
     private final String failedStep;
     private final String stepInfo;
     private final String phaseDefinition;
-    private final Long indexCreationDate;
+    private final Long lifecycleDate;
     private final Long phaseTime;
     private final Long actionTime;
     private final Long stepTime;
 
     private LifecycleExecutionState(String phase, String action, String step, String failedStep,
-                                    String stepInfo, String phaseDefinition, Long indexCreationDate,
+                                    String stepInfo, String phaseDefinition, Long lifecycleDate,
                                     Long phaseTime, Long actionTime, Long stepTime) {
         this.phase = phase;
         this.action = action;
@@ -53,7 +53,7 @@ public class LifecycleExecutionState {
         this.failedStep = failedStep;
         this.stepInfo = stepInfo;
         this.phaseDefinition = phaseDefinition;
-        this.indexCreationDate = indexCreationDate;
+        this.lifecycleDate = lifecycleDate;
         this.phaseTime = phaseTime;
         this.actionTime = actionTime;
         this.stepTime = stepTime;
@@ -84,7 +84,7 @@ public class LifecycleExecutionState {
             .setFailedStep(state.failedStep)
             .setStepInfo(state.stepInfo)
             .setPhaseDefinition(state.phaseDefinition)
-            .setIndexCreationDate(state.indexCreationDate)
+            .setIndexCreationDate(state.lifecycleDate)
             .setPhaseTime(state.phaseTime)
             .setActionTime(state.actionTime)
             .setStepTime(state.stepTime);
@@ -167,8 +167,8 @@ public class LifecycleExecutionState {
         if (stepInfo != null) {
             result.put(STEP_INFO, stepInfo);
         }
-        if (indexCreationDate != null) {
-            result.put(INDEX_CREATION_DATE, String.valueOf(indexCreationDate));
+        if (lifecycleDate != null) {
+            result.put(INDEX_CREATION_DATE, String.valueOf(lifecycleDate));
         }
         if (phaseTime != null) {
             result.put(PHASE_TIME, String.valueOf(phaseTime));
@@ -209,8 +209,8 @@ public class LifecycleExecutionState {
         return phaseDefinition;
     }
 
-    public Long getIndexCreationDate() {
-        return indexCreationDate;
+    public Long getLifecycleDate() {
+        return lifecycleDate;
     }
 
     public Long getPhaseTime() {
@@ -230,7 +230,7 @@ public class LifecycleExecutionState {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         LifecycleExecutionState that = (LifecycleExecutionState) o;
-        return getIndexCreationDate() == that.getIndexCreationDate() &&
+        return getLifecycleDate() == that.getLifecycleDate() &&
             getPhaseTime() == that.getPhaseTime() &&
             getActionTime() == that.getActionTime() &&
             getStepTime() == that.getStepTime() &&
@@ -245,7 +245,7 @@ public class LifecycleExecutionState {
     @Override
     public int hashCode() {
         return Objects.hash(getPhase(), getAction(), getStep(), getFailedStep(), getStepInfo(), getPhaseDefinition(),
-            getIndexCreationDate(), getPhaseTime(), getActionTime(), getStepTime());
+            getLifecycleDate(), getPhaseTime(), getActionTime(), getStepTime());
     }
 
     public static class Builder {

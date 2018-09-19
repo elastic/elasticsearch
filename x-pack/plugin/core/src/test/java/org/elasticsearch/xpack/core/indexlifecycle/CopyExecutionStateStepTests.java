@@ -81,7 +81,7 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
         LifecycleExecutionState newIndexData = LifecycleExecutionState
             .fromIndexMetadata(newClusterState.metaData().index(step.getShrunkIndexPrefix() + indexName));
 
-        assertEquals(oldIndexData.getIndexCreationDate(), newIndexData.getIndexCreationDate());
+        assertEquals(oldIndexData.getLifecycleDate(), newIndexData.getLifecycleDate());
         assertEquals(oldIndexData.getPhase(), newIndexData.getPhase());
         assertEquals(oldIndexData.getAction(), newIndexData.getAction());
         assertEquals(ShrunkenIndexCheckStep.NAME, newIndexData.getStep());

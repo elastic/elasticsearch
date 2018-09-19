@@ -92,6 +92,10 @@ The maximum duration for which translog files will be kept. Defaults to `12h`.
 [[corrupt-translog-truncation]]
 === What to do if the translog becomes corrupted?
 
+[WARNING]
+This tool is deprecated and will be completely removed in 7.0.
+Use the <<shard-tool,elasticsearch-shard tool>> instead of this one.
+
 In some cases (a bad drive, user error) the translog on a shard copy can become
 corrupted. When this corruption is detected by Elasticsearch due to mismatching
 checksums, Elasticsearch will fail that shard copy and refuse to use that copy

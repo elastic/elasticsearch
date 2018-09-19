@@ -198,13 +198,11 @@ POST hockey/player/1/_update
 ==== Dates
 
 Date fields are exposed as
-`ReadableDateTime` or
-so they support methods like
-`getYear`,
-and `getDayOfWeek`.
-To get milliseconds since epoch call
-`getMillis`.
-For example, the following returns every hockey player's birth year:
+`ReadableDateTime`, so they support methods like `getYear`, `getDayOfWeek` 
+or e.g. getting milliseconds since epoch with `getMillis`. To use these
+in a script, leave out the `get` prefix and continue with lowercasing the
+rest of the method name. For example, the following returns every hockey 
+player's birth year:
 
 [source,js]
 ----------------------------------------------------------------

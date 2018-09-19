@@ -128,13 +128,13 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.suggest.completion.CompletionFieldStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.io.UncheckedIOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -955,14 +955,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public CompletionStats completionStats(String... fields) {
-        CompletionStats completionStats = new CompletionStats();
-        try (Engine.Searcher currentSearcher = acquireSearcher("completion_stats")) {
+        readAllowed();
+        try {
+            CompletionStats stats = getEngine().completionStats(fields);
             // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
             // the next scheduled refresh to go through and refresh the stats as well
             markSearcherAccessed();
-            completionStats.add(CompletionFieldStats.completionStats(currentSearcher.reader(), fields));
+            return stats;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
-        return completionStats;
     }
 
     public Engine.SyncedFlushResult syncFlush(String syncId, Engine.CommitId expectedCommitId) {

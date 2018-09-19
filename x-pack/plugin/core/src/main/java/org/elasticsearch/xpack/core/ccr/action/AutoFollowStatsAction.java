@@ -47,7 +47,6 @@ public class AutoFollowStatsAction extends Action<AutoFollowStatsAction.Response
             return null;
         }
 
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);

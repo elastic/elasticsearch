@@ -22,6 +22,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
@@ -907,6 +908,46 @@ public final class MachineLearningClient {
                 MLRequestConverters::putCalendar,
                 options,
                 PutCalendarResponse::fromXContent,
+                listener,
+                Collections.emptySet());
+    }
+
+    /**
+     * Deletes the given Machine Learning Calendar
+     * <p>
+     * For additional info see
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-calendar.html">
+     *     ML Delete calendar documentation</a>
+     *
+     * @param request The request to delete the calendar
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return action acknowledgement
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public AcknowledgedResponse deleteCalendar(DeleteCalendarRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+                MLRequestConverters::deleteCalendar,
+                options,
+                AcknowledgedResponse::fromXContent,
+                Collections.emptySet());
+    }
+
+    /**
+     * Deletes the given Machine Learning Job asynchronously and notifies the listener on completion
+     * <p>
+     * For additional info see
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-calendar.html">
+     *     ML Delete calendar documentation</a>
+     *
+     * @param request  The request to delete the calendar
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void deleteCalendarAsync(DeleteCalendarRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+                MLRequestConverters::deleteCalendar,
+                options,
+                AcknowledgedResponse::fromXContent,
                 listener,
                 Collections.emptySet());
     }

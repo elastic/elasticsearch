@@ -38,7 +38,7 @@ public class XmlFileStructureFinder implements FileStructureFinder {
     private final FileStructure structure;
 
     static XmlFileStructureFinder makeXmlFileStructureFinder(List<String> explanation, String sample, String charsetName,
-                                                             Boolean hasByteOrderMarker)
+                                                             Boolean hasByteOrderMarker, FileStructureOverrides overrides)
         throws IOException, ParserConfigurationException, SAXException {
 
         String messagePrefix;
@@ -90,7 +90,7 @@ public class XmlFileStructureFinder implements FileStructureFinder {
             .setNumMessagesAnalyzed(sampleRecords.size())
             .setMultilineStartPattern("^\\s*<" + topLevelTag);
 
-        Tuple<String, TimestampMatch> timeField = FileStructureUtils.guessTimestampField(explanation, sampleRecords);
+        Tuple<String, TimestampMatch> timeField = FileStructureUtils.guessTimestampField(explanation, sampleRecords, overrides);
         if (timeField != null) {
             structureBuilder.setTimestampField(timeField.v1())
                 .setTimestampFormats(timeField.v2().dateFormats)
@@ -110,8 +110,10 @@ public class XmlFileStructureFinder implements FileStructureFinder {
         secondLevelProperties.put(FileStructureUtils.MAPPING_PROPERTIES_SETTING, innerMappings);
         SortedMap<String, Object> outerMappings = new TreeMap<>();
         outerMappings.put(topLevelTag, secondLevelProperties);
-        outerMappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD,
-            Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"));
+        if (timeField != null) {
+            outerMappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD,
+                Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"));
+        }
 
         FileStructure structure = structureBuilder
             .setMappings(outerMappings)

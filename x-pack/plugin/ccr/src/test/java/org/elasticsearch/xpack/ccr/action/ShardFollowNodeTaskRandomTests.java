@@ -15,7 +15,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
-import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
 import java.nio.charset.StandardCharsets;
@@ -81,7 +80,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             new ShardId("leader_index", "", 0),
             testRun.maxOperationCount,
             concurrency,
-            FollowIndexAction.DEFAULT_MAX_BATCH_SIZE_IN_BYTES,
+            TransportFollowIndexAction.DEFAULT_MAX_BATCH_SIZE_IN_BYTES,
             concurrency,
             10240,
             TimeValue.timeValueMillis(10),

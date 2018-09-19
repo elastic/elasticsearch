@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -121,6 +122,11 @@ public final class TransportCreateAndFollowIndexAction
         // following an index in local cluster, so use local cluster state to fetch leader index metadata
         final String leaderIndex = request.getFollowRequest().getLeaderIndex();
         final IndexMetaData leaderIndexMetadata = state.getMetaData().index(leaderIndex);
+        if (leaderIndexMetadata == null) {
+            listener.onFailure(new IndexNotFoundException(leaderIndex));
+            return;
+        }
+
         Consumer<String[]> handler = historyUUIDs -> {
             createFollowerIndex(leaderIndexMetadata, historyUUIDs, request, listener);
         };
@@ -183,6 +189,7 @@ public final class TransportCreateAndFollowIndexAction
                 // Adding the leader index uuid for each shard as custom metadata:
                 Map<String, String> metadata = new HashMap<>();
                 metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, String.join(",", historyUUIDs));
+                metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, leaderIndexMetaData.getIndexUUID());
                 imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, metadata);
 
                 // Copy all settings, but overwrite a few settings.

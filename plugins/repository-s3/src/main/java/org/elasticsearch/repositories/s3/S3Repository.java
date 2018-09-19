@@ -35,6 +35,7 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
+import java.util.Locale;
 import java.util.function.Function;
 
 /**
@@ -203,7 +204,10 @@ class S3Repository extends BlobStoreRepository {
         this.cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
 
         if (CLIENT_NAME.exists(metadata.settings()) && S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
-            logger.warn("ignoring use of named client [" + metadata.name() + "] as insecure credentials were specified");
+            logger.warn(
+                    "ignoring use of named client [{}] for repository [{}] as insecure credentials were specified",
+                    CLIENT_NAME.get(metadata.settings()),
+                    metadata.name());
         }
 
         this.clientName = CLIENT_NAME.get(metadata.settings());

@@ -198,14 +198,14 @@ public class LeaderChecker extends AbstractComponent {
 
                     @Override
                     public String executor() {
-                        return Names.GENERIC;
+                        return Names.SAME;
                     }
                 });
         }
 
         private void leaderFailed() {
             if (isClosed.compareAndSet(false, true)) {
-                onLeaderFailure.run();
+                transportService.getThreadPool().generic().execute(onLeaderFailure);
             } else {
                 logger.debug("already closed, not failing leader");
             }

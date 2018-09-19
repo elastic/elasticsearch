@@ -22,6 +22,15 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("LEFT", uf.functionName());
     }
 
+
+    public void testLiteralBoolean() throws Exception {
+        Expression lt = parser.createExpression("TRUE");
+        assertEquals(Literal.class, lt.getClass());
+        Literal l = (Literal) lt;
+        assertEquals(Boolean.TRUE, l.value());
+        assertEquals(DataType.BOOLEAN, l.dataType());
+    }
+
     public void testLiteralDouble() throws Exception {
         Expression lt = parser.createExpression(String.valueOf(Double.MAX_VALUE));
         assertEquals(Literal.class, lt.getClass());
@@ -91,5 +100,15 @@ public class ExpressionTests extends ESTestCase {
         Literal l = (Literal) lt;
         assertEquals(Integer.valueOf(Byte.MAX_VALUE), l.value());
         assertEquals(DataType.INTEGER, l.dataType());
+    }
+
+    public void testLiteralIntegerInvalid() throws Exception {
+        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("123456789098765432101"));
+        assertEquals("Number [123456789098765432101] is too large", ex.getErrorMessage());
+    }
+
+    public void testLiteralDecimalTooBig() throws Exception {
+        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("1.9976931348623157e+308"));
+        assertEquals("Number [1.9976931348623157e+308] is too large", ex.getErrorMessage());
     }
 }

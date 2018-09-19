@@ -29,6 +29,7 @@ import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusResponse
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.client.indexlifecycle.ExplainLifecycleResponse;
+import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.SetIndexLifecyclePolicyResponse;
 import org.elasticsearch.client.indexlifecycle.StartILMRequest;
@@ -270,5 +271,33 @@ public class IndexLifecycleClient {
                                       ActionListener<ExplainLifecycleResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::explainLifecycle, options,
                 ExplainLifecycleResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Retry lifecycle step for given indices
+     * See <a href="https://fix-me-when-we-have-docs.com">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse retryLifecycleStep(RetryLifecyclePolicyRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::retryLifecycle, options,
+            AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously retry the lifecycle step for given indices
+     * See <a href="https://fix-me-when-we-have-docs.com">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void retryLifecycleStepAsync(RetryLifecyclePolicyRequest request, RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::retryLifecycle, options,
+            AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 }

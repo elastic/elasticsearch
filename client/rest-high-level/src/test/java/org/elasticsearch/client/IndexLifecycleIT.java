@@ -41,6 +41,7 @@ import org.elasticsearch.client.indexlifecycle.OperationMode;
 import org.elasticsearch.client.indexlifecycle.Phase;
 import org.elasticsearch.client.indexlifecycle.PhaseExecutionInfo;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RolloverAction;
 import org.elasticsearch.client.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.SetIndexLifecyclePolicyResponse;
@@ -246,5 +247,27 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         List<LifecyclePolicy> retrievedPolicies = Arrays.stream(response.getPolicies().values().toArray())
             .map(p -> ((LifecyclePolicyMetadata) p).getPolicy()).collect(Collectors.toList());
         assertThat(retrievedPolicies, hasItems(policies));
+    }
+
+    public void testRetryLifecycleStep() throws IOException {
+        String policyName = randomAlphaOfLength(10);
+        LifecyclePolicy policy = createRandomPolicy(policyName);
+        PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
+        assertAcked(execute(putRequest, highLevelClient().indexLifecycle()::putLifecyclePolicy,
+            highLevelClient().indexLifecycle()::putLifecyclePolicyAsync));
+        createIndex("retry", Settings.builder().put("index.lifecycle.name", policy.getName()).build());
+        RetryLifecyclePolicyRequest retryRequest = new RetryLifecyclePolicyRequest("retry");
+        ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
+            () -> execute(
+                retryRequest, highLevelClient().indexLifecycle()::retryLifecycleStep,
+                highLevelClient().indexLifecycle()::retryLifecycleStepAsync
+            )
+        );
+        assertEquals(400, ex.status().getStatus());
+        assertEquals(
+            "Elasticsearch exception [type=illegal_argument_exception, reason=cannot retry an action for an index [retry]" +
+                " that has not encountered an error when running a Lifecycle Policy]",
+            ex.getRootCause().getMessage()
+        );
     }
 }

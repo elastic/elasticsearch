@@ -39,7 +39,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
             .metaData(MetaData.builder())
             .build();
 
-        ClusterState result = TransportPutAutoFollowPatternAction.innerPut(request, localState, remoteState);
+        ClusterState result = TransportPutAutoFollowPatternAction.innerPut(request, null, localState, remoteState);
         AutoFollowMetadata autoFollowMetadata = result.metaData().custom(AutoFollowMetadata.TYPE);
         assertThat(autoFollowMetadata, notNullValue());
         assertThat(autoFollowMetadata.getPatterns().size(), equalTo(1));
@@ -78,7 +78,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
             .metaData(mdBuilder)
             .build();
 
-        ClusterState result = TransportPutAutoFollowPatternAction.innerPut(request, localState, remoteState);
+        ClusterState result = TransportPutAutoFollowPatternAction.innerPut(request, null, localState, remoteState);
         AutoFollowMetadata autoFollowMetadata = result.metaData().custom(AutoFollowMetadata.TYPE);
         assertThat(autoFollowMetadata, notNullValue());
         assertThat(autoFollowMetadata.getPatterns().size(), equalTo(1));
@@ -97,7 +97,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         List<String> existingPatterns = new ArrayList<>();
         existingPatterns.add("transactions-*");
         existingAutoFollowPatterns.put("eu_cluster",
-            new AutoFollowMetadata.AutoFollowPattern(existingPatterns, null, null, null, null, null, null, null, null));
+            new AutoFollowMetadata.AutoFollowPattern(existingPatterns, null, null, null, null, null, null, null, null, null));
         Map<String, List<String>> existingAlreadyFollowedIndexUUIDS = new HashMap<>();
         List<String> existingUUIDS = new ArrayList<>();
         existingUUIDS.add("_val");
@@ -120,7 +120,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
             .metaData(mdBuilder)
             .build();
 
-        ClusterState result = TransportPutAutoFollowPatternAction.innerPut(request, localState, remoteState);
+        ClusterState result = TransportPutAutoFollowPatternAction.innerPut(request, null, localState, remoteState);
         AutoFollowMetadata autoFollowMetadata = result.metaData().custom(AutoFollowMetadata.TYPE);
         assertThat(autoFollowMetadata, notNullValue());
         assertThat(autoFollowMetadata.getPatterns().size(), equalTo(1));

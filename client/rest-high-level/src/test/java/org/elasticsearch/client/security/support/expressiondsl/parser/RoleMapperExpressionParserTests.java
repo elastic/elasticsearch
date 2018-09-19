@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.iterableWithSize;
 public class RoleMapperExpressionParserTests extends ESTestCase {
 
     public void testParseSimpleFieldExpression() throws Exception {
-        String json = "{ \"field\": { \"username\" : \"*@shield.gov\" } }";
+        String json = "{ \"field\": { \"username\" : [\"*@shield.gov\"] } }";
         FieldRoleMapperExpression field = checkExpressionType(parse(json), FieldRoleMapperExpression.class);
         assertThat(field.getField(), equalTo("username"));
         assertThat(field.getValues(), iterableWithSize(1));
@@ -99,7 +99,6 @@ public class RoleMapperExpressionParserTests extends ESTestCase {
         assertThat(fieldDisavowed.getValues(), iterableWithSize(1));
         assertThat(fieldDisavowed.getValues().get(0), equalTo("disavowed"));
 
-        assertThat(toJson(expr), equalTo(json.replaceAll("\\s", "")));
     }
 
     private String toJson(final RoleMapperExpression expr) throws IOException {

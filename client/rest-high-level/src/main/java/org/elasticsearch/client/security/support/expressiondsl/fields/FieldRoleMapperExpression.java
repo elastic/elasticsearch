@@ -20,17 +20,12 @@
 package org.elasticsearch.client.security.support.expressiondsl.fields;
 
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -41,9 +36,7 @@ import java.util.Objects;
  * Expression builder example:
  * <pre>
  * {@code
- * final RoleMapperExpression usernameExpression = FieldRoleMapperExpression.builder(FieldType.USERNAME)
-                                .addValue("user1@example.org")
-                                .build();
+ * final RoleMapperExpression usernameExpression = FieldRoleMapperExpression.ofUsername("user1@example.org");
  * }
  * </pre>
  */
@@ -95,90 +88,34 @@ public class FieldRoleMapperExpression implements RoleMapperExpression {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startObject(NAME);
-        if (this.values.size() == 1) {
-            builder.field(this.field);
-            builder.value(values.get(0));
-        } else {
-            builder.startArray(this.field);
-            for (Object value : values) {
-                builder.value(value);
-            }
-            builder.endArray();
+        builder.startArray(this.field);
+        for (Object value : values) {
+            builder.value(value);
         }
+        builder.endArray();
         builder.endObject();
         return builder.endObject();
     }
 
-    /**
-     * Generates field role mapper expression builder for give {@link FieldType}
-     *
-     * @param type {@link FieldType} composite role expression types like
-     * username, groups etc.
-     * @return {@link Builder} instance
-     */
-    public static Builder builder(FieldType type) {
-        return new Builder(type);
+    public static FieldRoleMapperExpression ofUsername(Object... values) {
+        return ofKeyValues("username", values);
     }
 
-    public enum FieldType {
-        FIELD("field"), USERNAME("username"), GROUPS("groups"), DN("dn"), METADATA("metadata.");
-
-        private static Map<String, FieldType> nameToType = Collections.unmodifiableMap(initialize());
-        private ParseField field;
-
-        FieldType(String name) {
-            this.field = new ParseField(name);
-        }
-
-        public String getName() {
-            return field.getPreferredName();
-        }
-
-        public ParseField getParseField() {
-            return field;
-        }
-
-        public static FieldType fromName(String name) {
-            return nameToType.get(name);
-        }
-
-        private static Map<String, FieldType> initialize() {
-            Map<String, FieldType> map = new HashMap<>();
-            for (FieldType field : values()) {
-                map.put(field.getName(), field);
-            }
-            return map;
-        }
+    public static FieldRoleMapperExpression ofGroups(Object... values) {
+        return ofKeyValues("groups", values);
     }
 
-    public static final class Builder {
-        private FieldType field;
-        private String key;
-        private List<Object> elements = new ArrayList<>();
-
-        Builder(FieldType field) {
-            this.field = field;
-        }
-
-        public Builder withKey(String key) {
-            assert Strings.hasLength(key) : "metadata key cannot be null or empty";
-            assert FieldType.METADATA == field : "metadata key can only be provided when building MetadataFieldExpression";
-            this.key = key;
-            return this;
-        }
-
-        public Builder addValue(Object value) {
-            elements.add(value);
-            return this;
-        }
-
-        public FieldRoleMapperExpression build() {
-            if (FieldType.METADATA == field) {
-                String fieldName = key.startsWith(FieldType.METADATA.getName()) ? key : FieldType.METADATA.getName() + key;
-                return new FieldRoleMapperExpression(fieldName, elements.toArray());
-            } else {
-                return new FieldRoleMapperExpression(field.getName(), elements.toArray());
-            }
-        }
+    public static FieldRoleMapperExpression ofDN(Object... values) {
+        return ofKeyValues("dn", values);
     }
+
+    public static FieldRoleMapperExpression ofMetadata(String key, Object... values) {
+        String fieldName = key.startsWith("metadata.") ? key : "metadata." + key;
+        return ofKeyValues(fieldName, values);
+    }
+
+    public static FieldRoleMapperExpression ofKeyValues(String key, Object... values) {
+        return new FieldRoleMapperExpression(key, values);
+    }
+
 }

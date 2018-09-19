@@ -21,10 +21,11 @@ package org.elasticsearch.client.security.support.expressiondsl.parser;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
-import org.elasticsearch.client.security.support.expressiondsl.expressions.CompositeRoleMapperExpression;
-import org.elasticsearch.client.security.support.expressiondsl.expressions.CompositeRoleMapperExpression.CompositeType;
+import org.elasticsearch.client.security.support.expressiondsl.expressions.AllRoleMapperExpression;
+import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
+import org.elasticsearch.client.security.support.expressiondsl.expressions.CompositeType;
+import org.elasticsearch.client.security.support.expressiondsl.expressions.ExceptRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
-import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression.FieldType;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -37,8 +38,12 @@ import java.util.List;
 /**
  * Parses the JSON (XContent) based boolean expression DSL into a tree of
  * {@link RoleMapperExpression} objects.
+ * Note: As this is client side parser, it mostly validates the structure of
+ * DSL being parsed it does not enforce rules 
+ * like allowing "except" within "except" or "any" expressions.
  */
 public final class RoleMapperExpressionParser {
+    public static final ParseField FIELD = new ParseField("field");
 
     /**
      * @param name The name of the expression tree within its containing object.
@@ -47,10 +52,10 @@ public final class RoleMapperExpressionParser {
      * representation of the expression
      */
     public RoleMapperExpression parse(final String name, final XContentParser parser) throws IOException {
-        return parseRulesObject(name, parser, false);
+        return parseRulesObject(name, parser);
     }
 
-    private RoleMapperExpression parseRulesObject(final String objectName, final XContentParser parser, boolean allowExcept)
+    private RoleMapperExpression parseRulesObject(final String objectName, final XContentParser parser)
             throws IOException {
         // find the start of the DSL object
         final XContentParser.Token token;
@@ -65,33 +70,28 @@ public final class RoleMapperExpressionParser {
         }
 
         final String fieldName = fieldName(objectName, parser);
-        final RoleMapperExpression expr = parseExpression(parser, fieldName, allowExcept, objectName);
+        final RoleMapperExpression expr = parseExpression(parser, fieldName, objectName);
         if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             throw new ElasticsearchParseException("failed to parse rules expression. object [{}] contains multiple fields", objectName);
         }
         return expr;
     }
 
-    private RoleMapperExpression parseExpression(XContentParser parser, String field, boolean allowExcept, String objectName)
+    private RoleMapperExpression parseExpression(XContentParser parser, String field, String objectName)
             throws IOException {
 
         if (CompositeType.ANY.getParseField().match(field, parser.getDeprecationHandler())) {
-            CompositeRoleMapperExpression.Builder builder = CompositeRoleMapperExpression.builder(CompositeType.ANY);
+            final AnyRoleMapperExpression.Builder builder = AnyRoleMapperExpression.builder();
             parseExpressionArray(CompositeType.ANY.getParseField(), parser, false).forEach(builder::addExpression);
             return builder.build();
         } else if (CompositeType.ALL.getParseField().match(field, parser.getDeprecationHandler())) {
-            CompositeRoleMapperExpression.Builder builder = CompositeRoleMapperExpression.builder(CompositeType.ALL);
+            final AllRoleMapperExpression.Builder builder = AllRoleMapperExpression.builder();
             parseExpressionArray(CompositeType.ALL.getParseField(), parser, true).forEach(builder::addExpression);
             return builder.build();
-        } else if (FieldRoleMapperExpression.FieldType.FIELD.getParseField().match(field, parser.getDeprecationHandler())) {
+        } else if (FIELD.match(field, parser.getDeprecationHandler())) {
             return parseFieldExpression(parser);
         } else if (CompositeType.EXCEPT.getParseField().match(field, parser.getDeprecationHandler())) {
-            if (allowExcept) {
-                return parseExceptExpression(parser);
-            } else {
-                throw new ElasticsearchParseException("failed to parse rules expression. field [{}] is not allowed within [{}]", field,
-                        objectName);
-            }
+            return parseExceptExpression(parser);
         } else {
             throw new ElasticsearchParseException("failed to parse rules expression. field [{}] is not recognised in object [{}]", field,
                     objectName);
@@ -100,26 +100,25 @@ public final class RoleMapperExpressionParser {
 
     private RoleMapperExpression parseFieldExpression(XContentParser parser) throws IOException {
         checkStartObject(parser);
-        final FieldRoleMapperExpression.Builder builder = fieldBuilder(FieldType.FIELD.getName(), parser);
+        final String fieldName = fieldName(FIELD.getPreferredName(), parser);
 
         final List<Object> values;
         if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
-            values = parseArray(FieldType.FIELD.getParseField(), parser, this::parseFieldValue);
+            values = parseArray(FIELD, parser, this::parseFieldValue);
         } else {
             values = Collections.singletonList(parseFieldValue(parser));
         }
         if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             throw new ElasticsearchParseException("failed to parse rules expression. object [{}] contains multiple fields",
-                    FieldType.FIELD.getName());
+                    FIELD.getPreferredName());
         }
-        values.stream().forEach(builder::addValue);
-        return builder.build();
+
+        return FieldRoleMapperExpression.ofKeyValues(fieldName, values.toArray());
     }
 
     private RoleMapperExpression parseExceptExpression(XContentParser parser) throws IOException {
         checkStartObject(parser);
-        return CompositeRoleMapperExpression.builder(CompositeType.EXCEPT).addExpression(parseRulesObject(CompositeType.EXCEPT.getName(),
-                parser, false)).build();
+        return new ExceptRoleMapperExpression(parseRulesObject(CompositeType.EXCEPT.getName(), parser));
     }
 
     private void checkStartObject(XContentParser parser) throws IOException {
@@ -127,23 +126,6 @@ public final class RoleMapperExpressionParser {
         if (token != XContentParser.Token.START_OBJECT) {
             throw new ElasticsearchParseException("failed to parse rules expression. expected an object but found [{}] instead", token);
         }
-    }
-
-    private FieldRoleMapperExpression.Builder fieldBuilder(String objectName, XContentParser parser) throws IOException {
-        String parsedFieldName = fieldName(objectName, parser);
-        String fieldName = parsedFieldName;
-        if (parsedFieldName.startsWith(FieldType.METADATA.getName())) {
-            fieldName = parsedFieldName.substring(0, FieldType.METADATA.getName().length() + 1);
-        }
-        FieldType field = FieldType.fromName(fieldName);
-        if (field == null) {
-            throw new ElasticsearchParseException("failed to parse field expression, unexpected field name [{}]", fieldName);
-        }
-        final FieldRoleMapperExpression.Builder builder = FieldRoleMapperExpression.builder(field);
-        if (field == FieldRoleMapperExpression.FieldType.METADATA) {
-            builder.withKey(parsedFieldName);
-        }
-        return builder;
     }
 
     private String fieldName(String objectName, XContentParser parser) throws IOException {
@@ -158,7 +140,7 @@ public final class RoleMapperExpressionParser {
             throws IOException {
         parser.nextToken(); // parseArray requires that the parser is positioned
                             // at the START_ARRAY token
-        return parseArray(field, parser, p -> parseRulesObject(field.getPreferredName(), p, allowExcept));
+        return parseArray(field, parser, p -> parseRulesObject(field.getPreferredName(), p));
     }
 
     private <T> List<T> parseArray(ParseField field, XContentParser parser, CheckedFunction<XContentParser, T, IOException> elementParser)

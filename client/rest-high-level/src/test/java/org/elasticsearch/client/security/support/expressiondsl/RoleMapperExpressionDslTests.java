@@ -19,10 +19,10 @@
 
 package org.elasticsearch.client.security.support.expressiondsl;
 
-import org.elasticsearch.client.security.support.expressiondsl.expressions.CompositeRoleMapperExpression;
-import org.elasticsearch.client.security.support.expressiondsl.expressions.CompositeRoleMapperExpression.CompositeType;
+import org.elasticsearch.client.security.support.expressiondsl.expressions.AllRoleMapperExpression;
+import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
+import org.elasticsearch.client.security.support.expressiondsl.expressions.ExceptRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
-import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression.FieldType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,24 +38,14 @@ public class RoleMapperExpressionDslTests extends ESTestCase {
 
     public void testRoleMapperExpressionToXContentType() throws IOException {
 
-        final RoleMapperExpression allExpression = CompositeRoleMapperExpression.builder(CompositeType.ALL)
-                .addExpression(CompositeRoleMapperExpression.builder(CompositeType.ANY)
-                        .addExpression(FieldRoleMapperExpression.builder(FieldType.DN)
-                                .addValue("*,ou=admin,dc=example,dc=com")
-                                .build())
-                        .addExpression(FieldRoleMapperExpression.builder(FieldType.USERNAME)
-                                .addValue("es-admin").addValue("es-system")
-                                .build())
+        final RoleMapperExpression allExpression = AllRoleMapperExpression.builder()
+                .addExpression(AnyRoleMapperExpression.builder()
+                        .addExpression(FieldRoleMapperExpression.ofDN("*,ou=admin,dc=example,dc=com"))
+                        .addExpression(FieldRoleMapperExpression.ofUsername("es-admin", "es-system"))
                         .build())
-                .addExpression(FieldRoleMapperExpression.builder(FieldType.GROUPS)
-                        .addValue("cn=people,dc=example,dc=com")
-                        .build())
-                .addExpression(CompositeRoleMapperExpression.builder(CompositeType.EXCEPT)
-                        .addExpression(FieldRoleMapperExpression.builder(FieldType.METADATA)
-                                            .withKey("metadata.terminated_date")
-                                            .addValue(new Date(1537145401027L))
-                                            .build())
-                        .build())
+                .addExpression(FieldRoleMapperExpression.ofGroups("cn=people,dc=example,dc=com"))
+                .addExpression(new ExceptRoleMapperExpression(FieldRoleMapperExpression.ofMetadata("metadata.terminated_date", new Date(
+                        1537145401027L))))
                 .build();
 
         final XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -68,7 +58,7 @@ public class RoleMapperExpressionDslTests extends ESTestCase {
                    "\"any\":["+
                      "{"+
                        "\"field\":{"+
-                         "\"dn\":\"*,ou=admin,dc=example,dc=com\""+
+                         "\"dn\":[\"*,ou=admin,dc=example,dc=com\"]"+
                        "}"+
                      "},"+
                      "{"+
@@ -83,13 +73,13 @@ public class RoleMapperExpressionDslTests extends ESTestCase {
                  "},"+
                  "{"+
                    "\"field\":{"+
-                     "\"groups\":\"cn=people,dc=example,dc=com\""+
+                     "\"groups\":[\"cn=people,dc=example,dc=com\"]"+
                    "}"+
                  "},"+
                  "{"+
                    "\"except\":{"+
                      "\"field\":{"+
-                       "\"metadata.terminated_date\":\"2018-09-17T00:50:01.027Z\""+
+                       "\"metadata.terminated_date\":[\"2018-09-17T00:50:01.027Z\"]"+
                      "}"+
                    "}"+
                  "}"+

@@ -86,7 +86,7 @@ public class LeaderChecker extends AbstractComponent {
         this.transportService = transportService;
         this.onLeaderFailure = onLeaderFailure;
 
-        transportService.registerRequestHandler(LEADER_CHECK_ACTION_NAME, Names.GENERIC, LeaderCheckRequest::new, this::handleLeaderCheck);
+        transportService.registerRequestHandler(LEADER_CHECK_ACTION_NAME, Names.SAME, LeaderCheckRequest::new, this::handleLeaderCheck);
     }
 
     /**

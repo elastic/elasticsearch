@@ -108,7 +108,7 @@ public class LeaderChecker extends AbstractComponent {
      * TODO if heartbeats can make nodes become followers then this needs to be called before a heartbeat is sent to a new node too.
      *
      * isLocalNodeElectedMaster() should reflect whether this node is a leader, and nodeExists()
-     * should indicate whether nodes are known publication targets are not.
+     * should indicate whether nodes are known publication targets or not.
      */
     public void setLastPublishedDiscoveryNodes(DiscoveryNodes discoveryNodes) {
         logger.trace("updating last-published nodes: {}", discoveryNodes);

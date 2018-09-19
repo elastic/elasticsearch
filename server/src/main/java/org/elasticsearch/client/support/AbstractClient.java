@@ -80,10 +80,7 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.admin.cluster.settings.*;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
@@ -759,6 +756,16 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public ClusterUpdateSettingsRequestBuilder prepareUpdateSettings() {
             return new ClusterUpdateSettingsRequestBuilder(this, ClusterUpdateSettingsAction.INSTANCE);
+        }
+
+        @Override
+        public ActionFuture<ClusterGetSettingsResponse> getSettings(final ClusterGetSettingsRequest request) {
+            return execute(ClusterGetSettingsAction.INSTANCE, request);
+        }
+
+        @Override
+        public void getSettings(final ClusterGetSettingsRequest request, final ActionListener<ClusterGetSettingsResponse> listener) {
+            execute(ClusterGetSettingsAction.INSTANCE, request, listener);
         }
 
         @Override

@@ -9,6 +9,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;

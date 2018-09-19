@@ -63,6 +63,12 @@ public class ClusterGetSettingsResponse extends ActionResponse implements ToXCon
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> Settings.fromXContent(p), new ParseField(DEFAULTS_FIELD));
     }
 
+    public ClusterGetSettingsResponse() {
+        this.persistentSettings = Settings.EMPTY;
+        this.transientSettings = Settings.EMPTY;
+        this.defaultSettings = Settings.EMPTY;
+    }
+
     public ClusterGetSettingsResponse(Settings persistentSettings, Settings transientSettings, Settings defaultSettings) {
         if (persistentSettings != null) {
             this.persistentSettings = persistentSettings;

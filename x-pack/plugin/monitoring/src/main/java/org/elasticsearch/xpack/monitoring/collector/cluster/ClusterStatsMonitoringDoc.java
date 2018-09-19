@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -12,6 +13,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.License;
@@ -45,6 +48,7 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
                                 ClusterState.Metric.NODES));
 
     public static final String TYPE = "cluster_stats";
+    protected static final String SETTING_CLUSTER_METADATA = "cluster.metadata";
 
     private final String clusterName;
     private final String version;
@@ -53,6 +57,7 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
     private final List<XPackFeatureSet.Usage> usages;
     private final ClusterStatsResponse clusterStats;
     private final ClusterState clusterState;
+    private final ClusterGetSettingsResponse clusterSettings;
     private final ClusterHealthStatus status;
     private final boolean clusterNeedsTLSEnabled;
 
@@ -68,6 +73,7 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
                               @Nullable final List<XPackFeatureSet.Usage> usages,
                               @Nullable final ClusterStatsResponse clusterStats,
                               @Nullable final ClusterState clusterState,
+                              @Nullable final ClusterGetSettingsResponse clusterSettings,
                               final boolean clusterNeedsTLSEnabled) {
 
         super(cluster, timestamp, intervalMillis, node, MonitoredSystem.ES, TYPE, null);
@@ -79,6 +85,7 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
         this.usages = usages;
         this.clusterStats = clusterStats;
         this.clusterState = clusterState;
+        this.clusterSettings = clusterSettings;
         this.clusterNeedsTLSEnabled = clusterNeedsTLSEnabled;
     }
 
@@ -118,6 +125,25 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
         return clusterNeedsTLSEnabled;
     }
 
+    Settings getClusterMetadata() {
+        Settings persistentSettings = clusterSettings.getPersistentSettings();
+        if (persistentSettings.hasValue(SETTING_CLUSTER_METADATA)) {
+            return persistentSettings.getAsSettings(SETTING_CLUSTER_METADATA);
+        }
+
+        Settings transientSettings = clusterSettings.getTransientSettings();
+        if (transientSettings.hasValue(SETTING_CLUSTER_METADATA)) {
+            return transientSettings.getAsSettings(SETTING_CLUSTER_METADATA);
+        }
+
+        Settings defaultSettings = clusterSettings.getDefaultSettings();
+        if (defaultSettings.hasValue(SETTING_CLUSTER_METADATA)) {
+            return defaultSettings.getAsSettings(SETTING_CLUSTER_METADATA);
+        }
+
+        return null;
+    }
+
     @Override
     protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("cluster_name", clusterName);
@@ -152,6 +178,15 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
                 builder.field("nodes_hash", nodesHash(clusterState.nodes()));
                 builder.field("status", status.name().toLowerCase(Locale.ROOT));
                 clusterState.toXContent(builder, CLUSTER_STATS_PARAMS);
+            }
+            builder.endObject();
+        }
+
+        Settings clusterMetadata = getClusterMetadata();
+        if (clusterMetadata != null) {
+            builder.startObject("cluster_metadata");
+            {
+                clusterMetadata.toXContent(builder, params);
             }
             builder.endObject();
         }

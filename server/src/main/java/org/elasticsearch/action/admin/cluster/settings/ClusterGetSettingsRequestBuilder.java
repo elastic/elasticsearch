@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.settings;
 
-import org.elasticsearch.action.support.master.MasterNodeReadRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -33,69 +33,5 @@ public class ClusterGetSettingsRequestBuilder extends MasterNodeReadOperationReq
 
     public ClusterGetSettingsRequestBuilder(ElasticsearchClient client, ClusterGetSettingsAction action) {
         super(client, action, new ClusterGetSettingsRequest());
-    }
-
-    /**
-     * Sets the transient settings to be updated. They will not survive a full cluster restart
-     */
-    public ClusterGetSettingsRequestBuilder setTransientSettings(Settings settings) {
-        request.transientSettings(settings);
-        return this;
-    }
-
-    /**
-     * Sets the transient settings to be updated. They will not survive a full cluster restart
-     */
-    public ClusterGetSettingsRequestBuilder setTransientSettings(Settings.Builder settings) {
-        request.transientSettings(settings);
-        return this;
-    }
-
-    /**
-     * Sets the source containing the transient settings to be updated. They will not survive a full cluster restart
-     */
-    public ClusterGetSettingsRequestBuilder setTransientSettings(String settings, XContentType xContentType) {
-        request.transientSettings(settings, xContentType);
-        return this;
-    }
-
-    /**
-     * Sets the transient settings to be updated. They will not survive a full cluster restart
-     */
-    public ClusterGetSettingsRequestBuilder setTransientSettings(Map<String, ?> settings) {
-        request.transientSettings(settings);
-        return this;
-    }
-
-    /**
-     * Sets the persistent settings to be updated. They will get applied cross restarts
-     */
-    public ClusterGetSettingsRequestBuilder setPersistentSettings(Settings settings) {
-        request.persistentSettings(settings);
-        return this;
-    }
-
-    /**
-     * Sets the persistent settings to be updated. They will get applied cross restarts
-     */
-    public ClusterGetSettingsRequestBuilder setPersistentSettings(Settings.Builder settings) {
-        request.persistentSettings(settings);
-        return this;
-    }
-
-    /**
-     * Sets the source containing the persistent settings to be updated. They will get applied cross restarts
-     */
-    public ClusterGetSettingsRequestBuilder setPersistentSettings(String settings, XContentType xContentType) {
-        request.persistentSettings(settings, xContentType);
-        return this;
-    }
-
-    /**
-     * Sets the persistent settings to be updated. They will get applied cross restarts
-     */
-    public ClusterGetSettingsRequestBuilder setPersistentSettings(Map<String, ?> settings) {
-        request.persistentSettings(settings);
-        return this;
     }
 }

@@ -59,7 +59,7 @@ public class LeaderChecker extends AbstractComponent {
     // the time between checks sent to the leader
     public static final Setting<TimeValue> LEADER_CHECK_INTERVAL_SETTING =
         Setting.timeSetting("cluster.fault_detection.leader_check.interval",
-            TimeValue.timeValueMillis(10000), TimeValue.timeValueMillis(1000), Setting.Property.NodeScope);
+            TimeValue.timeValueMillis(10000), TimeValue.timeValueMillis(100), Setting.Property.NodeScope);
 
     // the timeout for each check sent to the leader
     public static final Setting<TimeValue> LEADER_CHECK_TIMEOUT_SETTING =

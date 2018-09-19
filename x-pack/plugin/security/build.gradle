@@ -54,7 +54,7 @@ dependencies {
     compile "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
     compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
     compile "org.apache.httpcomponents:httpclient-cache:${versions.httpclient}"
-    compile 'com.google.guava:guava:19.0'
+    compile "com.google.guava:guava:${versions.guava}"
 
     testCompile 'org.elasticsearch:securemock:1.2'
     testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"

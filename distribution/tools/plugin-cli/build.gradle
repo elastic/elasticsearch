@@ -28,7 +28,7 @@ dependencies {
   compile "org.bouncycastle:bcprov-jdk15on:1.59"
   testCompile "org.elasticsearch.test:framework:${version}"
   testCompile 'com.google.jimfs:jimfs:1.1'
-  testCompile 'com.google.guava:guava:18.0'
+  testCompile "com.google.guava:guava:${versions.guava}"
 }
 
 dependencyLicenses {

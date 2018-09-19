@@ -24,9 +24,12 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.security.DisableUserRequest;
+import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
+import org.elasticsearch.client.security.EmptyResponse;
 
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
@@ -38,16 +41,16 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            //tag::x-pack-put-user-execute
+            //tag::put-user-execute
             char[] password = new char[] { 'p', 'a', 's', 's', 'w', 'o', 'r', 'd' };
             PutUserRequest request =
                 new PutUserRequest("example", password, Collections.singletonList("superuser"), null, null, true, null, RefreshPolicy.NONE);
             PutUserResponse response = client.security().putUser(request, RequestOptions.DEFAULT);
-            //end::x-pack-put-user-execute
+            //end::put-user-execute
 
-            //tag::x-pack-put-user-response
+            //tag::put-user-response
             boolean isCreated = response.isCreated(); // <1>
-            //end::x-pack-put-user-response
+            //end::put-user-response
 
             assertTrue(isCreated);
         }
@@ -56,7 +59,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             char[] password = new char[] { 'p', 'a', 's', 's', 'w', 'o', 'r', 'd' };
             PutUserRequest request = new PutUserRequest("example2", password, Collections.singletonList("superuser"), null, null, true,
                 null, RefreshPolicy.NONE);
-            // tag::x-pack-put-user-execute-listener
+            // tag::put-user-execute-listener
             ActionListener<PutUserResponse> listener = new ActionListener<PutUserResponse>() {
                 @Override
                 public void onResponse(PutUserResponse response) {
@@ -68,15 +71,104 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                     // <2>
                 }
             };
-            // end::x-pack-put-user-execute-listener
+            // end::put-user-execute-listener
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
-            // tag::x-pack-put-user-execute-async
+            // tag::put-user-execute-async
             client.security().putUserAsync(request, RequestOptions.DEFAULT, listener); // <1>
-            // end::x-pack-put-user-execute-async
+            // end::put-user-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testEnableUser() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
+        PutUserRequest putUserRequest = new PutUserRequest("enable_user", password, Collections.singletonList("superuser"), null,
+            null, true, null, RefreshPolicy.IMMEDIATE);
+        PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
+        assertTrue(putUserResponse.isCreated());
+
+        {
+            //tag::enable-user-execute
+            EnableUserRequest request = new EnableUserRequest("enable_user", RefreshPolicy.NONE);
+            EmptyResponse response = client.security().enableUser(request, RequestOptions.DEFAULT);
+            //end::enable-user-execute
+
+            assertNotNull(response);
+        }
+
+        {
+            //tag::enable-user-execute-listener
+            EnableUserRequest request = new EnableUserRequest("enable_user", RefreshPolicy.NONE);
+            ActionListener<EmptyResponse> listener = new ActionListener<EmptyResponse>() {
+                @Override
+                public void onResponse(EmptyResponse setUserEnabledResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::enable-user-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::enable-user-execute-async
+            client.security().enableUserAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::enable-user-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testDisableUser() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
+        PutUserRequest putUserRequest = new PutUserRequest("disable_user", password, Collections.singletonList("superuser"), null,
+            null, true, null, RefreshPolicy.IMMEDIATE);
+        PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
+        assertTrue(putUserResponse.isCreated());
+        {
+            //tag::disable-user-execute
+            DisableUserRequest request = new DisableUserRequest("disable_user", RefreshPolicy.NONE);
+            EmptyResponse response = client.security().disableUser(request, RequestOptions.DEFAULT);
+            //end::disable-user-execute
+
+            assertNotNull(response);
+        }
+
+        {
+            //tag::disable-user-execute-listener
+            DisableUserRequest request = new DisableUserRequest("disable_user", RefreshPolicy.NONE);
+            ActionListener<EmptyResponse> listener = new ActionListener<EmptyResponse>() {
+                @Override
+                public void onResponse(EmptyResponse setUserEnabledResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::disable-user-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::disable-user-execute-async
+            client.security().disableUserAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::disable-user-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

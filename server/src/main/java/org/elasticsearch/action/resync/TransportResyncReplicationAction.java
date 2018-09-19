@@ -22,7 +22,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
@@ -171,12 +170,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
 
                 @Override
                 public void handleException(TransportException exp) {
-                    final Throwable cause = exp.unwrapCause();
-                    if (TransportActions.isShardNotAvailableException(cause)) {
-                        logger.trace("primary became unavailable during resync, ignoring", exp);
-                    } else {
-                        listener.onFailure(exp);
-                    }
+                    listener.onFailure(exp);
                 }
             });
     }

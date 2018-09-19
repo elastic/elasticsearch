@@ -12,17 +12,17 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.ccr.action.PutAutoFollowPatternAction.Request;
+import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction.Request;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.ccr.action.PutAutoFollowPatternAction.INSTANCE;
+import static org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction.INSTANCE;
 
 public class RestPutAutoFollowPatternAction extends BaseRestHandler {
 
     public RestPutAutoFollowPatternAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.PUT, "/_ccr/_auto_follow/{leader_cluster_alias}", this);
+        controller.registerHandler(RestRequest.Method.PUT, "/_ccr/auto_follow/{leader_cluster_alias}", this);
     }
 
     @Override

@@ -61,6 +61,11 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
+        return canRebalance(allocation);
+    }
+    
+    @Override
+    public Decision canRebalance(RoutingAllocation allocation) {
         if (clusterConcurrentRebalance == -1) {
             return allocation.decision(Decision.YES, NAME, "unlimited concurrent rebalances are allowed");
         }

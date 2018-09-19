@@ -20,31 +20,50 @@ package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.client.ml.PostDataRequest;
-import org.elasticsearch.client.ml.PostDataResponse;
-import org.elasticsearch.client.ml.UpdateJobRequest;
-import org.elasticsearch.client.ml.job.config.JobUpdate;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.client.ml.GetJobStatsRequest;
-import org.elasticsearch.client.ml.GetJobStatsResponse;
-import org.elasticsearch.client.ml.job.config.JobState;
-import org.elasticsearch.client.ml.job.stats.JobStats;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteCalendarRequest;
+import org.elasticsearch.client.ml.DeleteDatafeedRequest;
+import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
-import org.elasticsearch.client.ml.DeleteJobResponse;
+import org.elasticsearch.client.ml.FlushJobRequest;
+import org.elasticsearch.client.ml.FlushJobResponse;
+import org.elasticsearch.client.ml.ForecastJobRequest;
+import org.elasticsearch.client.ml.ForecastJobResponse;
+import org.elasticsearch.client.ml.GetCalendarsRequest;
+import org.elasticsearch.client.ml.GetCalendarsResponse;
+import org.elasticsearch.client.ml.GetDatafeedRequest;
+import org.elasticsearch.client.ml.GetDatafeedResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobResponse;
+import org.elasticsearch.client.ml.GetJobStatsRequest;
+import org.elasticsearch.client.ml.GetJobStatsResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
+import org.elasticsearch.client.ml.PostDataRequest;
+import org.elasticsearch.client.ml.PostDataResponse;
+import org.elasticsearch.client.ml.PutCalendarRequest;
+import org.elasticsearch.client.ml.PutCalendarResponse;
+import org.elasticsearch.client.ml.PutDatafeedRequest;
+import org.elasticsearch.client.ml.PutDatafeedResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
+import org.elasticsearch.client.ml.UpdateJobRequest;
+import org.elasticsearch.client.ml.calendars.Calendar;
+import org.elasticsearch.client.ml.calendars.CalendarTests;
+import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.DataDescription;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.client.ml.FlushJobRequest;
-import org.elasticsearch.client.ml.FlushJobResponse;
+import org.elasticsearch.client.ml.job.config.JobState;
+import org.elasticsearch.client.ml.job.config.JobUpdate;
+import org.elasticsearch.client.ml.job.stats.JobStats;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.junit.After;
 
 import java.io.IOException;
@@ -120,7 +139,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
-        DeleteJobResponse response = execute(new DeleteJobRequest(jobId),
+        AcknowledgedResponse response = execute(new DeleteJobRequest(jobId),
             machineLearningClient::deleteJob,
             machineLearningClient::deleteJobAsync);
 
@@ -223,6 +242,31 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(exception.status().getStatus(), equalTo(404));
     }
 
+    public void testForecastJob() throws Exception {
+        String jobId = "ml-forecast-job-test";
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        machineLearningClient.openJob(new OpenJobRequest(jobId), RequestOptions.DEFAULT);
+
+        PostDataRequest.JsonBuilder builder = new PostDataRequest.JsonBuilder();
+        for(int i = 0; i < 30; i++) {
+            Map<String, Object> hashMap = new HashMap<>();
+            hashMap.put("total", randomInt(1000));
+            hashMap.put("timestamp", (i+1)*1000);
+            builder.addDoc(hashMap);
+        }
+        PostDataRequest postDataRequest = new PostDataRequest(jobId, builder);
+        machineLearningClient.postData(postDataRequest, RequestOptions.DEFAULT);
+        machineLearningClient.flushJob(new FlushJobRequest(jobId), RequestOptions.DEFAULT);
+
+        ForecastJobRequest request = new ForecastJobRequest(jobId);
+        ForecastJobResponse response = execute(request, machineLearningClient::forecastJob, machineLearningClient::forecastJobAsync);
+
+        assertTrue(response.isAcknowledged());
+        assertNotNull(response.getForecastId());
+    }
+
     public void testPostData() throws Exception {
         String jobId = randomValidJobId();
         Job job = buildJob(jobId);
@@ -259,6 +303,237 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         GetJobRequest getRequest = new GetJobRequest(jobId);
         GetJobResponse getResponse = machineLearningClient.getJob(getRequest, RequestOptions.DEFAULT);
         assertEquals("Updated description", getResponse.jobs().get(0).getDescription());
+    }
+
+    public void testPutDatafeed() throws Exception {
+        String jobId = randomValidJobId();
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        execute(new PutJobRequest(job), machineLearningClient::putJob, machineLearningClient::putJobAsync);
+
+        String datafeedId = "datafeed-" + jobId;
+        DatafeedConfig datafeedConfig = DatafeedConfig.builder(datafeedId, jobId).setIndices("some_data_index").build();
+
+        PutDatafeedResponse response = execute(new PutDatafeedRequest(datafeedConfig), machineLearningClient::putDatafeed,
+                machineLearningClient::putDatafeedAsync);
+
+        DatafeedConfig createdDatafeed = response.getResponse();
+        assertThat(createdDatafeed.getId(), equalTo(datafeedId));
+        assertThat(createdDatafeed.getIndices(), equalTo(datafeedConfig.getIndices()));
+    }
+
+    public void testGetDatafeed() throws Exception {
+        String jobId1 = "test-get-datafeed-job-1";
+        String jobId2 = "test-get-datafeed-job-2";
+        Job job1 = buildJob(jobId1);
+        Job job2 = buildJob(jobId2);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job1), RequestOptions.DEFAULT);
+        machineLearningClient.putJob(new PutJobRequest(job2), RequestOptions.DEFAULT);
+
+        String datafeedId1 = jobId1 + "-feed";
+        String datafeedId2 = jobId2 + "-feed";
+        DatafeedConfig datafeed1 = DatafeedConfig.builder(datafeedId1, jobId1).setIndices("data_1").build();
+        DatafeedConfig datafeed2 = DatafeedConfig.builder(datafeedId2, jobId2).setIndices("data_2").build();
+        machineLearningClient.putDatafeed(new PutDatafeedRequest(datafeed1), RequestOptions.DEFAULT);
+        machineLearningClient.putDatafeed(new PutDatafeedRequest(datafeed2), RequestOptions.DEFAULT);
+
+        // Test getting specific datafeeds
+        {
+            GetDatafeedRequest request = new GetDatafeedRequest(datafeedId1, datafeedId2);
+            GetDatafeedResponse response = execute(request, machineLearningClient::getDatafeed, machineLearningClient::getDatafeedAsync);
+
+            assertEquals(2, response.count());
+            assertThat(response.datafeeds(), hasSize(2));
+            assertThat(response.datafeeds().stream().map(DatafeedConfig::getId).collect(Collectors.toList()),
+                    containsInAnyOrder(datafeedId1, datafeedId2));
+        }
+
+        // Test getting a single one
+        {
+            GetDatafeedRequest request = new GetDatafeedRequest(datafeedId1);
+            GetDatafeedResponse response = execute(request, machineLearningClient::getDatafeed, machineLearningClient::getDatafeedAsync);
+
+            assertTrue(response.count() == 1L);
+            assertThat(response.datafeeds().get(0).getId(), equalTo(datafeedId1));
+        }
+
+        // Test getting all datafeeds explicitly
+        {
+            GetDatafeedRequest request = GetDatafeedRequest.getAllDatafeedsRequest();
+            GetDatafeedResponse response = execute(request, machineLearningClient::getDatafeed, machineLearningClient::getDatafeedAsync);
+
+            assertTrue(response.count() == 2L);
+            assertTrue(response.datafeeds().size() == 2L);
+            assertThat(response.datafeeds().stream().map(DatafeedConfig::getId).collect(Collectors.toList()),
+                    hasItems(datafeedId1, datafeedId2));
+        }
+
+        // Test getting all datafeeds implicitly
+        {
+            GetDatafeedResponse response = execute(new GetDatafeedRequest(), machineLearningClient::getDatafeed,
+                    machineLearningClient::getDatafeedAsync);
+
+            assertTrue(response.count() >= 2L);
+            assertTrue(response.datafeeds().size() >= 2L);
+            assertThat(response.datafeeds().stream().map(DatafeedConfig::getId).collect(Collectors.toList()),
+                    hasItems(datafeedId1, datafeedId2));
+        }
+
+        // Test get missing pattern with allow_no_datafeeds set to true
+        {
+            GetDatafeedRequest request = new GetDatafeedRequest("missing-*");
+
+            GetDatafeedResponse response = execute(request, machineLearningClient::getDatafeed, machineLearningClient::getDatafeedAsync);
+
+            assertThat(response.count(), equalTo(0L));
+        }
+
+        // Test get missing pattern with allow_no_datafeeds set to false
+        {
+            GetDatafeedRequest request = new GetDatafeedRequest("missing-*");
+            request.setAllowNoDatafeeds(false);
+
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                    () -> execute(request, machineLearningClient::getDatafeed, machineLearningClient::getDatafeedAsync));
+            assertThat(e.status(), equalTo(RestStatus.NOT_FOUND));
+        }
+    }
+
+    public void testDeleteDatafeed() throws Exception {
+        String jobId = randomValidJobId();
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        String datafeedId = "datafeed-" + jobId;
+        DatafeedConfig datafeedConfig = DatafeedConfig.builder(datafeedId, jobId).setIndices("some_data_index").build();
+        execute(new PutDatafeedRequest(datafeedConfig), machineLearningClient::putDatafeed, machineLearningClient::putDatafeedAsync);
+
+        AcknowledgedResponse response = execute(new DeleteDatafeedRequest(datafeedId), machineLearningClient::deleteDatafeed,
+                machineLearningClient::deleteDatafeedAsync);
+
+        assertTrue(response.isAcknowledged());
+    }
+
+    public void testDeleteForecast() throws Exception {
+        String jobId = "test-delete-forecast";
+
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        machineLearningClient.openJob(new OpenJobRequest(jobId), RequestOptions.DEFAULT);
+
+        Job noForecastsJob = buildJob("test-delete-forecast-none");
+        machineLearningClient.putJob(new PutJobRequest(noForecastsJob), RequestOptions.DEFAULT);
+
+        PostDataRequest.JsonBuilder builder = new PostDataRequest.JsonBuilder();
+        for(int i = 0; i < 30; i++) {
+            Map<String, Object> hashMap = new HashMap<>();
+            hashMap.put("total", randomInt(1000));
+            hashMap.put("timestamp", (i+1)*1000);
+            builder.addDoc(hashMap);
+        }
+
+        PostDataRequest postDataRequest = new PostDataRequest(jobId, builder);
+        machineLearningClient.postData(postDataRequest, RequestOptions.DEFAULT);
+        machineLearningClient.flushJob(new FlushJobRequest(jobId), RequestOptions.DEFAULT);
+        ForecastJobResponse forecastJobResponse1 = machineLearningClient.forecastJob(new ForecastJobRequest(jobId), RequestOptions.DEFAULT);
+        ForecastJobResponse forecastJobResponse2 = machineLearningClient.forecastJob(new ForecastJobRequest(jobId), RequestOptions.DEFAULT);
+        waitForForecastToComplete(jobId, forecastJobResponse1.getForecastId());
+        waitForForecastToComplete(jobId, forecastJobResponse2.getForecastId());
+
+        {
+            DeleteForecastRequest request = new DeleteForecastRequest(jobId);
+            request.setForecastIds(forecastJobResponse1.getForecastId(), forecastJobResponse2.getForecastId());
+            AcknowledgedResponse response = execute(request, machineLearningClient::deleteForecast,
+                machineLearningClient::deleteForecastAsync);
+            assertTrue(response.isAcknowledged());
+            assertFalse(forecastExists(jobId, forecastJobResponse1.getForecastId()));
+            assertFalse(forecastExists(jobId, forecastJobResponse2.getForecastId()));
+        }
+        {
+            DeleteForecastRequest request = DeleteForecastRequest.deleteAllForecasts(noForecastsJob.getId());
+            request.setAllowNoForecasts(true);
+            AcknowledgedResponse response = execute(request, machineLearningClient::deleteForecast,
+                machineLearningClient::deleteForecastAsync);
+            assertTrue(response.isAcknowledged());
+        }
+        {
+            DeleteForecastRequest request = DeleteForecastRequest.deleteAllForecasts(noForecastsJob.getId());
+            request.setAllowNoForecasts(false);
+            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+                () -> execute(request, machineLearningClient::deleteForecast, machineLearningClient::deleteForecastAsync));
+            assertThat(exception.status().getStatus(), equalTo(404));
+        }
+    }
+
+    private void waitForForecastToComplete(String jobId, String forecastId) throws Exception {
+        GetRequest request = new GetRequest(".ml-anomalies-" + jobId);
+        request.id(jobId + "_model_forecast_request_stats_" + forecastId);
+        assertBusy(() -> {
+            GetResponse getResponse = highLevelClient().get(request, RequestOptions.DEFAULT);
+            assertTrue(getResponse.isExists());
+            assertTrue(getResponse.getSourceAsString().contains("finished"));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    private boolean forecastExists(String jobId, String forecastId) throws Exception {
+        GetRequest getRequest = new GetRequest(".ml-anomalies-" + jobId);
+        getRequest.id(jobId + "_model_forecast_request_stats_" + forecastId);
+        GetResponse getResponse = highLevelClient().get(getRequest, RequestOptions.DEFAULT);
+        return getResponse.isExists();
+    }
+
+    public void testPutCalendar() throws IOException {
+        Calendar calendar = CalendarTests.testInstance();
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        PutCalendarResponse putCalendarResponse = execute(new PutCalendarRequest(calendar), machineLearningClient::putCalendar,
+                machineLearningClient::putCalendarAsync);
+
+        assertThat(putCalendarResponse.getCalendar(), equalTo(calendar));
+    }
+
+    public void testGetCalendars() throws Exception {
+        Calendar calendar1 = CalendarTests.testInstance();
+        Calendar calendar2 = CalendarTests.testInstance();
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putCalendar(new PutCalendarRequest(calendar1), RequestOptions.DEFAULT);
+        machineLearningClient.putCalendar(new PutCalendarRequest(calendar2), RequestOptions.DEFAULT);
+
+        GetCalendarsRequest getCalendarsRequest = new GetCalendarsRequest();
+        getCalendarsRequest.setCalendarId("_all");
+        GetCalendarsResponse getCalendarsResponse = execute(getCalendarsRequest, machineLearningClient::getCalendars,
+                machineLearningClient::getCalendarsAsync);
+        assertEquals(2, getCalendarsResponse.count());
+        assertEquals(2, getCalendarsResponse.calendars().size());
+        assertThat(getCalendarsResponse.calendars().stream().map(Calendar::getId).collect(Collectors.toList()),
+                hasItems(calendar1.getId(), calendar1.getId()));
+
+        getCalendarsRequest.setCalendarId(calendar1.getId());
+        getCalendarsResponse = execute(getCalendarsRequest, machineLearningClient::getCalendars,
+                machineLearningClient::getCalendarsAsync);
+        assertEquals(1, getCalendarsResponse.count());
+        assertEquals(calendar1, getCalendarsResponse.calendars().get(0));
+    }
+
+    public void testDeleteCalendar() throws IOException {
+        Calendar calendar = CalendarTests.testInstance();
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        execute(new PutCalendarRequest(calendar), machineLearningClient::putCalendar,
+                machineLearningClient::putCalendarAsync);
+
+        AcknowledgedResponse response = execute(new DeleteCalendarRequest(calendar.getId()),
+                machineLearningClient::deleteCalendar,
+                machineLearningClient::deleteCalendarAsync);
+        assertTrue(response.isAcknowledged());
+
+        // calendar is missing
+        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+                () -> execute(new DeleteCalendarRequest(calendar.getId()), machineLearningClient::deleteCalendar,
+                        machineLearningClient::deleteCalendarAsync));
+        assertThat(exception.status().getStatus(), equalTo(404));
     }
 
     public static String randomValidJobId() {

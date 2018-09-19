@@ -21,7 +21,7 @@ public class E extends MathFunction {
     private static final ScriptTemplate TEMPLATE = new ScriptTemplate("Math.E", Params.EMPTY, DataType.DOUBLE);
 
     public E(Location location) {
-        super(location, new Literal(location, Math.E, DataType.DOUBLE));
+        super(location, new Literal(location, "E", Math.E, DataType.DOUBLE));
     }
 
     @Override

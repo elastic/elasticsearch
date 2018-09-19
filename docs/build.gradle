@@ -55,7 +55,6 @@ integTestCluster {
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 
   // TODO: remove this for 7.0, this exists to allow the doc examples in 6.x to continue using the defaults
-  systemProperty 'es.scripting.use_java_time', 'false'
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
 }
 

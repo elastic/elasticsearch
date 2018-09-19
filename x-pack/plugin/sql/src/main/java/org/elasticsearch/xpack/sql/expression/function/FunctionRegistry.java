@@ -21,13 +21,16 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.SumOfSquares;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.VarPop;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mod;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfWeek;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.HourOfDay;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MinuteOfDay;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MinuteOfHour;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthOfYear;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Quarter;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.SecondOfMinute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.WeekOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
@@ -62,21 +65,21 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.Ascii;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BitLength;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Char;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.CharLength;
-import org.elasticsearch.xpack.sql.expression.function.scalar.string.LCase;
-import org.elasticsearch.xpack.sql.expression.function.scalar.string.LTrim;
-import org.elasticsearch.xpack.sql.expression.function.scalar.string.Length;
-import org.elasticsearch.xpack.sql.expression.function.scalar.string.RTrim;
-import org.elasticsearch.xpack.sql.expression.function.scalar.string.Space;
-import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Insert;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.LCase;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Left;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Locate;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Position;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.RTrim;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Replace;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Right;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.util.StringUtils;
@@ -113,9 +116,9 @@ public class FunctionRegistry {
             def(Kurtosis.class, Kurtosis::new),
         // Scalar functions
             // Date
-            def(DayOfMonth.class, DayOfMonth::new, "DAY", "DOM"),
-            def(DayOfWeek.class, DayOfWeek::new, "DOW"),
-            def(DayOfYear.class, DayOfYear::new, "DOY"),
+            def(DayOfMonth.class, DayOfMonth::new, "DAYOFMONTH", "DAY", "DOM"),
+            def(DayOfWeek.class, DayOfWeek::new, "DAYOFWEEK", "DOW"),
+            def(DayOfYear.class, DayOfYear::new, "DAYOFYEAR", "DOY"),
             def(HourOfDay.class, HourOfDay::new, "HOUR"),
             def(MinuteOfDay.class, MinuteOfDay::new),
             def(MinuteOfHour.class, MinuteOfHour::new, "MINUTE"),
@@ -123,6 +126,9 @@ public class FunctionRegistry {
             def(MonthOfYear.class, MonthOfYear::new, "MONTH"),
             def(Year.class, Year::new),
             def(WeekOfYear.class, WeekOfYear::new, "WEEK"),
+            def(DayName.class, DayName::new, "DAYNAME"),
+            def(MonthName.class, MonthName::new, "MONTHNAME"),
+            def(Quarter.class, Quarter::new),
             // Math
             def(Abs.class, Abs::new),
             def(ACos.class, ACos::new),
@@ -157,7 +163,7 @@ public class FunctionRegistry {
             def(Ascii.class, Ascii::new),
             def(Char.class, Char::new),
             def(BitLength.class, BitLength::new),
-            def(CharLength.class, CharLength::new),
+            def(CharLength.class, CharLength::new, "CHARACTER_LENGTH"),
             def(LCase.class, LCase::new),
             def(Length.class, Length::new),
             def(LTrim.class, LTrim::new),

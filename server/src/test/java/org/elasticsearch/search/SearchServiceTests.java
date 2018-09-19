@@ -120,7 +120,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 @Override
                 public void onNewContext(SearchContext context) {
                     if ("throttled_threadpool_index".equals(context.indexShard().shardId().getIndex().getName())) {
-                        assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search_sequential]"));
+                        assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search_throttled]"));
                     } else {
                         assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search]"));
                     }
@@ -129,7 +129,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 @Override
                 public void onFetchPhase(SearchContext context, long tookInNanos) {
                     if ("throttled_threadpool_index".equals(context.indexShard().shardId().getIndex().getName())) {
-                        assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search_sequential]"));
+                        assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search_throttled]"));
                     } else {
                         assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search]"));
                     }
@@ -138,7 +138,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 @Override
                 public void onQueryPhase(SearchContext context, long tookInNanos) {
                     if ("throttled_threadpool_index".equals(context.indexShard().shardId().getIndex().getName())) {
-                        assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search_sequential]"));
+                        assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search_throttled]"));
                     } else {
                         assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search]"));
                     }
@@ -543,7 +543,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
             client().admin().indices().prepareUpdateSettings("throttled_threadpool_index").setSettings(Settings.builder().put(IndexSettings
                 .INDEX_SEARCH_THROTTLED.getKey(), false)).get());
-        assertEquals("can not update private setting [index.search.sequential]; this setting is managed by Elasticsearch",
+        assertEquals("can not update private setting [index.search.throttled]; this setting is managed by Elasticsearch",
             iae.getMessage());
         assertFalse(service.getIndicesService().indexServiceSafe(index).getIndexSettings().isSearchThrottled());
         ShardSearchLocalRequest req = new ShardSearchLocalRequest(new ShardId(index, 0), 1, SearchType.QUERY_THEN_FETCH, null,

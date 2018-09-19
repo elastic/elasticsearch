@@ -319,9 +319,11 @@ public class ShardChangesIT extends ESIntegTestCase {
         long numDocsIndexed = Math.min(3000 * 2, randomLongBetween(maxReadSize, maxReadSize * 10));
         atLeastDocsIndexed("index1", numDocsIndexed / 3);
 
-        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2", maxReadSize,
-            randomIntBetween(2, 10), Long.MAX_VALUE, randomIntBetween(2, 10),
-            randomIntBetween(1024, 10240), TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
+        FollowIndexAction.Request followRequest = createFollowRequest("index1", "index2");
+        followRequest.setMaxBatchOperationCount(maxReadSize);
+        followRequest.setMaxConcurrentReadBatches(randomIntBetween(2, 10));
+        followRequest.setMaxConcurrentWriteBatches(randomIntBetween(2, 10));
+        followRequest.setMaxWriteBufferSize(randomIntBetween(1024, 10240));
         CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
@@ -358,9 +360,10 @@ public class ShardChangesIT extends ESIntegTestCase {
         });
         thread.start();
 
-        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2", randomIntBetween(32, 2048),
-            randomIntBetween(2, 10), Long.MAX_VALUE, randomIntBetween(2, 10),
-            FollowIndexAction.DEFAULT_MAX_WRITE_BUFFER_SIZE, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
+        FollowIndexAction.Request followRequest = createFollowRequest("index1", "index2");
+        followRequest.setMaxBatchOperationCount(randomIntBetween(32, 2048));
+        followRequest.setMaxConcurrentReadBatches(randomIntBetween(2, 10));
+        followRequest.setMaxConcurrentWriteBatches(randomIntBetween(2, 10));
         client().execute(CreateAndFollowIndexAction.INSTANCE, new CreateAndFollowIndexAction.Request(followRequest)).get();
 
         long maxNumDocsReplicated = Math.min(1000, randomLongBetween(followRequest.getMaxBatchOperationCount(),
@@ -447,7 +450,7 @@ public class ShardChangesIT extends ESIntegTestCase {
                 .actionGet());
     }
 
-    public void testFollowIndex_lowMaxTranslogBytes() throws Exception {
+    public void testFollowIndexMaxOperationSizeInBytes() throws Exception {
         final String leaderIndexSettings = getIndexSettings(1, between(0, 1),
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
@@ -460,8 +463,8 @@ public class ShardChangesIT extends ESIntegTestCase {
             client().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
-        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2", 1024, 1, 1024L,
-            1, 10240, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
+        FollowIndexAction.Request followRequest = createFollowRequest("index1", "index2");
+        followRequest.setMaxOperationSizeInBytes(1L);
         final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
@@ -489,25 +492,21 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("index3").setSource(leaderIndexSettings, XContentType.JSON));
         ensureGreen("index3");
 
-        FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2", 1024, 1, 1024L,
-            1, 10240, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
+        FollowIndexAction.Request followRequest = createFollowRequest("index1", "index2");
         CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
-        followRequest = new FollowIndexAction.Request("index3", "index4", 1024, 1, 1024L,
-            1, 10240, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
+        followRequest = createFollowRequest("index3", "index4");
         createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
         unfollowIndex("index2", "index4");
 
-        FollowIndexAction.Request wrongRequest1 = new FollowIndexAction.Request("index1", "index4", 1024, 1, 1024L,
-            1, 10240, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
+        FollowIndexAction.Request wrongRequest1 = createFollowRequest("index1", "index4");
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> client().execute(FollowIndexAction.INSTANCE, wrongRequest1).actionGet());
         assertThat(e.getMessage(), containsString("follow index [index4] should reference"));
 
-        FollowIndexAction.Request wrongRequest2 = new FollowIndexAction.Request("index3", "index2", 1024, 1, 1024L,
-            1, 10240, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
+        FollowIndexAction.Request wrongRequest2 = createFollowRequest("index3", "index2");
         e = expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, wrongRequest2).actionGet());
         assertThat(e.getMessage(), containsString("follow index [index2] should reference"));
     }
@@ -716,10 +715,12 @@ public class ShardChangesIT extends ESIntegTestCase {
         }, 60, TimeUnit.SECONDS);
     }
 
-    public static FollowIndexAction.Request createFollowRequest(String leaderIndex, String followIndex) {
-        return new FollowIndexAction.Request(leaderIndex, followIndex, FollowIndexAction.DEFAULT_MAX_BATCH_OPERATION_COUNT,
-            FollowIndexAction.DEFAULT_MAX_CONCURRENT_READ_BATCHES, FollowIndexAction.DEFAULT_MAX_BATCH_SIZE_IN_BYTES,
-            FollowIndexAction.DEFAULT_MAX_CONCURRENT_WRITE_BATCHES, FollowIndexAction.DEFAULT_MAX_WRITE_BUFFER_SIZE,
-            TimeValue.timeValueMillis(10), TimeValue.timeValueMillis(10));
+    public static FollowIndexAction.Request createFollowRequest(String leaderIndex, String followerIndex) {
+        FollowIndexAction.Request request = new FollowIndexAction.Request();
+        request.setLeaderIndex(leaderIndex);
+        request.setFollowerIndex(followerIndex);
+        request.setMaxRetryDelay(TimeValue.timeValueMillis(10));
+        request.setPollTimeout(TimeValue.timeValueMillis(10));
+        return request;
     }
 }

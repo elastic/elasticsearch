@@ -58,8 +58,11 @@ import org.elasticsearch.client.security.GetRoleMappingsResponse;
 import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.GetRolesResponse;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
+import org.elasticsearch.client.security.GetUserPrivilegesResponse;
 import org.elasticsearch.client.security.HasPrivilegesRequest;
 import org.elasticsearch.client.security.HasPrivilegesResponse;
+import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
+import org.elasticsearch.client.security.user.privileges.UserIndicesPrivileges;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
@@ -696,6 +699,66 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::has-privileges-execute-async
             client.security().hasPrivilegesAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::has-privileges-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetUserPrivileges() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::get-user-privileges-execute
+            GetUserPrivilegesResponse response = client.security().getUserPrivileges(RequestOptions.DEFAULT);
+            //end::get-user-privileges-execute
+
+            assertNotNull(response);
+            //tag::get-user-privileges-response
+            final Set<String> cluster = response.getClusterPrivileges();
+            final Set<UserIndicesPrivileges> index = response.getIndicesPrivileges();
+            final Set<ApplicationResourcePrivileges> application = response.getApplicationPrivileges();
+            final Set<String> runAs = response.getRunAsPrivilege();
+            //end::get-user-privileges-response
+
+            assertNotNull(cluster);
+            assertThat(cluster, contains("all"));
+
+            assertNotNull(index);
+            assertThat(index.size(), is(1));
+            final UserIndicesPrivileges indexPrivilege = index.iterator().next();
+            assertThat(indexPrivilege.getIndices(), contains("*"));
+            assertThat(indexPrivilege.getPrivileges(), contains("all"));
+            assertThat(indexPrivilege.getFieldSecurity().size(), is(0));
+            assertThat(indexPrivilege.getQueries().size(), is(0));
+
+            assertNotNull(application);
+            assertThat(application.size(), is(1));
+
+            assertNotNull(runAs);
+            assertThat(runAs, contains("*"));
+        }
+
+        {
+            //tag::get-user-privileges-execute-listener
+            ActionListener<GetUserPrivilegesResponse> listener = new ActionListener<GetUserPrivilegesResponse>() {
+                @Override
+                public void onResponse(GetUserPrivilegesResponse getUserPrivilegesResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::get-user-privileges-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-user-privileges-execute-async
+            client.security().getUserPrivilegesAsync(RequestOptions.DEFAULT, listener); // <1>
+            // end::get-user-privileges-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
@@ -1400,5 +1463,5 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
-}
 
+}

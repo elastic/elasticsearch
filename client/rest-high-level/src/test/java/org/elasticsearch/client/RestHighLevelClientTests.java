@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -60,6 +59,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -120,6 +120,21 @@ public class RestHighLevelClientTests extends ESTestCase {
     private static final String SUBMIT_TASK_SUFFIX = "_task";
     private static final ProtocolVersion HTTP_PROTOCOL = new ProtocolVersion("http", 1, 1);
     private static final RequestLine REQUEST_LINE = new BasicRequestLine(HttpGet.METHOD_NAME, "/", HTTP_PROTOCOL);
+
+    /**
+     * These APIs do not use a Request object (because they don't have a body, or any request parameters).
+     * The method naming/parameter assertions use this {@code Set} to determine which rules to apply.
+     * (This is also used for async variants of these APIs when they exist)
+     */
+    private static final Set<String> APIS_WITHOUT_REQUEST_OBJECT = Sets.newHashSet(
+        // core
+        "ping", "info",
+        // security
+        "security.get_ssl_certificates", "security.authenticate", "security.get_user_privileges",
+        // license
+        "license.get_trial_status", "license.get_basic_status"
+
+    );
 
     private RestClient restClient;
     private RestHighLevelClient restHighLevelClient;
@@ -785,9 +800,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
         assertEquals("incorrect number of exceptions for method [" + method + "]", 1, method.getExceptionTypes().length);
         //a few methods don't accept a request object as argument
-        if (apiName.equals("ping") || apiName.equals("info") || apiName.equals("security.get_ssl_certificates")
-            || apiName.equals("security.authenticate") || apiName.equals("license.get_trial_status")
-            || apiName.equals("license.get_basic_status")) {
+        if (APIS_WITHOUT_REQUEST_OBJECT.contains(apiName)) {
             assertEquals("incorrect number of arguments for method [" + method + "]", 1, method.getParameterTypes().length);
             assertThat("the parameter to method [" + method + "] is the wrong type",
                 method.getParameterTypes()[0], equalTo(RequestOptions.class));
@@ -805,7 +818,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                 methods.containsKey(apiName.substring(0, apiName.length() - 6)));
         assertThat("async method [" + method + "] should return void", method.getReturnType(), equalTo(Void.TYPE));
         assertEquals("async method [" + method + "] should not throw any exceptions", 0, method.getExceptionTypes().length);
-        if (apiName.equals("security.authenticate_async") || apiName.equals("security.get_ssl_certificates_async")) {
+        if (APIS_WITHOUT_REQUEST_OBJECT.contains(apiName.replaceAll("_async$", ""))) {
             assertEquals(2, method.getParameterTypes().length);
             assertThat(method.getParameterTypes()[0], equalTo(RequestOptions.class));
             assertThat(method.getParameterTypes()[1], equalTo(ActionListener.class));

@@ -321,6 +321,8 @@ public class RequestConvertersTests extends ESTestCase {
             float requestsPerSecond = (float) randomDoubleBetween(0.0, 10.0, false);
             expectedParams.put("requests_per_second", Float.toString(requestsPerSecond));
             reindexRequest.setRequestsPerSecond(requestsPerSecond);
+        } else {
+            expectedParams.put("requests_per_second", "-1");
         }
         if (randomBoolean()) {
             reindexRequest.setDestRouting("=cat");
@@ -363,6 +365,13 @@ public class RequestConvertersTests extends ESTestCase {
         if (randomBoolean()) {
             updateByQueryRequest.setPipeline("my_pipeline");
             expectedParams.put("pipeline", "my_pipeline");
+        }
+        if (randomBoolean()) {
+            float requestsPerSecond = (float) randomDoubleBetween(0.0, 10.0, false);
+            expectedParams.put("requests_per_second", Float.toString(requestsPerSecond));
+            updateByQueryRequest.setRequestsPerSecond(requestsPerSecond);
+        } else {
+            expectedParams.put("requests_per_second", "-1");
         }
         if (randomBoolean()) {
             updateByQueryRequest.setRouting("=cat");
@@ -434,6 +443,13 @@ public class RequestConvertersTests extends ESTestCase {
         }
         if (randomBoolean()) {
             deleteByQueryRequest.setQuery(new TermQueryBuilder("foo", "fooval"));
+        }
+        if (randomBoolean()) {
+            float requestsPerSecond = (float) randomDoubleBetween(0.0, 10.0, false);
+            expectedParams.put("requests_per_second", Float.toString(requestsPerSecond));
+            deleteByQueryRequest.setRequestsPerSecond(requestsPerSecond);
+        } else {
+            expectedParams.put("requests_per_second", "-1");
         }
         setRandomIndicesOptions(deleteByQueryRequest::setIndicesOptions, deleteByQueryRequest::indicesOptions, expectedParams);
         setRandomTimeout(deleteByQueryRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);

@@ -485,6 +485,7 @@ final class RequestConverters {
             .withRefresh(updateByQueryRequest.isRefresh())
             .withTimeout(updateByQueryRequest.getTimeout())
             .withWaitForActiveShards(updateByQueryRequest.getWaitForActiveShards())
+            .withRequestsPerSecond(updateByQueryRequest.getRequestsPerSecond())
             .withIndicesOptions(updateByQueryRequest.indicesOptions());
         if (updateByQueryRequest.isAbortOnVersionConflict() == false) {
             params.putParam("conflicts", "proceed");
@@ -511,6 +512,7 @@ final class RequestConverters {
             .withRefresh(deleteByQueryRequest.isRefresh())
             .withTimeout(deleteByQueryRequest.getTimeout())
             .withWaitForActiveShards(deleteByQueryRequest.getWaitForActiveShards())
+            .withRequestsPerSecond(deleteByQueryRequest.getRequestsPerSecond())
             .withIndicesOptions(deleteByQueryRequest.indicesOptions());
         if (deleteByQueryRequest.isAbortOnVersionConflict() == false) {
             params.putParam("conflicts", "proceed");
@@ -720,8 +722,9 @@ final class RequestConverters {
             // but we don't want to add that to the URL parameters, instead we leave it out
             if (Float.isFinite(requestsPerSecond)) {
                 return putParam("requests_per_second", Float.toString(requestsPerSecond));
+            } else {
+                return putParam("requests_per_second", "-1");
             }
-            return this;
         }
 
         Params withRetryOnConflict(int retryOnConflict) {

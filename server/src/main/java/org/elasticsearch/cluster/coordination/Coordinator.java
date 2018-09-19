@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
@@ -51,6 +50,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -90,7 +90,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     public Coordinator(Settings settings, TransportService transportService, AllocationService allocationService,
                        MasterService masterService, Supplier<CoordinationState.PersistedState> persistedStateSupplier,
-                       UnicastHostsProvider unicastHostsProvider) {
+                       UnicastHostsProvider unicastHostsProvider, Random random) {
         super(settings);
         this.transportService = transportService;
         this.joinHelper = new JoinHelper(settings, allocationService, masterService, transportService,
@@ -100,7 +100,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.lastJoin = Optional.empty();
         this.joinAccumulator = joinHelper.new CandidateJoinAccumulator();
         this.publishTimeout = PUBLISH_TIMEOUT_SETTING.get(settings);
-        this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, Randomness.get(), transportService.getThreadPool());
+        this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, random, transportService.getThreadPool());
         this.preVoteCollector = new PreVoteCollector(settings, transportService, this::startElection, this::updateMaxTermSeen);
         configuredHostsResolver = new UnicastConfiguredHostsResolver(settings, transportService, unicastHostsProvider);
         this.peerFinder = new CoordinatorPeerFinder(settings, transportService,
@@ -120,7 +120,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
-    private PublishWithJoinResponse handlePublishRequest(PublishRequest publishRequest) {
+    PublishWithJoinResponse handlePublishRequest(PublishRequest publishRequest) {
         synchronized (mutex) {
             final DiscoveryNode sourceNode = publishRequest.getAcceptedState().nodes().getMasterNode();
             logger.trace("handlePublishRequest: handling [{}] from [{}]", publishRequest, sourceNode);
@@ -328,6 +328,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert peerFinderLeader.equals(lastKnownLeader) : peerFinderLeader;
                 assert electionScheduler == null : electionScheduler;
                 assert prevotingRound == null : prevotingRound;
+                assert getStateForMasterService().nodes().getMasterNodeId() != null
+                    || getStateForMasterService().term() != getCurrentTerm() :
+                    getStateForMasterService();
             } else if (mode == Mode.FOLLOWER) {
                 assert coordinationState.get().electionWon() == false : getLocalNode() + " is FOLLOWER so electionWon() should be false";
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);
@@ -335,11 +338,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert peerFinderLeader.equals(lastKnownLeader) : peerFinderLeader;
                 assert electionScheduler == null : electionScheduler;
                 assert prevotingRound == null : prevotingRound;
+                assert getStateForMasterService().nodes().getMasterNodeId() == null : getStateForMasterService();
             } else {
                 assert mode == Mode.CANDIDATE;
                 assert joinAccumulator instanceof JoinHelper.CandidateJoinAccumulator;
                 assert peerFinderLeader.isPresent() == false : peerFinderLeader;
                 assert prevotingRound == null || electionScheduler != null;
+                assert getStateForMasterService().nodes().getMasterNodeId() == null : getStateForMasterService();
             }
         }
     }
@@ -384,7 +389,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         return nodes;
     }
 
-    public ClusterState getStateForMasterService() {
+    ClusterState getStateForMasterService() {
         synchronized (mutex) {
             // expose last accepted cluster state as base state upon which the master service
             // speculatively calculates the next cluster state update

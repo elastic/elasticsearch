@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.coordination.CoordinatorTests.Cluster.ClusterNo
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -312,7 +313,7 @@ public class CoordinatorTests extends ESTestCase {
                 transportService = mockTransport.createTransportService(
                     settings, deterministicTaskQueue.getThreadPool(), NOOP_TRANSPORT_INTERCEPTOR, a -> localNode, null, emptySet());
                 coordinator = new Coordinator(settings, transportService, ESAllocationTestCase.createAllocationService(Settings.EMPTY),
-                    masterService, this::getPersistedState, Cluster.this::provideUnicastHosts);
+                    masterService, this::getPersistedState, Cluster.this::provideUnicastHosts, Randomness.get());
                 masterService.setClusterStatePublisher(coordinator::publish);
 
                 transportService.start();

@@ -161,8 +161,8 @@ public class LocalCheckpointTracker {
     /**
      * Checks if the given sequence number was marked as completed in this tracker.
      */
-    public boolean contains(long seqNo) {
-        assert seqNo >= 0 : "invalid seq_no [" + seqNo + "]";
+    public boolean contains(final long seqNo) {
+        assert seqNo >= 0 : "invalid seq_no=" + seqNo;
         if (seqNo >= nextSeqNo) {
             return false;
         }

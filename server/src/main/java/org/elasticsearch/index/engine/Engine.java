@@ -1707,7 +1707,7 @@ public abstract class Engine implements Closeable {
      * an update or a delete operation. Whereas a replica engine never updates this value by itself but
      * only inherits the latest value from its primary. In both cases, this value never goes backwards.
      */
-    public long getMaxSeqNoOfUpdatesOrDeletes() {
+    public final long getMaxSeqNoOfUpdatesOrDeletes() {
         return maxSeqNoOfUpdatesOrDeletes.get();
     }
 
@@ -1715,7 +1715,7 @@ public abstract class Engine implements Closeable {
      * Advances the max_seq_no_of_updates marker of this engine to at least the given sequence number.
      * @see #getMaxSeqNoOfUpdatesOrDeletes()
      */
-    public void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {
+    public final void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {
         maxSeqNoOfUpdatesOrDeletes.updateAndGet(curr -> Math.max(curr, seqNo));
         assert maxSeqNoOfUpdatesOrDeletes.get() >= seqNo;
     }

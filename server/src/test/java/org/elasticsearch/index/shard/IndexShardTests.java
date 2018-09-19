@@ -2438,7 +2438,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(sourceShard, targetShard);
     }
 
-    public void testDocStats() throws IOException, InterruptedException {
+    public void testDocStats() throws Exception {
         IndexShard indexShard = null;
         try {
             indexShard = newStartedShard(
@@ -2455,7 +2455,14 @@ public class IndexShardTests extends IndexShardTestCase {
                 indexShard.flush(new FlushRequest());
             }
             {
+                IndexShard shard = indexShard;
+                assertBusy(() -> {
+                    ThreadPool threadPool = shard.getThreadPool();
+                    assertThat(threadPool.relativeTimeInMillis(), greaterThan(shard.getLastSearcherAccess()));
+                });
+                long prevAccessTime = shard.getLastSearcherAccess();
                 final DocsStats docsStats = indexShard.docStats();
+                assertThat("searcher was not marked as accessed", shard.getLastSearcherAccess(), greaterThan(prevAccessTime));
                 assertThat(docsStats.getCount(), equalTo(numDocs));
                 try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
                     assertTrue(searcher.reader().numDocs() <= docsStats.getCount());
@@ -3411,5 +3418,10 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(shard.seqNoStats().getMaxSeqNo(), equalTo(globalCheckpoint));
         assertThat(shard.translogStats().estimatedNumberOfOperations(), equalTo(translogStats.estimatedNumberOfOperations()));
         closeShard(shard, false);
+    }
+
+    @Override
+    public Settings threadPoolSettings() {
+        return Settings.builder().put(super.threadPoolSettings()).put("thread_pool.estimated_time_interval", "5ms").build();
     }
 }

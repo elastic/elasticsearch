@@ -116,7 +116,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
 
         DocumentMapper mapper = indexService.mapperService().merge("type",
-                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);        
+                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, false);        
 
         // Use example of typed and untyped annotations
         String annotatedText = "He paid [Stormy Daniels](Stephanie+Clifford&Payee) hush money";
@@ -172,7 +172,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
 
         DocumentMapper mapper = indexService.mapperService().merge("type",
-                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);        
+                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, false);        
 
         String annotatedText = "foo [bar](MissingEndBracket baz";
         SourceToParse sourceToParse = SourceToParse.source("test", "type", "1", BytesReference
@@ -219,7 +219,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
                 .field("term_vector", "with_positions_offsets_payloads")
                 .endObject().endObject()
                 .endObject().endObject());        
-        indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);          
+        indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, false);          
         
 
         int max = between(3, 10);
@@ -369,7 +369,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
 
         DocumentMapper mapper = indexService.mapperService().merge("type",
-                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, false);
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -411,7 +411,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
 
         DocumentMapper mapper = indexService.mapperService().merge("type",
-                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, false);
 
         assertEquals(mapping, mapper.mappingSource().toString());
 

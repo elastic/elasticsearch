@@ -19,8 +19,8 @@
 
 package org.elasticsearch.repositories.blobstore;
 
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -85,7 +85,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         final String repositoryName = "test-repo";
 
         logger.info("-->  creating repository");
-        PutRepositoryResponse putRepositoryResponse =
+        AcknowledgedResponse putRepositoryResponse =
             client.admin().cluster().preparePutRepository(repositoryName)
                                     .setType(REPO_TYPE)
                                     .setSettings(Settings.builder().put(node().settings()).put("location", location))
@@ -237,7 +237,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         final Path location = ESIntegTestCase.randomRepoPath(node().settings());
         final String repositoryName = "test-repo";
 
-        PutRepositoryResponse putRepositoryResponse =
+        AcknowledgedResponse putRepositoryResponse =
             client.admin().cluster().preparePutRepository(repositoryName)
                                     .setType(REPO_TYPE)
                                     .setSettings(Settings.builder().put(node().settings()).put("location", location))

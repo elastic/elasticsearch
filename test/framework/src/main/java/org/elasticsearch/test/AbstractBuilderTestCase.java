@@ -21,7 +21,6 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
-
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
@@ -42,6 +41,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
@@ -194,8 +194,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
     @AfterClass
     public static void afterClass() throws Exception {
-        org.apache.lucene.util.IOUtils.close(serviceHolder);
-        org.apache.lucene.util.IOUtils.close(serviceHolderWithNoType);
+        IOUtils.close(serviceHolder);
+        IOUtils.close(serviceHolderWithNoType);
         serviceHolder = null;
         serviceHolderWithNoType = null;
     }
@@ -340,8 +340,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                     clientInvocationHandler);
             ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));
             List<Setting<?>> additionalSettings = pluginsService.getPluginSettings();
-            additionalSettings.add(InternalSettingsPlugin.VERSION_CREATED);
-            SettingsModule settingsModule = new SettingsModule(nodeSettings, additionalSettings, pluginsService.getPluginSettingsFilter());
+            SettingsModule settingsModule =
+                    new SettingsModule(nodeSettings, additionalSettings, pluginsService.getPluginSettingsFilter(), Collections.emptySet());
             searchModule = new SearchModule(nodeSettings, false, pluginsService.filterPlugins(SearchPlugin.class));
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();

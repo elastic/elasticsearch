@@ -30,7 +30,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -366,9 +365,6 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
     public void testMatchPhrasePrefixWithBoost() throws Exception {
         QueryShardContext context = createShardContext();
-        assumeTrue("test runs only when the index version is on or after V_5_0_0_alpha1",
-            context.indexVersionCreated().onOrAfter(Version.V_5_0_0_alpha1));
-
         {
             // field boost is applied on a single term query
             MatchPhrasePrefixQueryBuilder builder = new MatchPhrasePrefixQueryBuilder("string_boost", "foo");

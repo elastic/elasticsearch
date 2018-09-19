@@ -172,25 +172,6 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         verifyNoMoreInteractions(persister);
     }
 
-    public void testProcessResult_records_isPerPartitionNormalization() {
-        JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
-        when(persister.bulkPersisterBuilder(JOB_ID)).thenReturn(bulkBuilder);
-
-        AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context("foo", bulkBuilder);
-        context.deleteInterimRequired = false;
-        AutodetectResult result = mock(AutodetectResult.class);
-        AnomalyRecord record1 = new AnomalyRecord("foo", new Date(123), 123);
-        record1.setPartitionFieldValue("pValue");
-        AnomalyRecord record2 = new AnomalyRecord("foo", new Date(123), 123);
-        record2.setPartitionFieldValue("pValue");
-        List<AnomalyRecord> records = Arrays.asList(record1, record2);
-        when(result.getRecords()).thenReturn(records);
-        processorUnderTest.processResult(context, result);
-
-        verify(bulkBuilder, times(1)).persistRecords(records);
-        verify(bulkBuilder, never()).executeRequest();
-        verifyNoMoreInteractions(persister);
-    }
 
     public void testProcessResult_influencers() {
         JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);

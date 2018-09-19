@@ -1,0 +1,59 @@
+[[java-rest-high-x-pack-ml-delete-calendar]]
+=== Delete Calendar API
+Delete a {ml} calendar.
+The API accepts a `DeleteCalendarRequest` and responds
+with a `AcknowledgedResponse` object.
+
+[[java-rest-high-x-pack-ml-delete-calendar-request]]
+==== Delete Calendar Request
+
+A `DeleteCalendar` object requires a non-null `calendarId`.
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-delete-calendar-request]
+---------------------------------------------------
+<1> Constructing a new request referencing an existing Calendar
+
+[[java-rest-high-x-pack-ml-delete-calendar-response]]
+==== Delete Calendar Response
+
+The returned `AcknowledgedResponse` object indicates the acknowledgement of the request:
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-delete-calendar-response]
+---------------------------------------------------
+<1> `isAcknowledged` was the deletion request acknowledged or not
+
+[[java-rest-high-x-pack-ml-delete-calendar-execution]]
+==== Execution
+The request can be executed through the `MachineLearningClient` contained
+in the `RestHighLevelClient` object, accessed via the `machineLearningClient()` method.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-delete-calendar-execute]
+--------------------------------------------------
+
+[[java-rest-high-x-pack-ml-delete-calendar-async]]
+==== Delete Calendar Asynchronously
+
+This request can also be made asynchronously.
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-delete-calendar-execute-async]
+---------------------------------------------------
+<1> The `DeleteCalendarRequest` to execute and the `ActionListener` to alert on completion or error.
+
+The deletion request returns immediately. Once the request is completed, the `ActionListener` is
+called back using the `onResponse` or `onFailure`. The latter indicates some failure occurred when
+making the request.
+
+A typical listener for a `DeleteCalendarRequest` could be defined as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-delete-calendar-listener]
+---------------------------------------------------
+<1> The action to be taken when it is completed
+<2> What to do when a failure occurs

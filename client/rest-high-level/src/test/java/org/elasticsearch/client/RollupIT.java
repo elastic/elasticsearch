@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.client;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -28,37 +27,37 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.rollup.PutRollupJobRequest;
+import org.elasticsearch.client.rollup.PutRollupJobResponse;
+import org.elasticsearch.client.rollup.job.config.DateHistogramGroupConfig;
+import org.elasticsearch.client.rollup.job.config.GroupConfig;
+import org.elasticsearch.client.rollup.job.config.MetricConfig;
+import org.elasticsearch.client.rollup.job.config.RollupJobConfig;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.protocol.xpack.rollup.GetRollupCapsRequest;
-import org.elasticsearch.protocol.xpack.rollup.GetRollupCapsResponse;
-import org.elasticsearch.protocol.xpack.rollup.PutRollupJobRequest;
-import org.elasticsearch.protocol.xpack.rollup.PutRollupJobResponse;
-import org.elasticsearch.protocol.xpack.rollup.RollableIndexCaps;
-import org.elasticsearch.protocol.xpack.rollup.RollupJobCaps;
-import org.elasticsearch.protocol.xpack.rollup.job.DateHistogramGroupConfig;
-import org.elasticsearch.protocol.xpack.rollup.job.GroupConfig;
-import org.elasticsearch.protocol.xpack.rollup.job.MetricConfig;
-import org.elasticsearch.protocol.xpack.rollup.job.RollupJobConfig;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.protocol.xpack.rollup.RollupField.SUPPORTED_METRICS;
-import static org.hamcrest.Matchers.equalTo;
 
 public class RollupIT extends ESRestHighLevelClientTestCase {
 
+    private static final List<String> SUPPORTED_METRICS = Arrays.asList(MaxAggregationBuilder.NAME, MinAggregationBuilder.NAME,
+        SumAggregationBuilder.NAME, AvgAggregationBuilder.NAME, ValueCountAggregationBuilder.NAME);
+
     @SuppressWarnings("unchecked")
     public void testPutRollupJob() throws Exception {
-        final Set<Integer> values = new HashSet<>();
         double sum = 0.0d;
         int max = Integer.MIN_VALUE;
         int min = Integer.MAX_VALUE;
@@ -77,7 +76,6 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
                     .endObject());
                 bulkRequest.add(indexRequest);
 
-                values.add(value);
                 sum += value;
                 if (value > max) {
                     max = value;

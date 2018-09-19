@@ -29,19 +29,15 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.rollup.PutRollupJobRequest;
+import org.elasticsearch.client.rollup.PutRollupJobResponse;
+import org.elasticsearch.client.rollup.job.config.DateHistogramGroupConfig;
+import org.elasticsearch.client.rollup.job.config.GroupConfig;
+import org.elasticsearch.client.rollup.job.config.HistogramGroupConfig;
+import org.elasticsearch.client.rollup.job.config.MetricConfig;
+import org.elasticsearch.client.rollup.job.config.RollupJobConfig;
+import org.elasticsearch.client.rollup.job.config.TermsGroupConfig;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.protocol.xpack.rollup.GetRollupCapsRequest;
-import org.elasticsearch.protocol.xpack.rollup.GetRollupCapsResponse;
-import org.elasticsearch.protocol.xpack.rollup.PutRollupJobRequest;
-import org.elasticsearch.protocol.xpack.rollup.PutRollupJobResponse;
-import org.elasticsearch.protocol.xpack.rollup.RollableIndexCaps;
-import org.elasticsearch.protocol.xpack.rollup.RollupJobCaps;
-import org.elasticsearch.protocol.xpack.rollup.job.DateHistogramGroupConfig;
-import org.elasticsearch.protocol.xpack.rollup.job.GroupConfig;
-import org.elasticsearch.protocol.xpack.rollup.job.HistogramGroupConfig;
-import org.elasticsearch.protocol.xpack.rollup.job.MetricConfig;
-import org.elasticsearch.protocol.xpack.rollup.job.RollupJobConfig;
-import org.elasticsearch.protocol.xpack.rollup.job.TermsGroupConfig;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.junit.Before;
@@ -51,12 +47,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.equalTo;
 
 public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
 

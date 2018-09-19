@@ -46,15 +46,14 @@ public class Normalizer {
      * and normalizes the given results.
      *
      * @param bucketSpan                If <code>null</code> the default is used
-     * @param perPartitionNormalization Is normalization per partition (rather than per job)?
      * @param results                   Will be updated with the normalized results
      * @param quantilesState            The state to be used to seed the system change
      *                                  normalizer
      */
-    public void normalize(Integer bucketSpan, boolean perPartitionNormalization,
+    public void normalize(Integer bucketSpan,
                           List<? extends Normalizable> results, String quantilesState) {
         NormalizerProcess process = processFactory.createNormalizerProcess(jobId, quantilesState, bucketSpan,
-                perPartitionNormalization, executorService);
+                 executorService);
         NormalizerResultHandler resultsHandler = process.createNormalizedResultsHandler();
         Future<?> resultsHandlerFuture = executorService.submit(() -> {
             try {

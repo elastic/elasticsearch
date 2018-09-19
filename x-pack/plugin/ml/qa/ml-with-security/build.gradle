@@ -1,0 +1,123 @@
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+  testCompile project(path: xpackModule('core'), configuration: 'default')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+}
+
+// bring in machine learning rest test suite
+task copyMlRestTests(type: Copy) {
+  into project.sourceSets.test.output.resourcesDir
+  from project(xpackProject('plugin').path).sourceSets.test.resources.srcDirs
+  include 'rest-api-spec/test/ml/**'
+}
+
+integTestRunner {
+  systemProperty 'tests.rest.blacklist', [
+    // Remove this test because it doesn't call an ML endpoint and we don't want
+    // to grant extra permissions to the users used in this test suite
+    'ml/ml_classic_analyze/Test analyze API with an analyzer that does what we used to do in native code',
+    // Remove tests that are expected to throw an exception, because we cannot then
+    // know whether to expect an authorization exception or a validation exception
+    'ml/calendar_crud/Test get calendar given missing',
+    'ml/calendar_crud/Test cannot create calendar with name _all',
+    'ml/calendar_crud/Test PageParams with ID is invalid',
+    'ml/calendar_crud/Test post calendar events given empty events',
+    'ml/calendar_crud/Test put calendar given id contains invalid chars',
+    'ml/calendar_crud/Test delete event from non existing calendar',
+    'ml/calendar_crud/Test delete job from non existing calendar',
+    'ml/custom_all_field/Test querying custom all field',
+    'ml/datafeeds_crud/Test delete datafeed with missing id',
+    'ml/datafeeds_crud/Test put datafeed referring to missing job_id',
+    'ml/datafeeds_crud/Test put datafeed with invalid query',
+    'ml/datafeeds_crud/Test put datafeed with security headers in the body',
+    'ml/datafeeds_crud/Test update datafeed with missing id',
+    'ml/delete_job_force/Test cannot force delete a non-existent job',
+    'ml/delete_model_snapshot/Test delete snapshot missing snapshotId',
+    'ml/delete_model_snapshot/Test delete snapshot missing job_id',
+    'ml/delete_model_snapshot/Test delete with in-use model',
+    'ml/filter_crud/Test create filter api with mismatching body ID',
+    'ml/filter_crud/Test create filter given invalid filter_id',
+    'ml/filter_crud/Test get filter API with bad ID',
+    'ml/filter_crud/Test invalid param combinations',
+    'ml/filter_crud/Test non-existing filter',
+    'ml/filter_crud/Test update filter given remove item is not present',
+    'ml/get_datafeed_stats/Test get datafeed stats given missing datafeed_id',
+    'ml/get_datafeeds/Test get datafeed given missing datafeed_id',
+    'ml/jobs_crud/Test cannot create job with existing categorizer state document',
+    'ml/jobs_crud/Test cannot create job with existing quantiles document',
+    'ml/jobs_crud/Test cannot create job with existing result document',
+    'ml/jobs_crud/Test cannot create job with model snapshot id set',
+    'ml/jobs_crud/Test cannot decrease model_memory_limit below current usage',
+    'ml/jobs_crud/Test get job API with non existing job id',
+    'ml/jobs_crud/Test put job after closing results index',
+    'ml/jobs_crud/Test put job after closing state index',
+    'ml/jobs_crud/Test put job with inconsistent body/param ids',
+    'ml/jobs_crud/Test put job with time field in analysis_config',
+    'ml/jobs_crud/Test job with categorization_analyzer and categorization_filters',
+    'ml/jobs_get/Test get job given missing job_id',
+    'ml/jobs_get_result_buckets/Test mutually-exclusive params',
+    'ml/jobs_get_result_buckets/Test mutually-exclusive params via body',
+    'ml/jobs_get_result_categories/Test with invalid param combinations',
+    'ml/jobs_get_result_categories/Test with invalid param combinations via body',
+    'ml/jobs_get_result_overall_buckets/Test overall buckets given missing job',
+    'ml/jobs_get_result_overall_buckets/Test overall buckets given non-matching expression and not allow_no_jobs',
+    'ml/jobs_get_result_overall_buckets/Test overall buckets given top_n is 0',
+    'ml/jobs_get_result_overall_buckets/Test overall buckets given top_n is negative',
+    'ml/jobs_get_result_overall_buckets/Test overall buckets given invalid start param',
+    'ml/jobs_get_result_overall_buckets/Test overall buckets given invalid end param',
+    'ml/jobs_get_result_overall_buckets/Test overall buckets given bucket_span is smaller than max job bucket_span',
+    'ml/jobs_get_stats/Test get job stats given missing job',
+    'ml/jobs_get_stats/Test no exception on get job stats with missing index',
+    'ml/job_groups/Test put job with empty group',
+    'ml/job_groups/Test put job with group that matches an job id',
+    'ml/job_groups/Test put job with group that matches its id',
+    'ml/job_groups/Test put job with id that matches an existing group',
+    'ml/job_groups/Test put job with invalid group',
+    'ml/ml_info/Test ml info',
+    'ml/post_data/Test Flush data with invalid parameters',
+    'ml/post_data/Test flushing and posting a closed job',
+    'ml/post_data/Test open and close with non-existent job id',
+    'ml/post_data/Test POST data with invalid parameters',
+    'ml/preview_datafeed/Test preview missing datafeed',
+    'ml/revert_model_snapshot/Test revert model with invalid snapshotId',
+    'ml/start_stop_datafeed/Test start datafeed job, but not open',
+    'ml/start_stop_datafeed/Test start non existing datafeed',
+    'ml/start_stop_datafeed/Test stop non existing datafeed',
+    'ml/update_model_snapshot/Test without description',
+    'ml/validate/Test invalid job config',
+    'ml/validate/Test job config is invalid because model snapshot id set',
+    'ml/validate/Test job config that is invalid only because of the job ID',
+    'ml/validate_detector/Test invalid detector',
+    'ml/delete_forecast/Test delete on _all forecasts not allow no forecasts',
+    'ml/delete_forecast/Test delete forecast on missing forecast'
+  ].join(',')
+}
+
+integTestCluster {
+  dependsOn copyMlRestTests
+  extraConfigFile 'roles.yml', 'roles.yml'
+  setupCommand 'setupTestAdminUser',
+               'bin/elasticsearch-users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+  setupCommand 'setupMlAdminUser',
+               'bin/elasticsearch-users', 'useradd', 'ml_admin', '-p', 'x-pack-test-password', '-r', 'minimal,machine_learning_admin'
+  setupCommand 'setupMlUserUser',
+               'bin/elasticsearch-users', 'useradd', 'ml_user', '-p', 'x-pack-test-password', '-r', 'minimal,machine_learning_user'
+  setupCommand 'setupPowerlessUser',
+               'bin/elasticsearch-users', 'useradd', 'no_ml', '-p', 'x-pack-test-password', '-r', 'minimal'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  waitCondition = { node, ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
+            dest: tmpFile.toString(),
+            username: 'x_pack_rest_user',
+            password: 'x-pack-test-password',
+            ignoreerrors: true,
+            retries: 10)
+    return tmpFile.exists()
+  }
+}

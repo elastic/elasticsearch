@@ -1,22 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.protocol.xpack.rollup.job;
+package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
@@ -31,17 +18,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.protocol.xpack.rollup.RollupField;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -82,7 +63,7 @@ public class TermsGroupConfig implements Writeable, ToXContentObject {
         this.fields = fields;
     }
 
-    public TermsGroupConfig(StreamInput in) throws IOException {
+    TermsGroupConfig(StreamInput in) throws IOException {
         fields = in.readStringArray();
     }
 
@@ -91,29 +72,6 @@ public class TermsGroupConfig implements Writeable, ToXContentObject {
      */
     public String[] getFields() {
         return fields;
-    }
-
-    /**
-     * This returns a set of aggregation builders which represent the configured
-     * set of date histograms.  Used by the rollup indexer to iterate over historical data
-     */
-    public List<CompositeValuesSourceBuilder<?>> toBuilders() {
-        return Arrays.stream(fields).map(f -> {
-            TermsValuesSourceBuilder vsBuilder
-                = new TermsValuesSourceBuilder(RollupField.formatIndexerAggName(f, TermsAggregationBuilder.NAME));
-            vsBuilder.field(f);
-            vsBuilder.missingBucket(true);
-            return vsBuilder;
-        }).collect(Collectors.toList());
-    }
-
-    /**
-     * @return A map representing this config object as a RollupCaps aggregation object
-     */
-    public Map<String, Object> toAggCap() {
-        Map<String, Object> map = new HashMap<>(1);
-        map.put("agg", TermsAggregationBuilder.NAME);
-        return map;
     }
 
     public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,

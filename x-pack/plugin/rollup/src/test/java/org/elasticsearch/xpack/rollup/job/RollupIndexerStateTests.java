@@ -21,11 +21,11 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
-import org.elasticsearch.protocol.xpack.rollup.RollupField;
-import org.elasticsearch.protocol.xpack.rollup.job.GroupConfig;
-import org.elasticsearch.xpack.core.rollup.job.IndexerState;
+import org.elasticsearch.xpack.core.rollup.RollupField;
+import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
-import org.elasticsearch.protocol.xpack.rollup.job.RollupJobConfig;
+import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
@@ -639,7 +639,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
 
             // Note: no docs were indexed
-            assertThat(indexer.getStats().getNumRollups(), equalTo(0L));
+            assertThat(indexer.getStats().getOutputDocuments(), equalTo(0L));
             assertTrue(indexer.abort());
         } finally {
             executor.shutdownNow();
@@ -743,7 +743,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
 
             // Note: no docs were indexed
-            assertThat(indexer.getStats().getNumRollups(), equalTo(0L));
+            assertThat(indexer.getStats().getOutputDocuments(), equalTo(0L));
             assertTrue(indexer.abort());
         } finally {
             executor.shutdownNow();
@@ -763,7 +763,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
         Consumer<Exception> failureConsumer = e -> {
-            assertThat(e.getMessage(), startsWith("Shard failures encountered while running indexer for rollup job"));
+            assertThat(e.getMessage(), startsWith("Shard failures encountered while running indexer for job"));
             isFinished.set(true);
         };
 
@@ -786,7 +786,7 @@ public class RollupIndexerStateTests extends ESTestCase {
 
             // Note: no pages processed, no docs were indexed
             assertThat(indexer.getStats().getNumPages(), equalTo(0L));
-            assertThat(indexer.getStats().getNumRollups(), equalTo(0L));
+            assertThat(indexer.getStats().getOutputDocuments(), equalTo(0L));
             assertTrue(indexer.abort());
         } finally {
             executor.shutdownNow();
@@ -896,7 +896,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
 
             // Note: no docs were indexed
-            assertThat(indexer.getStats().getNumRollups(), equalTo(0L));
+            assertThat(indexer.getStats().getOutputDocuments(), equalTo(0L));
             assertTrue(indexer.abort());
         } finally {
             executor.shutdownNow();

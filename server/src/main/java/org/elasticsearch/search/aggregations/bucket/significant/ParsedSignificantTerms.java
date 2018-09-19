@@ -175,7 +175,7 @@ public abstract class ParsedSignificantTerms extends ParsedMultiBucketAggregatio
                         bucket.subsetDf = value;
                         bucket.setDocCount(value);
                     } else if (InternalSignificantTerms.SCORE.equals(currentFieldName)) {
-                        bucket.score = parser.longValue();
+                        bucket.score = parser.doubleValue();
                     } else if (InternalSignificantTerms.BG_COUNT.equals(currentFieldName)) {
                         bucket.supersetDf = parser.longValue();
                     }

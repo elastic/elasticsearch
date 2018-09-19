@@ -33,6 +33,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -58,12 +59,14 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -97,6 +100,7 @@ public abstract class Engine implements Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id";
     public static final String HISTORY_UUID_KEY = "history_uuid";
+    public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
 
     protected final ShardId shardId;
     protected final String allocationId;
@@ -132,7 +136,7 @@ public abstract class Engine implements Closeable {
         this.allocationId = engineConfig.getAllocationId();
         this.store = engineConfig.getStore();
         this.logger = Loggers.getLogger(Engine.class, // we use the engine class directly here to make sure all subclasses have the same logger name
-                engineConfig.getIndexSettings().getSettings(), engineConfig.getShardId());
+                engineConfig.getShardId());
         this.eventListener = engineConfig.getEventListener();
     }
 
@@ -171,6 +175,41 @@ public abstract class Engine implements Closeable {
 
     /** Returns how many bytes we are currently moving from heap to disk */
     public abstract long getWritingBytes();
+
+    /**
+     * Returns the {@link DocsStats} for this engine
+     */
+    public DocsStats docStats() {
+        // we calculate the doc stats based on the internal reader that is more up-to-date and not subject
+        // to external refreshes. For instance we don't refresh an external reader if we flush and indices with
+        // index.refresh_interval=-1 won't see any doc stats updates at all. This change will give more accurate statistics
+        // when indexing but not refreshing in general. Yet, if a refresh happens the internal reader is refresh as well so we are
+        // safe here.
+        try (Engine.Searcher searcher = acquireSearcher("docStats", Engine.SearcherScope.INTERNAL)) {
+           return docsStats(searcher.reader());
+        }
+    }
+
+    protected final DocsStats docsStats(IndexReader indexReader) {
+        long numDocs = 0;
+        long numDeletedDocs = 0;
+        long sizeInBytes = 0;
+        // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
+        // the next scheduled refresh to go through and refresh the stats as well
+        for (LeafReaderContext readerContext : indexReader.leaves()) {
+            // we go on the segment level here to get accurate numbers
+            final SegmentReader segmentReader = Lucene.segmentReader(readerContext.reader());
+            SegmentCommitInfo info = segmentReader.getSegmentInfo();
+            numDocs += readerContext.reader().numDocs();
+            numDeletedDocs += readerContext.reader().numDeletedDocs();
+            try {
+                sizeInBytes += info.sizeInBytes();
+            } catch (IOException e) {
+                logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
+            }
+        }
+        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
+    }
 
     /**
      * A throttling class that can be activated, causing the
@@ -567,7 +606,31 @@ public abstract class Engine implements Closeable {
      *
      * @see Searcher#close()
      */
-    public abstract Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException;
+    public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
+        /* Acquire order here is store -> manager since we need
+         * to make sure that the store is not closed before
+         * the searcher is acquired. */
+        if (store.tryIncRef() == false) {
+            throw new AlreadyClosedException(shardId + " store is closed", failedEngine.get());
+        }
+        Releasable releasable = store::decRef;
+        try {
+            EngineSearcher engineSearcher = new EngineSearcher(source, getReferenceManager(scope), store, logger);
+            releasable = null; // success - hand over the reference to the engine searcher
+            return engineSearcher;
+        } catch (AlreadyClosedException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            maybeFailEngine("acquire_searcher", ex);
+            ensureOpen(ex); // throw EngineCloseException here if we are already closed
+            logger.error(() -> new ParameterizedMessage("failed to acquire searcher, source {}", source), ex);
+            throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
+        } finally {
+            Releasables.close(releasable);
+        }
+    }
+
+    protected abstract ReferenceManager<IndexSearcher> getReferenceManager(SearcherScope scope);
 
     public enum SearcherScope {
         EXTERNAL, INTERNAL
@@ -585,18 +648,32 @@ public abstract class Engine implements Closeable {
 
     public abstract void syncTranslog() throws IOException;
 
-    public abstract Closeable acquireTranslogRetentionLock();
+    /**
+     * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
+     */
+    public abstract Closeable acquireRetentionLockForPeerRecovery();
 
     /**
-     * Creates a new translog snapshot from this engine for reading translog operations whose seq# at least the provided seq#.
-     * The caller has to close the returned snapshot after finishing the reading.
+     * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive)
      */
-    public abstract Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) throws IOException;
+    public abstract Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
+                                                         long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException;
 
     /**
-     * Returns the estimated number of translog operations in this engine whose seq# at least the provided seq#.
+     * Creates a new history snapshot for reading operations since {@code startingSeqNo} (inclusive).
+     * The returned snapshot can be retrieved from either Lucene index or translog files.
      */
-    public abstract int estimateTranslogOperationsFromMinSeq(long minSeqNo);
+    public abstract Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException;
+
+    /**
+     * Returns the estimated number of history operations whose seq# at least {@code startingSeqNo}(inclusive) in this engine.
+     */
+    public abstract int estimateNumberOfHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException;
+
+    /**
+     * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its history (either Lucene or translog)
+     */
+    public abstract boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException;
 
     public abstract TranslogStats getTranslogStats();
 
@@ -620,7 +697,7 @@ public abstract class Engine implements Closeable {
     }
 
     /** get commits stats for the last commit */
-    public CommitStats commitStats() {
+    public final CommitStats commitStats() {
         return new CommitStats(getLastCommittedSegmentInfos());
     }
 
@@ -636,12 +713,6 @@ public abstract class Engine implements Closeable {
      * @throws InterruptedException if the thread was interrupted while blocking on the condition
      */
     public abstract void waitForOpsToComplete(long seqNo) throws InterruptedException;
-
-    /**
-     * Reset the local checkpoint in the tracker to the given local checkpoint
-     * @param localCheckpoint the new checkpoint to be set
-     */
-    public abstract void resetLocalCheckpoint(long localCheckpoint);
 
     /**
      * @return a {@link SeqNoStats} object, using local state and the supplied global checkpoint
@@ -910,7 +981,9 @@ public abstract class Engine implements Closeable {
      *
      * @return the commit Id for the resulting commit
      */
-    public abstract CommitId flush() throws EngineException;
+    public final CommitId flush() throws EngineException {
+        return flush(false, false);
+    }
 
 
     /**
@@ -1122,10 +1195,15 @@ public abstract class Engine implements Closeable {
             PRIMARY,
             REPLICA,
             PEER_RECOVERY,
-            LOCAL_TRANSLOG_RECOVERY;
+            LOCAL_TRANSLOG_RECOVERY,
+            LOCAL_RESET;
 
             public boolean isRecovery() {
                 return this == PEER_RECOVERY || this == LOCAL_TRANSLOG_RECOVERY;
+            }
+
+            boolean isFromTranslog() {
+                return this == LOCAL_TRANSLOG_RECOVERY || this == LOCAL_RESET;
             }
         }
 
@@ -1552,7 +1630,7 @@ public abstract class Engine implements Closeable {
         private final CheckedRunnable<IOException> onClose;
         private final IndexCommit indexCommit;
 
-        IndexCommitRef(IndexCommit indexCommit, CheckedRunnable<IOException> onClose) {
+        public IndexCommitRef(IndexCommit indexCommit, CheckedRunnable<IOException> onClose) {
             this.indexCommit = indexCommit;
             this.onClose = onClose;
         }
@@ -1623,10 +1701,13 @@ public abstract class Engine implements Closeable {
     public abstract int fillSeqNoGaps(long primaryTerm) throws IOException;
 
     /**
-     * Performs recovery from the transaction log.
+     * Performs recovery from the transaction log up to {@code recoverUpToSeqNo} (inclusive).
      * This operation will close the engine if the recovery fails.
+     *
+     * @param translogRecoveryRunner the translog recovery runner
+     * @param recoverUpToSeqNo       the upper bound, inclusive, of sequence number to be recovered
      */
-    public abstract Engine recoverFromTranslog() throws IOException;
+    public abstract Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException;
 
     /**
      * Do not replay translog operations, but make the engine be ready.
@@ -1644,4 +1725,9 @@ public abstract class Engine implements Closeable {
      * Tries to prune buffered deletes from the version map.
      */
     public abstract void maybePruneDeletes();
+
+    @FunctionalInterface
+    public interface TranslogRecoveryRunner {
+        int run(Engine engine, Translog.Snapshot snapshot) throws IOException;
+    }
 }

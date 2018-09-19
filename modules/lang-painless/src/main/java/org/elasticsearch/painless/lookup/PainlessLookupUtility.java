@@ -82,7 +82,7 @@ public final class PainlessLookupUtility {
         Objects.requireNonNull(canonicalTypeName);
         Objects.requireNonNull(canonicalClassNamesToClasses);
 
-        Class<?> type = canonicalClassNamesToClasses.get(canonicalTypeName);
+        Class<?> type = DEF_CLASS_NAME.equals(canonicalTypeName) ? def.class : canonicalClassNamesToClasses.get(canonicalTypeName);
 
         if (type != null) {
             return type;
@@ -105,7 +105,7 @@ public final class PainlessLookupUtility {
             }
 
             canonicalTypeName = canonicalTypeName.substring(0, canonicalTypeName.indexOf('['));
-            type = canonicalClassNamesToClasses.get(canonicalTypeName);
+            type = DEF_CLASS_NAME.equals(canonicalTypeName) ? def.class : canonicalClassNamesToClasses.get(canonicalTypeName);
 
             if (type != null) {
                 char arrayBraces[] = new char[arrayDimensions];

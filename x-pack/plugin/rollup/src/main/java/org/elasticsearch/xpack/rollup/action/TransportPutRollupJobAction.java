@@ -21,6 +21,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,25 +39,22 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
-import org.elasticsearch.protocol.xpack.rollup.PutRollupJobRequest;
-import org.elasticsearch.protocol.xpack.rollup.PutRollupJobResponse;
-import org.elasticsearch.protocol.xpack.rollup.RollupField;
-import org.elasticsearch.protocol.xpack.rollup.job.RollupJobConfig;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
-import org.elasticsearch.xpack.core.scheduler.Cron;
+import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRollupJobRequest, PutRollupJobResponse> {
+public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRollupJobAction.Request, AcknowledgedResponse> {
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
@@ -67,7 +65,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
                                        ClusterService clusterService, XPackLicenseState licenseState,
                                        PersistentTasksService persistentTasksService, Client client) {
         super(settings, PutRollupJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, PutRollupJobRequest::new);
+                indexNameExpressionResolver, PutRollupJobAction.Request::new);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
         this.client = client;
@@ -79,20 +77,19 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
     }
 
     @Override
-    protected PutRollupJobResponse newResponse() {
-        return new PutRollupJobResponse();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
-    protected void masterOperation(PutRollupJobRequest request, ClusterState clusterState,
-                                   ActionListener<PutRollupJobResponse> listener) {
+    protected void masterOperation(PutRollupJobAction.Request request, ClusterState clusterState,
+                                   ActionListener<AcknowledgedResponse> listener) {
 
         if (!licenseState.isRollupAllowed()) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.ROLLUP));
             return;
         }
 
-        validate(request);
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
         FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest()
@@ -119,13 +116,6 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         });
     }
 
-    static void validate(final PutRollupJobRequest request) {
-        final RollupJobConfig rollupJobConfig = request.getConfig();
-        if (rollupJobConfig != null) {
-            Cron.validate(rollupJobConfig.getCron());
-        }
-    }
-
     private static RollupJob createRollupJob(RollupJobConfig config, ThreadPool threadPool) {
         // ensure we only filter for the allowed headers
         Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
@@ -134,7 +124,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         return new RollupJob(config, filteredHeaders);
     }
 
-    static void createIndex(RollupJob job, ActionListener<PutRollupJobResponse> listener,
+    static void createIndex(RollupJob job, ActionListener<AcknowledgedResponse> listener,
                             PersistentTasksService persistentTasksService, Client client, Logger logger) {
 
         String jobMetadata = "\"" + job.getConfig().getId() + "\":" + job.getConfig().toJSONString();
@@ -159,7 +149,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
     }
 
     @SuppressWarnings("unchecked")
-    static void updateMapping(RollupJob job, ActionListener<PutRollupJobResponse> listener,
+    static void updateMapping(RollupJob job, ActionListener<AcknowledgedResponse> listener,
                               PersistentTasksService persistentTasksService, Client client, Logger logger) {
 
         final String indexName = job.getConfig().getRollupIndex();
@@ -168,7 +158,8 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
             MappingMetaData mappings = getMappingResponse.getMappings().get(indexName).get(RollupField.TYPE_NAME);
             Object m = mappings.getSourceAsMap().get("_meta");
             if (m == null) {
-                String msg = "Expected to find _meta key in mapping of rollup index [" + indexName + "] but not found.";
+                String msg = "Rollup data cannot be added to existing indices that contain non-rollup data (expected " +
+                    "to find _meta key in mapping of rollup index [" + indexName + "] but not found).";
                 logger.error(msg);
                 listener.onFailure(new RuntimeException(msg));
                 return;
@@ -176,8 +167,9 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
 
             Map<String, Object> metadata = (Map<String, Object>) m;
             if (metadata.get(RollupField.ROLLUP_META) == null) {
-                String msg = "Expected to find rollup meta key [" + RollupField.ROLLUP_META + "] in mapping of rollup index [" + indexName
-                        + "] but not found.";
+                String msg = "Rollup data cannot be added to existing indices that contain non-rollup data (expected " +
+                    "to find rollup meta key [" + RollupField.ROLLUP_META + "] in mapping of rollup index ["
+                    + indexName + "] but not found).";
                 logger.error(msg);
                 listener.onFailure(new RuntimeException(msg));
                 return;
@@ -221,7 +213,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
                 }));
     }
 
-    static void startPersistentTask(RollupJob job, ActionListener<PutRollupJobResponse> listener,
+    static void startPersistentTask(RollupJob job, ActionListener<AcknowledgedResponse> listener,
                                     PersistentTasksService persistentTasksService) {
 
         persistentTasksService.sendStartRequest(job.getConfig().getId(), RollupField.TASK_NAME, job,
@@ -237,13 +229,13 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
     }
 
 
-    private static void waitForRollupStarted(RollupJob job, ActionListener<PutRollupJobResponse> listener,
+    private static void waitForRollupStarted(RollupJob job, ActionListener<AcknowledgedResponse> listener,
                                              PersistentTasksService persistentTasksService) {
         persistentTasksService.waitForPersistentTaskCondition(job.getConfig().getId(), Objects::nonNull, job.getConfig().getTimeout(),
                 new PersistentTasksService.WaitForPersistentTaskListener<RollupJob>() {
                     @Override
                     public void onResponse(PersistentTasksCustomMetaData.PersistentTask<RollupJob> task) {
-                        listener.onResponse(new PutRollupJobResponse(true));
+                        listener.onResponse(new AcknowledgedResponse(true));
                     }
 
                     @Override
@@ -260,7 +252,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
     }
 
     @Override
-    protected ClusterBlockException checkBlock(PutRollupJobRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(PutRollupJobAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

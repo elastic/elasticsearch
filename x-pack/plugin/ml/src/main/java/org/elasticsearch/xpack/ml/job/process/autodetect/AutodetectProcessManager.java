@@ -499,7 +499,7 @@ public class AutodetectProcessManager extends AbstractComponent {
                 new JobRenormalizedResultsPersister(job.getId(), settings, client), normalizerFactory);
         ExecutorService renormalizerExecutorService = threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME);
         Renormalizer renormalizer = new ShortCircuitingRenormalizer(jobId, scoresUpdater,
-                renormalizerExecutorService, job.getAnalysisConfig().getUsePerPartitionNormalization());
+                renormalizerExecutorService);
 
         AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, autodetectParams, autoDetectExecutorService,
                 onProcessCrash(jobTask));

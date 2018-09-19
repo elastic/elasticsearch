@@ -19,11 +19,11 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -113,17 +113,8 @@ public class SearchTransportService extends AbstractComponent {
 
     public void sendCanMatch(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task, final
                             ActionListener<CanMatchResponse> listener) {
-        if (connection.getNode().getVersion().onOrAfter(Version.V_5_6_0)) {
-            transportService.sendChildRequest(connection, QUERY_CAN_MATCH_NAME, request, task,
-                TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, CanMatchResponse::new));
-        } else {
-            // this might look weird but if we are in a CrossClusterSearch environment we can get a connection
-            // to a pre 5.latest node which is proxied by a 5.latest node under the hood since we are only compatible with 5.latest
-            // instead of sending the request we shortcut it here and let the caller deal with this -- see #25704
-            // also failing the request instead of returning a fake answer might trigger a retry on a replica which might be on a
-            // compatible node
-            throw new IllegalArgumentException("can_match is not supported on pre 5.6 nodes");
-        }
+        transportService.sendChildRequest(connection, QUERY_CAN_MATCH_NAME, request, task,
+            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, CanMatchResponse::new));
     }
 
     public void sendClearAllScrollContexts(Transport.Connection connection, final ActionListener<TransportResponse> listener) {
@@ -358,25 +349,8 @@ public class SearchTransportService extends AbstractComponent {
 
         transportService.registerRequestHandler(QUERY_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchTransportRequest::new,
             (request, channel, task) -> {
-                searchService.executeQueryPhase(request, (SearchTask) task, new ActionListener<SearchPhaseResult>() {
-                    @Override
-                    public void onResponse(SearchPhaseResult searchPhaseResult) {
-                        try {
-                            channel.sendResponse(searchPhaseResult);
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (IOException e1) {
-                            throw new UncheckedIOException(e1);
-                        }
-                    }
-                });
+                searchService.executeQueryPhase(request, (SearchTask) task, new HandledTransportAction.ChannelActionListener<>(
+                    channel, QUERY_ACTION_NAME, request));
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_ACTION_NAME,
                 (request) -> ((ShardSearchRequest)request).numberOfShards() == 1 ? QueryFetchSearchResult::new : QuerySearchResult::new);

@@ -48,12 +48,12 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
-import org.elasticsearch.protocol.xpack.rollup.job.DateHistogramGroupConfig;
-import org.elasticsearch.protocol.xpack.rollup.job.GroupConfig;
-import org.elasticsearch.xpack.core.rollup.job.IndexerState;
-import org.elasticsearch.protocol.xpack.rollup.job.MetricConfig;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
-import org.elasticsearch.protocol.xpack.rollup.job.RollupJobConfig;
+import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
+import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;

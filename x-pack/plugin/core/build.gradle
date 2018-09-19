@@ -8,7 +8,6 @@ import java.nio.file.StandardCopyOption
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
-apply plugin: 'com.github.johnrengelman.shadow'
 
 archivesBaseName = 'x-pack-core'
 
@@ -27,19 +26,18 @@ dependencyLicenses {
 
 dependencies {
     compileOnly "org.elasticsearch:elasticsearch:${version}"
-    compile project(':x-pack:protocol')
-    shadow "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-    shadow "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-    shadow "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
-    shadow "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
+    compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+    compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+    compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
+    compile "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
 
-    shadow "commons-logging:commons-logging:${versions.commonslogging}"
-    shadow "commons-codec:commons-codec:${versions.commonscodec}"
+    compile "commons-logging:commons-logging:${versions.commonslogging}"
+    compile "commons-codec:commons-codec:${versions.commonscodec}"
 
     // security deps
-    shadow 'com.unboundid:unboundid-ldapsdk:3.2.0'
-    shadow project(path: ':modules:transport-netty4', configuration: 'runtime')
-    shadow(project(path: ':plugins:transport-nio', configuration: 'runtime')) {
+    compile 'com.unboundid:unboundid-ldapsdk:3.2.0'
+    compile project(path: ':modules:transport-netty4', configuration: 'runtime')
+    compile(project(path: ':plugins:transport-nio', configuration: 'runtime')) {
         // TODO: core exclusion should not be necessary, since it is a transitive dep of all plugins
         exclude group: "org.elasticsearch", module: "elasticsearch-core"
     }
@@ -112,8 +110,7 @@ test {
 // TODO: don't publish test artifacts just to run messy tests, fix the tests!
 // https://github.com/elastic/x-plugins/issues/724
 configurations {
-    testArtifacts.extendsFrom(testRuntime, shadow)
-    testArtifacts.exclude(group: project(':x-pack:protocol').group, module: project(':x-pack:protocol').name)
+    testArtifacts.extendsFrom testRuntime
 }
 task testJar(type: Jar) {
     appendix 'test'

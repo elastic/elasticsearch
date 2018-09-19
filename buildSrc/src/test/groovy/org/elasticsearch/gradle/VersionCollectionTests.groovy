@@ -26,7 +26,7 @@ class VersionCollectionTests extends GradleUnitTestCase {
     assertEquals(vc.nextMinorSnapshot, Version.fromString("6.3.0-SNAPSHOT"))
     assertEquals(vc.stagedMinorSnapshot, Version.fromString("6.2.0-SNAPSHOT"))
     assertEquals(vc.nextBugfixSnapshot, Version.fromString("6.1.1-SNAPSHOT"))
-    assertEquals(vc.maintenanceBugfixSnapshot, Version.fromString("5.2.1-SNAPSHOT"))
+    assertNull(vc.maintenanceBugfixSnapshot)
 
     vc.indexCompatible.containsAll(vc.versions)
 
@@ -65,7 +65,7 @@ class VersionCollectionTests extends GradleUnitTestCase {
     assertEquals(vc.nextMinorSnapshot, Version.fromString("6.3.0-SNAPSHOT"))
     assertEquals(vc.stagedMinorSnapshot, null)
     assertEquals(vc.nextBugfixSnapshot, Version.fromString("6.2.1-SNAPSHOT"))
-    assertEquals(vc.maintenanceBugfixSnapshot, Version.fromString("5.2.1-SNAPSHOT"))
+    assertNull(vc.maintenanceBugfixSnapshot)
 
     vc.indexCompatible.containsAll(vc.versions)
 

@@ -1,22 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.protocol.xpack.rollup.job;
+package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
@@ -29,22 +16,12 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.xpack.rollup.RollupField;
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
+import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -67,11 +44,11 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 public class MetricConfig implements Writeable, ToXContentObject {
 
     // TODO: replace these with an enum
-    private static final ParseField MIN = new ParseField("min");
-    private static final ParseField MAX = new ParseField("max");
-    private static final ParseField SUM = new ParseField("sum");
-    private static final ParseField AVG = new ParseField("avg");
-    private static final ParseField VALUE_COUNT = new ParseField("value_count");
+    public static final ParseField MIN = new ParseField("min");
+    public static final ParseField MAX = new ParseField("max");
+    public static final ParseField SUM = new ParseField("sum");
+    public static final ParseField AVG = new ParseField("avg");
+    public static final ParseField VALUE_COUNT = new ParseField("value_count");
 
     static final String NAME = "metrics";
     private static final String FIELD = "field";
@@ -106,7 +83,7 @@ public class MetricConfig implements Writeable, ToXContentObject {
         this.metrics = metrics;
     }
 
-    public MetricConfig(final StreamInput in) throws IOException {
+    MetricConfig(final StreamInput in) throws IOException {
         field = in.readString();
         metrics = in.readList(StreamInput::readString);
     }
@@ -123,53 +100,6 @@ public class MetricConfig implements Writeable, ToXContentObject {
      */
     public List<String> getMetrics() {
         return metrics;
-    }
-
-    /**
-     * This returns a set of aggregation builders which represent the configured
-     * set of metrics.  Used by the rollup indexer to iterate over historical data
-     */
-    public List<ValuesSourceAggregationBuilder.LeafOnly<?, ?>> toBuilders() {
-        if (metrics.size() == 0) {
-            return Collections.emptyList();
-        }
-
-        List<ValuesSourceAggregationBuilder.LeafOnly<?, ?>> aggs = new ArrayList<>(metrics.size());
-        for (String metric : metrics) {
-            ValuesSourceAggregationBuilder.LeafOnly<?, ?> newBuilder;
-            if (metric.equals(MIN.getPreferredName())) {
-                newBuilder = new MinAggregationBuilder(RollupField.formatFieldName(field, MinAggregationBuilder.NAME, RollupField.VALUE));
-            } else if (metric.equals(MAX.getPreferredName())) {
-                newBuilder = new MaxAggregationBuilder(RollupField.formatFieldName(field, MaxAggregationBuilder.NAME, RollupField.VALUE));
-            } else if (metric.equals(AVG.getPreferredName())) {
-                // Avgs are sum + count
-                newBuilder = new SumAggregationBuilder(RollupField.formatFieldName(field, AvgAggregationBuilder.NAME, RollupField.VALUE));
-                ValuesSourceAggregationBuilder.LeafOnly<?, ?> countBuilder
-                        = new ValueCountAggregationBuilder(
-                                RollupField.formatFieldName(field, AvgAggregationBuilder.NAME, RollupField.COUNT_FIELD), ValueType.NUMERIC);
-                countBuilder.field(field);
-                aggs.add(countBuilder);
-            } else if (metric.equals(SUM.getPreferredName())) {
-                newBuilder = new SumAggregationBuilder(RollupField.formatFieldName(field, SumAggregationBuilder.NAME, RollupField.VALUE));
-            } else if (metric.equals(VALUE_COUNT.getPreferredName())) {
-                // TODO allow non-numeric value_counts.
-                // Hardcoding this is fine for now since the job validation guarantees that all metric fields are numerics
-                newBuilder = new ValueCountAggregationBuilder(
-                        RollupField.formatFieldName(field, ValueCountAggregationBuilder.NAME, RollupField.VALUE), ValueType.NUMERIC);
-            } else {
-                throw new IllegalArgumentException("Unsupported metric type [" + metric + "]");
-            }
-            newBuilder.field(field);
-            aggs.add(newBuilder);
-        }
-        return aggs;
-    }
-
-    /**
-     * @return A map representing this config object as a RollupCaps aggregation object
-     */
-    public List<Map<String, Object>> toAggCap() {
-        return metrics.stream().map(metric -> Collections.singletonMap("agg", (Object)metric)).collect(Collectors.toList());
     }
 
     public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,

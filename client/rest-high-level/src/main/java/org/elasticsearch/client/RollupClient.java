@@ -20,14 +20,11 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.protocol.xpack.rollup.GetRollupCapsRequest;
-import org.elasticsearch.protocol.xpack.rollup.GetRollupCapsResponse;
-import org.elasticsearch.protocol.xpack.rollup.PutRollupJobRequest;
-import org.elasticsearch.protocol.xpack.rollup.PutRollupJobResponse;
+import org.elasticsearch.client.rollup.PutRollupJobRequest;
+import org.elasticsearch.client.rollup.PutRollupJobResponse;
 
 import java.io.IOException;
-
-import static java.util.Collections.emptySet;
+import java.util.Collections;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for
@@ -40,7 +37,7 @@ public class RollupClient {
 
     private final RestHighLevelClient restHighLevelClient;
 
-    RollupClient(RestHighLevelClient restHighLevelClient) {
+    RollupClient(final RestHighLevelClient restHighLevelClient) {
         this.restHighLevelClient = restHighLevelClient;
     }
 
@@ -54,8 +51,11 @@ public class RollupClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public PutRollupJobResponse putRollupJob(PutRollupJobRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::putRollupJob, options,
-            PutRollupJobResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            RollupRequestConverters::putJob,
+            options,
+            PutRollupJobResponse::fromXContent,
+            Collections.emptySet());
     }
 
     /**
@@ -67,8 +67,11 @@ public class RollupClient {
      * @param listener the listener to be notified upon request completion
      */
     public void putRollupJobAsync(PutRollupJobRequest request, RequestOptions options, ActionListener<PutRollupJobResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::putRollupJob, options,
-            PutRollupJobResponse::fromXContent, listener, emptySet());
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            RollupRequestConverters::putJob,
+            options,
+            PutRollupJobResponse::fromXContent,
+            listener, Collections.emptySet());
     }
 
     /**

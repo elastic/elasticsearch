@@ -101,7 +101,7 @@ public class MockFSIndexStore extends IndexStore {
             if (indexShard != null) {
                 Boolean remove = shardSet.remove(indexShard);
                 if (remove == Boolean.TRUE) {
-                    Logger logger = Loggers.getLogger(getClass(), indexShard.indexSettings().getSettings(), indexShard.shardId());
+                    Logger logger = Loggers.getLogger(getClass(), indexShard.shardId());
                     MockFSDirectoryService.checkIndex(logger, indexShard.store(), indexShard.shardId());
                 }
             }

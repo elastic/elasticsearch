@@ -32,19 +32,23 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.11.223'
+  'aws': '1.11.406'
 ]
 
 dependencies {
   compile "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
   compile "com.amazonaws:aws-java-sdk-kms:${versions.aws}"
   compile "com.amazonaws:aws-java-sdk-core:${versions.aws}"
+  compile "com.amazonaws:jmespath-java:${versions.aws}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
+  compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   compile 'com.fasterxml.jackson.core:jackson-databind:2.6.7.1'
   compile 'com.fasterxml.jackson.core:jackson-annotations:2.6.0'
+  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+  compile 'joda-time:joda-time:2.10'
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and whitelist this hack in JarHell 
@@ -53,6 +57,7 @@ dependencies {
 
 dependencyLicenses {
   mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
+  mapping from: /jmespath-java.*/, to: 'aws-java-sdk'
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /jaxb-.*/, to: 'jaxb'
 }
@@ -132,7 +137,7 @@ if (!s3TemporaryAccessKey && !s3TemporarySecretKey && !s3TemporaryBucket && !s3T
 final String minioVersion = 'RELEASE.2018-06-22T23-48-46Z'
 final String minioBinDir = "${buildDir}/minio/bin"
 final String minioDataDir = "${buildDir}/minio/data"
-final String minioAddress = "127.0.0.1:60920"
+final String minioAddress = "127.0.0.1"
 
 final String minioDistribution
 final String minioCheckSum
@@ -187,15 +192,30 @@ if (useFixture && minioDistribution) {
     dependsOn installMinio
 
     ext.minioPid = 0L
+    ext.minioPort = 0
 
     doLast {
+      // get free port
+      for (int port = 60920; port < 60940; port++) {
+        try {
+          javax.net.ServerSocketFactory.getDefault().createServerSocket(port, 1, InetAddress.getByName(minioAddress)).close()
+          minioPort = port
+          break
+        } catch (BindException e) {
+          logger.info("Port " + port + " for Minio process is already taken", e)
+        }
+      }
+      if (minioPort == 0) {
+        throw new GradleException("Could not find a free port for Minio")
+      }
+
       new File("${minioDataDir}/${s3PermanentBucket}").mkdirs()
       // we skip these tests on Windows so we do no need to worry about compatibility here
       final ProcessBuilder minio = new ProcessBuilder(
               "${minioBinDir}/${minioFileName}",
               "server",
               "--address",
-              minioAddress,
+              minioAddress + ":" + minioPort,
               minioDataDir)
       minio.environment().put('MINIO_ACCESS_KEY', s3PermanentAccessKey)
       minio.environment().put('MINIO_SECRET_KEY', s3PermanentSecretKey)
@@ -227,6 +247,7 @@ if (useFixture && minioDistribution) {
             final int index = line.lastIndexOf(":")
             assert index >= 0
             httpPort = Integer.parseInt(line.substring(index + 1))
+            assert httpPort == minioPort : "Port mismatch, expected ${minioPort} but was ${httpPort}"
 
             final File script = new File(project.buildDir, "minio/minio.killer.sh")
             script.setText(
@@ -269,10 +290,15 @@ if (useFixture && minioDistribution) {
   project.afterEvaluate {
     ClusterConfiguration cluster = project.extensions.getByName('integTestMinioCluster') as ClusterConfiguration
     cluster.dependsOn(project.bundlePlugin)
+    cluster.dependsOn(startMinio) // otherwise we don't know the Minio port
     cluster.keystoreSetting 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
     cluster.keystoreSetting 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
 
-    cluster.setting 's3.client.integration_test_permanent.endpoint', "http://${minioAddress}"
+    Closure<String> minioAddressAndPort = {
+      assert startMinio.minioPort > 0
+      return 'http://' + minioAddress + ':' + startMinio.minioPort
+    }
+    cluster.setting 's3.client.integration_test_permanent.endpoint', "${ -> minioAddressAndPort.call()}"
 
     Task restIntegTestTask = project.tasks.getByName('integTestMinio')
     restIntegTestTask.clusterConfig.plugin(project.path)
@@ -426,7 +452,7 @@ thirdPartyAudit.excludes = [
 ]
 
 // jarhell with jdk (intentionally, because jaxb was removed from default modules in java 9)
-if (JavaVersion.current() <= JavaVersion.VERSION_1_8) {
+if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
   thirdPartyAudit.excludes += [
     'javax.xml.bind.Binder',
     'javax.xml.bind.ContextFinder$1',

@@ -65,15 +65,15 @@ public class Loggers {
         return getLogger(clazz, asArrayList(Loggers.SPACE, index.getName(), prefixes).toArray(new String[0]));
     }
 
-    // /**
-    //  * Get a logger.
-    //  * @deprecated prefer {@link #getLogger(Class, String...)} or {@link LogManager#getLogger}
-    //  *     as the Settings is no longer needed
-    //  */
-    // @Deprecated
-    // public static Logger getLogger(Class<?> clazz, Settings settings, String... prefixes) {
-    //     return ESLoggerFactory.getLogger(formatPrefix(prefixes), clazz);
-    // }
+    /**
+     * Get a logger.
+     * @deprecated prefer {@link #getLogger(Class, String...)} or {@link LogManager#getLogger}
+     *     as the Settings is no longer needed
+     */
+    @Deprecated
+    public static Logger getLogger(Class<?> clazz, Settings settings, String... prefixes) {
+        return ESLoggerFactory.getLogger(formatPrefix(prefixes), clazz);
+    }
 
     public static Logger getLogger(Class<?> clazz, String... prefixes) {
         return ESLoggerFactory.getLogger(formatPrefix(prefixes), clazz);

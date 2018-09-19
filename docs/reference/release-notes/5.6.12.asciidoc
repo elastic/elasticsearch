@@ -3,4 +3,9 @@
 
 Also see <<breaking-changes-5.6>>.
 
-coming[5.6.12]
+[[bug-5.6.12]]
+[float]
+=== Bug fixes
+
+Settings::
+* Apply settings filter to get cluster settings API {pull}33247[#33247]

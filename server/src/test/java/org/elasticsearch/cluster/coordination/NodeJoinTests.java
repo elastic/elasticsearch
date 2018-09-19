@@ -133,7 +133,7 @@ public class NodeJoinTests extends ESTestCase {
             clusterStateRef.set(event.state());
             publishListener.onResponse(null);
         });
-        setupMasterServiceAndCoordinator(term, initialState, masterService, threadPool, new Random());
+        setupMasterServiceAndCoordinator(term, initialState, masterService, threadPool, new Random(Randomness.get().nextLong()));
         masterService.setClusterStateSupplier(clusterStateRef::get);
         masterService.start();
     }

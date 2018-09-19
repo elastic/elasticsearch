@@ -28,10 +28,9 @@ public class CronEvalTool extends LoggingAwareCommand {
         exit(new CronEvalTool().main(args, Terminal.DEFAULT));
     }
 
-    private static final String DATE_PATTERN = "EEE, d MMM yyyy HH:mm:ss Z";
-    private static final DateTimeFormatter UTC_FORMATTER = DateTimeFormat.forPattern(DATE_PATTERN)
+    private static final DateTimeFormatter UTC_FORMATTER = DateTimeFormat.forPattern("EEE, d MMM yyyy HH:mm:ss")
         .withZone(DateTimeZone.UTC).withLocale(Locale.ROOT);
-    private static final DateTimeFormatter LOCAL_FORMATTER = DateTimeFormat.forPattern(DATE_PATTERN)
+    private static final DateTimeFormatter LOCAL_FORMATTER = DateTimeFormat.forPattern("EEE, d MMM yyyy HH:mm:ss Z")
         .withZone(DateTimeZone.forTimeZone(TimeZone.getDefault()));
 
     private final OptionSpec<Integer> countOption;

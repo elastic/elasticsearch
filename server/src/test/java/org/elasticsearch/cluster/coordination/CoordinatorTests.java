@@ -314,7 +314,7 @@ public class CoordinatorTests extends ESTestCase {
                     settings, deterministicTaskQueue.getThreadPool(), NOOP_TRANSPORT_INTERCEPTOR, a -> localNode, null, emptySet());
                 coordinator = new Coordinator(settings, transportService, ESAllocationTestCase.createAllocationService(Settings.EMPTY),
                     masterService, this::getPersistedState, Cluster.this::provideUnicastHosts, Randomness.get());
-                masterService.setClusterStatePublisher(coordinator::publish);
+                masterService.setClusterStatePublisher(coordinator);
 
                 transportService.start();
                 transportService.acceptIncomingRequests();

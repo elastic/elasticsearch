@@ -431,10 +431,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     return;
                 }
 
-                assert currentPublication.isPresent() == false
-                    : "[" + currentPublication.get() + "] in progress, cannot start new publication";
                 if (currentPublication.isPresent()) {
-                    logger.debug(() -> new ParameterizedMessage("[{}] failed publication as already publication in progress",
+                    assert false : "[" + currentPublication.get() + "] in progress, cannot start new publication";
+                    logger.warn(() -> new ParameterizedMessage("[{}] failed publication as already publication in progress",
                         clusterChangedEvent.source()));
                     publishListener.onFailure(new FailedToCommitClusterStateException("publication " + currentPublication.get() +
                         " already in progress"));

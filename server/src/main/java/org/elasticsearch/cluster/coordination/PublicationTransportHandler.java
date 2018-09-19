@@ -39,8 +39,8 @@ public class PublicationTransportHandler {
 
     private final TransportService transportService;
 
-    public PublicationTransportHandler(TransportService transportService, Function<PublishRequest,
-                                       PublishWithJoinResponse> handlePublishRequest,
+    public PublicationTransportHandler(TransportService transportService,
+                                       Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest,
                                        Consumer<ApplyCommitRequest> handleApplyCommit) {
         this.transportService = transportService;
 

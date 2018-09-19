@@ -138,7 +138,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         expectThrows(NullPointerException.class,
                 () -> new ClusterStatsMonitoringDoc(cluster, timestamp, interval, node,
                         null, version, clusterStatus, license, apmIndicesExist, usages, clusterStats, clusterState,
-                         needToEnableTLS));
+                        needToEnableTLS));
     }
 
     public void testConstructorVersionMustNotBeNull() {
@@ -322,7 +322,6 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                                                             usages,
                                                                             clusterStats,
                                                                             clusterState,
-                                                                            clusterSettings,
                                                                             needToEnableTLS);
 
         final BytesReference xContent = XContentHelper.toXContent(doc, XContentType.JSON, false);

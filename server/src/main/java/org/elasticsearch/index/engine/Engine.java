@@ -200,7 +200,7 @@ public abstract class Engine implements Closeable {
                     if (terms instanceof CompletionTerms) {
                         // TODO: currently we load up the suggester for reporting its size
                         long fstSize = ((CompletionTerms) terms).suggester().ramBytesUsed();
-                        if (fieldNamePatterns != null && fieldNamePatterns.length > 0 && Regex.simpleMatch(fieldNamePatterns, info.name)) {
+                        if (Regex.simpleMatch(fieldNamePatterns, info.name)) {
                             completionFields.addTo(info.name, fstSize);
                         }
                         sizeInBytes += fstSize;

@@ -38,7 +38,7 @@
 -XX:+UseCMSInitiatingOccupancyOnly
 
 ## G1GC Configuration
-# NOTE: We only support G1GC on JDK version 10 or later.
+# NOTE: G1GC is only supported on JDK version 10 or later.
 # To use G1GC uncomment the lines below.
 # 10-:-XX:-UseConcMarkSweepGC
 # 10-:-XX:-UseCMSInitiatingOccupancyOnly

@@ -29,10 +29,12 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTests;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -53,6 +55,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
@@ -113,23 +116,30 @@ public class NodeJoinTests extends ESTestCase {
     }
 
     private void setupFakeMasterServiceAndCoordinator(long term, ClusterState initialState) {
-        deterministicTaskQueue = new DeterministicTaskQueue(Settings.EMPTY);
+        deterministicTaskQueue = new DeterministicTaskQueue(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build());
         FakeThreadPoolMasterService fakeMasterService = new FakeThreadPoolMasterService("test", deterministicTaskQueue::scheduleNow);
-        AtomicReference<ClusterState> currentState = new AtomicReference<>(initialState);
-        fakeMasterService.setClusterStateSupplier(currentState::get);
+        setupMasterServiceAndCoordinator(term, initialState, fakeMasterService, deterministicTaskQueue.getThreadPool(), Randomness.get());
         fakeMasterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
-            currentState.set(event.state());
+            coordinator.handlePublishRequest(new PublishRequest(event.state()));
             publishListener.onResponse(null);
         });
         fakeMasterService.start();
-        setupMasterServiceAndCoordinator(term, initialState, fakeMasterService);
     }
 
     private void setupRealMasterServiceAndCoordinator(long term, ClusterState initialState) {
-        setupMasterServiceAndCoordinator(term, initialState, ClusterServiceUtils.createMasterService(threadPool, initialState));
+        MasterService masterService = new MasterService(Settings.EMPTY, threadPool);
+        AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialState);
+        masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
+            clusterStateRef.set(event.state());
+            publishListener.onResponse(null);
+        });
+        setupMasterServiceAndCoordinator(term, initialState, masterService, threadPool, new Random(Randomness.get().nextLong()));
+        masterService.setClusterStateSupplier(clusterStateRef::get);
+        masterService.start();
     }
 
-    private void setupMasterServiceAndCoordinator(long term, ClusterState initialState, MasterService masterService) {
+    private void setupMasterServiceAndCoordinator(long term, ClusterState initialState, MasterService masterService,
+                                                  ThreadPool threadPool, Random random) {
         if (this.masterService != null || coordinator != null) {
             throw new IllegalStateException("method setupMasterServiceAndCoordinator can only be called once");
         }
@@ -144,7 +154,7 @@ public class NodeJoinTests extends ESTestCase {
             transportService,
             ESAllocationTestCase.createAllocationService(Settings.EMPTY),
             masterService,
-            () -> new CoordinationStateTests.InMemoryPersistedState(term, initialState), r -> emptyList());
+            () -> new CoordinationStateTests.InMemoryPersistedState(term, initialState), r -> emptyList(), random);
         verify(transportService).registerRequestHandler(eq(JoinHelper.JOIN_ACTION_NAME), eq(ThreadPool.Names.GENERIC), eq(false), eq(false),
             anyObject(), joinRequestHandler.capture());
         transportRequestHandler = joinRequestHandler.getValue();
@@ -233,7 +243,7 @@ public class NodeJoinTests extends ESTestCase {
 
     private void joinNodeAndRun(final JoinRequest joinRequest) {
         SimpleFuture fut = joinNodeAsync(joinRequest);
-        deterministicTaskQueue.runAllTasks(random());
+        deterministicTaskQueue.runAllRunnableTasks(random());
         assertTrue(fut.isDone());
         FutureUtils.get(fut);
     }
@@ -246,9 +256,15 @@ public class NodeJoinTests extends ESTestCase {
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(false, node0, initialTerm, initialVersion,
             new VotingConfiguration(Collections.singleton(randomFrom(node0, node1).getId()))));
         assertFalse(isLocalNodeElectedMaster());
+        assertNull(coordinator.getStateForMasterService().nodes().getMasterNodeId());
         long newTerm = initialTerm + randomLongBetween(1, 10);
-        joinNodeAndRun(new JoinRequest(node1, Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion))));
+        SimpleFuture fut = joinNodeAsync(new JoinRequest(node1, Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion))));
+        assertEquals(Coordinator.Mode.LEADER, coordinator.getMode());
+        assertNull(coordinator.getStateForMasterService().nodes().getMasterNodeId());
+        deterministicTaskQueue.runAllRunnableTasks(random());
+        assertTrue(fut.isDone());
         assertTrue(isLocalNodeElectedMaster());
+        assertTrue(coordinator.getStateForMasterService().nodes().isLocalNodeElectedMaster());
     }
 
     public void testJoinWithHigherTermButBetterStateGetsRejected() {
@@ -309,12 +325,12 @@ public class NodeJoinTests extends ESTestCase {
         long newTerm = initialTerm + randomLongBetween(1, 10);
         SimpleFuture futNode0 = joinNodeAsync(new JoinRequest(node0, Optional.of(
             new Join(node0, node0, newTerm, initialTerm, initialVersion))));
-        deterministicTaskQueue.runAllTasks(random());
+        deterministicTaskQueue.runAllRunnableTasks(random());
         assertFalse(futNode0.isDone());
         assertFalse(isLocalNodeElectedMaster());
         SimpleFuture futNode1 = joinNodeAsync(new JoinRequest(node1, Optional.of(
             new Join(node1, node0, newTerm, initialTerm, initialVersion))));
-        deterministicTaskQueue.runAllTasks(random());
+        deterministicTaskQueue.runAllRunnableTasks(random());
         assertFalse(futNode1.isDone());
         assertFalse(isLocalNodeElectedMaster());
         joinNodeAndRun(new JoinRequest(node2, Optional.of(new Join(node2, node0, newTerm, initialTerm, initialVersion))));
@@ -372,7 +388,7 @@ public class NodeJoinTests extends ESTestCase {
             new VotingConfiguration(Collections.singleton(node1.getId()))));
         long newTerm = initialTerm + randomLongBetween(1, 10);
         SimpleFuture fut = joinNodeAsync(new JoinRequest(node0, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))));
-        deterministicTaskQueue.runAllTasks(random());
+        deterministicTaskQueue.runAllRunnableTasks(random());
         assertFalse(fut.isDone());
         assertFalse(isLocalNodeElectedMaster());
         synchronized (coordinator.mutex) {

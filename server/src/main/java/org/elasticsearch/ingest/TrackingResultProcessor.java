@@ -77,6 +77,7 @@ public final class TrackingResultProcessor implements Processor {
                         + pipelineProcessor.getPipeline().getId() + "] detected.");
                 }
                 processors.add(decorate(pipelineProcessor.getPipeline().getCompoundProcessor(), processorResultList, pipelinesSeen));
+                pipelinesSeen.remove(pipelineProcessor);
             } else if (processor instanceof CompoundProcessor) {
                 processors.add(decorate((CompoundProcessor) processor, processorResultList, pipelinesSeen));
             } else {
@@ -93,6 +94,7 @@ public final class TrackingResultProcessor implements Processor {
                 }
                 onFailureProcessors.add(decorate(pipelineProcessor.getPipeline().getCompoundProcessor(), processorResultList,
                     pipelinesSeen));
+                pipelinesSeen.remove(pipelineProcessor);
             } else if (processor instanceof CompoundProcessor) {
                 onFailureProcessors.add(decorate((CompoundProcessor) processor, processorResultList, pipelinesSeen));
             } else {

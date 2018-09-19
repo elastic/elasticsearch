@@ -21,10 +21,6 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ingest.SimulateProcessorResult;
-import org.elasticsearch.ingest.TestProcessor;
-import org.elasticsearch.ingest.CompoundProcessor;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.TrackingResultProcessor;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -42,9 +38,11 @@ import static org.elasticsearch.ingest.CompoundProcessor.ON_FAILURE_PROCESSOR_TA
 import static org.elasticsearch.ingest.CompoundProcessor.ON_FAILURE_PROCESSOR_TYPE_FIELD;
 import static org.elasticsearch.ingest.TrackingResultProcessor.decorate;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -157,25 +155,25 @@ public class TrackingResultProcessorTests extends ESTestCase {
     }
 
     public void testActualPipelineProcessor() throws Exception {
-        String innerPipelineId = "inner";
+        String pipelineId = "pipeline1";
         IngestService ingestService = mock(IngestService.class);
-        Map<String, Object> outerConfig = new HashMap<>();
-        outerConfig.put("pipeline", innerPipelineId);
+        Map<String, Object> pipelineConfig = new HashMap<>();
+        pipelineConfig.put("pipeline", pipelineId);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
 
         String key1 = randomAlphaOfLength(10);
         String key2 = randomAlphaOfLength(10);
         String key3 = randomAlphaOfLength(10);
 
-        Pipeline inner = new Pipeline(
-            innerPipelineId, null, null, new CompoundProcessor(
+        Pipeline pipeline = new Pipeline(
+            pipelineId, null, null, new CompoundProcessor(
             new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key1, randomInt()); }),
             new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key2, randomInt()); }),
             new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key3, randomInt()); }))
         );
-        when(ingestService.getPipeline(innerPipelineId)).thenReturn(inner);
+        when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);
 
-        PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, outerConfig);
+        PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, pipelineConfig);
         CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
 
         CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList, pipelinesSeen);
@@ -184,7 +182,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getTag(), ingestDocument);
 
-        verify(ingestService).getPipeline(innerPipelineId);
+        verify(ingestService).getPipeline(pipelineId);
         assertThat(resultList.size(), equalTo(3));
 
         assertTrue(resultList.get(0).getIngestDocument().hasField(key1));
@@ -203,21 +201,19 @@ public class TrackingResultProcessorTests extends ESTestCase {
     public void testActualPipelineProcessorWithHandledFailure() throws Exception {
         RuntimeException exception = new RuntimeException("processor failed");
 
-        String innerPipelineId = "inner";
+        String pipelineId = "pipeline1";
         IngestService ingestService = mock(IngestService.class);
-        Map<String, Object> outerConfig = new HashMap<>();
-        outerConfig.put("pipeline", innerPipelineId);
+        Map<String, Object> pipelineConfig = new HashMap<>();
+        pipelineConfig.put("pipeline", pipelineId);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
 
         String key1 = randomAlphaOfLength(10);
         String key2 = randomAlphaOfLength(10);
         String key3 = randomAlphaOfLength(10);
 
-        Pipeline inner = new Pipeline(
-            innerPipelineId, null, null, new CompoundProcessor(
-            new TestProcessor(ingestDocument -> {
-                ingestDocument.setFieldValue(key1, randomInt());
-            }),
+        Pipeline pipeline = new Pipeline(
+            pipelineId, null, null, new CompoundProcessor(
+            new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key1, randomInt()); }),
             new CompoundProcessor(
                 false,
                 Collections.singletonList(new TestProcessor(ingestDocument -> { throw exception; })),
@@ -225,9 +221,9 @@ public class TrackingResultProcessorTests extends ESTestCase {
             ),
             new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key3, randomInt()); }))
         );
-        when(ingestService.getPipeline(innerPipelineId)).thenReturn(inner);
+        when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);
 
-        PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, outerConfig);
+        PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, pipelineConfig);
         CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
 
         CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList, pipelinesSeen);
@@ -236,7 +232,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getTag(), ingestDocument);
 
-        verify(ingestService).getPipeline(innerPipelineId);
+        verify(ingestService).getPipeline(pipelineId);
         assertThat(resultList.size(), equalTo(4));
 
         assertTrue(resultList.get(0).getIngestDocument().hasField(key1));
@@ -257,22 +253,63 @@ public class TrackingResultProcessorTests extends ESTestCase {
     }
 
     public void testActualPipelineProcessorWithCycle() throws Exception {
-        String innerPipelineId = "inner";
+        String pipelineId = "pipeline1";
         IngestService ingestService = mock(IngestService.class);
-        Map<String, Object> outerConfig = new HashMap<>();
-        outerConfig.put("pipeline", innerPipelineId);
+        Map<String, Object> pipelineConfig = new HashMap<>();
+        pipelineConfig.put("pipeline", pipelineId);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
 
-        PipelineProcessor outerPipeline = factory.create(Collections.emptyMap(), null, outerConfig);
-        Pipeline inner = new Pipeline(
-            innerPipelineId, null, null, new CompoundProcessor(outerPipeline)
+        PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, pipelineConfig);
+        Pipeline pipeline = new Pipeline(
+            pipelineId, null, null, new CompoundProcessor(pipelineProcessor)
         );
-        when(ingestService.getPipeline(innerPipelineId)).thenReturn(inner);
+        when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);
 
-        CompoundProcessor actualProcessor = new CompoundProcessor(outerPipeline);
+        CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
 
         IllegalStateException exception = expectThrows(IllegalStateException.class,
             () -> decorate(actualProcessor, resultList, pipelinesSeen));
-        assertThat(exception.getMessage(), equalTo("Recursive invocation of pipeline [inner] detected."));
+        assertThat(exception.getMessage(), equalTo("Recursive invocation of pipeline [pipeline1] detected."));
     }
+
+
+    public void testActualPipelineProcessorRepeatedInvocation() throws Exception {
+        String pipelineId = "pipeline1";
+        IngestService ingestService = mock(IngestService.class);
+        Map<String, Object> pipelineConfig = new HashMap<>();
+        pipelineConfig.put("pipeline", pipelineId);
+        PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
+
+        String key1 = randomAlphaOfLength(10);
+        PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, pipelineConfig);
+        Pipeline pipeline = new Pipeline(
+            pipelineId, null, null, new CompoundProcessor(
+                new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key1, randomInt()); }))
+        );
+        when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);
+
+        CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor, pipelineProcessor);
+
+        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList, pipelinesSeen);
+
+        trackingProcessor.execute(ingestDocument);
+
+        SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getTag(), ingestDocument);
+
+        verify(ingestService, times(2)).getPipeline(pipelineId);
+        assertThat(resultList.size(), equalTo(2));
+
+        assertThat(resultList.get(0).getIngestDocument(), not(equalTo(expectedResult.getIngestDocument())));
+        assertThat(resultList.get(0).getFailure(), nullValue());
+        assertThat(resultList.get(0).getProcessorTag(), nullValue());
+
+        assertThat(resultList.get(1).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
+        assertThat(resultList.get(1).getFailure(), nullValue());
+        assertThat(resultList.get(1).getProcessorTag(), nullValue());
+
+        //each invocation updates key1 with a random int
+        assertNotEquals(resultList.get(0).getIngestDocument().getSourceAndMetadata().get(key1),
+            resultList.get(1).getIngestDocument().getSourceAndMetadata().get(key1));
+    }
+
 }

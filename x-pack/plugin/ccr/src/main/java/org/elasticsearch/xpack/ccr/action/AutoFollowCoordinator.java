@@ -297,12 +297,16 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
 
             String leaderIndexNameWithClusterAliasPrefix = clusterAlias.equals("_local_") ? leaderIndexName :
                 clusterAlias + ":" + leaderIndexName;
-            FollowIndexAction.Request request =
-                new FollowIndexAction.Request(leaderIndexNameWithClusterAliasPrefix, followIndexName,
-                    pattern.getMaxBatchOperationCount(), pattern.getMaxConcurrentReadBatches(),
-                    pattern.getMaxOperationSizeInBytes(), pattern.getMaxConcurrentWriteBatches(),
-                    pattern.getMaxWriteBufferSize(), pattern.getMaxRetryDelay(),
-                    pattern.getIdleShardRetryDelay());
+            FollowIndexAction.Request request = new FollowIndexAction.Request();
+            request.setLeaderIndex(leaderIndexNameWithClusterAliasPrefix);
+            request.setFollowerIndex(followIndexName);
+            request.setMaxBatchOperationCount(pattern.getMaxBatchOperationCount());
+            request.setMaxConcurrentReadBatches(pattern.getMaxConcurrentReadBatches());
+            request.setMaxOperationSizeInBytes(pattern.getMaxOperationSizeInBytes());
+            request.setMaxConcurrentWriteBatches(pattern.getMaxConcurrentWriteBatches());
+            request.setMaxWriteBufferSize(pattern.getMaxWriteBufferSize());
+            request.setMaxRetryDelay(pattern.getMaxRetryDelay());
+            request.setPollTimeout(pattern.getIdleShardRetryDelay());
 
             // Execute if the create and follow api call succeeds:
             Runnable successHandler = () -> {

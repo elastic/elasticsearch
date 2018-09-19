@@ -159,6 +159,21 @@ public class LocalCheckpointTracker {
     }
 
     /**
+     * Checks if the given sequence number was marked as completed in this tracker.
+     */
+    public synchronized boolean contains(long seqNo) {
+        if (seqNo >= nextSeqNo) {
+            return false;
+        }
+        if (seqNo <= checkpoint) {
+            return true;
+        }
+        final long bitSetKey = getBitSetKey(seqNo);
+        final CountedBitSet bitSet = processedSeqNo.get(bitSetKey);
+        return bitSet != null && bitSet.get(seqNoToBitSetOffset(seqNo));
+    }
+
+    /**
      * Moves the checkpoint to the last consecutively processed sequence number. This method assumes that the sequence number following the
      * current checkpoint is processed.
      */

@@ -120,8 +120,8 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
         return clusterNeedsTLSEnabled;
     }
 
-    Settings getClusterSettings() {
-        return this.clusterState.getMetaData().settings();
+    Settings getClusterMetaDataSettings() {
+        return this.clusterState.getMetaData().settings().getAsSettings(SETTING_CLUSTER_METADATA);
     }
 
     @Override
@@ -162,11 +162,21 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
             builder.endObject();
         }
 
-        Settings clusterSettings = getClusterSettings();
-        if (clusterSettings != null) {
+        Settings clusterMetaDataSettings = getClusterMetaDataSettings();
+        if (clusterMetaDataSettings != null) {
             builder.startObject("cluster_settings");
             {
-                clusterSettings.toXContent(builder, params);
+                if (clusterMetaDataSettings.size() > 0) {
+                    builder.startObject("cluster");
+                    {
+                        builder.startObject("metadata");
+                        {
+                            clusterMetaDataSettings.toXContent(builder, params);
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
             }
             builder.endObject();
         }

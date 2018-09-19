@@ -25,6 +25,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
@@ -515,6 +516,24 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 machineLearningClient::getCalendarsAsync);
         assertEquals(1, getCalendarsResponse.count());
         assertEquals(calendar1, getCalendarsResponse.calendars().get(0));
+    }
+
+    public void testDeleteCalendar() throws IOException {
+        Calendar calendar = CalendarTests.testInstance();
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        execute(new PutCalendarRequest(calendar), machineLearningClient::putCalendar,
+                machineLearningClient::putCalendarAsync);
+
+        AcknowledgedResponse response = execute(new DeleteCalendarRequest(calendar.getId()),
+                machineLearningClient::deleteCalendar,
+                machineLearningClient::deleteCalendarAsync);
+        assertTrue(response.isAcknowledged());
+
+        // calendar is missing
+        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+                () -> execute(new DeleteCalendarRequest(calendar.getId()), machineLearningClient::deleteCalendar,
+                        machineLearningClient::deleteCalendarAsync));
+        assertThat(exception.status().getStatus(), equalTo(404));
     }
 
     public static String randomValidJobId() {

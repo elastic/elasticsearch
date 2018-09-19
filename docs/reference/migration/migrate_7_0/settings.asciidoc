@@ -5,8 +5,8 @@
 ==== The default for `node.name` is now the hostname
 
 `node.name` now defaults to the hostname at the time when Elasticsearch
-is started. We hope that this is a more generally useful default than
-the first eight characters of the node id.
+is started. Previously the default node name was the first eight characters
+of the node id. It can still be configured explicitly in `elasticsearch.yml`.
 
 ==== Percolator
 

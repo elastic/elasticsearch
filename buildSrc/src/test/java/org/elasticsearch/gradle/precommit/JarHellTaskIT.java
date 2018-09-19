@@ -34,7 +34,7 @@ public class JarHellTaskIT extends GradleIntegrationTestCase {
         assertTaskFailed(result, ":jarHell");
         assertOutputContains(
             result.getOutput(),
-            "Exception in thread \"main\" java.lang.IllegalStateException: jar hell!",
+            "java.lang.IllegalStateException: jar hell!",
             "class: org.apache.logging.log4j.Logger"
         );
     }

@@ -46,6 +46,12 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * The LeaderChecker is responsible for allowing followers to check that the currently elected leader is still connected and healthy. We are
+ * fairly lenient, possibly allowing multiple checks to fail before considering the leader to be faulty, to allow for the leader to
+ * temporarily stand down on occasion, e.g. if it needs to move to a higher term. On deciding that the leader has failed a follower will
+ * become a candidate and attempt to become a leader itself.
+ */
 public class LeaderChecker extends AbstractComponent {
 
     public static final String LEADER_CHECK_ACTION_NAME = "internal:coordination/fault_detection/leader_check";

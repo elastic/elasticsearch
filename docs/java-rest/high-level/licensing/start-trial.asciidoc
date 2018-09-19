@@ -11,6 +11,8 @@ method.
 ---------------------------------------------------
 include-tagged::{doc-tests}/LicensingDocumentationIT.java[start-trial-execute]
 ---------------------------------------------------
+<1> Sets the "acknowledge" parameter to true, indicating the user has
+acknowledged that starting a trial license may affect commercial features
 
 [[java-rest-high-start-trial-response]]
 ==== Response

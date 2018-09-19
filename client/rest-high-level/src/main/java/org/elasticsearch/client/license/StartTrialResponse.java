@@ -36,13 +36,6 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 
 public class StartTrialResponse {
 
-    private static final ParseField ACKNOWLEDGED_FIELD = new ParseField("acknowledged");
-    private static final ParseField TRIAL_WAS_STARTED_FIELD = new ParseField("trial_was_started");
-    private static final ParseField LICENSE_TYPE_FIELD = new ParseField("type");
-    private static final ParseField ERROR_MESSAGE_FIELD = new ParseField("error_message");
-    private static final ParseField ACKNOWLEDGE_DETAILS_FIELD = new ParseField("acknowledge");
-    private static final ParseField ACKNOWLEDGE_HEADER_FIELD = new ParseField("message");
-
     private static final ConstructingObjectParser<StartTrialResponse, Void> PARSER = new ConstructingObjectParser<>(
         "start_trial_response",
         true,
@@ -71,10 +64,10 @@ public class StartTrialResponse {
     );
 
     static {
-        PARSER.declareBoolean(constructorArg(), ACKNOWLEDGED_FIELD);
-        PARSER.declareBoolean(constructorArg(), TRIAL_WAS_STARTED_FIELD);
-        PARSER.declareString(optionalConstructorArg(), LICENSE_TYPE_FIELD);
-        PARSER.declareString(optionalConstructorArg(), ERROR_MESSAGE_FIELD);
+        PARSER.declareBoolean(constructorArg(), new ParseField("acknowledged"));
+        PARSER.declareBoolean(constructorArg(), new ParseField("trial_was_started"));
+        PARSER.declareString(optionalConstructorArg(), new ParseField("type"));
+        PARSER.declareString(optionalConstructorArg(), new ParseField("error_message"));
         // todo consolidate this parsing with the parsing in PutLicenseResponse
         PARSER.declareObject(optionalConstructorArg(), (parser, aVoid) -> {
             Map<String, String[]> acknowledgeMessages = new HashMap<>();
@@ -88,7 +81,7 @@ public class StartTrialResponse {
                     if (currentFieldName == null) {
                         throw new XContentParseException(parser.getTokenLocation(), "expected message header or acknowledgement");
                     }
-                    if (ACKNOWLEDGE_HEADER_FIELD.getPreferredName().equals(currentFieldName)) {
+                    if (new ParseField("message").getPreferredName().equals(currentFieldName)) {
                         if (token != XContentParser.Token.VALUE_STRING) {
                             throw new XContentParseException(parser.getTokenLocation(), "unexpected message header type");
                         }
@@ -108,7 +101,7 @@ public class StartTrialResponse {
                 }
             }
             return new Tuple<>(message, acknowledgeMessages);
-        }, ACKNOWLEDGE_DETAILS_FIELD);
+        }, new ParseField("acknowledge"));
     }
 
     public static StartTrialResponse fromXContent(XContentParser parser) throws IOException {

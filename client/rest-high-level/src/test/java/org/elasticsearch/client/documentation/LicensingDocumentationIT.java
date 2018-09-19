@@ -226,8 +226,7 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             // tag::start-trial-execute
-            StartTrialRequest request = new StartTrialRequest();
-            request.setAcknowledge(true);
+            StartTrialRequest request = new StartTrialRequest(true); // <1>
 
             StartTrialResponse response = client.license().startTrial(request, RequestOptions.DEFAULT);
             // end::start-trial-execute

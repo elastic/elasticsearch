@@ -30,10 +30,7 @@ import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 
 public class LicenseRequestConverters {
     static Request putLicense(PutLicenseRequest putLicenseRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("license")
-            .build();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_xpack", "license").build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         RequestConverters.Params parameters = new RequestConverters.Params(request);
         parameters.withTimeout(putLicenseRequest.timeout());
@@ -46,10 +43,7 @@ public class LicenseRequestConverters {
     }
 
     static Request getLicense(GetLicenseRequest getLicenseRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("license")
-            .build();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_xpack", "license").build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         RequestConverters.Params parameters = new RequestConverters.Params(request);
         parameters.withLocal(getLicenseRequest.local());
@@ -57,7 +51,8 @@ public class LicenseRequestConverters {
     }
 
     static Request deleteLicense(DeleteLicenseRequest deleteLicenseRequest) {
-        Request request = new Request(HttpDelete.METHOD_NAME, "/_xpack/license");
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_xpack", "license").build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         RequestConverters.Params parameters = new RequestConverters.Params(request);
         parameters.withTimeout(deleteLicenseRequest.timeout());
         parameters.withMasterTimeout(deleteLicenseRequest.masterNodeTimeout());
@@ -65,18 +60,11 @@ public class LicenseRequestConverters {
     }
 
     static Request startTrial(StartTrialRequest startTrialRequest) {
-        final String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("license")
-            .addPathPartAsIs("start_trial")
-            .build();
-
+        final String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_xpack", "license", "start_trial").build();
         final Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
         RequestConverters.Params parameters = new RequestConverters.Params(request);
-        if (startTrialRequest.isAcknowledge()) {
-            parameters.putParam("acknowledge", "true");
-        }
+        parameters.putParam("acknowledge", Boolean.toString(startTrialRequest.isAcknowledge()));
         if (startTrialRequest.getLicenseType() != null) {
             parameters.putParam("type", startTrialRequest.getLicenseType());
         }

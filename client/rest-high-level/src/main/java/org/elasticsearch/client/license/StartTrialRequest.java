@@ -20,27 +20,31 @@
 package org.elasticsearch.client.license;
 
 import org.elasticsearch.client.Validatable;
+import org.elasticsearch.common.Nullable;
 
 public class StartTrialRequest implements Validatable {
 
-    private boolean acknowledge = false;
-    private String licenseType = null;
+    private final boolean acknowledge;
+    private final String licenseType;
+
+    public StartTrialRequest() {
+        this(false);
+    }
+
+    public StartTrialRequest(boolean acknowledge) {
+        this(acknowledge, null);
+    }
+
+    public StartTrialRequest(boolean acknowledge, @Nullable String licenseType) {
+        this.acknowledge = acknowledge;
+        this.licenseType = licenseType;
+    }
 
     public boolean isAcknowledge() {
         return acknowledge;
     }
 
-    public StartTrialRequest setAcknowledge(boolean acknowledge) {
-        this.acknowledge = acknowledge;
-        return this;
-    }
-
     public String getLicenseType() {
         return licenseType;
-    }
-
-    public StartTrialRequest setLicenseType(String licenseType) {
-        this.licenseType = licenseType;
-        return this;
     }
 }

@@ -34,6 +34,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
@@ -1590,5 +1591,51 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
+    }
+
+    public void testDeleteCalendar() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        Calendar calendar = new Calendar("holidays", Collections.singletonList("job_1"), "A calendar for public holidays");
+        PutCalendarRequest putCalendarRequest = new PutCalendarRequest(calendar);
+        client.machineLearning().putCalendar(putCalendarRequest, RequestOptions.DEFAULT);
+
+        //tag::x-pack-ml-delete-calendar-request
+        DeleteCalendarRequest request = new DeleteCalendarRequest("holidays"); // <1>
+        //end::x-pack-ml-delete-calendar-request
+
+        //tag::x-pack-ml-delete-calendar-execute
+        AcknowledgedResponse response = client.machineLearning().deleteCalendar(request, RequestOptions.DEFAULT);
+        //end::x-pack-ml-delete-calendar-execute
+
+        //tag::x-pack-ml-delete-calendar-response
+        boolean isAcknowledged = response.isAcknowledged(); // <1>
+        //end::x-pack-ml-delete-calendar-response
+
+        assertTrue(isAcknowledged);
+
+        // tag::x-pack-ml-delete-calendar-listener
+        ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
+            @Override
+            public void onResponse(AcknowledgedResponse response) {
+                // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::x-pack-ml-delete-calendar-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::x-pack-ml-delete-calendar-execute-async
+        client.machineLearning().deleteCalendarAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::x-pack-ml-delete-calendar-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 }

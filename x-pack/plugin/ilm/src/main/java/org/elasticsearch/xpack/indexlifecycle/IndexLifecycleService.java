@@ -140,11 +140,6 @@ public class IndexLifecycleService extends AbstractComponent
     public void applyClusterState(ClusterChangedEvent event) {
         if (event.localNodeMaster()) { // only act if we are master, otherwise
                                        // keep idle until elected
-            // Since indices keep their current phase's details even if the policy changes, it's possible for a deleted index to have a
-            // policy, and then be re-created with the same name, so here we remove indices that have been delete so they don't waste memory
-            if (event.indicesDeleted().isEmpty() == false) {
-                policyRegistry.removeIndices(event.indicesDeleted());
-            }
             if (event.state().metaData().custom(IndexLifecycleMetadata.TYPE) != null) {
                 policyRegistry.update(event.state());
             }

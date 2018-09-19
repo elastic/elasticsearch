@@ -21,6 +21,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -259,6 +260,29 @@ public class ShardChangesIT extends ESIntegTestCase {
         unfollowIndex("index2");
     }
 
+    public void testNoMappingDefined() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("index1")
+            .setSettings(Settings.builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()));
+        ensureGreen("index1");
+
+        final FollowIndexAction.Request followRequest = createFollowRequest("index1", "index2");
+        final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
+        client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
+
+        client().prepareIndex("index1", "doc", "1").setSource("{\"f\":1}", XContentType.JSON).get();
+        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(1L)));
+        unfollowIndex("index2");
+
+        MappingMetaData mappingMetaData = client().admin().indices().prepareGetMappings("index2").get().getMappings()
+            .get("index2").get("doc");
+        assertThat(XContentMapValues.extractValue("properties.f.type", mappingMetaData.sourceAsMap()), equalTo("long"));
+        assertThat(XContentMapValues.extractValue("properties.k", mappingMetaData.sourceAsMap()), nullValue());
+    }
+
     public void testFollowIndex_backlog() throws Exception {
         String leaderIndexSettings = getIndexSettings(between(1, 5), between(0, 1),
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
@@ -406,12 +430,21 @@ public class ShardChangesIT extends ESIntegTestCase {
         // Leader index does not exist.
         FollowIndexAction.Request followRequest1 = createFollowRequest("non-existent-leader", "test-follower");
         expectThrows(IndexNotFoundException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest1).actionGet());
+        expectThrows(IndexNotFoundException.class,
+            () -> client().execute(CreateAndFollowIndexAction.INSTANCE, new CreateAndFollowIndexAction.Request(followRequest1))
+                .actionGet());
         // Follower index does not exist.
         FollowIndexAction.Request followRequest2 = createFollowRequest("non-test-leader", "non-existent-follower");
         expectThrows(IndexNotFoundException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest2).actionGet());
+        expectThrows(IndexNotFoundException.class,
+            () -> client().execute(CreateAndFollowIndexAction.INSTANCE, new CreateAndFollowIndexAction.Request(followRequest2))
+                .actionGet());
         // Both indices do not exist.
         FollowIndexAction.Request followRequest3 = createFollowRequest("non-existent-leader", "non-existent-follower");
         expectThrows(IndexNotFoundException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest3).actionGet());
+        expectThrows(IndexNotFoundException.class,
+            () -> client().execute(CreateAndFollowIndexAction.INSTANCE, new CreateAndFollowIndexAction.Request(followRequest3))
+                .actionGet());
     }
 
     public void testFollowIndex_lowMaxTranslogBytes() throws Exception {

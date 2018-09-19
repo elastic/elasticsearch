@@ -198,12 +198,10 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                 final Map.Entry<Long, Tuple<Integer, ElasticsearchException>> entry = status.fetchExceptions().entrySet().iterator().next();
                 assertThat(entry.getValue().v1(), equalTo(Math.toIntExact(retryCounter.get())));
                 assertThat(entry.getKey(), equalTo(0L));
-                assertThat(entry.getValue().v2(), instanceOf(ElasticsearchException.class));
-                assertNotNull(entry.getValue().v2().getCause());
-                assertThat(entry.getValue().v2().getCause(), instanceOf(ShardNotFoundException.class));
-                final ShardNotFoundException cause = (ShardNotFoundException) entry.getValue().v2().getCause();
-                assertThat(cause.getShardId().getIndexName(), equalTo("leader_index"));
-                assertThat(cause.getShardId().getId(), equalTo(0));
+                assertThat(entry.getValue().v2(), instanceOf(ShardNotFoundException.class));
+                final ShardNotFoundException shardNotFoundException = (ShardNotFoundException) entry.getValue().v2();
+                assertThat(shardNotFoundException.getShardId().getIndexName(), equalTo("leader_index"));
+                assertThat(shardNotFoundException.getShardId().getId(), equalTo(0));
             }
             retryCounter.incrementAndGet();
         };

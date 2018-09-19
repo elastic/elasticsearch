@@ -91,7 +91,7 @@ public class IndexLifecycleRunner {
                 + LifecycleSettings.LIFECYCLE_SKIP + "== true");
             return;
         }
-        Step currentStep = getCurrentStep(stepRegistry, policy, indexMetaData.getIndex(), lifecycleState);
+        Step currentStep = getCurrentStep(stepRegistry, policy, indexMetaData, lifecycleState);
         if (currentStep == null) {
             // This may happen in the case that there is invalid ilm-step index settings or the stepRegistry is out of
             // sync with the current cluster state
@@ -200,12 +200,13 @@ public class IndexLifecycleRunner {
         }
     }
 
-    static Step getCurrentStep(PolicyStepsRegistry stepRegistry, String policy, Index index, LifecycleExecutionState lifecycleState) {
+    static Step getCurrentStep(PolicyStepsRegistry stepRegistry, String policy, IndexMetaData indexMetaData,
+                               LifecycleExecutionState lifecycleState) {
         StepKey currentStepKey = getCurrentStepKey(lifecycleState);
         if (currentStepKey == null) {
             return stepRegistry.getFirstStep(policy);
         } else {
-            return stepRegistry.getStep(index, currentStepKey);
+            return stepRegistry.getStep(indexMetaData, currentStepKey);
         }
     }
 

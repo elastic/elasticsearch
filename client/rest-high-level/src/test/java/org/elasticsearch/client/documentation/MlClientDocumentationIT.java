@@ -43,6 +43,8 @@ import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.ForecastJobResponse;
 import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetBucketsResponse;
+import org.elasticsearch.client.ml.GetCalendarsRequest;
+import org.elasticsearch.client.ml.GetCalendarsResponse;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetCategoriesResponse;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
@@ -880,6 +882,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         PostDataRequest postDataRequest = new PostDataRequest(job.getId(), builder);
         client.machineLearning().postData(postDataRequest, RequestOptions.DEFAULT);
         client.machineLearning().flushJob(new FlushJobRequest(job.getId()), RequestOptions.DEFAULT);
+
         ForecastJobResponse forecastJobResponse = client.machineLearning().
             forecastJob(new ForecastJobRequest(job.getId()), RequestOptions.DEFAULT);
         String forecastId = forecastJobResponse.getForecastId();
@@ -1525,5 +1528,67 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::x-pack-ml-put-calendar-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testGetCalendar() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        Calendar calendar = new Calendar("holidays", Collections.singletonList("job_1"), "A calendar for public holidays");
+        PutCalendarRequest putRequest = new PutCalendarRequest(calendar);
+        client.machineLearning().putCalendar(putRequest, RequestOptions.DEFAULT);
+        {
+            //tag::x-pack-ml-get-calendars-request
+            GetCalendarsRequest request = new GetCalendarsRequest(); // <1>
+            //end::x-pack-ml-get-calendars-request
+
+            //tag::x-pack-ml-get-calendars-id
+            request.setCalendarId("holidays"); // <1>
+            //end::x-pack-ml-get-calendars-id
+
+            //tag::x-pack-ml-get-calendars-page
+            request.setPageParams(new PageParams(10, 20)); // <1>
+            //end::x-pack-ml-get-calendars-page
+
+            // reset page params
+            request.setPageParams(null);
+
+            //tag::x-pack-ml-get-calendars-execution
+            GetCalendarsResponse response = client.machineLearning().getCalendars(request, RequestOptions.DEFAULT);
+            //end::x-pack-ml-get-calendars-execution
+
+            // tag::x-pack-ml-get-calendars-response
+            long count = response.count(); // <1>
+            List<Calendar> calendars = response.calendars(); // <2>
+            // end::x-pack-ml-get-calendars-response
+            assertEquals(1, calendars.size());
+        }
+        {
+            GetCalendarsRequest request = new GetCalendarsRequest("holidays");
+
+            // tag::x-pack-ml-get-calendars-listener
+            ActionListener<GetCalendarsResponse> listener =
+                    new ActionListener<GetCalendarsResponse>() {
+                        @Override
+                        public void onResponse(GetCalendarsResponse getCalendarsResponse) {
+                            // <1>
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            // <2>
+                        }
+                    };
+            // end::x-pack-ml-get-calendars-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-get-calendars-execute-async
+            client.machineLearning().getCalendarsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::x-pack-ml-get-calendars-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
     }
 }

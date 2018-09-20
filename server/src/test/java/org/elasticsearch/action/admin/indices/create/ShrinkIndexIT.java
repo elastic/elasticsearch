@@ -23,6 +23,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
@@ -81,6 +82,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
     }
 
     public void testCreateShrinkIndexToN() {
+        assumeFalse("Broken on windows - https://github.com/elastic/elasticsearch/issues/33857", Constants.WINDOWS);
         int[][] possibleShardSplits = new int[][] {{8,4,2}, {9, 3, 1}, {4, 2, 1}, {15,5,1}};
         int[] shardSplits = randomFrom(possibleShardSplits);
         assertEquals(shardSplits[0], (shardSplits[0] / shardSplits[1]) * shardSplits[1]);

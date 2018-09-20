@@ -63,11 +63,6 @@ public interface DateFormatter {
     String pattern();
 
     /**
-     * Create a {@link DateMathParser} based on this format.
-     */
-    DateMathParser toDateMathParser();
-
-    /**
      * Configure a formatter using default fields for a TemporalAccessor that should be used in case
      * the supplied date is not having all of those fields
      *

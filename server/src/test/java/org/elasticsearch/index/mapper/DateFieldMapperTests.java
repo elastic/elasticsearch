@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -248,6 +249,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testChangeLocale() throws IOException {
+        assumeTrue("need java 9 for testing ",JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0);
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "date")
                     .field("format", "E, d MMM yyyy HH:mm:ss Z")

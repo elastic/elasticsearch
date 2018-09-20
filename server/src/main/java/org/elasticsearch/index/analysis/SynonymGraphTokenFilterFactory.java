@@ -28,9 +28,11 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
-import java.io.Reader;
+import java.util.List;
+import java.util.function.Function;
 
 public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
+
     public SynonymGraphTokenFilterFactory(IndexSettings indexSettings, Environment env, AnalysisRegistry analysisRegistry,
                                      String name, Settings settings) throws IOException {
         super(indexSettings, env, analysisRegistry, name, settings);
@@ -41,42 +43,24 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
         throw new IllegalStateException("Call createPerAnalyzerSynonymGraphFactory to specialize this factory for an analysis chain first");
     }
 
-    Factory createPerAnalyzerSynonymGraphFactory(Analyzer analyzerForParseSynonym, Environment env){
-        return new Factory("synonymgraph", analyzerForParseSynonym, getRulesFromSettings(env));
-    }
-
-    public class Factory implements TokenFilterFactory{
-
-        private final String name;
-        private final SynonymMap synonymMap;
-
-        public Factory(String name, final Analyzer analyzerForParseSynonym, Reader rulesReader) {
-            this.name = name;
-
-            try {
-                SynonymMap.Builder parser;
-                if ("wordnet".equalsIgnoreCase(format)) {
-                    parser = new ESWordnetSynonymParser(true, expand, lenient, analyzerForParseSynonym);
-                    ((ESWordnetSynonymParser) parser).parse(rulesReader);
-                } else {
-                    parser = new ESSolrSynonymParser(true, expand, lenient, analyzerForParseSynonym);
-                    ((ESSolrSynonymParser) parser).parse(rulesReader);
-                }
-                synonymMap = parser.build();
-            } catch (Exception e) {
-                throw new IllegalArgumentException("failed to build synonyms", e);
+    @Override
+    public TokenFilterFactory getChainAwareTokenFilterFactory(TokenizerFactory tokenizer, List<CharFilterFactory> charFilters,
+                                                              List<TokenFilterFactory> previousTokenFilters,
+                                                              Function<String, TokenFilterFactory> allFilters) {
+        final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters);
+        final SynonymMap synonyms = buildSynonyms(analyzer, getRulesFromSettings(environment));
+        final String name = name();
+        return new TokenFilterFactory() {
+            @Override
+            public String name() {
+                return name;
             }
-        }
 
-        @Override
-        public String name() {
-            return this.name;
-        }
-
-        @Override
-        public TokenStream create(TokenStream tokenStream) {
-            // fst is null means no synonyms
-            return synonymMap.fst == null ? tokenStream : new SynonymGraphFilter(tokenStream, synonymMap, false);
-        }
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return synonyms.fst == null ? tokenStream : new SynonymGraphFilter(tokenStream, synonyms, false);
+            }
+        };
     }
+
 }

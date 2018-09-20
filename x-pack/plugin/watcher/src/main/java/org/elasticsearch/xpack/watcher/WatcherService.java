@@ -183,9 +183,6 @@ public class WatcherService extends AbstractComponent {
         // by checking the cluster state version before and after loading the watches we can potentially just exit without applying the
         // changes
         processedClusterStateVersion.set(state.getVersion());
-        triggerService.pauseExecution();
-        int cancelledTaskCount = executionService.clearExecutionsAndQueue();
-        logger.info("reloading watcher, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
 
         executor.execute(wrapWatcherService(() -> reloadInner(state, reason, false),
             e -> logger.error("error reloading watcher", e)));
@@ -221,6 +218,7 @@ public class WatcherService extends AbstractComponent {
         if (processedClusterStateVersion.get() != state.getVersion()) {
             logger.debug("watch service has not been reloaded for state [{}], another reload for state [{}] in progress",
                 state.getVersion(), processedClusterStateVersion.get());
+            return false;
         }
 
         Collection<Watch> watches = loadWatches(state);
@@ -231,7 +229,13 @@ public class WatcherService extends AbstractComponent {
 
         // if we had another state coming in the meantime, we will not start the trigger engines with these watches, but wait
         // until the others are loaded
+        // also this is the place where we pause the trigger service execution and clear the current execution service, so that we make sure
+        // that existing executions finish, but no new ones are executed
         if (processedClusterStateVersion.get() == state.getVersion()) {
+            triggerService.pauseExecution();
+            int cancelledTaskCount = executionService.clearExecutionsAndQueue();
+            logger.info("reloading watcher, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
+
             executionService.unPause();
             triggerService.start(watches);
             if (triggeredWatches.isEmpty() == false) {

@@ -59,7 +59,7 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
         out.writeString(tokenString);
         out.writeTimeValue(expiresIn);
         out.writeOptionalString(scope);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) { // TODO change to V_6_5_0 after backport
+        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
             out.writeOptionalString(refreshToken);
         } else if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
             if (refreshToken == null) {
@@ -76,7 +76,7 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
         tokenString = in.readString();
         expiresIn = in.readTimeValue();
         scope = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) { // TODO change to V_6_5_0 after backport
+        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
             refreshToken = in.readOptionalString();
         } else if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
             refreshToken = in.readString();

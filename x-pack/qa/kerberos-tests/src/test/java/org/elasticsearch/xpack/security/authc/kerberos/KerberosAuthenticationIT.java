@@ -103,10 +103,6 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         executeRequestAndVerifyResponse(userPrincipalName, callbackHandler);
     }
 
-    public void testSoDoesNotFailWithNoTests() {
-        // intentionally empty - this is just needed to ensure the build does not fail because we mute its only test.
-    }
-
     @Override
     @SuppressForbidden(reason = "SPNEGO relies on hostnames and we need to ensure host isn't a IP address")
     protected HttpHost buildHttpHost(String host, int port) {

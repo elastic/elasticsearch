@@ -21,12 +21,13 @@ package org.elasticsearch.protocol.xpack.graph;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -90,7 +91,7 @@ public class GraphExploreResponseTests extends AbstractXContentTestCase< GraphEx
     
     @Override
     protected String[] getShuffleFieldsExceptions() {
-        return new String[]{"vertices"};
+        return new String[]{"vertices", "connections"};
     }    
 
     protected Predicate<String> getRandomFieldsExcludeFilterWhenResultHasErrors() {
@@ -102,12 +103,29 @@ public class GraphExploreResponseTests extends AbstractXContentTestCase< GraphEx
         assertThat(newInstance.getTook(), equalTo(expectedInstance.getTook()));
         assertThat(newInstance.isTimedOut(), equalTo(expectedInstance.isTimedOut()));
         
+        Comparator<Connection> connComparator = new Comparator<Connection>() {
+            @Override
+            public int compare(Connection o1, Connection o2) {
+                return o1.getId().toString().compareTo(o2.getId().toString());
+            }
+        };
         Connection[] newConns = newInstance.getConnections().toArray(new Connection[0]);
         Connection[] expectedConns = expectedInstance.getConnections().toArray(new Connection[0]);
+        Arrays.sort(newConns, connComparator);
+        Arrays.sort(expectedConns, connComparator);
         assertArrayEquals(expectedConns, newConns);
         
-        Vertex[] newVertices = newInstance.getVertices().toArray(new Vertex[0]);
+        //Sort the vertices lists before equality test (map insertion sequences can cause order differences)
+        Comparator<Vertex> comparator = new Comparator<Vertex>() {
+            @Override
+            public int compare(Vertex o1, Vertex o2) {
+                return o1.getId().toString().compareTo(o2.getId().toString());
+            }
+        };
+        Vertex[] newVertices = newInstance.getVertices().toArray(new Vertex[0]);        
         Vertex[] expectedVertices = expectedInstance.getVertices().toArray(new Vertex[0]);
+        Arrays.sort(newVertices, comparator);
+        Arrays.sort(expectedVertices, comparator);
         assertArrayEquals(expectedVertices, newVertices);
         
         ShardOperationFailedException[] newFailures = newInstance.getShardFailures();
@@ -128,7 +146,8 @@ public class GraphExploreResponseTests extends AbstractXContentTestCase< GraphEx
         boolean supportsUnknownFields = true;
         //exceptions are not of the same type whenever parsed back
         boolean assertToXContentEquivalence = false;
-        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields, Strings.EMPTY_ARRAY,
+        AbstractXContentTestCase.testFromXContent(
+                NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields, getShuffleFieldsExceptions(),
                 getRandomFieldsExcludeFilterWhenResultHasErrors(), this::createParser, this::doParseInstance,
                 this::assertEqualInstances, assertToXContentEquivalence, ToXContent.EMPTY_PARAMS);
     }    

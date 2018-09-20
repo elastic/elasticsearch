@@ -16,9 +16,12 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndicesOptions.Option;
+import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.sql.type.EsField;
@@ -116,6 +119,10 @@ public class IndexResolver {
         }
     }
 
+    private static final IndicesOptions INDICES_ONLY_OPTIONS = new IndicesOptions(
+            EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE, Option.IGNORE_ALIASES), EnumSet.of(WildcardStates.OPEN));
+
+
     private final Client client;
     private final String clusterName;
 
@@ -139,14 +146,15 @@ public class IndexResolver {
         boolean retrieveAliases = CollectionUtils.isEmpty(types) || types.contains(IndexType.ALIAS);
         boolean retrieveIndices = CollectionUtils.isEmpty(types) || types.contains(IndexType.INDEX);
 
+        String[] indices = Strings.commaDelimitedListToStringArray(indexWildcard);
         if (retrieveAliases) {
             GetAliasesRequest aliasRequest = new GetAliasesRequest()
                     .local(true)
-                    .aliases(indexWildcard)
+                    .aliases(indices)
                     .indicesOptions(IndicesOptions.lenientExpandOpen());
     
             client.admin().indices().getAliases(aliasRequest, ActionListener.wrap(aliases ->
-                            resolveIndices(indexWildcard, javaRegex, aliases, retrieveIndices, listener),
+                            resolveIndices(indices, javaRegex, aliases, retrieveIndices, listener),
                             ex -> {
                                 // with security, two exception can be thrown:
                                 // INFE - if no alias matches
@@ -154,34 +162,36 @@ public class IndexResolver {
     
                                 // in both cases, that is allowed and we continue with the indices request
                                 if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
-                                    resolveIndices(indexWildcard, javaRegex, null, retrieveIndices, listener);
+                                    resolveIndices(indices, javaRegex, null, retrieveIndices, listener);
                                 } else {
                                     listener.onFailure(ex);
                                 }
                             }));
         } else {
-            resolveIndices(indexWildcard, javaRegex, null, retrieveIndices, listener);
+            resolveIndices(indices, javaRegex, null, retrieveIndices, listener);
         }
     }
 
-    private void resolveIndices(String indexWildcard, String javaRegex, GetAliasesResponse aliases,
+    private void resolveIndices(String[] indices, String javaRegex, GetAliasesResponse aliases,
             boolean retrieveIndices, ActionListener<Set<IndexInfo>> listener) {
 
         if (retrieveIndices) {
             GetIndexRequest indexRequest = new GetIndexRequest()
                     .local(true)
-                    .indices(indexWildcard)
-                    .indicesOptions(IndicesOptions.lenientExpandOpen());
+                    .indices(indices)
+                    .features(Feature.SETTINGS)
+                    .includeDefaults(false)
+                    .indicesOptions(INDICES_ONLY_OPTIONS);
     
             client.admin().indices().getIndex(indexRequest,
-                    ActionListener.wrap(indices -> filterResults(indexWildcard, javaRegex, aliases, indices, listener),
+                    ActionListener.wrap(response -> filterResults(javaRegex, aliases, response, listener),
                             listener::onFailure));
         } else {
-            filterResults(indexWildcard, javaRegex, aliases, null, listener);
+            filterResults(javaRegex, aliases, null, listener);
         }
     }
 
-    private void filterResults(String indexWildcard, String javaRegex, GetAliasesResponse aliases, GetIndexResponse indices,
+    private void filterResults(String javaRegex, GetAliasesResponse aliases, GetIndexResponse indices,
             ActionListener<Set<IndexInfo>> listener) {
         
         // since the index name does not support ?, filter the results manually
@@ -300,8 +310,7 @@ public class IndexResolver {
     private static GetIndexRequest createGetIndexRequest(String index) {
         return new GetIndexRequest()
                 .local(true)
-                .indices(index)
-                .features(Feature.MAPPINGS)
+                .indices(Strings.commaDelimitedListToStringArray(index))
                 //lenient because we throw our own errors looking at the response e.g. if something was not resolved
                 //also because this way security doesn't throw authorization exceptions but rather honours ignore_unavailable
                 .indicesOptions(IndicesOptions.lenientExpandOpen());

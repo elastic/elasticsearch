@@ -138,6 +138,15 @@ public class Regex {
         return false;
     }
 
+    /**
+     * Similar to {@link #simpleMatch(String[], String)}, but accepts a list of strings instead of an array of strings for the patterns to
+     * match.
+     */
+    public static boolean simpleMatch(final List<String> patterns, final String str) {
+        // #simpleMatch(String[], String) is likely to be inlined into this method
+        return patterns != null && simpleMatch(patterns.toArray(Strings.EMPTY_ARRAY), str);
+    }
+
     public static boolean simpleMatch(String[] patterns, String[] types) {
         if (patterns != null && types != null) {
             for (String type : types) {

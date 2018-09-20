@@ -23,6 +23,7 @@ import org.elasticsearch.gradle.JdkJarHellCheck;
 import org.elasticsearch.test.NamingConventionsCheck;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
+import org.gradle.api.JavaVersion;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.tasks.Input;
@@ -65,6 +66,17 @@ public class ThirdPartyAuditTask extends DefaultTask {
     private File signatureFile;
 
     private String javaHome;
+
+    private JavaVersion targetCompatibility;
+
+    @Input
+    public JavaVersion getTargetCompatibility() {
+        return targetCompatibility;
+    }
+
+    public void setTargetCompatibility(JavaVersion targetCompatibility) {
+        this.targetCompatibility = targetCompatibility;
+    }
 
     @InputFiles
     public Configuration getForbiddenAPIsConfiguration() {
@@ -157,10 +169,19 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     private void extractJars(FileCollection jars) {
         File jarExpandDir = getJarExpandDir();
+        // We need to clean up to make sure old dependencies don't linger
+        getProject().delete(jarExpandDir);
         jars.forEach(jar ->
             getProject().copy(spec -> {
                 spec.from(getProject().zipTree(jar));
                 spec.into(jarExpandDir);
+                // Exclude classes for multi release jars above target
+                for (int i = Integer.parseInt(targetCompatibility.getMajorVersion()) + 1;
+                     i <= Integer.parseInt(JavaVersion.VERSION_HIGHER.getMajorVersion());
+                     i++
+                ) {
+                  spec.exclude("META-INF/versions/" + i + "/**");
+                }
             })
         );
     }

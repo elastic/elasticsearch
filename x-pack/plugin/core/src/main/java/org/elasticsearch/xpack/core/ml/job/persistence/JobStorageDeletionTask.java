@@ -11,9 +11,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
@@ -24,6 +27,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
@@ -71,43 +75,102 @@ public class JobStorageDeletionTask extends Task {
         final String indexName = AnomalyDetectorsIndex.getPhysicalIndexFromState(state, jobId);
         final String indexPattern = indexName + "-*";
 
-        ActionListener<Boolean> deleteAliasHandler = ActionListener.wrap(finishedHandler, failureHandler);
+        final ActionListener<AcknowledgedResponse> completionHandler = ActionListener.wrap(
+            response -> finishedHandler.accept(response.isAcknowledged()),
+            failureHandler);
 
-        // Step 5. DBQ state done, delete the aliases
+        // Step 7. If we did not drop the index and after DBQ state done, we delete the aliases
         ActionListener<BulkByScrollResponse> dbqHandler = ActionListener.wrap(
                 bulkByScrollResponse -> {
-                    if (bulkByScrollResponse.isTimedOut()) {
-                        logger.warn("[{}] DeleteByQuery for indices [{}, {}] timed out.", jobId, indexName, indexPattern);
-                    }
-                    if (!bulkByScrollResponse.getBulkFailures().isEmpty()) {
-                        logger.warn("[{}] {} failures and {} conflicts encountered while running DeleteByQuery on indices [{}, {}].",
+                    if (bulkByScrollResponse == null) { // no action was taken by DBQ, assume Index was deleted
+                        completionHandler.onResponse(new AcknowledgedResponse(true));
+                    } else {
+                        if (bulkByScrollResponse.isTimedOut()) {
+                            logger.warn("[{}] DeleteByQuery for indices [{}, {}] timed out.", jobId, indexName, indexPattern);
+                        }
+                        if (!bulkByScrollResponse.getBulkFailures().isEmpty()) {
+                            logger.warn("[{}] {} failures and {} conflicts encountered while running DeleteByQuery on indices [{}, {}].",
                                 jobId, bulkByScrollResponse.getBulkFailures().size(), bulkByScrollResponse.getVersionConflicts(),
                                 indexName, indexPattern);
-                        for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
-                            logger.warn("DBQ failure: " + failure);
+                            for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
+                                logger.warn("DBQ failure: " + failure);
+                            }
                         }
+                        deleteAliases(jobId, client, completionHandler);
                     }
-                    deleteAliases(jobId, client, deleteAliasHandler);
                 },
                 failureHandler);
 
-        // Step 4. Delete categorizer state done, DeleteByQuery on the index, matching all docs with the right job_id
-        ActionListener<Boolean> deleteCategorizerStateHandler = ActionListener.wrap(
+        // Step 6. If we did not delete the index, we run a delete by query
+        ActionListener<Boolean> deleteByQueryExecutor = ActionListener.wrap(
                 response -> {
-                    logger.info("Running DBQ on [" + indexName + "," + indexPattern + "] for job [" + jobId + "]");
-                    SearchRequest searchRequest = new SearchRequest(indexName, indexPattern);
-                    DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
-                    ConstantScoreQueryBuilder query =
+                    if (response) {
+                        logger.info("Running DBQ on [" + indexName + "," + indexPattern + "] for job [" + jobId + "]");
+                        DeleteByQueryRequest request = new DeleteByQueryRequest(indexName, indexPattern);
+                        ConstantScoreQueryBuilder query =
                             new ConstantScoreQueryBuilder(new TermQueryBuilder(Job.ID.getPreferredName(), jobId));
-                    searchRequest.source(new SearchSourceBuilder().query(query));
-                    searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
-                    request.setSlices(5);
-                    request.setAbortOnVersionConflict(false);
-                    request.setRefresh(true);
+                        request.setQuery(query);
+                        request.setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
+                        request.setSlices(5);
+                        request.setAbortOnVersionConflict(false);
+                        request.setRefresh(true);
 
-                    executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, request, dbqHandler);
+                        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, request, dbqHandler);
+                    } else { // We did not execute DBQ, no need to delete aliases or check the response
+                        dbqHandler.onResponse(null);
+                    }
                 },
                 failureHandler);
+
+        // Step 5. If we have any hits, that means we are NOT the only job on this index, and should not delete it
+        // if we do not have any hits, we can drop the index and then skip the DBQ and alias deletion
+        ActionListener<SearchResponse> customIndexSearchHandler = ActionListener.wrap(
+            searchResponse -> {
+                if (searchResponse == null || searchResponse.getHits().totalHits > 0) {
+                    deleteByQueryExecutor.onResponse(true); // We need to run DBQ and alias deletion
+                } else {
+                    logger.info("Running DELETE Index on [" + indexName + "] for job [" + jobId + "]");
+                    DeleteIndexRequest request = new DeleteIndexRequest(indexName);
+                    request.indicesOptions(IndicesOptions.lenientExpandOpen());
+                    // If we have deleted the index, then we don't need to delete the aliases or run the DBQ
+                    executeAsyncWithOrigin(
+                        client.threadPool().getThreadContext(),
+                        ML_ORIGIN,
+                        request,
+                        ActionListener.<AcknowledgedResponse>wrap(
+                            response -> deleteByQueryExecutor.onResponse(false), // skip DBQ && Alias
+                            failureHandler),
+                        client.admin().indices()::delete);
+                }
+            },
+            failure -> {
+                if (failure.getClass() == IndexNotFoundException.class) { // assume the index is already deleted
+                    deleteByQueryExecutor.onResponse(false); // skip DBQ && Alias
+                } else {
+                    failureHandler.accept(failure);
+                }
+            }
+        );
+
+        // Step 4. Determine if we are on a shared index by looking at `.ml-anomalies-shared` or the custom index's aliases
+        ActionListener<Boolean> deleteCategorizerStateHandler = ActionListener.wrap(
+            response -> {
+                if (indexName.equals(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX +
+                    AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT)) {
+                    customIndexSearchHandler.onResponse(null); //don't bother searching the index any further, we are on the default shared
+                } else {
+                    SearchSourceBuilder source = new SearchSourceBuilder()
+                        .size(1)
+                        .query(QueryBuilders.boolQuery().filter(
+                            QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))));
+
+                    SearchRequest searchRequest = new SearchRequest(indexName);
+                    searchRequest.source(source);
+                    executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, customIndexSearchHandler);
+                }
+            },
+            failureHandler
+        );
 
         // Step 3. Delete quantiles done, delete the categorizer state
         ActionListener<Boolean> deleteQuantilesHandler = ActionListener.wrap(
@@ -125,14 +188,13 @@ public class JobStorageDeletionTask extends Task {
 
     private void deleteQuantiles(String jobId, Client client, ActionListener<Boolean> finishedHandler) {
         // The quantiles type and doc ID changed in v5.5 so delete both the old and new format
-        SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobStateIndexName());
-        DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
+        DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexName());
         // Just use ID here, not type, as trying to delete different types spams the logs with an exception stack trace
         IdsQueryBuilder query = new IdsQueryBuilder().addIds(Quantiles.documentId(jobId),
                 // TODO: remove in 7.0
                 Quantiles.v54DocumentId(jobId));
-        searchRequest.source(new SearchSourceBuilder().query(query));
-        searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
+        request.setQuery(query);
+        request.setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
         request.setAbortOnVersionConflict(false);
         request.setRefresh(true);
 
@@ -162,14 +224,13 @@ public class JobStorageDeletionTask extends Task {
 
     private void deleteCategorizerState(String jobId, Client client, int docNum, ActionListener<Boolean> finishedHandler) {
         // The categorizer state type and doc ID changed in v5.5 so delete both the old and new format
-        SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobStateIndexName());
-        DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
+        DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexName());
         // Just use ID here, not type, as trying to delete different types spams the logs with an exception stack trace
         IdsQueryBuilder query = new IdsQueryBuilder().addIds(CategorizerState.documentId(jobId, docNum),
                 // TODO: remove in 7.0
                 CategorizerState.v54DocumentId(jobId, docNum));
-        searchRequest.source(new SearchSourceBuilder().query(query));
-        searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
+        request.setQuery(query);
+        request.setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
         request.setAbortOnVersionConflict(false);
         request.setRefresh(true);
 
@@ -194,7 +255,7 @@ public class JobStorageDeletionTask extends Task {
                 }));
     }
 
-    private void deleteAliases(String jobId, Client client, ActionListener<Boolean> finishedHandler) {
+    private void deleteAliases(String jobId, Client client, ActionListener<AcknowledgedResponse> finishedHandler) {
         final String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         final String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
 
@@ -209,12 +270,13 @@ public class JobStorageDeletionTask extends Task {
                             if (removeRequest == null) {
                                 // don't error if the job's aliases have already been deleted - carry on and delete the
                                 // rest of the job's data
-                                finishedHandler.onResponse(true);
+                                finishedHandler.onResponse(new AcknowledgedResponse(true));
                                 return;
                             }
                             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, removeRequest,
-                                    ActionListener.<AcknowledgedResponse>wrap(removeResponse -> finishedHandler.onResponse(true),
-                                            finishedHandler::onFailure),
+                                ActionListener.<AcknowledgedResponse>wrap(
+                                    finishedHandler::onResponse,
+                                    finishedHandler::onFailure),
                                     client.admin().indices()::aliases);
                         },
                         finishedHandler::onFailure), client.admin().indices()::getAliases);

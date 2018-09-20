@@ -153,17 +153,4 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
         }
     }
 
-    private String getLocalTestRepoPath() {
-        String property = System.getProperty("test.local-test-repo-path");
-        Objects.requireNonNull(property, "test.local-test-repo-path not passed to tests");
-        File file = new File(property);
-        assertTrue("Expected " + property + " to exist, but it did not!", file.exists());
-        if (File.separator.equals("\\")) {
-            // Use / on Windows too, the build script is not happy with \
-            return file.getAbsolutePath().replace(File.separator, "/");
-        } else {
-            return file.getAbsolutePath();
-        }
-    }
-
 }

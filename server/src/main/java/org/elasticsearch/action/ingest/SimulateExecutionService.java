@@ -24,12 +24,16 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.CompoundProcessor;
+import org.elasticsearch.ingest.PipelineProcessor;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 
-import static org.elasticsearch.action.ingest.TrackingResultProcessor.decorate;
+import static org.elasticsearch.ingest.TrackingResultProcessor.decorate;
 
 class SimulateExecutionService {
 
@@ -42,11 +46,15 @@ class SimulateExecutionService {
     }
 
     SimulateDocumentResult executeDocument(Pipeline pipeline, IngestDocument ingestDocument, boolean verbose) {
+        // Prevent cycles in pipeline decoration
+        final Set<PipelineProcessor> pipelinesSeen = Collections.newSetFromMap(new IdentityHashMap<>());
         if (verbose) {
             List<SimulateProcessorResult> processorResultList = new ArrayList<>();
-            CompoundProcessor verbosePipelineProcessor = decorate(pipeline.getCompoundProcessor(), processorResultList);
+            CompoundProcessor verbosePipelineProcessor = decorate(pipeline.getCompoundProcessor(), processorResultList, pipelinesSeen);
             try {
-                verbosePipelineProcessor.execute(ingestDocument);
+                Pipeline verbosePipeline = new Pipeline(pipeline.getId(), pipeline.getDescription(), pipeline.getVersion(),
+                    verbosePipelineProcessor);
+                ingestDocument.executePipeline(verbosePipeline);
                 return new SimulateDocumentVerboseResult(processorResultList);
             } catch (Exception e) {
                 return new SimulateDocumentVerboseResult(processorResultList);

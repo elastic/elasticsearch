@@ -34,10 +34,10 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.RangeFieldMapper.RangeFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper.RangeType;
@@ -48,6 +48,8 @@ import org.junit.Before;
 
 import java.net.InetAddress;
 import java.util.Locale;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class RangeFieldTypeTests extends FieldTypeTestCase {
     RangeType type;
@@ -63,13 +65,13 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             addModifier(new Modifier("format", true) {
                 @Override
                 public void modify(MappedFieldType ft) {
-                    ((RangeFieldType) ft).setDateTimeFormatter(Joda.forPattern("basic_week_date", Locale.ROOT));
+                    ((RangeFieldType) ft).setDateTimeFormatter(DateFormatters.forPattern("basic_week_date", Locale.ROOT));
                 }
             });
             addModifier(new Modifier("locale", true) {
                 @Override
                 public void modify(MappedFieldType ft) {
-                    ((RangeFieldType) ft).setDateTimeFormatter(Joda.forPattern("date_optional_time", Locale.CANADA));
+                    ((RangeFieldType) ft).setDateTimeFormatter(DateFormatters.forPattern("date_optional_time", Locale.CANADA));
                 }
             });
         }
@@ -112,19 +114,18 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         fieldType.setHasDocValues(false);
         ShapeRelation relation = randomFrom(ShapeRelation.values());
 
-        // dates will break the default format
+        // dates will break the default format, month/day of month is turned around in the format
         final String from = "2016-15-06T15:29:50+08:00";
         final String to = "2016-16-06T15:29:50+08:00";
 
         ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class,
             () -> fieldType.rangeQuery(from, to, true, true, relation, null, null, context));
-        assertEquals("failed to parse date field [2016-15-06T15:29:50+08:00] with format [strict_date_optional_time||epoch_millis]",
-            ex.getMessage());
+        assertThat(ex.getMessage(), containsString("could not parse input [2016-15-06T15:29:50+08:00]"));
 
         // setting mapping format which is compatible with those dates
-        final FormatDateTimeFormatter formatter = Joda.forPattern("yyyy-dd-MM'T'HH:mm:ssZZ");
-        assertEquals(1465975790000L, formatter.parser().parseMillis(from));
-        assertEquals(1466062190000L, formatter.parser().parseMillis(to));
+        final DateFormatter formatter = DateFormatters.forPattern("yyyy-dd-MM'T'HH:mm:ssZZZZZ");
+        assertEquals(1465975790000L, DateFormatters.toZonedDateTime(formatter.parse(from)).toInstant().toEpochMilli());
+        assertEquals(1466062190000L, DateFormatters.toZonedDateTime(formatter.parse(to)).toInstant().toEpochMilli());
 
         fieldType.setDateTimeFormatter(formatter);
         final Query query = fieldType.rangeQuery(from, to, true, true, relation, null, null, context);

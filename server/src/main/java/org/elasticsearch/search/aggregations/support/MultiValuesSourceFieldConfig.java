@@ -29,16 +29,17 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.function.BiFunction;
 
 public class MultiValuesSourceFieldConfig implements Writeable, ToXContentFragment {
     private String fieldName;
     private Object missing;
     private Script script;
-    private DateTimeZone timeZone;
+    private ZoneId timeZone;
 
     private static final String NAME = "field_config";
 
@@ -61,16 +62,16 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentFragme
         if (timezoneAware) {
             parser.declareField(MultiValuesSourceFieldConfig.Builder::setTimeZone, p -> {
                 if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    return DateTimeZone.forID(p.text());
+                    return ZoneId.of(p.text());
                 } else {
-                    return DateTimeZone.forOffsetHours(p.intValue());
+                    return ZoneOffset.ofHours(p.intValue());
                 }
             }, ParseField.CommonFields.TIME_ZONE, ObjectParser.ValueType.LONG);
         }
         return parser;
     };
 
-    private MultiValuesSourceFieldConfig(String fieldName, Object missing, Script script, DateTimeZone timeZone) {
+    private MultiValuesSourceFieldConfig(String fieldName, Object missing, Script script, ZoneId timeZone) {
         this.fieldName = fieldName;
         this.missing = missing;
         this.script = script;
@@ -81,7 +82,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentFragme
         this.fieldName = in.readString();
         this.missing = in.readGenericValue();
         this.script = in.readOptionalWriteable(Script::new);
-        this.timeZone = in.readOptionalTimeZone();
+        this.timeZone = in.readOptionalZoneId();
     }
 
     public Object getMissing() {
@@ -92,7 +93,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentFragme
         return script;
     }
 
-    public DateTimeZone getTimeZone() {
+    public ZoneId getTimeZone() {
         return timeZone;
     }
 
@@ -105,7 +106,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentFragme
         out.writeString(fieldName);
         out.writeGenericValue(missing);
         out.writeOptionalWriteable(script);
-        out.writeOptionalTimeZone(timeZone);
+        out.writeOptionalZoneId(timeZone);
     }
 
     @Override
@@ -129,7 +130,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentFragme
         private String fieldName;
         private Object missing = null;
         private Script script = null;
-        private DateTimeZone timeZone = null;
+        private ZoneId timeZone = null;
 
         public String getFieldName() {
             return fieldName;
@@ -158,11 +159,11 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentFragme
             return this;
         }
 
-        public DateTimeZone getTimeZone() {
+        public ZoneId getTimeZone() {
             return timeZone;
         }
 
-        public Builder setTimeZone(DateTimeZone timeZone) {
+        public Builder setTimeZone(ZoneId timeZone) {
             this.timeZone = timeZone;
             return this;
         }

@@ -19,12 +19,16 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.ElasticsearchParseException;
+
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalField;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public interface DateFormatter {
@@ -47,6 +51,14 @@ public interface DateFormatter {
     DateFormatter withZone(ZoneId zoneId);
 
     /**
+     * Create a copy of this formatter that is configured to parse dates in the specified locale
+     *
+     * @param locale The local to use for the new formatter
+     * @return       A copy of the date formatter this has been called on
+     */
+    DateFormatter withLocale(Locale locale);
+
+    /**
      * Print the supplied java time accessor in a string based representation according to this formatter
      *
      * @param accessor The temporal accessor used to format
@@ -61,6 +73,20 @@ public interface DateFormatter {
      * @return The name of this formatter
      */
     String pattern();
+
+    /**
+     * Returns the configured locale of the date formatter
+     *
+     * @return The locale of this formatter
+     */
+    Locale getLocale();
+
+    /**
+     * Returns the configured time zone of the date formatter
+     *
+     * @return The time zone of this formatter
+     */
+    ZoneId getZone();
 
     /**
      * Configure a formatter using default fields for a TemporalAccessor that should be used in case
@@ -95,11 +121,11 @@ public interface DateFormatter {
 
         @Override
         public TemporalAccessor parse(String input) {
-            DateTimeParseException failure = null;
+            ElasticsearchParseException failure = null;
             for (DateFormatter formatter : formatters) {
                 try {
                     return formatter.parse(input);
-                } catch (DateTimeParseException e) {
+                } catch (ElasticsearchParseException e) {
                     if (failure == null) {
                         failure = e;
                     } else {
@@ -116,6 +142,11 @@ public interface DateFormatter {
         }
 
         @Override
+        public DateFormatter withLocale(Locale locale) {
+            return new MergedDateFormatter(Arrays.stream(formatters).map(f -> f.withLocale(locale)).toArray(DateFormatter[]::new));
+        }
+
+        @Override
         public String format(TemporalAccessor accessor) {
             return formatters[0].format(accessor);
         }
@@ -126,8 +157,35 @@ public interface DateFormatter {
         }
 
         @Override
+        public Locale getLocale() {
+            return formatters[0].getLocale();
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return formatters[0].getZone();
+        }
+
+        @Override
         public DateFormatter parseDefaulting(Map<TemporalField, Long> fields) {
             return new MergedDateFormatter(Arrays.stream(formatters).map(f -> f.parseDefaulting(fields)).toArray(DateFormatter[]::new));
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getLocale(), format);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj.getClass().equals(this.getClass()) == false) {
+                return false;
+            }
+            MergedDateFormatter other = (MergedDateFormatter) obj;
+
+            return Objects.equals(pattern(), other.pattern()) &&
+                   Objects.equals(getLocale(), other.getLocale()) &&
+                   Objects.equals(getZone(), other.getZone());
         }
     }
 }

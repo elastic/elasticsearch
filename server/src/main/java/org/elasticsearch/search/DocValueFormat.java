@@ -25,11 +25,11 @@ import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.joda.DateMathParser;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateMathParser;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -38,6 +38,9 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.text.NumberFormat;
 import java.text.ParseException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Locale;
@@ -170,18 +173,25 @@ public interface DocValueFormat extends NamedWriteable {
 
         public static final String NAME = "date_time";
 
-        final FormatDateTimeFormatter formatter;
-        final DateTimeZone timeZone;
+        final DateFormatter formatter;
+        final ZoneId timeZone;
         private final DateMathParser parser;
 
-        public DateTime(FormatDateTimeFormatter formatter, DateTimeZone timeZone) {
-            this.formatter = Objects.requireNonNull(formatter);
+        public DateTime(DateFormatter formatter, ZoneId timeZone) {
+            this.formatter = formatter;
             this.timeZone = Objects.requireNonNull(timeZone);
             this.parser = new DateMathParser(formatter);
         }
 
         public DateTime(StreamInput in) throws IOException {
-            this(Joda.forPattern(in.readString()), DateTimeZone.forID(in.readString()));
+            this.formatter = DateFormatters.forPattern(in.readString());
+            this.parser = new DateMathParser(formatter);
+            // calling ZoneId.of("UTC) will produce "UTC" as timezone in the formatter
+            // calling ZoneOffset.UTC will produce "Z" as timezone in the formatter
+            // as returning a date having UTC is always returning Z as timezone in all
+            // versions, this is a hack around the java time behaviour
+            String zoneId = in.readString();
+            this.timeZone = zoneId.equals("UTC") ? ZoneOffset.UTC : ZoneId.of(zoneId);
         }
 
         @Override
@@ -191,13 +201,14 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(formatter.format());
-            out.writeString(timeZone.getID());
+            out.writeString(formatter.pattern());
+            // joda does not understand "Z" for utc, so we must special case
+            out.writeString(timeZone.getId().equals("Z") ? DateTimeZone.UTC.getID() : timeZone.getId());
         }
 
         @Override
         public String format(long value) {
-            return formatter.printer().withZone(timeZone).print(value);
+            return formatter.format(Instant.ofEpochMilli(value).atZone(timeZone));
         }
 
         @Override
@@ -212,7 +223,7 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public long parseLong(String value, boolean roundUp, LongSupplier now) {
-            return parser.parse(value, now, roundUp, timeZone);
+            return parser.parse(value, now, roundUp, timeZone).toEpochMilli();
         }
 
         @Override

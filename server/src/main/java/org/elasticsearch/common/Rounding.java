@@ -19,6 +19,7 @@
 package org.elasticsearch.common;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -367,8 +368,13 @@ public abstract class Rounding implements Writeable {
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
             out.writeByte(unit.getId());
-            String tz = ZoneOffset.UTC.equals(timeZone) ? "UTC" : timeZone.getId(); // stay joda compatible
-            out.writeString(tz);
+            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                out.writeString(timeZone.getId());
+            } else {
+                // stay joda compatible
+                String tz = ZoneOffset.UTC.equals(timeZone) ? "UTC" : timeZone.getId();
+                out.writeString(tz);
+            }
         }
 
         @Override
@@ -490,8 +496,13 @@ public abstract class Rounding implements Writeable {
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
             out.writeVLong(interval);
-            String tz = ZoneOffset.UTC.equals(timeZone) ? "UTC" : timeZone.getId(); // stay joda compatible
-            out.writeString(tz);
+            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                out.writeString(timeZone.getId());
+            } else {
+                // stay joda compatible
+                String tz = ZoneOffset.UTC.equals(timeZone) ? "UTC" : timeZone.getId();
+                out.writeString(tz);
+            }
         }
 
         @Override

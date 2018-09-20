@@ -147,7 +147,7 @@ public class SearchActionTests extends ESTestCase {
         Set<RollupJobCaps> caps = new HashSet<>();
         caps.add(cap);
         Exception e = expectThrows(IllegalArgumentException.class,
-            () -> TransportRollupSearchAction.rewriteQuery(new RangeQueryBuilder("foo").gt(1).timeZone("EST"), caps));
+            () -> TransportRollupSearchAction.rewriteQuery(new RangeQueryBuilder("foo").gt(1).timeZone("CET"), caps));
         assertThat(e.getMessage(), equalTo("Field [foo] in [range] query was found in rollup indices, but requested timezone is not " +
             "compatible. Options include: [UTC]"));
     }

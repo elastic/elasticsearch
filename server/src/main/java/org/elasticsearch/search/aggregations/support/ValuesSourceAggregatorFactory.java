@@ -24,9 +24,9 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 
@@ -41,9 +41,9 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF 
         this.config = config;
     }
 
-    public DateTimeZone timeZone() {
+    public ZoneId timeZone() {
         return config.timezone();
-        }
+    }
 
     @Override
     public Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket,

@@ -11,10 +11,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -25,7 +25,7 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 public class WatcherDateTimeUtils {
 
-    public static final FormatDateTimeFormatter dateTimeFormatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+    public static final FormatDateTimeFormatter dateTimeFormatter = Joda.forPattern("strict_date_optional_time||epoch_millis");
     public static final DateMathParser dateMathParser = new DateMathParser(dateTimeFormatter);
 
     private WatcherDateTimeUtils() {

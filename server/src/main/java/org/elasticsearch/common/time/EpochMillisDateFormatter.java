@@ -19,13 +19,16 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.ElasticsearchParseException;
+
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalField;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * This is a special formatter to parse the milliseconds since the epoch.
@@ -38,22 +41,33 @@ import java.util.Map;
  */
 class EpochMillisDateFormatter implements DateFormatter {
 
-    public static DateFormatter INSTANCE = new EpochMillisDateFormatter();
+    public static DateFormatter INSTANCE = new EpochMillisDateFormatter(ZoneOffset.UTC, Locale.ROOT);
 
-    private EpochMillisDateFormatter() {}
+    private final ZoneId zoneId;
+    private final Locale locale;
+
+    private EpochMillisDateFormatter(ZoneId zoneId, Locale locale) {
+        this.zoneId = zoneId;
+        this.locale = locale;
+    }
 
     @Override
     public TemporalAccessor parse(String input) {
         try {
             return Instant.ofEpochMilli(Long.valueOf(input)).atZone(ZoneOffset.UTC);
         } catch (NumberFormatException e) {
-            throw new DateTimeParseException("invalid number", input, 0, e);
+            throw new ElasticsearchParseException("could not parse input [" + input + "] with date formatter [epoch_millis]", e);
         }
     }
 
     @Override
-    public DateFormatter withZone(ZoneId zoneId) {
-        return this;
+    public DateFormatter withZone(ZoneId newZoneId) {
+        return new EpochMillisDateFormatter(newZoneId, locale);
+    }
+
+    @Override
+    public DateFormatter withLocale(Locale newLocale) {
+        return new EpochMillisDateFormatter(zoneId, newLocale);
     }
 
     @Override
@@ -67,7 +81,34 @@ class EpochMillisDateFormatter implements DateFormatter {
     }
 
     @Override
+    public Locale getLocale() {
+        return locale;
+    }
+
+    @Override
+    public ZoneId getZone() {
+        return zoneId;
+    }
+
+    @Override
     public DateFormatter parseDefaulting(Map<TemporalField, Long> fields) {
         return this;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(locale);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj.getClass().equals(this.getClass()) == false) {
+            return false;
+        }
+        EpochMillisDateFormatter other = (EpochMillisDateFormatter) obj;
+
+        return Objects.equals(pattern(), other.pattern()) &&
+               Objects.equals(zoneId, other.zoneId) &&
+               Objects.equals(locale, other.locale);
     }
 }

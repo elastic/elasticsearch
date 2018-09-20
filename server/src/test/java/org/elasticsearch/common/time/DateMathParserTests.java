@@ -125,7 +125,7 @@ public class DateMathParserTests extends ESTestCase {
     }
 
     public void testNow() {
-        final long now = parser.parse("2014-11-18T14:27:32", () -> 0, false, null);
+        final long now = parser.parse("2014-11-18T14:27:32", () -> 0, false, null).toEpochMilli();
 
         assertDateMathEquals("now", "2014-11-18T14:27:32", now, false, null);
         assertDateMathEquals("now+M", "2014-12-18T14:27:32", now, false, null);
@@ -142,11 +142,11 @@ public class DateMathParserTests extends ESTestCase {
         DateMathParser parser = new DateMathParser(formatter);
         ZonedDateTime zonedDateTime = DateFormatters.toZonedDateTime(formatter.parse("04:52:20"));
         assertThat(zonedDateTime.getYear(), is(1970));
-        long millisStart = zonedDateTime.toInstant().toEpochMilli();
+        Instant millisStart = zonedDateTime.toInstant();
         assertEquals(millisStart, parser.parse("04:52:20", () -> 0, false, null));
         // due to rounding up, we have to add the number of milliseconds here manually
         long millisEnd = DateFormatters.toZonedDateTime(formatter.parse("04:52:20")).toInstant().toEpochMilli() + 999;
-        assertEquals(millisEnd, parser.parse("04:52:20", () -> 0, true, null));
+        assertEquals(millisEnd, parser.parse("04:52:20", () -> 0, true, null).toEpochMilli());
     }
 
     // Implicit rounding happening when parts of the date are not specified
@@ -166,7 +166,7 @@ public class DateMathParserTests extends ESTestCase {
         // implicit rounding with explicit timezone in the date format
         DateFormatter formatter = DateFormatters.forPattern("yyyy-MM-ddXXX");
         DateMathParser parser = new DateMathParser(formatter);
-        long time = parser.parse("2011-10-09+01:00", () -> 0, false, null);
+        Instant time = parser.parse("2011-10-09+01:00", () -> 0, false, null);
         assertEquals(this.parser.parse("2011-10-09T00:00:00.000+01:00", () -> 0), time);
         time = parser.parse("2011-10-09+01:00", () -> 0, true, null);
         assertEquals(this.parser.parse("2011-10-09T23:59:59.999+01:00", () -> 0), time);
@@ -240,7 +240,7 @@ public class DateMathParserTests extends ESTestCase {
 
         // also check other time units
         DateMathParser parser = new DateMathParser(DateFormatters.forPattern("epoch_second||dateOptionalTime"));
-        long datetime = parser.parse("1418248078", () -> 0);
+        long datetime = parser.parse("1418248078", () -> 0).toEpochMilli();
         assertDateEquals(datetime, "1418248078", "2014-12-10T21:47:58.000");
 
         // a timestamp before 10000 is a year
@@ -252,12 +252,8 @@ public class DateMathParserTests extends ESTestCase {
     }
 
     void assertParseException(String msg, String date, String exc) {
-        try {
-            parser.parse(date, () -> 0);
-            fail("Date: " + date + "\n" + msg);
-        } catch (ElasticsearchParseException e) {
-            assertThat(ExceptionsHelper.detailedMessage(e), containsString(exc));
-        }
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parser.parse(date, () -> 0));
+        assertThat(msg, ExceptionsHelper.detailedMessage(e), containsString(exc));
     }
 
     public void testIllegalMathFormat() {
@@ -269,8 +265,8 @@ public class DateMathParserTests extends ESTestCase {
     }
 
     public void testIllegalDateFormat() {
-        assertParseException("Expected bad timestamp exception", Long.toString(Long.MAX_VALUE) + "0", "failed to parse date field");
-        assertParseException("Expected bad date format exception", "123bogus", "could not be parsed");
+        assertParseException("Expected bad timestamp exception", Long.toString(Long.MAX_VALUE) + "0", "could not parse input");
+        assertParseException("Expected bad date format exception", "123bogus", "could not parse input [123bogus]");
     }
 
     public void testOnlyCallsNowIfNecessary() {
@@ -285,17 +281,23 @@ public class DateMathParserTests extends ESTestCase {
         assertTrue(called.get());
     }
 
+    // TODO do we really need this?
+//    public void testSupportsScientificNotation() {
+//        long result = parser.parse("1.0e3", () -> 42).toEpochMilli();
+//        assertThat(result, is(1000L));
+//    }
+
     private void assertDateMathEquals(String toTest, String expected) {
         assertDateMathEquals(toTest, expected, 0, false, null);
     }
 
     private void assertDateMathEquals(String toTest, String expected, final long now, boolean roundUp, ZoneId timeZone) {
-        long gotMillis = parser.parse(toTest, () -> now, roundUp, timeZone);
+        long gotMillis = parser.parse(toTest, () -> now, roundUp, timeZone).toEpochMilli();
         assertDateEquals(gotMillis, toTest, expected);
     }
 
     private void assertDateEquals(long gotMillis, String original, String expected) {
-        long expectedMillis = parser.parse(expected, () -> 0);
+        long expectedMillis = parser.parse(expected, () -> 0).toEpochMilli();
         if (gotMillis != expectedMillis) {
             ZonedDateTime zonedDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(gotMillis), ZoneOffset.UTC);
             fail("Date math not equal\n" +

@@ -31,9 +31,9 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 
 /**
  * A configuration that tells aggregations how to retrieve data from the index
@@ -49,7 +49,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             ValueType valueType,
             String field, Script script,
             Object missing,
-            DateTimeZone timeZone,
+            ZoneId timeZone,
             String format) {
 
         if (field == null) {
@@ -140,7 +140,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     private boolean unmapped = false;
     private DocValueFormat format = DocValueFormat.RAW;
     private Object missing;
-    private DateTimeZone timeZone;
+    private ZoneId timeZone;
 
     public ValuesSourceConfig(ValuesSourceType valueSourceType) {
         this.valueSourceType = valueSourceType;
@@ -204,12 +204,12 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return this.missing;
     }
 
-    public ValuesSourceConfig<VS> timezone(final DateTimeZone timeZone) {
-        this.timeZone= timeZone;
+    public ValuesSourceConfig<VS> timezone(final ZoneId timeZone) {
+        this.timeZone = timeZone;
         return this;
     }
 
-    public DateTimeZone timezone() {
+    public ZoneId timezone() {
         return this.timeZone;
     }
 

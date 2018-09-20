@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.querydsl.agg;
 import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
-import org.joda.time.DateTimeZone;
 
 import java.util.Objects;
 import java.util.TimeZone;
@@ -44,8 +43,8 @@ public class GroupByDateKey extends GroupByKey {
         return new DateHistogramValuesSourceBuilder(id())
                 .field(fieldName())
                 .dateHistogramInterval(new DateHistogramInterval(interval))
-                .timeZone(DateTimeZone.forTimeZone(timeZone))
-                .missingBucket(true);
+                .missingBucket(true)
+                .timeZone(timeZone.toZoneId());
     }
 
     @Override

@@ -67,7 +67,7 @@ public class DateMathParser {
         this.roundUpFormatter = formatter.parseDefaulting(ROUND_UP_BASE_FIELDS);
     }
 
-    public long parse(String text, LongSupplier now) {
+    public Instant parse(String text, LongSupplier now) {
         return parse(text, now, false, null);
     }
 
@@ -95,12 +95,12 @@ public class DateMathParser {
      * @param timeZone  an optional timezone that should be applied before returning the milliseconds since the epoch
      * @return          the parsed date in milliseconds since the epoch
      */
-    public long parse(String text, LongSupplier now, boolean roundUp, ZoneId timeZone) {
-        long time;
+    public Instant parse(String text, LongSupplier now, boolean roundUp, ZoneId timeZone) {
+        Instant instant;
         String mathString;
         if (text.startsWith("now")) {
             try {
-                time = now.getAsLong();
+                instant = Instant.ofEpochMilli(now.getAsLong());
             } catch (Exception e) {
                 throw new ElasticsearchParseException("could not read the current timestamp", e);
             }
@@ -110,19 +110,19 @@ public class DateMathParser {
             if (index == -1) {
                 return parseDateTime(text, timeZone, roundUp);
             }
-            time = parseDateTime(text.substring(0, index), timeZone, false);
+            instant = parseDateTime(text.substring(0, index), timeZone, false);
             mathString = text.substring(index + 2);
         }
 
-        return parseMath(mathString, time, roundUp, timeZone);
+        return parseMath(mathString, instant, roundUp, timeZone);
     }
 
-    private long parseMath(final String mathString, final long time, final boolean roundUp,
+    private Instant parseMath(final String mathString, final Instant instant, final boolean roundUp,
                            ZoneId timeZone) throws ElasticsearchParseException {
         if (timeZone == null) {
             timeZone = ZoneOffset.UTC;
         }
-        ZonedDateTime dateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(time), timeZone);
+        ZonedDateTime dateTime = ZonedDateTime.ofInstant(instant, timeZone);
         for (int i = 0; i < mathString.length(); ) {
             char c = mathString.charAt(i++);
             final boolean round;
@@ -243,14 +243,14 @@ public class DateMathParser {
                 dateTime = dateTime.minus(1, ChronoField.MILLI_OF_SECOND.getBaseUnit());
             }
         }
-        return dateTime.toInstant().toEpochMilli();
+        return dateTime.toInstant();
     }
 
-    private long parseDateTime(String value, ZoneId timeZone, boolean roundUpIfNoTime) {
+    private Instant parseDateTime(String value, ZoneId timeZone, boolean roundUpIfNoTime) {
         DateFormatter formatter = roundUpIfNoTime ? this.roundUpFormatter : this.formatter;
         try {
             if (timeZone == null) {
-                return DateFormatters.toZonedDateTime(formatter.parse(value)).toInstant().toEpochMilli();
+                return DateFormatters.toZonedDateTime(formatter.parse(value)).toInstant();
             } else {
                 TemporalAccessor accessor = formatter.parse(value);
                 ZoneId zoneId = TemporalQueries.zone().queryFrom(accessor);
@@ -258,7 +258,7 @@ public class DateMathParser {
                     timeZone = zoneId;
                 }
 
-                return DateFormatters.toZonedDateTime(accessor).withZoneSameLocal(timeZone).toInstant().toEpochMilli();
+                return DateFormatters.toZonedDateTime(accessor).withZoneSameLocal(timeZone).toInstant();
             }
         } catch (IllegalArgumentException | DateTimeException e) {
             throw new ElasticsearchParseException("failed to parse date field [{}]: [{}]", e, value, e.getMessage());

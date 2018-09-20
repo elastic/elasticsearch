@@ -33,13 +33,15 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.joda.DateMathParser;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -49,23 +51,23 @@ import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
-
-/** A {@link FieldMapper} for ip addresses. */
+/** A {@link FieldMapper} for dates. */
 public class DateFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "date";
-    public static final FormatDateTimeFormatter DEFAULT_DATE_TIME_FORMATTER = Joda.forPattern(
-            "strict_date_optional_time||epoch_millis", Locale.ROOT);
+    public static final String DEFAULT_DATE_FORMATTER_STRING = "strict_date_optional_time||epoch_millis";
+    public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatters.forPattern(DEFAULT_DATE_FORMATTER_STRING);
 
     public static class Defaults {
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
@@ -74,8 +76,8 @@ public class DateFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder<Builder, DateFieldMapper> {
 
         private Boolean ignoreMalformed;
+        private Explicit<String> format = new Explicit<>(DEFAULT_DATE_TIME_FORMATTER.pattern(), false);
         private Locale locale;
-        private boolean dateTimeFormatterSet = false;
 
         public Builder(String name) {
             super(name, new DateFieldType(), new DateFieldType());
@@ -103,28 +105,35 @@ public class DateFieldMapper extends FieldMapper {
             return Defaults.IGNORE_MALFORMED;
         }
 
-        /** Whether an explicit format for this date field has been set already. */
-        public boolean isDateTimeFormatterSet() {
-            return dateTimeFormatterSet;
-        }
-
-        public Builder dateTimeFormatter(FormatDateTimeFormatter dateTimeFormatter) {
-            fieldType().setDateTimeFormatter(dateTimeFormatter);
-            dateTimeFormatterSet = true;
+        public Builder locale(Locale locale) {
+            this.locale = locale;
             return this;
         }
 
-        public void locale(Locale locale) {
-            this.locale = locale;
+        public Locale locale() {
+            return locale;
+        }
+
+        public String format() {
+            return format.value();
+        }
+
+        public Builder format(String format) {
+            this.format = new Explicit<>(format, true);
+            return this;
+        }
+
+        public boolean isFormatterSet() {
+            return format.explicit();
         }
 
         @Override
         protected void setupFieldType(BuilderContext context) {
             super.setupFieldType(context);
-            FormatDateTimeFormatter dateTimeFormatter = fieldType().dateTimeFormatter;
-            if (!locale.equals(dateTimeFormatter.locale())) {
-                fieldType().setDateTimeFormatter( new FormatDateTimeFormatter(dateTimeFormatter.format(),
-                        dateTimeFormatter.parser(), dateTimeFormatter.printer(), locale));
+            String formatter = this.format.value();
+            if (Objects.equals(locale, fieldType().dateTimeFormatter.getLocale()) == false ||
+                (Objects.equals(formatter, fieldType().dateTimeFormatter.pattern()) == false && Strings.isEmpty(formatter) == false)) {
+                fieldType().setDateTimeFormatter(DateFormatters.forPattern(formatter, locale));
             }
         }
 
@@ -162,7 +171,7 @@ public class DateFieldMapper extends FieldMapper {
                     builder.locale(LocaleUtils.parse(propNode.toString()));
                     iterator.remove();
                 } else if (propName.equals("format")) {
-                    builder.dateTimeFormatter(parseDateTimeFormatter(propNode));
+                    builder.format(propNode.toString());
                     iterator.remove();
                 } else if (TypeParsers.parseMultiField(builder, name, parserContext, propName, propNode)) {
                     iterator.remove();
@@ -173,7 +182,7 @@ public class DateFieldMapper extends FieldMapper {
     }
 
     public static final class DateFieldType extends MappedFieldType {
-        protected FormatDateTimeFormatter dateTimeFormatter;
+        protected DateFormatter dateTimeFormatter;
         protected DateMathParser dateMathParser;
 
         DateFieldType() {
@@ -198,13 +207,12 @@ public class DateFieldMapper extends FieldMapper {
         public boolean equals(Object o) {
             if (!super.equals(o)) return false;
             DateFieldType that = (DateFieldType) o;
-            return Objects.equals(dateTimeFormatter.format(), that.dateTimeFormatter.format()) &&
-                   Objects.equals(dateTimeFormatter.locale(), that.dateTimeFormatter.locale());
+            return Objects.equals(dateTimeFormatter, that.dateTimeFormatter);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), dateTimeFormatter.format(), dateTimeFormatter.locale());
+            return Objects.hash(super.hashCode(), dateTimeFormatter);
         }
 
         @Override
@@ -216,21 +224,21 @@ public class DateFieldMapper extends FieldMapper {
         public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
             super.checkCompatibility(fieldType, conflicts);
             DateFieldType other = (DateFieldType) fieldType;
-            if (Objects.equals(dateTimeFormatter().format(), other.dateTimeFormatter().format()) == false) {
+            if (Objects.equals(dateTimeFormatter.pattern(), other.dateTimeFormatter.pattern()) == false) {
                 conflicts.add("mapper [" + name() + "] has different [format] values");
             }
-            if (Objects.equals(dateTimeFormatter().locale(), other.dateTimeFormatter().locale()) == false) {
+            if (Objects.equals(dateTimeFormatter.getLocale(), other.dateTimeFormatter.getLocale()) == false) {
                 conflicts.add("mapper [" + name() + "] has different [locale] values");
             }
         }
 
-        public FormatDateTimeFormatter dateTimeFormatter() {
+        public DateFormatter dateTimeFormatter() {
             return dateTimeFormatter;
         }
 
-        public void setDateTimeFormatter(FormatDateTimeFormatter dateTimeFormatter) {
+        void setDateTimeFormatter(DateFormatter formatter) {
             checkIfFrozen();
-            this.dateTimeFormatter = dateTimeFormatter;
+            this.dateTimeFormatter = formatter;
             this.dateMathParser = new DateMathParser(dateTimeFormatter);
         }
 
@@ -239,7 +247,7 @@ public class DateFieldMapper extends FieldMapper {
         }
 
         long parse(String value) {
-            return dateTimeFormatter().parser().parseMillis(value);
+            return DateFormatters.toZonedDateTime(dateTimeFormatter().parse(value)).toInstant().toEpochMilli();
         }
 
         @Override
@@ -262,7 +270,7 @@ public class DateFieldMapper extends FieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, ShapeRelation relation,
-                @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
+                @Nullable ZoneId timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
             failIfNotIndexed();
             if (relation == ShapeRelation.DISJOINT) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
@@ -297,7 +305,7 @@ public class DateFieldMapper extends FieldMapper {
         }
 
         public long parseToMilliseconds(Object value, boolean roundUp,
-                @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser, QueryRewriteContext context) {
+                @Nullable ZoneId zone, @Nullable DateMathParser forcedDateParser, QueryRewriteContext context) {
             DateMathParser dateParser = dateMathParser();
             if (forcedDateParser != null) {
                 dateParser = forcedDateParser;
@@ -309,13 +317,13 @@ public class DateFieldMapper extends FieldMapper {
             } else {
                 strValue = value.toString();
             }
-            return dateParser.parse(strValue, context::nowInMillis, roundUp, zone);
+            return dateParser.parse(strValue, context::nowInMillis, roundUp, zone).toEpochMilli();
         }
 
         @Override
         public Relation isFieldWithinQuery(IndexReader reader,
                 Object from, Object to, boolean includeLower, boolean includeUpper,
-                DateTimeZone timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
+                ZoneId timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
             if (dateParser == null) {
                 dateParser = this.dateMathParser;
             }
@@ -374,17 +382,17 @@ public class DateFieldMapper extends FieldMapper {
             if (val == null) {
                 return null;
             }
-            return dateTimeFormatter().printer().print(val);
+            return dateTimeFormatter().format(Instant.ofEpochMilli(val).atZone(ZoneOffset.UTC));
         }
 
         @Override
-        public DocValueFormat docValueFormat(@Nullable String format, DateTimeZone timeZone) {
-            FormatDateTimeFormatter dateTimeFormatter = this.dateTimeFormatter;
+        public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
+            DateFormatter dateTimeFormatter = this.dateTimeFormatter;
             if (format != null) {
-                dateTimeFormatter = Joda.forPattern(format);
+                dateTimeFormatter = DateFormatters.forPattern(format, dateTimeFormatter.getLocale());
             }
             if (timeZone == null) {
-                timeZone = DateTimeZone.UTC;
+                timeZone = ZoneOffset.UTC;
             }
             return new DocValueFormat.DateTime(dateTimeFormatter, timeZone);
         }
@@ -444,7 +452,7 @@ public class DateFieldMapper extends FieldMapper {
         long timestamp;
         try {
             timestamp = fieldType().parse(dateAsString);
-        } catch (IllegalArgumentException e) {
+        } catch (ElasticsearchParseException e) {
             if (ignoreMalformed.value()) {
                 context.addIgnoredField(fieldType.name());
                 return;
@@ -488,12 +496,12 @@ public class DateFieldMapper extends FieldMapper {
         }
 
         if (includeDefaults
-                || fieldType().dateTimeFormatter().format().equals(DEFAULT_DATE_TIME_FORMATTER.format()) == false) {
-            builder.field("format", fieldType().dateTimeFormatter().format());
+                || fieldType().dateTimeFormatter().pattern().equals(DEFAULT_DATE_TIME_FORMATTER.pattern()) == false) {
+            builder.field("format", fieldType().dateTimeFormatter().pattern());
         }
         if (includeDefaults
-                || fieldType().dateTimeFormatter().locale() != Locale.ROOT) {
-            builder.field("locale", fieldType().dateTimeFormatter().locale());
+            || fieldType().dateTimeFormatter().getLocale().equals(DEFAULT_DATE_TIME_FORMATTER.getLocale()) == false) {
+            builder.field("locale", fieldType().dateTimeFormatter().getLocale());
         }
     }
 }

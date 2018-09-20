@@ -24,6 +24,7 @@ import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -181,6 +182,8 @@ class AggregationToJsonProcessor {
     private long toHistogramKeyToEpoch(Object key) {
         if (key instanceof DateTime) {
             return ((DateTime)key).getMillis();
+        } else if (key instanceof ZonedDateTime) {
+            return ((ZonedDateTime)key).toInstant().toEpochMilli();
         } else if (key instanceof Double) {
             return ((Double)key).longValue();
         } else if (key instanceof Long){

@@ -9,8 +9,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -141,7 +141,7 @@ public final class ExtractorUtils {
 
     static long validateAndGetCalendarInterval(String calendarInterval) {
         TimeValue interval;
-        DateTimeUnit dateTimeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(calendarInterval);
+        Rounding.DateTimeUnit dateTimeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(calendarInterval);
         if (dateTimeUnit != null) {
             switch (dateTimeUnit) {
                 case WEEK_OF_WEEKYEAR:
@@ -161,7 +161,7 @@ public final class ExtractorUtils {
                     break;
                 case MONTH_OF_YEAR:
                 case YEAR_OF_CENTURY:
-                case QUARTER:
+                case QUARTER_OF_YEAR:
                     throw ExceptionsHelper.badRequestException(invalidDateHistogramCalendarIntervalMessage(calendarInterval));
                 default:
                     throw ExceptionsHelper.badRequestException("Unexpected dateTimeUnit [" + dateTimeUnit + "]");

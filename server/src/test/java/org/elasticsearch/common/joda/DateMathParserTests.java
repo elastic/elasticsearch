@@ -30,6 +30,7 @@ import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class DateMathParserTests extends ESTestCase {
 
@@ -302,6 +303,11 @@ public class DateMathParserTests extends ESTestCase {
         assertFalse(called.get());
         parser.parse("now/d", now, false, null);
         assertTrue(called.get());
+    }
+
+    public void testSupportsScientificNotation() {
+        long result = parser.parse("1.0e3", () -> 42);
+        assertThat(result, is(1000L));
     }
 
     public void testThatUnixTimestampMayNotHaveTimeZone() {

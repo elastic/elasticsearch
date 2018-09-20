@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.rounding;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -42,6 +43,7 @@ public class RoundingDuelTests extends ESTestCase  {
             rounding = org.elasticsearch.common.Rounding.builder(timeValue()).timeZone(ZoneOffset.UTC).build();
         }
         BytesStreamOutput output = new BytesStreamOutput();
+        output.setVersion(Version.V_6_4_0);
         rounding.writeTo(output);
 
         Rounding roundingJoda = Rounding.Streams.read(output.bytes().streamInput());

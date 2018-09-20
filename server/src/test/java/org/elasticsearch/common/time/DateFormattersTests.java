@@ -19,11 +19,11 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 
 import static org.hamcrest.Matchers.containsString;
@@ -34,8 +34,8 @@ public class DateFormattersTests extends ESTestCase {
     public void testEpochMilliParser() {
         DateFormatter formatter = DateFormatters.forPattern("epoch_millis");
 
-        DateTimeParseException e = expectThrows(DateTimeParseException.class, () -> formatter.parse("invalid"));
-        assertThat(e.getMessage(), containsString("invalid number"));
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> formatter.parse("invalid"));
+        assertThat(e.getMessage(), containsString("could not parse input [invalid] with date formatter [epoch_millis]"));
 
         // different zone, should still yield the same output, as epoch is time zone independent
         ZoneId zoneId = randomZone();

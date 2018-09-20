@@ -19,6 +19,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomTermsGroupConfig;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TermsGroupConfigSerializingTests extends AbstractSerializingTestCase<TermsGroupConfig> {
 
@@ -104,9 +105,6 @@ public class TermsGroupConfigSerializingTests extends AbstractSerializingTestCas
         if (e.validationErrors().size() != 0) {
             fail(e.getMessage());
         }
-
-        List<CompositeValuesSourceBuilder<?>> builders = config.toBuilders();
-        assertThat(builders.size(), equalTo(1));
     }
 
     private String getRandomType() {

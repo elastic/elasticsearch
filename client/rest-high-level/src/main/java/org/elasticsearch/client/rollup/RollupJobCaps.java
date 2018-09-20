@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.rollup;
+package org.elasticsearch.client.rollup;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
@@ -27,18 +27,15 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.xpack.rollup.job.RollupJobConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * Represents the Rollup capabilities for a specific job on a single rollup index
@@ -75,59 +72,7 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
     private String indexPattern;
     private Map<String, RollupFieldCaps> fieldCapLookup;
 
-    // TODO now that these rollup caps are being used more widely (e.g. search), perhaps we should
-    // store the RollupJob and translate into FieldCaps on demand for json output.  Would make working with
-    // it internally a lot easier
-    public RollupJobCaps(RollupJobConfig job) {
-        Map<String, List<Map<String, Object>>> tempFieldCaps = new HashMap<>();
-
-        jobID = job.getId();
-        rollupIndex = job.getRollupIndex();
-        indexPattern = job.getIndexPattern();
-        Map<String, Object> dateHistoAggCap = job.getGroupConfig().getDateHistogram().toAggCap();
-        String dateField = job.getGroupConfig().getDateHistogram().getField();
-        List<Map<String, Object>> fieldCaps = tempFieldCaps.getOrDefault(dateField, new ArrayList<>());
-        fieldCaps.add(dateHistoAggCap);
-        tempFieldCaps.put(dateField, fieldCaps);
-
-        if (job.getGroupConfig().getHistogram() != null) {
-            Map<String, Object> histoAggCap = job.getGroupConfig().getHistogram().toAggCap();
-            Arrays.stream(job.getGroupConfig().getHistogram().getFields()).forEach(field -> {
-                List<Map<String, Object>> caps = tempFieldCaps.getOrDefault(field, new ArrayList<>());
-                caps.add(histoAggCap);
-                tempFieldCaps.put(field, caps);
-            });
-        }
-
-        if (job.getGroupConfig().getTerms() != null) {
-            Map<String, Object> termsAggCap = job.getGroupConfig().getTerms().toAggCap();
-            Arrays.stream(job.getGroupConfig().getTerms().getFields()).forEach(field -> {
-                List<Map<String, Object>> caps = tempFieldCaps.getOrDefault(field, new ArrayList<>());
-                caps.add(termsAggCap);
-                tempFieldCaps.put(field, caps);
-            });
-        }
-
-        if (job.getMetricsConfig().size() > 0) {
-            job.getMetricsConfig().forEach(metricConfig -> {
-                List<Map<String, Object>> metrics = metricConfig.toAggCap();
-                metrics.forEach(m -> {
-                    List<Map<String, Object>> caps = tempFieldCaps
-                        .getOrDefault(metricConfig.getField(), new ArrayList<>());
-                    caps.add(m);
-                    tempFieldCaps.put(metricConfig.getField(), caps);
-                });
-            });
-        }
-
-        // Convert the temp lists into RollupFieldCaps
-        this.fieldCapLookup = Collections.unmodifiableMap(tempFieldCaps.entrySet()
-            .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey,
-                e -> new RollupFieldCaps(e.getValue()))));
-    }
-
-    public RollupJobCaps(String jobID, String rollupIndex, String indexPattern, Map<String, RollupFieldCaps> fieldCapLookup) {
+    RollupJobCaps(String jobID, String rollupIndex, String indexPattern, Map<String, RollupFieldCaps> fieldCapLookup) {
         this.jobID = jobID;
         this.rollupIndex = rollupIndex;
         this.indexPattern = indexPattern;

@@ -27,9 +27,6 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.protocol.xpack.rollup.RollupJobCaps;
-import org.elasticsearch.protocol.xpack.rollup.job.MetricConfig;
-import org.elasticsearch.protocol.xpack.rollup.job.TermsGroupConfig;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -48,10 +45,13 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
-import org.elasticsearch.protocol.xpack.rollup.RollupField;
-import org.elasticsearch.protocol.xpack.rollup.job.DateHistogramGroupConfig;
-import org.elasticsearch.protocol.xpack.rollup.job.GroupConfig;
-import org.elasticsearch.protocol.xpack.rollup.job.RollupJobConfig;
+import org.elasticsearch.xpack.core.rollup.RollupField;
+import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
+import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
+import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.hamcrest.core.IsEqual;
 import org.joda.time.DateTimeZone;
@@ -70,7 +70,6 @@ import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
-import static org.elasticsearch.protocol.xpack.rollup.RollupField.COUNT_FIELD;
 import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomHistogramGroupConfig;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -630,7 +629,7 @@ public class SearchActionTests extends ESTestCase {
 
         List<InternalAggregation> subaggs = new ArrayList<>(2);
         Map<String, Object> metadata = new HashMap<>(1);
-        metadata.put(RollupField.ROLLUP_META + "." + COUNT_FIELD, "foo." + COUNT_FIELD);
+        metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
         InternalSum sum = mock(InternalSum.class);
         when(sum.getValue()).thenReturn(10.0);
         when(sum.value()).thenReturn(10.0);
@@ -642,7 +641,7 @@ public class SearchActionTests extends ESTestCase {
         InternalSum count = mock(InternalSum.class);
         when(count.getValue()).thenReturn(2.0);
         when(count.value()).thenReturn(2.0);
-        when(count.getName()).thenReturn("foo." + COUNT_FIELD);
+        when(count.getName()).thenReturn("foo." + RollupField.COUNT_FIELD);
         when(count.getMetaData()).thenReturn(null);
         when(count.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(count);
@@ -747,7 +746,7 @@ public class SearchActionTests extends ESTestCase {
 
         List<InternalAggregation> subaggs = new ArrayList<>(2);
         Map<String, Object> metadata = new HashMap<>(1);
-        metadata.put(RollupField.ROLLUP_META + "." + COUNT_FIELD, "foo." + COUNT_FIELD);
+        metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
         InternalSum sum = mock(InternalSum.class);
         when(sum.getValue()).thenReturn(10.0);
         when(sum.value()).thenReturn(10.0);
@@ -759,7 +758,7 @@ public class SearchActionTests extends ESTestCase {
         InternalSum count = mock(InternalSum.class);
         when(count.getValue()).thenReturn(2.0);
         when(count.value()).thenReturn(2.0);
-        when(count.getName()).thenReturn("foo." + COUNT_FIELD);
+        when(count.getName()).thenReturn("foo." + RollupField.COUNT_FIELD);
         when(count.getMetaData()).thenReturn(null);
         when(count.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(count);

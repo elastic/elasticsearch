@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.rollup;
+package org.elasticsearch.client.rollup;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -24,14 +24,15 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetRollupCapsRequest extends ActionRequest implements ToXContent {
+public class GetRollupCapsRequest extends ActionRequest implements ToXContentObject {
     private String indexPattern;
+    private static final String ID = "id";
 
     public GetRollupCapsRequest(String indexPattern) {
         if (Strings.isNullOrEmpty(indexPattern) || indexPattern.equals("*")) {
@@ -66,7 +67,7 @@ public class GetRollupCapsRequest extends ActionRequest implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(RollupField.ID.getPreferredName(), indexPattern);
+        builder.field(ID, indexPattern);
         return builder;
     }
 

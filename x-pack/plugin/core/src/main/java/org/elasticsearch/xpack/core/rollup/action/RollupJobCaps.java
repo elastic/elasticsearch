@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -54,6 +55,13 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
         rollupIndex = job.getRollupIndex();
         indexPattern = job.getIndexPattern();
         fieldCapLookup = createRollupFieldCaps(job);
+    }
+
+    public RollupJobCaps(String jobID, String rollupIndex, String indexPattern, Map<String, RollupFieldCaps> fieldCapLookup) {
+        this.jobID = jobID;
+        this.rollupIndex = rollupIndex;
+        this.indexPattern = indexPattern;
+        this.fieldCapLookup = Collections.unmodifiableMap(Objects.requireNonNull(fieldCapLookup));
     }
 
     public RollupJobCaps(StreamInput in) throws IOException {
@@ -124,8 +132,8 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
         return Objects.hash(jobID, rollupIndex, fieldCapLookup);
     }
 
-    static Map<String, RollupFieldCaps> createRollupFieldCaps(final RollupJobConfig rollupJobConfig) {
-        final Map<String, RollupFieldCaps> fieldCapLookup = new HashMap<>();
+    private static Map<String, RollupFieldCaps> createRollupFieldCaps(final RollupJobConfig rollupJobConfig) {
+        final Map<String, List<Map<String, Object>>> tempFieldCaps = new HashMap<>();
 
         final GroupConfig groupConfig = rollupJobConfig.getGroupConfig();
         if (groupConfig != null) {
@@ -139,9 +147,9 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
             }
             dateHistogramAggCap.put(DateHistogramGroupConfig.TIME_ZONE, dateHistogram.getTimeZone());
 
-            final RollupFieldCaps dateHistogramFieldCaps = new RollupFieldCaps();
-            dateHistogramFieldCaps.addAgg(dateHistogramAggCap);
-            fieldCapLookup.put(dateHistogram.getField(), dateHistogramFieldCaps);
+            List<Map<String, Object>> dateAggCaps = tempFieldCaps.getOrDefault(dateHistogram.getField(), new ArrayList<>());
+            dateAggCaps.add(dateHistogramAggCap);
+            tempFieldCaps.put(dateHistogram.getField(), dateAggCaps);
 
             // Create RollupFieldCaps for the histogram
             final HistogramGroupConfig histogram = groupConfig.getHistogram();
@@ -149,56 +157,49 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
                 final Map<String, Object> histogramAggCap = new HashMap<>();
                 histogramAggCap.put("agg", HistogramAggregationBuilder.NAME);
                 histogramAggCap.put(HistogramGroupConfig.INTERVAL, histogram.getInterval());
-                for (String field : histogram.getFields()) {
-                    RollupFieldCaps caps = fieldCapLookup.get(field);
-                    if (caps == null) {
-                        caps = new RollupFieldCaps();
-                    }
-                    caps.addAgg(histogramAggCap);
-                    fieldCapLookup.put(field, caps);
-                }
+                Arrays.stream(rollupJobConfig.getGroupConfig().getHistogram().getFields()).forEach(field -> {
+                    List<Map<String, Object>> caps = tempFieldCaps.getOrDefault(field, new ArrayList<>());
+                    caps.add(histogramAggCap);
+                    tempFieldCaps.put(field, caps);
+                });
             }
 
             // Create RollupFieldCaps for the term
             final TermsGroupConfig terms = groupConfig.getTerms();
             if (terms != null) {
                 final Map<String, Object> termsAggCap = singletonMap("agg", TermsAggregationBuilder.NAME);
-                for (String field : terms.getFields()) {
-                    RollupFieldCaps caps = fieldCapLookup.get(field);
-                    if (caps == null) {
-                        caps = new RollupFieldCaps();
-                    }
-                    caps.addAgg(termsAggCap);
-                    fieldCapLookup.put(field, caps);
-                }
+                Arrays.stream(rollupJobConfig.getGroupConfig().getTerms().getFields()).forEach(field -> {
+                    List<Map<String, Object>> caps = tempFieldCaps.getOrDefault(field, new ArrayList<>());
+                    caps.add(termsAggCap);
+                    tempFieldCaps.put(field, caps);
+                });
             }
         }
 
         // Create RollupFieldCaps for the metrics
         final List<MetricConfig> metricsConfig = rollupJobConfig.getMetricsConfig();
             if (metricsConfig.size() > 0) {
-            metricsConfig.forEach(metricConfig -> {
-                final List<Map<String, Object>> metrics = metricConfig.getMetrics().stream()
-                    .map(metric -> singletonMap("agg", (Object) metric))
-                    .collect(Collectors.toList());
-
-                metrics.forEach(m -> {
-                    RollupFieldCaps caps = fieldCapLookup.get(metricConfig.getField());
-                    if (caps == null) {
-                        caps = new RollupFieldCaps();
-                    }
-                    caps.addAgg(m);
-                    fieldCapLookup.put(metricConfig.getField(), caps);
+                rollupJobConfig.getMetricsConfig().forEach(metricConfig -> {
+                    final List<Map<String, Object>> metrics = metricConfig.getMetrics().stream()
+                        .map(metric -> singletonMap("agg", (Object) metric))
+                        .collect(Collectors.toList());
+                    metrics.forEach(m -> {
+                        List<Map<String, Object>> caps = tempFieldCaps
+                            .getOrDefault(metricConfig.getField(), new ArrayList<>());
+                        caps.add(m);
+                        tempFieldCaps.put(metricConfig.getField(), caps);
+                    });
                 });
-            });
         }
-        return Collections.unmodifiableMap(fieldCapLookup);
+
+        return Collections.unmodifiableMap(tempFieldCaps.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey,
+                e -> new RollupFieldCaps(e.getValue()))));
     }
 
     public static class RollupFieldCaps implements Writeable, ToXContentObject {
         private List<Map<String, Object>> aggs = new ArrayList<>();
-
-        RollupFieldCaps() { }
 
         RollupFieldCaps(StreamInput in) throws IOException {
             int size = in.readInt();
@@ -208,8 +209,8 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
             }
         }
 
-        void addAgg(Map<String, Object> agg) {
-            aggs.add(agg);
+        RollupFieldCaps(List<Map<String, Object>> aggs) {
+            this.aggs = Collections.unmodifiableList(Objects.requireNonNull(aggs));
         }
 
         public List<Map<String, Object>> getAggs() {

@@ -10,11 +10,11 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.protocol.xpack.rollup.RollableIndexCaps;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
-import org.elasticsearch.protocol.xpack.rollup.RollupField;
+import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
+import org.elasticsearch.xpack.core.rollup.action.RollableIndexCaps;
 import org.mockito.Mockito;
 
 import java.io.IOException;

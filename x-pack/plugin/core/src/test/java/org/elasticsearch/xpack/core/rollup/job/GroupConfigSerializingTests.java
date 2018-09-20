@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.xpack.rollup.job.GroupConfig;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;

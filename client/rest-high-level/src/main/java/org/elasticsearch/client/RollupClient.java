@@ -20,6 +20,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.rollup.GetRollupCapsRequest;
+import org.elasticsearch.client.rollup.GetRollupCapsResponse;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobResponse;
 
@@ -84,8 +86,8 @@ public class RollupClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public GetRollupCapsResponse getRollupCapabilities(GetRollupCapsRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::getRollupCaps, options,
-            GetRollupCapsResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(request, RollupRequestConverters::getRollupCaps, options,
+            GetRollupCapsResponse::fromXContent, Collections.emptySet());
     }
 
     /**
@@ -98,7 +100,7 @@ public class RollupClient {
      */
     public void getRollupCapabilitiesAsync(GetRollupCapsRequest request, RequestOptions options,
                                            ActionListener<GetRollupCapsResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::getRollupCaps, options,
-            GetRollupCapsResponse::fromXContent, listener, emptySet());
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RollupRequestConverters::getRollupCaps, options,
+            GetRollupCapsResponse::fromXContent, listener, Collections.emptySet());
     }
 }

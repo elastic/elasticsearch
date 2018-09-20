@@ -10,12 +10,12 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.protocol.xpack.rollup.GetRollupCapsRequest;
-import org.elasticsearch.protocol.xpack.rollup.RollableIndexCaps;
-import org.elasticsearch.protocol.xpack.rollup.RollupField;
-import org.elasticsearch.protocol.xpack.rollup.job.RollupJobConfig;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
+import org.elasticsearch.xpack.core.rollup.RollupField;
+import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
+import org.elasticsearch.xpack.core.rollup.action.RollableIndexCaps;
+import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -27,19 +27,19 @@ import java.util.Optional;
 import static org.hamcrest.Matchers.equalTo;
 
 
-public class GetRollupCapsRequestTests extends AbstractStreamableTestCase<GetRollupCapsRequest> {
+public class GetRollupCapsActionRequestTests extends AbstractStreamableTestCase<GetRollupCapsAction.Request> {
 
     @Override
-    protected GetRollupCapsRequest createTestInstance() {
+    protected GetRollupCapsAction.Request createTestInstance() {
         if (randomBoolean()) {
-            return new GetRollupCapsRequest(MetaData.ALL);
+            return new GetRollupCapsAction.Request(MetaData.ALL);
         }
-        return new GetRollupCapsRequest(randomAlphaOfLengthBetween(1, 20));
+        return new GetRollupCapsAction.Request(randomAlphaOfLengthBetween(1, 20));
     }
 
     @Override
-    protected GetRollupCapsRequest createBlankInstance() {
-        return new GetRollupCapsRequest();
+    protected GetRollupCapsAction.Request createBlankInstance() {
+        return new GetRollupCapsAction.Request();
     }
 
     public void testNoIndexMetaData() {
@@ -75,8 +75,8 @@ public class GetRollupCapsRequestTests extends AbstractStreamableTestCase<GetRol
         String indexPattern = randomBoolean() ? randomAlphaOfLength(10) : randomAlphaOfLength(10) + "-*";
 
         MappingMetaData mappingMeta = new MappingMetaData(RollupField.NAME, Collections.singletonMap(RollupField.NAME,
-                Collections.singletonMap("_meta",
-                        Collections.emptyMap())));
+            Collections.singletonMap("_meta",
+                Collections.emptyMap())));
 
         ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder(1);
         mappings.put(RollupField.NAME, mappingMeta);
@@ -92,10 +92,10 @@ public class GetRollupCapsRequestTests extends AbstractStreamableTestCase<GetRol
         RollupJobConfig job = ConfigTestHelpers.randomRollupJobConfig(random(), jobName);
 
         MappingMetaData mappingMeta = new MappingMetaData(RollupField.TYPE_NAME,
-                Collections.singletonMap(RollupField.TYPE_NAME,
-                        Collections.singletonMap("_meta",
-                            Collections.singletonMap(RollupField.ROLLUP_META,
-                                Collections.singletonMap(jobName, job)))));
+            Collections.singletonMap(RollupField.TYPE_NAME,
+                Collections.singletonMap("_meta",
+                    Collections.singletonMap(RollupField.ROLLUP_META,
+                        Collections.singletonMap(jobName, job)))));
 
         ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder(1);
         mappings.put(RollupField.TYPE_NAME, mappingMeta);
@@ -117,9 +117,9 @@ public class GetRollupCapsRequestTests extends AbstractStreamableTestCase<GetRol
         }
 
         MappingMetaData mappingMeta = new MappingMetaData(RollupField.TYPE_NAME,
-                Collections.singletonMap(RollupField.TYPE_NAME,
-                        Collections.singletonMap("_meta",
-                                Collections.singletonMap(RollupField.ROLLUP_META, jobs))));
+            Collections.singletonMap(RollupField.TYPE_NAME,
+                Collections.singletonMap("_meta",
+                    Collections.singletonMap(RollupField.ROLLUP_META, jobs))));
 
         ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder(1);
         mappings.put(RollupField.TYPE_NAME, mappingMeta);
@@ -151,9 +151,9 @@ public class GetRollupCapsRequestTests extends AbstractStreamableTestCase<GetRol
             }
 
             MappingMetaData mappingMeta = new MappingMetaData(RollupField.TYPE_NAME,
-                    Collections.singletonMap(RollupField.TYPE_NAME,
-                            Collections.singletonMap("_meta",
-                                    Collections.singletonMap(RollupField.ROLLUP_META, jobs))));
+                Collections.singletonMap(RollupField.TYPE_NAME,
+                    Collections.singletonMap("_meta",
+                        Collections.singletonMap(RollupField.ROLLUP_META, jobs))));
 
             ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder(1);
             mappings.put(RollupField.TYPE_NAME, mappingMeta);
@@ -183,9 +183,9 @@ public class GetRollupCapsRequestTests extends AbstractStreamableTestCase<GetRol
             }
 
             MappingMetaData mappingMeta = new MappingMetaData(RollupField.TYPE_NAME,
-                    Collections.singletonMap(RollupField.TYPE_NAME,
-                            Collections.singletonMap("_meta",
-                                    Collections.singletonMap(RollupField.ROLLUP_META, jobs))));
+                Collections.singletonMap(RollupField.TYPE_NAME,
+                    Collections.singletonMap("_meta",
+                        Collections.singletonMap(RollupField.ROLLUP_META, jobs))));
 
             ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder(1);
             mappings.put(RollupField.TYPE_NAME, mappingMeta);

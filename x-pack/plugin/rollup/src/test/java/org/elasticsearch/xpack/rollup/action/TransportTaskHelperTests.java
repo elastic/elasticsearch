@@ -9,7 +9,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.protocol.xpack.rollup.job.RollupJobConfig;
+import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.rollup.job.RollupJobTask;
 
 import java.util.Collections;

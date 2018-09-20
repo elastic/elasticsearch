@@ -17,14 +17,12 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.protocol.xpack.rollup.GetRollupCapsRequest;
-import org.elasticsearch.protocol.xpack.rollup.GetRollupCapsResponse;
-import org.elasticsearch.protocol.xpack.rollup.RollableIndexCaps;
-import org.elasticsearch.protocol.xpack.rollup.RollupField;
-import org.elasticsearch.protocol.xpack.rollup.RollupJobCaps;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
+import org.elasticsearch.xpack.core.rollup.action.RollableIndexCaps;
+import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,7 +32,7 @@ import java.util.TreeMap;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-public class TransportGetRollupCapsAction extends HandledTransportAction<GetRollupCapsRequest, GetRollupCapsResponse> {
+public class TransportGetRollupCapsAction extends HandledTransportAction<GetRollupCapsAction.Request, GetRollupCapsAction.Response> {
 
     private final ClusterService clusterService;
 
@@ -42,14 +40,14 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
     public TransportGetRollupCapsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                         ActionFilters actionFilters) {
         super(settings, GetRollupCapsAction.NAME, transportService, actionFilters,
-            (Supplier<GetRollupCapsRequest>) GetRollupCapsRequest::new);
+            (Supplier<GetRollupCapsAction.Request>) GetRollupCapsAction.Request::new);
         this.clusterService = clusterService;
     }
 
     @Override
-    protected void doExecute(Task task, GetRollupCapsRequest request, ActionListener<GetRollupCapsResponse> listener) {
+    protected void doExecute(Task task, GetRollupCapsAction.Request request, ActionListener<GetRollupCapsAction.Response> listener) {
         Map<String, RollableIndexCaps> allCaps = getCaps(request.getIndexPattern(), clusterService.state().getMetaData().indices());
-        listener.onResponse(new GetRollupCapsResponse(allCaps));
+        listener.onResponse(new GetRollupCapsAction.Response(allCaps));
     }
 
     static Map<String, RollableIndexCaps> getCaps(String indexPattern, ImmutableOpenMap<String, IndexMetaData> indices) {

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.client;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -27,8 +28,12 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.rollup.GetRollupCapsRequest;
+import org.elasticsearch.client.rollup.GetRollupCapsResponse;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobResponse;
+import org.elasticsearch.client.rollup.RollableIndexCaps;
+import org.elasticsearch.client.rollup.RollupJobCaps;
 import org.elasticsearch.client.rollup.job.config.DateHistogramGroupConfig;
 import org.elasticsearch.client.rollup.job.config.GroupConfig;
 import org.elasticsearch.client.rollup.job.config.MetricConfig;
@@ -45,11 +50,14 @@ import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilde
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.equalTo;
 
 public class RollupIT extends ESRestHighLevelClientTestCase {
 

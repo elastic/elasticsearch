@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.rollup;
+package org.elasticsearch.client.rollup;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;

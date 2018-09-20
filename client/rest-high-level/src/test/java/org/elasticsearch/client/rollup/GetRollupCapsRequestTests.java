@@ -16,22 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.rollup;
+package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.XContentParser;
 
-public class PutRollupJobResponse extends AcknowledgedResponse {
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.test.AbstractStreamableTestCase;
 
-    public PutRollupJobResponse() {
-        super();
+
+public class GetRollupCapsRequestTests extends AbstractStreamableTestCase<GetRollupCapsRequest> {
+
+    @Override
+    protected GetRollupCapsRequest createTestInstance() {
+        if (randomBoolean()) {
+            return new GetRollupCapsRequest(MetaData.ALL);
+        }
+        return new GetRollupCapsRequest(randomAlphaOfLengthBetween(1, 20));
     }
 
-    public PutRollupJobResponse(final boolean acknowledged) {
-        super(acknowledged);
+    @Override
+    protected GetRollupCapsRequest createBlankInstance() {
+        return new GetRollupCapsRequest();
     }
 
-    public static PutRollupJobResponse fromXContent(final XContentParser parser) {
-        return new PutRollupJobResponse(parseAcknowledged(parser));
-    }
 }
+
+

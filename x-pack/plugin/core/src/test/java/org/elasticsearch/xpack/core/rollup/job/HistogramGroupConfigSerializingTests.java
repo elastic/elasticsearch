@@ -9,9 +9,8 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.xpack.rollup.RollupField;
-import org.elasticsearch.protocol.xpack.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
 import java.util.Collections;

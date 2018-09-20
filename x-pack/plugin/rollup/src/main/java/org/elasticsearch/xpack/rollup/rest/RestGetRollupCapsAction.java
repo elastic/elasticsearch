@@ -8,13 +8,12 @@ package org.elasticsearch.xpack.rollup.rest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.protocol.xpack.rollup.GetRollupCapsRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.rollup.Rollup;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
+import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.io.IOException;
 
@@ -29,7 +28,7 @@ public class RestGetRollupCapsAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String id = restRequest.param(ID.getPreferredName());
-        GetRollupCapsRequest request = new GetRollupCapsRequest(id);
+        GetRollupCapsAction.Request request = new GetRollupCapsAction.Request(id);
 
         return channel -> client.execute(GetRollupCapsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

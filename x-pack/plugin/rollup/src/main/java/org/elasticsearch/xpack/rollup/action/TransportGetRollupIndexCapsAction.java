@@ -14,11 +14,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.protocol.xpack.rollup.RollableIndexCaps;
-import org.elasticsearch.protocol.xpack.rollup.RollupJobCaps;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
+import org.elasticsearch.xpack.core.rollup.action.RollableIndexCaps;
+import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
 
 import java.util.ArrayList;
 import java.util.Arrays;

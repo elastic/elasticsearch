@@ -5,14 +5,14 @@
  */
 package org.elasticsearch.xpack.rollup.config;
 
-import org.elasticsearch.protocol.xpack.rollup.job.HistogramGroupConfig;
-import org.elasticsearch.protocol.xpack.rollup.job.MetricConfig;
-import org.elasticsearch.protocol.xpack.rollup.job.TermsGroupConfig;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.protocol.xpack.rollup.job.DateHistogramGroupConfig;
-import org.elasticsearch.protocol.xpack.rollup.job.GroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
+import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.joda.time.DateTimeZone;
 
 import java.util.HashMap;

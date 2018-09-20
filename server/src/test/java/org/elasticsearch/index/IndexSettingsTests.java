@@ -561,4 +561,44 @@ public class IndexSettingsTests extends ESTestCase {
                 Settings.builder(), Settings.builder(), "index"));
         assertThat(error.getMessage(), equalTo("final index setting [index.soft_deletes.enabled], not updateable"));
     }
+
+    public void testUpdateTranslogSyncInterval() {
+        //Default value
+        TimeValue translogSyncIntervalSetting = new TimeValue(5, TimeUnit.SECONDS);
+        IndexMetaData metaData = newIndexMeta("index", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), translogSyncIntervalSetting.getStringRep())
+            .build());
+        IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
+        //Default is 5 seconds
+        assertEquals(TimeValue.parseTimeValue(translogSyncIntervalSetting.getStringRep(), new TimeValue(5, TimeUnit.SECONDS),
+            IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey()).getSeconds(), settings.getTranslogSyncInterval().getSeconds());
+
+        //Set Valid value
+        TimeValue newValidTlogSyncIntervalSetting = new TimeValue(30, TimeUnit.SECONDS);
+
+        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(),
+            newValidTlogSyncIntervalSetting.getStringRep()).build()));
+
+        assertEquals(TimeValue.parseTimeValue(newValidTlogSyncIntervalSetting.getStringRep(), new TimeValue(30, TimeUnit.SECONDS),
+            IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey()).getSeconds(), settings.getTranslogSyncInterval().getSeconds());
+
+        //Try value < 100ms
+        TimeValue illegalTlogSyncIntervalSetting = new TimeValue(1, TimeUnit.MILLISECONDS);
+        expectThrows(IllegalArgumentException.class, () -> settings.updateIndexMetaData(newIndexMeta("index",
+            Settings.builder().put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(),
+            illegalTlogSyncIntervalSetting.getStringRep()).build())));
+        //Current index settings must remain unaffected.
+        assertEquals(TimeValue.parseTimeValue(newValidTlogSyncIntervalSetting.getStringRep(), new TimeValue(30, TimeUnit.SECONDS),
+            IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey()).getSeconds(), settings.getTranslogSyncInterval().getSeconds());
+
+        //Try value 100ms, should not cause an issue.
+        TimeValue borderLineTlogSyncIntervalSetting = new TimeValue(100, TimeUnit.MILLISECONDS);
+        settings.updateIndexMetaData(newIndexMeta("index",
+            Settings.builder().put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(),
+                borderLineTlogSyncIntervalSetting.getStringRep()).build()));
+
+        assertEquals(TimeValue.parseTimeValue(borderLineTlogSyncIntervalSetting.getStringRep(), new TimeValue(100, TimeUnit.MILLISECONDS),
+            IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey()).getMillis(), settings.getTranslogSyncInterval().getMillis());
+    }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -99,6 +100,7 @@ public class SimpleMockNioTransportTests extends AbstractSimpleTransportTestCase
     }
 
     public void testConnectException() throws UnknownHostException {
+        assumeFalse("Broken on Darwin - https://github.com/elastic/elasticsearch/issues/33879", Constants.MAC_OS_X);
         try {
             serviceA.connectToNode(new DiscoveryNode("C", new TransportAddress(InetAddress.getByName("localhost"), 9876),
                 emptyMap(), emptySet(),Version.CURRENT));

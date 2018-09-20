@@ -95,6 +95,7 @@ verify_package_installation() {
     assert_file "$ESHOME/bin" d root root 755
     assert_file "$ESHOME/bin/elasticsearch" f root root 755
     assert_file "$ESHOME/bin/elasticsearch-plugin" f root root 755
+    assert_file "$ESHOME/bin/elasticsearch-shard" f root root 755
     assert_file "$ESHOME/bin/elasticsearch-translog" f root root 755
     assert_file "$ESHOME/lib" d root root 755
     assert_file "$ESCONFIG" d root elasticsearch 2750

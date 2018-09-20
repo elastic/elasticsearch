@@ -18,55 +18,70 @@
  */
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.AbstractSearchTestCase;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.usage.UsageService;
-import org.junit.Before;
+import org.junit.BeforeClass;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 public class RestValidateQueryActionTests extends AbstractSearchTestCase {
 
-    private final Settings settings = Settings.EMPTY;
-    private final NodeClient client = mock(NodeClient.class);
+    private static final Settings settings = Settings.EMPTY;
+    private static final TestThreadPool threadPool = new TestThreadPool(RestValidateQueryActionTests.class.getName());
+    private static final NodeClient client = new NodeClient(settings, threadPool);
+
     private final UsageService usageService = new UsageService(settings);
     private final RestController controller = new RestController(settings, emptySet(), null, client, null, usageService);
     private final RestValidateQueryAction action = spy(new RestValidateQueryAction(settings, controller));
 
     /**
-     * Configures {@link NodeClient} mock to disable {@link IndicesAdminClient#validateQuery(ValidateQueryRequest, ActionListener)} action.
+     * Configures {@link NodeClient} to stub {@link ValidateQueryAction} transport action.
      * <p>
      * This lower level of validation is out of the scope of this test.
-     *
-     * @throws Exception thrown if an error occurs
      */
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    @BeforeClass
+    public static void stubValidateQueryAction() {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
 
-        doNothing().when(action).validateQuery(eq(client), any(ValidateQueryRequest.class), any(RestChannel.class));
+        final TransportAction transportAction = new TransportAction(Settings.EMPTY, ValidateQueryAction.NAME,
+            new ActionFilters(Collections.emptySet()), taskManager) {
+            @Override
+            protected void doExecute(Task task, ActionRequest request, ActionListener listener) {
+            }
+        };
+
+        final Map<Action, TransportAction> actions = new HashMap<>();
+        actions.put(ValidateQueryAction.INSTANCE, transportAction);
+
+        client.initialize(actions, () -> "local", null);
     }
 
-    public void testRestValidateQueryAction_validQuery() throws Exception {
+    public void testRestValidateQueryAction() throws Exception {
         // GIVEN a valid query
         final String content = "{\"query\":{\"bool\":{\"must\":{\"term\":{\"user\":\"kimchy\"}}}}}";
 

@@ -2728,11 +2728,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * A replica calls this method to advance the max_seq_no_of_updates marker of its engine to at least the max_seq_no_of_updates
      * value (piggybacked in a replication request) that it receives from its primary before executing that replication request.
-     * The receiving value is at least the highest max_seq_no_of_updates of all index/delete operations in that replication request.
+     * The receiving value is at least as high as the max_seq_no_of_updates on the primary was when any of the operations of that
+     * replication request were processed on it.
      * <p>
      * A replica shard also calls this method to bootstrap the max_seq_no_of_updates marker with the value that it received from
      * the primary in peer-recovery, before it replays remote translog operations from the primary. The receiving value is at least
-     * the highest max_seq_no_of_updates of all translog operations will be replayed in that peer-recovery.
+     * as high as the max_seq_no_of_updates on the primary was when any of these operations were processed on it.
      * <p>
      * These transfers guarantee that every index/delete operation when executing on a replica engine will observe this marker a value
      * which is at least the value of the max_seq_no_of_updates marker on the primary after that operation was executed on the primary.

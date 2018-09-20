@@ -36,7 +36,7 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleSecurityTrans
                 .put("xpack.security.transport.ssl.enabled", true).build();
         Transport transport = new SecurityNioTransport(settings1, threadPool,
                 networkService, BigArrays.NON_RECYCLING_INSTANCE, new MockPageCacheRecycler(settings), namedWriteableRegistry,
-                new NoneCircuitBreakerService(), null, createSSLService()) {
+                new NoneCircuitBreakerService(), null, createSSLService(settings1)) {
 
             @Override
             public Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout) throws IOException,

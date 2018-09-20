@@ -48,11 +48,16 @@ import static org.hamcrest.Matchers.instanceOf;
 public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSimpleTransportTestCase {
 
     protected SSLService createSSLService() {
+        return createSSLService(Settings.EMPTY);
+    }
+
+    protected SSLService createSSLService(Settings settings) {
         Path testnodeCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
         Path testnodeKey = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
-        Settings settings = Settings.builder()
+        Settings settings1 = Settings.builder()
+            .put(settings)
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.ssl.key", testnodeKey)
             .put("xpack.ssl.certificate", testnodeCert)
@@ -60,7 +65,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
             .setSecureSettings(secureSettings)
             .build();
         try {
-            return new SSLService(settings, TestEnvironment.newEnvironment(settings));
+            return new SSLService(settings1, TestEnvironment.newEnvironment(settings1));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -115,13 +120,6 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
                 connection.channel(TransportRequestOptions.Type.PING), TimeValue.timeValueSeconds(10));
             assertEquals(version, Version.CURRENT);
         }
-    }
-
-    // TODO: These tests as configured do not currently work with the security transport
-
-    @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33285")
-    public void testTransportProfilesWithPortAndHost() {
     }
 
     @SuppressForbidden(reason = "Need to open socket connection")

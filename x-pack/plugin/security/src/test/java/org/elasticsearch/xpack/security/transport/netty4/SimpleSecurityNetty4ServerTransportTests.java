@@ -74,7 +74,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleSecu
             .put("xpack.security.transport.ssl.enabled", true).build();
         Transport transport = new SecurityNetty4ServerTransport(settings1, threadPool,
             networkService, BigArrays.NON_RECYCLING_INSTANCE, namedWriteableRegistry,
-            new NoneCircuitBreakerService(), null, createSSLService()) {
+            new NoneCircuitBreakerService(), null, createSSLService(settings1)) {
 
             @Override
             public Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout) throws IOException,

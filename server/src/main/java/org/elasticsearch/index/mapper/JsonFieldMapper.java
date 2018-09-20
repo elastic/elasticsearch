@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -74,9 +75,12 @@ public final class JsonFieldMapper extends FieldMapper {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.freeze();
         }
+
+        public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
     }
 
     public static class Builder extends FieldMapper.Builder<Builder, JsonFieldMapper> {
+        private int ignoreAbove = Defaults.IGNORE_ABOVE;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -98,6 +102,14 @@ public final class JsonFieldMapper extends FieldMapper {
             return super.indexOptions(indexOptions);
         }
 
+        public Builder ignoreAbove(int ignoreAbove) {
+            if (ignoreAbove < 0) {
+                throw new IllegalArgumentException("[ignore_above] must be positive, got " + ignoreAbove);
+            }
+            this.ignoreAbove = ignoreAbove;
+            return this;
+        }
+
         public Builder addMultiField(Mapper.Builder mapperBuilder) {
             throw new UnsupportedOperationException("[fields] is not supported for [" + CONTENT_TYPE + "] fields.");
         }
@@ -110,7 +122,8 @@ public final class JsonFieldMapper extends FieldMapper {
         @Override
         public JsonFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            return new JsonFieldMapper(name, fieldType, defaultFieldType, context.indexSettings());
+            return new JsonFieldMapper(name, fieldType, defaultFieldType,
+                ignoreAbove, context.indexSettings());
         }
     }
 
@@ -123,7 +136,10 @@ public final class JsonFieldMapper extends FieldMapper {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = entry.getKey();
                 Object propNode = entry.getValue();
-                if (propName.equals("norms")) {
+                if (propName.equals("ignore_above")) {
+                    builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
+                    iterator.remove();
+                } else if (propName.equals("norms")) {
                     TypeParsers.parseNorms(builder, name, propNode);
                     iterator.remove();
                 }
@@ -186,19 +202,29 @@ public final class JsonFieldMapper extends FieldMapper {
     }
 
     private final JsonFieldParser fieldParser;
+    private int ignoreAbove;
 
     private JsonFieldMapper(String simpleName,
                             MappedFieldType fieldType,
                             MappedFieldType defaultFieldType,
+                            int ignoreAbove,
                             Settings indexSettings) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
-        this.fieldParser = new JsonFieldParser(fieldType);
+
+        this.ignoreAbove = ignoreAbove;
+        this.fieldParser = new JsonFieldParser(fieldType, ignoreAbove);
     }
 
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    protected void doMerge(Mapper mergeWith) {
+        super.doMerge(mergeWith);
+        this.ignoreAbove = ((JsonFieldMapper) mergeWith).ignoreAbove;
     }
 
     @Override
@@ -230,5 +256,9 @@ public final class JsonFieldMapper extends FieldMapper {
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
+
+        if (includeDefaults || ignoreAbove != Defaults.IGNORE_ABOVE) {
+            builder.field("ignore_above", ignoreAbove);
+        }
     }
 }

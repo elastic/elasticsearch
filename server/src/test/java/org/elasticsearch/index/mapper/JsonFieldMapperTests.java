@@ -300,4 +300,32 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("field", field3.name());
         assertEquals(new BytesRef("false"), field3.binaryValue());
     }
+
+    public void testIgnoreAbove() throws IOException {
+         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "json")
+                        .field("ignore_above", 10)
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
+            .startArray("field")
+                .startObject()
+                    .field("key", "a longer than usual value")
+                .endObject()
+            .endArray()
+        .endObject());
+
+        ParsedDocument parsedDoc = mapper.parse(SourceToParse.source("test", "type", "1", doc, XContentType.JSON));
+        IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(0, fields.length);
+    }
 }

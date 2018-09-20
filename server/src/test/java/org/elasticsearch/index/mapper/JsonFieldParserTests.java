@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class JsonFieldParserTests extends ESTestCase {
@@ -39,7 +40,7 @@ public class JsonFieldParserTests extends ESTestCase {
 
         MappedFieldType fieldType = new JsonFieldType();
         fieldType.setName("field");
-        parser = new JsonFieldParser(fieldType);
+        parser = new JsonFieldParser(fieldType, Integer.MAX_VALUE);
     }
 
     public void testTextValues() throws Exception {
@@ -113,6 +114,18 @@ public class JsonFieldParserTests extends ESTestCase {
         IndexableField field2 = fields.get(1);
         assertEquals("field", field2.name());
         assertEquals(new BytesRef("value"), field2.binaryValue());
+    }
+
+    public void testIgnoreAbove() throws Exception {
+        String input = "{ \"key\": \"a longer field than usual\" }";
+        XContentParser xContentParser = createXContentParser(input);
+
+        JsonFieldType fieldType = new JsonFieldType();
+        fieldType.setName("field");
+        JsonFieldParser ignoreAboveParser = new JsonFieldParser(fieldType, 10);
+
+        List<IndexableField> fields = ignoreAboveParser.parse(xContentParser);
+        assertEquals(0, fields.size());
     }
 
     private XContentParser createXContentParser(String input) throws IOException {

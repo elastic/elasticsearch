@@ -35,9 +35,12 @@ import java.util.List;
  */
 public class JsonFieldParser {
     private final MappedFieldType fieldType;
+    private final int ignoreAbove;
 
-    JsonFieldParser(MappedFieldType fieldType) {
+    JsonFieldParser(MappedFieldType fieldType,
+                    int ignoreAbove) {
         this.fieldType = fieldType;
+        this.ignoreAbove = ignoreAbove;
     }
 
     public List<IndexableField> parse(XContentParser parser) throws IOException {
@@ -68,6 +71,8 @@ public class JsonFieldParser {
     }
 
     private void addField(String value, List<IndexableField> fields) {
-        fields.add(new Field(fieldType.name(), new BytesRef(value), fieldType));
+        if (value.length() <= ignoreAbove) {
+            fields.add(new Field(fieldType.name(), new BytesRef(value), fieldType));
+        }
     }
 }

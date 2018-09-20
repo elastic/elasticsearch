@@ -72,7 +72,7 @@ public class TransformInputTests extends ESTestCase {
     public void testParserValid() throws Exception {
         Map<String, TransformFactory> transformFactories = Collections.singletonMap("script",
                 new ScriptTransformFactory(Settings.EMPTY, scriptService));
-        TransformRegistry registry = new TransformRegistry(Settings.EMPTY, transformFactories);
+        TransformRegistry registry = new TransformRegistry(transformFactories);
         TransformInputFactory factory = new TransformInputFactory(Settings.EMPTY, registry);
 
         // { "script" : { "lang" : "mockscript", "source" : "1" } }
@@ -96,7 +96,7 @@ public class TransformInputTests extends ESTestCase {
 
         Map<String, TransformFactory> transformFactories = Collections.singletonMap("script",
                 new ScriptTransformFactory(Settings.EMPTY, scriptService));
-        TransformRegistry registry = new TransformRegistry(Settings.EMPTY, transformFactories);
+        TransformRegistry registry = new TransformRegistry(transformFactories);
         TransformInputFactory factory = new TransformInputFactory(Settings.EMPTY, registry);
         XContentParser parser = createParser(jsonBuilder);
 
@@ -115,7 +115,7 @@ public class TransformInputTests extends ESTestCase {
     public void testTransformInputToXContentIsSameAsParsing() throws Exception {
         Map<String, TransformFactory> transformFactories = Collections.singletonMap("script",
                 new ScriptTransformFactory(Settings.EMPTY, scriptService));
-        TransformRegistry registry = new TransformRegistry(Settings.EMPTY, transformFactories);
+        TransformRegistry registry = new TransformRegistry(transformFactories);
         TransformInputFactory factory = new TransformInputFactory(Settings.EMPTY, registry);
 
         XContentBuilder jsonBuilder = jsonBuilder().startObject().startObject("script")

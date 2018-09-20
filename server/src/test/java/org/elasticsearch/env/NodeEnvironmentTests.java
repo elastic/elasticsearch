@@ -80,12 +80,12 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         // Reuse the same location and attempt to lock again
         IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
-                new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings), nodeId -> {}));
+                new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings)));
         assertThat(ex.getMessage(), containsString("failed to obtain node lock"));
 
         // Close the environment that holds the lock and make sure we can get the lock after release
         env.close();
-        env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings), nodeId -> {});
+        env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
         assertThat(env.nodeDataPaths(), arrayWithSize(dataPaths.size()));
 
         for (int i = 0; i < dataPaths.size(); i++) {
@@ -120,7 +120,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         final Settings settings = buildEnvSettings(Settings.builder().put("node.max_local_storage_nodes", 2).build());
         final NodeEnvironment first = newNodeEnvironment(settings);
         List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
-        NodeEnvironment second = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings), nodeId -> {});
+        NodeEnvironment second = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
         assertEquals(first.nodeDataPaths().length, dataPaths.size());
         assertEquals(second.nodeDataPaths().length, dataPaths.size());
         for (int i = 0; i < dataPaths.size(); i++) {
@@ -477,7 +477,7 @@ public class NodeEnvironmentTests extends ESTestCase {
     @Override
     public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
         Settings build = buildEnvSettings(settings);
-        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build), nodeId -> {});
+        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 
     public Settings buildEnvSettings(Settings settings) {
@@ -492,7 +492,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                 .put(settings)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
                 .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
-        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build), nodeId -> {});
+        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 
     public NodeEnvironment newNodeEnvironment(String[] dataPaths, String sharedDataPath, Settings settings) throws IOException {
@@ -501,6 +501,6 @@ public class NodeEnvironmentTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
                 .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataPath)
                 .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
-        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build), nodeId -> {});
+        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 }

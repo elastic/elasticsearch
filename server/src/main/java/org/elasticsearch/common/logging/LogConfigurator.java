@@ -279,8 +279,7 @@ public class LogConfigurator {
      * {@code es.logs.cluster_name} the cluster name, used as the prefix of log filenames in the default configuration
      * </li>
      * <li>
-     * {@code es.logs.node_name} the node name, can be used as part of log filenames (only exposed if {@link Node#NODE_NAME_SETTING} is
-     * explicitly set)
+     * {@code es.logs.node_name} the node name, can be used as part of log filenames
      * </li>
      * </ul>
      *
@@ -291,9 +290,7 @@ public class LogConfigurator {
     private static void setLogConfigurationSystemProperty(final Path logsPath, final Settings settings) {
         System.setProperty("es.logs.base_path", logsPath.toString());
         System.setProperty("es.logs.cluster_name", ClusterName.CLUSTER_NAME_SETTING.get(settings).value());
-        if (Node.NODE_NAME_SETTING.exists(settings)) {
-            System.setProperty("es.logs.node_name", Node.NODE_NAME_SETTING.get(settings));
-        }
+        System.setProperty("es.logs.node_name", Node.NODE_NAME_SETTING.get(settings));
     }
 
 }

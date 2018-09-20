@@ -203,7 +203,10 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                                                 Version.V_6_0_0_beta1);
 
         final ClusterState clusterState = ClusterState.builder(clusterName)
-                                                        .metaData(MetaData.builder().clusterUUID(clusterUuid).build())
+                                                        .metaData(MetaData.builder()
+                                                            .clusterUUID(clusterUuid)
+                                                            .transientSettings(Settings.builder().put("cluster.metadata.display_name", "my_prod_cluster").build())
+                                                            .build())
                                                         .stateUUID("_state_uuid")
                                                         .version(12L)
                                                         .nodes(DiscoveryNodes.builder()
@@ -531,6 +534,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         + "\"enabled\":true,"
                         + "\"collection_enabled\":false"
                       + "}"
+                    + "}"
+                  + "},"
+                  + "\"cluster_settings\":{"
+                    + "\"cluster\":{"
+                      + "\"metadata\":{"
+                        + "\"display_name\":\"my_prod_cluster\""
                     + "}"
                   + "}"
                 + "}" , xContent.utf8ToString());

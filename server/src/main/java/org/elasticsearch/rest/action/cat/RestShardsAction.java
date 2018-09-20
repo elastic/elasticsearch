@@ -194,7 +194,9 @@ public class RestShardsAction extends AbstractCatAction {
     private static <S, T> Object getOrNull(S stats, Function<S, T> accessor, Function<T, Object> func) {
         if(stats != null) {
             T t = accessor.apply(stats);
-            return func.apply(t);
+            if (t != null) {
+                return func.apply(t);
+            }
         }
         return null;
     }

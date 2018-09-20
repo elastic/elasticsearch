@@ -1720,12 +1720,12 @@ public abstract class Engine implements Closeable {
     public abstract void deactivateThrottling();
 
     /**
-     * Marks operations in the translog as completed. This is used to restore the state of the local checkpoint tracker on primary
-     * promotion.
+     * This method replays translog to restore the Lucene index which might be reverted previously.
+     * This ensures that all acknowledged writes are restored correctly when this engine is promoted.
      *
-     * @throws IOException if an I/O exception occurred reading the translog
+     * @return the number of translog operations have been recovered
      */
-    public abstract void restoreLocalCheckpointFromTranslog() throws IOException;
+    public abstract int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) throws IOException;
 
     /**
      * Fills up the local checkpoints history with no-ops until the local checkpoint

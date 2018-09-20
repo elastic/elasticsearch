@@ -494,17 +494,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             try {
                                 replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                                 /*
-                                 * If this shard was serving as a replica shard when another shard was promoted to primary then the state of
-                                 * its local checkpoint tracker was reset during the primary term transition. In particular, the local
-                                 * checkpoint on this shard was thrown back to the global checkpoint and the state of the local checkpoint
-                                 * tracker above the local checkpoint was destroyed. If the other shard that was promoted to primary
-                                 * subsequently fails before the primary/replica re-sync completes successfully and we are now being
-                                 * promoted, the local checkpoint tracker here could be left in a state where it would re-issue sequence
-                                 * numbers. To ensure that this is not the case, we restore the state of the local checkpoint tracker by
-                                 * replaying the translog and marking any operations there are completed.
+                                 * If this shard was serving as a replica shard when another shard was promoted to primary then
+                                 * its Lucene index was reset during the primary term transition. In particular, the Lucene index
+                                 * on this shard was reset to the global checkpoint and the operations above the local checkpoint
+                                 * were reverted. If the other shard that was promoted to primary subsequently fails before the
+                                 * primary/replica re-sync completes successfully and we are now being promoted, we have to restore
+                                 * the reverted operations on this shard by replaying the translog to avoid losing acknowledged writes.
                                  */
                                 final Engine engine = getEngine();
-                                engine.restoreLocalCheckpointFromTranslog();
+                                engine.restoreLocalHistoryFromTranslog((resettingEngine, snapshot) ->
+                                    runTranslogRecovery(resettingEngine, snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {}));
                                 /* Rolling the translog generation is not strictly needed here (as we will never have collisions between
                                  * sequence numbers in a translog generation in a new primary as it takes the last known sequence number
                                  * as a starting point), but it simplifies reasoning about the relationship between primary terms and
@@ -1452,9 +1451,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             if (origin == Engine.Operation.Origin.PRIMARY) {
                 assert assertPrimaryMode();
-            } else {
-                assert origin == Engine.Operation.Origin.REPLICA || origin == Engine.Operation.Origin.LOCAL_RESET;
+            } else if (origin == Engine.Operation.Origin.REPLICA) {
                 assert assertReplicationTarget();
+            } else {
+                assert origin == Engine.Operation.Origin.LOCAL_RESET;
+                assert getActiveOperationsCount() == 0 : "Ongoing writes [" + getActiveOperations() + "]";
             }
             if (writeAllowedStates.contains(state) == false) {
                 throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when shard state is one of " + writeAllowedStates + ", origin [" + origin + "]");

@@ -344,7 +344,8 @@ public final class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void restoreLocalCheckpointFromTranslog() {
+    public int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) {
+        return 0;
     }
 
     @Override

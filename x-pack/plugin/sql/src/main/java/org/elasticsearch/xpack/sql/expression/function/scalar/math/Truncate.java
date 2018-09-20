@@ -23,29 +23,29 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.script.Para
 
 /**
  * Function that takes two parameters: one is the field/value itself, the other is a non-floating point numeric
- * which indicates how the rounding should behave. If positive, it will round the number till that parameter
- * count digits after the decimal point. If negative, it will round the number till that paramter count
- * digits before the decimal point, starting at the decimal point.
+ * which indicates how the truncation should behave. If positive, it will truncate the number till that 
+ * parameter count digits after the decimal point. If negative, it will truncate the number till that parameter
+ * count digits before the decimal point, starting at the decimal point.
  */
-public class Round extends BinaryNumericFunction {
+public class Truncate extends BinaryNumericFunction {
     
-    public Round(Location location, Expression left, Expression right) {
+    public Truncate(Location location, Expression left, Expression right) {
         super(location, left, right == null ? Literal.of(Location.EMPTY, 0) : right);
     }
 
     @Override
-    protected NodeInfo<Round> info() {
-        return NodeInfo.create(this, Round::new, left(), right());
+    protected NodeInfo<Truncate> info() {
+        return NodeInfo.create(this, Truncate::new, left(), right());
     }
 
     @Override
-    protected Round replaceChildren(Expression newLeft, Expression newRight) {
-        return new Round(location(), newLeft, newRight);
+    protected Truncate replaceChildren(Expression newLeft, Expression newRight) {
+        return new Truncate(location(), newLeft, newRight);
     }
 
     @Override
     protected BiFunction<Number, Number, Number> operation() {
-        return BinaryMathOperation.ROUND;
+        return BinaryMathOperation.TRUNCATE;
     }
 
     @Override
@@ -53,13 +53,7 @@ public class Round extends BinaryNumericFunction {
         return new BinaryMathProcessorDefinition(location(), this,
                 ProcessorDefinitions.toProcessorDefinition(left()),
                 ProcessorDefinitions.toProcessorDefinition(right()),
-                BinaryMathOperation.ROUND);
-    }
-    
-    protected TypeResolution resolveInputType(DataType inputType) {
-        return inputType.isNumeric() ? 
-                TypeResolution.TYPE_RESOLVED : 
-                new TypeResolution("'%s' requires a numeric type, received %s", mathFunction(), inputType.esType);
+                BinaryMathOperation.TRUNCATE);
     }
 
     @Override
@@ -72,7 +66,7 @@ public class Round extends BinaryNumericFunction {
                     .script(leftScript.params()).script(rightScript.params())
                     .build(), dataType());
     }
-    
+
     @Override
     public DataType dataType() {
         return left().dataType();

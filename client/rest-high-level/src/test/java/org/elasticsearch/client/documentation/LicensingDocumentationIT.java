@@ -41,7 +41,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -271,18 +270,6 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::start-trial-execute-async
             client.license().startTrialAsync(request, RequestOptions.DEFAULT, listener);
             // end::start-trial-execute-async
-        }
-
-        // test when there are acknowledge messages
-        {
-            StartTrialResponse response = client.license().startTrial(new StartTrialRequest(), RequestOptions.DEFAULT);
-            assertFalse(response.isAcknowledged());
-            assertFalse(response.isTrialWasStarted());
-            assertThat(response.getLicenseType(), nullValue());
-            assertThat(response.getErrorMessage(), is("Operation failed: Needs acknowledgement."));
-            assertThat(response.getAcknowledgeHeader(), containsString("To begin your free trial, call /start_trial again and specify " +
-                "the \"acknowledge=true\" parameter."));
-            assertThat(response.getAcknowledgeMessages().entrySet(), not(empty()));
         }
     }
 }

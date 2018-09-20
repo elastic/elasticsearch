@@ -82,7 +82,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
 
     private transient int docId;
 
-    private static final float DEFAULT_SCORE = Float.NEGATIVE_INFINITY;
+    private static final float DEFAULT_SCORE = Float.NaN;
     private float score = DEFAULT_SCORE;
 
     private Text id;

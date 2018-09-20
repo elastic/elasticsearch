@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.action.ActionRequest;
@@ -31,7 +32,6 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
     private String email;
     private Map<String, Object> metadata;
     private char[] passwordHash;
-    private char[] password;
     private boolean enabled = true;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
 
@@ -49,9 +49,6 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
         }
         if (metadata != null && metadata.keySet().stream().anyMatch(s -> s.startsWith("_"))) {
             validationException = addValidationError("metadata keys may not start with [_]", validationException);
-        }
-        if (password != null && passwordHash != null) {
-            validationException = addValidationError("only one of [password, passwordHash] can be provided", validationException);
         }
         // we do not check for a password hash here since it is possible that the user exists and we don't want to update the password
         return validationException;
@@ -83,10 +80,6 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
 
     public void enabled(boolean enabled) {
         this.enabled = enabled;
-    }
-
-    public void password(@Nullable char[] password) {
-        this.password = password;
     }
 
     /**
@@ -138,11 +131,6 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
         return new String[] { username };
     }
 
-    @Nullable
-    public char[] password() {
-        return password;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -161,9 +149,6 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
         super.writeTo(out);
         out.writeString(username);
         writeCharArrayToStream(out, passwordHash);
-        if (password != null) {
-            throw new IllegalStateException("password cannot be serialized. it is only used for HL rest");
-        }
         out.writeStringArray(roles);
         out.writeOptionalString(fullName);
         out.writeOptionalString(email);

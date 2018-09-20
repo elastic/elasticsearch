@@ -20,7 +20,12 @@ public class ShardChangesResponseTests extends AbstractStreamableTestCase<ShardC
         for (int i = 0; i < numOps; i++) {
             operations[i] = new Translog.NoOp(i, 0, "test");
         }
-        return new ShardChangesAction.Response(mappingVersion, leaderGlobalCheckpoint, leaderMaxSeqNo, operations);
+        return new ShardChangesAction.Response(
+            mappingVersion,
+            leaderGlobalCheckpoint,
+            leaderMaxSeqNo,
+            operations
+        );
     }
 
     @Override

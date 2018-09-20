@@ -39,7 +39,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.metrics.stats.Stats;
+import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -582,7 +582,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
             String message = e.getMessage();
             assertThat(message + " should have contained failed to execute", message.contains("failed to execute"), equalTo(true));
             message = e.getCause().getMessage();
-            assertThat(message + " should have contained not supported", message.contains("not supported"), equalTo(true));
+            assertThat(message, equalTo("Failed to compile inline script [0] using lang [expression]"));
         }
     }
 

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
-
 public class MinTests extends AbstractNumericMetricTestCase<MinAggregationBuilder> {
 
     @Override

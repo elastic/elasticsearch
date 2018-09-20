@@ -115,21 +115,21 @@ public class FunctionRegistry {
             def(SumOfSquares.class, SumOfSquares::new),
             def(Skewness.class, Skewness::new),
             def(Kurtosis.class, Kurtosis::new),
-        // Scalar functions
+            // Scalar functions
             // Date
+            def(DayName.class, DayName::new, "DAYNAME"),
             def(DayOfMonth.class, DayOfMonth::new, "DAYOFMONTH", "DAY", "DOM"),
             def(DayOfWeek.class, DayOfWeek::new, "DAYOFWEEK", "DOW"),
             def(DayOfYear.class, DayOfYear::new, "DAYOFYEAR", "DOY"),
             def(HourOfDay.class, HourOfDay::new, "HOUR"),
             def(MinuteOfDay.class, MinuteOfDay::new),
             def(MinuteOfHour.class, MinuteOfHour::new, "MINUTE"),
-            def(SecondOfMinute.class, SecondOfMinute::new, "SECOND"),
+            def(MonthName.class, MonthName::new, "MONTHNAME"),
             def(MonthOfYear.class, MonthOfYear::new, "MONTH"),
+            def(SecondOfMinute.class, SecondOfMinute::new, "SECOND"),
+            def(Quarter.class, Quarter::new),
             def(Year.class, Year::new),
             def(WeekOfYear.class, WeekOfYear::new, "WEEK"),
-            def(DayName.class, DayName::new, "DAYNAME"),
-            def(MonthName.class, MonthName::new, "MONTHNAME"),
-            def(Quarter.class, Quarter::new),
             // Math
             def(Abs.class, Abs::new),
             def(ACos.class, ACos::new),
@@ -163,25 +163,25 @@ public class FunctionRegistry {
             def(Truncate.class, Truncate::new),
             // String
             def(Ascii.class, Ascii::new),
-            def(Char.class, Char::new),
             def(BitLength.class, BitLength::new),
+            def(Char.class, Char::new),
             def(CharLength.class, CharLength::new, "CHARACTER_LENGTH"),
-            def(LCase.class, LCase::new),
-            def(Length.class, Length::new),
-            def(LTrim.class, LTrim::new),
-            def(RTrim.class, RTrim::new),
-            def(Space.class, Space::new),
             def(Concat.class, Concat::new),
             def(Insert.class, Insert::new),
+            def(LCase.class, LCase::new),
             def(Left.class, Left::new),
+            def(Length.class, Length::new),
             def(Locate.class, Locate::new),
+            def(LTrim.class, LTrim::new),
             def(Position.class, Position::new),
             def(Repeat.class, Repeat::new),
             def(Replace.class, Replace::new),
             def(Right.class, Right::new),
+            def(RTrim.class, RTrim::new),
+            def(Space.class, Space::new),
             def(Substring.class, Substring::new),
             def(UCase.class, UCase::new),
-        // Special
+            // Special
             def(Score.class, Score::new)));
 
     private final Map<String, FunctionDefinition> defs = new LinkedHashMap<>();

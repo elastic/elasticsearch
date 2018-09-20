@@ -51,8 +51,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private final String leaderIndex;
     private final ShardFollowTask params;
-    private final TimeValue pollTimeout;
-    private final TimeValue maxRetryDelay;
     private final BiConsumer<TimeValue, Runnable> scheduler;
     private final LongSupplier relativeTimeProvider;
 
@@ -83,8 +81,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         this.params = params;
         this.scheduler = scheduler;
         this.relativeTimeProvider = relativeTimeProvider;
-        this.pollTimeout = params.getPollTimeout();
-        this.maxRetryDelay = params.getMaxRetryDelay();
         /*
          * We keep track of the most recent fetch exceptions, with the number of exceptions that we track equal to the maximum number of
          * concurrent fetches. For each failed fetch, we track the from sequence number associated with the request, and we clear the entry
@@ -361,7 +357,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             int currentRetry = retryCounter.incrementAndGet();
             LOGGER.debug(new ParameterizedMessage("{} error during follow shard task, retrying [{}]",
                 params.getFollowShardId(), currentRetry), e);
-            long delay = computeDelay(currentRetry, maxRetryDelay.getMillis());
+            long delay = computeDelay(currentRetry, params.getPollTimeout().getMillis());
             scheduler.accept(TimeValue.timeValueMillis(delay), task);
         } else {
             markAsFailed(e);

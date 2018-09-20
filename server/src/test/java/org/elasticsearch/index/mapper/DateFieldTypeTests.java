@@ -29,12 +29,12 @@ import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.joda.JodaDateMathParser;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
@@ -83,7 +83,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     }
 
     private void doTestIsFieldWithinQuery(DateFieldType ft, DirectoryReader reader,
-            DateTimeZone zone, JodaDateMathParser alternateFormat) throws IOException {
+            DateTimeZone zone, DateMathParser alternateFormat) throws IOException {
         QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02",
                 randomBoolean(), randomBoolean(), null, null, context));
@@ -121,7 +121,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         DirectoryReader reader = DirectoryReader.open(w);
         DateFieldType ft = new DateFieldType();
         ft.setName("my_date");
-        JodaDateMathParser alternateFormat = new JodaDateMathParser(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
+        DateMathParser alternateFormat = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser();
         doTestIsFieldWithinQuery(ft, reader, null, null);
         doTestIsFieldWithinQuery(ft, reader, null, alternateFormat);
         doTestIsFieldWithinQuery(ft, reader, DateTimeZone.UTC, null);

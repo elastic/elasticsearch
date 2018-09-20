@@ -29,10 +29,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.joda.JodaDateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -300,9 +300,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         return this.format == null ? null : this.format.format();
     }
 
-    JodaDateMathParser getForceDateParser() { // pkg private for testing
+    DateMathParser getForceDateParser() { // pkg private for testing
         if (this.format != null) {
-            return new JodaDateMathParser(this.format);
+            return this.format.toDateMathParser();
         }
         return null;
     }
@@ -450,7 +450,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             // no field means we have no values
             return MappedFieldType.Relation.DISJOINT;
         } else {
-            JodaDateMathParser dateMathParser = getForceDateParser();
+            DateMathParser dateMathParser = getForceDateParser();
             return fieldType.isFieldWithinQuery(shardContext.getIndexReader(), from, to, includeLower,
                     includeUpper, timeZone, dateMathParser, queryRewriteContext);
         }
@@ -500,7 +500,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         Query query = null;
         MappedFieldType mapper = context.fieldMapper(this.fieldName);
         if (mapper != null) {
-            JodaDateMathParser forcedDateParser = getForceDateParser();
+            DateMathParser forcedDateParser = getForceDateParser();
             query = mapper.rangeQuery(
                     from, to, includeLower, includeUpper,
                     relation, timeZone, forcedDateParser, context);

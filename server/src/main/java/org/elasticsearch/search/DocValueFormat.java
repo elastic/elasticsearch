@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.joda.JodaDateMathParser;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatters;
@@ -180,7 +179,7 @@ public interface DocValueFormat extends NamedWriteable {
         public DateTime(FormatDateTimeFormatter formatter, DateTimeZone timeZone) {
             this.formatter = Objects.requireNonNull(formatter);
             this.timeZone = Objects.requireNonNull(timeZone);
-            this.parser = new JodaDateMathParser(formatter);
+            this.parser = formatter.toDateMathParser();
         }
 
         public DateTime(StreamInput in) throws IOException {

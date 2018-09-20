@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.whitelist;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringNumericProcessor.BinaryStringNumericOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringStringProcessor.BinaryStringStringOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.ConcatFunctionProcessor;
@@ -120,5 +121,13 @@ public final class InternalSqlScriptUtils {
     
     public static Integer locate(String s1, String s2) {
         return locate(s1, s2, null);
+    }
+    
+    public static Number round(Number v, Number s) {
+        return BinaryMathOperation.ROUND.apply(v, s);
+    }
+    
+    public static Number truncate(Number v, Number s) {
+        return BinaryMathOperation.TRUNCATE.apply(v, s);
     }
 }

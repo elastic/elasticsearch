@@ -49,16 +49,18 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
         assertThat(readLine(), RegexMatcher.matches("\\s*LOG\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*LOG10\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*LCASE\\s*\\|\\s*SCALAR\\s*"));
-        assertThat(readLine(), RegexMatcher.matches("\\s*LENGTH\\s*\\|\\s*SCALAR\\s*"));
-        assertThat(readLine(), RegexMatcher.matches("\\s*LTRIM\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*LEFT\\s*\\|\\s*SCALAR\\s*"));
+        assertThat(readLine(), RegexMatcher.matches("\\s*LENGTH\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*LOCATE\\s*\\|\\s*SCALAR\\s*"));
+        assertThat(readLine(), RegexMatcher.matches("\\s*LTRIM\\s*\\|\\s*SCALAR\\s*"));
         assertEquals("", readLine());
     }
 
     public void testShowFunctionsLikeInfix() throws IOException {
         assertThat(command("SHOW FUNCTIONS LIKE '%DAY%'"), RegexMatcher.matches("\\s*name\\s*\\|\\s*type\\s*"));
         assertThat(readLine(), containsString("----------"));
+        assertThat(readLine(), RegexMatcher.matches("\\s*DAY_NAME\\s*\\|\\s*SCALAR\\s*"));
+        assertThat(readLine(), RegexMatcher.matches("\\s*DAYNAME\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*DAY_OF_MONTH\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*DAYOFMONTH\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*DAY\\s*\\|\\s*SCALAR\\s*"));
@@ -68,8 +70,6 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
         assertThat(readLine(), RegexMatcher.matches("\\s*DAYOFYEAR\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*HOUR_OF_DAY\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*MINUTE_OF_DAY\\s*\\|\\s*SCALAR\\s*"));
-        assertThat(readLine(), RegexMatcher.matches("\\s*DAY_NAME\\s*\\|\\s*SCALAR\\s*"));
-        assertThat(readLine(), RegexMatcher.matches("\\s*DAYNAME\\s*\\|\\s*SCALAR\\s*"));
         assertEquals("", readLine());
     }
 }

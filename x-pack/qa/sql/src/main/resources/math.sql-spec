@@ -62,7 +62,7 @@ mathRadians
 SELECT RADIANS(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
 // end::radians
 mathRound
-SELECT CAST(ROUND(emp_no) AS INT) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+SELECT CAST(ROUND(emp_no, 0) AS INT) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
 mathSign
 // tag::sign
 SELECT SIGN(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
@@ -134,3 +134,48 @@ SELECT POWER(emp_no, 2) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER
 mathPowerNegative
 SELECT POWER(salary, -1) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
 // end::power
+
+roundInline1
+SELECT ROUND(-345.123, -2) AS rounded;
+
+roundInline2
+SELECT ROUND(-345.123, 2) AS rounded;
+
+roundInline3
+SELECT ROUND(-345.123, 0) AS rounded;
+
+roundInline4
+SELECT ROUND(-345.123,-51231231) AS rounded;
+
+roundInline5
+SELECT ROUND(134.51, 1) AS rounded;
+
+roundInline6
+SELECT ROUND(134.56, 1) AS rounded;
+
+roundInline7
+SELECT ROUND(-345.123) AS rounded;
+
+truncateInline1
+SELECT TRUNCATE(-345.123, -2) AS trimmed;
+
+truncateInline2
+SELECT TRUNCATE(-345.123, 2) AS trimmed;
+
+truncateInline3
+SELECT TRUNCATE(-345.123, 0) AS trimmed;
+
+truncateInline4
+SELECT TRUNCATE(-345.123,-51231231) AS trimmed;
+
+truncateInline5
+SELECT TRUNCATE(134.51, 1) AS trimmed;
+
+truncateInline6
+SELECT TRUNCATE(134.56, 1) AS trimmed;
+
+truncateInline7
+SELECT TRUNCATE(-345.123) AS trimmed;
+
+truncateAndRoundInline
+SELECT ROUND(134.56,1) AS rounded, TRUNCATE(134.56,1) AS trimmed;

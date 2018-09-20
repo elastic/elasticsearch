@@ -19,6 +19,8 @@ PERCENTILE_RANK |AGGREGATE
 SUM_OF_SQUARES  |AGGREGATE      
 SKEWNESS        |AGGREGATE      
 KURTOSIS        |AGGREGATE      
+DAY_NAME        |SCALAR         
+DAYNAME         |SCALAR
 DAY_OF_MONTH    |SCALAR         
 DAYOFMONTH      |SCALAR         
 DAY             |SCALAR         
@@ -34,18 +36,16 @@ HOUR            |SCALAR
 MINUTE_OF_DAY   |SCALAR         
 MINUTE_OF_HOUR  |SCALAR         
 MINUTE          |SCALAR         
-SECOND_OF_MINUTE|SCALAR         
-SECOND          |SCALAR         
-MONTH_OF_YEAR   |SCALAR         
-MONTH           |SCALAR         
-YEAR            |SCALAR         
-WEEK_OF_YEAR    |SCALAR         
-WEEK            |SCALAR         
-DAY_NAME        |SCALAR         
-DAYNAME         |SCALAR         
 MONTH_NAME      |SCALAR         
 MONTHNAME       |SCALAR         
+MONTH_OF_YEAR   |SCALAR         
+MONTH           |SCALAR         
+SECOND_OF_MINUTE|SCALAR         
+SECOND          |SCALAR         
 QUARTER         |SCALAR         
+YEAR            |SCALAR         
+WEEK_OF_YEAR    |SCALAR         
+WEEK            |SCALAR                  
 ABS             |SCALAR         
 ACOS            |SCALAR         
 ASIN            |SCALAR         
@@ -77,24 +77,25 @@ SIN             |SCALAR
 SINH            |SCALAR         
 SQRT            |SCALAR         
 TAN             |SCALAR         
+TRUNCATE        |SCALAR         
 ASCII           |SCALAR         
-CHAR            |SCALAR         
 BIT_LENGTH      |SCALAR         
+CHAR            |SCALAR         
 CHAR_LENGTH     |SCALAR         
-CHARACTER_LENGTH|SCALAR
+CHARACTER_LENGTH|SCALAR         
+CONCAT          |SCALAR
+INSERT          |SCALAR                  
 LCASE           |SCALAR         
-LENGTH          |SCALAR         
-LTRIM           |SCALAR         
-RTRIM           |SCALAR         
-SPACE           |SCALAR         
-CONCAT          |SCALAR         
-INSERT          |SCALAR         
 LEFT            |SCALAR         
+LENGTH          |SCALAR         
 LOCATE          |SCALAR         
+LTRIM           |SCALAR         
 POSITION        |SCALAR         
 REPEAT          |SCALAR         
 REPLACE         |SCALAR         
-RIGHT           |SCALAR         
+RIGHT           |SCALAR
+RTRIM           |SCALAR         
+SPACE           |SCALAR                  
 SUBSTRING       |SCALAR         
 UCASE           |SCALAR         
 SCORE           |SCORE          
@@ -133,6 +134,8 @@ showFunctionsWithLeadingPattern
 SHOW FUNCTIONS LIKE '%DAY%';
 
     name:s     |    type:s
+DAY_NAME       |SCALAR         
+DAYNAME        |SCALAR 
 DAY_OF_MONTH   |SCALAR         
 DAYOFMONTH     |SCALAR         
 DAY            |SCALAR         
@@ -142,8 +145,6 @@ DAY_OF_YEAR    |SCALAR
 DAYOFYEAR      |SCALAR         
 HOUR_OF_DAY    |SCALAR         
 MINUTE_OF_DAY  |SCALAR         
-DAY_NAME       |SCALAR         
-DAYNAME        |SCALAR    
 ;
 
 showTables

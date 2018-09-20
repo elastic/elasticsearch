@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.ConstantProcessor;
@@ -46,6 +47,69 @@ public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<Bi
     public void testPower() {
         Processor ba = new Power(EMPTY, l(2), l(2)).makeProcessorDefinition().asProcessor();
         assertEquals(4d, ba.process(null));
+    }
+    
+    public void testRoundWithValidInput() {
+        assertEquals(123.0, new Round(EMPTY, l(123), l(3)).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals(123.5, new Round(EMPTY, l(123.45), l(1)).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals(123.0, new Round(EMPTY, l(123.45), l(0)).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals(123.0, new Round(EMPTY, l(123.45), null).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals(-100.0, new Round(EMPTY, l(-123), l(-2)).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals(-120.0, new Round(EMPTY, l(-123.45), l(-1)).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals(-124.0, new Round(EMPTY, l(-123.5), l(0)).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals(-123.0, new Round(EMPTY, l(-123.45), null).makeProcessorDefinition().asProcessor().process(null));
+    }
+    
+    public void testRoundFunctionWithEdgeCasesInputs() {
+        assertNull(new Round(EMPTY, l(null), l(3)).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals(-0.0, new Round(EMPTY, l(0), l(0)).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals((double) Long.MAX_VALUE, new Round(EMPTY, l(Long.MAX_VALUE), l(0))
+                .makeProcessorDefinition().asProcessor().process(null));
+        assertEquals(0.0, new Round(EMPTY, l(123.456), l(Integer.MAX_VALUE)).makeProcessorDefinition().asProcessor().process(null));
+    }
+    
+    public void testRoundInputValidation() {
+        SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
+                () -> new Round(EMPTY, l(5), l("foobarbar")).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals("A number is required; received foobarbar", siae.getMessage());
+        siae = expectThrows(SqlIllegalArgumentException.class,
+                () -> new Round(EMPTY, l("bla"), l(0)).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals("A number is required; received bla", siae.getMessage());
+        siae = expectThrows(SqlIllegalArgumentException.class,
+                () -> new Round(EMPTY, l(123.34), l(0.1)).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals("An integer number is required; received [0.1] as second parameter", siae.getMessage());
+    }
+    
+    public void testTruncateWithValidInput() {
+        assertEquals(123.0, new Truncate(EMPTY, l(123), l(3)).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals(123.4, new Truncate(EMPTY, l(123.45), l(1)).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals(123.0, new Truncate(EMPTY, l(123.45), l(0)).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals(123.0, new Truncate(EMPTY, l(123.45), null).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals(-100.0, new Truncate(EMPTY, l(-123), l(-2)).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals(-120.0, new Truncate(EMPTY, l(-123.45), l(-1)).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals(-123.0, new Truncate(EMPTY, l(-123.5), l(0)).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals(-123.0, new Truncate(EMPTY, l(-123.45), null).makeProcessorDefinition().asProcessor().process(null));
+    }
+    
+    public void testTruncateFunctionWithEdgeCasesInputs() {
+        assertNull(new Truncate(EMPTY, l(null), l(3)).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals(0.0, new Truncate(EMPTY, l(0), l(0)).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals((double) Long.MAX_VALUE, new Truncate(EMPTY, l(Long.MAX_VALUE), l(0))
+                .makeProcessorDefinition().asProcessor().process(null));
+        assertEquals(Double.NaN, new Truncate(EMPTY, l(123.456), l(Integer.MAX_VALUE))
+                .makeProcessorDefinition().asProcessor().process(null));
+    }
+    
+    public void testTruncateInputValidation() {
+        SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
+                () -> new Truncate(EMPTY, l(5), l("foobarbar")).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals("A number is required; received foobarbar", siae.getMessage());
+        siae = expectThrows(SqlIllegalArgumentException.class,
+                () -> new Truncate(EMPTY, l("bla"), l(0)).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals("A number is required; received bla", siae.getMessage());
+        siae = expectThrows(SqlIllegalArgumentException.class,
+                () -> new Truncate(EMPTY, l(123.34), l(0.1)).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals("An integer number is required; received [0.1] as second parameter", siae.getMessage());
     }
 
     public void testHandleNull() {

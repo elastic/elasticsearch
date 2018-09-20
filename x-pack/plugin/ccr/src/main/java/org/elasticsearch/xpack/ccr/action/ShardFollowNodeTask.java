@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ccr.action;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.Tuple;
@@ -50,8 +51,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private final String leaderIndex;
     private final ShardFollowTask params;
-    private final TimeValue maxRetryDelay;
-    private final TimeValue idleShardChangesRequestDelay;
     private final BiConsumer<TimeValue, Runnable> scheduler;
     private final LongSupplier relativeTimeProvider;
 
@@ -82,8 +81,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         this.params = params;
         this.scheduler = scheduler;
         this.relativeTimeProvider = relativeTimeProvider;
-        this.maxRetryDelay = params.getMaxRetryDelay();
-        this.idleShardChangesRequestDelay = params.getIdleShardRetryDelay();
         /*
          * We keep track of the most recent fetch exceptions, with the number of exceptions that we track equal to the maximum number of
          * concurrent fetches. For each failed fetch, we track the from sequence number associated with the request, and we clear the entry
@@ -229,12 +226,16 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
         innerSendShardChangesRequest(from, maxOperationCount,
                 response -> {
-                    synchronized (ShardFollowNodeTask.this) {
-                        totalFetchTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
-                        numberOfSuccessfulFetches++;
-                        fetchExceptions.remove(from);
-                        operationsReceived += response.getOperations().length;
-                        totalTransferredBytes += Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
+                    if (response.getOperations().length > 0) {
+                        // do not count polls against fetch stats
+                        synchronized (ShardFollowNodeTask.this) {
+                            totalFetchTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
+                            numberOfSuccessfulFetches++;
+                            fetchExceptions.remove(from);
+                            operationsReceived += response.getOperations().length;
+                            totalTransferredBytes +=
+                                    Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
+                        }
                     }
                     handleReadResponse(from, maxRequiredSeqNo, response);
                 },
@@ -242,7 +243,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     synchronized (ShardFollowNodeTask.this) {
                         totalFetchTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
                         numberOfFailedFetches++;
-                        fetchExceptions.put(from, Tuple.tuple(retryCounter, new ElasticsearchException(e)));
+                        fetchExceptions.put(from, Tuple.tuple(retryCounter, ExceptionsHelper.convertToElastic(e)));
                     }
                     handleFailure(e, retryCounter, () -> sendShardChangesRequest(from, maxOperationCount, maxRequiredSeqNo, retryCounter));
                 });
@@ -286,15 +287,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         } else {
             // read is completed, decrement
             numConcurrentReads--;
-            if (response.getOperations().length == 0 && leaderGlobalCheckpoint == lastRequestedSeqNo)  {
-                // we got nothing and we have no reason to believe asking again well get us more, treat shard as idle and delay
-                // future requests
-                LOGGER.trace("{} received no ops and no known ops to fetch, scheduling to coordinate reads",
-                    params.getFollowShardId());
-                scheduler.accept(idleShardChangesRequestDelay, this::coordinateReads);
-            } else {
-                coordinateReads();
-            }
+            coordinateReads();
         }
     }
 
@@ -364,7 +357,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             int currentRetry = retryCounter.incrementAndGet();
             LOGGER.debug(new ParameterizedMessage("{} error during follow shard task, retrying [{}]",
                 params.getFollowShardId(), currentRetry), e);
-            long delay = computeDelay(currentRetry, maxRetryDelay.getMillis());
+            long delay = computeDelay(currentRetry, params.getPollTimeout().getMillis());
             scheduler.accept(TimeValue.timeValueMillis(delay), task);
         } else {
             markAsFailed(e);

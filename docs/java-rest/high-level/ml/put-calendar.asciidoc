@@ -4,7 +4,7 @@ Creates a new {ml} calendar.
 The API accepts a `PutCalendarRequest` and responds
 with a `PutCalendarResponse` object.
 
-[[java-rest-high-x-pack-ml-get-calendars-request]]
+[[java-rest-high-x-pack-ml-put-calendar-request]]
 ==== Put Calendar Request
 
 A `PutCalendarRequest` is constructed with a Calendar object

@@ -78,8 +78,19 @@ public final class CorruptionUtils {
                 checksumBeforeCorruption = CodecUtil.retrieveChecksum(input);
             }
             try (FileChannel raf = FileChannel.open(fileToCorrupt, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
+                long maxPosition = raf.size();
+
+                if (fileToCorrupt.getFileName().toString().endsWith(".cfs") && maxPosition > Integer.BYTES) {
+                    // TODO: it is known that Lucene does not check the tail of CFS file (CompoundFileS, like an archive), see note at
+                    // https://github.com/apache/lucene-solr/blob/branch_7_5/lucene/core/src/java/org/apache/lucene/codecs/lucene50/
+                    // Lucene50CompoundReader.java#L82
+                    // so far, don't corrupt checksum (last 4 bytes) of cfs file
+                    maxPosition -= Integer.BYTES;
+                }
+                final int position = random.nextInt((int) Math.min(Integer.MAX_VALUE, maxPosition));
+
                 // read
-                raf.position(random.nextInt((int) Math.min(Integer.MAX_VALUE, raf.size())));
+                raf.position(position);
                 long filePointer = raf.position();
                 ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
                 raf.read(bb);

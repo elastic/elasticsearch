@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.parser;
 
+import com.google.common.base.Joiner;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
@@ -22,7 +24,9 @@ import org.elasticsearch.xpack.sql.plan.logical.Project;
 import java.util.ArrayList;
 import java.util.List;
 
+import static java.util.Collections.nCopies;
 import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -134,6 +138,18 @@ public class SqlParserTests extends ESTestCase {
         assertThat(mmqp.optionMap(), hasEntry("operator", "AND"));
         assertThat(mmqp.optionMap(), hasEntry("type", "best_fields"));
         assertThat(mmqp.optionMap(), hasEntry("fuzzy_rewrite", "scoring_boolean"));
+    }
+
+    public void testStackOverflowStatement() {
+        ParsingException e = expectThrows(ParsingException.class, () ->
+            parseStatement("SELECT " + Joiner.on(" OR ").join(nCopies(2000, "a = b"))));
+        assertEquals("statement is too large to parse (causes stack overflow)", e.getErrorMessage());
+    }
+
+    public void testStackOverflowExpression() {
+        ParsingException e = expectThrows(ParsingException.class, () ->
+            new SqlParser().createExpression(Joiner.on(" OR ").join(nCopies(2000, "a = b"))));
+        assertEquals("expression is too large to parse (causes stack overflow)", e.getErrorMessage());
     }
 
     private LogicalPlan parseStatement(String sql) {

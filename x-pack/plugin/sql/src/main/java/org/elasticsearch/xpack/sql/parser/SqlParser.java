@@ -22,8 +22,8 @@ import org.antlr.v4.runtime.atn.PredictionMode;
 import org.antlr.v4.runtime.dfa.DFA;
 import org.antlr.v4.runtime.misc.Pair;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
@@ -41,7 +41,8 @@ import java.util.function.Function;
 import static java.lang.String.format;
 
 public class SqlParser {
-    private static final Logger log = Loggers.getLogger(SqlParser.class);
+
+    private static final Logger log = LogManager.getLogger();
 
     private final boolean DEBUG = false;
 
@@ -62,7 +63,7 @@ public class SqlParser {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", sql);
         }
-        return invokeParser(sql, params, SqlBaseParser::singleStatement, AstBuilder::plan);
+        return invokeParser("statement", sql, params, SqlBaseParser::singleStatement, AstBuilder::plan);
     }
 
     /**
@@ -80,10 +81,13 @@ public class SqlParser {
             log.debug("Parsing as expression: {}", expression);
         }
 
-        return invokeParser(expression, params, SqlBaseParser::singleExpression, AstBuilder::expression);
+        return invokeParser("expression", expression, params, SqlBaseParser::singleExpression, AstBuilder::expression);
     }
 
-    private <T> T invokeParser(String sql, List<SqlTypedParamValue> params, Function<SqlBaseParser, ParserRuleContext> parseFunction,
+    private <T> T invokeParser(String name,
+                               String sql,
+                               List<SqlTypedParamValue> params, Function<SqlBaseParser,
+                               ParserRuleContext> parseFunction,
                                BiFunction<AstBuilder, ParserRuleContext, T> visitor) {
         SqlBaseLexer lexer = new SqlBaseLexer(new CaseInsensitiveStream(sql));
 
@@ -122,10 +126,14 @@ public class SqlParser {
             log.info("Parse tree {} " + tree.toStringTree());
         }
 
-        return visitor.apply(new AstBuilder(paramTokens), tree);
+        try {
+            return visitor.apply(new AstBuilder(paramTokens), tree);
+        } catch (StackOverflowError e) {
+            throw new ParsingException("{} is too large to parse (causes stack overflow)", name);
+        }
     }
 
-    private void debug(SqlBaseParser parser) {
+    private static void debug(SqlBaseParser parser) {
         
         // when debugging, use the exact prediction mode (needed for diagnostics as well)
         parser.getInterpreter().setPredictionMode(PredictionMode.LL_EXACT_AMBIG_DETECTION);

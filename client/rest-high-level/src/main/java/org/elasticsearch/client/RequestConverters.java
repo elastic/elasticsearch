@@ -530,6 +530,17 @@ final class RequestConverters {
         return request;
     }
 
+    static Request rethrottle(RethrottleRequest rethrottleRequest) throws IOException {
+        String endpoint = new EndpointBuilder().addPathPart("_reindex").addPathPart(rethrottleRequest.getTaskId().toString())
+                .addPathPart("_rethrottle").build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        Params params = new Params(request)
+                .withRequestsPerSecond(rethrottleRequest.getRequestsPerSecond());
+        // we set "group_by" to "none" because this is the response format we can parse back
+        params.putParam("group_by", "none");
+        return request;
+    }
+
     static Request putScript(PutStoredScriptRequest putStoredScriptRequest) throws IOException {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(putStoredScriptRequest.id()).build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
@@ -719,11 +730,11 @@ final class RequestConverters {
 
         Params withRequestsPerSecond(float requestsPerSecond) {
             // the default in AbstractBulkByScrollRequest is Float.POSITIVE_INFINITY,
-            // but we don't want to add that to the URL parameters, instead we leave it out
+            // but we don't want to add that to the URL parameters, instead we use -1
             if (Float.isFinite(requestsPerSecond)) {
-                return putParam("requests_per_second", Float.toString(requestsPerSecond));
+                return putParam(RethrottleRequest.REQUEST_PER_SECOND_PARAMETER, Float.toString(requestsPerSecond));
             } else {
-                return putParam("requests_per_second", "-1");
+                return putParam(RethrottleRequest.REQUEST_PER_SECOND_PARAMETER, "-1");
             }
         }
 

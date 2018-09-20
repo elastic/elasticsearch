@@ -45,7 +45,7 @@ final class RollupRequestConverters {
         return request;
     }
 
-    static Request getJob(final GetRollupJobRequest getRollupJobRequest) throws IOException {
+    static Request getJob(final GetRollupJobRequest getRollupJobRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_xpack")
             .addPathPartAsIs("rollup")

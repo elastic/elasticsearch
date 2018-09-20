@@ -56,6 +56,7 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.lessThan;
 
 public class RollupIT extends ESRestHighLevelClientTestCase {
@@ -179,5 +180,12 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         assertEquals(IndexerState.STARTED, job.getStatus().getState());
         assertThat(job.getStatus().getCurrentPosition(), hasKey("date.date_histogram"));
         assertEquals(true, job.getStatus().getUpgradedDocumentId());
+    }
+
+    public void testGetMissingRollupJob() throws Exception {
+        GetRollupJobRequest getRollupJobRequest = new GetRollupJobRequest("missing");
+        RollupClient rollupClient = highLevelClient().rollup();
+        GetRollupJobResponse getResponse = execute(getRollupJobRequest, rollupClient::getRollupJob, rollupClient::getRollupJobAsync);
+        assertThat(getResponse.getJobs(), empty());
     }
 }

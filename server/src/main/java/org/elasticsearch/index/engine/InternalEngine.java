@@ -332,17 +332,12 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void restoreLocalCheckpointFromTranslog() throws IOException {
-        try (ReleasableLock ignored = writeLock.acquire()) {
+    public int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) throws IOException {
+        try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             final long localCheckpoint = localCheckpointTracker.getCheckpoint();
             try (Translog.Snapshot snapshot = getTranslog().newSnapshotFromMinSeqNo(localCheckpoint + 1)) {
-                Translog.Operation operation;
-                while ((operation = snapshot.next()) != null) {
-                    if (operation.seqNo() > localCheckpoint) {
-                        localCheckpointTracker.markSeqNoAsCompleted(operation.seqNo());
-                    }
-                }
+                return translogRecoveryRunner.run(this, snapshot);
             }
         }
     }

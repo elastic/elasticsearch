@@ -218,11 +218,9 @@ primaryExpression
     : castExpression                                                                 #cast
     | extractExpression                                                              #extract
     | constant                                                                       #constantDefault
-    | ASTERISK                                                                       #star
     | (qualifiedName DOT)? ASTERISK                                                  #star
     | functionExpression                                                             #function
     | '(' query ')'                                                                  #subqueryExpression
-    | identifier                                                                     #columnReference
     | qualifiedName                                                                  #dereference
     | '(' expression ')'                                                             #parenthesizedExpression
     ;

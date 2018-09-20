@@ -724,18 +724,6 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterColumnReference(SqlBaseParser.ColumnReferenceContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitColumnReference(SqlBaseParser.ColumnReferenceContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterDereference(SqlBaseParser.DereferenceContext ctx) { }
   /**
    * {@inheritDoc}

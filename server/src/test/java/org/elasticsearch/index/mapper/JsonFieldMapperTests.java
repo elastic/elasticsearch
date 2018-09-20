@@ -209,7 +209,7 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(0, fieldNamesFields.length);
     }
 
-    public void testNullValue() throws Exception {
+    public void testNullField() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startObject("type")
                 .startObject("properties")
@@ -327,5 +327,43 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
         ParsedDocument parsedDoc = mapper.parse(SourceToParse.source("test", "type", "1", doc, XContentType.JSON));
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
+    }
+
+
+    public void testNullValues() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "json")
+                    .endObject()
+                    .startObject("other_field")
+                        .field("type", "json")
+                        .field("null_value", "placeholder")
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
+            .startObject("field")
+                .nullField("key")
+            .endObject()
+            .startObject("other_field")
+                .nullField("key")
+            .endObject()
+        .endObject());
+        ParsedDocument parsedDoc = mapper.parse(SourceToParse.source("test", "type", "1", doc, XContentType.JSON));
+
+        IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(0, fields.length);
+
+        IndexableField[] otherFields = parsedDoc.rootDoc().getFields("other_field");
+        assertEquals(1, otherFields.length);
+        IndexableField field = otherFields[0];
+        assertEquals(new BytesRef("placeholder"), field.binaryValue());
     }
 }

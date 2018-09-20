@@ -142,6 +142,12 @@ public final class JsonFieldMapper extends FieldMapper {
                 } else if (propName.equals("norms")) {
                     TypeParsers.parseNorms(builder, name, propNode);
                     iterator.remove();
+                } else if (propName.equals("null_value")) {
+                    if (propNode == null) {
+                        throw new MapperParsingException("Property [null_value] cannot be null.");
+                    }
+                    builder.nullValue(propNode.toString());
+                    iterator.remove();
                 }
             }
             return builder;
@@ -256,6 +262,10 @@ public final class JsonFieldMapper extends FieldMapper {
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
+
+        if (includeDefaults || fieldType().nullValue() != null) {
+            builder.field("null_value", fieldType().nullValue());
+        }
 
         if (includeDefaults || ignoreAbove != Defaults.IGNORE_ABOVE) {
             builder.field("ignore_above", ignoreAbove);

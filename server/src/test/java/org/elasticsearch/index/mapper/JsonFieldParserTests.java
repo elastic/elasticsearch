@@ -28,7 +28,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
 public class JsonFieldParserTests extends ESTestCase {
@@ -126,6 +125,28 @@ public class JsonFieldParserTests extends ESTestCase {
 
         List<IndexableField> fields = ignoreAboveParser.parse(xContentParser);
         assertEquals(0, fields.size());
+    }
+
+    public void testNullValues() throws Exception {
+        String input = "{ \"key\": null}";
+        XContentParser xContentParser = createXContentParser(input);
+
+        List<IndexableField> fields = parser.parse(xContentParser);
+        assertEquals(0, fields.size());
+
+        xContentParser = createXContentParser(input);
+
+        JsonFieldType fieldType = new JsonFieldType();
+        fieldType.setName("field");
+        fieldType.setNullValue("placeholder");
+        JsonFieldParser nullValueParser = new JsonFieldParser(fieldType, Integer.MAX_VALUE);
+
+        fields = nullValueParser.parse(xContentParser);
+        assertEquals(1, fields.size());
+
+        IndexableField field = fields.get(0);
+        assertEquals("field", field.name());
+        assertEquals(new BytesRef("placeholder"), field.binaryValue());
     }
 
     private XContentParser createXContentParser(String input) throws IOException {

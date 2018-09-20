@@ -66,6 +66,11 @@ public class JsonFieldParser {
             } else if (token.isValue()) {
                 String value = parser.text();
                 addField(value, fields);
+            } else if (token == XContentParser.Token.VALUE_NULL) {
+                String value = fieldType.nullValueAsString();
+                if (value != null) {
+                    addField(value, fields);
+                }
             }
         }
     }

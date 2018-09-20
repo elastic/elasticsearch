@@ -31,7 +31,6 @@ import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.AbstractSimpleSecurityTransportTestCase;
 
@@ -51,7 +50,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.hamcrest.Matchers.containsString;
 
-public class SimpleSecurityNetty4TransportTests extends AbstractSimpleSecurityTransportTestCase {
+public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleSecurityTransportTestCase {
 
     private static final ConnectionProfile SINGLE_CHANNEL_PROFILE;
 
@@ -73,9 +72,9 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleSecurityTr
         Settings settings1 = Settings.builder()
             .put(settings)
             .put("xpack.security.transport.ssl.enabled", true).build();
-        Transport transport = new SecurityNetty4Transport(settings1, threadPool,
+        Transport transport = new SecurityNetty4ServerTransport(settings1, threadPool,
             networkService, BigArrays.NON_RECYCLING_INSTANCE, namedWriteableRegistry,
-            new NoneCircuitBreakerService(), createSSLService()) {
+            new NoneCircuitBreakerService(), null, createSSLService()) {
 
             @Override
             public Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout) throws IOException,

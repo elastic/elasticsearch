@@ -65,8 +65,8 @@ public abstract class AbstractCcrCollector extends Collector {
     }
 
     abstract Collection<MonitoringDoc> innerDoCollect(
-            final long timestamp,
-            final String clusterUuid,
-            final long interval,
-            final MonitoringDoc.Node node) throws Exception;
+            long timestamp,
+            String clusterUuid,
+            long interval,
+            MonitoringDoc.Node node) throws Exception;
 }

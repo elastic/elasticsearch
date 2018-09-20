@@ -2189,8 +2189,9 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
             }) {
                 @Override
-                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException {
-                    final long localCheckpoint = super.indexTranslogOperations(operations, totalTranslogOps);
+                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
+                                                    long maxSeenAutoIdTimestamp) throws IOException {
+                    final long localCheckpoint = super.indexTranslogOperations(operations, totalTranslogOps, maxSeenAutoIdTimestamp);
                     assertFalse(replica.isSyncNeeded());
                     return localCheckpoint;
                 }
@@ -2296,8 +2297,9 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
             }) {
                 @Override
-                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException {
-                    final long localCheckpoint = super.indexTranslogOperations(operations, totalTranslogOps);
+                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
+                                                    long maxAutoIdTimestamp) throws IOException {
+                    final long localCheckpoint = super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp);
                     // Shard should now be active since we did recover:
                     assertTrue(replica.isActive());
                     return localCheckpoint;
@@ -2343,8 +2345,9 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
 
                 @Override
-                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException {
-                    final long localCheckpoint = super.indexTranslogOperations(operations, totalTranslogOps);
+                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
+                                                    long maxAutoIdTimestamp) throws IOException {
+                    final long localCheckpoint = super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp);
                     assertListenerCalled.accept(replica);
                     return localCheckpoint;
                 }

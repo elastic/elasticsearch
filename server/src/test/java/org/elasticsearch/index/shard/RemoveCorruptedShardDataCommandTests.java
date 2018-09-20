@@ -146,6 +146,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33916")
     public void testCorruptedIndex() throws Exception {
         final int numDocs = indexDocs(indexShard, true);
 

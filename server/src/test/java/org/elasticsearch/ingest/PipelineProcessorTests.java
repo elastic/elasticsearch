@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.ingest.common;
+package org.elasticsearch.ingest;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -27,6 +27,7 @@ import org.elasticsearch.ingest.CompoundProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.ingest.PipelineProcessor;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
@@ -110,7 +111,7 @@ public class PipelineProcessorTests extends ESTestCase {
             () -> factory.create(Collections.emptyMap(), null, outerConfig).execute(testIngestDocument)
         );
         assertEquals(
-            "Recursive invocation of pipeline [inner] detected.", e.getRootCause().getMessage()
+            "Cycle detected for pipeline: inner", e.getRootCause().getMessage()
         );
     }
 

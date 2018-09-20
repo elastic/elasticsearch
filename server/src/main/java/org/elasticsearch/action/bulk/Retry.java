@@ -19,9 +19,9 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -54,12 +54,41 @@ public class Retry {
      * @param consumer The consumer to which apply the request and listener
      * @param bulkRequest The bulk request that should be executed.
      * @param listener A listener that is invoked when the bulk request finishes or completes with an exception. The listener is not
-     * @param settings settings
      */
     public void withBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest,
-                            ActionListener<BulkResponse> listener, Settings settings) {
-        RetryHandler r = new RetryHandler(backoffPolicy, consumer, listener, settings, scheduler);
+                            ActionListener<BulkResponse> listener) {
+        RetryHandler r = new RetryHandler(backoffPolicy, consumer, listener, scheduler);
         r.execute(bulkRequest);
+    }
+
+    /**
+     * Invokes #accept(BulkRequest, ActionListener). Backs off on the provided exception and delegates results to the
+     * provided listener. Retries will be scheduled using the class's thread pool.
+     * @param consumer The consumer to which apply the request and listener
+     * @param bulkRequest The bulk request that should be executed.
+     * @param listener A listener that is invoked when the bulk request finishes or completes with an exception. The listener is not
+     * @param settings settings
+     * @deprecated Prefer {@link #withBackoff(BiConsumer, BulkRequest, ActionListener)}. The {@link Settings} isn't used.
+     */
+    @Deprecated
+    public void withBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest,
+                            ActionListener<BulkResponse> listener, Settings settings) {
+        withBackoff(consumer, bulkRequest, listener);
+    }
+
+    /**
+     * Invokes #accept(BulkRequest, ActionListener). Backs off on the provided exception. Retries will be scheduled using
+     * the class's thread pool.
+     *
+     * @param consumer The consumer to which apply the request and listener
+     * @param bulkRequest The bulk request that should be executed.
+     * @return a future representing the bulk response returned by the client.
+     */
+    public PlainActionFuture<BulkResponse> withBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
+                                                       BulkRequest bulkRequest) {
+        PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
+        withBackoff(consumer, bulkRequest, future);
+        return future;
     }
 
     /**
@@ -70,18 +99,18 @@ public class Retry {
      * @param bulkRequest The bulk request that should be executed.
      * @param settings settings
      * @return a future representing the bulk response returned by the client.
+     * @deprecated prefer {@link #withBackoff(BiConsumer, BulkRequest)}. The {@link Settings} isn't used.
      */
+    @Deprecated
     public PlainActionFuture<BulkResponse> withBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
                                                        BulkRequest bulkRequest, Settings settings) {
-        PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
-        withBackoff(consumer, bulkRequest, future, settings);
-        return future;
+        return withBackoff(consumer, bulkRequest);
     }
 
     static class RetryHandler implements ActionListener<BulkResponse> {
         private static final RestStatus RETRY_STATUS = RestStatus.TOO_MANY_REQUESTS;
+        private static final Logger logger = LogManager.getLogger(RetryHandler.class);
 
-        private final Logger logger;
         private final Scheduler scheduler;
         private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
         private final ActionListener<BulkResponse> listener;
@@ -95,11 +124,10 @@ public class Retry {
         private volatile ScheduledFuture<?> scheduledRequestFuture;
 
         RetryHandler(BackoffPolicy backoffPolicy, BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
-                     ActionListener<BulkResponse> listener, Settings settings, Scheduler scheduler) {
+                     ActionListener<BulkResponse> listener, Scheduler scheduler) {
             this.backoff = backoffPolicy.iterator();
             this.consumer = consumer;
             this.listener = listener;
-            this.logger = Loggers.getLogger(getClass(), settings);
             this.scheduler = scheduler;
             // in contrast to System.currentTimeMillis(), nanoTime() uses a monotonic clock under the hood
             this.startTimestampNanos = System.nanoTime();

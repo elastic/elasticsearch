@@ -184,6 +184,7 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportT
     }
 
     @SuppressForbidden(reason = "Need to open socket connection")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33772")
     public void testRenegotiation() throws Exception {
         SSLService sslService = createSSLService();
         final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.ssl");

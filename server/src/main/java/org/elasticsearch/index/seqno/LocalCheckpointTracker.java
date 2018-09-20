@@ -159,6 +159,25 @@ public class LocalCheckpointTracker {
     }
 
     /**
+     * Checks if the given sequence number was marked as completed in this tracker.
+     */
+    public boolean contains(final long seqNo) {
+        assert seqNo >= 0 : "invalid seq_no=" + seqNo;
+        if (seqNo >= nextSeqNo) {
+            return false;
+        }
+        if (seqNo <= checkpoint) {
+            return true;
+        }
+        final long bitSetKey = getBitSetKey(seqNo);
+        final CountedBitSet bitSet;
+        synchronized (this) {
+            bitSet = processedSeqNo.get(bitSetKey);
+        }
+        return bitSet != null && bitSet.get(seqNoToBitSetOffset(seqNo));
+    }
+
+    /**
      * Moves the checkpoint to the last consecutively processed sequence number. This method assumes that the sequence number following the
      * current checkpoint is processed.
      */
@@ -206,7 +225,6 @@ public class LocalCheckpointTracker {
      * @return the bit set corresponding to the provided sequence number
      */
     private long getBitSetKey(final long seqNo) {
-        assert Thread.holdsLock(this);
         return seqNo / BIT_SET_SIZE;
     }
 
@@ -232,7 +250,6 @@ public class LocalCheckpointTracker {
      * @return the position in the bit set corresponding to the provided sequence number
      */
     private int seqNoToBitSetOffset(final long seqNo) {
-        assert Thread.holdsLock(this);
         return Math.toIntExact(seqNo % BIT_SET_SIZE);
     }
 

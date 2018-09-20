@@ -21,6 +21,7 @@ package org.elasticsearch.test;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
@@ -46,6 +47,23 @@ import static org.junit.Assert.assertTrue;
 public final class CorruptionUtils {
     private static Logger logger = ESLoggerFactory.getLogger("test");
     private CorruptionUtils() {}
+
+    public static void corruptIndex(Random random, Path indexPath, boolean corruptSegments) throws IOException {
+        // corrupt files
+        final Path[] filesToCorrupt =
+            Files.walk(indexPath)
+                .filter(p -> {
+                    final String name = p.getFileName().toString();
+                    boolean segmentFile = name.startsWith("segments_") || name.endsWith(".si");
+                        return Files.isRegularFile(p)
+                            && name.startsWith("extra") == false // Skip files added by Lucene's ExtrasFS
+                            && IndexWriter.WRITE_LOCK_NAME.equals(name) == false
+                            && (corruptSegments ? segmentFile : segmentFile == false);
+                    }
+                )
+                .toArray(Path[]::new);
+        corruptFile(random, filesToCorrupt);
+    }
 
     /**
      * Corrupts a random file at a random position
@@ -75,7 +93,8 @@ public final class CorruptionUtils {
                 // rewrite
                 raf.position(filePointer);
                 raf.write(bb);
-                logger.info("Corrupting file --  flipping at position {} from {} to {} file: {}", filePointer, Integer.toHexString(oldValue), Integer.toHexString(newValue), fileToCorrupt.getFileName());
+                logger.info("Corrupting file --  flipping at position {} from {} to {} file: {}", filePointer,
+                        Integer.toHexString(oldValue), Integer.toHexString(newValue), fileToCorrupt.getFileName());
             }
             long checksumAfterCorruption;
             long actualChecksumAfterCorruption;
@@ -91,7 +110,8 @@ public final class CorruptionUtils {
             msg.append("before: [").append(checksumBeforeCorruption).append("] ");
             msg.append("after: [").append(checksumAfterCorruption).append("] ");
             msg.append("checksum value after corruption: ").append(actualChecksumAfterCorruption).append("] ");
-            msg.append("file: ").append(fileToCorrupt.getFileName()).append(" length: ").append(dir.fileLength(fileToCorrupt.getFileName().toString()));
+            msg.append("file: ").append(fileToCorrupt.getFileName()).append(" length: ");
+            msg.append(dir.fileLength(fileToCorrupt.getFileName().toString()));
             logger.info("Checksum {}", msg);
             assumeTrue("Checksum collision - " + msg.toString(),
                     checksumAfterCorruption != checksumBeforeCorruption // collision

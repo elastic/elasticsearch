@@ -490,6 +490,16 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitLogicalBinary(SqlBaseParser.LogicalBinaryContext ctx);
   /**
+   * Enter a parse tree produced by {@link SqlBaseParser#matchQueryOptions}.
+   * @param ctx the parse tree
+   */
+  void enterMatchQueryOptions(SqlBaseParser.MatchQueryOptionsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link SqlBaseParser#matchQueryOptions}.
+   * @param ctx the parse tree
+   */
+  void exitMatchQueryOptions(SqlBaseParser.MatchQueryOptionsContext ctx);
+  /**
    * Enter a parse tree produced by {@link SqlBaseParser#predicated}.
    * @param ctx the parse tree
    */

@@ -111,6 +111,12 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
                 leaderClient.admin().cluster().state(clusterStateRequest, ActionListener.wrap(clusterStateResponse -> {
                     IndexMetaData indexMetaData = clusterStateResponse.getState().metaData().getIndexSafe(leaderIndex);
+                    if (indexMetaData.getMappings().isEmpty()) {
+                        assert indexMetaData.getMappingVersion() == 1;
+                        handler.accept(indexMetaData.getMappingVersion());
+                        return;
+                    }
+
                     assert indexMetaData.getMappings().size() == 1 : "expected exactly one mapping, but got [" +
                         indexMetaData.getMappings().size() + "]";
                     MappingMetaData mappingMetaData = indexMetaData.getMappings().iterator().next().value;

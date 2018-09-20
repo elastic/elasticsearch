@@ -156,7 +156,7 @@ public class TransportPutAutoFollowPatternAction extends
             request.getMaxConcurrentWriteBatches(),
             request.getMaxWriteBufferSize(),
             request.getMaxRetryDelay(),
-            request.getIdleShardRetryDelay(),
+            request.getPollTimeout(),
             filteredHeaders);
         patterns.put(request.getLeaderClusterAlias(), autoFollowPattern);
         ClusterState.Builder newState = ClusterState.builder(localState);

@@ -430,7 +430,7 @@ public class TcpTransportTests extends ESTestCase {
                 fail("Expected exception");
             } catch (Exception ex) {
                 assertThat(ex, instanceOf(TcpTransport.HttpOnTransportException.class));
-                assertEquals("This is not a HTTP port", ex.getMessage());
+                assertEquals("This is not an HTTP port", ex.getMessage());
             }
         }
     }

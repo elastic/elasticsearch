@@ -102,4 +102,11 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
 
         return response;
     }
+
+    @Override
+    protected String getExecutor(MultiGetShardRequest request, ShardId shardId) {
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        return indexService.getIndexSettings().isSearchThrottled() ? ThreadPool.Names.SEARCH_THROTTLED : super.getExecutor(request,
+            shardId);
+    }
 }

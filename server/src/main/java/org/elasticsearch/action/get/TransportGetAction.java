@@ -111,4 +111,11 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     protected GetResponse newResponse() {
         return new GetResponse();
     }
+
+    @Override
+    protected String getExecutor(GetRequest request, ShardId shardId) {
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        return indexService.getIndexSettings().isSearchThrottled() ? ThreadPool.Names.SEARCH_THROTTLED : super.getExecutor(request,
+            shardId);
+    }
 }

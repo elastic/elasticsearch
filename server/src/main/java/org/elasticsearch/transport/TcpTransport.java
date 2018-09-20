@@ -222,7 +222,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.compress = Transport.TRANSPORT_TCP_COMPRESS.get(settings);
         this.networkService = networkService;
         this.transportName = transportName;
-        this.transportLogger = new TransportLogger(settings);
+        this.transportLogger = new TransportLogger();
 
         final Settings defaultFeatures = DEFAULT_FEATURES_SETTING.get(settings);
         if (defaultFeatures == null) {

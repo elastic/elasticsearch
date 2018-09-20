@@ -32,7 +32,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.joda.DateMathParser;
+import org.elasticsearch.common.joda.JodaDateMathParser;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -83,7 +83,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     }
 
     private void doTestIsFieldWithinQuery(DateFieldType ft, DirectoryReader reader,
-            DateTimeZone zone, DateMathParser alternateFormat) throws IOException {
+            DateTimeZone zone, JodaDateMathParser alternateFormat) throws IOException {
         QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02",
                 randomBoolean(), randomBoolean(), null, null, context));
@@ -121,7 +121,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         DirectoryReader reader = DirectoryReader.open(w);
         DateFieldType ft = new DateFieldType();
         ft.setName("my_date");
-        DateMathParser alternateFormat = new DateMathParser(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
+        JodaDateMathParser alternateFormat = new JodaDateMathParser(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
         doTestIsFieldWithinQuery(ft, reader, null, null);
         doTestIsFieldWithinQuery(ft, reader, null, alternateFormat);
         doTestIsFieldWithinQuery(ft, reader, DateTimeZone.UTC, null);

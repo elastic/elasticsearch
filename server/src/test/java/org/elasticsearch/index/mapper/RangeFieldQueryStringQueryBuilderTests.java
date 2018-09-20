@@ -31,7 +31,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.joda.DateMathParser;
+import org.elasticsearch.common.joda.JodaDateMathParser;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
@@ -101,7 +101,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
     public void testDateRangeQuery() throws Exception {
         QueryShardContext context = createShardContext();
         RangeFieldMapper.RangeFieldType type = (RangeFieldMapper.RangeFieldType) context.fieldMapper(DATE_RANGE_FIELD_NAME);
-        DateMathParser parser = type.dateMathParser;
+        JodaDateMathParser parser = type.dateMathParser;
         Query query = new QueryStringQueryBuilder(DATE_RANGE_FIELD_NAME + ":[2010-01-01 TO 2018-01-01]").toQuery(createShardContext());
         Query range = LongRange.newIntersectsQuery(DATE_RANGE_FIELD_NAME,
             new long[]{ parser.parse("2010-01-01", () -> 0)}, new long[]{ parser.parse("2018-01-01", () -> 0)});

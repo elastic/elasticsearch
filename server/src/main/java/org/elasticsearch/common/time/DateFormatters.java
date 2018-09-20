@@ -20,11 +20,13 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
+import org.joda.time.DateTimeZone;
 
 import java.time.DateTimeException;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -1567,5 +1569,23 @@ public class DateFormatters {
         }
 
         return result;
+    }
+
+    public static DateTimeZone zoneIdToTimeZone(ZoneId zoneId) {
+        if (zoneId == null) {
+            return null;
+        }
+        if (zoneId instanceof ZoneOffset) {
+            // the id for zoneoffset is not ISO compatible, so cannot be read by ZoneId.of
+            return DateTimeZone.forOffsetMillis(((ZoneOffset)zoneId).getTotalSeconds() * 1000);
+        }
+        return DateTimeZone.forID(zoneId.getId());
+    }
+
+    public static ZoneId timeZoneToZoneId(DateTimeZone timeZone) {
+        if (timeZone == null) {
+            return null;
+        }
+        return ZoneId.of(timeZone.getID());
     }
 }

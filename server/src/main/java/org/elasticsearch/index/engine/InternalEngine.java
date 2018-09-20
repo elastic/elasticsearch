@@ -2542,10 +2542,8 @@ public class InternalEngine extends Engine {
     private void updateAutoIdTimestamp(long newTimestamp, boolean unsafe) {
         assert newTimestamp >= -1 : "invalid timestamp [" + newTimestamp + "]";
         maxSeenAutoIdTimestamp.updateAndGet(curr -> Math.max(curr, newTimestamp));
-        assert maxSeenAutoIdTimestamp.get() >= newTimestamp;
         if (unsafe) {
             maxUnsafeAutoIdTimestamp.updateAndGet(curr -> Math.max(curr, newTimestamp));
-            assert maxUnsafeAutoIdTimestamp.get() >= newTimestamp;
         }
         assert maxUnsafeAutoIdTimestamp.get() <= maxSeenAutoIdTimestamp.get();
     }

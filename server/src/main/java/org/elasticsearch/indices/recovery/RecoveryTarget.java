@@ -394,6 +394,12 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         if (indexShard().state() != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, indexShard().state());
         }
+        /*
+         * The maxSeenAutoIdTimestampOnPrimary received from the primary is at least the highest auto_id_timestamp from any operation
+         * will be replayed. Bootstrapping this timestamp here will disable the optimization for original append-only requests
+         * (source of these operations) replicated via replication. Without this step, we may have duplicate documents if we
+         * replay these operations first (without timestamp), then optimize append-only requests (with timestamp).
+         */
         indexShard().updateMaxUnsafeAutoIdTimestamp(maxSeenAutoIdTimestampOnPrimary);
         for (Translog.Operation operation : operations) {
             Engine.Result result = indexShard().applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY);

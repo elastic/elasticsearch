@@ -38,7 +38,7 @@ public class AutoFollowStatsTests extends AbstractSerializingTestCase<AutoFollow
         );
     }
 
-    private static NavigableMap<String, ElasticsearchException> randomReadExceptions() {
+    static NavigableMap<String, ElasticsearchException> randomReadExceptions() {
         final int count = randomIntBetween(0, 16);
         final NavigableMap<String, ElasticsearchException> readExceptions = new TreeMap<>();
         for (int i = 0; i < count; i++) {

@@ -118,6 +118,10 @@ public class FollowIndexIT extends ESRestTestCase {
         }
 
         assertBusy(() -> {
+            Request statsRequest = new Request("GET", "/_ccr/auto_follow/stats");
+            Map<String, ?> response = toMap(client().performRequest(statsRequest));
+            assertThat(response.get("number_of_successful_follow_indices"), equalTo(1));
+
             ensureYellow("logs-20190101");
             verifyDocuments("logs-20190101", 5);
         });

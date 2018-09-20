@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.client.Client;
@@ -114,7 +115,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                     if (entry.getValue() != null) {
                         numberOfFailedIndicesAutoFollowed++;
                         recentAutoFollowErrors.put(result.clusterAlias + ":" + entry.getKey().getName(),
-                            new ElasticsearchException(entry.getValue()));
+                            ExceptionsHelper.convertToElastic(entry.getValue()));
                         LOGGER.warn(new ParameterizedMessage("failure occurred while auto following index [{}] in leader cluster [{}]",
                             entry.getKey(), result.clusterAlias), entry.getValue());
                     } else {

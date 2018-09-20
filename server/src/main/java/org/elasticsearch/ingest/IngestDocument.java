@@ -651,7 +651,7 @@ public final class IngestDocument {
     public IngestDocument executePipeline(Pipeline pipeline) throws Exception {
         try {
             if (this.executedPipelines.add(pipeline) == false) {
-                throw new IllegalStateException("Recursive invocation of pipeline [" + pipeline.getId() + "] detected.");
+                throw new IllegalStateException("Cycle detected for pipeline: " + pipeline.getId());
             }
             return pipeline.execute(this);
         } finally {

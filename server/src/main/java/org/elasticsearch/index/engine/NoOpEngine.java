@@ -22,7 +22,10 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ReferenceManager;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
@@ -69,9 +72,6 @@ final class NoOpEngine extends Engine {
         public void close() {
         }
     };
-
-    private static final TranslogStats EMPTY_TRANSLOG_STATS = new TranslogStats(0, 0, 0, 0, 0);
-    private static final Translog.Location EMPTY_TRANSLOG_LOCATION = new Translog.Location(0, 0, 0);
 
     private final IndexCommit lastCommit;
     private final long localCheckpoint;
@@ -198,6 +198,11 @@ final class NoOpEngine extends Engine {
     }
 
     @Override
+    protected ReferenceManager<IndexSearcher> getReferenceManager(SearcherScope scope) {
+        throw new UnsupportedOperationException("creating a reference manager for an index searcher is not supported on a noOp engine");
+    }
+
+    @Override
     public boolean isTranslogSyncNeeded() {
         return false;
     }
@@ -212,28 +217,39 @@ final class NoOpEngine extends Engine {
     }
 
     @Override
-    public Closeable acquireTranslogRetentionLock() {
+    public Closeable acquireRetentionLockForPeerRecovery() {
         return () -> { };
     }
 
     @Override
-    public Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) {
+    public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService, long fromSeqNo, long toSeqNo,
+                                                boolean requiredFullRange) throws IOException {
+        return readHistoryOperations(source, mapperService, fromSeqNo);
+    }
+
+    @Override
+    public Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException {
         return EMPTY_TRANSLOG_SNAPSHOT;
     }
 
     @Override
-    public int estimateTranslogOperationsFromMinSeq(long minSeqNo) {
+    public int estimateNumberOfHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException {
         return 0;
     }
 
     @Override
+    public boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException {
+        return false;
+    }
+
+    @Override
     public TranslogStats getTranslogStats() {
-        return EMPTY_TRANSLOG_STATS;
+        return new TranslogStats();
     }
 
     @Override
     public Translog.Location getTranslogLastWriteLocation() {
-        return EMPTY_TRANSLOG_LOCATION;
+        return new Translog.Location(0, 0, 0);
     }
 
     @Override
@@ -243,12 +259,6 @@ final class NoOpEngine extends Engine {
 
     @Override
     public void waitForOpsToComplete(long seqNo) {
-    }
-
-    @Override
-    public void resetLocalCheckpoint(long localCheckpoint) {
-        assert localCheckpoint == getLocalCheckpoint() : "expected reset to existing local checkpoint of " +
-            getLocalCheckpoint() + " got: " + localCheckpoint;
     }
 
     @Override
@@ -293,11 +303,6 @@ final class NoOpEngine extends Engine {
 
     @Override
     public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        return new CommitId(lastCommittedSegmentInfos.getId());
-    }
-
-    @Override
-    public CommitId flush() throws EngineException {
         return new CommitId(lastCommittedSegmentInfos.getId());
     }
 
@@ -370,7 +375,7 @@ final class NoOpEngine extends Engine {
     }
 
     @Override
-    public Engine recoverFromTranslog() {
+    public Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
         return this;
     }
 

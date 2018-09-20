@@ -53,6 +53,7 @@ public class NoOpEngineTests extends EngineTestCase {
         expectThrows(UnsupportedOperationException.class, () -> engine.syncFlush(null, null));
         expectThrows(UnsupportedOperationException.class, () -> engine.get(null, null));
         expectThrows(UnsupportedOperationException.class, () -> engine.acquireSearcher(null, null));
+        expectThrows(UnsupportedOperationException.class, () -> engine.getReferenceManager(null));
         expectThrows(UnsupportedOperationException.class, () -> engine.ensureTranslogSynced(null));
         expectThrows(UnsupportedOperationException.class, engine::activateThrottling);
         expectThrows(UnsupportedOperationException.class, engine::deactivateThrottling);

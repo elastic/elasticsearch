@@ -23,7 +23,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.protocol.xpack.common.ProtocolUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -34,7 +33,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class StartBasicResponseTests extends ESTestCase {
 
-    @Test
     public void testFromXContent() throws Exception {
         StartBasicResponse.Status status = randomFrom(StartBasicResponse.Status.values());
 

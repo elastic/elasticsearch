@@ -19,9 +19,11 @@
 
 package org.elasticsearch.index.engine;
 
+import com.carrotsearch.hppc.ObjectLongHashMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
@@ -32,8 +34,10 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -42,6 +46,7 @@ import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -56,6 +61,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
@@ -66,10 +72,12 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
 import java.io.FileNotFoundException;
@@ -174,6 +182,69 @@ public abstract class Engine implements Closeable {
 
     /** Returns how many bytes we are currently moving from heap to disk */
     public abstract long getWritingBytes();
+
+    /**
+     * Returns the {@link CompletionStats} for this engine
+     */
+    public CompletionStats completionStats(String... fieldNamePatterns) throws IOException {
+        try (Engine.Searcher currentSearcher = acquireSearcher("completion_stats", SearcherScope.INTERNAL)) {
+            long sizeInBytes = 0;
+            ObjectLongHashMap<String> completionFields = null;
+            if (fieldNamePatterns != null && fieldNamePatterns.length > 0) {
+                completionFields = new ObjectLongHashMap<>(fieldNamePatterns.length);
+            }
+            for (LeafReaderContext atomicReaderContext : currentSearcher.reader().leaves()) {
+                LeafReader atomicReader = atomicReaderContext.reader();
+                for (FieldInfo info : atomicReader.getFieldInfos()) {
+                    Terms terms = atomicReader.terms(info.name);
+                    if (terms instanceof CompletionTerms) {
+                        // TODO: currently we load up the suggester for reporting its size
+                        long fstSize = ((CompletionTerms) terms).suggester().ramBytesUsed();
+                        if (Regex.simpleMatch(fieldNamePatterns, info.name)) {
+                            completionFields.addTo(info.name, fstSize);
+                        }
+                        sizeInBytes += fstSize;
+                    }
+                }
+            }
+            return new CompletionStats(sizeInBytes, completionFields == null ? null : new FieldMemoryStats(completionFields));
+        }
+    }
+
+    /**
+     * Returns the {@link DocsStats} for this engine
+     */
+    public DocsStats docStats() {
+        // we calculate the doc stats based on the internal reader that is more up-to-date and not subject
+        // to external refreshes. For instance we don't refresh an external reader if we flush and indices with
+        // index.refresh_interval=-1 won't see any doc stats updates at all. This change will give more accurate statistics
+        // when indexing but not refreshing in general. Yet, if a refresh happens the internal reader is refresh as well so we are
+        // safe here.
+        try (Engine.Searcher searcher = acquireSearcher("docStats", Engine.SearcherScope.INTERNAL)) {
+           return docsStats(searcher.reader());
+        }
+    }
+
+    protected final DocsStats docsStats(IndexReader indexReader) {
+        long numDocs = 0;
+        long numDeletedDocs = 0;
+        long sizeInBytes = 0;
+        // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
+        // the next scheduled refresh to go through and refresh the stats as well
+        for (LeafReaderContext readerContext : indexReader.leaves()) {
+            // we go on the segment level here to get accurate numbers
+            final SegmentReader segmentReader = Lucene.segmentReader(readerContext.reader());
+            SegmentCommitInfo info = segmentReader.getSegmentInfo();
+            numDocs += readerContext.reader().numDocs();
+            numDeletedDocs += readerContext.reader().numDeletedDocs();
+            try {
+                sizeInBytes += info.sizeInBytes();
+            } catch (IOException e) {
+                logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
+            }
+        }
+        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
+    }
 
     /**
      * A throttling class that can be activated, causing the

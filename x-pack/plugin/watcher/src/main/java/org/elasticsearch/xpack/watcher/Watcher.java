@@ -5,9 +5,14 @@
  */
 package org.elasticsearch.xpack.watcher;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -20,13 +25,14 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -51,6 +57,7 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -184,12 +191,16 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
+import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 
 public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, ReloadablePlugin {
 
@@ -201,6 +212,16 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
             Setting.boolSetting("xpack.watcher.encrypt_sensitive_data", false, Setting.Property.NodeScope);
     public static final Setting<TimeValue> MAX_STOP_TIMEOUT_SETTING =
             Setting.timeSetting("xpack.watcher.stop.timeout", TimeValue.timeValueSeconds(30), Setting.Property.NodeScope);
+    private static final Setting<Integer> SETTING_BULK_ACTIONS =
+        Setting.intSetting("xpack.watcher.bulk.actions", 1, 1, 10000, NodeScope);
+    private static final Setting<Integer> SETTING_BULK_CONCURRENT_REQUESTS =
+        Setting.intSetting("xpack.watcher.bulk.concurrent_requests", 0, 0, 20, NodeScope);
+    private static final Setting<TimeValue> SETTING_BULK_FLUSH_INTERVAL =
+        Setting.timeSetting("xpack.watcher.bulk.flush_interval", TimeValue.timeValueSeconds(1), NodeScope);
+    private static final Setting<ByteSizeValue> SETTING_BULK_SIZE =
+        Setting.byteSizeSetting("xpack.watcher.bulk.size", new ByteSizeValue(1, ByteSizeUnit.MB),
+            new ByteSizeValue(1, ByteSizeUnit.MB), new ByteSizeValue(10, ByteSizeUnit.MB), NodeScope);
+
 
     public static final ScriptContext<SearchScript.Factory> SCRIPT_SEARCH_CONTEXT =
         new ScriptContext<>("xpack", SearchScript.Factory.class);
@@ -210,9 +231,10 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
     public static final ScriptContext<TemplateScript.Factory> SCRIPT_TEMPLATE_CONTEXT
         = new ScriptContext<>("xpack_template", TemplateScript.Factory.class);
 
-    private static final Logger logger = Loggers.getLogger(Watcher.class);
+    private static final Logger logger = LogManager.getLogger(Watcher.class);
     private WatcherIndexingListener listener;
     private HttpClient httpClient;
+    private BulkProcessor bulkProcessor;
 
     protected final Settings settings;
     protected final boolean transportClient;
@@ -318,7 +340,49 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         final InputRegistry inputRegistry = new InputRegistry(settings, inputFactories);
         inputFactories.put(ChainInput.TYPE, new ChainInputFactory(settings, inputRegistry));
 
-        final HistoryStore historyStore = new HistoryStore(settings, client);
+        bulkProcessor = BulkProcessor.builder(ClientHelper.clientWithOrigin(client, WATCHER_ORIGIN), new BulkProcessor.Listener() {
+            @Override
+            public void beforeBulk(long executionId, BulkRequest request) {
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                if (response.hasFailures()) {
+                    Map<String, String> triggeredWatches = Arrays.stream(response.getItems())
+                        .filter(BulkItemResponse::isFailed)
+                        .filter(r -> r.getIndex().startsWith(TriggeredWatchStoreField.INDEX_NAME))
+                        .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
+                    if (triggeredWatches.isEmpty() == false) {
+                        String failure = triggeredWatches.values().stream().collect(Collectors.joining(", "));
+                        logger.error("triggered watches could not be deleted {}, failure [{}]",
+                            triggeredWatches.keySet(), Strings.substring(failure, 0, 2000));
+                    }
+
+                    Map<String, String> overwrittenIds = Arrays.stream(response.getItems())
+                        .filter(BulkItemResponse::isFailed)
+                        .filter(r -> r.getIndex().startsWith(HistoryStoreField.INDEX_PREFIX))
+                        .filter(r -> r.getVersion() > 1)
+                        .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
+                    if (overwrittenIds.isEmpty() == false) {
+                        String failure = overwrittenIds.values().stream().collect(Collectors.joining(", "));
+                        logger.info("overwrote watch history entries {}, possible second execution of a triggered watch, failure [{}]",
+                            overwrittenIds.keySet(), Strings.substring(failure, 0, 2000));
+                    }
+                }
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+                logger.error("error executing bulk", failure);
+            }
+        })
+            .setFlushInterval(SETTING_BULK_FLUSH_INTERVAL.get(settings))
+            .setBulkActions(SETTING_BULK_ACTIONS.get(settings))
+            .setBulkSize(SETTING_BULK_SIZE.get(settings))
+            .setConcurrentRequests(SETTING_BULK_CONCURRENT_REQUESTS.get(settings))
+            .build();
+
+        HistoryStore historyStore = new HistoryStore(settings, bulkProcessor);
 
         // schedulers
         final Set<Schedule.Parser> scheduleParsers = new HashSet<>();
@@ -340,7 +404,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         final TriggerService triggerService = new TriggerService(settings, triggerEngines);
 
         final TriggeredWatch.Parser triggeredWatchParser = new TriggeredWatch.Parser(settings, triggerService);
-        final TriggeredWatchStore triggeredWatchStore = new TriggeredWatchStore(settings, client, triggeredWatchParser);
+        final TriggeredWatchStore triggeredWatchStore = new TriggeredWatchStore(settings, client, triggeredWatchParser, bulkProcessor);
 
         final WatcherSearchTemplateService watcherSearchTemplateService =
                 new WatcherSearchTemplateService(settings, scriptService, xContentRegistry);
@@ -415,6 +479,12 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         settings.add(Setting.simpleString("xpack.watcher.transform.search.default_timeout", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.execution.scroll.timeout", Setting.Property.NodeScope));
         settings.add(WatcherLifeCycleService.SETTING_REQUIRE_MANUAL_START);
+
+        // bulk processor configuration
+        settings.add(SETTING_BULK_ACTIONS);
+        settings.add(SETTING_BULK_CONCURRENT_REQUESTS);
+        settings.add(SETTING_BULK_FLUSH_INTERVAL);
+        settings.add(SETTING_BULK_SIZE);
 
         // notification services
         settings.addAll(SlackService.getSettings());
@@ -608,7 +678,15 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
     @Override
     public void close() throws IOException {
+        bulkProcessor.flush();
         IOUtils.closeWhileHandlingException(httpClient);
+        try {
+            if (bulkProcessor.awaitClose(10, TimeUnit.SECONDS) == false) {
+                logger.warn("failed to properly close watcher bulk processor");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     /**

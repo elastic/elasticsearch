@@ -16,22 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.index.shard;
 
-package org.elasticsearch.index.analysis;
-
-import java.util.Map;
+import org.elasticsearch.cli.LoggingAwareMultiCommand;
+import org.elasticsearch.cli.Terminal;
 
 /**
- * Marks a {@link TokenFilterFactory} that refers to other filter factories.
- *
- * The analysis registry will call {@link #setReferences(Map)} with a map of all
- * available TokenFilterFactories after all factories have been registered
+ * Class encapsulating and dispatching commands from the {@code elasticsearch-shard} command line tool
  */
-public interface ReferringFilterFactory {
+public class ShardToolCli extends LoggingAwareMultiCommand {
 
-    /**
-     * Called with a map of all registered filter factories
-     */
-    void setReferences(Map<String, TokenFilterFactory> factories);
+    private ShardToolCli() {
+        super("A CLI tool to remove corrupted parts of unrecoverable shards");
+        subcommands.put("remove-corrupted-data", new RemoveCorruptedShardDataCommand());
+    }
+
+    public static void main(String[] args) throws Exception {
+        exit(new ShardToolCli().main(args, Terminal.DEFAULT));
+    }
 
 }
+

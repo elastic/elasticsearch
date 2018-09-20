@@ -51,7 +51,6 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastExpressionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastTemplateContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ColumnReferenceContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ComparisonContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DateEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DecimalLiteralContext;
@@ -67,6 +66,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.LikePatternContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.LogicalBinaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.LogicalNotContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.MatchQueryContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.MatchQueryOptionsContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.MultiMatchQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.NullLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.OrderByContext;
@@ -99,6 +99,7 @@ import java.math.BigInteger;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.StringJoiner;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.type.DataTypeConversion.conversionFor;
@@ -138,11 +139,6 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     public Expression visitStar(StarContext ctx) {
         return new UnresolvedStar(source(ctx), ctx.qualifiedName() != null ?
                 new UnresolvedAttribute(source(ctx.qualifiedName()), visitQualifiedName(ctx.qualifiedName())) : null);
-    }
-
-    @Override
-    public Object visitColumnReference(ColumnReferenceContext ctx) {
-        return new UnresolvedAttribute(source(ctx), visitIdentifier(ctx.identifier()));
     }
 
     @Override
@@ -324,18 +320,27 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     //
     @Override
     public Object visitStringQuery(StringQueryContext ctx) {
-        return new StringQueryPredicate(source(ctx), string(ctx.queryString), string(ctx.options));
+        return new StringQueryPredicate(source(ctx), string(ctx.queryString), getQueryOptions(ctx.matchQueryOptions()));
     }
 
     @Override
     public Object visitMatchQuery(MatchQueryContext ctx) {
         return new MatchQueryPredicate(source(ctx), new UnresolvedAttribute(source(ctx.singleField),
-                visitQualifiedName(ctx.singleField)), string(ctx.queryString), string(ctx.options));
+                visitQualifiedName(ctx.singleField)), string(ctx.queryString), getQueryOptions(ctx.matchQueryOptions()));
     }
 
     @Override
     public Object visitMultiMatchQuery(MultiMatchQueryContext ctx) {
-        return new MultiMatchQueryPredicate(source(ctx), string(ctx.multiFields), string(ctx.queryString), string(ctx.options));
+        return new MultiMatchQueryPredicate(source(ctx), string(ctx.multiFields), string(ctx.queryString),
+            getQueryOptions(ctx.matchQueryOptions()));
+    }
+
+    private String getQueryOptions(MatchQueryOptionsContext optionsCtx) {
+        StringJoiner sj = new StringJoiner(";");
+        for (StringContext sc: optionsCtx.string()) {
+            sj.add(string(sc));
+        }
+        return sj.toString();
     }
 
     @Override

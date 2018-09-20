@@ -39,6 +39,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class DeterministicTaskQueue extends AbstractComponent {
 
@@ -312,7 +313,25 @@ public class DeterministicTaskQueue extends AbstractComponent {
 
             @Override
             public ScheduledFuture<?> schedule(TimeValue delay, String executor, Runnable command) {
-                scheduleAt(currentTimeMillis + delay.millis(), command);
+                final int NOT_STARTED = 0;
+                final int STARTED = 1;
+                final int CANCELLED = 2;
+                final AtomicInteger taskState = new AtomicInteger(NOT_STARTED);
+
+                scheduleAt(currentTimeMillis + delay.millis(), new Runnable() {
+                    @Override
+                    public void run() {
+                        if (taskState.compareAndSet(NOT_STARTED, STARTED)) {
+                            command.run();
+                        }
+                    }
+
+                    @Override
+                    public String toString() {
+                        return command.toString();
+                    }
+                });
+
                 return new ScheduledFuture<Object>() {
                     @Override
                     public long getDelay(TimeUnit unit) {
@@ -326,12 +345,13 @@ public class DeterministicTaskQueue extends AbstractComponent {
 
                     @Override
                     public boolean cancel(boolean mayInterruptIfRunning) {
-                        return false;
+                        assert mayInterruptIfRunning == false;
+                        return taskState.compareAndSet(NOT_STARTED, CANCELLED);
                     }
 
                     @Override
                     public boolean isCancelled() {
-                        throw new UnsupportedOperationException();
+                        return taskState.get() == CANCELLED;
                     }
 
                     @Override

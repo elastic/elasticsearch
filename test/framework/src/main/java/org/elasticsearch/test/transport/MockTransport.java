@@ -47,6 +47,7 @@ import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportStats;
 
@@ -88,7 +89,10 @@ public class MockTransport implements Transport, LifecycleComponent {
      */
     @SuppressWarnings("unchecked")
     public void handleResponse(final long requestId, final TransportResponse response) {
-        responseHandlers.onResponseReceived(requestId, listener).handleResponse(response);
+        final TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
+        if (transportResponseHandler != null) {
+            transportResponseHandler.handleResponse(response);
+        }
     }
 
     /**
@@ -140,7 +144,10 @@ public class MockTransport implements Transport, LifecycleComponent {
      * @param e         the failure
      */
     public void handleError(final long requestId, final TransportException e) {
-        responseHandlers.onResponseReceived(requestId, listener).handleException(e);
+        final TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
+        if (transportResponseHandler != null) {
+            transportResponseHandler.handleException(e);
+        }
     }
 
     @Override

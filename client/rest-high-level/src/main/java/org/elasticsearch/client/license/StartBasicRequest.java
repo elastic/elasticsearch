@@ -22,9 +22,14 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 
 public class StartBasicRequest extends AcknowledgedRequest<StartBasicRequest> {
-    private final boolean acknowledge = false;
+    private final boolean acknowledge;
 
     public StartBasicRequest() {
+        this(false);
+    }
+
+    public StartBasicRequest(boolean acknowledge) {
+        this.acknowledge = acknowledge;
     }
 
     @Override

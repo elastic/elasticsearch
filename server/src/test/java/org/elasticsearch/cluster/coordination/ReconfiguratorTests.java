@@ -36,7 +36,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.coordination.Reconfigurator.MINIMUM_VOTING_MASTER_NODES_SETTING;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 

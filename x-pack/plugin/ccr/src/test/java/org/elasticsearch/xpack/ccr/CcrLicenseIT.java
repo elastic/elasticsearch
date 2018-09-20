@@ -192,16 +192,12 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
     }
 
     private FollowIndexAction.Request getFollowRequest() {
-        return new FollowIndexAction.Request(
-                "leader",
-                "follower",
-                FollowIndexAction.DEFAULT_MAX_BATCH_OPERATION_COUNT,
-                FollowIndexAction.DEFAULT_MAX_CONCURRENT_READ_BATCHES,
-                FollowIndexAction.DEFAULT_MAX_BATCH_SIZE_IN_BYTES,
-                FollowIndexAction.DEFAULT_MAX_CONCURRENT_WRITE_BATCHES,
-                FollowIndexAction.DEFAULT_MAX_WRITE_BUFFER_SIZE,
-                TimeValue.timeValueMillis(10),
-                TimeValue.timeValueMillis(10));
+        FollowIndexAction.Request request = new FollowIndexAction.Request();
+        request.setLeaderIndex("leader");
+        request.setFollowerIndex("follower");
+        request.setMaxRetryDelay(TimeValue.timeValueMillis(10));
+        request.setPollTimeout(TimeValue.timeValueMillis(10));
+        return request;
     }
 
 }

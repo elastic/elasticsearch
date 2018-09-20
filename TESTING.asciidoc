@@ -350,26 +350,26 @@ and running elasticsearch distributions works correctly on supported operating s
 These tests should really only be run in vagrant vms because they're destructive.
 
 . Install Virtual Box and Vagrant.
-
++
 . (Optional) Install https://github.com/fgrehm/vagrant-cachier[vagrant-cachier] to squeeze
 a bit more performance out of the process:
-
++
 --------------------------------------
 vagrant plugin install vagrant-cachier
 --------------------------------------
-
++
 . Validate your installed dependencies:
-
++
 -------------------------------------
 ./gradlew :qa:vagrant:vagrantCheckVersion
 -------------------------------------
-
++
 . Download and smoke test the VMs with `./gradlew vagrantSmokeTest` or
 `./gradlew -Pvagrant.boxes=all vagrantSmokeTest`. The first time you run this it will
 download the base images and provision the boxes and immediately quit. Downloading all
 the images may take a long time. After the images are already on your machine, they won't
 be downloaded again unless they have been updated to a new version.
-
++
 . Run the tests with `./gradlew packagingTest`. This will cause Gradle to build
 the tar, zip, and deb packages and all the plugins. It will then run the tests
 on ubuntu-1404 and centos-7. We chose those two distributions as the default

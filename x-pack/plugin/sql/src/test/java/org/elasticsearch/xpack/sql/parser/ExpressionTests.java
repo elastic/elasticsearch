@@ -9,7 +9,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Neg;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 public class ExpressionTests extends ESTestCase {
@@ -23,6 +22,39 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("LEFT", uf.functionName());
     }
 
+
+    public void testLiteralBoolean() throws Exception {
+        Expression lt = parser.createExpression("TRUE");
+        assertEquals(Literal.class, lt.getClass());
+        Literal l = (Literal) lt;
+        assertEquals(Boolean.TRUE, l.value());
+        assertEquals(DataType.BOOLEAN, l.dataType());
+    }
+
+    public void testLiteralDouble() throws Exception {
+        Expression lt = parser.createExpression(String.valueOf(Double.MAX_VALUE));
+        assertEquals(Literal.class, lt.getClass());
+        Literal l = (Literal) lt;
+        assertEquals(Double.MAX_VALUE, l.value());
+        assertEquals(DataType.DOUBLE, l.dataType());
+    }
+
+    public void testLiteralDoubleNegative() throws Exception {
+        Expression lt = parser.createExpression(String.valueOf(Double.MIN_VALUE));
+        assertEquals(Literal.class, lt.getClass());
+        Literal l = (Literal) lt;
+        assertEquals(Double.MIN_VALUE, l.value());
+        assertEquals(DataType.DOUBLE, l.dataType());
+    }
+
+    public void testLiteralDoublePositive() throws Exception {
+        Expression lt = parser.createExpression("+" + Double.MAX_VALUE);
+        assertEquals(Literal.class, lt.getClass());
+        Literal l = (Literal) lt;
+        assertEquals(Double.MAX_VALUE, l.value());
+        assertEquals(DataType.DOUBLE, l.dataType());
+    }
+
     public void testLiteralLong() throws Exception {
         Expression lt = parser.createExpression(String.valueOf(Long.MAX_VALUE));
         assertEquals(Literal.class, lt.getClass());
@@ -32,13 +64,18 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testLiteralLongNegative() throws Exception {
-        // Long.MIN_VALUE doesn't work since it is being interpreted as negate positive.long which is 1 higher than Long.MAX_VALUE
-        Expression lt = parser.createExpression(String.valueOf(-Long.MAX_VALUE));
-        assertEquals(Neg.class, lt.getClass());
-        Neg n = (Neg) lt;
-        assertTrue(n.foldable());
-        assertEquals(-Long.MAX_VALUE, n.fold());
-        assertEquals(DataType.LONG, n.dataType());
+        Expression lt = parser.createExpression(String.valueOf(Long.MIN_VALUE));
+        assertTrue(lt.foldable());
+        assertEquals(Long.MIN_VALUE, lt.fold());
+        assertEquals(DataType.LONG, lt.dataType());
+    }
+
+    public void testLiteralLongPositive() throws Exception {
+        Expression lt = parser.createExpression("+" + String.valueOf(Long.MAX_VALUE));
+        assertEquals(Literal.class, lt.getClass());
+        Literal l = (Literal) lt;
+        assertEquals(Long.MAX_VALUE, l.value());
+        assertEquals(DataType.LONG, l.dataType());
     }
 
     public void testLiteralInteger() throws Exception {
@@ -63,5 +100,15 @@ public class ExpressionTests extends ESTestCase {
         Literal l = (Literal) lt;
         assertEquals(Integer.valueOf(Byte.MAX_VALUE), l.value());
         assertEquals(DataType.INTEGER, l.dataType());
+    }
+
+    public void testLiteralIntegerInvalid() throws Exception {
+        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("123456789098765432101"));
+        assertEquals("Number [123456789098765432101] is too large", ex.getErrorMessage());
+    }
+
+    public void testLiteralDecimalTooBig() throws Exception {
+        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("1.9976931348623157e+308"));
+        assertEquals("Number [1.9976931348623157e+308] is too large", ex.getErrorMessage());
     }
 }

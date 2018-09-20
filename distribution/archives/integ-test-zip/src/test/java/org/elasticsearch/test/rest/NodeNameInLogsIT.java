@@ -20,6 +20,7 @@
 package org.elasticsearch.test.rest;
 
 import org.elasticsearch.common.logging.NodeNameInLogsIntegTestCase;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.io.BufferedReader;
@@ -29,9 +30,16 @@ import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 
+import static org.hamcrest.Matchers.is;
+
 public class NodeNameInLogsIT extends NodeNameInLogsIntegTestCase {
     @Override
-    protected BufferedReader openReader(Path logFile) throws IOException {
+    protected Matcher<String> nodeNameMatcher() {
+        return is("node-0");
+    }
+
+    @Override
+    protected BufferedReader openReader(Path logFile) {
         return AccessController.doPrivileged((PrivilegedAction<BufferedReader>) () -> {
             try {
                 return Files.newBufferedReader(logFile, StandardCharsets.UTF_8);

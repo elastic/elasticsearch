@@ -478,8 +478,8 @@ public abstract class EngineTestCase extends ESTestCase {
         }
         InternalEngine internalEngine = createInternalEngine(indexWriterFactory, localCheckpointTrackerSupplier, seqNoForOperation, config);
         internalEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
-        // IndexShard initializes this value after replaying local translog.
-        internalEngine.advanceMaxSeqNoOfUpdatesOrDeletes(internalEngine.getLocalCheckpointTracker().getMaxSeqNo());
+        // IndexShard initializes this marker after replaying local translog.
+        internalEngine.initializeMaxSeqNoOfUpdatesOrDeletes();
         return internalEngine;
     }
 

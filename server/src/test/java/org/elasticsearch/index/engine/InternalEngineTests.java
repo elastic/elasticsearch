@@ -680,7 +680,7 @@ public class InternalEngineTests extends EngineTestCase {
         expectThrows(IllegalStateException.class, () -> engine.flush(true, true));
         assertTrue(engine.isRecovering());
         engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
-        engine.advanceMaxSeqNoOfUpdatesOrDeletes(engine.getLocalCheckpointTracker().getMaxSeqNo());
+        engine.initializeMaxSeqNoOfUpdatesOrDeletes();
         assertFalse(engine.isRecovering());
         doc = testParsedDocument("2", null, testDocumentWithTextField(), SOURCE, null);
         engine.index(indexForDoc(doc));
@@ -2680,7 +2680,7 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }) {
                 engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
-                engine.advanceMaxSeqNoOfUpdatesOrDeletes(engine.getLocalCheckpointTracker().getMaxSeqNo());
+                engine.initializeMaxSeqNoOfUpdatesOrDeletes();
                 final ParsedDocument doc1 = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
                 engine.index(indexForDoc(doc1));
                 globalCheckpoint.set(engine.getLocalCheckpoint());
@@ -3468,7 +3468,7 @@ public class InternalEngineTests extends EngineTestCase {
              InternalEngine engine = new InternalEngine(configSupplier.apply(store))) {
             assertEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
             engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
-            engine.advanceMaxSeqNoOfUpdatesOrDeletes(engine.getLocalCheckpointTracker().getMaxSeqNo());
+            engine.initializeMaxSeqNoOfUpdatesOrDeletes();
             assertEquals(timestamp1, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
             final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(),
                 new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
@@ -4366,7 +4366,7 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }) {
             engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
-            engine.advanceMaxSeqNoOfUpdatesOrDeletes(engine.getLocalCheckpointTracker().getMaxSeqNo());
+            engine.initializeMaxSeqNoOfUpdatesOrDeletes();
             int numDocs = scaledRandomIntBetween(10, 100);
             for (int docId = 0; docId < numDocs; docId++) {
                 ParseContext.Document document = testDocumentWithTextField();
@@ -5040,7 +5040,7 @@ public class InternalEngineTests extends EngineTestCase {
         Set<String> liveDocIds = new HashSet<>();
         engine = new InternalEngine(engine.config());
         assertThat(engine.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(-2L));
-        engine.advanceMaxSeqNoOfUpdatesOrDeletes(randomLongBetween(-1L, 50L));
+        engine.initializeMaxSeqNoOfUpdatesOrDeletes();
         int numOps = between(1, 500);
         for (int i = 0; i < numOps; i++) {
             long currentMaxSeqNoOfUpdates = engine.getMaxSeqNoOfUpdatesOrDeletes();

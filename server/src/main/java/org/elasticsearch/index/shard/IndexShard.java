@@ -2716,7 +2716,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Returns the maximum sequence number of either update or delete operations have been processed in this shard
      * or the sequence number from {@link #advanceMaxSeqNoOfUpdatesOrDeletes(long)}. An index request is considered
-     * as an update operation if it overwritten the existing documents in Lucene index with the same document id.
+     * as an update operation if it overwrites the existing documents in Lucene index with the same document id.
      * <p>
      * The primary captures this value after executes a replication request, then transfers it to a replica before
      * executing that replication request on a replica.
@@ -2728,12 +2728,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * A replica calls this method to advance the max_seq_no_of_updates marker of its engine to at least the max_seq_no_of_updates
      * value (piggybacked in a replication request) that it receives from its primary before executing that replication request.
+     * The receiving value is at least the highest max_seq_no_of_updates of all index/delete operations in that replication request.
      * <p>
-     * A replica shard also calls this method to bootstrap the max_seq_no_of_updates marker using the value that it received from
-     * the primary in peer-recovery before it replays remote translog operations from the primary.
+     * A replica shard also calls this method to bootstrap the max_seq_no_of_updates marker with the value that it received from
+     * the primary in peer-recovery, before it replays remote translog operations from the primary. The receiving value is at least
+     * the highest max_seq_no_of_updates of all translog operations will be replayed in that peer-recovery.
      * <p>
-     * These transfers guarantee that every index/delete operation executing on a replica engine will observe this marker a value
-     * which is at least the value of the marker on the primary after that operation was executed on the primary.
+     * These transfers guarantee that every index/delete operation when executing on a replica engine will observe this marker a value
+     * which is at least the value of the max_seq_no_of_updates marker on the primary after that operation was executed on the primary.
      *
      * @see #acquireReplicaOperationPermit(long, long, ActionListener, String, Object)
      * @see org.elasticsearch.indices.recovery.RecoveryTarget#indexTranslogOperations(List, int)

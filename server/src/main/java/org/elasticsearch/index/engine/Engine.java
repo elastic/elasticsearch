@@ -138,9 +138,11 @@ public abstract class Engine implements Closeable {
 
     /*
      * This marker tracks the max seq_no of either update operations or delete operations have been processed in this engine.
-     * An update operation is just an index request which overwrites existing documents with the same docId in the Lucene index.
-     * This marker is started uninitialized (-2), then will be initialized from outside (via initializeMaxSeqNoOfUpdatesOrDeletes).
-     * The optimization using seq_no will be disabled (regardless of other conditions) if this marker is still uninitialized (-2).
+     * An index request is considered as an update if it overwrites existing documents with the same docId in the Lucene index.
+     * This marker is started uninitialized (-2), and the optimization using seq_no will be disabled if this marker is uninitialized.
+     * The value of this marker never goes backwards, and is updated/changed differently on primary and replica:
+     * 1. A primary initializes this marker once using the max_seq_no from its history, then advances when processing an update or delete.
+     * 2. A replica never advances this marker by itself but only inherits from its primary (via advanceMaxSeqNoOfUpdatesOrDeletes).
      */
     private final AtomicLong maxSeqNoOfUpdatesOrDeletes = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
 
@@ -1778,7 +1780,7 @@ public abstract class Engine implements Closeable {
     /**
      * Returns the maximum sequence number of either update or delete operations have been processed in this engine
      * or the sequence number from {@link #advanceMaxSeqNoOfUpdatesOrDeletes(long)}. An index request is considered
-     * as an update operation if it overwritten the existing documents in Lucene index with the same document id.
+     * as an update operation if it overwrites the existing documents in Lucene index with the same document id.
      *
      * @see #initializeMaxSeqNoOfUpdatesOrDeletes()
      * @see #advanceMaxSeqNoOfUpdatesOrDeletes(long)
@@ -1794,8 +1796,8 @@ public abstract class Engine implements Closeable {
     public abstract void initializeMaxSeqNoOfUpdatesOrDeletes();
 
     /**
-     * A replica shard receives a new max_seq_no_of_updates from its primary shard, then call this method to
-     * advance this marker to at least the given sequence number.
+     * A replica shard receives a new max_seq_no_of_updates from its primary shard, then calls this method
+     * to advance this marker to at least the given sequence number.
      */
     public final void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {
         maxSeqNoOfUpdatesOrDeletes.updateAndGet(curr -> Math.max(curr, seqNo));

@@ -38,7 +38,6 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeTrue;
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
-import static org.elasticsearch.packaging.util.ServerUtils.runElasticsearchTests;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 

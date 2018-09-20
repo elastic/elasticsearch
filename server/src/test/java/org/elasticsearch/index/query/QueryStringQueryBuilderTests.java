@@ -306,12 +306,12 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             break;
         case 20:
             if (timeZone == null) {
-                timeZone = randomDateTimeZone().getID();
+                timeZone = randomZone().getId();
             } else {
                 if (randomBoolean()) {
                     timeZone = null;
                 } else {
-                    timeZone = randomValueOtherThan(timeZone, () -> randomDateTimeZone().getID());
+                    timeZone = randomValueOtherThan(timeZone, () -> randomZone().getId());
                 }
             }
             break;

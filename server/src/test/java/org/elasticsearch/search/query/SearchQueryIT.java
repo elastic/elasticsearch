@@ -26,6 +26,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
@@ -1758,6 +1759,8 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testRangeQueryWithLocaleMapping() throws Exception {
+        assumeTrue("need java 9 for testing ",JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0);
+
         assertAcked(prepareCreate("test")
             .addMapping("type1", jsonBuilder().startObject().startObject("properties").startObject("date_field")
                     .field("type", "date")

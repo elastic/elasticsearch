@@ -19,16 +19,14 @@
 package org.elasticsearch.client.ml.job.results;
 
 import org.elasticsearch.client.ml.job.config.Job;
+import org.elasticsearch.client.ml.job.util.TimeUtil;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -56,15 +54,9 @@ public class OverallBucket implements ToXContentObject {
             a -> new OverallBucket((Date) a[0], (long) a[1], (double) a[2], (boolean) a[3]));
 
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                return new Date(p.longValue());
-            } else if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return new Date(DateFormatters.toZonedDateTime(DateTimeFormatter.ISO_INSTANT.parse(p.text())).toInstant().toEpochMilli());
-            }
-            throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for ["
-                + Result.TIMESTAMP.getPreferredName() + "]");
-        }, Result.TIMESTAMP, ObjectParser.ValueType.VALUE);
+        PARSER.declareField(ConstructingObjectParser.constructorArg(),
+                (p) -> TimeUtil.parseTimeField(p, Result.TIMESTAMP.getPreferredName()),
+                Result.TIMESTAMP, ObjectParser.ValueType.VALUE);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         PARSER.declareDouble(ConstructingObjectParser.constructorArg(), OVERALL_SCORE);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), Result.IS_INTERIM);

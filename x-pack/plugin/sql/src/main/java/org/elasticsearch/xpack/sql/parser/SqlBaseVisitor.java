@@ -295,6 +295,12 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitLogicalBinary(SqlBaseParser.LogicalBinaryContext ctx);
   /**
+   * Visit a parse tree produced by {@link SqlBaseParser#matchQueryOptions}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMatchQueryOptions(SqlBaseParser.MatchQueryOptionsContext ctx);
+  /**
    * Visit a parse tree produced by {@link SqlBaseParser#predicated}.
    * @param ctx the parse tree
    * @return the visitor result

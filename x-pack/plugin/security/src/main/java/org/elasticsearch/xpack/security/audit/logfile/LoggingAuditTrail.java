@@ -611,6 +611,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             if (queryStringIndex > -1) {
                 logEntry.with(URL_QUERY_FIELD_NAME, request.uri().substring(queryStringIndex + 1, queryStringLength));
             }
+            // deprecated uri format
+            logEntry.with("deprecated.uri", request.uri());
             return this;
         }
 
@@ -626,10 +628,16 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
 
         LogEntryBuilder withRestOrigin(RestRequest request) {
             assert LOCAL_ORIGIN_FIELD_VALUE.equals(logEntry.get(ORIGIN_TYPE_FIELD_NAME)); // this is the default
-            final InetSocketAddress socketAddress = request.getHttpChannel().getRemoteAddress();
+            final String formattedAddress;
+            final SocketAddress socketAddress = request.getRemoteAddress();
+            if (socketAddress instanceof InetSocketAddress) {
+                formattedAddress = NetworkAddress.format(((InetSocketAddress) socketAddress));
+            } else {
+                formattedAddress = socketAddress.toString();
+            }
             if (socketAddress != null) {
                 logEntry.with(ORIGIN_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
-                        .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(socketAddress));
+                        .with(ORIGIN_ADDRESS_FIELD_NAME, formattedAddress);
             }
             // fall through to local_node default
             return this;
@@ -700,6 +708,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
         LogEntryBuilder with(String key, String[] values) {
             if (values != null) {
                 logEntry.with(key, toQuotedJsonArray(values));
+                // deprecated format required for bwc
+                logEntry.with("deprecated." + key, Strings.arrayToCommaDelimitedString(values));
             }
             return this;
         }

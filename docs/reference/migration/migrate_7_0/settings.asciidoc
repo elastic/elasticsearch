@@ -2,6 +2,12 @@
 
 === Settings changes
 
+==== The default for `node.name` is now the hostname
+
+`node.name` now defaults to the hostname at the time when Elasticsearch
+is started. Previously the default node name was the first eight characters
+of the node id. It can still be configured explicitly in `elasticsearch.yml`.
+
 ==== Percolator
 
 * The deprecated `index.percolator.map_unmapped_fields_as_string` setting has been removed in favour of

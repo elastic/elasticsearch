@@ -147,7 +147,8 @@ import java.util.stream.Stream;
 import static java.util.stream.Collectors.toList;
 
 /**
- * Base client of
+ * Base client in charge of interfacing with the low level {@link RestClient}. Every subclient should take a {@link CoreClient} in as its
+ * sole constructor argument, and use these methods to communicate with the server.
  */
 public class CoreClient {
 

@@ -401,13 +401,6 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitSubqueryExpression(SqlBaseParser.SubqueryExpressionContext ctx);
   /**
-   * Visit a parse tree produced by the {@code columnReference}
-   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitColumnReference(SqlBaseParser.ColumnReferenceContext ctx);
-  /**
    * Visit a parse tree produced by the {@code dereference}
    * labeled alternative in {@link SqlBaseParser#primaryExpression}.
    * @param ctx the parse tree

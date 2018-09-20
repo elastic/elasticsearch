@@ -2368,12 +2368,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             if (assignedNode == null) {
                 return null;
             }
-            final IndexService indexService = internalCluster().getInstance(IndicesService.class, assignedNode.getName())
-                .indexService(shardRouting.index());
-            if (indexService == null) {
-                return null;
-            }
-            return indexService.getShardOrNull(shardRouting.id());
+            return internalCluster().getInstance(IndicesService.class, assignedNode.getName()).getShardOrNull(shardRouting.shardId());
         };
         assertBusy(() -> {
             final ClusterState state = clusterService().state();

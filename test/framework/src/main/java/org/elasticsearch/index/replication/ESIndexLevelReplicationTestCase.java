@@ -55,6 +55,8 @@ import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
@@ -135,6 +137,17 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             metaData.putMapping(typeMapping.getKey(), typeMapping.getValue());
         }
         return metaData.build();
+    }
+
+    protected IndexRequest copyIndexRequest(IndexRequest inRequest) throws IOException {
+        final IndexRequest outRequest = new IndexRequest();
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            inRequest.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                outRequest.readFrom(in);
+            }
+        }
+        return outRequest;
     }
 
     protected DiscoveryNode getDiscoveryNode(String id) {
@@ -428,6 +441,12 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         public synchronized void close() throws Exception {
             if (closed == false) {
                 closed = true;
+                for (IndexShard replica : replicas) {
+                    try {
+                        assertThat(replica.getMaxSeenAutoIdTimestamp(), equalTo(primary.getMaxSeenAutoIdTimestamp()));
+                    } catch (AlreadyClosedException ignored) {
+                    }
+                }
                 closeShards(this);
             } else {
                 throw new AlreadyClosedException("too bad");

@@ -376,6 +376,11 @@ public final class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {
+
+    }
+
+    @Override
     public void initializeMaxSeqNoOfUpdatesOrDeletes() {
         advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats.getMaxSeqNo());
     }

@@ -7,6 +7,7 @@ your application to Elasticsearch 6.5.
 * <<breaking_65_logging_changes>>
 * <<breaking_65_search_changes>>
 * <<breaking_65_sql_changes>>
+* <<breaking_65_client_changes>>
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
@@ -45,3 +46,12 @@ An additional group will be present in the result of requests containing a
 `GROUP BY` for a column that has missing values in the returned documents.
 The records with missing values in the grouped by column will be collectively
 considered a single bucket.
+
+[[breaking_65_client_changes]]
+=== Client changes
+
+==== Deprecate Retry.withBackoff methods that take Settings
+
+`Settings` is no longer required by `Retry` so the `withBackoff` methods that
+take `Settings` are now deprecated and there are new versions of those methods
+that do not require `Settings`.

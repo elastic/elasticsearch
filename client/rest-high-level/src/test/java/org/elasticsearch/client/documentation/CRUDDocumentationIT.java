@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
@@ -50,6 +51,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.RethrottleRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -75,6 +77,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskId;
 
 import java.util.Collections;
 import java.util.Date;
@@ -900,6 +903,48 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
+    }
+
+    public void testReindexRethrottle() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        TaskId taskId = new TaskId("oTUltX4IQMOUUVeiohTt8A:124");
+        {
+            // tag::rethrottle-disable-request
+            RethrottleRequest rethrottleRequest = new RethrottleRequest(taskId); // <1>
+            client.reindexRethrottle(rethrottleRequest, RequestOptions.DEFAULT);
+            // end::rethrottle-disable-request
+        }
+
+        {
+            // tag::rethrottle-request
+            RethrottleRequest rethrottleRequest = new RethrottleRequest(taskId, 100.0f); // <1>
+            client.reindexRethrottle(rethrottleRequest, RequestOptions.DEFAULT);
+            // end::rethrottle-request
+        }
+
+        // tag::rethrottle-request-async
+        ActionListener<ListTasksResponse> listener = new ActionListener<ListTasksResponse>() {
+            @Override
+            public void onResponse(ListTasksResponse response) {
+                // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::rethrottle-request-async
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        RethrottleRequest rethrottleRequest = new RethrottleRequest(taskId);
+        // tag::rethrottle-execute-async
+        client.reindexRethrottleAsync(rethrottleRequest, RequestOptions.DEFAULT, listener); // <1>
+        // end::rethrottle-execute-async
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
     public void testUpdateByQuery() throws Exception {

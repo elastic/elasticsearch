@@ -21,8 +21,12 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
@@ -52,12 +56,15 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.tasks.RawTaskStatus;
+import org.elasticsearch.tasks.TaskId;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
@@ -65,9 +72,15 @@ import org.joda.time.format.DateTimeFormat;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 
 public class CrudIT extends ESRestHighLevelClientTestCase {
 
@@ -631,7 +644,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         validateBulkResponses(nbItems, errors, bulkResponse, bulkRequest);
     }
 
-    public void testReindex() throws IOException {
+    public void testReindex() throws Exception {
         final String sourceIndex = "source1";
         final String destinationIndex = "dest";
         {
@@ -642,15 +655,14 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 .build();
             createIndex(sourceIndex, settings);
             createIndex(destinationIndex, settings);
+            BulkRequest bulkRequest = new BulkRequest()
+                    .add(new IndexRequest(sourceIndex, "type", "1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
+                    .add(new IndexRequest(sourceIndex, "type", "2").source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
+                    .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
             assertEquals(
                 RestStatus.OK,
                 highLevelClient().bulk(
-                    new BulkRequest()
-                        .add(new IndexRequest(sourceIndex, "type", "1")
-                            .source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
-                        .add(new IndexRequest(sourceIndex, "type", "2")
-                            .source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
-                        .setRefreshPolicy(RefreshPolicy.IMMEDIATE),
+                    bulkRequest,
                     RequestOptions.DEFAULT
                 ).status()
             );
@@ -692,6 +704,72 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals(0, bulkResponse.getBulkFailures().size());
             assertEquals(0, bulkResponse.getSearchFailures().size());
         }
+        {
+            // test reindex rethrottling
+            ReindexRequest reindexRequest = new ReindexRequest();
+            reindexRequest.setSourceIndices(sourceIndex);
+            reindexRequest.setDestIndex(destinationIndex);
+
+            // this following settings are supposed to halt reindexing after first document
+            reindexRequest.setSourceBatchSize(1);
+            reindexRequest.setRequestsPerSecond(0.00001f);
+            final CountDownLatch reindexTaskFinished = new CountDownLatch(1);
+            highLevelClient().reindexAsync(reindexRequest, RequestOptions.DEFAULT, new ActionListener<BulkByScrollResponse>() {
+
+                @Override
+                public void onResponse(BulkByScrollResponse response) {
+                    reindexTaskFinished.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e.toString());
+                }
+            });
+
+            TaskGroup taskGroupToRethrottle = findTaskToRethrottle();
+            assertThat(taskGroupToRethrottle.getChildTasks(), empty());
+            TaskId taskIdToRethrottle = taskGroupToRethrottle.getTaskInfo().getTaskId();
+
+            float requestsPerSecond = 1000f;
+            ListTasksResponse response = execute(new RethrottleRequest(taskIdToRethrottle, requestsPerSecond),
+                    highLevelClient()::reindexRethrottle, highLevelClient()::reindexRethrottleAsync);
+            assertThat(response.getTasks(), hasSize(1));
+            assertEquals(taskIdToRethrottle, response.getTasks().get(0).getTaskId());
+            assertThat(response.getTasks().get(0).getStatus(), instanceOf(RawTaskStatus.class));
+            assertEquals(Float.toString(requestsPerSecond),
+                    ((RawTaskStatus) response.getTasks().get(0).getStatus()).toMap().get("requests_per_second").toString());
+            reindexTaskFinished.await(2, TimeUnit.SECONDS);
+
+            // any rethrottling after the reindex is done performed with the same taskId should result in a failure
+            response = execute(new RethrottleRequest(taskIdToRethrottle, requestsPerSecond),
+                    highLevelClient()::reindexRethrottle, highLevelClient()::reindexRethrottleAsync);
+            assertTrue(response.getTasks().isEmpty());
+            assertFalse(response.getNodeFailures().isEmpty());
+            assertEquals(1, response.getNodeFailures().size());
+            assertEquals("Elasticsearch exception [type=resource_not_found_exception, reason=task [" + taskIdToRethrottle + "] is missing]",
+                    response.getNodeFailures().get(0).getCause().getMessage());
+        }
+    }
+
+    private TaskGroup findTaskToRethrottle() throws IOException {
+        long start = System.nanoTime();
+        ListTasksRequest request = new ListTasksRequest();
+        request.setActions(ReindexAction.NAME);
+        request.setDetailed(true);
+        do {
+            ListTasksResponse list = highLevelClient().tasks().list(request, RequestOptions.DEFAULT);
+            list.rethrowFailures("Finding tasks to rethrottle");
+            assertThat("tasks are left over from the last execution of this test",
+                list.getTaskGroups(), hasSize(lessThan(2)));
+            if (0 == list.getTaskGroups().size()) {
+                // The parent task hasn't started yet
+                continue;
+            }
+            return list.getTaskGroups().get(0);
+        } while (System.nanoTime() - start < TimeUnit.SECONDS.toNanos(10));
+        throw new AssertionError("Couldn't find tasks to rethrottle. Here are the running tasks " +
+                highLevelClient().tasks().list(request, RequestOptions.DEFAULT));
     }
 
     public void testUpdateByQuery() throws IOException {

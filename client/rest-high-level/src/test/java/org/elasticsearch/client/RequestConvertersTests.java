@@ -95,6 +95,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
@@ -319,10 +320,10 @@ public class RequestConvertersTests extends ESTestCase {
         }
         if (randomBoolean()) {
             float requestsPerSecond = (float) randomDoubleBetween(0.0, 10.0, false);
-            expectedParams.put("requests_per_second", Float.toString(requestsPerSecond));
+            expectedParams.put(RethrottleRequest.REQUEST_PER_SECOND_PARAMETER, Float.toString(requestsPerSecond));
             reindexRequest.setRequestsPerSecond(requestsPerSecond);
         } else {
-            expectedParams.put("requests_per_second", "-1");
+            expectedParams.put(RethrottleRequest.REQUEST_PER_SECOND_PARAMETER, "-1");
         }
         if (randomBoolean()) {
             reindexRequest.setDestRouting("=cat");
@@ -463,6 +464,34 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(deleteByQueryRequest, request.getEntity());
+    }
+
+    public void testRethrottle() throws IOException {
+        TaskId taskId = new TaskId(randomAlphaOfLength(10), randomIntBetween(1, 100));
+        RethrottleRequest rethrottleRequest;
+        Float requestsPerSecond;
+        Map<String, String> expectedParams = new HashMap<>();
+        if (frequently()) {
+            requestsPerSecond =  (float) randomDoubleBetween(0.0, 100.0, true);
+            rethrottleRequest = new RethrottleRequest(taskId, requestsPerSecond);
+            expectedParams.put(RethrottleRequest.REQUEST_PER_SECOND_PARAMETER, Float.toString(requestsPerSecond));
+        } else {
+            rethrottleRequest = new RethrottleRequest(taskId);
+            expectedParams.put(RethrottleRequest.REQUEST_PER_SECOND_PARAMETER, "-1");
+        }
+        expectedParams.put("group_by", "none");
+        Request request = RequestConverters.rethrottle(rethrottleRequest);
+        assertEquals("/_reindex/" + taskId + "/_rethrottle", request.getEndpoint());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals(expectedParams, request.getParameters());
+        assertNull(request.getEntity());
+
+        // test illegal RethrottleRequest values
+        Exception e = expectThrows(NullPointerException.class, () -> new RethrottleRequest(null, 1.0f));
+        assertEquals("taskId cannot be null", e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () -> new RethrottleRequest(new TaskId("taskId", 1), -5.0f));
+        assertEquals("requestsPerSecond needs to be positive value but was [-5.0]", e.getMessage());
     }
 
     public void testIndex() throws IOException {

@@ -25,8 +25,14 @@ The following arguments are optional.
 --------------------------------------------------
 include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-start-datafeed-request-options]
 --------------------------------------------------
-<1> Set when the datafeed should end
-<2> Set when the datafeed should start
+<1> Set when the datafeed should end, the value is exclusive.
+May be an epoch seconds, epoch millis or an ISO 8601 string.
+"now" is a special value that indicates the current time.
+If you do not specify an end time, the datafeed runs continuously.
+<2> Set when the datafeed should start, the value is inclusive.
+May be an epoch seconds, epoch millis or an ISO 8601 string.
+If you do not specify a start time and the datafeed is associated with a new job,
+the analysis starts from the earliest time for which data is available.
 <3> Set the timeout for the request
 
 [[java-rest-high-x-pack-ml-start-datafeed-execution]]

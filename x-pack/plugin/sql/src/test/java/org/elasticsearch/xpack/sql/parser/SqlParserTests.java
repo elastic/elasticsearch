@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import com.google.common.base.Joiner;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
@@ -26,7 +25,6 @@ import java.util.List;
 
 import static java.util.Collections.nCopies;
 import static java.util.stream.Collectors.toList;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;

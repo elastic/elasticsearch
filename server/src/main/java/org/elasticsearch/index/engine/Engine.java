@@ -139,7 +139,7 @@ public abstract class Engine implements Closeable {
     /*
      * This marker tracks the max seq_no of either update operations or delete operations have been processed in this engine.
      * An update operation is just an index request which overwrites existing documents with the same docId in the Lucene index.
-     * This marker is started with an unassigned status(-2), then will be initialized from outside (via advanceMaxSeqNoOfUpdatesOrDeletes).
+     * This marker is started uninitialized (-2), then will be initialized from outside (via initializeMaxSeqNoOfUpdatesOrDeletes).
      * The optimization using seq_no will be disabled (regardless of other conditions) if this marker is still uninitialized (-2).
      */
     private final AtomicLong maxSeqNoOfUpdatesOrDeletes = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
@@ -1776,26 +1776,29 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Returns the maximum sequence number of either update or delete operations have been processed
-     * in this engine or the sequence number from {@link #advanceMaxSeqNoOfUpdatesOrDeletes(long)}.
-     * An index request is considered as an update operation if it overwritten the existing documents
-     * in Lucene index with the same document id.
+     * Returns the maximum sequence number of either update or delete operations have been processed in this engine
+     * or the sequence number from {@link #advanceMaxSeqNoOfUpdatesOrDeletes(long)}. An index request is considered
+     * as an update operation if it overwritten the existing documents in Lucene index with the same document id.
      *
-     * <p>
-     * For a primary engine, this value is initialized once, then advanced internally when it processes
-     * an update or a delete operation. Whereas a replica engine never updates this value by itself but
-     * only inherits the latest value from its primary. In both cases, this value never goes backwards.
+     * @see #initializeMaxSeqNoOfUpdatesOrDeletes()
+     * @see #advanceMaxSeqNoOfUpdatesOrDeletes(long)
      */
     public final long getMaxSeqNoOfUpdatesOrDeletes() {
         return maxSeqNoOfUpdatesOrDeletes.get();
     }
 
     /**
-     * Advances the max_seq_no_of_updates marker of this engine to at least the given sequence number.
-     * @see #getMaxSeqNoOfUpdatesOrDeletes()
+     * A primary shard calls this method once to initialize the max_seq_no_of_updates marker using the
+     * max_seq_no from Lucene index and translog before replaying the local translog in its local recovery.
+     */
+    public abstract void initializeMaxSeqNoOfUpdatesOrDeletes();
+
+    /**
+     * A replica shard receives a new max_seq_no_of_updates from its primary shard, then call this method to
+     * advance this marker to at least the given sequence number.
      */
     public final void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {
         maxSeqNoOfUpdatesOrDeletes.updateAndGet(curr -> Math.max(curr, seqNo));
-        assert maxSeqNoOfUpdatesOrDeletes.get() >= seqNo;
+        assert maxSeqNoOfUpdatesOrDeletes.get() >= seqNo : maxSeqNoOfUpdatesOrDeletes.get() + " < " + seqNo;
     }
 }

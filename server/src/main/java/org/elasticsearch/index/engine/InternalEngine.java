@@ -2538,4 +2538,12 @@ public class InternalEngine extends Engine {
             assert refreshedCheckpoint.get() >= checkpoint : refreshedCheckpoint.get() + " < " + checkpoint;
         }
     }
+
+    @Override
+    public void initializeMaxSeqNoOfUpdatesOrDeletes() {
+        assert getMaxSeqNoOfUpdatesOrDeletes() == SequenceNumbers.UNASSIGNED_SEQ_NO :
+            "max_seq_no_of_updates is already initialized [" + getMaxSeqNoOfUpdatesOrDeletes() + "]";
+        final long maxSeqNo = SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translog.maxSeqNo());
+        advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNo);
+    }
 }

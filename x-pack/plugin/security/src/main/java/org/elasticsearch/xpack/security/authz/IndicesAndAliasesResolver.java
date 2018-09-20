@@ -275,26 +275,43 @@ class IndicesAndAliasesResolver {
     }
 
     private List<String> replaceWildcardsWithAuthorizedAliases(String[] aliases, List<String> authorizedAliases) {
-        List<String> finalAliases = new ArrayList<>();
+        final List<String> finalAliases = new ArrayList<>();
 
         //IndicesAliasesRequest doesn't support empty aliases (validation fails) but GetAliasesRequest does (in which case empty means _all)
         if (aliases.length == 0) {
             finalAliases.addAll(authorizedAliases);
         }
 
-        for (String aliasPattern : aliases) {
-            if (aliasPattern.equals(MetaData.ALL)) {
-                finalAliases.addAll(authorizedAliases);
-            } else if (Regex.isSimpleMatchPattern(aliasPattern)) {
-                for (String authorizedAlias : authorizedAliases) {
-                    if (Regex.simpleMatch(aliasPattern, authorizedAlias)) {
-                        finalAliases.add(authorizedAlias);
-                    }
-                }
+        final String[] patterns = new String[aliases.length];
+        final boolean[] include = new boolean[aliases.length];
+        for (int i = 0; i < aliases.length; i++) {
+            final String alias = aliases[i];
+            if (alias.charAt(0) == '-') {
+                patterns[i] = alias.substring(1);
+                include[i] = false;
             } else {
-                finalAliases.add(aliasPattern);
+                patterns[i] = alias;
+                include[i] = true;
             }
         }
+
+        for (final String authorizedAlias : authorizedAliases) {
+            boolean matched = false;
+            for (int i = 0; i < patterns.length; i++) {
+                if (include[i]) {
+                    if (matched == false) {
+                        final String pattern = patterns[i];
+                        matched = MetaData.ALL.equals(pattern) || Regex.simpleMatch(pattern, authorizedAlias);
+                    }
+                } else if (matched) {
+                    matched = Regex.simpleMatch(patterns[i], authorizedAlias) == false;
+                }
+            }
+            if (matched) {
+                finalAliases.add(authorizedAlias);
+            }
+        }
+
         return finalAliases;
     }
 

@@ -17,14 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.action.ingest;
+package org.elasticsearch.ingest;
 
-import org.elasticsearch.ingest.CompoundProcessor;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.action.ingest.SimulateProcessorResult;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Processor to be used within Simulate API to keep track of processors executed in pipeline.
@@ -35,7 +34,7 @@ public final class TrackingResultProcessor implements Processor {
     private final List<SimulateProcessorResult> processorResultList;
     private final boolean ignoreFailure;
 
-    public TrackingResultProcessor(boolean ignoreFailure, Processor actualProcessor, List<SimulateProcessorResult> processorResultList) {
+    TrackingResultProcessor(boolean ignoreFailure, Processor actualProcessor, List<SimulateProcessorResult> processorResultList) {
         this.ignoreFailure = ignoreFailure;
         this.processorResultList = processorResultList;
         this.actualProcessor = actualProcessor;
@@ -67,19 +66,35 @@ public final class TrackingResultProcessor implements Processor {
         return actualProcessor.getTag();
     }
 
-    public static CompoundProcessor decorate(CompoundProcessor compoundProcessor, List<SimulateProcessorResult> processorResultList) {
+    public static CompoundProcessor decorate(CompoundProcessor compoundProcessor, List<SimulateProcessorResult> processorResultList,
+                                             Set<PipelineProcessor> pipelinesSeen) {
         List<Processor> processors = new ArrayList<>(compoundProcessor.getProcessors().size());
         for (Processor processor : compoundProcessor.getProcessors()) {
-            if (processor instanceof CompoundProcessor) {
-                processors.add(decorate((CompoundProcessor) processor, processorResultList));
+            if (processor instanceof PipelineProcessor) {
+                PipelineProcessor pipelineProcessor = ((PipelineProcessor) processor);
+                if (pipelinesSeen.add(pipelineProcessor) == false) {
+                    throw new IllegalStateException("Cycle detected for pipeline: " + pipelineProcessor.getPipeline().getId());
+                }
+                processors.add(decorate(pipelineProcessor.getPipeline().getCompoundProcessor(), processorResultList, pipelinesSeen));
+                pipelinesSeen.remove(pipelineProcessor);
+            } else if (processor instanceof CompoundProcessor) {
+                processors.add(decorate((CompoundProcessor) processor, processorResultList, pipelinesSeen));
             } else {
                 processors.add(new TrackingResultProcessor(compoundProcessor.isIgnoreFailure(), processor, processorResultList));
             }
         }
         List<Processor> onFailureProcessors = new ArrayList<>(compoundProcessor.getProcessors().size());
         for (Processor processor : compoundProcessor.getOnFailureProcessors()) {
-            if (processor instanceof CompoundProcessor) {
-                onFailureProcessors.add(decorate((CompoundProcessor) processor, processorResultList));
+            if (processor instanceof PipelineProcessor) {
+                PipelineProcessor pipelineProcessor = ((PipelineProcessor) processor);
+                if (pipelinesSeen.add(pipelineProcessor) == false) {
+                    throw new IllegalStateException("Cycle detected for pipeline: " + pipelineProcessor.getPipeline().getId());
+                }
+                onFailureProcessors.add(decorate(pipelineProcessor.getPipeline().getCompoundProcessor(), processorResultList,
+                    pipelinesSeen));
+                pipelinesSeen.remove(pipelineProcessor);
+            } else if (processor instanceof CompoundProcessor) {
+                onFailureProcessors.add(decorate((CompoundProcessor) processor, processorResultList, pipelinesSeen));
             } else {
                 onFailureProcessors.add(new TrackingResultProcessor(compoundProcessor.isIgnoreFailure(), processor, processorResultList));
             }

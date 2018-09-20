@@ -99,11 +99,11 @@ import org.elasticsearch.xpack.core.ml.stats.CountAccumulator;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.core.ml.stats.StatsAccumulator;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.MlIndicesUtils;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.ml.job.categorization.GrokPatternCreator;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
+import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.io.IOException;
 import java.io.InputStream;

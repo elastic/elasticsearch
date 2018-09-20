@@ -17,7 +17,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.persistence.JobStorageDeletionTask;
+import org.elasticsearch.xpack.core.ml.job.persistence.JobDeletionTask;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -77,7 +77,7 @@ public class DeleteJobAction extends Action<DeleteJobAction.Request, Acknowledge
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new JobStorageDeletionTask(id, type, action, "delete-job-" + jobId, parentTaskId, headers);
+            return new JobDeletionTask(id, type, action, "delete-job-" + jobId, parentTaskId, headers);
         }
 
         @Override

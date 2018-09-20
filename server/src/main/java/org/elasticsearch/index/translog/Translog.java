@@ -1830,7 +1830,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * Returns the max seq_no of translog operations found in this translog. Since this value is calculated based on the current
      * existing readers, this value is not necessary to be the max seq_no of all operations have been stored in this translog.
      */
-    public long maxSeqNo() {
+    public long getMaxSeqNo() {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             final OptionalLong maxSeqNo = Stream.concat(readers.stream(), Stream.of(current))

@@ -3071,13 +3071,13 @@ public class TranslogTests extends ESTestCase {
             translog.rollGeneration();
         }
         translog.sync();
-        assertThat(translog.maxSeqNo(),
+        assertThat(translog.getMaxSeqNo(),
             equalTo(maxSeqNoPerGeneration.isEmpty() ? SequenceNumbers.NO_OPS_PERFORMED : Collections.max(maxSeqNoPerGeneration.values())));
         long minRetainedGen = commit(translog, randomLongBetween(1, translog.currentFileGeneration()), translog.currentFileGeneration());
         long expectedMaxSeqNo = maxSeqNoPerGeneration.entrySet().stream()
             .filter(e -> e.getKey() >= minRetainedGen).mapToLong(e -> e.getValue())
             .max().orElse(SequenceNumbers.NO_OPS_PERFORMED);
-        assertThat(translog.maxSeqNo(), equalTo(expectedMaxSeqNo));
+        assertThat(translog.getMaxSeqNo(), equalTo(expectedMaxSeqNo));
     }
 
     static class SortedSnapshot implements Translog.Snapshot {

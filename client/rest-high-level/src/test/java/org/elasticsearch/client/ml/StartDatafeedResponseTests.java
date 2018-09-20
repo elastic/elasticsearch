@@ -23,7 +23,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
-public class StartDatafeedResponseTest extends AbstractXContentTestCase<StartDatafeedResponse> {
+public class StartDatafeedResponseTests extends AbstractXContentTestCase<StartDatafeedResponse> {
 
     @Override
     protected StartDatafeedResponse createTestInstance() {

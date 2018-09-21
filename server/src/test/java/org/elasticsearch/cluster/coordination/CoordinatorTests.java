@@ -57,7 +57,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -194,7 +193,7 @@ public class CoordinatorTests extends ESTestCase {
                 localNode = createDiscoveryNode();
                 persistedState = new InMemoryPersistedState(1L,
                     clusterState(1L, 1L, localNode, initialConfiguration, initialConfiguration, 0L));
-                wrap(this::setUp, localNode).run();
+                onNode(this::setUp, localNode).run();
             }
 
             private DiscoveryNode createDiscoveryNode() {
@@ -225,7 +224,7 @@ public class CoordinatorTests extends ESTestCase {
                             matchesDestination = n -> n.getLocalNode().equals(destination);
                         }
 
-                        scheduler.accept(wrap(new Runnable() {
+                        scheduler.accept(onNode(new Runnable() {
                             @Override
                             public String toString() {
                                 return "delivery of [" + action + "][" + requestId + "]: " + request;
@@ -252,7 +251,7 @@ public class CoordinatorTests extends ESTestCase {
 
                                             @Override
                                             public void sendResponse(final TransportResponse response) {
-                                                scheduler.accept(wrap(new Runnable() {
+                                                scheduler.accept(onNode(new Runnable() {
                                                     @Override
                                                     public String toString() {
                                                         return "delivery of response " + response
@@ -273,7 +272,7 @@ public class CoordinatorTests extends ESTestCase {
 
                                             @Override
                                             public void sendResponse(Exception exception) {
-                                                scheduler.accept(wrap(new Runnable() {
+                                                scheduler.accept(onNode(new Runnable() {
                                                     @Override
                                                     public String toString() {
                                                         return "delivery of error response " + exception.getMessage()
@@ -291,7 +290,7 @@ public class CoordinatorTests extends ESTestCase {
                                         try {
                                             processMessageReceived(request, requestHandler, transportChannel);
                                         } catch (Exception e) {
-                                            scheduler.accept(wrap(new Runnable() {
+                                            scheduler.accept(onNode(new Runnable() {
                                                 @Override
                                                 public String toString() {
                                                     return "delivery of processing error response " + e.getMessage()
@@ -311,10 +310,11 @@ public class CoordinatorTests extends ESTestCase {
                     }
                 };
 
-                masterService = new FakeThreadPoolMasterService("test", wrap(deterministicTaskQueue::scheduleNow, localNode));
+                masterService = new FakeThreadPoolMasterService("test",
+                    runnable -> deterministicTaskQueue.scheduleNow(onNode(runnable, localNode)));
                 transportService = mockTransport.createTransportService(
-                    settings, deterministicTaskQueue.getThreadPool(wrapper(localNode)), NOOP_TRANSPORT_INTERCEPTOR, a -> localNode,
-                    null, emptySet());
+                    settings, deterministicTaskQueue.getThreadPool(runnable -> onNode(runnable, localNode)), NOOP_TRANSPORT_INTERCEPTOR,
+                    a -> localNode, null, emptySet());
                 coordinator = new Coordinator(settings, transportService, ESAllocationTestCase.createAllocationService(Settings.EMPTY),
                     masterService, this::getPersistedState, Cluster.this::provideUnicastHosts, Randomness.get());
                 masterService.setClusterStatePublisher(coordinator);
@@ -368,15 +368,7 @@ public class CoordinatorTests extends ESTestCase {
         requestHandler.processMessageReceived(request, transportChannel);
     }
 
-    private static Consumer<Runnable> wrap(Consumer<Runnable> runnableConsumer, DiscoveryNode node) {
-        return runnable -> runnableConsumer.accept(wrap(runnable, node));
-    }
-
-    private static Function<Runnable, Runnable> wrapper(DiscoveryNode node) {
-        return runnable -> wrap(runnable, node);
-    }
-
-    private static Runnable wrap(Runnable runnable, DiscoveryNode node) {
+    private static Runnable onNode(Runnable runnable, DiscoveryNode node) {
         return new Runnable() {
             @Override
             public void run() {

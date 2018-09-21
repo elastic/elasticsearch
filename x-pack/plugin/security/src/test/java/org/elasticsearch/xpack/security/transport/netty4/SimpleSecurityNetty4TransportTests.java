@@ -213,12 +213,11 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportT
             Thread emptyReader = new Thread(() -> {
                 while (stopped.get() == false) {
                     try {
-                        stopped.set(true);
                         socket.getInputStream().read();
                     } catch (SocketTimeoutException e) {
                         // Ignored
                     } catch (IOException e) {
-                        fail(e.getMessage());
+                        throw new AssertionError(e);
                     }
                 }
             });

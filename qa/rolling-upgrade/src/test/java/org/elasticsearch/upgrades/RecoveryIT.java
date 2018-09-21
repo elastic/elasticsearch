@@ -111,7 +111,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
         return future;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/33616")
     public void testRecoveryWithConcurrentIndexing() throws Exception {
         final String index = "recovery_with_concurrent_indexing";
         Response response = client().performRequest(new Request("GET", "_nodes"));
@@ -184,7 +183,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
     }
 
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/33616")
     public void testRelocationWithConcurrentIndexing() throws Exception {
         final String index = "relocation_with_concurrent_indexing";
         switch (CLUSTER_TYPE) {

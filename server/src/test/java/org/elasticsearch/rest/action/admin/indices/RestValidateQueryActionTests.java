@@ -37,6 +37,7 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.usage.UsageService;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.util.Collections;
@@ -47,7 +48,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.spy;
 
 public class RestValidateQueryActionTests extends AbstractSearchTestCase {
 
@@ -55,9 +55,9 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     private static final TestThreadPool threadPool = new TestThreadPool(RestValidateQueryActionTests.class.getName());
     private static final NodeClient client = new NodeClient(settings, threadPool);
 
-    private final UsageService usageService = new UsageService(settings);
-    private final RestController controller = new RestController(settings, emptySet(), null, client, null, usageService);
-    private final RestValidateQueryAction action = spy(new RestValidateQueryAction(settings, controller));
+    private static final UsageService usageService = new UsageService(settings);
+    private static final RestController controller = new RestController(settings, emptySet(), null, client, null, usageService);
+    private static final RestValidateQueryAction action = new RestValidateQueryAction(settings, controller);
 
     /**
      * Configures {@link NodeClient} to stub {@link ValidateQueryAction} transport action.
@@ -79,6 +79,11 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         actions.put(ValidateQueryAction.INSTANCE, transportAction);
 
         client.initialize(actions, () -> "local", null);
+    }
+
+    @AfterClass
+    public static void terminateTestThreadPool() throws InterruptedException {
+        terminate(threadPool);
     }
 
     public void testRestValidateQueryAction() throws Exception {

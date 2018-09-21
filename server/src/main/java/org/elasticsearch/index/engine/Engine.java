@@ -45,6 +45,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.Nullable;
@@ -1720,12 +1721,12 @@ public abstract class Engine implements Closeable {
     public abstract void deactivateThrottling();
 
     /**
-     * Marks operations in the translog as completed. This is used to restore the state of the local checkpoint tracker on primary
-     * promotion.
+     * This method replays translog to restore the Lucene index which might be reverted previously.
+     * This ensures that all acknowledged writes are restored correctly when this engine is promoted.
      *
-     * @throws IOException if an I/O exception occurred reading the translog
+     * @return the number of translog operations have been recovered
      */
-    public abstract void restoreLocalCheckpointFromTranslog() throws IOException;
+    public abstract int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) throws IOException;
 
     /**
      * Fills up the local checkpoints history with no-ops until the local checkpoint
@@ -1760,6 +1761,21 @@ public abstract class Engine implements Closeable {
      * Tries to prune buffered deletes from the version map.
      */
     public abstract void maybePruneDeletes();
+
+    /**
+     * Returns the maximum auto_id_timestamp of all append-only index requests have been processed by this engine
+     * or the auto_id_timestamp received from its primary shard via {@link #updateMaxUnsafeAutoIdTimestamp(long)}.
+     * Notes this method returns the auto_id_timestamp of all append-only requests, not max_unsafe_auto_id_timestamp.
+     */
+    public long getMaxSeenAutoIdTimestamp() {
+        return IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
+    }
+
+    /**
+     * Forces this engine to advance its max_unsafe_auto_id_timestamp marker to at least the given timestamp.
+     * The engine will disable optimization for all append-only whose timestamp at most {@code newTimestamp}.
+     */
+    public abstract void updateMaxUnsafeAutoIdTimestamp(long newTimestamp);
 
     @FunctionalInterface
     public interface TranslogRecoveryRunner {

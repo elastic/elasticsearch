@@ -20,6 +20,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.security.PutRoleMappingRequest;
+import org.elasticsearch.client.security.PutRoleMappingResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.PutUserRequest;
@@ -68,6 +70,34 @@ public final class SecurityClient {
     public void putUserAsync(PutUserRequest request, RequestOptions options, ActionListener<PutUserResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::putUser, options,
             PutUserResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Create/Update a role mapping.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-role-mapping.html">
+     * the docs</a> for more.
+     * @param request the request with the role mapping information
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the put role mapping call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public PutRoleMappingResponse putRoleMapping(PutRoleMappingRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::putRoleMapping, options,
+                PutRoleMappingResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously create/update a role mapping.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-role-mapping.html">
+     * the docs</a> for more.
+     * @param request the request with the role mapping information
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void putRoleMappingAsync(PutRoleMappingRequest request, RequestOptions options,
+            ActionListener<PutRoleMappingResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::putRoleMapping, options,
+                PutRoleMappingResponse::fromXContent, listener, emptySet());
     }
 
     /**

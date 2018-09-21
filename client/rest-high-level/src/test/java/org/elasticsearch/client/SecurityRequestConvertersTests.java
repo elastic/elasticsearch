@@ -22,8 +22,12 @@ package org.elasticsearch.client;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
+import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
+import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
+import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
+import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -63,6 +67,34 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertEquals("/_xpack/security/user/" + putUserRequest.getUsername(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(putUserRequest, request.getEntity());
+    }
+
+    public void testPutRoleMapping() throws IOException {
+        final String username = randomAlphaOfLengthBetween(4, 7);
+        final String rolename = randomAlphaOfLengthBetween(4, 7);
+        final String roleMappingName = randomAlphaOfLengthBetween(4, 7);
+        final String groupname = "cn="+randomAlphaOfLengthBetween(4, 7)+",dc=example,dc=com";
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, String> expectedParams;
+        if (refreshPolicy != RefreshPolicy.NONE) {
+            expectedParams = Collections.singletonMap("refresh", refreshPolicy.getValue());
+        } else {
+            expectedParams = Collections.emptyMap();
+        }
+
+        final RoleMapperExpression rules = AnyRoleMapperExpression.builder()
+                .addExpression(FieldRoleMapperExpression.ofUsername(username))
+                .addExpression(FieldRoleMapperExpression.ofGroups(groupname))
+                .build();
+        final PutRoleMappingRequest putRoleMappingRequest = new PutRoleMappingRequest(roleMappingName, true, Collections.singletonList(
+                rolename), rules, null, refreshPolicy);
+
+        final Request request = SecurityRequestConverters.putRoleMapping(putRoleMappingRequest);
+
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/role_mapping/" + roleMappingName, request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(putRoleMappingRequest, request.getEntity());
     }
 
     public void testEnableUser() {

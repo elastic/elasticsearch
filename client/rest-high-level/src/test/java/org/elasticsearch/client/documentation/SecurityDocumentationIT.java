@@ -25,11 +25,16 @@ import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.DisableUserRequest;
+import org.elasticsearch.client.security.EmptyResponse;
 import org.elasticsearch.client.security.EnableUserRequest;
+import org.elasticsearch.client.security.PutRoleMappingRequest;
+import org.elasticsearch.client.security.PutRoleMappingResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
-import org.elasticsearch.client.security.EmptyResponse;
+import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
+import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
+import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
@@ -80,6 +85,58 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::put-user-execute-async
             client.security().putUserAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::put-user-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testPutRoleMapping() throws Exception {
+        final RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::put-role-mapping-execute
+            final RoleMapperExpression rules = AnyRoleMapperExpression.builder()
+                    .addExpression(FieldRoleMapperExpression.ofUsername("*"))
+                    .addExpression(FieldRoleMapperExpression.ofGroups("cn=admins,dc=example,dc=com"))
+                    .build();
+            final PutRoleMappingRequest request = new PutRoleMappingRequest("mapping-example", true, Collections.singletonList("superuser"),
+                    rules, null, RefreshPolicy.NONE);
+            final PutRoleMappingResponse response = client.security().putRoleMapping(request, RequestOptions.DEFAULT);
+            // end::put-role-mapping-execute
+            // tag::put-role-mapping-response
+            boolean isCreated = response.isCreated(); // <1>
+            // end::put-role-mapping-response
+            assertTrue(isCreated);
+        }
+
+        {
+            final RoleMapperExpression rules = AnyRoleMapperExpression.builder()
+                    .addExpression(FieldRoleMapperExpression.ofUsername("*"))
+                    .addExpression(FieldRoleMapperExpression.ofGroups("cn=admins,dc=example,dc=com"))
+                    .build();
+            final PutRoleMappingRequest request = new PutRoleMappingRequest("mapping-example", true, Collections.singletonList("superuser"),
+                    rules, null, RefreshPolicy.NONE);
+            // tag::put-role-mapping-execute-async
+            ActionListener<PutRoleMappingResponse> listener = new ActionListener<PutRoleMappingResponse>() {
+                @Override
+                public void onResponse(PutRoleMappingResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::put-role-mapping-execute-async
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::put-role-mapping-execute-listener
+            client.security().putRoleMappingAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::put-role-mapping-execute-listener
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

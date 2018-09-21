@@ -36,6 +36,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -51,13 +52,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class RestValidateQueryActionTests extends AbstractSearchTestCase {
 
-    private static final Settings settings = Settings.EMPTY;
-    private static final TestThreadPool threadPool = new TestThreadPool(RestValidateQueryActionTests.class.getName());
-    private static final NodeClient client = new NodeClient(settings, threadPool);
+    private static ThreadPool threadPool = new TestThreadPool(RestValidateQueryActionTests.class.getName());
+    private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
 
-    private static final UsageService usageService = new UsageService(settings);
-    private static final RestController controller = new RestController(settings, emptySet(), null, client, null, usageService);
-    private static final RestValidateQueryAction action = new RestValidateQueryAction(settings, controller);
+    private static UsageService usageService = new UsageService(Settings.EMPTY);
+    private static RestController controller = new RestController(Settings.EMPTY, emptySet(), null, client, null, usageService);
+    private static RestValidateQueryAction action = new RestValidateQueryAction(Settings.EMPTY, controller);
 
     /**
      * Configures {@link NodeClient} to stub {@link ValidateQueryAction} transport action.
@@ -82,8 +82,15 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     }
 
     @AfterClass
-    public static void terminateTestThreadPool() throws InterruptedException {
+    public static void terminateThreadPool() throws InterruptedException {
         terminate(threadPool);
+
+        threadPool = null;
+        client = null;
+
+        usageService = null;
+        controller = null;
+        action = null;
     }
 
     public void testRestValidateQueryAction() throws Exception {

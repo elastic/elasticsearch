@@ -679,8 +679,8 @@ public class InternalEngineTests extends EngineTestCase {
         engine = new InternalEngine(engine.config());
         expectThrows(IllegalStateException.class, () -> engine.flush(true, true));
         assertTrue(engine.isRecovering());
-        engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
         engine.initializeMaxSeqNoOfUpdatesOrDeletes();
+        engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
         assertFalse(engine.isRecovering());
         doc = testParsedDocument("2", null, testDocumentWithTextField(), SOURCE, null);
         engine.index(indexForDoc(doc));
@@ -2679,8 +2679,8 @@ public class InternalEngineTests extends EngineTestCase {
                     }
                 }
             }) {
-                engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
                 engine.initializeMaxSeqNoOfUpdatesOrDeletes();
+                engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
                 final ParsedDocument doc1 = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
                 engine.index(indexForDoc(doc1));
                 globalCheckpoint.set(engine.getLocalCheckpoint());
@@ -3467,8 +3467,8 @@ public class InternalEngineTests extends EngineTestCase {
         try (Store store = createStore(newFSDirectory(storeDir));
              InternalEngine engine = new InternalEngine(configSupplier.apply(store))) {
             assertEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
-            engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
             engine.initializeMaxSeqNoOfUpdatesOrDeletes();
+            engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
             assertEquals(timestamp1, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
             final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(),
                 new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
@@ -4367,8 +4367,8 @@ public class InternalEngineTests extends EngineTestCase {
                     super.commitIndexWriter(writer, translog, syncId);
                 }
             }) {
-            engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
             engine.initializeMaxSeqNoOfUpdatesOrDeletes();
+            engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
             int numDocs = scaledRandomIntBetween(10, 100);
             for (int docId = 0; docId < numDocs; docId++) {
                 ParseContext.Document document = testDocumentWithTextField();

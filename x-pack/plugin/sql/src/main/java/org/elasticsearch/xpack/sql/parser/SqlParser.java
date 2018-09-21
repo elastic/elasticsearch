@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.parser;
 
+import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CommonToken;
@@ -99,7 +100,7 @@ public class SqlParser {
         CommonTokenStream tokenStream = new CommonTokenStream(tokenSource);
         SqlBaseParser parser = new SqlBaseParser(tokenStream);
 
-        parser.addParseListener(new CircuitBreakerProcessor());
+        parser.addParseListener(new CircuitBreakerListener());
         parser.addParseListener(new PostProcessor(Arrays.asList(parser.getRuleNames())));
 
         parser.removeErrorListeners();
@@ -212,18 +213,26 @@ public class SqlParser {
     /**
      * Used to catch large expressions that can lead to stack overflows
      */
-    private class CircuitBreakerProcessor extends SqlBaseBaseListener {
+    private class CircuitBreakerListener extends SqlBaseBaseListener {
 
-        private static final short MAX_BOOLEAN_ELEMENTS = 1000;
-        private short countElementsInBooleanExpressions = 0;
+        private static final short MAX_DEPTH = 100;
+
+        // Keep current depth for every rule visited
+        ObjectIntHashMap<String> depthCounts = new ObjectIntHashMap<>(100);
 
         @Override
-        public void enterLogicalBinary(SqlBaseParser.LogicalBinaryContext ctx) {
-            if (++countElementsInBooleanExpressions == MAX_BOOLEAN_ELEMENTS) {
-                throw new ParsingException("boolean expression is too large to parse, (exceeds {} elements)",
-                    MAX_BOOLEAN_ELEMENTS);
+        public void enterEveryRule(ParserRuleContext ctx) {
+            int currentDepth = depthCounts.putOrAdd(ctx.getClass().getSimpleName(), 1, 1);
+            if (currentDepth > MAX_DEPTH) {
+                throw new ParsingException("expression is too large to parse, (tree's depth exceeds {})", MAX_DEPTH);
             }
-            super.enterLogicalBinary(ctx);
+            super.enterEveryRule(ctx);
+        }
+
+        @Override
+        public void exitEveryRule(ParserRuleContext ctx) {
+            depthCounts.putOrAdd(ctx.getClass().getSimpleName(), 0, -1);
+            super.exitEveryRule(ctx);
         }
     }
 

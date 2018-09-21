@@ -138,14 +138,57 @@ public class SqlParserTests extends ESTestCase {
         assertThat(mmqp.optionMap(), hasEntry("fuzzy_rewrite", "scoring_boolean"));
     }
 
-    public void testLimitToPreventStackOverflowFromLargeBooleanExpression() {
-        // 1000 elements is ok
-        new SqlParser().createExpression(Joiner.on(" OR ").join(nCopies(1000, "a = b")));
+    public void testLimitToPreventStackOverflowFromLargeUnaryBooleanExpression() {
+        // 100 elements is ok
+        new SqlParser().createExpression(
+            Joiner.on("NOT(").join(nCopies(100, "true")).concat(Joiner.on("").join(nCopies(99, ")"))));
 
-        // 1001 elements parser's "circuit breaker" is triggered
+        // 500 elements parser's "circuit breaker" is triggered
+        ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createExpression(
+            Joiner.on("NOT(").join(nCopies(101, "true")).concat(Joiner.on("").join(nCopies(100, ")")))));
+        assertEquals("expression is too large to parse, (tree's depth exceeds 100)", e.getErrorMessage());
+    }
+
+    public void testLimitToPreventStackOverflowFromLargeBinaryBooleanExpression() {
+        // 100 elements is ok
+        new SqlParser().createExpression(Joiner.on(" OR ").join(nCopies(100, "true")));
+
+        // 101 elements parser's "circuit breaker" is triggered
         ParsingException e = expectThrows(ParsingException.class, () ->
-            new SqlParser().createExpression(Joiner.on(" OR ").join(nCopies(1001, "a = b"))));
-        assertEquals("boolean expression is too large to parse, (exceeds 1000 elements)", e.getErrorMessage());
+            new SqlParser().createExpression(Joiner.on(" OR ").join(nCopies(101, "a = b"))));
+        assertEquals("expression is too large to parse, (tree's depth exceeds 100)", e.getErrorMessage());
+    }
+
+    public void testLimitToPreventStackOverflowFromLargeUnaryArithmeticExpression() {
+        // 100 elements is ok
+        new SqlParser().createExpression(
+            Joiner.on("abs(").join(nCopies(100, "i")).concat(Joiner.on("").join(nCopies(99, ")"))));
+
+        // 101 elements parser's "circuit breaker" is triggered
+        ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createExpression(
+            Joiner.on("abs(").join(nCopies(101, "i")).concat(Joiner.on("").join(nCopies(100, ")")))));
+        assertEquals("expression is too large to parse, (tree's depth exceeds 100)", e.getErrorMessage());
+    }
+
+    public void testLimitToPreventStackOverflowFromLargeBinaryArithmeticExpression() {
+        // 100 elements is ok
+        new SqlParser().createExpression(Joiner.on(" + ").join(nCopies(100, "a")));
+
+        // 101 elements parser's "circuit breaker" is triggered
+        ParsingException e = expectThrows(ParsingException.class, () ->
+            new SqlParser().createExpression(Joiner.on(" + ").join(nCopies(101, "a"))));
+        assertEquals("expression is too large to parse, (tree's depth exceeds 100)", e.getErrorMessage());
+    }
+
+    public void testLimitToPreventStackOverflowFromLargeSubselectTree() {
+        // 100 elements is ok
+        new SqlParser().createStatement(
+            Joiner.on(" (").join(nCopies(100, "SELECT * FROM")).concat("t").concat(Joiner.on("").join(nCopies(99, ")"))));
+
+        // 101 elements parser's "circuit breaker" is triggered
+        ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createStatement(
+            Joiner.on(" (").join(nCopies(101, "SELECT * FROM")).concat("t").concat(Joiner.on("").join(nCopies(100, ")")))));
+        assertEquals("expression is too large to parse, (tree's depth exceeds 100)", e.getErrorMessage());
     }
 
     private LogicalPlan parseStatement(String sql) {

@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -162,7 +163,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
 
     // check that terms2 is a subset of terms1
     private void assertSubset(Terms terms1, Terms terms2, long minDocCount, int size, String include) {
-        final Matcher matcher = include == null ? null : Pattern.compile(include).matcher("");;
+        final Matcher matcher = include == null ? null : Pattern.compile(include).matcher("");
         final Iterator<? extends Terms.Bucket> it1 = terms1.getBuckets().iterator();
         final Iterator<? extends Terms.Bucket> it2 = terms2.getBuckets().iterator();
         int size2 = 0;

@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.joda.time.format.DateTimeFormatter;
 
-import javax.net.ssl.SSLContext;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -53,6 +52,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import javax.net.ssl.SSLContext;
 
 /**
  * {@code HttpExporter} uses the low-level {@link RestClient} to connect to a user-specified set of nodes for exporting Monitoring
@@ -377,7 +378,7 @@ public class HttpExporter extends Exporter {
      * @throws SettingsException if any setting is malformed or if no host is set
      */
     private static HttpHost[] createHosts(final Config config) {
-        final List<String> hosts = HOST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());;
+        final List<String> hosts = HOST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
         String configKey = HOST_SETTING.getConcreteSettingForNamespace(config.name()).getKey();
 
         if (hosts.isEmpty()) {
@@ -485,7 +486,7 @@ public class HttpExporter extends Exporter {
             sslStrategy = sslService.sslIOSessionStrategy(sslConfiguration);
         }
         final CredentialsProvider credentialsProvider = createCredentialsProvider(config);
-        List<String> hostList = HOST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());;
+        List<String> hostList = HOST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
         // sending credentials in plaintext!
         if (credentialsProvider != null && hostList.stream().findFirst().orElse("").startsWith("https") == false) {
             logger.warn("exporter [{}] is not using https, but using user authentication with plaintext " +

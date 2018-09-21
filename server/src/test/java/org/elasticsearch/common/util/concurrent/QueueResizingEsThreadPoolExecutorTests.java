@@ -19,12 +19,13 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -131,7 +132,7 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
                         5000);
 
         int threads = randomIntBetween(1, 5);
-        int measureWindow = randomIntBetween(10, 100);;
+        int measureWindow = randomIntBetween(10, 100);
         int min = randomIntBetween(4981, 4999);
         logger.info("--> auto-queue with a measurement window of {} tasks", measureWindow);
         QueueResizingEsThreadPoolExecutor executor =

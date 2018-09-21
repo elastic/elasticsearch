@@ -55,8 +55,8 @@ import java.util.function.Predicate;
 /**
  * The FollowersChecker is responsible for allowing a leader to check that its followers are still connected and healthy. On deciding that a
  * follower has failed the leader will remove it from the cluster. We are fairly lenient, possibly allowing multiple checks to fail before
- * considering a follower to be faulty, to allow for a brief network partition to occur without triggering the removal of a node and the
- * consequent shard reallocation.
+ * considering a follower to be faulty, to allow for a brief network partition or a long GC cycle to occur without triggering the removal of
+ * a node and the consequent shard reallocation.
  */
 public class FollowersChecker extends AbstractComponent {
 

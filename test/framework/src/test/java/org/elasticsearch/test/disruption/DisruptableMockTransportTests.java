@@ -107,7 +107,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
             }
 
             @Override
-            protected Optional<DisruptableMockTransport> getDisruptedCapturingTransport(DiscoveryNode destination) {
+            protected Optional<DisruptableMockTransport> getDisruptedCapturingTransport(DiscoveryNode destination, String action) {
                 int index = discoNodes.indexOf(destination);
                 if (index == -1) {
                     return Optional.empty();
@@ -117,7 +117,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
             }
 
             @Override
-            protected void handle(DiscoveryNode sender, DiscoveryNode destination, Runnable doDelivery) {
+            protected void handle(DiscoveryNode sender, DiscoveryNode destination, String action, Runnable doDelivery) {
                 deterministicTaskQueue.scheduleNow(doDelivery);
             }
         };
@@ -134,7 +134,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
             }
 
             @Override
-            protected Optional<DisruptableMockTransport> getDisruptedCapturingTransport(DiscoveryNode destination) {
+            protected Optional<DisruptableMockTransport> getDisruptedCapturingTransport(DiscoveryNode destination, String action) {
                 int index = discoNodes.indexOf(destination);
                 if (index == -1) {
                     return Optional.empty();
@@ -144,7 +144,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
             }
 
             @Override
-            protected void handle(DiscoveryNode sender, DiscoveryNode destination, Runnable doDelivery) {
+            protected void handle(DiscoveryNode sender, DiscoveryNode destination, String action, Runnable doDelivery) {
                 deterministicTaskQueue.scheduleNow(doDelivery);
             }
         };

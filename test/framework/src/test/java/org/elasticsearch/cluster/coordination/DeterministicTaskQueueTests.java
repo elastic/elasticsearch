@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
@@ -262,6 +263,34 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         }
 
         assertThat(strings, containsInAnyOrder("foo", "bar"));
+    }
+
+    public void testThreadPoolWrapsRunnable() {
+        final DeterministicTaskQueue taskQueue = newTaskQueue();
+        final AtomicBoolean called = new AtomicBoolean();
+        final ThreadPool threadPool = taskQueue.getThreadPool(runnable -> () -> {
+            assertFalse(called.get());
+            called.set(true);
+            runnable.run();
+        });
+        threadPool.generic().execute(() -> logger.info("runnable executed"));
+        assertFalse(called.get());
+        taskQueue.runAllRunnableTasks();
+        assertTrue(called.get());
+    }
+
+    public void testExecutorServiceWrapsRunnable() {
+        final DeterministicTaskQueue taskQueue = newTaskQueue();
+        final AtomicBoolean called = new AtomicBoolean();
+        final ExecutorService executorService = taskQueue.getExecutorService(runnable -> () -> {
+            assertFalse(called.get());
+            called.set(true);
+            runnable.run();
+        });
+        executorService.execute(() -> logger.info("runnable executed"));
+        assertFalse(called.get());
+        taskQueue.runAllRunnableTasks();
+        assertTrue(called.get());
     }
 
     public void testThreadPoolSchedulesFutureTasks() {

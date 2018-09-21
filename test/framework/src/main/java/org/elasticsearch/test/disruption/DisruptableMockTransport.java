@@ -42,15 +42,15 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
     protected abstract ConnectionStatus getConnectionStatus(DiscoveryNode sender, DiscoveryNode destination);
 
-    protected abstract Optional<DisruptableMockTransport> getDisruptedCapturingTransport(DiscoveryNode node);
+    protected abstract Optional<DisruptableMockTransport> getDisruptedCapturingTransport(DiscoveryNode node, String action);
 
-    protected abstract void handle(DiscoveryNode sender, DiscoveryNode destination, Runnable doDelivery);
+    protected abstract void handle(DiscoveryNode sender, DiscoveryNode destination, String action, Runnable doDelivery);
 
-    private void sendFromTo(DiscoveryNode sender, DiscoveryNode destination, Runnable doDelivery) {
-        handle(sender, destination, new Runnable() {
+    private void sendFromTo(DiscoveryNode sender, DiscoveryNode destination, String action, Runnable doDelivery) {
+        handle(sender, destination, action, new Runnable() {
             @Override
             public void run() {
-                if (getDisruptedCapturingTransport(destination).isPresent()) {
+                if (getDisruptedCapturingTransport(destination, action).isPresent()) {
                     doDelivery.run();
                 } else {
                     logger.trace("unknown destination in {}", this);
@@ -59,7 +59,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
             @Override
             public String toString() {
-                return doDelivery.toString() + " from " + sender + " to " + destination;
+                return doDelivery.toString();
             }
         });
     }
@@ -70,7 +70,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
         assert destination.equals(getLocalNode()) == false : "non-local message from " + getLocalNode() + " to itself";
         super.onSendRequest(requestId, action, request, destination);
 
-        final String requestDescription = new ParameterizedMessage("{}[{}] from {} to {}",
+        final String requestDescription = new ParameterizedMessage("[{}][{}] from {} to {}",
             action, requestId, getLocalNode(), destination).getFormattedMessage();
 
         final Runnable returnConnectException = new Runnable() {
@@ -85,7 +85,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
             }
         };
 
-        sendFromTo(getLocalNode(), destination, new Runnable() {
+        sendFromTo(getLocalNode(), destination, action, new Runnable() {
             @Override
             public void run() {
                 switch (getConnectionStatus(getLocalNode(), destination)) {
@@ -94,11 +94,11 @@ public abstract class DisruptableMockTransport extends MockTransport {
                         break;
 
                     case DISCONNECTED:
-                        sendFromTo(destination, getLocalNode(), returnConnectException);
+                        sendFromTo(destination, getLocalNode(), action, returnConnectException);
                         break;
 
                     case CONNECTED:
-                        Optional<DisruptableMockTransport> destinationTransport = getDisruptedCapturingTransport(destination);
+                        Optional<DisruptableMockTransport> destinationTransport = getDisruptedCapturingTransport(destination, action);
                         assert destinationTransport.isPresent();
 
                         final RequestHandlerRegistry<TransportRequest> requestHandler =
@@ -117,7 +117,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
                             @Override
                             public void sendResponse(final TransportResponse response) {
-                                sendFromTo(destination, getLocalNode(), new Runnable() {
+                                sendFromTo(destination, getLocalNode(), action, new Runnable() {
                                     @Override
                                     public void run() {
                                         if (getConnectionStatus(destination, getLocalNode()) != ConnectionStatus.CONNECTED) {
@@ -143,7 +143,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
                             @Override
                             public void sendResponse(Exception exception) {
-                                sendFromTo(destination, getLocalNode(), new Runnable() {
+                                sendFromTo(destination, getLocalNode(), action, new Runnable() {
                                     @Override
                                     public void run() {
                                         if (getConnectionStatus(destination, getLocalNode()) != ConnectionStatus.CONNECTED) {

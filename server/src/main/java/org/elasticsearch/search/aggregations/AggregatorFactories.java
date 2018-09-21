@@ -456,7 +456,9 @@ public class AggregatorFactories {
 
         @Override
         public int hashCode() {
-            return Objects.hash(aggregationBuilders, pipelineAggregatorBuilders);
+            // implementation of an order independent hash: take hash of every element and XOR it
+            return aggregationBuilders.stream().mapToInt(Object::hashCode).reduce(0, (left, right) -> left ^ right)
+                    ^ pipelineAggregatorBuilders.stream().mapToInt(Object::hashCode).reduce(0, (left, right) -> left ^ right);
         }
 
         @Override
@@ -466,9 +468,11 @@ public class AggregatorFactories {
             if (getClass() != obj.getClass())
                 return false;
             Builder other = (Builder) obj;
-            if (!Objects.equals(aggregationBuilders, other.aggregationBuilders))
+
+            // compare aggregations independent of their order
+            if (!aggregationBuilders.containsAll(other.aggregationBuilders))
                 return false;
-            if (!Objects.equals(pipelineAggregatorBuilders, other.pipelineAggregatorBuilders))
+            if (!pipelineAggregatorBuilders.containsAll(other.pipelineAggregatorBuilders))
                 return false;
             return true;
         }

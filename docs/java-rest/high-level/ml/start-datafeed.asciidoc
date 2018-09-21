@@ -1,0 +1,71 @@
+[[java-rest-high-x-pack-ml-start-datafeed]]
+=== Start Datafeed API
+
+The Start Datafeed API provides the ability to start a {ml} datafeed in the cluster.
+It accepts a `StartDatafeedRequest` object and responds
+with a `StartDatafeedResponse` object.
+
+[[java-rest-high-x-pack-ml-start-datafeed-request]]
+==== Start Datafeed Request
+
+A `StartDatafeedRequest` object is created referencing a non-null `datafeedId`.
+All other fields are optional for the request.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-start-datafeed-request]
+--------------------------------------------------
+<1> Constructing a new request referencing an existing `datafeedId`
+
+==== Optional Arguments
+
+The following arguments are optional.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-start-datafeed-request-options]
+--------------------------------------------------
+<1> Set when the datafeed should end, the value is exclusive.
+May be an epoch seconds, epoch millis or an ISO 8601 string.
+"now" is a special value that indicates the current time.
+If you do not specify an end time, the datafeed runs continuously.
+<2> Set when the datafeed should start, the value is inclusive.
+May be an epoch seconds, epoch millis or an ISO 8601 string.
+If you do not specify a start time and the datafeed is associated with a new job,
+the analysis starts from the earliest time for which data is available.
+<3> Set the timeout for the request
+
+[[java-rest-high-x-pack-ml-start-datafeed-execution]]
+==== Execution
+
+The request can be executed through the `MachineLearningClient` contained
+in the `RestHighLevelClient` object, accessed via the `machineLearningClient()` method.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-start-datafeed-execute]
+--------------------------------------------------
+<1> Did the datafeed successfully start?
+
+[[java-rest-high-x-pack-ml-start-datafeed-execution-async]]
+==== Asynchronous Execution
+
+The request can also be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-start-datafeed-execute-async]
+--------------------------------------------------
+<1> The `StartDatafeedRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The method does not block and returns immediately. The passed `ActionListener` is used
+to notify the caller of completion. A typical `ActionListener` for `StartDatafeedResponse` may
+look like
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-start-datafeed-listener]
+--------------------------------------------------
+<1> `onResponse` is called back when the action is completed successfully
+<2> `onFailure` is called back when some unexpected error occurs

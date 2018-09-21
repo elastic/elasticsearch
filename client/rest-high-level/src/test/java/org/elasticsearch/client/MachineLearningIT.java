@@ -20,8 +20,12 @@ package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
@@ -51,6 +55,8 @@ import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutDatafeedResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
+import org.elasticsearch.client.ml.StartDatafeedRequest;
+import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.calendars.CalendarTests;
@@ -63,6 +69,7 @@ import org.elasticsearch.client.ml.job.config.JobState;
 import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.junit.After;
 
@@ -414,6 +421,80 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 machineLearningClient::deleteDatafeedAsync);
 
         assertTrue(response.isAcknowledged());
+    }
+
+    public void testStartDatafeed() throws Exception {
+        String jobId = "test-start-datafeed";
+        String indexName = "start_data_1";
+
+        // Set up the index and docs
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        BulkRequest bulk = new BulkRequest();
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        long now = System.currentTimeMillis();
+        long oneDayAgo = now - 86400000;
+        int i = 0;
+        long dayAgoCopy = oneDayAgo;
+        while(dayAgoCopy < now) {
+            IndexRequest doc = new IndexRequest();
+            doc.index(indexName);
+            doc.type("doc");
+            doc.id("id" + i);
+            doc.source("{\"total\":" +randomInt(1000) + ",\"timestamp\":"+ dayAgoCopy +"}", XContentType.JSON);
+            bulk.add(doc);
+            dayAgoCopy += 1000000;
+            i++;
+        }
+        highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
+        final long totalDocCount = i;
+
+        // create the job and the datafeed
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        machineLearningClient.openJob(new OpenJobRequest(jobId), RequestOptions.DEFAULT);
+
+        String datafeedId = jobId + "-feed";
+        DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, jobId)
+            .setIndices(indexName)
+            .setQueryDelay(TimeValue.timeValueSeconds(1))
+            .setTypes(Arrays.asList("doc"))
+            .setFrequency(TimeValue.timeValueSeconds(1)).build();
+        machineLearningClient.putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
+
+
+        StartDatafeedRequest startDatafeedRequest = new StartDatafeedRequest(datafeedId);
+        startDatafeedRequest.setStart(String.valueOf(oneDayAgo));
+        // Should only process two documents
+        startDatafeedRequest.setEnd(String.valueOf(oneDayAgo + 2000000));
+        StartDatafeedResponse response = execute(startDatafeedRequest,
+            machineLearningClient::startDatafeed,
+            machineLearningClient::startDatafeedAsync);
+
+        assertTrue(response.isStarted());
+
+        assertBusy(() -> {
+            JobStats stats = machineLearningClient.getJobStats(new GetJobStatsRequest(jobId), RequestOptions.DEFAULT).jobStats().get(0);
+            assertEquals(2L, stats.getDataCounts().getInputRecordCount());
+            assertEquals(JobState.CLOSED, stats.getState());
+        }, 30, TimeUnit.SECONDS);
+
+        machineLearningClient.openJob(new OpenJobRequest(jobId), RequestOptions.DEFAULT);
+        StartDatafeedRequest wholeDataFeed = new StartDatafeedRequest(datafeedId);
+        // Process all documents and end the stream
+        wholeDataFeed.setEnd(String.valueOf(now));
+        StartDatafeedResponse wholeResponse = execute(wholeDataFeed,
+            machineLearningClient::startDatafeed,
+            machineLearningClient::startDatafeedAsync);
+        assertTrue(wholeResponse.isStarted());
+
+        assertBusy(() -> {
+            JobStats stats = machineLearningClient.getJobStats(new GetJobStatsRequest(jobId), RequestOptions.DEFAULT).jobStats().get(0);
+            assertEquals(totalDocCount, stats.getDataCounts().getInputRecordCount());
+            assertEquals(JobState.CLOSED, stats.getState());
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testDeleteForecast() throws Exception {

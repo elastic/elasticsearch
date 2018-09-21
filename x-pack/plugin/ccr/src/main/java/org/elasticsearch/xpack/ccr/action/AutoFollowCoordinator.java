@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -336,6 +337,14 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                                                     List<String> followedIndexUUIDs) {
             List<Index> leaderIndicesToFollow = new ArrayList<>();
             for (IndexMetaData leaderIndexMetaData : leaderClusterState.getMetaData()) {
+                // We should not automatically follow a leader index that is also a follow index and
+                // that both leader and follow index are in the same cluster otherwise this can
+                // result into an index creation explosion.
+                if (leaderIndexMetaData.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY) != null &&
+                    leaderClusterState.getClusterName().equals(followerClusterState.getClusterName())) {
+                    continue;
+                }
+
                 if (autoFollowPattern.match(leaderIndexMetaData.getIndex().getName())) {
                     if (followedIndexUUIDs.contains(leaderIndexMetaData.getIndex().getUUID()) == false) {
                         // TODO: iterate over the indices in the followerClusterState and check whether a IndexMetaData

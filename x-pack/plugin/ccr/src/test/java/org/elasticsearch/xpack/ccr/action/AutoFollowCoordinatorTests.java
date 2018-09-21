@@ -16,6 +16,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -327,6 +328,35 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(result.get(1).getName(), equalTo("metrics-1"));
         assertThat(result.get(2).getName(), equalTo("metrics-3"));
         assertThat(result.get(3).getName(), equalTo("metrics-4"));
+    }
+
+    public void testGetLeaderIndicesToFollowDoNotSelectFollowIndicesInTheSameCluster() {
+        AutoFollowPattern autoFollowPattern =
+            new AutoFollowPattern(Collections.singletonList("metrics-*"), null, null, null, null, null, null, null, null, null);
+        ClusterState followerState = ClusterState.builder(new ClusterName("name"))
+            .metaData(MetaData.builder().putCustom(AutoFollowMetadata.TYPE,
+                new AutoFollowMetadata(Collections.singletonMap("remote", autoFollowPattern), Collections.emptyMap())))
+            .build();
+
+        MetaData.Builder imdBuilder = MetaData.builder();
+        imdBuilder.put(IndexMetaData.builder("metrics-0")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0));
+        imdBuilder.put(IndexMetaData.builder("metrics-1")
+            .putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, new HashMap<>())
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0));
+
+        ClusterState leaderState = ClusterState.builder(new ClusterName("name"))
+            .metaData(imdBuilder)
+            .build();
+
+        List<Index> result = AutoFollower.getLeaderIndicesToFollow(autoFollowPattern, leaderState, followerState, Collections.emptyList());
+        result.sort(Comparator.comparing(Index::getName));
+        assertThat(result.size(), equalTo(1));
+        assertThat(result.get(0).getName(), equalTo("metrics-0"));
     }
 
     public void testGetFollowerIndexName() {

@@ -121,14 +121,17 @@ public class AggregatorFactoriesBuilderTests extends AbstractSerializingTestCase
 
         assertFalse(builder1.equals(builder2));
         assertFalse(builder2.equals(builder1));
+        assertNotEquals(builder1.hashCode(), builder2.hashCode());
 
         builder2.addAggregator(aggBuilders.get(0));
         assertTrue(builder1.equals(builder2));
         assertTrue(builder2.equals(builder1));
+        assertEquals(builder1.hashCode(), builder2.hashCode());
 
         builder1.addPipelineAggregator(getRandomPipelineAggregation());
         assertFalse(builder1.equals(builder2));
         assertFalse(builder2.equals(builder1));
+        assertNotEquals(builder1.hashCode(), builder2.hashCode());
     }
 
     private static AggregationBuilder getRandomAggregation() {

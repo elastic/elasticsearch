@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -40,12 +41,17 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     private final Environment env;
     private final Settings settings;
     private final NativeController nativeController;
+    private volatile int maxAnomalyRecords;
 
-    public NativeAutodetectProcessFactory(Environment env, Settings settings, NativeController nativeController, Client client) {
+    public NativeAutodetectProcessFactory(Environment env, Settings settings, NativeController nativeController, Client client,
+                                          ClusterService clusterService) {
         this.env = Objects.requireNonNull(env);
         this.settings = Objects.requireNonNull(settings);
         this.nativeController = Objects.requireNonNull(nativeController);
         this.client = client;
+        this.maxAnomalyRecords = AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC.get(settings);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC, this::setMaxAnomalyRecords);
     }
 
     @Override
@@ -95,14 +101,19 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
             if (autodetectParams.quantiles() != null) {
                 autodetectBuilder.quantiles(autodetectParams.quantiles());
             }
-
-            autodetectBuilder.build();
+            autodetectBuilder.build(maxAnomalyRecords);
             processPipes.connectStreams(PROCESS_STARTUP_TIMEOUT);
         } catch (IOException e) {
             String msg = "Failed to launch autodetect for job " + job.getId();
             LOGGER.error(msg);
             throw ExceptionsHelper.serverError(msg, e);
         }
+    }
+
+    private void setMaxAnomalyRecords(int maxAnomalyRecords) {
+        LOGGER.info("Changing [{}] from [{}] to [{}]", AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC.getKey(),
+            this.maxAnomalyRecords, maxAnomalyRecords);
+        this.maxAnomalyRecords = maxAnomalyRecords;
     }
 }
 

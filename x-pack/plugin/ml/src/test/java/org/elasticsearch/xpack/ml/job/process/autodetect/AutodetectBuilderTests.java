@@ -64,7 +64,8 @@ public class AutodetectBuilderTests extends ESTestCase {
         dd.setTimeField("tf");
         job.setDataDescription(dd);
 
-        List<String> command = autodetectBuilder(job.build()).buildAutodetectCommand();
+        List<String> command = autodetectBuilder(
+            job.build()).buildAutodetectCommand(AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC.get(settings));
         assertEquals(12, command.size());
         assertTrue(command.contains(AutodetectBuilder.AUTODETECT_PATH));
         assertTrue(command.contains(AutodetectBuilder.BUCKET_SPAN_ARG + "120"));
@@ -74,7 +75,8 @@ public class AutodetectBuilderTests extends ESTestCase {
         assertTrue(command.contains(AutodetectBuilder.MULTIVARIATE_BY_FIELDS_ARG));
 
         assertTrue(command.contains(AutodetectBuilder.LENGTH_ENCODED_INPUT_ARG));
-        assertTrue(command.contains(AutodetectBuilder.maxAnomalyRecordsArg(settings)));
+        assertTrue(
+            command.contains(AutodetectBuilder.maxAnomalyRecordsArg(AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC.get(settings))));
 
         assertTrue(command.contains(AutodetectBuilder.TIME_FIELD_ARG + "tf"));
         assertTrue(command.contains(AutodetectBuilder.JOB_ID_ARG + "unit-test-job"));
@@ -88,7 +90,7 @@ public class AutodetectBuilderTests extends ESTestCase {
     public void testBuildAutodetectCommand_defaultTimeField() {
         Job.Builder job = buildJobBuilder("unit-test-job");
 
-        List<String> command = autodetectBuilder(job.build()).buildAutodetectCommand();
+        List<String> command = autodetectBuilder(job.build()).buildAutodetectCommand(1);
 
         assertTrue(command.contains(AutodetectBuilder.TIME_FIELD_ARG + "time"));
     }
@@ -100,13 +102,15 @@ public class AutodetectBuilderTests extends ESTestCase {
 
         int expectedPersistInterval = 10800 + AutodetectBuilder.calculateStaggeringInterval(job.getId());
 
-        List<String> command = autodetectBuilder(job.build()).buildAutodetectCommand();
+        List<String> command = autodetectBuilder(
+            job.build()).buildAutodetectCommand(AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC.get(settings));
         assertFalse(command.contains(AutodetectBuilder.PERSIST_INTERVAL_ARG + expectedPersistInterval));
 
         settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         env = TestEnvironment.newEnvironment(settings);
 
-        command = autodetectBuilder(job.build()).buildAutodetectCommand();
+        command = autodetectBuilder(
+            job.build()).buildAutodetectCommand(AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC.get(settings));
         assertTrue(command.contains(AutodetectBuilder.PERSIST_INTERVAL_ARG + expectedPersistInterval));
     }
 

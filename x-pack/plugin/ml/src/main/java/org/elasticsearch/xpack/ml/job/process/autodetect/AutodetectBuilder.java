@@ -83,8 +83,15 @@ public class AutodetectBuilder {
     /**
      * The maximum number of anomaly records that will be written each bucket
      */
+    @Deprecated
     public static final Setting<Integer> MAX_ANOMALY_RECORDS_SETTING = Setting.intSetting("max.anomaly.records", DEFAULT_MAX_NUM_RECORDS,
-            Setting.Property.NodeScope);
+            Setting.Property.NodeScope, Setting.Property.Deprecated);
+    public static final Setting<Integer> MAX_ANOMALY_RECORDS_SETTING_DYNAMIC = Setting.intSetting(
+        "xpack.ml.max_anomaly_records",
+        MAX_ANOMALY_RECORDS_SETTING,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic);
 
     /**
      * Config setting storing the flag that disables model persistence
@@ -168,9 +175,9 @@ public class AutodetectBuilder {
     /**
      * Requests that the controller daemon start an autodetect process.
      */
-    public void build() throws IOException {
+    public void build(int maxAnomalyRecords) throws IOException {
 
-        List<String> command = buildAutodetectCommand();
+        List<String> command = buildAutodetectCommand(maxAnomalyRecords);
 
         buildLimits(command);
         buildModelPlotConfig(command);
@@ -184,7 +191,7 @@ public class AutodetectBuilder {
     /**
      * Visible for testing
      */
-    List<String> buildAutodetectCommand() {
+    List<String> buildAutodetectCommand(int maxAnomalyRecords) {
         List<String> command = new ArrayList<>();
         command.add(AUTODETECT_PATH);
 
@@ -212,7 +219,7 @@ public class AutodetectBuilder {
         command.add(LENGTH_ENCODED_INPUT_ARG);
 
         // Limit the number of output records
-        command.add(maxAnomalyRecordsArg(settings));
+        command.add(maxAnomalyRecordsArg(maxAnomalyRecords));
 
         // always set the time field
         String timeFieldArg = TIME_FIELD_ARG + getTimeFieldOrDefault(job);
@@ -244,9 +251,8 @@ public class AutodetectBuilder {
         return command;
     }
 
-
-    static String maxAnomalyRecordsArg(Settings settings) {
-        return "--maxAnomalyRecords=" + MAX_ANOMALY_RECORDS_SETTING.get(settings);
+    static String maxAnomalyRecordsArg(int maxAnomalyRecords) {
+        return "--maxAnomalyRecords=" + maxAnomalyRecords;
     }
 
     private static String getTimeFieldOrDefault(Job job) {

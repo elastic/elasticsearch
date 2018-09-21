@@ -87,6 +87,22 @@ public class Reconfigurator extends AbstractComponent {
                                                         ClusterState.VotingConfiguration currentConfig) {
         logger.trace("{} reconfiguring {} based on liveNodes={}, retiredNodeIds={}", this, currentConfig, liveNodes, retiredNodeIds);
 
+        /*
+         *  There are three true/false properties of each node in play: live/non-live, retired/non-retired and in-config/not-in-config.
+         *  Firstly we divide the nodes into disjoint sets based on these properties:
+         *
+         *  -    retiredInConfigNotLiveIds
+         *  - nonRetiredInConfigNotLiveIds
+         *  -    retiredInConfigLiveIds
+         *  - nonRetiredInConfigLiveIds
+         *  - nonRetiredLiveNotInConfigIds
+         *
+         *  The other 3 possibilities are not relevant:
+         *  - retired, not-in-config, live         -- cannot add a retired node back to the config
+         *  - retired, not-in-config, non-live     -- cannot add a retired node back to the config
+         *  - non-retired, non-live, not-in-config -- no evidence this node exists at all
+         */
+
         final Set<String> liveNodeIds = liveNodes.stream()
             .filter(DiscoveryNode::isMasterNode).map(DiscoveryNode::getId).collect(Collectors.toSet());
         final Set<String> liveInConfigIds = new TreeSet<>(currentConfig.getNodeIds());
@@ -98,26 +114,40 @@ public class Reconfigurator extends AbstractComponent {
         final Set<String> nonRetiredInConfigNotLiveIds = new TreeSet<>(inConfigNotLiveIds);
         nonRetiredInConfigNotLiveIds.removeAll(retiredInConfigNotLiveIds);
 
-        final Set<String> retiredLiveInConfigIds = new TreeSet<>(liveInConfigIds);
-        retiredLiveInConfigIds.retainAll(retiredNodeIds);
-        final Set<String> nonRetiredLiveInConfigIds = new TreeSet<>(liveInConfigIds);
-        nonRetiredLiveInConfigIds.removeAll(retiredLiveInConfigIds);
+        final Set<String> retiredInConfigLiveIds = new TreeSet<>(liveInConfigIds);
+        retiredInConfigLiveIds.retainAll(retiredNodeIds);
+        final Set<String> nonRetiredInConfigLiveIds = new TreeSet<>(liveInConfigIds);
+        nonRetiredInConfigLiveIds.removeAll(retiredInConfigLiveIds);
 
         final Set<String> nonRetiredLiveNotInConfigIds = Sets.sortedDifference(liveNodeIds, currentConfig.getNodeIds());
         nonRetiredLiveNotInConfigIds.removeAll(retiredNodeIds);
 
-        final int targetSize = Math.max(roundDownToOdd(nonRetiredLiveInConfigIds.size() + nonRetiredLiveNotInConfigIds.size()),
-            2 * minVotingMasterNodes - 1);
+        /*
+         * Now we work out how many nodes should be in the configuration:
+         */
 
+        // ideally we want the configuration to be all the non-retired live nodes ...
+        final int nonRetiredLiveNodeCount = nonRetiredInConfigLiveIds.size() + nonRetiredLiveNotInConfigIds.size();
+
+        // ... except one, if even, because odd configurations are slightly more resilient ...
+        final int votingNodeCount = roundDownToOdd(nonRetiredLiveNodeCount);
+
+        // ... unless there's too few non-retired live nodes to meet the minimum configured resilience level:
+        final int targetSize = Math.max(votingNodeCount, 2 * minVotingMasterNodes - 1);
+
+        /*
+         * The new configuration is formed by taking this many nodes in the following preference order:
+         */
         final ClusterState.VotingConfiguration newConfig = new ClusterState.VotingConfiguration(
-            Stream.of(nonRetiredLiveInConfigIds, nonRetiredLiveNotInConfigIds, // live nodes first, preferring the current config
-                retiredLiveInConfigIds, // if we need more, first use retired nodes that are still alive and haven't been removed yet
+            Stream.of(nonRetiredInConfigLiveIds, nonRetiredLiveNotInConfigIds, // live nodes first, preferring the current config
+                retiredInConfigLiveIds, // if we need more, first use retired nodes that are still alive and haven't been removed yet
                 nonRetiredInConfigNotLiveIds, retiredInConfigNotLiveIds) // if we need more, use non-live nodes
                 .flatMap(Collection::stream).limit(targetSize).collect(Collectors.toSet()));
 
         if (newConfig.hasQuorum(liveNodeIds)) {
             return newConfig;
         } else {
+            // If there are not enough live nodes to form a quorum in the newly-proposed configuration, it's better to do nothing.
             return currentConfig;
         }
     }

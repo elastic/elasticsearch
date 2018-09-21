@@ -68,7 +68,7 @@ public class ReconfiguratorTests extends ESTestCase {
         check(nodes("a", "b", "c"), retired("a"), conf("a", "b", "c"), 1, conf("b"));
         check(nodes("a", "b", "c"), retired("a"), conf("a", "b", "c"), 2, conf("a", "b", "c"));
 
-        // 7 nodes, one for each combination of live/retired/current. Ideally want the config to be the non-retired live nodes.
+        // 7 nodes, one for each combination of live/retired/current. Ideally we want the config to be the non-retired live nodes.
         // Since there are 2 non-retired live nodes we round down to 1 and just use the one that's already in the config.
         check(nodes("a", "b", "c", "f"), retired("c", "e", "f", "g"), conf("a", "c", "d", "e"), 1, conf("a"));
         // If we want the config to be at least 3 nodes then we don't retire "c" just yet.

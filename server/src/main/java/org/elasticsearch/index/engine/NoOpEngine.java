@@ -21,25 +21,21 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.seqno.SeqNoStats;
-import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
-import org.elasticsearch.index.translog.TranslogStats;
 
-import java.io.Closeable;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
@@ -55,66 +51,76 @@ import java.util.stream.Stream;
  * Directory so that the last commit's user data can be read for the historyUUID
  * and last committed segment info.
  */
-final class NoOpEngine extends Engine {
-
-    private static final Translog.Snapshot EMPTY_TRANSLOG_SNAPSHOT = new Translog.Snapshot() {
-        @Override
-        public int totalOperations() {
-            return 0;
-        }
-
-        @Override
-        public Translog.Operation next() {
-            return null;
-        }
-
-        @Override
-        public void close() {
-        }
-    };
-
-    private final IndexCommit lastCommit;
-    private final long localCheckpoint;
-    private final long maxSeqNo;
-    private final String historyUUID;
-    private final SegmentInfos lastCommittedSegmentInfos;
+final class NoOpEngine extends ReadOnlyEngine {
 
     NoOpEngine(EngineConfig engineConfig) {
-        super(engineConfig);
-
-        store.incRef();
+        super(engineConfig, null, null, true, directoryReader -> directoryReader);
         boolean success = false;
-
         try {
-            lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-            List<IndexCommit> indexCommits = DirectoryReader.listCommits(store.directory());
-            lastCommit = indexCommits.get(indexCommits.size() - 1);
-            historyUUID = lastCommit.getUserData().get(HISTORY_UUID_KEY);
-            localCheckpoint = Long.parseLong(lastCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-            maxSeqNo = Long.parseLong(lastCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
-
             // The deletion policy for the translog should not keep any translogs around, so the min age/size is set to -1
             final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(-1, -1);
 
             // The translog is opened and closed to validate that the translog UUID from lucene is the same as the one in the translog
             try (Translog translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier())) {
-                if (translog.totalOperations() != 0) {
-                    throw new IllegalArgumentException("expected 0 translog operations but there were " + translog.totalOperations());
+                final int nbOperations = translog.totalOperations();
+                if (nbOperations != 0) {
+                    throw new IllegalArgumentException("Expected 0 translog operations but there were " + nbOperations);
                 }
             }
-
             success = true;
         } catch (IOException | TranslogCorruptedException e) {
             throw new EngineCreationFailureException(shardId, "failed to create engine", e);
         } finally {
             if (success == false) {
-                if (isClosed.get() == false) {
-                    // failure we need to dec the store reference
-                    store.decRef();
-                }
+                IOUtils.closeWhileHandlingException(this);
             }
         }
-        logger.trace("created new NoOpEngine");
+    }
+
+    @Override
+    protected DirectoryReader open(final Directory directory) throws IOException {
+        List<IndexCommit> indexCommits = DirectoryReader.listCommits(directory);
+        IndexCommit indexCommit = indexCommits.get(indexCommits.size() - 1);
+        return new DirectoryReader(directory, new LeafReader[0]) {
+            @Override
+            protected DirectoryReader doOpenIfChanged() throws IOException {
+                return null;
+            }
+
+            @Override
+            protected DirectoryReader doOpenIfChanged(IndexCommit commit) throws IOException {
+                return null;
+            }
+
+            @Override
+            protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes) throws IOException {
+                return null;
+            }
+
+            @Override
+            public long getVersion() {
+                return 0;
+            }
+
+            @Override
+            public boolean isCurrent() throws IOException {
+                return true;
+            }
+
+            @Override
+            public IndexCommit getIndexCommit() throws IOException {
+                return indexCommit;
+            }
+
+            @Override
+            protected void doClose() throws IOException {
+            }
+
+            @Override
+            public CacheHelper getReaderCacheHelper() {
+                return null;
+            }
+        };
     }
 
     private Translog openTranslog(EngineConfig engineConfig, TranslogDeletionPolicy translogDeletionPolicy,
@@ -131,158 +137,31 @@ final class NoOpEngine extends Engine {
      */
     @Nullable
     private String loadTranslogUUIDFromLastCommit() {
-        final Map<String, String> commitUserData = lastCommittedSegmentInfos.getUserData();
+        final Map<String, String> commitUserData = getLastCommittedSegmentInfos().getUserData();
         if (commitUserData.containsKey(Translog.TRANSLOG_GENERATION_KEY) == false) {
-            throw new IllegalStateException("commit doesn't contain translog generation id");
+            throw new IllegalStateException("Commit doesn't contain translog generation id");
         }
         return commitUserData.get(Translog.TRANSLOG_UUID_KEY);
     }
 
     @Override
-    protected SegmentInfos getLastCommittedSegmentInfos() {
-        return lastCommittedSegmentInfos;
-    }
-
-    @Override
-    public String getHistoryUUID() {
-        return historyUUID;
-    }
-
-    @Override
-    public long getWritingBytes() {
-        return 0;
-    }
-
-    @Override
-    public long getIndexThrottleTimeInMillis() {
-        return 0;
-    }
-
-    @Override
-    public boolean isThrottled() {
-        return false;
-    }
-
-    @Override
-    public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException {
-    }
-
-    @Override
-    public IndexResult index(Index index) {
-        throw new UnsupportedOperationException("indexing is not supported on a noOp engine");
-    }
-
-    @Override
-    public DeleteResult delete(Delete delete) {
-        throw new UnsupportedOperationException("deletion is not supported on a noOp engine");
-    }
-
-    @Override
-    public NoOpResult noOp(NoOp noOp) {
-        throw new UnsupportedOperationException("noOp is not supported on a noOp engine");
-    }
-
-    @Override
-    public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) throws EngineException {
-        throw new UnsupportedOperationException("synced flush is not supported on a noOp engine");
-    }
-
-    @Override
     public GetResult get(Get get, BiFunction<String, SearcherScope, Searcher> searcherFactory) throws EngineException {
-        throw new UnsupportedOperationException("gets are not supported on a noOp engine");
+        throw new UnsupportedOperationException("Gets are not supported on a noOp engine");
     }
 
     @Override
     public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
-        throw new UnsupportedOperationException("searching is not supported on a noOp engine");
+        throw new UnsupportedOperationException("Searching is not supported on a noOp engine");
     }
 
     @Override
     protected ReferenceManager<IndexSearcher> getReferenceManager(SearcherScope scope) {
-        throw new UnsupportedOperationException("creating a reference manager for an index searcher is not supported on a noOp engine");
-    }
-
-    @Override
-    public boolean isTranslogSyncNeeded() {
-        return false;
+        throw new UnsupportedOperationException("Creating a reference manager for an index searcher is not supported on a noOp engine");
     }
 
     @Override
     public boolean ensureTranslogSynced(Stream<Translog.Location> locations) {
-        throw new UnsupportedOperationException("translog synchronization should never be needed");
-    }
-
-    @Override
-    public void syncTranslog() {
-    }
-
-    @Override
-    public Closeable acquireRetentionLockForPeerRecovery() {
-        return () -> { };
-    }
-
-    @Override
-    public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService, long fromSeqNo, long toSeqNo,
-                                                boolean requiredFullRange) throws IOException {
-        return readHistoryOperations(source, mapperService, fromSeqNo);
-    }
-
-    @Override
-    public Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException {
-        return EMPTY_TRANSLOG_SNAPSHOT;
-    }
-
-    @Override
-    public int estimateNumberOfHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException {
-        return 0;
-    }
-
-    @Override
-    public boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException {
-        return false;
-    }
-
-    @Override
-    public TranslogStats getTranslogStats() {
-        return new TranslogStats();
-    }
-
-    @Override
-    public Translog.Location getTranslogLastWriteLocation() {
-        return new Translog.Location(0, 0, 0);
-    }
-
-    @Override
-    public long getLocalCheckpoint() {
-        return this.localCheckpoint;
-    }
-
-    @Override
-    public void waitForOpsToComplete(long seqNo) {
-    }
-
-    @Override
-    public SeqNoStats getSeqNoStats(long globalCheckpoint) {
-        return new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
-    }
-
-    @Override
-    public long getLastSyncedGlobalCheckpoint() {
-        return 0;
-    }
-
-    @Override
-    public long getIndexBufferRAMBytesUsed() {
-        return 0;
-    }
-
-    @Override
-    public List<Segment> segments(boolean verbose) {
-        return Arrays.asList(getSegmentInfo(lastCommittedSegmentInfos, verbose));
-    }
-
-    @Override
-    public void refresh(String source) throws EngineException {
+        throw new UnsupportedOperationException("Translog synchronization should never be needed");
     }
 
     // Override the refreshNeeded method so that we don't attempt to acquire a searcher checking if we need to refresh
@@ -290,100 +169,5 @@ final class NoOpEngine extends Engine {
     public boolean refreshNeeded() {
         // We never need to refresh a noOp engine so always return false
         return false;
-    }
-
-    @Override
-    public void writeIndexingBuffer() throws EngineException {
-    }
-
-    @Override
-    public boolean shouldPeriodicallyFlush() {
-        return false;
-    }
-
-    @Override
-    public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        return new CommitId(lastCommittedSegmentInfos.getId());
-    }
-
-    @Override
-    public void trimUnreferencedTranslogFiles() throws EngineException {
-
-    }
-
-    @Override
-    public boolean shouldRollTranslogGeneration() {
-        return false;
-    }
-
-    @Override
-    public void rollTranslogGeneration() throws EngineException {
-    }
-
-    @Override
-    public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade,
-                           boolean upgradeOnlyAncientSegments) throws EngineException {
-    }
-
-    @Override
-    public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) throws EngineException {
-        return new Engine.IndexCommitRef(lastCommit, () -> {});
-    }
-
-    @Override
-    public IndexCommitRef acquireSafeIndexCommit() throws EngineException {
-        return acquireLastIndexCommit(false);
-    }
-
-    /**
-     * Closes the engine without acquiring the write lock. This should only be
-     * called while the write lock is hold or in a disaster condition ie. if the engine
-     * is failed.
-     */
-    @Override
-    protected void closeNoLock(String reason, CountDownLatch closedLatch) {
-        if (isClosed.compareAndSet(false, true)) {
-            assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread() :
-                "Either the write lock must be held or the engine must be currently be failing itself";
-            try {
-                store.decRef();
-                logger.debug("engine closed [{}]", reason);
-            } finally {
-                closedLatch.countDown();
-            }
-
-        }
-    }
-
-    @Override
-    public void activateThrottling() {
-        throw new UnsupportedOperationException("closed engine can't throttle");
-    }
-
-    @Override
-    public void deactivateThrottling() {
-        throw new UnsupportedOperationException("closed engine can't throttle");
-    }
-
-    @Override
-    public void restoreLocalCheckpointFromTranslog() {
-    }
-
-    @Override
-    public int fillSeqNoGaps(long primaryTerm) {
-        return 0;
-    }
-
-    @Override
-    public Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
-        return this;
-    }
-
-    @Override
-    public void skipTranslogRecovery() {
-    }
-
-    @Override
-    public void maybePruneDeletes() {
     }
 }

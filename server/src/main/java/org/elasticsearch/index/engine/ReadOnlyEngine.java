@@ -56,7 +56,7 @@ import java.util.stream.Stream;
  *
  * @see #ReadOnlyEngine(EngineConfig, SeqNoStats, TranslogStats, boolean, Function)
  */
-public final class ReadOnlyEngine extends Engine {
+public class ReadOnlyEngine extends Engine {
 
     private final SegmentInfos lastCommittedSegmentInfos;
     private final SeqNoStats seqNoStats;
@@ -95,7 +95,7 @@ public final class ReadOnlyEngine extends Engine {
                 this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
                 this.translogStats = translogStats == null ? new TranslogStats(0, 0, 0, 0, 0) : translogStats;
                 this.seqNoStats = seqNoStats == null ? buildSeqNoStats(lastCommittedSegmentInfos) : seqNoStats;
-                reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), config.getShardId());
+                reader = ElasticsearchDirectoryReader.wrap(open(directory), config.getShardId());
                 if (config.getIndexSettings().isSoftDeleteEnabled()) {
                     reader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
                 }
@@ -114,6 +114,10 @@ public final class ReadOnlyEngine extends Engine {
         } catch (IOException e) {
             throw new UncheckedIOException(e); // this is stupid
         }
+    }
+
+    protected DirectoryReader open(final Directory directory) throws IOException {
+        return DirectoryReader.open(directory);
     }
 
     @Override

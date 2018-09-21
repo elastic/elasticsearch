@@ -21,25 +21,32 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class NoOpEngineTests extends EngineTestCase {
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
@@ -47,16 +54,11 @@ public class NoOpEngineTests extends EngineTestCase {
     public void testNoopEngine() throws IOException {
         engine.close();
         final NoOpEngine engine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir));
-        expectThrows(UnsupportedOperationException.class, () -> engine.index(null));
-        expectThrows(UnsupportedOperationException.class, () -> engine.delete(null));
-        expectThrows(UnsupportedOperationException.class, () -> engine.noOp(null));
         expectThrows(UnsupportedOperationException.class, () -> engine.syncFlush(null, null));
         expectThrows(UnsupportedOperationException.class, () -> engine.get(null, null));
         expectThrows(UnsupportedOperationException.class, () -> engine.acquireSearcher(null, null));
         expectThrows(UnsupportedOperationException.class, () -> engine.getReferenceManager(null));
         expectThrows(UnsupportedOperationException.class, () -> engine.ensureTranslogSynced(null));
-        expectThrows(UnsupportedOperationException.class, engine::activateThrottling);
-        expectThrows(UnsupportedOperationException.class, engine::deactivateThrottling);
         assertThat(engine.refreshNeeded(), equalTo(false));
         assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
         engine.close();
@@ -64,13 +66,12 @@ public class NoOpEngineTests extends EngineTestCase {
 
     public void testTwoNoopEngines() throws IOException {
         engine.close();
-        // It's so noOp you can even open two engines for the same store without tripping anything,
-        // this ensures we're not doing any kind of locking on the store or filesystem level in
-        // the noOp engine
-        final NoOpEngine engine1 = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir));
-        final NoOpEngine engine2 = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir));
-        engine1.close();
-        engine2.close();
+        // Ensure that we can't open two noop engines for the same store
+        final EngineConfig engineConfig = noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir);
+        try (NoOpEngine ignored = new NoOpEngine(engineConfig)) {
+            UncheckedIOException e = expectThrows(UncheckedIOException.class, () -> new NoOpEngine(engineConfig));
+            assertThat(e.getCause(), instanceOf(LockObtainFailedException.class));
+        }
     }
 
     public void testNoopAfterRegularEngine() throws IOException {
@@ -110,12 +111,55 @@ public class NoOpEngineTests extends EngineTestCase {
     }
 
     public void testNoopEngineWithInvalidTranslogUUID() throws IOException {
-        Path newTranslogDir = createTempDir();
-        // A new translog will have a different UUID than the existing store/noOp engine does
-        Translog newTranslog = createTranslog(newTranslogDir, () -> 1L);
-        newTranslog.close();
-        EngineCreationFailureException e = expectThrows(EngineCreationFailureException.class,
-            () -> new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, newTranslogDir)));
-        assertThat(e.getCause(), instanceOf(TranslogCorruptedException.class));
+        IOUtils.close(engine, store);
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (Store store = createStore()) {
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+            int numDocs = scaledRandomIntBetween(10, 100);
+            try (InternalEngine engine = createEngine(config)) {
+                for (int i = 0; i < numDocs; i++) {
+                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
+                    engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, Engine.Operation.Origin.REPLICA,
+                        System.nanoTime(), -1, false));
+                    if (rarely()) {
+                        engine.flush();
+                    }
+                    globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpoint()));
+                }
+                engine.syncTranslog();
+                engine.flushAndClose();
+            }
+
+            final Path newTranslogDir = createTempDir();
+            // A new translog will have a different UUID than the existing store/noOp engine does
+            Translog newTranslog = createTranslog(newTranslogDir, () -> 1L);
+            newTranslog.close();
+
+            EngineCreationFailureException e = expectThrows(EngineCreationFailureException.class,
+                () -> new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, newTranslogDir)));
+            assertThat(e.getCause(), instanceOf(TranslogCorruptedException.class));
+        }
+    }
+
+    public void testNoopEngineWithNonZeroTranslogOperations() throws IOException {
+        final int numDocs = scaledRandomIntBetween(10, 100);
+
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        for (int i = 0; i < numDocs; i++) {
+            ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
+            engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, Engine.Operation.Origin.REPLICA,
+                System.nanoTime(), -1, false));
+            if (rarely()) {
+                engine.flush();
+            }
+            globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpoint()));
+        }
+        engine.syncTranslog();
+        engine.flushAndClose();
+        engine.close();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir)));
+        assertThat(e.getMessage(), is("Expected 0 translog operations but there were " + numDocs));
     }
 }

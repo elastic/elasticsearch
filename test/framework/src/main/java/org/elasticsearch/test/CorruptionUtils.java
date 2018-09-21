@@ -88,25 +88,9 @@ public final class CorruptionUtils {
                     maxPosition -= 4;
                 }
                 final int position = random.nextInt((int) Math.min(Integer.MAX_VALUE, maxPosition));
-
-                // read
-                raf.position(position);
-                long filePointer = raf.position();
-                ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
-                raf.read(bb);
-                bb.flip();
-
-                // corrupt
-                byte oldValue = bb.get(0);
-                byte newValue = (byte) (oldValue + 1);
-                bb.put(0, newValue);
-
-                // rewrite
-                raf.position(filePointer);
-                raf.write(bb);
-                logger.info("Corrupting file --  flipping at position {} from {} to {} file: {}", filePointer,
-                        Integer.toHexString(oldValue), Integer.toHexString(newValue), fileToCorrupt.getFileName());
+                corruptAt(fileToCorrupt, raf, position);
             }
+
             long checksumAfterCorruption;
             long actualChecksumAfterCorruption;
             try (ChecksumIndexInput input = dir.openChecksumInput(fileToCorrupt.getFileName().toString(), IOContext.DEFAULT)) {
@@ -129,6 +113,26 @@ public final class CorruptionUtils {
                             || actualChecksumAfterCorruption != checksumBeforeCorruption); // checksum corrupted
             assertThat("no file corrupted", fileToCorrupt, notNullValue());
         }
+    }
+
+    static void corruptAt(Path path, FileChannel channel, int position) throws IOException {
+        // read
+        channel.position(position);
+        long filePointer = channel.position();
+        ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
+        channel.read(bb);
+        bb.flip();
+
+        // corrupt
+        byte oldValue = bb.get(0);
+        byte newValue = (byte) (oldValue + 1);
+        bb.put(0, newValue);
+
+        // rewrite
+        channel.position(filePointer);
+        channel.write(bb);
+        logger.info("Corrupting file --  flipping at position {} from {} to {} file: {}", filePointer,
+                Integer.toHexString(oldValue), Integer.toHexString(newValue), path.getFileName());
     }
 
 

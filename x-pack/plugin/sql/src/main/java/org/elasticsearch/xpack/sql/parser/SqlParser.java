@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
+import com.carrotsearch.hppc.ObjectShortHashMap;
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CommonToken;
@@ -215,23 +216,26 @@ public class SqlParser {
      */
     private class CircuitBreakerListener extends SqlBaseBaseListener {
 
-        private static final short MAX_DEPTH = 100;
+        private static final short MAX_RULE_DEPTH = 100;
 
-        // Keep current depth for every rule visited
-        ObjectIntHashMap<String> depthCounts = new ObjectIntHashMap<>(100);
+        // Keep current depth for every rule visited.
+        // The totalDepth alone cannot be used as expressions like: e1 OR e2 OR e3 OR ...
+        // are processed as e1 OR (e2 OR (e3 OR (... and this results in the totalDepth not growing
+        // while the stack call depth is, leading to a StackOverflowError.
+        private ObjectShortHashMap<String> depthCounts = new ObjectShortHashMap<>();
 
         @Override
         public void enterEveryRule(ParserRuleContext ctx) {
-            int currentDepth = depthCounts.putOrAdd(ctx.getClass().getSimpleName(), 1, 1);
-            if (currentDepth > MAX_DEPTH) {
-                throw new ParsingException("expression is too large to parse, (tree's depth exceeds {})", MAX_DEPTH);
+            short currentDepth = depthCounts.putOrAdd(ctx.getClass().getSimpleName(), (short) 1, (short) 1);
+            if (currentDepth > MAX_RULE_DEPTH) {
+                throw new ParsingException("expression is too large to parse, (tree's depth exceeds {})", MAX_RULE_DEPTH);
             }
             super.enterEveryRule(ctx);
         }
 
         @Override
         public void exitEveryRule(ParserRuleContext ctx) {
-            depthCounts.putOrAdd(ctx.getClass().getSimpleName(), 0, -1);
+            depthCounts.putOrAdd(ctx.getClass().getSimpleName(), (short) 0, (short) -1);
             super.exitEveryRule(ctx);
         }
     }

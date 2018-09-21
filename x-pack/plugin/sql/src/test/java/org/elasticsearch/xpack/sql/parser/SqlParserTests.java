@@ -143,7 +143,7 @@ public class SqlParserTests extends ESTestCase {
         new SqlParser().createExpression(
             Joiner.on("NOT(").join(nCopies(100, "true")).concat(Joiner.on("").join(nCopies(99, ")"))));
 
-        // 500 elements parser's "circuit breaker" is triggered
+        // 101 elements parser's "circuit breaker" is triggered
         ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createExpression(
             Joiner.on("NOT(").join(nCopies(101, "true")).concat(Joiner.on("").join(nCopies(100, ")")))));
         assertEquals("expression is too large to parse, (tree's depth exceeds 100)", e.getErrorMessage());
@@ -181,17 +181,25 @@ public class SqlParserTests extends ESTestCase {
     }
 
     public void testLimitToPreventStackOverflowFromLargeSubselectTree() {
+        // Test with queries in the form of `SELECT * FROM (SELECT * FROM (... t) ...)
+
         // 100 elements is ok
         new SqlParser().createStatement(
-            Joiner.on(" (").join(nCopies(100, "SELECT * FROM")).concat("t").concat(Joiner.on("").join(nCopies(99, ")"))));
+            Joiner.on(" (").join(nCopies(100, "SELECT * FROM"))
+                .concat("t")
+                .concat(Joiner.on("").join(nCopies(99, ")"))));
 
         // 101 elements parser's "circuit breaker" is triggered
         ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createStatement(
-            Joiner.on(" (").join(nCopies(101, "SELECT * FROM")).concat("t").concat(Joiner.on("").join(nCopies(100, ")")))));
+            Joiner.on(" (").join(nCopies(101, "SELECT * FROM"))
+                .concat("t")
+                .concat(Joiner.on("").join(nCopies(100, ")")))));
         assertEquals("expression is too large to parse, (tree's depth exceeds 100)", e.getErrorMessage());
     }
 
     public void testLimitToPreventStackOverflowFromLargeComplexSubselectTree() {
+        // Test with queries in the form of `SELECT true OR true OR .. FROM (SELECT true OR true OR... FROM (... t) ...)
+
         new SqlParser().createStatement(
             Joiner.on(" (").join(nCopies(20, "SELECT ")).
                 concat(Joiner.on(" OR ").join(nCopies(50, "true"))).concat(" FROM")

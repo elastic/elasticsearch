@@ -76,7 +76,7 @@ public class IngestService implements ClusterStateApplier {
     // We know of all the processor factories when a node with all its plugin have been initialized. Also some
     // processor factories rely on other node services. Custom metadata is statically registered when classes
     // are loaded, so in the cluster state we just save the pipeline config and here we keep the actual pipelines around.
-    private volatile Map<String, Pipeline> pipelines = new ConcurrentHashMap<>();
+    private volatile Map<String, Pipeline> pipelines = new HashMap<>();
     private final ThreadPool threadPool;
     private final IngestMetric totalMetrics = new IngestMetric();
 
@@ -255,17 +255,14 @@ public class IngestService implements ClusterStateApplier {
     @Override
     public void applyClusterState(final ClusterChangedEvent event) {
         ClusterState state = event.state();
-        int beforeHashCode = pipelines.hashCode();
-        //grab the metrics before the pipeline instances are potentially re-created
-        Map<String, IngestMetric> oldMetrics =
-            pipelines.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, v -> v.getValue().getMetrics()));
+        Map<String, Pipeline> originalPipelines = pipelines;
         innerUpdatePipelines(event.previousState(), state);
         //pipelines changed, so add the old metrics to the new metrics
-        if (beforeHashCode != pipelines.hashCode()) {
+        if (originalPipelines != pipelines) {
             pipelines.forEach((id, pipeline) -> {
-                IngestMetric oldMetric = oldMetrics.get(id);
-                if (oldMetric != null) {
-                    pipeline.getMetrics().add(oldMetric);
+                Pipeline originalPipeline = originalPipelines.get(id);
+                if (originalPipeline != null) {
+                    pipeline.getMetrics().add(originalPipeline.getMetrics());
                 }
             });
         }

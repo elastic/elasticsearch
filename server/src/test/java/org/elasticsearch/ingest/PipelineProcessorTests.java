@@ -153,7 +153,7 @@ public class PipelineProcessorTests extends ESTestCase {
                 new TestProcessor(ingestDocument -> {
                     ingestDocument.setFieldValue(key1, randomInt());
                     try {
-                        Thread.sleep(100); //force the stat time to be non-zero
+                        Thread.sleep(2); //force the stat time to be non-zero
                     } catch (InterruptedException e) {
                         //do nothing
                     }

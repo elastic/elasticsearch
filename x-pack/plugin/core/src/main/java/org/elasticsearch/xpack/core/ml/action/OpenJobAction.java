@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,6 +30,8 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedResponse, OpenJobAction.RequestBuilder> {
@@ -136,6 +139,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
 
         /** TODO Remove in 7.0.0 */
         public static final ParseField IGNORE_DOWNTIME = new ParseField("ignore_downtime");
+        public static final ParseField JOB_MEM_MAP = new ParseField("job_mem");
 
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static ObjectParser<JobParams, Void> PARSER = new ObjectParser<>(TASK_NAME, JobParams::new);
@@ -145,6 +149,15 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
             PARSER.declareBoolean((p, v) -> {}, IGNORE_DOWNTIME);
             PARSER.declareString((params, val) ->
                     params.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
+            PARSER.declareObject(JobParams::setJob, (p, c) -> Job.LENIENT_PARSER.apply(p, c).build(), Job.RESULTS_FIELD);
+            PARSER.declareObject(JobParams::setNodeAssignedJobMemory, (p, c) -> {
+                Map<String, Long> stringLongMap = new HashMap<>();
+                Map<String, Object> unparsedScope = p.map();
+                for (Map.Entry<String, Object> entry : unparsedScope.entrySet()) {
+                    stringLongMap.put(entry.getKey(), (Long)entry.getValue());
+                }
+                return stringLongMap;
+            }, JOB_MEM_MAP);
         }
 
         public static JobParams fromXContent(XContentParser parser) {
@@ -163,6 +176,8 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
         // A big state can take a while to restore.  For symmetry with the _close endpoint any
         // changes here should be reflected there too.
         private TimeValue timeout = MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT;
+        private Job job;
+        private Map<String, Long> nodeAssignedJobMemory;
 
         JobParams() {
         }
@@ -178,6 +193,12 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
                 in.readBoolean();
             }
             timeout = TimeValue.timeValueMillis(in.readVLong());
+            if (in.getVersion().onOrAfter(Version.CURRENT)) {
+                job = in.readOptionalWriteable(Job::new);
+                if (in.readBoolean()) {
+                    nodeAssignedJobMemory = in.readMap(StreamInput::readString, StreamInput::readLong);
+                }
+            }
         }
 
         public String getJobId() {
@@ -196,6 +217,24 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
             this.timeout = timeout;
         }
 
+        @Nullable
+        public Job getJob() {
+            return job;
+        }
+
+        public void setJob(Job job) {
+            this.job = job;
+        }
+
+        @Nullable
+        public Map<String, Long> getNodeAssignedJobMemory() {
+            return nodeAssignedJobMemory;
+        }
+
+        public void setNodeAssignedJobMemory(Map<String, Long> nodeAssignedJobMemory) {
+            this.nodeAssignedJobMemory = nodeAssignedJobMemory;
+        }
+
         @Override
         public String getWriteableName() {
             return TASK_NAME;
@@ -209,6 +248,14 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
                 out.writeBoolean(true);
             }
             out.writeVLong(timeout.millis());
+            if (out.getVersion().onOrAfter(Version.CURRENT)) {
+                out.writeOptionalWriteable(job);
+                boolean writeMemMap = nodeAssignedJobMemory != null;
+                out.writeBoolean(writeMemMap);
+                if (writeMemMap) {
+                    out.writeMap(nodeAssignedJobMemory, StreamOutput::writeString, StreamOutput::writeLong);
+                }
+            }
         }
 
         @Override
@@ -216,13 +263,19 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
             builder.startObject();
             builder.field(Job.ID.getPreferredName(), jobId);
             builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
+            if (job != null) {
+                builder.field(Job.RESULTS_FIELD.getPreferredName(), job);
+            }
+            if (nodeAssignedJobMemory != null) {
+                builder.field(JOB_MEM_MAP.getPreferredName(), nodeAssignedJobMemory);
+            }
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, timeout);
+            return Objects.hash(jobId, timeout, job, nodeAssignedJobMemory);
         }
 
         @Override
@@ -235,7 +288,9 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
             }
             OpenJobAction.JobParams other = (OpenJobAction.JobParams) obj;
             return Objects.equals(jobId, other.jobId) &&
-                    Objects.equals(timeout, other.timeout);
+                    Objects.equals(timeout, other.timeout) &&
+                    Objects.equals(job, other.job) &&
+                    Objects.equals(nodeAssignedJobMemory, other.nodeAssignedJobMemory);
         }
 
         @Override

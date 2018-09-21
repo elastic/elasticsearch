@@ -9,6 +9,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction.Request;
+import org.elasticsearch.xpack.core.ml.job.config.JobTests;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class OpenJobActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 
@@ -17,6 +21,15 @@ public class OpenJobActionRequestTests extends AbstractStreamableXContentTestCas
         OpenJobAction.JobParams params = new OpenJobAction.JobParams(randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {
             params.setTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
+        }
+        if (randomBoolean()) {
+            params.setJob(JobTests.createRandomizedJob());
+        }
+        if (randomBoolean()) {
+            Map<String, Long> map = new HashMap<>();
+            map.put(randomAlphaOfLength(4), randomLong());
+            map.put(randomAlphaOfLength(4), randomLong());
+            params.setNodeAssignedJobMemory(map);
         }
         return new Request(params);
     }

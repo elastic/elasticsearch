@@ -34,7 +34,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -63,7 +62,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -74,36 +72,28 @@ import static org.mockito.Mockito.when;
 public class TransportOpenJobActionTests extends ESTestCase {
 
     public void testValidate_jobMissing() {
-        MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
-        mlBuilder.putJob(buildJobBuilder("job_id1").build(), false);
-        expectThrows(ResourceNotFoundException.class, () -> TransportOpenJobAction.validate("job_id2", mlBuilder.build()));
+        expectThrows(ResourceNotFoundException.class, () -> TransportOpenJobAction.validate("job_id2", null));
     }
 
     public void testValidate_jobMarkedAsDeleted() {
-        MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
         Job.Builder jobBuilder = buildJobBuilder("job_id");
         jobBuilder.setDeleted(true);
-        mlBuilder.putJob(jobBuilder.build(), false);
         Exception e = expectThrows(ElasticsearchStatusException.class,
-                () -> TransportOpenJobAction.validate("job_id", mlBuilder.build()));
+                () -> TransportOpenJobAction.validate("job_id", jobBuilder.build()));
         assertEquals("Cannot open job [job_id] because it has been marked as deleted", e.getMessage());
     }
 
     public void testValidate_jobWithoutVersion() {
-        MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
         Job.Builder jobBuilder = buildJobBuilder("job_id");
-        mlBuilder.putJob(jobBuilder.build(), false);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> TransportOpenJobAction.validate("job_id", mlBuilder.build()));
+                () -> TransportOpenJobAction.validate("job_id", jobBuilder.build()));
         assertEquals("Cannot open job [job_id] because jobs created prior to version 5.5 are not supported", e.getMessage());
         assertEquals(RestStatus.BAD_REQUEST, e.status());
     }
 
     public void testValidate_givenValidJob() {
-        MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
         Job.Builder jobBuilder = buildJobBuilder("job_id");
-        mlBuilder.putJob(jobBuilder.build(new Date()), false);
-        TransportOpenJobAction.validate("job_id", mlBuilder.build());
+        TransportOpenJobAction.validate("job_id", jobBuilder.build(new Date()));
     }
 
     public void testSelectLeastLoadedMlNode_byCount() {
@@ -128,12 +118,17 @@ public class TransportOpenJobActionTests extends ESTestCase {
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
-        addJobAndIndices(metaData, routingTable, "job_id1", "job_id2", "job_id3", "job_id4");
+        addIndices(metaData, routingTable);
         cs.nodes(nodes);
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
         cs.routingTable(routingTable.build());
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id4", cs.build(), 2, 10, 30, logger);
+
+        Job.Builder jobBuilder = buildJobBuilder("job_id4");
+        jobBuilder.setJobVersion(Version.CURRENT);
+
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id4", jobBuilder.build(), Collections.emptyMap(),
+                cs.build(), 2, 10, 30, logger);
         assertEquals("", result.getExplanation());
         assertEquals("_node_id3", result.getExecutorNode());
     }
@@ -161,17 +156,23 @@ public class TransportOpenJobActionTests extends ESTestCase {
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
-        addJobAndIndices(metaData, routingTable, jobId -> {
-            // remember we add 100MB for the process overhead, so these model memory
-            // limits correspond to estimated footprints of 102MB and 205MB
-            long jobSize = (jobId.equals("job_id2") || jobId.equals("job_id3")) ? 2 : 105;
-            return BaseMlIntegTestCase.createFareQuoteJob(jobId, new ByteSizeValue(jobSize, ByteSizeUnit.MB)).build(new Date());
-        }, "job_id1", "job_id2", "job_id3", "job_id4", "job_id5");
+        addIndices(metaData, routingTable);
+
         cs.nodes(nodes);
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
         cs.routingTable(routingTable.build());
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id5", cs.build(), 2, 10, 30, logger);
+
+        Map<String, Long> nodeAssignedMem = new HashMap<>();
+        nodeAssignedMem.put("_node_id1", 205L);
+        nodeAssignedMem.put("_node_id2", 204L);
+        nodeAssignedMem.put("_node_id3", 205L);
+
+        Job.Builder jobBuilder = buildJobBuilder("job_id4");
+        jobBuilder.setJobVersion(Version.CURRENT);
+
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id5", jobBuilder.build(), nodeAssignedMem, cs.build(),
+                2, 10, 30, logger);
         assertEquals("", result.getExplanation());
         assertEquals("_node_id2", result.getExecutorNode());
     }
@@ -199,17 +200,20 @@ public class TransportOpenJobActionTests extends ESTestCase {
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
-        addJobAndIndices(metaData, routingTable, jobId -> {
-            // remember we add 100MB for the process overhead, so this model
-            // memory limit corresponds to a job size of 250MB
-            return BaseMlIntegTestCase.createFareQuoteJob(jobId, new ByteSizeValue(150, ByteSizeUnit.MB)).build(new Date());
-        }, "job_id1", "job_id2", "job_id3", "job_id4");
+        addIndices(metaData, routingTable);
         cs.nodes(nodes);
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
         cs.routingTable(routingTable.build());
+
+        Map<String, Long> nodeAssignedMem = new HashMap<>();
+        nodeAssignedMem.put("_node_id1", 0L);
+        nodeAssignedMem.put("_node_id2", 0L);
+        nodeAssignedMem.put("_node_id3", 0L);
+        Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id4", new ByteSizeValue(150, ByteSizeUnit.MB)).build(new Date());
+
         // if the memory of the failed jobs is wrongly included in the calculation then this job will not be allocated
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id4", cs.build(), 2, 10, 30, logger);
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id4", job, nodeAssignedMem, cs.build(), 2, 10, 30, logger);
         assertEquals("", result.getExplanation());
         assertNotNull(result.getExecutorNode());
     }
@@ -238,12 +242,16 @@ public class TransportOpenJobActionTests extends ESTestCase {
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
-        addJobAndIndices(metaData, routingTable, jobIds);
+        addIndices(metaData, routingTable);
         cs.nodes(nodes);
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
         cs.routingTable(routingTable.build());
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id0", cs.build(), 2, maxRunningJobsPerNode, 30, logger);
+
+        Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id0", new ByteSizeValue(150, ByteSizeUnit.MB)).build(new Date());
+
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id0", job, Collections.emptyMap(),
+                cs.build(), 2, maxRunningJobsPerNode, 30, logger);
         assertNull(result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because this node is full. Number of opened jobs [" + maxRunningJobsPerNode
                 + "], xpack.ml.max_open_jobs [" + maxRunningJobsPerNode + "]"));
@@ -264,12 +272,16 @@ public class TransportOpenJobActionTests extends ESTestCase {
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
-        addJobAndIndices(metaData, routingTable, "job_id1", "job_id2");
+        addIndices(metaData, routingTable);
         cs.nodes(nodes);
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
         cs.routingTable(routingTable.build());
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), 2, 10, 30, logger);
+
+        Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id2", new ByteSizeValue(2, ByteSizeUnit.MB)).build(new Date());
+
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id2", job, Collections.emptyMap(),
+                cs.build(), 2, 10, 30, logger);
         assertTrue(result.getExplanation().contains("because this node isn't a ml node"));
         assertNull(result.getExecutorNode());
     }
@@ -298,23 +310,31 @@ public class TransportOpenJobActionTests extends ESTestCase {
         csBuilder.nodes(nodes);
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
-        addJobAndIndices(metaData, routingTable, "job_id1", "job_id2", "job_id3", "job_id4", "job_id5", "job_id6", "job_id7");
+        addIndices(metaData, routingTable);
         csBuilder.routingTable(routingTable.build());
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         csBuilder.metaData(metaData);
 
+        Map<String, Long> nodeAssignedMem = new HashMap<>();
+        nodeAssignedMem.put("_node_id1", 204L);
+        nodeAssignedMem.put("_node_id2", 204L);
+        nodeAssignedMem.put("_node_id3", 102L);
+
+        Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id6", new ByteSizeValue(2, ByteSizeUnit.MB)).build(new Date());
+
         ClusterState cs = csBuilder.build();
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id6", cs, 2, 10, 30, logger);
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id6", job, nodeAssignedMem, cs, 2, 10, 30, logger);
         assertEquals("_node_id3", result.getExecutorNode());
 
         tasksBuilder = PersistentTasksCustomMetaData.builder(tasks);
         addJobTask("job_id6", "_node_id3", null, tasksBuilder);
         tasks = tasksBuilder.build();
+        nodeAssignedMem.put("_node_id3", 204L);
 
         csBuilder = ClusterState.builder(cs);
         csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks));
         cs = csBuilder.build();
-        result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, 10, 30, logger);
+        result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id7", job, nodeAssignedMem, cs, 2, 10, 30, logger);
         assertNull("no node selected, because OPENING state", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
 
@@ -325,7 +345,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         csBuilder = ClusterState.builder(cs);
         csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks));
         cs = csBuilder.build();
-        result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, 10, 30, logger);
+        result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id7", job, nodeAssignedMem, cs, 2, 10, 30, logger);
         assertNull("no node selected, because stale task", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
 
@@ -336,7 +356,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         csBuilder = ClusterState.builder(cs);
         csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks));
         cs = csBuilder.build();
-        result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, 10, 30, logger);
+        result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id7", job, nodeAssignedMem, cs, 2, 10, 30, logger);
         assertNull("no node selected, because null state", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
     }
@@ -368,14 +388,22 @@ public class TransportOpenJobActionTests extends ESTestCase {
         csBuilder.nodes(nodes);
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
-        addJobAndIndices(metaData, routingTable, "job_id1", "job_id2", "job_id3", "job_id4", "job_id5", "job_id6", "job_id7", "job_id8");
+        addIndices(metaData, routingTable);
         csBuilder.routingTable(routingTable.build());
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         csBuilder.metaData(metaData);
 
         ClusterState cs = csBuilder.build();
+
+        Map<String, Long> nodeAssignedMem = new HashMap<>();
+        nodeAssignedMem.put("_node_id1", 102L);
+        nodeAssignedMem.put("_node_id2", 204L);
+        nodeAssignedMem.put("_node_id3", 204L);
+
+        Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id7", new ByteSizeValue(2, ByteSizeUnit.MB)).build(new Date());
+
         // Allocation won't be possible if the stale failed job is treated as opening
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, 10, 30, logger);
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id7", job, nodeAssignedMem, cs, 2, 10, 30, logger);
         assertEquals("_node_id1", result.getExecutorNode());
 
         tasksBuilder = PersistentTasksCustomMetaData.builder(tasks);
@@ -385,7 +413,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         csBuilder = ClusterState.builder(cs);
         csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks));
         cs = csBuilder.build();
-        result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id8", cs, 2, 10, 30, logger);
+        result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id8", job, nodeAssignedMem, cs, 2, 10, 30, logger);
         assertNull("no node selected, because OPENING state", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
     }
@@ -407,20 +435,20 @@ public class TransportOpenJobActionTests extends ESTestCase {
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
-        Function<String, Job> incompatibleJobCreator = jobId -> {
-            Job job = mock(Job.class);
-            when(job.getId()).thenReturn(jobId);
-            when(job.getJobVersion()).thenReturn(Version.CURRENT);
-            when(job.getJobType()).thenReturn("incompatible_type");
-            when(job.getResultsIndexName()).thenReturn("shared");
-            return job;
-        };
-        addJobAndIndices(metaData, routingTable, incompatibleJobCreator, "incompatible_type_job");
+        addIndices(metaData, routingTable);
+
+        Job job = mock(Job.class);
+        when(job.getId()).thenReturn("incompatible_type_job");
+        when(job.getJobVersion()).thenReturn(Version.CURRENT);
+        when(job.getJobType()).thenReturn("incompatible_type");
+        when(job.getResultsIndexName()).thenReturn("shared");
+
         cs.nodes(nodes);
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
         cs.routingTable(routingTable.build());
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("incompatible_type_job", cs.build(), 2, 10, 30, logger);
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("incompatible_type_job", job, Collections.emptyMap(),
+                cs.build(), 2, 10, 30, logger);
         assertThat(result.getExplanation(), containsString("because this node does not support jobs of type [incompatible_type]"));
         assertNull(result.getExecutorNode());
     }
@@ -442,13 +470,17 @@ public class TransportOpenJobActionTests extends ESTestCase {
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
-        addJobAndIndices(metaData, routingTable, "incompatible_type_job");
+        addIndices(metaData, routingTable);
         cs.nodes(nodes);
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
         cs.routingTable(routingTable.build());
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("incompatible_type_job", cs.build(), 2, 10, 30, logger);
-        assertThat(result.getExplanation(), containsString("because this node does not support jobs of version [" + Version.CURRENT + "]"));
+
+        Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id7", new ByteSizeValue(2, ByteSizeUnit.MB)).build(new Date());
+
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("incompatible_type_job", job, Collections.emptyMap(),
+                cs.build(), 2, 10, 30, logger);
+        assertThat(result.getExplanation(), containsString("because this node does not support machine learning jobs"));
         assertNull(result.getExecutorNode());
     }
 
@@ -469,12 +501,14 @@ public class TransportOpenJobActionTests extends ESTestCase {
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
-        addJobAndIndices(metaData, routingTable, jobWithRulesCreator(), "job_with_rules");
+        addIndices(metaData, routingTable);
         cs.nodes(nodes);
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
         cs.routingTable(routingTable.build());
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_with_rules", cs.build(),
+
+        Job job = jobWithRules("job_with_rules");
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_with_rules", job, Collections.emptyMap(), cs.build(),
                 2, 10, 30, logger);
         assertThat(result.getExplanation(), containsString(
                 "because jobs using custom_rules require a node of version [6.4.0] or higher"));
@@ -498,12 +532,14 @@ public class TransportOpenJobActionTests extends ESTestCase {
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
-        addJobAndIndices(metaData, routingTable, jobWithRulesCreator(), "job_with_rules");
+        addIndices(metaData, routingTable);
         cs.nodes(nodes);
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
         cs.routingTable(routingTable.build());
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_with_rules", cs.build(),
+
+        Job job = jobWithRules("job_with_rules");
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_with_rules", job, Collections.emptyMap(), cs.build(),
                 2, 10, 30, logger);
         assertNotNull(result.getExecutorNode());
     }
@@ -511,19 +547,19 @@ public class TransportOpenJobActionTests extends ESTestCase {
     public void testVerifyIndicesPrimaryShardsAreActive() {
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
-        addJobAndIndices(metaData, routingTable, "job_id");
+        addIndices(metaData, routingTable);
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         csBuilder.routingTable(routingTable.build());
         csBuilder.metaData(metaData);
 
         ClusterState cs = csBuilder.build();
-        assertEquals(0, TransportOpenJobAction.verifyIndicesPrimaryShardsAreActive("job_id", cs).size());
+        assertEquals(0, TransportOpenJobAction.verifyIndicesPrimaryShardsAreActive(".ml-anomalies-shared", cs).size());
 
         metaData = new MetaData.Builder(cs.metaData());
         routingTable = new RoutingTable.Builder(cs.routingTable());
 
-        String indexToRemove = randomFrom(TransportOpenJobAction.indicesOfInterest(cs, "job_id"));
+        String indexToRemove = randomFrom(TransportOpenJobAction.indicesOfInterest(".ml-anomalies-shared"));
         if (randomBoolean()) {
             routingTable.remove(indexToRemove);
         } else {
@@ -538,7 +574,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
         csBuilder.routingTable(routingTable.build());
         csBuilder.metaData(metaData);
-        List<String> result = TransportOpenJobAction.verifyIndicesPrimaryShardsAreActive("job_id", csBuilder.build());
+        List<String> result = TransportOpenJobAction.verifyIndicesPrimaryShardsAreActive(".ml-anomalies-shared", csBuilder.build());
         assertEquals(1, result.size());
         assertEquals(indexToRemove, result.get(0));
     }
@@ -670,13 +706,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         }
     }
 
-    private void addJobAndIndices(MetaData.Builder metaData, RoutingTable.Builder routingTable, String... jobIds) {
-        addJobAndIndices(metaData, routingTable, jobId ->
-                BaseMlIntegTestCase.createFareQuoteJob(jobId, new ByteSizeValue(2, ByteSizeUnit.MB)).build(new Date()), jobIds);
-    }
-
-    private void addJobAndIndices(MetaData.Builder metaData, RoutingTable.Builder routingTable, Function<String, Job> jobCreator,
-                                  String... jobIds) {
+    private void addIndices(MetaData.Builder metaData, RoutingTable.Builder routingTable) {
         List<String> indices = new ArrayList<>();
         indices.add(AnomalyDetectorsIndex.jobStateIndexName());
         indices.add(MlMetaIndex.INDEX_NAME);
@@ -699,13 +729,6 @@ public class TransportOpenJobActionTests extends ESTestCase {
             routingTable.add(IndexRoutingTable.builder(index)
                     .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build()));
         }
-
-        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
-        for (String jobId : jobIds) {
-            Job job = jobCreator.apply(jobId);
-            mlMetadata.putJob(job, false);
-        }
-        metaData.putCustom(MlMetadata.TYPE, mlMetadata.build());
     }
 
     private ClusterState getClusterStateWithMappingsWithMetaData(Map<String, Object> namesAndVersions) throws IOException {
@@ -744,21 +767,19 @@ public class TransportOpenJobActionTests extends ESTestCase {
         return csBuilder.build();
     }
 
-    private static Function<String, Job> jobWithRulesCreator() {
-        return jobId -> {
-            DetectionRule rule = new DetectionRule.Builder(Collections.singletonList(
-                    new RuleCondition(RuleCondition.AppliesTo.TYPICAL, Operator.LT, 100.0)
-            )).build();
+    private static Job jobWithRules(String jobId) {
+        DetectionRule rule = new DetectionRule.Builder(Collections.singletonList(
+                new RuleCondition(RuleCondition.AppliesTo.TYPICAL, Operator.LT, 100.0)
+        )).build();
 
-            Detector.Builder detector = new Detector.Builder("count", null);
-            detector.setRules(Collections.singletonList(rule));
-            AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
-            DataDescription.Builder dataDescription = new DataDescription.Builder();
-            Job.Builder job = new Job.Builder(jobId);
-            job.setAnalysisConfig(analysisConfig);
-            job.setDataDescription(dataDescription);
-            return job.build(new Date());
-        };
+        Detector.Builder detector = new Detector.Builder("count", null);
+        detector.setRules(Collections.singletonList(rule));
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        Job.Builder job = new Job.Builder(jobId);
+        job.setAnalysisConfig(analysisConfig);
+        job.setDataDescription(dataDescription);
+        return job.build(new Date());
     }
 
 }

@@ -264,7 +264,6 @@ public class FollowersChecker extends AbstractComponent {
         }
 
         void start() {
-            assert Thread.holdsLock(mutex) : "FollowersChecker mutex not held";
             assert running();
             handleWakeUp();
         }

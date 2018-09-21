@@ -5,232 +5,305 @@ import org.junit.Test
 
 class VersionCollectionTests extends GradleUnitTestCase {
 
-  String formatVersion(String version) {
-    return " public static final Version V_${version.replaceAll("\\.", "_")} "
-  }
-  List<String> allVersions = [formatVersion('5.0.0'), formatVersion('5.0.0_alpha1'), formatVersion('5.0.0_alpha2'), formatVersion('5.0.0_beta1'),
-                     formatVersion('5.0.0_rc1'),formatVersion('5.0.0_rc2'),formatVersion('5.0.1'), formatVersion('5.0.2'),
-                     formatVersion('5.1.1'), formatVersion('5.1.2'), formatVersion('5.2.0'), formatVersion('5.2.1'), formatVersion('6.0.0'),
-                     formatVersion('6.0.1'), formatVersion('6.1.0'), formatVersion('6.1.1'), formatVersion('6.2.0'), formatVersion('6.3.0'),
-                     formatVersion('7.0.0_alpha1'), formatVersion('7.0.0_alpha2')]
+    String formatVersion(String version) {
+        return " public static final Version V_${version.replaceAll("\\.", "_")} "
+    }
+    List<String> allVersions = [
+            '5.0.0', '5.0.0_alpha1', '5.0.0_alpha2', '5.0.0_beta1',
+            '5.0.0_rc1', '5.0.0_rc2', '5.0.1', '5.0.2',
+            '5.1.1', '5.1.2', '5.2.0', '5.2.1', '6.0.0',
+            '6.0.1', '6.1.0', '6.1.1', '6.2.0', '6.3.0',
+            '7.0.0_alpha1', '7.0.0_alpha2'
+    ].collect({ formatVersion(it) })
 
-  /**
-   * This validates the logic of being on a unreleased major branch with a staged major-1.minor sibling. This case happens when a version is
-   * branched from Major-1.x At the time of this writing 6.2 is unreleased and 6.3 is the 6.x branch. This test simulates the behavior
-   * from 7.0 perspective, or master at the time of this writing.
-   */
-  @Test
-  void testAgainstMajorUnreleasedWithExistingStagedMinorRelease() {
-    VersionCollection vc = new VersionCollection(allVersions)
-    assertNotNull(vc)
-    assertEquals(vc.nextMinorSnapshot, Version.fromString("6.3.0-SNAPSHOT"))
-    assertEquals(vc.stagedMinorSnapshot, Version.fromString("6.2.0-SNAPSHOT"))
-    assertEquals(vc.nextBugfixSnapshot, Version.fromString("6.1.1-SNAPSHOT"))
-    assertNull(vc.maintenanceBugfixSnapshot)
+    private void assertCompatible(List<String> versionsInServer, List<String> expectIndexCompatible, List<String> expectWireCompatible) {
+        VersionCollection vc = new VersionCollection(versionsInServer.collect({ formatVersion(it) }))
+        assertNotNull(vc)
+        assertEquals(expectIndexCompatible.collect({ Version.fromString(it) }), vc.indexCompatible)
+        assertEquals(expectWireCompatible.collect({ Version.fromString(it) }), vc.wireCompatible)
+    }
 
-    vc.indexCompatible.containsAll(vc.versions)
+    @Test
+    void testIndexCompatible() {
+        // 7.0.0 on master
+        assertCompatible([
+                "6_0_0_alpha1", "6_0_0_alpha2", "6_0_0_beta1", "6_0_0_beta2", "6_0_0_rc1", "6_0_0_rc2",
+                "6_0_0", "6_0_1", "6_1_0", "6_1_1", "6_1_2", "6_1_3", "6_1_4",
+                "6_2_0", "6_2_1", "6_2_2", "6_2_3", "6_2_4",
+                "6_3_0", "6_3_1", "6_3_2",
+                "6_4_0", "6_4_1", "6_4_2",
+                "6_5_0", "7_0_0_alpha1"
+        ], [
+                "6.0.0", "6.0.1", "6.1.0", "6.1.1", "6.1.2", "6.1.3", "6.1.4",
+                "6.2.0", "6.2.1", "6.2.2", "6.2.3", "6.2.4", "6.3.0", "6.3.1",
+                "6.3.2", "6.4.0", "6.4.1", "6.4.2-SNAPSHOT", "6.5.0-SNAPSHOT"
+        ], [
+                "6.5.0-SNAPSHOT"
+        ])
 
-    // This should contain the same list sans the current version
-    List indexCompatList =  [Version.fromString("6.0.0"), Version.fromString("6.0.1"),
-                             Version.fromString("6.1.0"), Version.fromString("6.1.1-SNAPSHOT"),
-                             Version.fromString("6.2.0-SNAPSHOT"), Version.fromString("6.3.0-SNAPSHOT")]
-    assertTrue(indexCompatList.containsAll(vc.indexCompatible))
-    assertTrue(vc.indexCompatible.containsAll(indexCompatList))
+        // 6.5 on the 6.x branch
+        assertCompatible([
+                "5_0_0_alpha1", "5_0_0_alpha2", "5_0_0_alpha3", "5_0_0_alpha4", "5_0_0_alpha5", "5_0_0_beta1", "5_0_0_rc1",
+                "5_0_0", "5_0_1", "5_0_2", "5_1_1", "5_1_2", "5_2_0", "5_2_1", "5_2_2", "5_3_0", "5_3_1", "5_3_2", "5_3_3",
+                "5_4_0", "5_4_1", "5_4_2", "5_4_3", "5_5_0", "5_5_1", "5_5_2", "5_5_3", "5_6_0", "5_6_1", "5_6_2", "5_6_3",
+                "5_6_4", "5_6_5", "5_6_6", "5_6_7", "5_6_8", "5_6_9", "5_6_10", "5_6_11", "5_6_12", "5_6_13",
+                "6_0_0_alpha1", "6_0_0_alpha2", "6_0_0_beta1", "6_0_0_beta2", "6_0_0_rc1", "6_0_0_rc2", "6_0_0", "6_0_1",
+                "6_1_0", "6_1_1", "6_1_2", "6_1_3", "6_1_4", "6_2_0", "6_2_1", "6_2_2", "6_2_3", "6_2_4", "6_3_0", "6_3_1",
+                "6_3_2", "6_4_0", "6_4_1", "6_4_2", "6_5_0"
+        ], [
+                "5.0.0", "5.0.1", "5.0.2", "5.1.1", "5.1.2", "5.2.0", "5.2.1", "5.2.2", "5.3.0", "5.3.1", "5.3.2", "5.3.3",
+                "5.4.0", "5.4.1", "5.4.2", "5.4.3", "5.5.0", "5.5.1", "5.5.2", "5.5.3", "5.6.0", "5.6.1", "5.6.2", "5.6.3",
+                "5.6.4", "5.6.5", "5.6.6", "5.6.7", "5.6.8", "5.6.9", "5.6.10", "5.6.11", "5.6.12", "5.6.13-SNAPSHOT",
+                "6.0.0", "6.0.1", "6.1.0", "6.1.1", "6.1.2", "6.1.3", "6.1.4", "6.2.0", "6.2.1", "6.2.2", "6.2.3", "6.2.4",
+                "6.3.0", "6.3.1", "6.3.2", "6.4.0", "6.4.1", "6.4.2-SNAPSHOT"
+        ], [
+                "5.6.0", "5.6.1", "5.6.2", "5.6.3", "5.6.4", "5.6.5", "5.6.6", "5.6.7", "5.6.8", "5.6.9", "5.6.10",
+                "5.6.11", "5.6.12", "5.6.13-SNAPSHOT",
+                "6.0.0", "6.0.1", "6.1.0", "6.1.1", "6.1.2", "6.1.3", "6.1.4",
+                "6.2.0", "6.2.1", "6.2.2", "6.2.3", "6.2.4",
+                "6.3.0", "6.3.1", "6.3.2", "6.4.0", "6.4.1", "6.4.2-SNAPSHOT"
+        ])
 
-    List wireCompatList = [Version.fromString("6.3.0-SNAPSHOT")]
-    assertTrue(wireCompatList.containsAll(vc.wireCompatible))
-    assertTrue(vc.wireCompatible.containsAll(wireCompatList))
+        // 6.4.2 on 6.4 branch
+        assertCompatible([
+                "5.0.0", "5.0.1", "5.0.2", "5.1.1", "5.1.2", "5.2.0", "5.2.1", "5.2.2", "5.3.0", "5.3.1", "5.3.2",
+                "5.3.3", "5.4.0", "5.4.1", "5.4.2", "5.4.3", "5.5.0", "5.5.1", "5.5.2", "5.5.3", "5.6.0", "5.6.1",
+                "5.6.2", "5.6.3", "5.6.4", "5.6.5", "5.6.6", "5.6.7", "5.6.8", "5.6.9", "5.6.10", "5.6.11", "5.6.12",
+                "5.6.13-SNAPSHOT", "6.0.0", "6.0.1", "6.1.0", "6.1.1", "6.1.2", "6.1.3", "6.1.4", "6.2.0", "6.2.1",
+                "6.2.2", "6.2.3", "6.2.4", "6.3.0", "6.3.1", "6.3.2", "6.4.0", "6.4.1"
+        ], [
+                "5.0.0", "5.0.1", "5.0.2", "5.1.1", "5.1.2", "5.2.0", "5.2.1", "5.2.2", "5.3.0", "5.3.1", "5.3.2", "5.3.3",
+                "5.4.0", "5.4.1", "5.4.2", "5.4.3", "5.5.0", "5.5.1", "5.5.2", "5.5.3", "5.6.0", "5.6.1", "5.6.2", "5.6.3",
+                "5.6.4", "5.6.5", "5.6.6", "5.6.7", "5.6.8", "5.6.9", "5.6.10", "5.6.11", "5.6.12", "5.6.13-SNAPSHOT",
+                "6.0.0", "6.0.1", "6.1.0", "6.1.1", "6.1.2", "6.1.3", "6.1.4", "6.2.0", "6.2.1", "6.2.2", "6.2.3", "6.2.4",
+                "6.3.0", "6.3.1", "6.3.2", "6.4.0", "6.4.1", "6.4.2-SNAPSHOT"
+        ], [
+                "5.6.0", "5.6.1", "5.6.2", "5.6.3", "5.6.4", "5.6.5", "5.6.6", "5.6.7", "5.6.8", "5.6.9", "5.6.10",
+                "5.6.11", "5.6.12", "5.6.13-SNAPSHOT", "6.0.0", "6.0.1", "6.1.0", "6.1.1", "6.1.2", "6.1.3", "6.1.4",
+                "6.2.0", "6.2.1", "6.2.2", "6.2.3", "6.2.4", "6.3.0", "6.3.1", "6.3.2", "6.4.0", "6.4.1"
+        ])
+    }
 
-    assertEquals(vc.snapshotsIndexCompatible.size(), 3)
-    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.3.0-SNAPSHOT")))
-    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.2.0-SNAPSHOT")))
-    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.1.1-SNAPSHOT")))
+    /**
+     * This validates the logic of being on a unreleased major branch with a staged major-1.minor sibling. This case happens when a version is
+     * branched from Major-1.x At the time of this writing 6.2 is unreleased and 6.3 is the 6.x branch. This test simulates the behavior
+     * from 7.0 perspective, or master at the time of this writing.
+     */
+    @Test
+    void testAgainstMajorUnreleasedWithExistingStagedMinorRelease() {
+        VersionCollection vc = new VersionCollection(allVersions)
+        assertNotNull(vc)
+        assertEquals(vc.nextMinorSnapshot, Version.fromString("6.3.0-SNAPSHOT"))
+        assertEquals(vc.stagedMinorSnapshot, Version.fromString("6.2.0-SNAPSHOT"))
+        assertEquals(vc.nextBugfixSnapshot, Version.fromString("6.1.1-SNAPSHOT"))
+        assertNull(vc.maintenanceBugfixSnapshot)
 
-    assertEquals(vc.snapshotsWireCompatible.size(), 1)
-    assertEquals(vc.snapshotsWireCompatible.first(), Version.fromString("6.3.0-SNAPSHOT"))
-  }
+        vc.indexCompatible.containsAll(vc.versions)
 
-  /**
-   * This validates the logic of being on a unreleased major branch without a staged major-1.minor sibling. This case happens once a staged,
-   * unreleased minor is released. At the time of this writing 6.2 is unreleased, so adding a 6.2.1 simulates a 6.2 release. This test
-   * simulates the behavior from 7.0 perspective, or master at the time of this writing.
-   */
-  @Test
-  void testAgainstMajorUnreleasedWithoutStagedMinorRelease() {
-    List localVersion = allVersions.clone()
-    localVersion.add(formatVersion('6.2.1')) // release 6.2
+        // This should contain the same list sans the current version
+        List indexCompatList = [Version.fromString("6.0.0"), Version.fromString("6.0.1"),
+                                Version.fromString("6.1.0"), Version.fromString("6.1.1-SNAPSHOT"),
+                                Version.fromString("6.2.0-SNAPSHOT"), Version.fromString("6.3.0-SNAPSHOT")]
+        assertTrue(indexCompatList.containsAll(vc.indexCompatible))
+        assertTrue(vc.indexCompatible.containsAll(indexCompatList))
 
-    VersionCollection vc = new VersionCollection(localVersion)
-    assertNotNull(vc)
-    assertEquals(vc.nextMinorSnapshot, Version.fromString("6.3.0-SNAPSHOT"))
-    assertEquals(vc.stagedMinorSnapshot, null)
-    assertEquals(vc.nextBugfixSnapshot, Version.fromString("6.2.1-SNAPSHOT"))
-    assertNull(vc.maintenanceBugfixSnapshot)
+        List wireCompatList = [Version.fromString("6.3.0-SNAPSHOT")]
+        assertTrue(wireCompatList.containsAll(vc.wireCompatible))
+        assertTrue(vc.wireCompatible.containsAll(wireCompatList))
 
-    vc.indexCompatible.containsAll(vc.versions)
+        assertEquals(vc.snapshotsIndexCompatible.size(), 3)
+        assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.3.0-SNAPSHOT")))
+        assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.2.0-SNAPSHOT")))
+        assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.1.1-SNAPSHOT")))
 
-    // This should contain the same list sans the current version
-    List indexCompatList =  [Version.fromString("6.0.0"), Version.fromString("6.0.1"),
-                             Version.fromString("6.1.0"), Version.fromString("6.1.1"),
-                             Version.fromString("6.2.0"), Version.fromString("6.2.1-SNAPSHOT"),
-                             Version.fromString("6.3.0-SNAPSHOT")]
-    assertTrue(indexCompatList.containsAll(vc.indexCompatible))
-    assertTrue(vc.indexCompatible.containsAll(indexCompatList))
+        assertEquals(vc.snapshotsWireCompatible.size(), 1)
+        assertEquals(vc.snapshotsWireCompatible.first(), Version.fromString("6.3.0-SNAPSHOT"))
+    }
 
-    List wireCompatList = [Version.fromString("6.3.0-SNAPSHOT")]
-    assertTrue(wireCompatList.containsAll(vc.wireCompatible))
-    assertTrue(vc.wireCompatible.containsAll(wireCompatList))
+    /**
+     * This validates the logic of being on a unreleased major branch without a staged major-1.minor sibling. This case happens once a staged,
+     * unreleased minor is released. At the time of this writing 6.2 is unreleased, so adding a 6.2.1 simulates a 6.2 release. This test
+     * simulates the behavior from 7.0 perspective, or master at the time of this writing.
+     */
+    @Test
+    void testAgainstMajorUnreleasedWithoutStagedMinorRelease() {
+        List localVersion = allVersions.clone()
+        localVersion.add(formatVersion('6.2.1')) // release 6.2
 
-    assertEquals(vc.snapshotsIndexCompatible.size(), 2)
-    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.3.0-SNAPSHOT")))
-    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.2.1-SNAPSHOT")))
+        VersionCollection vc = new VersionCollection(localVersion)
+        assertNotNull(vc)
+        assertEquals(vc.nextMinorSnapshot, Version.fromString("6.3.0-SNAPSHOT"))
+        assertEquals(vc.stagedMinorSnapshot, null)
+        assertEquals(vc.nextBugfixSnapshot, Version.fromString("6.2.1-SNAPSHOT"))
+        assertNull(vc.maintenanceBugfixSnapshot)
 
-    assertEquals(vc.snapshotsWireCompatible.size(), 1)
-    assertEquals(vc.snapshotsWireCompatible.first(), Version.fromString("6.3.0-SNAPSHOT"))
-  }
+        vc.indexCompatible.containsAll(vc.versions)
 
-  /**
-   * This validates the logic of being on a unreleased minor branch with a staged minor sibling. This case happens when a version is
-   * branched from Major.x At the time of this writing 6.2 is unreleased and 6.3 is the 6.x branch. This test simulates the behavior
-   * from 6.3 perspective.
-   */
-  @Test
-  void testAgainstMinorReleasedBranch() {
-    List localVersion = allVersions.clone()
-    localVersion.removeAll { it.toString().contains('7_0_0')} // remove all the 7.x so that the actual version is 6.3 (6.x)
-    VersionCollection vc = new VersionCollection(localVersion)
-    assertNotNull(vc)
-    assertEquals(vc.nextMinorSnapshot, null)
-    assertEquals(vc.stagedMinorSnapshot, Version.fromString("6.2.0-SNAPSHOT"))
-    assertEquals(vc.nextBugfixSnapshot, Version.fromString("6.1.1-SNAPSHOT"))
-    assertEquals(vc.maintenanceBugfixSnapshot, Version.fromString("5.2.1-SNAPSHOT"))
+        // This should contain the same list sans the current version
+        List indexCompatList = [Version.fromString("6.0.0"), Version.fromString("6.0.1"),
+                                Version.fromString("6.1.0"), Version.fromString("6.1.1"),
+                                Version.fromString("6.2.0"), Version.fromString("6.2.1-SNAPSHOT"),
+                                Version.fromString("6.3.0-SNAPSHOT")]
+        assertTrue(indexCompatList.containsAll(vc.indexCompatible))
+        assertTrue(vc.indexCompatible.containsAll(indexCompatList))
 
-    // This should contain the same list sans the current version
-    List indexCompatList = vc.versions.subList(0, vc.versions.size() - 1)
-    assertTrue(indexCompatList.containsAll(vc.indexCompatible))
-    assertTrue(vc.indexCompatible.containsAll(indexCompatList))
+        List wireCompatList = [Version.fromString("6.3.0-SNAPSHOT")]
+        assertTrue(wireCompatList.containsAll(vc.wireCompatible))
+        assertTrue(vc.wireCompatible.containsAll(wireCompatList))
 
-    List wireCompatList = [Version.fromString("5.2.0"), Version.fromString("5.2.1-SNAPSHOT"), Version.fromString("6.0.0"),
-                           Version.fromString("6.0.1"), Version.fromString("6.1.0"), Version.fromString("6.1.1-SNAPSHOT"),
-                           Version.fromString("6.2.0-SNAPSHOT")]
-    assertTrue(wireCompatList.containsAll(vc.wireCompatible))
-    assertTrue(vc.wireCompatible.containsAll(wireCompatList))
+        assertEquals(vc.snapshotsIndexCompatible.size(), 2)
+        assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.3.0-SNAPSHOT")))
+        assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.2.1-SNAPSHOT")))
 
-    assertEquals(vc.snapshotsIndexCompatible.size(), 3)
-    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.2.0-SNAPSHOT")))
-    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.1.1-SNAPSHOT")))
-    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("5.2.1-SNAPSHOT")))
+        assertEquals(vc.snapshotsWireCompatible.size(), 1)
+        assertEquals(vc.snapshotsWireCompatible.first(), Version.fromString("6.3.0-SNAPSHOT"))
+    }
 
-    assertEquals(vc.snapshotsWireCompatible.size(), 3)
-    assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("6.2.0-SNAPSHOT")))
-    assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("6.1.1-SNAPSHOT")))
-    assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("5.2.1-SNAPSHOT")))
-  }
+    /**
+     * This validates the logic of being on a unreleased minor branch with a staged minor sibling. This case happens when a version is
+     * branched from Major.x At the time of this writing 6.2 is unreleased and 6.3 is the 6.x branch. This test simulates the behavior
+     * from 6.3 perspective.
+     */
+    @Test
+    void testAgainstMinorReleasedBranch() {
+        List localVersion = allVersions.clone()
+        localVersion.removeAll { it.toString().contains('7_0_0') }
+        // remove all the 7.x so that the actual version is 6.3 (6.x)
+        VersionCollection vc = new VersionCollection(localVersion)
+        assertNotNull(vc)
+        assertEquals(vc.nextMinorSnapshot, null)
+        assertEquals(vc.stagedMinorSnapshot, Version.fromString("6.2.0-SNAPSHOT"))
+        assertEquals(vc.nextBugfixSnapshot, Version.fromString("6.1.1-SNAPSHOT"))
+        assertEquals(vc.maintenanceBugfixSnapshot, Version.fromString("5.2.1-SNAPSHOT"))
 
-  /**
-   * This validates the logic of being on a unreleased minor branch without a staged minor sibling. This case happens once a staged,
-   * unreleased minor is released. At the time of this writing 6.2 is unreleased, so adding a 6.2.1 simulates a 6.2 release. This test
-   * simulates the behavior from 6.3 perspective.
-   */
-  @Test
-  void testAgainstMinorReleasedBranchNoStagedMinor() {
-    List localVersion = allVersions.clone()
-    // remove all the 7.x and add a 6.2.1 which means 6.2 was released
-    localVersion.removeAll { it.toString().contains('7_0_0')}
-    localVersion.add(formatVersion('6.2.1'))
-    VersionCollection vc = new VersionCollection(localVersion)
-    assertNotNull(vc)
-    assertEquals(vc.nextMinorSnapshot, null)
-    assertEquals(vc.stagedMinorSnapshot, null)
-    assertEquals(vc.nextBugfixSnapshot, Version.fromString("6.2.1-SNAPSHOT"))
-    assertEquals(vc.maintenanceBugfixSnapshot, Version.fromString("5.2.1-SNAPSHOT"))
+        // This should contain the same list sans the current version
+        List indexCompatList = vc.versions.subList(0, vc.versions.size() - 1)
+        assertTrue(indexCompatList.containsAll(vc.indexCompatible))
+        assertTrue(vc.indexCompatible.containsAll(indexCompatList))
 
-    // This should contain the same list sans the current version
-    List indexCompatList = vc.versions.subList(0, vc.versions.size() - 1)
-    assertTrue(indexCompatList.containsAll(vc.indexCompatible))
-    assertTrue(vc.indexCompatible.containsAll(indexCompatList))
+        List wireCompatList = [Version.fromString("5.2.0"), Version.fromString("5.2.1-SNAPSHOT"), Version.fromString("6.0.0"),
+                               Version.fromString("6.0.1"), Version.fromString("6.1.0"), Version.fromString("6.1.1-SNAPSHOT"),
+                               Version.fromString("6.2.0-SNAPSHOT")]
+        assertTrue(wireCompatList.containsAll(vc.wireCompatible))
+        assertTrue(vc.wireCompatible.containsAll(wireCompatList))
 
-    List wireCompatList = [Version.fromString("5.2.0"), Version.fromString("5.2.1-SNAPSHOT"), Version.fromString("6.0.0"),
-                           Version.fromString("6.0.1"), Version.fromString("6.1.0"), Version.fromString("6.1.1"),
-                           Version.fromString("6.2.0"), Version.fromString("6.2.1-SNAPSHOT")]
-    assertTrue(wireCompatList.containsAll(vc.wireCompatible))
-    assertTrue(vc.wireCompatible.containsAll(wireCompatList))
+        assertEquals(vc.snapshotsIndexCompatible.size(), 3)
+        assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.2.0-SNAPSHOT")))
+        assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.1.1-SNAPSHOT")))
+        assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("5.2.1-SNAPSHOT")))
 
-    assertEquals(vc.snapshotsIndexCompatible.size(), 2)
-    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.2.1-SNAPSHOT")))
-    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("5.2.1-SNAPSHOT")))
+        assertEquals(vc.snapshotsWireCompatible.size(), 3)
+        assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("6.2.0-SNAPSHOT")))
+        assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("6.1.1-SNAPSHOT")))
+        assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("5.2.1-SNAPSHOT")))
+    }
 
-    assertEquals(vc.snapshotsWireCompatible.size(), 2)
-    assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("6.2.1-SNAPSHOT")))
-    assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("5.2.1-SNAPSHOT")))
-  }
+    /**
+     * This validates the logic of being on a unreleased minor branch without a staged minor sibling. This case happens once a staged,
+     * unreleased minor is released. At the time of this writing 6.2 is unreleased, so adding a 6.2.1 simulates a 6.2 release. This test
+     * simulates the behavior from 6.3 perspective.
+     */
+    @Test
+    void testAgainstMinorReleasedBranchNoStagedMinor() {
+        List localVersion = allVersions.clone()
+        // remove all the 7.x and add a 6.2.1 which means 6.2 was released
+        localVersion.removeAll { it.toString().contains('7_0_0') }
+        localVersion.add(formatVersion('6.2.1'))
+        VersionCollection vc = new VersionCollection(localVersion)
+        assertNotNull(vc)
+        assertEquals(vc.nextMinorSnapshot, null)
+        assertEquals(vc.stagedMinorSnapshot, null)
+        assertEquals(vc.nextBugfixSnapshot, Version.fromString("6.2.1-SNAPSHOT"))
+        assertEquals(vc.maintenanceBugfixSnapshot, Version.fromString("5.2.1-SNAPSHOT"))
 
-  /**
-   * This validates the logic of being on a released minor branch. At the time of writing, 6.2 is unreleased, so this is equivalent of being
-   * on 6.1.
-   */
-  @Test
-  void testAgainstOldMinor() {
+        // This should contain the same list sans the current version
+        List indexCompatList = vc.versions.subList(0, vc.versions.size() - 1)
+        assertTrue(indexCompatList.containsAll(vc.indexCompatible))
+        assertTrue(vc.indexCompatible.containsAll(indexCompatList))
 
-    List localVersion = allVersions.clone()
-    // remove the 7 alphas and the ones greater than 6.1
-    localVersion.removeAll { it.toString().contains('7_0_0') || it.toString().contains('V_6_2') || it.toString().contains('V_6_3') }
-    VersionCollection vc = new VersionCollection(localVersion)
-    assertNotNull(vc)
-    assertEquals(vc.nextMinorSnapshot, null)
-    assertEquals(vc.stagedMinorSnapshot, null)
-    assertEquals(vc.nextBugfixSnapshot, null)
-    assertEquals(vc.maintenanceBugfixSnapshot, Version.fromString("5.2.1-SNAPSHOT"))
+        List wireCompatList = [Version.fromString("5.2.0"), Version.fromString("5.2.1-SNAPSHOT"), Version.fromString("6.0.0"),
+                               Version.fromString("6.0.1"), Version.fromString("6.1.0"), Version.fromString("6.1.1"),
+                               Version.fromString("6.2.0"), Version.fromString("6.2.1-SNAPSHOT")]
+        assertTrue(wireCompatList.containsAll(vc.wireCompatible))
+        assertTrue(vc.wireCompatible.containsAll(wireCompatList))
 
-    // This should contain the same list sans the current version
-    List indexCompatList = vc.versions.subList(0, vc.versions.size() - 1)
-    assertTrue(indexCompatList.containsAll(vc.indexCompatible))
-    assertTrue(vc.indexCompatible.containsAll(indexCompatList))
+        assertEquals(vc.snapshotsIndexCompatible.size(), 2)
+        assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.2.1-SNAPSHOT")))
+        assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("5.2.1-SNAPSHOT")))
 
-    List wireCompatList = [Version.fromString("5.2.0"), Version.fromString("5.2.1-SNAPSHOT"), Version.fromString("6.0.0"),
-                           Version.fromString("6.0.1"), Version.fromString("6.1.0")]
-    assertTrue(wireCompatList.containsAll(vc.wireCompatible))
-    assertTrue(vc.wireCompatible.containsAll(wireCompatList))
+        assertEquals(vc.snapshotsWireCompatible.size(), 2)
+        assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("6.2.1-SNAPSHOT")))
+        assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("5.2.1-SNAPSHOT")))
+    }
 
-    assertEquals(vc.snapshotsIndexCompatible.size(), 1)
-    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("5.2.1-SNAPSHOT")))
+    /**
+     * This validates the logic of being on a released minor branch. At the time of writing, 6.2 is unreleased, so this is equivalent of being
+     * on 6.1.
+     */
+    @Test
+    void testAgainstOldMinor() {
 
-    assertEquals(vc.snapshotsWireCompatible.size(), 1)
-    assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("5.2.1-SNAPSHOT")))
-  }
+        List localVersion = allVersions.clone()
+        // remove the 7 alphas and the ones greater than 6.1
+        localVersion.removeAll {
+            it.toString().contains('7_0_0') || it.toString().contains('V_6_2') || it.toString().contains('V_6_3')
+        }
+        VersionCollection vc = new VersionCollection(localVersion)
+        assertNotNull(vc)
+        assertEquals(vc.nextMinorSnapshot, null)
+        assertEquals(vc.stagedMinorSnapshot, null)
+        assertEquals(vc.nextBugfixSnapshot, null)
+        assertEquals(vc.maintenanceBugfixSnapshot, Version.fromString("5.2.1-SNAPSHOT"))
 
-  /**
-   * This validates the lower bound of wire compat, which is 5.0. It also validates that the span of 2.x to 5.x if it is decided to port
-   * this fix all the way to the maint 5.6 release.
-   */
-  @Test
-  void testFloorOfWireCompatVersions() {
-    List localVersion = [formatVersion('2.0.0'), formatVersion('2.0.1'), formatVersion('2.1.0'), formatVersion('2.1.1'),
-                          formatVersion('5.0.0'), formatVersion('5.0.1'), formatVersion('5.1.0'), formatVersion('5.1.1'),
-                          formatVersion('5.2.0'),formatVersion('5.2.1'),formatVersion('5.3.0'),formatVersion('5.3.1'),
-                          formatVersion('5.3.2')]
-    VersionCollection vc = new VersionCollection(localVersion)
-    assertNotNull(vc)
-    assertEquals(vc.maintenanceBugfixSnapshot, Version.fromString("2.1.1-SNAPSHOT"))
+        // This should contain the same list sans the current version
+        List indexCompatList = vc.versions.subList(0, vc.versions.size() - 1)
+        assertTrue(indexCompatList.containsAll(vc.indexCompatible))
+        assertTrue(vc.indexCompatible.containsAll(indexCompatList))
 
-    // This should contain the same list sans the current version
-    List indexCompatList = vc.versions.subList(0, vc.versions.size() - 1)
-    assertTrue(indexCompatList.containsAll(vc.indexCompatible))
-    assertTrue(vc.indexCompatible.containsAll(indexCompatList))
+        List wireCompatList = [Version.fromString("5.2.0"), Version.fromString("5.2.1-SNAPSHOT"), Version.fromString("6.0.0"),
+                               Version.fromString("6.0.1"), Version.fromString("6.1.0")]
+        assertTrue(wireCompatList.containsAll(vc.wireCompatible))
+        assertTrue(vc.wireCompatible.containsAll(wireCompatList))
 
-    List wireCompatList = [Version.fromString("2.1.0"), Version.fromString("2.1.1-SNAPSHOT"), Version.fromString("5.0.0"),
-                           Version.fromString("5.0.1"), Version.fromString("5.1.0"),
-                           Version.fromString("5.1.1"), Version.fromString("5.2.0"), Version.fromString("5.2.1"),
-                           Version.fromString("5.3.0"), Version.fromString("5.3.1")]
+        assertEquals(vc.snapshotsIndexCompatible.size(), 1)
+        assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("5.2.1-SNAPSHOT")))
 
-    List<Version> compatible = vc.wireCompatible
-    assertTrue(wireCompatList.containsAll(compatible))
-    assertTrue(vc.wireCompatible.containsAll(wireCompatList))
+        assertEquals(vc.snapshotsWireCompatible.size(), 1)
+        assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("5.2.1-SNAPSHOT")))
+    }
 
-    assertEquals(vc.snapshotsIndexCompatible.size(), 1)
-    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("2.1.1-SNAPSHOT")))
+    /**
+     * This validates the lower bound of wire compat, which is 5.0. It also validates that the span of 2.x to 5.x if it is decided to port
+     * this fix all the way to the maint 5.6 release.
+     */
+    @Test
+    void testFloorOfWireCompatVersions() {
+        List localVersion = [formatVersion('2.0.0'), formatVersion('2.0.1'), formatVersion('2.1.0'), formatVersion('2.1.1'),
+                             formatVersion('5.0.0'), formatVersion('5.0.1'), formatVersion('5.1.0'), formatVersion('5.1.1'),
+                             formatVersion('5.2.0'), formatVersion('5.2.1'), formatVersion('5.3.0'), formatVersion('5.3.1'),
+                             formatVersion('5.3.2')]
+        VersionCollection vc = new VersionCollection(localVersion)
+        assertNotNull(vc)
+        assertEquals(vc.maintenanceBugfixSnapshot, Version.fromString("2.1.1-SNAPSHOT"))
 
-    // ensure none of the 2.x snapshots appear here, as this is the floor of bwc for wire compat
-    assertEquals(vc.snapshotsWireCompatible.size(), 0)
-  }
+        // This should contain the same list sans the current version
+        List indexCompatList = vc.versions.subList(0, vc.versions.size() - 1)
+        assertTrue(indexCompatList.containsAll(vc.indexCompatible))
+        assertTrue(vc.indexCompatible.containsAll(indexCompatList))
+
+        List wireCompatList = [Version.fromString("2.1.0"), Version.fromString("2.1.1-SNAPSHOT"), Version.fromString("5.0.0"),
+                               Version.fromString("5.0.1"), Version.fromString("5.1.0"),
+                               Version.fromString("5.1.1"), Version.fromString("5.2.0"), Version.fromString("5.2.1"),
+                               Version.fromString("5.3.0"), Version.fromString("5.3.1")]
+
+        List<Version> compatible = vc.wireCompatible
+        assertTrue(wireCompatList.containsAll(compatible))
+        assertTrue(vc.wireCompatible.containsAll(wireCompatList))
+
+        assertEquals(vc.snapshotsIndexCompatible.size(), 1)
+        assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("2.1.1-SNAPSHOT")))
+
+        // ensure none of the 2.x snapshots appear here, as this is the floor of bwc for wire compat
+        assertEquals(vc.snapshotsWireCompatible.size(), 0)
+    }
 }

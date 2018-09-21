@@ -2733,6 +2733,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             engine, snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {
                 // TODO: add a dedicate recovery stats for the reset translog
             });
+        // TODO: do not use init method here but use advance with the max_seq_no received from the primary
+        newEngine.initializeMaxSeqNoOfUpdatesOrDeletes();
         newEngine.recoverFromTranslog(translogRunner, globalCheckpoint);
     }
 

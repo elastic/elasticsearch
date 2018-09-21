@@ -1,0 +1,60 @@
+[[java-rest-high-document-reindex-rethrottle]]
+=== Reindex Rethrottle API
+
+[[java-rest-high-document-reindex-rethrottle-request]]
+==== Reindex Rethrolle Request
+
+A `RethrottleRequest` can be used to change existing throttling on a runnind
+reindex task or disable it entirely. It requires the task Id of the reindex 
+task to change.
+
+In its simplest form, you can use it to disable throttling of a running
+reindex task using the following:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[rethrottle-disable-request]
+--------------------------------------------------
+<1> Create a `RethrottleRequest` that disables throttling for a specific task id
+
+By providing a `requestsPerSecond` argument, the request will change the
+existing task throttling to the specified value:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[rethrottle-request]
+--------------------------------------------------
+<1> Request to change the throttling of a task to 100 requests per second
+
+[[java-rest-high-document-reindex-rethrottle-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of a rethrottle request requires both the `RethrottleRequest`
+instance and an `ActionListener` instance to be passed to the asynchronous
+method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[rethrottle-execute-async]
+--------------------------------------------------
+<1> The RethrottleRequest to execute and the ActionListener to use when the 
+execution completes 
+
+The asynchronous method does not block and returns immediately.
+Once it is completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed. A typical listener looks like this:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[rethrottle-request-async]
+--------------------------------------------------
+<1> Code executed when the request is successfully completed
+<2> Code executed when the request fails with an exception
+
+[[java-rest-high-document-reindex-retrottle-response]]
+==== Rethrottle Response
+
+Rethrottling returns the task that has been rethrottled in the form of a 
+`ListTasksResponse`. The structure of this response object is described in detail 
+in <<java-rest-high-cluster-list-tasks-response,this section>>.

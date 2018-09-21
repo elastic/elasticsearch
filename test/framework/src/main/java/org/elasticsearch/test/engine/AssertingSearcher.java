@@ -48,7 +48,8 @@ class AssertingSearcher extends Engine.Searcher {
         this.logger = logger;
         this.shardId = shardId;
         initialRefCount = wrappedSearcher.reader().getRefCount();
-        assert initialRefCount > 0 : "IndexReader#getRefCount() was [" + initialRefCount + "] expected a value > [0] - reader is already closed";
+        assert initialRefCount > 0 :
+                "IndexReader#getRefCount() was [" + initialRefCount + "] expected a value > [0] - reader is already closed";
     }
 
     @Override
@@ -62,9 +63,13 @@ class AssertingSearcher extends Engine.Searcher {
             if (closed.compareAndSet(false, true)) {
                 firstReleaseStack = new RuntimeException();
                 final int refCount = wrappedSearcher.reader().getRefCount();
-                // this assert seems to be paranoid but given LUCENE-5362 we better add some assertions here to make sure we catch any potential
-                // problems.
-                assert refCount > 0 : "IndexReader#getRefCount() was [" + refCount + "] expected a value > [0] - reader is already closed. Initial refCount was: [" + initialRefCount + "]";
+                /*
+                 * this assert seems to be paranoid but given LUCENE-5362 we
+                 * better add some assertions here to make sure we catch any
+                 * potential problems.
+                 */
+                assert refCount > 0 : "IndexReader#getRefCount() was [" + refCount + "] expected a value > [0] - reader is already "
+                        + " closed. Initial refCount was: [" + initialRefCount + "]";
                 try {
                     wrappedSearcher.close();
                 } catch (RuntimeException ex) {

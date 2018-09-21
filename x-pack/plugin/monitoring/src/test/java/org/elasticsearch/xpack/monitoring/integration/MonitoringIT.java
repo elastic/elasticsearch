@@ -422,9 +422,6 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         assertThat((String) indexStats.get("uuid"), not(isEmptyOrNullString()));
         assertThat(indexStats.get("created"), notNullValue());
         assertThat((String) indexStats.get("status"), not(isEmptyOrNullString()));
-        assertThat(indexStats.get("version"), notNullValue());
-        final Map<String, Object> version = (Map<String, Object>) indexStats.get("version");
-        assertEquals(2, version.size());
         assertThat(indexStats.get("shards"), notNullValue());
         final Map<String, Object> shards = (Map<String, Object>) indexStats.get("shards");
         assertEquals(11, shards.size());

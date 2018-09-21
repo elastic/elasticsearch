@@ -262,13 +262,17 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * Retrieve the innermost cause of this exception, if none, returns the current exception.
      */
     public Throwable getRootCause() {
-        Throwable rootCause = this;
-        Throwable cause = getCause();
-        while (cause != null && cause != rootCause) {
-            rootCause = cause;
-            cause = cause.getCause();
+        List<Throwable> causes = getAllCauses(this);
+        return causes.size() <= 1 ? null : causes.get(causes.size() - 1);
+    }
+
+    private List<Throwable> getAllCauses(Throwable throwable) {
+        List<Throwable> causes = new ArrayList<>();
+        while (throwable != null && !causes.contains(throwable)) {
+            causes.add(throwable);
+            throwable = throwable.getCause();
         }
-        return rootCause;
+        return causes;
     }
 
     @Override

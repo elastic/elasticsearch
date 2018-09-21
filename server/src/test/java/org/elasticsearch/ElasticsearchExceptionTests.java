@@ -264,12 +264,27 @@ public class ElasticsearchExceptionTests extends ESTestCase {
     }
 
     public void testGetRootCause() {
-        Exception root = new RuntimeException("foobar");
-        ElasticsearchException exception = new ElasticsearchException("foo", new ElasticsearchException("bar",
-                new IllegalArgumentException("index is closed", root)));
-        assertEquals(root, exception.getRootCause());
-        assertTrue(contains(exception, RuntimeException.class));
-        assertFalse(contains(exception, EOFException.class));
+        {
+            Exception root = new RuntimeException("foobar");
+            ElasticsearchException exception = new ElasticsearchException("foo", new ElasticsearchException("bar",
+                    new IllegalArgumentException("index is closed", root)));
+            assertEquals(root, exception.getRootCause());
+            assertTrue(contains(exception, RuntimeException.class));
+            assertFalse(contains(exception, EOFException.class));
+        }
+        {
+            Exception root = new RuntimeException("root");
+            ElasticsearchException cyclicException = new ElasticsearchException("foo", root);
+            root.initCause(cyclicException);
+            assertEquals(root, cyclicException.getRootCause());
+        }
+        {
+            Exception root = new RuntimeException("root");
+            ElasticsearchException exception = new ElasticsearchException("foo", root);
+            ElasticsearchException cyclicException = new ElasticsearchException("bar", exception);
+            root.initCause(cyclicException);
+            assertEquals(root, cyclicException.getRootCause());
+        }
     }
 
     public void testToString() {

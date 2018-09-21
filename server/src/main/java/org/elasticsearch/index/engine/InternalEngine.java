@@ -47,6 +47,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
@@ -905,6 +906,7 @@ public class InternalEngine extends Engine {
                 }
             }
         }
+        assert assertMaxSeqNoOfUpdatesIsPropagated(index, plan);
         return plan;
     }
 
@@ -1213,6 +1215,7 @@ public class InternalEngine extends Engine {
 
     protected final DeletionStrategy planDeletionAsNonPrimary(Delete delete) throws IOException {
         assertNonPrimaryOrigin(delete);
+        assert assertMaxSeqNoOfUpdatesIsPropagated(delete);
         maxSeqNoOfNonAppendOnlyOperations.updateAndGet(curr -> Math.max(delete.seqNo(), curr));
         assert maxSeqNoOfNonAppendOnlyOperations.get() >= delete.seqNo() : "max_seqno of non-append-only was not updated;" +
             "max_seqno non-append-only [" + maxSeqNoOfNonAppendOnlyOperations.get() + "], seqno of delete [" + delete.seqNo() + "]";
@@ -2556,6 +2559,27 @@ public class InternalEngine extends Engine {
         assert maxUnsafeAutoIdTimestamp.get() <= maxSeenAutoIdTimestamp.get();
     }
 
+    private boolean assertMaxSeqNoOfUpdatesIsPropagated(Delete delete) {
+        final long maxSeqNoOfUpdates = getMaxSeqNoOfUpdatesOrDeletes();
+        final Version indexVersion = config().getIndexSettings().getIndexVersionCreated();
+        assert delete.seqNo() <= maxSeqNoOfUpdates ||
+            (maxSeqNoOfUpdates == SequenceNumbers.UNASSIGNED_SEQ_NO && indexVersion.before(Version.V_7_0_0_alpha1)) :
+            "id=" + delete.id() + " seq_no=" + delete.seqNo() + " max_seq_no_of_updates=" + maxSeqNoOfUpdates + " index_version=" + indexVersion;
+        return true;
+    }
+
+    private boolean assertMaxSeqNoOfUpdatesIsPropagated(Index index, IndexingStrategy plan) {
+        final long maxSeqNoOfUpdates = getMaxSeqNoOfUpdatesOrDeletes();
+        final Version indexVersion = config().getIndexSettings().getIndexVersionCreated();
+        assert plan.useLuceneUpdateDocument == false
+            || index.seqNo() <= maxSeqNoOfUpdates // msu must be propagated
+            || getLocalCheckpoint() < maxSeqNoOfUpdates // or gap in the sequence number
+            || (maxSeqNoOfUpdates == SequenceNumbers.UNASSIGNED_SEQ_NO && indexVersion.before(Version.V_7_0_0_alpha1))
+               // we treat a deleted doc in the tombstone as a valid doc then use updateDocument to overwrite
+            || (versionMap.getUnderLock(index.uid().bytes()) != null && versionMap.getUnderLock(index.uid().bytes()).isDelete()) :
+            "id=" + index.id() + " seq_no=" + index.seqNo() + " max_seq_no_of_updates=" + maxSeqNoOfUpdates + " index_version=" + indexVersion;
+        return true;
+    }
 
     @Override
     public void initializeMaxSeqNoOfUpdatesOrDeletes() {

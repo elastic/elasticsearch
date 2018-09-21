@@ -512,9 +512,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 engine.rollTranslogGeneration();
                                 engine.fillSeqNoGaps(newPrimaryTerm);
                                 if (getMaxSeqNoOfUpdatesOrDeletes() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                                    // TODO: Enable this assertion after we replicate max_seq_no_updates during replication
-                                    // assert indexSettings.getIndexVersionCreated().before(Version.V_7_0_0_alpha1) :
-                                    //    indexSettings.getIndexVersionCreated();
+                                    // If the old primary was on an old version, this promoting primary (was replica before)
+                                    // does not have max_seq_no_of_updates. We need to bootstrap it manually from its local history.
+                                    assert indexSettings.getIndexVersionCreated().before(Version.V_7_0_0_alpha1);
                                     engine.initializeMaxSeqNoOfUpdatesOrDeletes();
                                 }
                                 replicationTracker.updateLocalCheckpoint(currentRouting.allocationId().getId(), getLocalCheckpoint());
@@ -1955,11 +1955,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId()).getLocalCheckpoint();
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
-            // If the old primary was on an old version, this primary (was replica before)
-            // does not have max_of_updates yet. Thus we need to bootstrap it manually.
             if (getMaxSeqNoOfUpdatesOrDeletes() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                // TODO: Enable this assertion after we replicate max_seq_no_updates during replication
-                // assert indexSettings.getIndexVersionCreated().before(Version.V_7_0_0_alpha1) : indexSettings.getIndexVersionCreated();
+                // If the old primary was on an old version, this promoting primary (was replica before)
+                // does not have max_seq_no_of_updates. We need to bootstrap it manually from its local history.
+                assert indexSettings.getIndexVersionCreated().before(Version.V_7_0_0_alpha1);
                 getEngine().initializeMaxSeqNoOfUpdatesOrDeletes();
             }
         }
@@ -2316,15 +2315,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * {@link IllegalStateException}. If permit acquisition is delayed, the listener will be invoked on the executor with the specified
      * name.
      *
-     * @param opPrimaryTerm        the operation primary term
-     * @param globalCheckpoint     the global checkpoint associated with the request
-     * @param onPermitAcquired     the listener for permit acquisition
-     * @param executorOnDelay      the name of the executor to invoke the listener on if permit acquisition is delayed
-     * @param debugInfo            an extra information that can be useful when tracing an unreleased permit. When assertions are enabled
-     *                             the tracing will capture the supplied object's {@link Object#toString()} value. Otherwise the object
-     *                             isn't used
+     * @param opPrimaryTerm              the operation primary term
+     * @param globalCheckpoint           the global checkpoint associated with the request
+     * @param maxSeqNoOfUpdatesOrDeletes the max seq_no of updates (index operations overwrite Lucene) or deletes captured on the primary
+     *                                   after this replication request was executed on it (see {@link #getMaxSeqNoOfUpdatesOrDeletes()}
+     * @param onPermitAcquired           the listener for permit acquisition
+     * @param executorOnDelay            the name of the executor to invoke the listener on if permit acquisition is delayed
+     * @param debugInfo                  an extra information that can be useful when tracing an unreleased permit. When assertions are
+     *                                   enabled the tracing will capture the supplied object's {@link Object#toString()} value.
+     *                                   Otherwise the object isn't used
      */
-    public void acquireReplicaOperationPermit(final long opPrimaryTerm, final long globalCheckpoint,
+    public void acquireReplicaOperationPermit(final long opPrimaryTerm, final long globalCheckpoint, final long maxSeqNoOfUpdatesOrDeletes,
                                               final ActionListener<Releasable> onPermitAcquired, final String executorOnDelay,
                                               final Object debugInfo) {
         verifyNotClosed();
@@ -2349,7 +2350,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 logger.info("detected new primary with primary term [{}], global checkpoint [{}], max_seq_no [{}]",
                                              opPrimaryTerm, currentGlobalCheckpoint, maxSeqNo);
                                 if (currentGlobalCheckpoint < maxSeqNo) {
-                                    resetEngineToGlobalCheckpoint();
+                                    resetEngineToGlobalCheckpoint(maxSeqNoOfUpdatesOrDeletes);
                                 } else {
                                     getEngine().rollTranslogGeneration();
                                 }
@@ -2378,6 +2379,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             assert assertReplicationTarget();
                             try {
                                 updateGlobalCheckpointOnReplica(globalCheckpoint, "operation");
+                                advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNoOfUpdatesOrDeletes);
                             } catch (Exception e) {
                                 releasable.close();
                                 onPermitAcquired.onFailure(e);
@@ -2717,7 +2719,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Rollback the current engine to the safe commit, then replay local translog up to the global checkpoint.
      */
-    void resetEngineToGlobalCheckpoint() throws IOException {
+    void resetEngineToGlobalCheckpoint(final long maxSeqNoOfUpdates) throws IOException {
         assert getActiveOperationsCount() == 0 : "Ongoing writes [" + getActiveOperations() + "]";
         sync(); // persist the global checkpoint to disk
         final long globalCheckpoint = getGlobalCheckpoint();
@@ -2733,8 +2735,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             engine, snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {
                 // TODO: add a dedicate recovery stats for the reset translog
             });
-        // TODO: do not use init method here but use advance with the max_seq_no received from the primary
-        newEngine.initializeMaxSeqNoOfUpdatesOrDeletes();
+        newEngine.advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNoOfUpdates);
         newEngine.recoverFromTranslog(translogRunner, globalCheckpoint);
     }
 
@@ -2763,10 +2764,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * These transfers guarantee that every index/delete operation when executing on a replica engine will observe this marker a value
      * which is at least the value of the max_seq_no_of_updates marker on the primary after that operation was executed on the primary.
      *
-     * @see #acquireReplicaOperationPermit(long, long, ActionListener, String, Object)
-     * @see org.elasticsearch.indices.recovery.RecoveryTarget#indexTranslogOperations(List, int, long)
+     * @see #acquireReplicaOperationPermit(long, long, long, ActionListener, String, Object)
+     * @see org.elasticsearch.indices.recovery.RecoveryTarget#indexTranslogOperations(List, int, long, long)
      */
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {
+        assert seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO
+            || getMaxSeqNoOfUpdatesOrDeletes() == SequenceNumbers.UNASSIGNED_SEQ_NO :
+            "replica has max_seq_no_of_updates=" + getMaxSeqNoOfUpdatesOrDeletes() + " but primary does not";
         getEngine().advanceMaxSeqNoOfUpdatesOrDeletes(seqNo);
         assert seqNo <= getMaxSeqNoOfUpdatesOrDeletes() : getMaxSeqNoOfUpdatesOrDeletes() + " < " + seqNo;
     }

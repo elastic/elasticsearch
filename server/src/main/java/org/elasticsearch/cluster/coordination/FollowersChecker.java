@@ -149,8 +149,7 @@ public class FollowersChecker extends AbstractComponent {
         }
 
         if (request.term < responder.term) {
-            throw new CoordinationStateRejectedException(new ParameterizedMessage("rejecting {} since local state is {}",
-                request, this).getFormattedMessage());
+            throw new CoordinationStateRejectedException("rejecting " + request + " since local state is " + this);
         }
 
         transportService.getThreadPool().generic().execute(new AbstractRunnable() {

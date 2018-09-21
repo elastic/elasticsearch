@@ -36,6 +36,8 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 /**
  * {@link GCEFixture} is a fixture that emulates an GCE service.
  */
@@ -43,6 +45,8 @@ public class GCEFixture extends AbstractHttpFixture {
 
     public static final String PROJECT_ID = "discovery-gce-test";
     public static final String ZONE = "test-zone";
+    public static final String TOKEN = "1/fFAGRNJru1FTz70BzhT3Zg";
+    public static final String TOKEN_TYPE = "Bearer";
 
     private final PathTrie<RequestHandler> handlers;
 
@@ -107,12 +111,11 @@ public class GCEFixture extends AbstractHttpFixture {
         handlers.insert(nonAuthPath(HttpGet.METHOD_NAME, "/computeMetadata/v1/project/attributes/google-compute-default-zone"),
             request -> simpleValue.apply(ZONE));
         handlers.insert(nonAuthPath(HttpGet.METHOD_NAME, "/computeMetadata/v1/instance/service-accounts/default/token"),
-            request -> jsonValue.apply("{" +
-                "\"access_token\":\"1/fFAGRNJru1FTz70BzhT3Zg\", " +
-                "\"expires_in\":3268, " +
-                "\"token_type\":\"Bearer\"}"));
+            request -> jsonValue.apply("{\"access_token\":\""
+                + TOKEN + "\", \"expires_in\":3268, \"token_type\":\"" + TOKEN_TYPE + "\"}"));
 
-        handlers.insert(nonAuthPath(HttpGet.METHOD_NAME, "/compute/v1/projects/{project}/zones/{zone}/instances"),
+        // https://cloud.google.com/compute/docs/reference/rest/v1/instances
+        handlers.insert(authPath(HttpGet.METHOD_NAME, "/compute/v1/projects/{project}/zones/{zone}/instances"),
             request -> {
                 final Map<String, String> headers = new HashMap<>(JSON_CONTENT_TYPE);
                 commonHeaderConsumer.accept(headers);
@@ -150,13 +153,43 @@ public class GCEFixture extends AbstractHttpFixture {
 
     @Override
     protected Response handle(final Request request) throws IOException {
-        //System.out.println(request.getMethod() + " " + request.getPath() + " " +request.getParameters());
         final String nonAuthorizedPath = nonAuthPath(request);
         final RequestHandler nonAuthorizedHandler = handlers.retrieve(nonAuthorizedPath, request.getParameters());
         if (nonAuthorizedHandler != null) {
             return nonAuthorizedHandler.handle(request);
         }
+
+        final String authorizedPath = authPath(request);
+        final RequestHandler authorizedHandler = handlers.retrieve(authorizedPath, request.getParameters());
+        if (authorizedHandler != null) {
+            final String authorization = request.getHeader("Authorization");
+            if ((TOKEN_TYPE + " " + TOKEN).equals(authorization) == false) {
+                return newError(RestStatus.UNAUTHORIZED, "Authorization", "Login Required");
+            }
+            return authorizedHandler.handle(request);
+        }
+
         return null;
+    }
+
+    private static Response newError(final RestStatus status, final String code, final String message) {
+        final String response = "{\n" +
+            " \"error\": {\n" +
+            "  \"errors\": [\n" +
+            "   {\n" +
+            "    \"domain\": \"global\",\n" +
+            "    \"reason\": \"required\",\n" +
+            "    \"message\": \"" + message + "\",\n" +
+            "    \"locationType\": \"header\",\n" +
+            "    \"location\": \"" + code + "\"\n" +
+            "   }\n" +
+            "  ],\n" +
+            "  \"code\": " + status.getStatus() + ",\n" +
+            "  \"message\": \"" + message + "\"\n" +
+            " }\n" +
+            "}";
+
+        return new Response(status.getStatus(), JSON_CONTENT_TYPE, response.getBytes(UTF_8));
     }
 
     @SuppressForbidden(reason = "Paths#get is fine - we don't have environment here")

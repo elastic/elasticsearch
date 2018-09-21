@@ -142,7 +142,7 @@ public class FieldStats implements ToXContentObject, Writeable {
         return builder;
     }
 
-    public static Object toIntegerIfInteger(double d) {
+    public static Number toIntegerIfInteger(double d) {
 
         if (d >= Integer.MIN_VALUE && d <= Integer.MAX_VALUE && Double.compare(d, StrictMath.rint(d)) == 0) {
             return (int) d;

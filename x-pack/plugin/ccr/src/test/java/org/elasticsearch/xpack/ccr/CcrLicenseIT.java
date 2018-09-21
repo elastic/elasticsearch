@@ -25,9 +25,9 @@ import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.CreateAndFollowIndexAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
-import org.elasticsearch.xpack.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
+import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -90,9 +90,9 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
 
     public void testThatCcrStatsAreUnavailableWithNonCompliantLicense() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
-        client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.TasksRequest(), new ActionListener<CcrStatsAction.TasksResponse>() {
+        client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.StatsRequest(), new ActionListener<CcrStatsAction.StatsResponses>() {
             @Override
-            public void onResponse(final CcrStatsAction.TasksResponse tasksResponse) {
+            public void onResponse(final CcrStatsAction.StatsResponses statsResponses) {
                 latch.countDown();
                 fail();
             }
@@ -140,7 +140,7 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 AutoFollowPattern autoFollowPattern =
-                    new AutoFollowPattern(Collections.singletonList("logs-*"), null, null, null, null, null, null, null, null);
+                    new AutoFollowPattern(Collections.singletonList("logs-*"), null, null, null, null, null, null, null, null, null);
                 AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(
                     Collections.singletonMap("test_alias", autoFollowPattern),
                     Collections.emptyMap()
@@ -192,16 +192,12 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
     }
 
     private FollowIndexAction.Request getFollowRequest() {
-        return new FollowIndexAction.Request(
-                "leader",
-                "follower",
-                FollowIndexAction.DEFAULT_MAX_BATCH_OPERATION_COUNT,
-                FollowIndexAction.DEFAULT_MAX_CONCURRENT_READ_BATCHES,
-                FollowIndexAction.DEFAULT_MAX_BATCH_SIZE_IN_BYTES,
-                FollowIndexAction.DEFAULT_MAX_CONCURRENT_WRITE_BATCHES,
-                FollowIndexAction.DEFAULT_MAX_WRITE_BUFFER_SIZE,
-                TimeValue.timeValueMillis(10),
-                TimeValue.timeValueMillis(10));
+        FollowIndexAction.Request request = new FollowIndexAction.Request();
+        request.setLeaderIndex("leader");
+        request.setFollowerIndex("follower");
+        request.setMaxRetryDelay(TimeValue.timeValueMillis(10));
+        request.setPollTimeout(TimeValue.timeValueMillis(10));
+        return request;
     }
 
 }

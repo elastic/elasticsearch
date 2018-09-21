@@ -19,6 +19,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.SearchSlowLog;
@@ -35,6 +37,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
@@ -52,6 +55,14 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.stream.Collectors;
 
 public class TransportFollowIndexAction extends HandledTransportAction<FollowIndexAction.Request, AcknowledgedResponse> {
+
+    static final long DEFAULT_MAX_BATCH_SIZE_IN_BYTES = Long.MAX_VALUE;
+    private static final TimeValue DEFAULT_MAX_RETRY_DELAY = new TimeValue(500);
+    private static final int DEFAULT_MAX_CONCURRENT_WRITE_BATCHES = 1;
+    private static final int DEFAULT_MAX_WRITE_BUFFER_SIZE = 10240;
+    private static final int DEFAULT_MAX_BATCH_OPERATION_COUNT = 1024;
+    private static final int DEFAULT_MAX_CONCURRENT_READ_BATCHES = 1;
+    static final TimeValue DEFAULT_POLL_TIMEOUT = TimeValue.timeValueMinutes(1);
 
     private final Client client;
     private final ThreadPool threadPool;
@@ -110,11 +121,16 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
         final IndexMetaData followerIndexMetadata = state.getMetaData().index(request.getFollowerIndex());
         // following an index in local cluster, so use local cluster state to fetch leader index metadata
         final IndexMetaData leaderIndexMetadata = state.getMetaData().index(request.getLeaderIndex());
-        try {
-            start(request, null, leaderIndexMetadata, followerIndexMetadata, listener);
-        } catch (final IOException e) {
-            listener.onFailure(e);
+        if (leaderIndexMetadata == null) {
+            throw new IndexNotFoundException(request.getFollowerIndex());
         }
+        ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, leaderIndexMetadata, listener::onFailure, historyUUIDs -> {
+            try {
+                start(request, null, leaderIndexMetadata, followerIndexMetadata, historyUUIDs, listener);
+            } catch (final IOException e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
     private void followRemoteIndex(
@@ -124,14 +140,14 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
             final ActionListener<AcknowledgedResponse> listener) {
         final ClusterState state = clusterService.state();
         final IndexMetaData followerIndexMetadata = state.getMetaData().index(request.getFollowerIndex());
-        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadata(
+        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
                 client,
                 clusterAlias,
                 leaderIndex,
                 listener::onFailure,
-                leaderIndexMetadata -> {
+                (leaderHistoryUUID, leaderIndexMetadata) -> {
                     try {
-                        start(request, clusterAlias, leaderIndexMetadata, followerIndexMetadata, listener);
+                        start(request, clusterAlias, leaderIndexMetadata, followerIndexMetadata, leaderHistoryUUID, listener);
                     } catch (final IOException e) {
                         listener.onFailure(e);
                     }
@@ -153,31 +169,27 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
             String clusterNameAlias,
             IndexMetaData leaderIndexMetadata,
             IndexMetaData followIndexMetadata,
+            String[] leaderIndexHistoryUUIDs,
             ActionListener<AcknowledgedResponse> handler) throws IOException {
 
         MapperService mapperService = followIndexMetadata != null ? indicesService.createIndexMapperService(followIndexMetadata) : null;
-        validate(request, leaderIndexMetadata, followIndexMetadata, mapperService);
+        validate(request, leaderIndexMetadata, followIndexMetadata, leaderIndexHistoryUUIDs, mapperService);
         final int numShards = followIndexMetadata.getNumberOfShards();
         final AtomicInteger counter = new AtomicInteger(numShards);
         final AtomicReferenceArray<Object> responses = new AtomicReferenceArray<>(followIndexMetadata.getNumberOfShards());
         Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
                 .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));for (int i = 0; i < numShards; i++) {
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        for (int i = 0; i < numShards; i++) {
             final int shardId = i;
             String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
+            Map<String, String> ccrIndexMetadata = followIndexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
+            String[] recordedLeaderShardHistoryUUIDs = extractIndexShardHistoryUUIDs(ccrIndexMetadata);
+            String recordedLeaderShardHistoryUUID = recordedLeaderShardHistoryUUIDs[shardId];
 
-            ShardFollowTask shardFollowTask = new ShardFollowTask(
-                    clusterNameAlias,
-                    new ShardId(followIndexMetadata.getIndex(), shardId),
-                    new ShardId(leaderIndexMetadata.getIndex(), shardId),
-                    request.getMaxBatchOperationCount(),
-                    request.getMaxConcurrentReadBatches(),
-                    request.getMaxOperationSizeInBytes(),
-                    request.getMaxConcurrentWriteBatches(),
-                    request.getMaxWriteBufferSize(),
-                    request.getMaxRetryDelay(),
-                    request.getIdleShardRetryDelay(),
-                    filteredHeaders);
+            final ShardFollowTask shardFollowTask =  createShardFollowTask(shardId, clusterNameAlias, request,
+                leaderIndexMetadata, followIndexMetadata, recordedLeaderShardHistoryUUID, filteredHeaders);
             persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask,
                     new ActionListener<PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask>>() {
                         @Override
@@ -224,6 +236,7 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
             final FollowIndexAction.Request request,
             final IndexMetaData leaderIndex,
             final IndexMetaData followIndex,
+            final String[] leaderIndexHistoryUUID,
             final MapperService followerMapperService) {
         if (leaderIndex == null) {
             throw new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist");
@@ -231,6 +244,29 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
         if (followIndex == null) {
             throw new IllegalArgumentException("follow index [" + request.getFollowerIndex() + "] does not exist");
         }
+        Map<String, String> ccrIndexMetadata = followIndex.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
+        if (ccrIndexMetadata == null) {
+            throw new IllegalArgumentException("follow index ["+ followIndex.getIndex().getName() + "] does not have ccr metadata");
+        }
+        String leaderIndexUUID = leaderIndex.getIndex().getUUID();
+        String recordedLeaderIndexUUID = ccrIndexMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
+        if (leaderIndexUUID.equals(recordedLeaderIndexUUID) == false) {
+            throw new IllegalArgumentException("follow index [" + request.getFollowerIndex() + "] should reference [" + leaderIndexUUID +
+                    "] as leader index but instead reference [" + recordedLeaderIndexUUID + "] as leader index");
+        }
+
+        String[] recordedHistoryUUIDs = extractIndexShardHistoryUUIDs(ccrIndexMetadata);
+        assert recordedHistoryUUIDs.length == leaderIndexHistoryUUID.length;
+        for (int i = 0; i < leaderIndexHistoryUUID.length; i++) {
+            String recordedLeaderIndexHistoryUUID = recordedHistoryUUIDs[i];
+            String actualLeaderIndexHistoryUUID = leaderIndexHistoryUUID[i];
+            if (recordedLeaderIndexHistoryUUID.equals(actualLeaderIndexHistoryUUID) == false) {
+                throw new IllegalArgumentException("leader shard [" + request.getFollowerIndex() + "][" + i + "] should reference [" +
+                    recordedLeaderIndexHistoryUUID + "] as history uuid but instead reference [" + actualLeaderIndexHistoryUUID +
+                    "] as history uuid");
+            }
+        }
+
         if (leaderIndex.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
             throw new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not have soft deletes enabled");
         }
@@ -259,6 +295,74 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
         // Validates if the current follower mapping is mergable with the leader mapping.
         // This also validates for example whether specific mapper plugins have been installed
         followerMapperService.merge(leaderIndex, MapperService.MergeReason.MAPPING_RECOVERY);
+    }
+
+    private static ShardFollowTask createShardFollowTask(
+        int shardId,
+        String clusterAliasName,
+        FollowIndexAction.Request request,
+        IndexMetaData leaderIndexMetadata,
+        IndexMetaData followIndexMetadata,
+        String recordedLeaderShardHistoryUUID,
+        Map<String, String> filteredHeaders
+    ) {
+        int maxBatchOperationCount;
+        if (request.getMaxBatchOperationCount() != null) {
+            maxBatchOperationCount = request.getMaxBatchOperationCount();
+        } else {
+            maxBatchOperationCount = DEFAULT_MAX_BATCH_OPERATION_COUNT;
+        }
+
+        int maxConcurrentReadBatches;
+        if (request.getMaxConcurrentReadBatches() != null){
+            maxConcurrentReadBatches = request.getMaxConcurrentReadBatches();
+        } else {
+            maxConcurrentReadBatches = DEFAULT_MAX_CONCURRENT_READ_BATCHES;
+        }
+
+        long maxOperationSizeInBytes;
+        if (request.getMaxOperationSizeInBytes() != null) {
+            maxOperationSizeInBytes = request.getMaxOperationSizeInBytes();
+        } else {
+            maxOperationSizeInBytes = DEFAULT_MAX_BATCH_SIZE_IN_BYTES;
+        }
+
+        int maxConcurrentWriteBatches;
+        if (request.getMaxConcurrentWriteBatches() != null) {
+            maxConcurrentWriteBatches = request.getMaxConcurrentWriteBatches();
+        } else {
+            maxConcurrentWriteBatches = DEFAULT_MAX_CONCURRENT_WRITE_BATCHES;
+        }
+
+        int maxWriteBufferSize;
+        if (request.getMaxWriteBufferSize() != null) {
+            maxWriteBufferSize = request.getMaxWriteBufferSize();
+        } else {
+            maxWriteBufferSize = DEFAULT_MAX_WRITE_BUFFER_SIZE;
+        }
+
+        TimeValue maxRetryDelay = request.getMaxRetryDelay() == null ? DEFAULT_MAX_RETRY_DELAY : request.getMaxRetryDelay();
+        TimeValue pollTimeout = request.getPollTimeout() == null ? DEFAULT_POLL_TIMEOUT : request.getPollTimeout();
+
+        return new ShardFollowTask(
+            clusterAliasName,
+            new ShardId(followIndexMetadata.getIndex(), shardId),
+            new ShardId(leaderIndexMetadata.getIndex(), shardId),
+            maxBatchOperationCount,
+            maxConcurrentReadBatches,
+            maxOperationSizeInBytes,
+            maxConcurrentWriteBatches,
+            maxWriteBufferSize,
+            maxRetryDelay,
+            pollTimeout,
+            recordedLeaderShardHistoryUUID,
+            filteredHeaders
+        );
+    }
+
+    private static String[] extractIndexShardHistoryUUIDs(Map<String, String> ccrIndexMetaData) {
+        String historyUUIDs = ccrIndexMetaData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS);
+        return historyUUIDs.split(",");
     }
 
     private static final Set<Setting<?>> WHITE_LISTED_SETTINGS;

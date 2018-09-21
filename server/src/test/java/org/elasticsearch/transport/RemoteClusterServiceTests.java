@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.transport;
 
-import java.util.function.Supplier;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -56,6 +55,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -578,7 +578,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         remoteClusterService.collectSearchShards(IndicesOptions.lenientExpandOpen(), "index_not_found",
                                 null, remoteIndicesByCluster,
                                 new LatchedActionListener<>(ActionListener.wrap(response::set, failure::set), latch));
-                        assertTrue(latch.await(1, TimeUnit.SECONDS));
+                        assertTrue(latch.await(2, TimeUnit.SECONDS));
                         assertNull(response.get());
                         assertNotNull(failure.get());
                         assertThat(failure.get(), instanceOf(RemoteTransportException.class));

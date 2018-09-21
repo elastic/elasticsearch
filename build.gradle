@@ -628,3 +628,11 @@ if (System.properties.get("build.compare") != null) {
     }
   }
 }
+
+allprojects {
+  task resolveAllDependencies {
+    doLast {
+      configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
+    }
+  }
+}

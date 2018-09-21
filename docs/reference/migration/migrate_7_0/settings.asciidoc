@@ -85,3 +85,6 @@ xpack.security.authc.realms:
     url: "ldaps://ldap.example.com/"
 --------------------------------------------------
 
+Any realm specific secure settings that have been stored in the elasticsearch
+keystore (such as ldap bind passwords, or passwords for ssl keys) must be updated
+in a similar way.

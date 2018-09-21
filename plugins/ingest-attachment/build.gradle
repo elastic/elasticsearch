@@ -27,7 +27,7 @@ versions << [
   'pdfbox': '2.0.11',
   'bouncycastle': '1.59',
   'poi': '4.0.0',
-  'mime4j': '0.8.1'
+  'mime4j': '0.8.2'
 ]
 
 if (rootProject.ext.compilerJavaVersion.isJava11()) {
@@ -68,7 +68,7 @@ dependencies {
   compile "org.apache.poi:poi:${versions.poi}"
   compile "org.apache.poi:poi-ooxml-schemas:${versions.poi}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile 'org.apache.xmlbeans:xmlbeans:2.6.0'
+  compile 'org.apache.xmlbeans:xmlbeans:3.0.1'
   compile 'org.apache.commons:commons-collections4:4.1'
   // MS Office
   compile "org.apache.poi:poi-scratchpad:${versions.poi}"

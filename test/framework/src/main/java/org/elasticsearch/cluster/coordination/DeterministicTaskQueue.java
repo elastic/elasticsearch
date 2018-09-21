@@ -40,6 +40,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 public class DeterministicTaskQueue extends AbstractComponent {
 
@@ -182,6 +183,13 @@ public class DeterministicTaskQueue extends AbstractComponent {
      * @return A <code>ExecutorService</code> that uses this task queue.
      */
     public ExecutorService getExecutorService() {
+        return getExecutorService(Function.identity());
+    }
+
+    /**
+     * @return A <code>ExecutorService</code> that uses this task queue and wraps <code>Runnable</code>s in the given wrapper.
+     */
+    public ExecutorService getExecutorService(Function<Runnable, Runnable> runnableWrapper) {
         return new ExecutorService() {
 
             @Override
@@ -246,7 +254,7 @@ public class DeterministicTaskQueue extends AbstractComponent {
 
             @Override
             public void execute(Runnable command) {
-                scheduleNow(command);
+                scheduleNow(runnableWrapper.apply(command));
             }
         };
     }
@@ -255,6 +263,13 @@ public class DeterministicTaskQueue extends AbstractComponent {
      * @return A <code>ThreadPool</code> that uses this task queue.
      */
     public ThreadPool getThreadPool() {
+        return getThreadPool(Function.identity());
+    }
+
+    /**
+     * @return A <code>ThreadPool</code> that uses this task queue and wraps <code>Runnable</code>s in the given wrapper.
+     */
+    public ThreadPool getThreadPool(Function<Runnable, Runnable> runnableWrapper) {
         return new ThreadPool(settings) {
 
             {
@@ -303,12 +318,12 @@ public class DeterministicTaskQueue extends AbstractComponent {
 
             @Override
             public ExecutorService generic() {
-                return getExecutorService();
+                return getExecutorService(runnableWrapper);
             }
 
             @Override
             public ExecutorService executor(String name) {
-                return getExecutorService();
+                return getExecutorService(runnableWrapper);
             }
 
             @Override
@@ -318,7 +333,7 @@ public class DeterministicTaskQueue extends AbstractComponent {
                 final int CANCELLED = 2;
                 final AtomicInteger taskState = new AtomicInteger(NOT_STARTED);
 
-                scheduleAt(currentTimeMillis + delay.millis(), new Runnable() {
+                scheduleAt(currentTimeMillis + delay.millis(), runnableWrapper.apply(new Runnable() {
                     @Override
                     public void run() {
                         if (taskState.compareAndSet(NOT_STARTED, STARTED)) {
@@ -330,7 +345,7 @@ public class DeterministicTaskQueue extends AbstractComponent {
                     public String toString() {
                         return command.toString();
                     }
-                });
+                }));
 
                 return new ScheduledFuture<Object>() {
                     @Override

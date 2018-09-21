@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.CloseableThreadContext;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -56,6 +57,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -192,7 +194,7 @@ public class CoordinatorTests extends ESTestCase {
                 localNode = createDiscoveryNode();
                 persistedState = new InMemoryPersistedState(1L,
                     clusterState(1L, 1L, localNode, initialConfiguration, initialConfiguration, 0L));
-                setUp();
+                wrap(this::setUp, localNode).run();
             }
 
             private DiscoveryNode createDiscoveryNode() {
@@ -223,7 +225,7 @@ public class CoordinatorTests extends ESTestCase {
                             matchesDestination = n -> n.getLocalNode().equals(destination);
                         }
 
-                        scheduler.accept(new Runnable() {
+                        scheduler.accept(wrap(new Runnable() {
                             @Override
                             public String toString() {
                                 return "delivery of [" + action + "][" + requestId + "]: " + request;
@@ -250,7 +252,7 @@ public class CoordinatorTests extends ESTestCase {
 
                                             @Override
                                             public void sendResponse(final TransportResponse response) {
-                                                scheduler.accept(new Runnable() {
+                                                scheduler.accept(wrap(new Runnable() {
                                                     @Override
                                                     public String toString() {
                                                         return "delivery of response " + response
@@ -261,7 +263,7 @@ public class CoordinatorTests extends ESTestCase {
                                                     public void run() {
                                                         handleResponse(requestId, response);
                                                     }
-                                                });
+                                                }, localNode));
                                             }
 
                                             @Override
@@ -271,7 +273,7 @@ public class CoordinatorTests extends ESTestCase {
 
                                             @Override
                                             public void sendResponse(Exception exception) {
-                                                scheduler.accept(new Runnable() {
+                                                scheduler.accept(wrap(new Runnable() {
                                                     @Override
                                                     public String toString() {
                                                         return "delivery of error response " + exception.getMessage()
@@ -282,14 +284,14 @@ public class CoordinatorTests extends ESTestCase {
                                                     public void run() {
                                                         handleRemoteError(requestId, exception);
                                                     }
-                                                });
+                                                }, localNode));
                                             }
                                         };
 
                                         try {
                                             processMessageReceived(request, requestHandler, transportChannel);
                                         } catch (Exception e) {
-                                            scheduler.accept(new Runnable() {
+                                            scheduler.accept(wrap(new Runnable() {
                                                 @Override
                                                 public String toString() {
                                                     return "delivery of processing error response " + e.getMessage()
@@ -300,18 +302,19 @@ public class CoordinatorTests extends ESTestCase {
                                                 public void run() {
                                                     handleRemoteError(requestId, e);
                                                 }
-                                            });
+                                            }, localNode));
                                         }
                                     }
                                 );
                             }
-                        });
+                        }, destination));
                     }
                 };
 
-                masterService = new FakeThreadPoolMasterService("test", deterministicTaskQueue::scheduleNow);
+                masterService = new FakeThreadPoolMasterService("test", wrap(deterministicTaskQueue::scheduleNow, localNode));
                 transportService = mockTransport.createTransportService(
-                    settings, deterministicTaskQueue.getThreadPool(), NOOP_TRANSPORT_INTERCEPTOR, a -> localNode, null, emptySet());
+                    settings, deterministicTaskQueue.getThreadPool(wrapper(localNode)), NOOP_TRANSPORT_INTERCEPTOR, a -> localNode,
+                    null, emptySet());
                 coordinator = new Coordinator(settings, transportService, ESAllocationTestCase.createAllocationService(Settings.EMPTY),
                     masterService, this::getPersistedState, Cluster.this::provideUnicastHosts, Randomness.get());
                 masterService.setClusterStatePublisher(coordinator);
@@ -363,5 +366,29 @@ public class CoordinatorTests extends ESTestCase {
     private static void processMessageReceived(TransportRequest request, RequestHandlerRegistry requestHandler,
                                                TransportChannel transportChannel) throws Exception {
         requestHandler.processMessageReceived(request, transportChannel);
+    }
+
+    private static Consumer<Runnable> wrap(Consumer<Runnable> runnableConsumer, DiscoveryNode node) {
+        return runnable -> runnableConsumer.accept(wrap(runnable, node));
+    }
+
+    private static Function<Runnable, Runnable> wrapper(DiscoveryNode node) {
+        return runnable -> wrap(runnable, node);
+    }
+
+    private static Runnable wrap(Runnable runnable, DiscoveryNode node) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                try (CloseableThreadContext.Instance ignored = CloseableThreadContext.put("nodeId", node.getId())) {
+                    runnable.run();
+                }
+            }
+
+            @Override
+            public String toString() {
+                return runnable.toString() + " (wrapped for " + node + ")";
+            }
+        };
     }
 }

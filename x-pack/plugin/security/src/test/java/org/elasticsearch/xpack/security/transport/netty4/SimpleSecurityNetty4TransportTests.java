@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.transport.netty4;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;

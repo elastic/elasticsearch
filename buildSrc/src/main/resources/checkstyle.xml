@@ -35,6 +35,8 @@
     <module name="OuterTypeFilename" />
     <!-- No line wraps inside of import and package statements. -->
     <module name="NoLineWrap" />
+    <!-- only one statement per line should be allowed -->
+    <module name="OneStatementPerLine"/>
     <!-- Each java file has only one outer class -->
     <module name="OneTopLevelClass" />
     <!-- The suffix L is preferred, because the letter l (ell) is often

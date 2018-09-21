@@ -57,6 +57,8 @@ import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
+import org.elasticsearch.client.ml.StopDatafeedRequest;
+import org.elasticsearch.client.ml.StopDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.calendars.CalendarTests;
@@ -497,6 +499,71 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
+    public void testStopDatafeed() throws Exception {
+        String jobId1 = "test-stop-datafeed1";
+        String jobId2 = "test-stop-datafeed2";
+        String jobId3 = "test-stop-datafeed3";
+        String indexName = "stop_data_1";
+
+        // Set up the index
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+
+        // create the job and the datafeed
+        Job job1 = buildJob(jobId1);
+        putJob(job1);
+        openJob(job1);
+
+        Job job2 = buildJob(jobId2);
+        putJob(job2);
+        openJob(job2);
+
+        Job job3 = buildJob(jobId3);
+        putJob(job3);
+        openJob(job3);
+
+        String datafeedId1 = createAndPutDatafeed(jobId1, indexName);
+        String datafeedId2 = createAndPutDatafeed(jobId2, indexName);
+        String datafeedId3 = createAndPutDatafeed(jobId3, indexName);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        machineLearningClient.startDatafeed(new StartDatafeedRequest(datafeedId1), RequestOptions.DEFAULT);
+        machineLearningClient.startDatafeed(new StartDatafeedRequest(datafeedId2), RequestOptions.DEFAULT);
+        machineLearningClient.startDatafeed(new StartDatafeedRequest(datafeedId3), RequestOptions.DEFAULT);
+
+        {
+            StopDatafeedRequest request = new StopDatafeedRequest(datafeedId1);
+            request.setAllowNoDatafeeds(false);
+            StopDatafeedResponse stopDatafeedResponse = execute(request,
+                machineLearningClient::stopDatafeed,
+                machineLearningClient::stopDatafeedAsync);
+            assertTrue(stopDatafeedResponse.isStopped());
+        }
+        {
+            StopDatafeedRequest request = new StopDatafeedRequest(datafeedId2, datafeedId3);
+            request.setAllowNoDatafeeds(false);
+            StopDatafeedResponse stopDatafeedResponse = execute(request,
+                machineLearningClient::stopDatafeed,
+                machineLearningClient::stopDatafeedAsync);
+            assertTrue(stopDatafeedResponse.isStopped());
+        }
+        {
+            StopDatafeedResponse stopDatafeedResponse = execute(new StopDatafeedRequest("datafeed_that_doesnot_exist*"),
+                machineLearningClient::stopDatafeed,
+                machineLearningClient::stopDatafeedAsync);
+            assertTrue(stopDatafeedResponse.isStopped());
+        }
+        {
+            StopDatafeedRequest request = new StopDatafeedRequest("datafeed_that_doesnot_exist*");
+            request.setAllowNoDatafeeds(false);
+            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+                () -> execute(request, machineLearningClient::stopDatafeed, machineLearningClient::stopDatafeedAsync));
+            assertThat(exception.status().getStatus(), equalTo(404));
+        }
+    }
+
     public void testDeleteForecast() throws Exception {
         String jobId = "test-delete-forecast";
 
@@ -641,5 +708,24 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         builder.setDataDescription(dataDescription);
 
         return builder.build();
+    }
+
+    private void putJob(Job job) throws IOException {
+        highLevelClient().machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+    }
+
+    private void openJob(Job job) throws IOException {
+        highLevelClient().machineLearning().openJob(new OpenJobRequest(job.getId()), RequestOptions.DEFAULT);
+    }
+
+    private String createAndPutDatafeed(String jobId, String indexName) throws IOException {
+        String datafeedId = jobId + "-feed";
+        DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, jobId)
+            .setIndices(indexName)
+            .setQueryDelay(TimeValue.timeValueSeconds(1))
+            .setTypes(Arrays.asList("doc"))
+            .setFrequency(TimeValue.timeValueSeconds(1)).build();
+        highLevelClient().machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
+        return datafeedId;
     }
 }

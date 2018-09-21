@@ -38,19 +38,19 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportRequestOptions.Type;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
 /**
  * The FollowersChecker is responsible for allowing a leader to check that its followers are still connected and healthy. On deciding that a
@@ -82,8 +82,8 @@ public class FollowersChecker extends AbstractComponent {
     private final Consumer<DiscoveryNode> onNodeFailure;
     private final Consumer<FollowerCheckRequest> handleRequestAndUpdateState;
 
-    private final Object mutex = new Object();
-    private final Map<DiscoveryNode, FollowerChecker> followerCheckers = new HashMap<>();
+    private final Object mutex = new Object(); // protects writes to this state; read access does not need sync
+    private final Map<DiscoveryNode, FollowerChecker> followerCheckers = newConcurrentMap();
     private final Set<DiscoveryNode> faultyNodes = new HashSet<>();
 
     private final TransportService transportService;
@@ -264,7 +264,6 @@ public class FollowersChecker extends AbstractComponent {
         }
 
         private boolean running() {
-            assert Thread.holdsLock(mutex) : "FollowersChecker mutex not held";
             return this == followerCheckers.get(discoveryNode);
         }
 
@@ -274,77 +273,75 @@ public class FollowersChecker extends AbstractComponent {
         }
 
         private void handleWakeUp() {
-            synchronized (mutex) {
-                if (running() == false) {
-                    logger.trace("handleWakeUp: not running");
-                    return;
-                }
-
-                final FollowerCheckRequest request = new FollowerCheckRequest(responder.getTerm());
-                logger.trace("handleWakeUp: checking {} with {}", discoveryNode, request);
-                transportService.sendRequest(discoveryNode, FOLLOWER_CHECK_ACTION_NAME, request,
-                    TransportRequestOptions.builder().withTimeout(followerCheckTimeout).withType(Type.PING).build(),
-
-                    new TransportResponseHandler<TransportResponse.Empty>() {
-
-                        @Override
-                        public void handleResponse(TransportResponse.Empty response) {
-                            synchronized (mutex) {
-                                if (running() == false) {
-                                    logger.trace("{} no longer running", FollowerChecker.this);
-                                    return;
-                                }
-
-                                failureCountSinceLastSuccess = 0;
-                                logger.trace("{} check successful", FollowerChecker.this);
-                                scheduleNextWakeUp();
-                            }
-                        }
-
-                        @Override
-                        public void handleException(TransportException exp) {
-                            synchronized (mutex) {
-                                if (running() == false) {
-                                    logger.debug(new ParameterizedMessage("{} no longer running", FollowerChecker.this), exp);
-                                    return;
-                                }
-
-                                failureCountSinceLastSuccess++;
-
-                                if (failureCountSinceLastSuccess >= followerCheckRetryCount) {
-                                    logger.debug(() -> new ParameterizedMessage("{} failed too many times", FollowerChecker.this), exp);
-                                } else if (exp instanceof ConnectTransportException
-                                    || exp.getCause() instanceof ConnectTransportException) {
-                                    logger.debug(() -> new ParameterizedMessage("{} disconnected", FollowerChecker.this), exp);
-                                } else {
-                                    logger.debug(() -> new ParameterizedMessage("{} failed, retrying", FollowerChecker.this), exp);
-                                    scheduleNextWakeUp();
-                                    return;
-                                }
-
-                                faultyNodes.add(discoveryNode);
-                                followerCheckers.remove(discoveryNode);
-
-                                transportService.getThreadPool().generic().execute(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        onNodeFailure.accept(discoveryNode);
-                                    }
-
-                                    @Override
-                                    public String toString() {
-                                        return "detected failure of " + discoveryNode;
-                                    }
-                                });
-                            }
-                        }
-
-                        @Override
-                        public String executor() {
-                            return Names.SAME;
-                        }
-                    });
+            if (running() == false) {
+                logger.trace("handleWakeUp: not running");
+                return;
             }
+
+            final FollowerCheckRequest request = new FollowerCheckRequest(responder.getTerm());
+            logger.trace("handleWakeUp: checking {} with {}", discoveryNode, request);
+            transportService.sendRequest(discoveryNode, FOLLOWER_CHECK_ACTION_NAME, request,
+                TransportRequestOptions.builder().withTimeout(followerCheckTimeout).withType(Type.PING).build(),
+                new TransportResponseHandler<Empty>() {
+                    @Override
+                    public void handleResponse(Empty response) {
+                        if (running() == false) {
+                            logger.trace("{} no longer running", FollowerChecker.this);
+                            return;
+                        }
+
+                        failureCountSinceLastSuccess = 0;
+                        logger.trace("{} check successful", FollowerChecker.this);
+                        scheduleNextWakeUp();
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        if (running() == false) {
+                            logger.debug(new ParameterizedMessage("{} no longer running", FollowerChecker.this), exp);
+                            return;
+                        }
+
+                        failureCountSinceLastSuccess++;
+
+                        if (failureCountSinceLastSuccess >= followerCheckRetryCount) {
+                            logger.debug(() -> new ParameterizedMessage("{} failed too many times", FollowerChecker.this), exp);
+                        } else if (exp instanceof ConnectTransportException
+                            || exp.getCause() instanceof ConnectTransportException) {
+                            logger.debug(() -> new ParameterizedMessage("{} disconnected", FollowerChecker.this), exp);
+                        } else {
+                            logger.debug(() -> new ParameterizedMessage("{} failed, retrying", FollowerChecker.this), exp);
+                            scheduleNextWakeUp();
+                            return;
+                        }
+
+                        transportService.getThreadPool().generic().execute(new Runnable() {
+                            @Override
+                            public void run() {
+                                synchronized (mutex) {
+                                    if (running() == false) {
+                                        logger.debug("{} no longer running, not marking faulty");
+                                        return;
+                                    }
+                                    faultyNodes.add(discoveryNode);
+                                    followerCheckers.remove(discoveryNode);
+                                }
+                                onNodeFailure.accept(discoveryNode);
+                            }
+
+                            @Override
+                            public String toString() {
+                                return "detected failure of " + discoveryNode;
+                            }
+                        });
+                    }
+
+
+                    @Override
+                    public String executor() {
+                        return Names.SAME;
+                    }
+                });
         }
 
         private void scheduleNextWakeUp() {

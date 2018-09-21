@@ -39,13 +39,8 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider.HostsResolver;
 import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.transport.MockTransport;
-import org.elasticsearch.transport.RequestHandlerRegistry;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matcher;
 
@@ -56,7 +51,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -185,7 +179,7 @@ public class CoordinatorTests extends ESTestCase {
             private final PersistedState persistedState;
             private MasterService masterService;
             private TransportService transportService;
-            private MockTransport mockTransport;
+            private DisruptableMockTransport mockTransport;
 
             ClusterNode(int nodeIndex) {
                 super(Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeIdFromIndex(nodeIndex)).build());
@@ -207,106 +201,36 @@ public class CoordinatorTests extends ESTestCase {
             }
 
             private void setUp() {
-                mockTransport = new MockTransport() {
+                mockTransport = new DisruptableMockTransport(logger) {
                     @Override
-                    protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode destination) {
-                        assert destination.equals(localNode) == false : "non-local message from " + localNode + " to itself";
-                        super.onSendRequest(requestId, action, request, destination);
+                    protected DiscoveryNode getLocalNode() {
+                        return localNode;
+                    }
 
-                        // connecting and handshaking with a new node happens synchronously, so we cannot enqueue these tasks for later
-                        final Consumer<Runnable> scheduler;
+                    @Override
+                    protected ConnectionStatus getConnectionStatus(DiscoveryNode sender, DiscoveryNode destination) {
+                        return ConnectionStatus.CONNECTED;
+                    }
+
+                    @Override
+                    protected Optional<DisruptableMockTransport> getDisruptedCapturingTransport(DiscoveryNode node, String action) {
                         final Predicate<ClusterNode> matchesDestination;
                         if (action.equals(HANDSHAKE_ACTION_NAME)) {
-                            scheduler = Runnable::run;
-                            matchesDestination = n -> n.getLocalNode().getAddress().equals(destination.getAddress());
+                            matchesDestination = n -> n.getLocalNode().getAddress().equals(node.getAddress());
                         } else {
-                            scheduler = deterministicTaskQueue::scheduleNow;
-                            matchesDestination = n -> n.getLocalNode().equals(destination);
+                            matchesDestination = n -> n.getLocalNode().equals(node);
                         }
+                        return clusterNodes.stream().filter(matchesDestination).findAny().map(cn -> cn.mockTransport);
+                    }
 
-                        scheduler.accept(onNode(new Runnable() {
-                            @Override
-                            public String toString() {
-                                return "delivery of [" + action + "][" + requestId + "]: " + request;
-                            }
-
-                            @Override
-                            public void run() {
-                                clusterNodes.stream().filter(matchesDestination).findAny().ifPresent(
-                                    destinationNode -> {
-
-                                        final RequestHandlerRegistry requestHandler
-                                            = destinationNode.mockTransport.getRequestHandler(action);
-
-                                        final TransportChannel transportChannel = new TransportChannel() {
-                                            @Override
-                                            public String getProfileName() {
-                                                return "default";
-                                            }
-
-                                            @Override
-                                            public String getChannelType() {
-                                                return "coordinator-test-channel";
-                                            }
-
-                                            @Override
-                                            public void sendResponse(final TransportResponse response) {
-                                                scheduler.accept(onNode(new Runnable() {
-                                                    @Override
-                                                    public String toString() {
-                                                        return "delivery of response " + response
-                                                            + " to [" + action + "][" + requestId + "]: " + request;
-                                                    }
-
-                                                    @Override
-                                                    public void run() {
-                                                        handleResponse(requestId, response);
-                                                    }
-                                                }, localNode));
-                                            }
-
-                                            @Override
-                                            public void sendResponse(TransportResponse response, TransportResponseOptions options) {
-                                                sendResponse(response);
-                                            }
-
-                                            @Override
-                                            public void sendResponse(Exception exception) {
-                                                scheduler.accept(onNode(new Runnable() {
-                                                    @Override
-                                                    public String toString() {
-                                                        return "delivery of error response " + exception.getMessage()
-                                                            + " to [" + action + "][" + requestId + "]: " + request;
-                                                    }
-
-                                                    @Override
-                                                    public void run() {
-                                                        handleRemoteError(requestId, exception);
-                                                    }
-                                                }, localNode));
-                                            }
-                                        };
-
-                                        try {
-                                            processMessageReceived(request, requestHandler, transportChannel);
-                                        } catch (Exception e) {
-                                            scheduler.accept(onNode(new Runnable() {
-                                                @Override
-                                                public String toString() {
-                                                    return "delivery of processing error response " + e.getMessage()
-                                                        + " to [" + action + "][" + requestId + "]: " + request;
-                                                }
-
-                                                @Override
-                                                public void run() {
-                                                    handleRemoteError(requestId, e);
-                                                }
-                                            }, localNode));
-                                        }
-                                    }
-                                );
-                            }
-                        }, destination));
+                    @Override
+                    protected void handle(DiscoveryNode sender, DiscoveryNode destination, String action, Runnable doDelivery) {
+                        // handshake needs to run inline as the caller blockingly waits on the result
+                        if (action.equals(HANDSHAKE_ACTION_NAME)) {
+                            onNode(doDelivery, destination).run();
+                        } else {
+                            deterministicTaskQueue.scheduleNow(onNode(doDelivery, destination));
+                        }
                     }
                 };
 
@@ -362,12 +286,6 @@ public class CoordinatorTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private static void processMessageReceived(TransportRequest request, RequestHandlerRegistry requestHandler,
-                                               TransportChannel transportChannel) throws Exception {
-        requestHandler.processMessageReceived(request, transportChannel);
-    }
-
     private static Runnable onNode(Runnable runnable, DiscoveryNode node) {
         return new Runnable() {
             @Override
@@ -379,7 +297,7 @@ public class CoordinatorTests extends ESTestCase {
 
             @Override
             public String toString() {
-                return runnable.toString() + " (wrapped for " + node + ")";
+                return node.getId() + ": " + runnable.toString();
             }
         };
     }

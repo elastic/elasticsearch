@@ -52,7 +52,6 @@ public class MathProcessor implements Processor {
         RANDOM((Object l) -> l != null ?
                 new Random(((Number) l).longValue()).nextDouble() :
                 Randomness.get().nextDouble(), true),
-        ROUND((DoubleFunction<Object>) Math::round),
         SIGN((DoubleFunction<Object>) Math::signum),
         SIN(Math::sin),
         SINH(Math::sinh),

@@ -22,6 +22,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
@@ -57,6 +58,8 @@ import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutDatafeedResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
+import org.elasticsearch.client.ml.StartDatafeedRequest;
+import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.job.stats.JobStats;
 
@@ -565,6 +568,46 @@ public final class MachineLearningClient {
     }
 
     /**
+     * Starts the given Machine Learning Datafeed
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-start-datafeed.html">
+     *     ML Start Datafeed documentation</a>
+     *
+     * @param request The request to start the datafeed
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return action acknowledgement
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public StartDatafeedResponse startDatafeed(StartDatafeedRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::startDatafeed,
+            options,
+            StartDatafeedResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Starts the given Machine Learning Datafeed asynchronously and notifies the listener on completion
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-start-datafeed.html">
+     *         ML Start Datafeed documentation</a>
+     *
+     * @param request The request to start the datafeed
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void startDatafeedAsync(StartDatafeedRequest request, RequestOptions options, ActionListener<StartDatafeedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::startDatafeed,
+            options,
+            StartDatafeedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
      * Updates a Machine Learning {@link org.elasticsearch.client.ml.job.config.Job}
      * <p>
      * For additional info
@@ -907,6 +950,46 @@ public final class MachineLearningClient {
                 MLRequestConverters::putCalendar,
                 options,
                 PutCalendarResponse::fromXContent,
+                listener,
+                Collections.emptySet());
+    }
+
+    /**
+     * Deletes the given Machine Learning Calendar
+     * <p>
+     * For additional info see
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-calendar.html">
+     *     ML Delete calendar documentation</a>
+     *
+     * @param request The request to delete the calendar
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return action acknowledgement
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public AcknowledgedResponse deleteCalendar(DeleteCalendarRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+                MLRequestConverters::deleteCalendar,
+                options,
+                AcknowledgedResponse::fromXContent,
+                Collections.emptySet());
+    }
+
+    /**
+     * Deletes the given Machine Learning Job asynchronously and notifies the listener on completion
+     * <p>
+     * For additional info see
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-calendar.html">
+     *     ML Delete calendar documentation</a>
+     *
+     * @param request  The request to delete the calendar
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void deleteCalendarAsync(DeleteCalendarRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+                MLRequestConverters::deleteCalendar,
+                options,
+                AcknowledgedResponse::fromXContent,
                 listener,
                 Collections.emptySet());
     }

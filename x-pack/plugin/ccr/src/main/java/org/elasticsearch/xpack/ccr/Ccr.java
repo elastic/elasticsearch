@@ -42,6 +42,9 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
 import org.elasticsearch.xpack.ccr.action.TransportGetAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.rest.RestGetAutoFollowPatternAction;
+import org.elasticsearch.xpack.ccr.action.TransportAutoFollowStatsAction;
+import org.elasticsearch.xpack.ccr.rest.RestAutoFollowStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.AutoFollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
@@ -156,6 +159,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                 new ActionHandler<>(ShardChangesAction.INSTANCE, ShardChangesAction.TransportAction.class),
                 // stats action
                 new ActionHandler<>(CcrStatsAction.INSTANCE, TransportCcrStatsAction.class),
+                new ActionHandler<>(AutoFollowStatsAction.INSTANCE, TransportAutoFollowStatsAction.class),
                 // follow actions
                 new ActionHandler<>(CreateAndFollowIndexAction.INSTANCE, TransportCreateAndFollowIndexAction.class),
                 new ActionHandler<>(FollowIndexAction.INSTANCE, TransportFollowIndexAction.class),
@@ -177,6 +181,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         return Arrays.asList(
                 // stats API
                 new RestCcrStatsAction(settings, restController),
+                new RestAutoFollowStatsAction(settings, restController),
                 // follow APIs
                 new RestCreateAndFollowIndexAction(settings, restController),
                 new RestFollowIndexAction(settings, restController),

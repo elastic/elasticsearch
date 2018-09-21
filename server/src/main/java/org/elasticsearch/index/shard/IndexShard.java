@@ -21,13 +21,9 @@ package org.elasticsearch.index.shard;
 
 import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -132,13 +128,13 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.suggest.completion.CompletionFieldStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.io.UncheckedIOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -498,17 +494,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             try {
                                 replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                                 /*
-                                 * If this shard was serving as a replica shard when another shard was promoted to primary then the state of
-                                 * its local checkpoint tracker was reset during the primary term transition. In particular, the local
-                                 * checkpoint on this shard was thrown back to the global checkpoint and the state of the local checkpoint
-                                 * tracker above the local checkpoint was destroyed. If the other shard that was promoted to primary
-                                 * subsequently fails before the primary/replica re-sync completes successfully and we are now being
-                                 * promoted, the local checkpoint tracker here could be left in a state where it would re-issue sequence
-                                 * numbers. To ensure that this is not the case, we restore the state of the local checkpoint tracker by
-                                 * replaying the translog and marking any operations there are completed.
+                                 * If this shard was serving as a replica shard when another shard was promoted to primary then
+                                 * its Lucene index was reset during the primary term transition. In particular, the Lucene index
+                                 * on this shard was reset to the global checkpoint and the operations above the local checkpoint
+                                 * were reverted. If the other shard that was promoted to primary subsequently fails before the
+                                 * primary/replica re-sync completes successfully and we are now being promoted, we have to restore
+                                 * the reverted operations on this shard by replaying the translog to avoid losing acknowledged writes.
                                  */
                                 final Engine engine = getEngine();
-                                engine.restoreLocalCheckpointFromTranslog();
+                                engine.restoreLocalHistoryFromTranslog((resettingEngine, snapshot) ->
+                                    runTranslogRecovery(resettingEngine, snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {}));
                                 /* Rolling the translog generation is not strictly needed here (as we will never have collisions between
                                  * sequence numbers in a translog generation in a new primary as it takes the last known sequence number
                                  * as a starting point), but it simplifies reasoning about the relationship between primary terms and
@@ -879,32 +874,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public DocsStats docStats() {
-        // we calculate the doc stats based on the internal reader that is more up-to-date and not subject
-        // to external refreshes. For instance we don't refresh an external reader if we flush and indices with
-        // index.refresh_interval=-1 won't see any doc stats updates at all. This change will give more accurate statistics
-        // when indexing but not refreshing in general. Yet, if a refresh happens the internal reader is refresh as well so we are
-        // safe here.
-        long numDocs = 0;
-        long numDeletedDocs = 0;
-        long sizeInBytes = 0;
-        try (Engine.Searcher searcher = acquireSearcher("docStats", Engine.SearcherScope.INTERNAL)) {
-            // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
-            // the next scheduled refresh to go through and refresh the stats as well
-            markSearcherAccessed();
-            for (LeafReaderContext reader : searcher.reader().leaves()) {
-                // we go on the segment level here to get accurate numbers
-                final SegmentReader segmentReader = Lucene.segmentReader(reader.reader());
-                SegmentCommitInfo info = segmentReader.getSegmentInfo();
-                numDocs += reader.reader().numDocs();
-                numDeletedDocs += reader.reader().numDeletedDocs();
-                try {
-                    sizeInBytes += info.sizeInBytes();
-                } catch (IOException e) {
-                    logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
-                }
-            }
-        }
-        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
+        readAllowed();
+        DocsStats docsStats = getEngine().docStats();
+        markSearcherAccessed();
+        return docsStats;
     }
 
     /**
@@ -981,14 +954,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public CompletionStats completionStats(String... fields) {
-        CompletionStats completionStats = new CompletionStats();
-        try (Engine.Searcher currentSearcher = acquireSearcher("completion_stats")) {
+        readAllowed();
+        try {
+            CompletionStats stats = getEngine().completionStats(fields);
             // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
             // the next scheduled refresh to go through and refresh the stats as well
             markSearcherAccessed();
-            completionStats.add(CompletionFieldStats.completionStats(currentSearcher.reader(), fields));
+            return stats;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
-        return completionStats;
     }
 
     public Engine.SyncedFlushResult syncFlush(String syncId, Engine.CommitId expectedCommitId) {
@@ -1244,6 +1219,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         getEngine().trimOperationsFromTranslog(operationPrimaryTerm, aboveSeqNo);
     }
 
+    /**
+     * Returns the maximum auto_id_timestamp of all append-only requests have been processed by this shard or the auto_id_timestamp received
+     * from the primary via {@link #updateMaxUnsafeAutoIdTimestamp(long)} at the beginning of a peer-recovery or a primary-replica resync.
+     *
+     * @see #updateMaxUnsafeAutoIdTimestamp(long)
+     */
+    public long getMaxSeenAutoIdTimestamp() {
+        return getEngine().getMaxSeenAutoIdTimestamp();
+    }
+
+    /**
+     * Since operations stored in soft-deletes do not have max_auto_id_timestamp, the primary has to propagate its max_auto_id_timestamp
+     * (via {@link #getMaxSeenAutoIdTimestamp()} of all processed append-only requests to replicas at the beginning of a peer-recovery
+     * or a primary-replica resync to force a replica to disable optimization for all append-only requests which are replicated via
+     * replication while its retry variants are replicated via recovery without auto_id_timestamp.
+     * <p>
+     * Without this force-update, a replica can generate duplicate documents (for the same id) if it first receives
+     * a retry append-only (without timestamp) via recovery, then an original append-only (with timestamp) via replication.
+     */
+    public void updateMaxUnsafeAutoIdTimestamp(long maxSeenAutoIdTimestampFromPrimary) {
+        getEngine().updateMaxUnsafeAutoIdTimestamp(maxSeenAutoIdTimestampFromPrimary);
+    }
+
     public Engine.Result applyTranslogOperation(Translog.Operation operation, Engine.Operation.Origin origin) throws IOException {
         // If a translog op is replayed on the primary (eg. ccr), we need to use external instead of null for its version type.
         final VersionType versionType = (origin == Engine.Operation.Origin.PRIMARY) ? VersionType.EXTERNAL : null;
@@ -1476,9 +1474,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             if (origin == Engine.Operation.Origin.PRIMARY) {
                 assert assertPrimaryMode();
-            } else {
-                assert origin == Engine.Operation.Origin.REPLICA || origin == Engine.Operation.Origin.LOCAL_RESET;
+            } else if (origin == Engine.Operation.Origin.REPLICA) {
                 assert assertReplicationTarget();
+            } else {
+                assert origin == Engine.Operation.Origin.LOCAL_RESET;
+                assert getActiveOperationsCount() == 0 : "Ongoing writes [" + getActiveOperations() + "]";
             }
             if (writeAllowedStates.contains(state) == false) {
                 throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when shard state is one of " + writeAllowedStates + ", origin [" + origin + "]");

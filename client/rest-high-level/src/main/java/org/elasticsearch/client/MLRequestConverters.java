@@ -28,6 +28,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.client.ml.CloseJobRequest;
+import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
@@ -47,6 +48,7 @@ import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
+import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -230,6 +232,19 @@ final class MLRequestConverters {
         return request;
     }
 
+    static Request startDatafeed(StartDatafeedRequest startDatafeedRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("datafeeds")
+            .addPathPart(startDatafeedRequest.getDatafeedId())
+            .addPathPartAsIs("_start")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(startDatafeedRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request deleteForecast(DeleteForecastRequest deleteForecastRequest) {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_xpack")
@@ -370,6 +385,17 @@ final class MLRequestConverters {
                 .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.setEntity(createEntity(getCalendarsRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request deleteCalendar(DeleteCalendarRequest deleteCalendarRequest) {
+        String endpoint = new EndpointBuilder()
+                .addPathPartAsIs("_xpack")
+                .addPathPartAsIs("ml")
+                .addPathPartAsIs("calendars")
+                .addPathPart(deleteCalendarRequest.getCalendarId())
+                .build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         return request;
     }
 }

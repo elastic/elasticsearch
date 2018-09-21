@@ -216,7 +216,12 @@ public class FollowersChecker extends AbstractComponent {
                 @Override
                 protected void doRun() throws IOException {
                     logger.trace("responding to {} on slow path", request);
-                    handleRequestAndUpdateState.accept(request);
+                    try {
+                        handleRequestAndUpdateState.accept(request);
+                    } catch (Exception e) {
+                        transportChannel.sendResponse(e);
+                        return;
+                    }
                     transportChannel.sendResponse(Empty.INSTANCE);
                 }
 

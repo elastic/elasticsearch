@@ -339,9 +339,16 @@ public class FollowersCheckerTests extends ESTestCase {
         transportService.acceptIncomingRequests();
 
         final AtomicBoolean calledCoordinator = new AtomicBoolean();
+        final AtomicReference<RuntimeException> coordinatorException = new AtomicReference<>();
 
         final FollowersChecker followersChecker = new FollowersChecker(settings, transportService,
-            fcr -> assertTrue(calledCoordinator.compareAndSet(false, true)), node -> {
+            fcr -> {
+                assertTrue(calledCoordinator.compareAndSet(false, true));
+                final RuntimeException exception = coordinatorException.get();
+                if (exception != null) {
+                    throw exception;
+                }
+            }, node -> {
             assert false : node;
         });
 
@@ -412,6 +419,38 @@ public class FollowersCheckerTests extends ESTestCase {
             assertTrue(expectsSuccess.succeeded());
             assertTrue(calledCoordinator.get());
             calledCoordinator.set(false);
+        }
+
+        {
+            // If it calls into the coordinator and the coordinator throws an exception then it's passed back to the caller
+            final long term = randomNonNegativeLong();
+            followersChecker.updateResponder(term, randomFrom(Mode.LEADER, Mode.CANDIDATE));
+            final String exceptionMessage = "test simulated exception " + randomNonNegativeLong();
+            coordinatorException.set(new ElasticsearchException(exceptionMessage));
+
+            final AtomicReference<TransportException> receivedException = new AtomicReference<>();
+            transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(term),
+                new TransportResponseHandler<TransportResponse.Empty>() {
+                    @Override
+                    public void handleResponse(TransportResponse.Empty response) {
+                        fail("unexpected success");
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        assertThat(exp, not(nullValue()));
+                        assertTrue(receivedException.compareAndSet(null, exp));
+                    }
+
+                    @Override
+                    public String executor() {
+                        return Names.SAME;
+                    }
+                });
+            deterministicTaskQueue.runAllTasks(random());
+            assertTrue(calledCoordinator.get());
+            assertThat(receivedException.get(), not(nullValue()));
+            assertThat(receivedException.get().getRootCause().getMessage(), equalTo(exceptionMessage));
         }
     }
 

@@ -186,6 +186,7 @@ public class Archives {
             "elasticsearch-env",
             "elasticsearch-keystore",
             "elasticsearch-plugin",
+            "elasticsearch-shard",
             "elasticsearch-translog"
         ).forEach(executable -> {
 

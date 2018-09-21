@@ -64,7 +64,7 @@ public class CcrMultiClusterLicenseIT extends ESRestTestCase {
                 while (it.hasNext()) {
                     final String line = it.next();
                     if (line.matches(".*\\[WARN\\s*\\]\\[o\\.e\\.x\\.c\\.a\\.AutoFollowCoordinator\\s*\\] \\[node-0\\] " +
-                            "failure occurred during auto-follower coordination")) {
+                            "failure occurred while fetching cluster state in leader cluster \\[leader_cluster\\]")) {
                         warn = true;
                         break;
                     }

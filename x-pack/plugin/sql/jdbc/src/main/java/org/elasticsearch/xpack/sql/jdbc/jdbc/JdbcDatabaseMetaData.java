@@ -190,7 +190,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
                 + "PI,POWER,"
                 + "RADIANS,RAND,ROUND,"
                 + "SIGN,SIN,SQRT,"
-                + "TAN";
+                + "TAN,TRUNCATE";
     }
 
     @Override

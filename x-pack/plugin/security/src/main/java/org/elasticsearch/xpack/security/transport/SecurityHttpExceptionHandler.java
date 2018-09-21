@@ -36,10 +36,10 @@ public final class SecurityHttpExceptionHandler implements BiConsumer<HttpChanne
 
         if (isNotSslRecordException(e)) {
             if (logger.isTraceEnabled()) {
-                logger.trace(new ParameterizedMessage("received plaintext http traffic on a https channel, closing connection {}",
+                logger.trace(new ParameterizedMessage("received plaintext http traffic on an https channel, closing connection {}",
                     channel), e);
             } else {
-                logger.warn("received plaintext http traffic on a https channel, closing connection {}", channel);
+                logger.warn("received plaintext http traffic on an https channel, closing connection {}", channel);
             }
             CloseableChannel.closeChannel(channel);
         } else if (isCloseDuringHandshakeException(e)) {

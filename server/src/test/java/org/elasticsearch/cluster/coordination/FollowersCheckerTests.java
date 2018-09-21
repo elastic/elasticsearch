@@ -183,7 +183,7 @@ public class FollowersCheckerTests extends ESTestCase {
             (FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings) - 1) * FOLLOWER_CHECK_INTERVAL_SETTING.get(settings).millis());
     }
 
-    public void testResetsFailureCounterOnSuccess() {
+    public void testFailureCounterResetsOnSuccess() {
         final Builder settingsBuilder = Settings.builder();
         if (randomBoolean()) {
             settingsBuilder.put(FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), randomIntBetween(2, 10));

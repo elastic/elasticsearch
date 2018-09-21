@@ -458,7 +458,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         for (Mapper mergeWithMapper : mergeWith) {
             Mapper mergeIntoMapper = mappers.get(mergeWithMapper.simpleName());
-            throwMappingExceptionOnTypeEnabledAttributeUpdate(mergeWith, mergeWithMapper, mergeIntoMapper);
+            throwExceptionIfEnabledAttributeIsUpdatedForType(mergeWith, mergeWithMapper, mergeIntoMapper);
 
             Mapper merged;
             if (mergeIntoMapper == null) {
@@ -472,7 +472,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
     }
 
-    private void throwMappingExceptionOnTypeEnabledAttributeUpdate(ObjectMapper mergeWith, Mapper mergeWithMapper, Mapper mergeIntoMapper) {
+    private void throwExceptionIfEnabledAttributeIsUpdatedForType(ObjectMapper mergeWith, Mapper mergeWithMapper, Mapper mergeIntoMapper) {
         if (mergeIntoMapper instanceof ObjectMapper && mergeWithMapper instanceof ObjectMapper) {
             final ObjectMapper mergeIntoObjectMapper = (ObjectMapper) mergeIntoMapper;
             final ObjectMapper mergeWithObjectMapper = (ObjectMapper) mergeWithMapper;

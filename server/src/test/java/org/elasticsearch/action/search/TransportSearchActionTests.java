@@ -245,7 +245,7 @@ public class TransportSearchActionTests extends ESTestCase {
         Map<String, ClusterSearchShardsResponse> searchShardsResponses = new HashMap<>();
         int numRemoteClusters = randomIntBetween(0, 10);
         boolean onlySuccessful = randomBoolean();
-        int localClusters = localIndices == null || localIndices.indices().length == 0 ? 0 : 1;
+        int localClusters = localIndices == null ? 0 : 1;
         int total = numRemoteClusters + localClusters;
         int successful = localClusters;
         int skipped = 0;

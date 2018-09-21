@@ -39,6 +39,7 @@ import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
+import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -102,6 +103,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.TaskId;
 import org.junit.After;
 
 import java.io.IOException;
@@ -275,20 +277,34 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             //tag::x-pack-delete-ml-job-request
-            DeleteJobRequest deleteJobRequest = new DeleteJobRequest("my-first-machine-learning-job");
-            deleteJobRequest.setForce(false); // <1>
-            AcknowledgedResponse deleteJobResponse = client.machineLearning().deleteJob(deleteJobRequest, RequestOptions.DEFAULT);
+            DeleteJobRequest deleteJobRequest = new DeleteJobRequest("my-first-machine-learning-job"); // <1>
             //end::x-pack-delete-ml-job-request
 
+            //tag::x-pack-delete-ml-job-request-force
+            deleteJobRequest.setForce(false); // <1>
+            //end::x-pack-delete-ml-job-request-force
+
+            //tag::x-pack-delete-ml-job-request-wait-for-completion
+            deleteJobRequest.setWaitForCompletion(true); // <1>
+            //end::x-pack-delete-ml-job-request-wait-for-completion
+
+            //tag::x-pack-delete-ml-job-execute
+            DeleteJobResponse deleteJobResponse = client.machineLearning().deleteJob(deleteJobRequest, RequestOptions.DEFAULT);
+            //end::x-pack-delete-ml-job-execute
+
             //tag::x-pack-delete-ml-job-response
-            boolean isAcknowledged = deleteJobResponse.isAcknowledged(); // <1>
+            Boolean isAcknowledged = deleteJobResponse.getAcknowledged(); // <1>
+            TaskId task = deleteJobResponse.getTask(); // <2>
             //end::x-pack-delete-ml-job-response
+
+            assertTrue(isAcknowledged);
+            assertNull(task);
         }
         {
             //tag::x-pack-delete-ml-job-request-listener
-            ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
+            ActionListener<DeleteJobResponse> listener = new ActionListener<DeleteJobResponse>() {
                 @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                public void onResponse(DeleteJobResponse deleteJobResponse) {
                     // <1>
                 }
 

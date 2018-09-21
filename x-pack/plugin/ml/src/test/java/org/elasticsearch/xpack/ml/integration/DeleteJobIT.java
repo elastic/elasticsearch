@@ -36,7 +36,7 @@ public class DeleteJobIT extends BaseMlIntegTestCase {
         clusterService().submitStateUpdateTask("mark-job-as-deleted", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                return markJobAsDeleted(jobId, currentState);
+                return markJobAsDeleting(jobId, currentState);
             }
 
             @Override
@@ -101,13 +101,13 @@ public class DeleteJobIT extends BaseMlIntegTestCase {
         assertTrue("Job was not deleted", isDeleted.get());
     }
 
-    private ClusterState markJobAsDeleted(String jobId, ClusterState currentState) {
+    private ClusterState markJobAsDeleting(String jobId, ClusterState currentState) {
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(currentState);
         assertNotNull(mlMetadata);
 
         MlMetadata.Builder builder = new MlMetadata.Builder(mlMetadata);
         PersistentTasksCustomMetaData tasks = currentState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-        builder.markJobAsDeleted(jobId, tasks, true);
+        builder.markJobAsDeleting(jobId, tasks, true);
 
         ClusterState.Builder newState = ClusterState.builder(currentState);
         return newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, builder.build()).build())

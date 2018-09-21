@@ -16,16 +16,19 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.After;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
@@ -386,6 +389,41 @@ public class MlJobIT extends ESRestTestCase {
         String indicesAfterDelete = EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/indices")).getEntity());
         assertThat(indicesAfterDelete, containsString(indexName));
 
+        waitUntilIndexIsEmpty(indexName);
+
+        // check that the job itself is gone
+        expectThrows(ResponseException.class, () ->
+                client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats")));
+    }
+
+    public void testDeleteJobAsync() throws Exception {
+        String jobId = "delete-job-async-job";
+        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
+        createFarequoteJob(jobId);
+
+        String indicesBeforeDelete = EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/indices")).getEntity());
+        assertThat(indicesBeforeDelete, containsString(indexName));
+
+        Response response = client().performRequest(new Request("DELETE", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId
+                + "?wait_for_completion=false"));
+
+        // Wait for task to complete
+        String taskId = extractTaskId(response);
+        Response taskResponse = client().performRequest(new Request("GET", "_tasks/" + taskId + "?wait_for_completion=true"));
+        assertThat(EntityUtils.toString(taskResponse.getEntity()), containsString("\"acknowledged\":true"));
+
+        // check that the index still exists (it's shared by default)
+        String indicesAfterDelete = EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/indices")).getEntity());
+        assertThat(indicesAfterDelete, containsString(indexName));
+
+        waitUntilIndexIsEmpty(indexName);
+
+        // check that the job itself is gone
+        expectThrows(ResponseException.class, () ->
+                client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats")));
+    }
+
+    private void waitUntilIndexIsEmpty(String indexName) throws Exception {
         assertBusy(() -> {
             try {
                 String count = EntityUtils.toString(client().performRequest(new Request("GET", indexName + "/_count")).getEntity());
@@ -394,10 +432,14 @@ public class MlJobIT extends ESRestTestCase {
                 fail(e.getMessage());
             }
         });
+    }
 
-        // check that the job itself is gone
-        expectThrows(ResponseException.class, () ->
-                client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats")));
+    private static String extractTaskId(Response response) throws IOException {
+        String responseAsString = EntityUtils.toString(response.getEntity());
+        Pattern matchTaskId = Pattern.compile(".*\"task\":.*\"(.*)\".*");
+        Matcher taskIdMatcher = matchTaskId.matcher(responseAsString);
+        assertTrue(taskIdMatcher.matches());
+        return taskIdMatcher.group(1);
     }
 
     public void testDeleteJobAfterMissingIndex() throws Exception {
@@ -520,6 +562,7 @@ public class MlJobIT extends ESRestTestCase {
                 client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats")));
     }
 
+    @Ignore
     public void testDelete_multipleRequest() throws Exception {
         String jobId = "delete-job-mulitple-times";
         createFarequoteJob(jobId);

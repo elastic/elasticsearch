@@ -155,7 +155,7 @@ public class SqlParserTests extends ESTestCase {
 
         // 101 elements parser's "circuit breaker" is triggered
         ParsingException e = expectThrows(ParsingException.class, () ->
-            new SqlParser().createExpression(Joiner.on(" OR ").join(nCopies(101, "a = b"))));
+            new SqlParser().createExpression(Joiner.on(" OR ").join(nCopies(101, "true"))));
         assertEquals("expression is too large to parse, (tree's depth exceeds 100)", e.getErrorMessage());
     }
 
@@ -188,6 +188,19 @@ public class SqlParserTests extends ESTestCase {
         // 101 elements parser's "circuit breaker" is triggered
         ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createStatement(
             Joiner.on(" (").join(nCopies(101, "SELECT * FROM")).concat("t").concat(Joiner.on("").join(nCopies(100, ")")))));
+        assertEquals("expression is too large to parse, (tree's depth exceeds 100)", e.getErrorMessage());
+    }
+
+    public void testLimitToPreventStackOverflowFromLargeComplexSubselectTree() {
+        new SqlParser().createStatement(
+            Joiner.on(" (").join(nCopies(20, "SELECT ")).
+                concat(Joiner.on(" OR ").join(nCopies(50, "true"))).concat(" FROM")
+                .concat("t").concat(Joiner.on("").join(nCopies(19, ")"))));
+
+        ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createStatement(
+            Joiner.on(" (").join(nCopies(20, "SELECT ")).
+                concat(Joiner.on(" OR ").join(nCopies(100, "true"))).concat(" FROM")
+                .concat("t").concat(Joiner.on("").join(nCopies(19, ")")))));
         assertEquals("expression is too large to parse, (tree's depth exceeds 100)", e.getErrorMessage());
     }
 

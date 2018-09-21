@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.support.values;
 import org.apache.lucene.search.Scorable;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.joda.time.ReadableInstant;
@@ -95,6 +96,8 @@ public class ScriptDoubleValues extends SortingNumericDoubleValues implements Sc
             return ((ReadableInstant) o).getMillis();
         } else if (o instanceof ZonedDateTime) {
             return ((ZonedDateTime) o).toInstant().toEpochMilli();
+        } else if (o instanceof JodaCompatibleZonedDateTime) {
+            return ((JodaCompatibleZonedDateTime) o).toInstant().toEpochMilli();
         } else if (o instanceof Boolean) {
             // We do expose boolean fields as boolean in scripts, however aggregations still expect
             // that scripts return the same internal representation as regular fields, so boolean

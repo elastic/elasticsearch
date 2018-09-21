@@ -22,7 +22,6 @@ package org.elasticsearch.common.network;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -39,6 +38,7 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -56,7 +56,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-public class NetworkModuleTests extends ModuleTestCase {
+public class NetworkModuleTests extends ESTestCase {
     private ThreadPool threadPool;
 
     @Override

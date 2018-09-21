@@ -29,6 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
@@ -64,8 +65,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
             @Override
             public void sendCanMatch(Transport.Connection connection, ShardSearchTransportRequest request, SearchTask task,
-                                     ActionListener<CanMatchResponse> listener) {
-                new Thread(() -> listener.onResponse(new CanMatchResponse(request.shardId().id() == 0 ? shard1 :
+                                     ActionListener<SearchService.CanMatchResponse> listener) {
+                new Thread(() -> listener.onResponse(new SearchService.CanMatchResponse(request.shardId().id() == 0 ? shard1 :
                     shard2))).start();
             }
         };
@@ -123,14 +124,14 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
             @Override
             public void sendCanMatch(Transport.Connection connection, ShardSearchTransportRequest request, SearchTask task,
-                                     ActionListener<CanMatchResponse> listener) {
+                                     ActionListener<SearchService.CanMatchResponse> listener) {
                 boolean throwException = request.shardId().id() != 0;
                 if (throwException && randomBoolean()) {
                     throw new IllegalArgumentException("boom");
                 } else {
                     new Thread(() -> {
                         if (throwException == false) {
-                            listener.onResponse(new CanMatchResponse(shard1));
+                            listener.onResponse(new SearchService.CanMatchResponse(shard1));
                         } else {
                             listener.onFailure(new NullPointerException());
                         }
@@ -192,8 +193,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                             Transport.Connection connection,
                             ShardSearchTransportRequest request,
                             SearchTask task,
-                            ActionListener<CanMatchResponse> listener) {
-                        listener.onResponse(new CanMatchResponse(randomBoolean()));
+                            ActionListener<SearchService.CanMatchResponse> listener) {
+                        listener.onResponse(new SearchService.CanMatchResponse(randomBoolean()));
                     }
                 };
 

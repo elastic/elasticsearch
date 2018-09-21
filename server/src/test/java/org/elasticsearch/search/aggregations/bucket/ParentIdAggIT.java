@@ -34,6 +34,8 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class ParentIdAggIT extends ESIntegTestCase {
+
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/33752")
     public void testParentIdAggregation() throws IOException {
         XContentBuilder mapping = jsonBuilder().startObject()
                 .startObject("childtype")

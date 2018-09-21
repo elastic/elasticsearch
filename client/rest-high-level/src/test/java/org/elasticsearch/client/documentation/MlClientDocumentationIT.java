@@ -73,6 +73,8 @@ import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
+import org.elasticsearch.client.ml.StopDatafeedRequest;
+import org.elasticsearch.client.ml.StopDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.datafeed.ChunkingConfig;
@@ -764,6 +766,57 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::x-pack-ml-start-datafeed-execute-async
             client.machineLearning().startDatafeedAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::x-pack-ml-start-datafeed-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testStopDatafeed() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            //tag::x-pack-ml-stop-datafeed-request
+            StopDatafeedRequest request = new StopDatafeedRequest("datafeed_id1", "datafeed_id*"); // <1>
+            //end::x-pack-ml-stop-datafeed-request
+            request = StopDatafeedRequest.stopAllDatafeedsRequest();
+
+            //tag::x-pack-ml-stop-datafeed-request-options
+            request.setAllowNoDatafeeds(true); // <1>
+            request.setForce(true); // <2>
+            request.setTimeout(TimeValue.timeValueMinutes(10)); // <3>
+            //end::x-pack-ml-stop-datafeed-request-options
+
+            //tag::x-pack-ml-stop-datafeed-execute
+            StopDatafeedResponse response = client.machineLearning().stopDatafeed(request, RequestOptions.DEFAULT);
+            boolean stopped = response.isStopped(); // <1>
+            //end::x-pack-ml-stop-datafeed-execute
+
+            assertTrue(stopped);
+        }
+        {
+            StopDatafeedRequest request = StopDatafeedRequest.stopAllDatafeedsRequest();
+
+            // tag::x-pack-ml-stop-datafeed-listener
+            ActionListener<StopDatafeedResponse> listener = new ActionListener<StopDatafeedResponse>() {
+                @Override
+                public void onResponse(StopDatafeedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::x-pack-ml-stop-datafeed-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-stop-datafeed-execute-async
+            client.machineLearning().stopDatafeedAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::x-pack-ml-stop-datafeed-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

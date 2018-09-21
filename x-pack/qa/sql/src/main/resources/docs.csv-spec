@@ -195,6 +195,8 @@ PERCENTILE_RANK |AGGREGATE
 SUM_OF_SQUARES  |AGGREGATE      
 SKEWNESS        |AGGREGATE      
 KURTOSIS        |AGGREGATE      
+DAY_NAME        |SCALAR         
+DAYNAME         |SCALAR
 DAY_OF_MONTH    |SCALAR         
 DAYOFMONTH      |SCALAR         
 DAY             |SCALAR         
@@ -210,18 +212,16 @@ HOUR            |SCALAR
 MINUTE_OF_DAY   |SCALAR         
 MINUTE_OF_HOUR  |SCALAR         
 MINUTE          |SCALAR         
-SECOND_OF_MINUTE|SCALAR         
-SECOND          |SCALAR         
-MONTH_OF_YEAR   |SCALAR         
-MONTH           |SCALAR         
-YEAR            |SCALAR         
-WEEK_OF_YEAR    |SCALAR         
-WEEK            |SCALAR         
-DAY_NAME        |SCALAR         
-DAYNAME         |SCALAR         
 MONTH_NAME      |SCALAR         
 MONTHNAME       |SCALAR         
+MONTH_OF_YEAR   |SCALAR         
+MONTH           |SCALAR         
+SECOND_OF_MINUTE|SCALAR         
+SECOND          |SCALAR         
 QUARTER         |SCALAR         
+YEAR            |SCALAR         
+WEEK_OF_YEAR    |SCALAR         
+WEEK            |SCALAR                  
 ABS             |SCALAR         
 ACOS            |SCALAR         
 ASIN            |SCALAR         
@@ -253,27 +253,28 @@ SIN             |SCALAR
 SINH            |SCALAR         
 SQRT            |SCALAR         
 TAN             |SCALAR         
+TRUNCATE        |SCALAR         
 ASCII           |SCALAR         
-CHAR            |SCALAR         
 BIT_LENGTH      |SCALAR         
-CHAR_LENGTH     |SCALAR
-CHARACTER_LENGTH|SCALAR
+CHAR            |SCALAR         
+CHAR_LENGTH     |SCALAR         
+CHARACTER_LENGTH|SCALAR         
+CONCAT          |SCALAR
+INSERT          |SCALAR                  
 LCASE           |SCALAR         
-LENGTH          |SCALAR         
-LTRIM           |SCALAR         
-RTRIM           |SCALAR         
-SPACE           |SCALAR         
-CONCAT          |SCALAR         
-INSERT          |SCALAR         
 LEFT            |SCALAR         
+LENGTH          |SCALAR         
 LOCATE          |SCALAR         
+LTRIM           |SCALAR         
 POSITION        |SCALAR         
 REPEAT          |SCALAR         
 REPLACE         |SCALAR         
-RIGHT           |SCALAR         
+RIGHT           |SCALAR
+RTRIM           |SCALAR         
+SPACE           |SCALAR                  
 SUBSTRING       |SCALAR         
 UCASE           |SCALAR         
-SCORE           |SCORE  
+SCORE           |SCORE          
 // end::showFunctions
 ;
 
@@ -321,6 +322,8 @@ SHOW FUNCTIONS LIKE '%DAY%';
 
      name      |     type      
 ---------------+---------------
+DAY_NAME       |SCALAR         
+DAYNAME        |SCALAR 
 DAY_OF_MONTH   |SCALAR         
 DAYOFMONTH     |SCALAR         
 DAY            |SCALAR         
@@ -330,8 +333,6 @@ DAY_OF_YEAR    |SCALAR
 DAYOFYEAR      |SCALAR         
 HOUR_OF_DAY    |SCALAR         
 MINUTE_OF_DAY  |SCALAR         
-DAY_NAME       |SCALAR         
-DAYNAME        |SCALAR     
 
 // end::showFunctionsWithPattern
 ;
@@ -548,7 +549,7 @@ M              |63
 
 groupByAndAggExpression
 // tag::groupByAndAggExpression
-SELECT gender AS g, ROUND(MIN(salary) / 100) AS salary FROM emp GROUP BY gender;
+SELECT gender AS g, ROUND((MIN(salary) / 100)) AS salary FROM emp GROUP BY gender;
 
        g       |    salary     
 ---------------+---------------
@@ -1123,4 +1124,44 @@ SELECT YEAR(CAST('2018-05-19T11:23:45Z' AS TIMESTAMP)) AS year;
 ---------------
 2018
 // end::conversionStringToDateCast
+;
+
+mathRoundWithNegativeParameter
+// tag::mathRoundWithNegativeParameter
+SELECT ROUND(-345.153, -1) AS rounded;
+
+    rounded
+---------------
+-350.0
+// end::mathRoundWithNegativeParameter
+;
+
+mathRoundWithPositiveParameter
+// tag::mathRoundWithPositiveParameter
+SELECT ROUND(-345.153, 1) AS rounded;
+
+    rounded
+---------------
+-345.2
+// end::mathRoundWithPositiveParameter
+;
+
+mathTruncateWithNegativeParameter
+// tag::mathTruncateWithNegativeParameter
+SELECT TRUNCATE(-345.153, -1) AS trimmed;
+
+    trimmed
+---------------
+-340.0
+// end::mathTruncateWithNegativeParameter
+;
+
+mathTruncateWithPositiveParameter
+// tag::mathTruncateWithPositiveParameter
+SELECT TRUNCATE(-345.153, 1) AS trimmed;
+
+    trimmed
+---------------
+-345.1
+// end::mathTruncateWithPositiveParameter
 ;

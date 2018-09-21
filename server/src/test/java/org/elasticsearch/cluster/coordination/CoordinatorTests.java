@@ -187,7 +187,7 @@ public class CoordinatorTests extends ESTestCase {
                 localNode = createDiscoveryNode();
                 persistedState = new InMemoryPersistedState(1L,
                     clusterState(1L, 1L, localNode, initialConfiguration, initialConfiguration, 0L));
-                onNode(this::setUp, localNode).run();
+                onNode(localNode, this::setUp).run();
             }
 
             private DiscoveryNode createDiscoveryNode() {
@@ -227,17 +227,17 @@ public class CoordinatorTests extends ESTestCase {
                     protected void handle(DiscoveryNode sender, DiscoveryNode destination, String action, Runnable doDelivery) {
                         // handshake needs to run inline as the caller blockingly waits on the result
                         if (action.equals(HANDSHAKE_ACTION_NAME)) {
-                            onNode(doDelivery, destination).run();
+                            onNode(destination, doDelivery).run();
                         } else {
-                            deterministicTaskQueue.scheduleNow(onNode(doDelivery, destination));
+                            deterministicTaskQueue.scheduleNow(onNode(destination, doDelivery));
                         }
                     }
                 };
 
                 masterService = new FakeThreadPoolMasterService("test",
-                    runnable -> deterministicTaskQueue.scheduleNow(onNode(runnable, localNode)));
+                    runnable -> deterministicTaskQueue.scheduleNow(onNode(localNode, runnable)));
                 transportService = mockTransport.createTransportService(
-                    settings, deterministicTaskQueue.getThreadPool(runnable -> onNode(runnable, localNode)), NOOP_TRANSPORT_INTERCEPTOR,
+                    settings, deterministicTaskQueue.getThreadPool(runnable -> onNode(localNode, runnable)), NOOP_TRANSPORT_INTERCEPTOR,
                     a -> localNode, null, emptySet());
                 coordinator = new Coordinator(settings, transportService, ESAllocationTestCase.createAllocationService(Settings.EMPTY),
                     masterService, this::getPersistedState, Cluster.this::provideUnicastHosts, Randomness.get());
@@ -286,18 +286,19 @@ public class CoordinatorTests extends ESTestCase {
         }
     }
 
-    private static Runnable onNode(Runnable runnable, DiscoveryNode node) {
+    private static Runnable onNode(DiscoveryNode node, Runnable runnable) {
+        final String nodeId = "{" + node.getId() + "}{" + node.getEphemeralId() + "}";
         return new Runnable() {
             @Override
             public void run() {
-                try (CloseableThreadContext.Instance ignored = CloseableThreadContext.put("nodeId", node.getId())) {
+                try (CloseableThreadContext.Instance ignored = CloseableThreadContext.put("nodeId", nodeId)) {
                     runnable.run();
                 }
             }
 
             @Override
             public String toString() {
-                return node.getId() + ": " + runnable.toString();
+                return nodeId + ": " + runnable.toString();
             }
         };
     }

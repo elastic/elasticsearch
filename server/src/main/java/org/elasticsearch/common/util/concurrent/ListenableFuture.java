@@ -82,14 +82,22 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
 
     private void notifyListener(ActionListener<V> listener, ExecutorService executorService) {
         try {
-            executorService.submit(() -> {
-                try {
-                    // call get in a non-blocking fashion as we could be on a network thread
-                    // or another thread like the scheduler, which we should never block!
-                    V value = FutureUtils.get(this, 0L, TimeUnit.NANOSECONDS);
-                    listener.onResponse(value);
-                } catch (Exception e) {
-                    listener.onFailure(e);
+            executorService.submit(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        // call get in a non-blocking fashion as we could be on a network thread
+                        // or another thread like the scheduler, which we should never block!
+                        V value = FutureUtils.get(ListenableFuture.this, 0L, TimeUnit.NANOSECONDS);
+                        listener.onResponse(value);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return "ListenableFuture notification";
                 }
             });
         } catch (Exception e) {

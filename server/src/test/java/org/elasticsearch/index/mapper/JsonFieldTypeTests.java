@@ -26,8 +26,20 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.JsonFieldMapper.JsonFieldType;
+import org.junit.Before;
 
 public class JsonFieldTypeTests extends FieldTypeTestCase {
+
+    @Before
+    public void setupProperties() {
+        addModifier(new Modifier("split_queries_on_whitespace", true) {
+            @Override
+            public void modify(MappedFieldType type) {
+                JsonFieldType ft = (JsonFieldType) type;
+                ft.setSplitQueriesOnWhitespace(!ft.splitQueriesOnWhitespace());
+            }
+        });
+    }
 
     @Override
     protected JsonFieldType createDefaultFieldType() {

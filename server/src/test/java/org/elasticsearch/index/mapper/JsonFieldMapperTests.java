@@ -37,12 +37,17 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
+import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+
 public class JsonFieldMapperTests extends ESSingleNodeTestCase {
+    private IndexService indexService;
     private DocumentMapperParser parser;
 
     @Before
     public void setup() {
-        IndexService indexService = createIndex("test");
+        indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
     }
 
@@ -365,5 +370,25 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(1, otherFields.length);
         IndexableField field = otherFields[0];
         assertEquals(new BytesRef("placeholder"), field.binaryValue());
+    }
+
+     public void testSplitQueriesOnWhitespace() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "json")
+                        .field("split_queries_on_whitespace", true)
+                    .endObject()
+                .endObject()
+            .endObject().endObject());
+        indexService.mapperService().merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+
+        MappedFieldType fieldType = indexService.mapperService().fullName("field");
+        assertThat(fieldType, instanceOf(JsonFieldMapper.JsonFieldType.class));
+
+        JsonFieldMapper.JsonFieldType ft = (JsonFieldMapper.JsonFieldType) fieldType;
+        assertThat(ft.searchAnalyzer(), equalTo(JsonFieldMapper.WHITESPACE_ANALYZER));
+        assertTokenStreamContents(ft.searchAnalyzer().analyzer().tokenStream("", "Hello World"), new String[] {"Hello", "World"});
     }
 }

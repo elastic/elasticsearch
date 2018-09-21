@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -33,12 +34,15 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
@@ -65,6 +69,8 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 public final class JsonFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "json";
+    public static final NamedAnalyzer WHITESPACE_ANALYZER = new NamedAnalyzer(
+        "whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer());
 
     private static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new JsonFieldType();
@@ -110,6 +116,11 @@ public final class JsonFieldMapper extends FieldMapper {
             return this;
         }
 
+        public Builder splitQueriesOnWhitespace(boolean splitQueriesOnWhitespace) {
+            fieldType().setSplitQueriesOnWhitespace(splitQueriesOnWhitespace);
+            return builder;
+        }
+
         public Builder addMultiField(Mapper.Builder mapperBuilder) {
             throw new UnsupportedOperationException("[fields] is not supported for [" + CONTENT_TYPE + "] fields.");
         }
@@ -122,6 +133,9 @@ public final class JsonFieldMapper extends FieldMapper {
         @Override
         public JsonFieldMapper build(BuilderContext context) {
             setupFieldType(context);
+            if (fieldType().splitQueriesOnWhitespace()) {
+                fieldType().setSearchAnalyzer(WHITESPACE_ANALYZER);
+            }
             return new JsonFieldMapper(name, fieldType, defaultFieldType,
                 ignoreAbove, context.indexSettings());
         }
@@ -148,6 +162,10 @@ public final class JsonFieldMapper extends FieldMapper {
                     }
                     builder.nullValue(propNode.toString());
                     iterator.remove();
+                } else if (propName.equals("split_queries_on_whitespace")) {
+                    builder.splitQueriesOnWhitespace
+                        (XContentMapValues.nodeBooleanValue(propNode, "split_queries_on_whitespace"));
+                    iterator.remove();
                 }
             }
             return builder;
@@ -155,6 +173,7 @@ public final class JsonFieldMapper extends FieldMapper {
     }
 
     public static final class JsonFieldType extends StringFieldType {
+        private boolean splitQueriesOnWhitespace;
 
         public JsonFieldType() {
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
@@ -163,6 +182,21 @@ public final class JsonFieldMapper extends FieldMapper {
 
         private JsonFieldType(JsonFieldType ref) {
             super(ref);
+            this.splitQueriesOnWhitespace = ref.splitQueriesOnWhitespace;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            if (!super.equals(o)) return false;
+            JsonFieldType that = (JsonFieldType) o;
+            return splitQueriesOnWhitespace == that.splitQueriesOnWhitespace;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), splitQueriesOnWhitespace);
         }
 
         public JsonFieldType clone() {
@@ -172,6 +206,15 @@ public final class JsonFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        public boolean splitQueriesOnWhitespace() {
+            return splitQueriesOnWhitespace;
+        }
+
+        public void setSplitQueriesOnWhitespace(boolean splitQueriesOnWhitespace) {
+            checkIfFrozen();
+            this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
         }
 
         @Override
@@ -269,6 +312,10 @@ public final class JsonFieldMapper extends FieldMapper {
 
         if (includeDefaults || ignoreAbove != Defaults.IGNORE_ABOVE) {
             builder.field("ignore_above", ignoreAbove);
+        }
+
+        if (includeDefaults || fieldType().splitQueriesOnWhitespace()) {
+            builder.field("split_queries_on_whitespace", fieldType().splitQueriesOnWhitespace());
         }
     }
 }

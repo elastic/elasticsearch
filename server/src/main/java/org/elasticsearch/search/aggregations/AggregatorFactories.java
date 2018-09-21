@@ -467,6 +467,9 @@ public class AggregatorFactories {
             Builder other = (Builder) obj;
 
             // compare aggregations independent of their order
+            if (aggregationBuilders.size() != other.aggregationBuilders.size()
+                    || pipelineAggregatorBuilders.size() != other.pipelineAggregatorBuilders.size())
+                return false;
             if (!aggregationBuilders.containsAll(other.aggregationBuilders))
                 return false;
             if (!pipelineAggregatorBuilders.containsAll(other.pipelineAggregatorBuilders))

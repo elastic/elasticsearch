@@ -635,7 +635,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith(".monitoring-")) {
             return true;
         }
-        if (name.startsWith(".watch-history-")) {
+        if (name.startsWith(".watch") || name.startsWith(".triggered_watches")) {
             return true;
         }
         if (name.startsWith(".ml-")) {

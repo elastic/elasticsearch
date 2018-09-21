@@ -257,10 +257,10 @@ public class    MatchQuery {
         assert analyzer != null;
 
         /*
-         * For untokenized fields that use a keyword analyzer, we know that further
-         * analysis isn't needed and can immediately return a term query.
+         * If a keyword analyzer is used, we know that further analysis isn't
+         * needed and can immediately return a term query.
          */
-        if (fieldType.tokenized() == false && analyzer == Lucene.KEYWORD_ANALYZER) {
+        if (analyzer == Lucene.KEYWORD_ANALYZER) {
             return blendTermQuery(new Term(fieldName, value.toString()), fieldType);
         }
 

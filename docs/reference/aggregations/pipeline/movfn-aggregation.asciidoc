@@ -36,7 +36,7 @@ embedded like any other metric aggregation:
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
     "size": 0,
     "aggs": {
@@ -138,7 +138,7 @@ For example, this script will simply return the first value from the window, or 
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
     "size": 0,
     "aggs": {
@@ -195,7 +195,7 @@ is only calculated over the real values. If the window is empty, or all values a
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
     "size": 0,
     "aggs": {
@@ -236,7 +236,7 @@ is only calculated over the real values. If the window is empty, or all values a
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
     "size": 0,
     "aggs": {
@@ -277,7 +277,7 @@ the sum is only calculated over the real values.  If the window is empty, or all
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
     "size": 0,
     "aggs": {
@@ -320,7 +320,7 @@ This function accepts a collection of doubles and average, then returns the stan
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
     "size": 0,
     "aggs": {
@@ -370,7 +370,7 @@ values.
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
     "size": 0,
     "aggs": {
@@ -414,7 +414,7 @@ If the window is empty, or all values are `null`/`NaN`, `NaN` is returned as the
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
     "size": 0,
     "aggs": {
@@ -464,7 +464,7 @@ values.
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
     "size": 0,
     "aggs": {
@@ -520,7 +520,7 @@ values.
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
     "size": 0,
     "aggs": {
@@ -584,7 +584,7 @@ values.
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
     "size": 0,
     "aggs": {

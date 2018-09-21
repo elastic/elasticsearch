@@ -27,7 +27,7 @@ PUT my_index/_doc/1
   "my_field": 5
 }
 
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "script_fields": {
     "my_doubled_field": {
@@ -168,7 +168,7 @@ Stored scripts can be used by specifying the `id` parameters as follows:
 
 [source,js]
 --------------------------------------------------
-GET _search
+GET _search?include_type_name=false
 {
   "query": {
     "script": {

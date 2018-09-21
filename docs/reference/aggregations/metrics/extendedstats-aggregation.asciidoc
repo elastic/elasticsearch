@@ -9,7 +9,7 @@ Assuming the data consists of documents representing exams grades (between 0 and
 
 [source,js]
 --------------------------------------------------
-GET /exams/_search
+GET /exams/_search?include_type_name=false
 {
     "size": 0,
     "aggs" : {
@@ -57,7 +57,7 @@ three standard deviations, you can set `sigma` in the request:
 
 [source,js]
 --------------------------------------------------
-GET /exams/_search
+GET /exams/_search?include_type_name=false
 {
     "size": 0,
     "aggs" : {
@@ -91,7 +91,7 @@ Computing the grades stats based on a script:
 
 [source,js]
 --------------------------------------------------
-GET /exams/_search
+GET /exams/_search?include_type_name=false
 {
     "size": 0,
     "aggs" : {
@@ -113,7 +113,7 @@ This will interpret the `script` parameter as an `inline` script with the `painl
 
 [source,js]
 --------------------------------------------------
-GET /exams/_search
+GET /exams/_search?include_type_name=false
 {
     "size": 0,
     "aggs" : {
@@ -139,7 +139,7 @@ It turned out that the exam was way above the level of the students and a grade 
 
 [source,js]
 --------------------------------------------------
-GET /exams/_search
+GET /exams/_search?include_type_name=false
 {
     "size": 0,
     "aggs" : {
@@ -169,7 +169,7 @@ had a value.
 
 [source,js]
 --------------------------------------------------
-GET /exams/_search
+GET /exams/_search?include_type_name=false
 {
     "size": 0,
     "aggs" : {

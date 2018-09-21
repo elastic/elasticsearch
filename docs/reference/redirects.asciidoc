@@ -377,7 +377,7 @@ the following:
 [source,js]
 -------------------------
 ## INCORRECT - DEPRECATED SYNTAX, DO NOT USE
-GET _search
+GET _search?include_type_name=false
 {
   "query": {
     "filtered": {
@@ -402,7 +402,7 @@ query:
 
 [source,js]
 -------------------------
-GET _search
+GET _search?include_type_name=false
 {
   "query": {
     "bool": {

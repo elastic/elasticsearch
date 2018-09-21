@@ -12,7 +12,7 @@ Requesting a target of 10 buckets.
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search?size=0
+POST /sales/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "sales_over_time" : {
@@ -39,7 +39,7 @@ TIP: If no `format` is specified, then it will use the first date
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search?size=0
+POST /sales/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "sales_over_time" : {
@@ -121,22 +121,22 @@ Consider the following example:
 
 [source,js]
 ---------------------------------
-PUT my_index/log/1?refresh
+PUT my_index/_doc/1?refresh&include_type_name=false
 {
   "date": "2015-10-01T00:30:00Z"
 }
 
-PUT my_index/log/2?refresh
+PUT my_index/_doc/2?refresh&include_type_name=false
 {
   "date": "2015-10-01T01:30:00Z"
 }
 
-PUT my_index/log/3?refresh
+PUT my_index/_doc/3?refresh&include_type_name=false
 {
   "date": "2015-10-01T02:30:00Z"
 }
 
-GET my_index/_search?size=0
+GET my_index/_search?size=0&include_type_name=false
 {
   "aggs": {
     "by_day": {
@@ -188,7 +188,7 @@ midnight UTC:
 
 [source,js]
 ---------------------------------
-GET my_index/_search?size=0
+GET my_index/_search?size=0&include_type_name=false
 {
   "aggs": {
     "by_day": {
@@ -266,7 +266,7 @@ had a value.
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search?size=0
+POST /sales/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "sale_date" : {

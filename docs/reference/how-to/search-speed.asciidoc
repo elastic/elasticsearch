@@ -50,22 +50,20 @@ field.
 
 [source,js]
 --------------------------------------------------
-PUT movies
+PUT movies?include_type_name=false
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "name_and_plot": {
-          "type": "text"
-        },
-        "name": {
-          "type": "text",
-          "copy_to": "name_and_plot"
-        },
-        "plot": {
-          "type": "text",
-          "copy_to": "name_and_plot"
-        }
+    "properties": {
+      "name_and_plot": {
+        "type": "text"
+      },
+      "name": {
+        "type": "text",
+        "copy_to": "name_and_plot"
+      },
+      "plot": {
+        "type": "text",
+        "copy_to": "name_and_plot"
       }
     }
   }
@@ -87,7 +85,7 @@ For instance, if documents look like:
 
 [source,js]
 --------------------------------------------------
-PUT index/_doc/1
+PUT index/_doc/1?include_type_name=false
 {
   "designation": "spoon",
   "price": 13
@@ -99,7 +97,7 @@ and search requests look like:
 
 [source,js]
 --------------------------------------------------
-GET index/_search
+GET index/_search?include_type_name=false
 {
   "aggs": {
     "price_ranges": {
@@ -123,20 +121,18 @@ should be mapped as a <<keyword,`keyword`>>:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=false
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "price_range": {
-          "type": "keyword"
-        }
+    "properties": {
+      "price_range": {
+        "type": "keyword"
       }
     }
   }
 }
 
-PUT index/_doc/1
+PUT index/_doc/1?include_type_name=false
 {
   "designation": "spoon",
   "price": 13,
@@ -150,7 +146,7 @@ And then search requests could aggregate this new field rather than running a
 
 [source,js]
 --------------------------------------------------
-GET index/_search
+GET index/_search?include_type_name=false
 {
   "aggs": {
     "price_ranges": {
@@ -193,12 +189,12 @@ For instance the below query:
 
 [source,js]
 --------------------------------------------------
-PUT index/_doc/1
+PUT index/_doc/1?include_type_name=false
 {
   "my_date": "2016-05-11T16:30:55.328Z"
 }
 
-GET index/_search
+GET index/_search?include_type_name=false
 {
   "query": {
     "constant_score": {
@@ -220,7 +216,7 @@ could be replaced with the following query:
 
 [source,js]
 --------------------------------------------------
-GET index/_search
+GET index/_search?include_type_name=false
 {
   "query": {
     "constant_score": {
@@ -254,7 +250,7 @@ as shown below:
 
 [source,js]
 --------------------------------------------------
-GET index/_search
+GET index/_search?include_type_name=false
 {
   "query": {
     "constant_score": {
@@ -322,15 +318,13 @@ eagerly at refresh-time by configuring mappings as described below:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=false
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "foo": {
-          "type": "keyword",
-          "eager_global_ordinals": true
-        }
+    "properties": {
+      "foo": {
+        "type": "keyword",
+        "eager_global_ordinals": true
       }
     }
   }

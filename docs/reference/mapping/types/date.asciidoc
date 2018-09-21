@@ -52,7 +52,7 @@ PUT my_index/_doc/2
 PUT my_index/_doc/3
 { "date": 1420070400001 } <4>
 
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "sort": { "date": "asc"} <5>
 }

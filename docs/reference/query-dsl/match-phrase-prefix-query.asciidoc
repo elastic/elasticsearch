@@ -6,7 +6,7 @@ allows for prefix matches on the last term in the text. For example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "match_phrase_prefix" : {
@@ -25,7 +25,7 @@ example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "match_phrase_prefix" : {

@@ -7,7 +7,7 @@ them, and constructs a query. For example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "match" : {
@@ -61,7 +61,7 @@ change in structure, `message` is the field name):
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "match" : {
@@ -84,7 +84,7 @@ change that the `zero_terms_query` option can be used, which accepts
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "match" : {
@@ -125,7 +125,7 @@ Here is an example showing a query composed of stopwords exclusively:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "match" : {
@@ -156,7 +156,7 @@ It is also possible to match multi terms synonyms with conjunctions instead:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
    "query": {
        "match" : {

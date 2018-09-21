@@ -6,7 +6,7 @@ in the inverted index.  For instance:
 
 [source,js]
 --------------------------------------------------
-POST _search
+POST _search?include_type_name=false
 {
   "query": {
     "term" : { "user" : "Kimchy" } <1>
@@ -22,7 +22,7 @@ relevance score than another query, for instance:
 
 [source,js]
 --------------------------------------------------
-GET _search
+GET _search?include_type_name=false
 {
   "query": {
     "bool": {
@@ -120,7 +120,7 @@ Now, compare the results for the `term` query and the `match` query:
 
 [source,js]
 --------------------------------------------------
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "query": {
     "term": {
@@ -129,7 +129,7 @@ GET my_index/_search
   }
 }
 
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "query": {
     "term": {
@@ -138,7 +138,7 @@ GET my_index/_search
   }
 }
 
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "query": {
     "term": {
@@ -147,7 +147,7 @@ GET my_index/_search
   }
 }
 
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "query": {
     "match": {

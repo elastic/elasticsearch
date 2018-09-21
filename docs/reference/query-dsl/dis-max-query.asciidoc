@@ -27,7 +27,7 @@ This query maps to Lucene `DisjunctionMaxQuery`.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "dis_max" : {

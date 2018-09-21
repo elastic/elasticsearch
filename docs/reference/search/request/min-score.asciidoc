@@ -6,7 +6,7 @@ in `min_score`:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "min_score": 0.5,
     "query" : {

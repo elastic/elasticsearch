@@ -6,7 +6,7 @@ query using the <<query-dsl,Query DSL>>.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query" : {
         "term" : { "user" : "kimchy" }

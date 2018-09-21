@@ -17,7 +17,7 @@ Any `_search` request can be profiled by adding a top-level `profile` parameter:
 
 [source,js]
 --------------------------------------------------
-GET /twitter/_search
+GET /twitter/_search?include_type_name=false
 {
   "profile": true,<1>
   "query" : {
@@ -490,7 +490,7 @@ To demonstrate a slightly more complex query and the associated results, we can 
 
 [source,js]
 --------------------------------------------------
-GET /twitter/_search
+GET /twitter/_search?include_type_name=false
 {
   "profile": true,
   "query": {
@@ -683,7 +683,7 @@ execute the previous query again and look at the aggregation profile this time:
 
 [source,js]
 --------------------------------------------------
-GET /twitter/_search
+GET /twitter/_search?include_type_name=false
 {
   "profile": true,
   "query": {

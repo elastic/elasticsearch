@@ -24,7 +24,7 @@ Let's look at a range of percentiles representing load time:
 
 [source,js]
 --------------------------------------------------
-GET latency/_search
+GET latency/_search?include_type_name=false
 {
     "size": 0,
     "aggs" : {
@@ -69,7 +69,7 @@ By default the `keyed` flag is set to `true` associates a unique string key with
 
 [source,js]
 --------------------------------------------------
-GET latency/_search
+GET latency/_search?include_type_name=false
 {
     "size": 0,
     "aggs": {
@@ -120,7 +120,7 @@ a script to convert them on-the-fly:
 
 [source,js]
 --------------------------------------------------
-GET latency/_search
+GET latency/_search?include_type_name=false
 {
     "size": 0,
     "aggs" : {
@@ -149,7 +149,7 @@ This will interpret the `script` parameter as an `inline` script with the `painl
 
 [source,js]
 --------------------------------------------------
-GET latency/_search
+GET latency/_search?include_type_name=false
 {
     "size": 0,
     "aggs" : {
@@ -185,7 +185,7 @@ The HDR Histogram can be used by specifying the `method` parameter in the reques
 
 [source,js]
 --------------------------------------------------
-GET latency/_search
+GET latency/_search?include_type_name=false
 {
     "size": 0,
     "aggs" : {
@@ -217,7 +217,7 @@ had a value.
 
 [source,js]
 --------------------------------------------------
-GET latency/_search
+GET latency/_search?include_type_name=false
 {
     "size": 0,
     "aggs" : {

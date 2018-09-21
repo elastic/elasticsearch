@@ -41,7 +41,7 @@ For example:
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
    "query" : {
       "match" : {
@@ -89,7 +89,7 @@ It is also possible to execute multiple rescores in sequence:
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
    "query" : {
       "match" : {

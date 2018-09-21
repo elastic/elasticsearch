@@ -5,7 +5,7 @@ Returns a version for each search hit.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "version": true,
     "query" : {

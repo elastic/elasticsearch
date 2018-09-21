@@ -9,7 +9,7 @@ Assume you are indexing store sales and would like to count the unique number of
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search?size=0
+POST /sales/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "type_count" : {
@@ -44,7 +44,7 @@ This aggregation also supports the `precision_threshold` option:
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search?size=0
+POST /sales/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "type_count" : {
@@ -177,7 +177,7 @@ however since hashes need to be computed on the fly.
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search?size=0
+POST /sales/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "type_promoted_count" : {
@@ -198,7 +198,7 @@ This will interpret the `script` parameter as an `inline` script with the `painl
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search?size=0
+POST /sales/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "type_promoted_count" : {
@@ -226,7 +226,7 @@ had a value.
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search?size=0
+POST /sales/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "tag_cardinality" : {

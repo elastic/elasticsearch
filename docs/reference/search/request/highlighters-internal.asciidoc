@@ -119,7 +119,7 @@ And we ran the following query with a highlight request:
 
 [source,js]
 --------------------------------------------------
-GET test_index/_search
+GET test_index/_search?include_type_name=false
 {
     "query": {
         "match_phrase" : {"content" : "only fox"}

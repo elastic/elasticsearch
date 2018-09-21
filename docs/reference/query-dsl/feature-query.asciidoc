@@ -27,27 +27,25 @@ based or `pagerank`, `url_length` and the `sports` topic.
 
 [source,js]
 --------------------------------------------------
-PUT test
+PUT test?include_type_name=false
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "pagerank": {
-          "type": "feature"
-        },
-        "url_length": {
-          "type": "feature",
-          "positive_score_impact": false
-        },
-        "topics": {
-          "type": "feature_vector"
-        }
+    "properties": {
+      "pagerank": {
+        "type": "feature"
+      },
+      "url_length": {
+        "type": "feature",
+        "positive_score_impact": false
+      },
+      "topics": {
+        "type": "feature_vector"
       }
     }
   }
 }
 
-PUT test/_doc/1
+PUT test/_doc/1?include_type_name=false
 {
   "url": "http://en.wikipedia.org/wiki/2016_Summer_Olympics",
   "content": "Rio 2016",
@@ -59,7 +57,7 @@ PUT test/_doc/1
   }
 }
 
-PUT test/_doc/2
+PUT test/_doc/2?include_type_name=false
 {
   "url": "http://en.wikipedia.org/wiki/2016_Brazilian_Grand_Prix",
   "content": "Formula One motor race held on 13 November 2016 at the Autódromo José Carlos Pace in São Paulo, Brazil",
@@ -72,7 +70,7 @@ PUT test/_doc/2
   }
 }
 
-PUT test/_doc/3
+PUT test/_doc/3?include_type_name=false
 {
   "url": "http://en.wikipedia.org/wiki/Deadpool_(film)",
   "content": "Deadpool is a 2016 American superhero film",
@@ -86,7 +84,7 @@ PUT test/_doc/3
 
 POST test/_refresh
 
-GET test/_search 
+GET test/_search?include_type_name=false
 {
   "query": {
     "bool": {
@@ -143,7 +141,7 @@ If the feature has a negative score impact then the function will be computed as
 
 [source,js]
 --------------------------------------------------
-GET test/_search
+GET test/_search?include_type_name=false
 {
   "query": {
     "feature": {
@@ -165,7 +163,7 @@ train a good pivot value.
 
 [source,js]
 --------------------------------------------------
-GET test/_search
+GET test/_search?include_type_name=false
 {
   "query": {
     "feature": {
@@ -189,7 +187,7 @@ This function only supports features that have a positive score impact.
 
 [source,js]
 --------------------------------------------------
-GET test/_search
+GET test/_search?include_type_name=false
 {
   "query": {
     "feature": {
@@ -218,7 +216,7 @@ that you stick to the `saturation` function instead.
 
 [source,js]
 --------------------------------------------------
-GET test/_search
+GET test/_search?include_type_name=false
 {
   "query": {
     "feature": {

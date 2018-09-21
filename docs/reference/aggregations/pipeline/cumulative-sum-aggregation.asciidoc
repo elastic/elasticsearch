@@ -31,7 +31,7 @@ The following snippet calculates the cumulative sum of the total monthly `sales`
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search
+POST /sales/_search?include_type_name=false
 {
     "size": 0,
     "aggs" : {

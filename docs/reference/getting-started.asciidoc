@@ -375,7 +375,7 @@ Now let's create an index named "customer" and then list all the indexes again:
 
 [source,js]
 --------------------------------------------------
-PUT /customer?pretty
+PUT /customer?pretty&include_type_name=false
 GET /_cat/indices?v
 --------------------------------------------------
 // CONSOLE
@@ -401,7 +401,7 @@ Let's now put something into our customer index. We'll index a simple customer d
 
 [source,js]
 --------------------------------------------------
-PUT /customer/_doc/1?pretty
+PUT /customer/_doc/1?pretty&include_type_name=false
 {
   "name": "John Doe"
 }
@@ -414,7 +414,6 @@ And the response:
 --------------------------------------------------
 {
   "_index" : "customer",
-  "_type" : "_doc",
   "_id" : "1",
   "_version" : 1,
   "result" : "created",
@@ -437,7 +436,7 @@ Let's now retrieve that document that we just indexed:
 
 [source,js]
 --------------------------------------------------
-GET /customer/_doc/1?pretty
+GET /customer/_doc/1?pretty&include_type_name=false
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -448,7 +447,6 @@ And the response:
 --------------------------------------------------
 {
   "_index" : "customer",
-  "_type" : "_doc",
   "_id" : "1",
   "_version" : 1,
   "found" : true,
@@ -485,12 +483,12 @@ Before we move on, let's take a closer look again at some of the API commands th
 
 [source,js]
 --------------------------------------------------
-PUT /customer
-PUT /customer/_doc/1
+PUT /customer?include_type_name=false
+PUT /customer/_doc/1?include_type_name=false
 {
   "name": "John Doe"
 }
-GET /customer/_doc/1
+GET /customer/_doc/1?include_type_name=false
 DELETE /customer
 --------------------------------------------------
 // CONSOLE
@@ -516,7 +514,7 @@ We've previously seen how we can index a single document. Let's recall that comm
 
 [source,js]
 --------------------------------------------------
-PUT /customer/_doc/1?pretty
+PUT /customer/_doc/1?pretty&include_type_name=false
 {
   "name": "John Doe"
 }
@@ -527,7 +525,7 @@ Again, the above will index the specified document into the customer index, with
 
 [source,js]
 --------------------------------------------------
-PUT /customer/_doc/1?pretty
+PUT /customer/_doc/1?pretty&include_type_name=false
 {
   "name": "Jane Doe"
 }
@@ -539,7 +537,7 @@ The above changes the name of the document with the ID of 1 from "John Doe" to "
 
 [source,js]
 --------------------------------------------------
-PUT /customer/_doc/2?pretty
+PUT /customer/_doc/2?pretty&include_type_name=false
 {
   "name": "Jane Doe"
 }
@@ -555,7 +553,7 @@ This example shows how to index a document without an explicit ID:
 
 [source,js]
 --------------------------------------------------
-POST /customer/_doc?pretty
+POST /customer/_doc?pretty&include_type_name=false
 {
   "name": "Jane Doe"
 }
@@ -573,7 +571,7 @@ This example shows how to update our previous document (ID of 1) by changing the
 
 [source,js]
 --------------------------------------------------
-POST /customer/_doc/1/_update?pretty
+POST /customer/_doc/1/_update?pretty&include_type_name=false
 {
   "doc": { "name": "Jane Doe" }
 }
@@ -585,7 +583,7 @@ This example shows how to update our previous document (ID of 1) by changing the
 
 [source,js]
 --------------------------------------------------
-POST /customer/_doc/1/_update?pretty
+POST /customer/_doc/1/_update?pretty&include_type_name=false
 {
   "doc": { "name": "Jane Doe", "age": 20 }
 }
@@ -597,7 +595,7 @@ Updates can also be performed by using simple scripts. This example uses a scrip
 
 [source,js]
 --------------------------------------------------
-POST /customer/_doc/1/_update?pretty
+POST /customer/_doc/1/_update?pretty&include_type_name=false
 {
   "script" : "ctx._source.age += 5"
 }
@@ -615,7 +613,7 @@ Deleting a document is fairly straightforward. This example shows how to delete 
 
 [source,js]
 --------------------------------------------------
-DELETE /customer/_doc/2?pretty
+DELETE /customer/_doc/2?pretty&include_type_name=false
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -632,7 +630,7 @@ As a quick example, the following call indexes two documents (ID 1 - John Doe an
 
 [source,js]
 --------------------------------------------------
-POST /customer/_doc/_bulk?pretty
+POST /customer/_bulk?pretty&include_type_name=false
 {"index":{"_id":"1"}}
 {"name": "John Doe" }
 {"index":{"_id":"2"}}
@@ -644,7 +642,7 @@ This example updates the first document (ID of 1) and then deletes the second do
 
 [source,sh]
 --------------------------------------------------
-POST /customer/_doc/_bulk?pretty
+POST /customer/_bulk?pretty&include_type_name=false
 {"update":{"_id":"1"}}
 {"doc": { "name": "John Doe becomes Jane Doe" } }
 {"delete":{"_id":"2"}}
@@ -690,7 +688,7 @@ You can download the sample dataset (accounts.json) from https://github.com/elas
 
 [source,sh]
 --------------------------------------------------
-curl -H "Content-Type: application/json" -XPOST "localhost:9200/bank/_doc/_bulk?pretty&refresh" --data-binary "@accounts.json"
+curl -H "Content-Type: application/json" -XPOST "localhost:9200/bank/_bulk?pretty&refresh&include_type_name=false" --data-binary "@accounts.json"
 curl "localhost:9200/_cat/indices?v"
 --------------------------------------------------
 // NOTCONSOLE
@@ -727,7 +725,7 @@ The REST API for search is accessible from the `_search` endpoint. This example 
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search?q=*&sort=account_number:asc&pretty
+GET /bank/_search?q=*&sort=account_number:asc&pretty&include_type_name=false
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -752,14 +750,12 @@ And the response (partially shown):
     "max_score" : null,
     "hits" : [ {
       "_index" : "bank",
-      "_type" : "_doc",
       "_id" : "0",
       "sort": [0],
       "_score" : null,
       "_source" : {"account_number":0,"balance":16623,"firstname":"Bradshaw","lastname":"Mckenzie","age":29,"gender":"F","address":"244 Columbus Place","employer":"Euron","email":"bradshawmckenzie@euron.com","city":"Hobucken","state":"CO"}
     }, {
       "_index" : "bank",
-      "_type" : "_doc",
       "_id" : "1",
       "sort": [1],
       "_score" : null,
@@ -787,7 +783,7 @@ Here is the same exact search above using the alternative request body method:
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+GET /bank/_search?include_type_name=false
 {
   "query": { "match_all": {} },
   "sort": [
@@ -820,14 +816,12 @@ to clutter the docs with it:
     "max_score": null,
     "hits" : [ {
       "_index" : "bank",
-      "_type" : "_doc",
       "_id" : "0",
       "sort": [0],
       "_score": null,
       "_source" : {"account_number":0,"balance":16623,"firstname":"Bradshaw","lastname":"Mckenzie","age":29,"gender":"F","address":"244 Columbus Place","employer":"Euron","email":"bradshawmckenzie@euron.com","city":"Hobucken","state":"CO"}
     }, {
       "_index" : "bank",
-      "_type" : "_doc",
       "_id" : "1",
       "sort": [1],
       "_score": null,
@@ -852,7 +846,7 @@ Going back to our last example, we executed this query:
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+GET /bank/_search?include_type_name=false
 {
   "query": { "match_all": {} }
 }
@@ -868,7 +862,7 @@ influence the search results. In the example in the section above we passed in
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+GET /bank/_search?include_type_name=false
 {
   "query": { "match_all": {} },
   "size": 1
@@ -883,7 +877,7 @@ This example does a `match_all` and returns documents 10 through 19:
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+GET /bank/_search?include_type_name=false
 {
   "query": { "match_all": {} },
   "from": 10,
@@ -899,7 +893,7 @@ This example does a `match_all` and sorts the results by account balance in desc
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+GET /bank/_search?include_type_name=false
 {
   "query": { "match_all": {} },
   "sort": { "balance": { "order": "desc" } }
@@ -916,7 +910,7 @@ This example shows how to return two fields, `account_number` and `balance` (ins
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+GET /bank/_search?include_type_name=false
 {
   "query": { "match_all": {} },
   "_source": ["account_number", "balance"]
@@ -935,7 +929,7 @@ This example returns the account numbered 20:
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+GET /bank/_search?include_type_name=false
 {
   "query": { "match": { "account_number": 20 } }
 }
@@ -947,7 +941,7 @@ This example returns all accounts containing the term "mill" in the address:
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+GET /bank/_search?include_type_name=false
 {
   "query": { "match": { "address": "mill" } }
 }
@@ -959,7 +953,7 @@ This example returns all accounts containing the term "mill" or "lane" in the ad
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+GET /bank/_search?include_type_name=false
 {
   "query": { "match": { "address": "mill lane" } }
 }
@@ -971,7 +965,7 @@ This example is a variant of `match` (`match_phrase`) that returns all accounts 
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+GET /bank/_search?include_type_name=false
 {
   "query": { "match_phrase": { "address": "mill lane" } }
 }
@@ -985,7 +979,7 @@ This example composes two `match` queries and returns all accounts containing "m
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+GET /bank/_search?include_type_name=false
 {
   "query": {
     "bool": {
@@ -1006,7 +1000,7 @@ In contrast, this example composes two `match` queries and returns all accounts 
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+GET /bank/_search?include_type_name=false
 {
   "query": {
     "bool": {
@@ -1027,7 +1021,7 @@ This example composes two `match` queries and returns all accounts that contain 
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+GET /bank/_search?include_type_name=false
 {
   "query": {
     "bool": {
@@ -1050,7 +1044,7 @@ This example returns all accounts of anybody who is 40 years old but doesn't liv
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+GET /bank/_search?include_type_name=false
 {
   "query": {
     "bool": {
@@ -1079,7 +1073,7 @@ This example uses a bool query to return all accounts with balances between 2000
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+GET /bank/_search?include_type_name=false
 {
   "query": {
     "bool": {
@@ -1111,7 +1105,7 @@ To start with, this example groups all the accounts by state, and then returns t
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+GET /bank/_search?include_type_name=false
 {
   "size": 0,
   "aggs": {
@@ -1201,7 +1195,7 @@ Building on the previous aggregation, this example calculates the average accoun
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+GET /bank/_search?include_type_name=false
 {
   "size": 0,
   "aggs": {
@@ -1229,7 +1223,7 @@ Building on the previous aggregation, let's now sort on the average balance in d
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+GET /bank/_search?include_type_name=false
 {
   "size": 0,
   "aggs": {
@@ -1258,7 +1252,7 @@ This example demonstrates how we can group by age brackets (ages 20-29, 30-39, a
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+GET /bank/_search?include_type_name=false
 {
   "size": 0,
   "aggs": {

@@ -16,7 +16,7 @@ example, we can search on all documents within the twitter index:
 
 [source,js]
 --------------------------------------------------
-GET /twitter/_search?q=user:kimchy
+GET /twitter/_search?q=user:kimchy&include_type_name=false
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -26,7 +26,7 @@ We can also search all tweets with a certain tag across several indices
 
 [source,js]
 --------------------------------------------------
-GET /kimchy,elasticsearch/_search?q=tag:wow
+GET /kimchy,elasticsearch/_search?q=tag:wow&include_type_name=false
 --------------------------------------------------
 // CONSOLE
 // TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
@@ -36,7 +36,7 @@ placeholder:
 
 [source,js]
 --------------------------------------------------
-GET /_all/_search?q=tag:wow
+GET /_all/_search?q=tag:wow&include_type_name=false
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -45,7 +45,7 @@ Or even search across all indices and all types:
 
 [source,js]
 --------------------------------------------------
-GET /_search?q=tag:wow
+GET /_search?q=tag:wow&include_type_name=false
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]

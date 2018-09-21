@@ -46,7 +46,7 @@ An example that uses the minimum should match field:
 
 [source,js]
 --------------------------------------------------
-GET /my-index/_search
+GET /my-index/_search?include_type_name=false
 {
     "query": {
         "terms_set": {
@@ -79,7 +79,6 @@ Response:
     "hits": [
       {
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "2",
         "_score": 0.87546873,
         "_source": {
@@ -105,7 +104,7 @@ become larger than the number of terms specified:
 
 [source,js]
 --------------------------------------------------
-GET /my-index/_search
+GET /my-index/_search?include_type_name=false
 {
     "query": {
         "terms_set": {

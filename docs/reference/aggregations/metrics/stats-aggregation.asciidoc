@@ -9,7 +9,7 @@ Assuming the data consists of documents representing exams grades (between 0 and
 
 [source,js]
 --------------------------------------------------
-POST /exams/_search?size=0
+POST /exams/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "grades_stats" : { "stats" : { "field" : "grade" } }
@@ -48,7 +48,7 @@ Computing the grades stats based on a script:
 
 [source,js]
 --------------------------------------------------
-POST /exams/_search?size=0
+POST /exams/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "grades_stats" : {
@@ -69,7 +69,7 @@ This will interpret the `script` parameter as an `inline` script with the `painl
 
 [source,js]
 --------------------------------------------------
-POST /exams/_search?size=0
+POST /exams/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "grades_stats" : {
@@ -94,7 +94,7 @@ It turned out that the exam was way above the level of the students and a grade 
 
 [source,js]
 --------------------------------------------------
-POST /exams/_search?size=0
+POST /exams/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "grades_stats" : {
@@ -123,7 +123,7 @@ had a value.
 
 [source,js]
 --------------------------------------------------
-POST /exams/_search?size=0
+POST /exams/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "grades_stats" : {

@@ -6,7 +6,7 @@ to Lucene `SpanFirstQuery`. Here is an example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "span_first" : {

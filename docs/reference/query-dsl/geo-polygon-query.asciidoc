@@ -6,7 +6,7 @@ points. Here is an example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "bool" : {
@@ -54,7 +54,7 @@ conform with http://geojson.org/[GeoJSON].
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "bool" : {
@@ -85,7 +85,7 @@ Format in `lat,lon`.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "bool" : {
@@ -114,7 +114,7 @@ GET /_search
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "bool" : {

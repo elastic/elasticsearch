@@ -147,7 +147,7 @@ You can search for the last 10 events with:
 
 [source,js]
 --------------------------------------------------
-GET /events/_search
+GET /events/_search?include_type_name=false
 {
     "size": 10,
     "sort": [
@@ -169,7 +169,7 @@ to false:
 
 [source,js]
 --------------------------------------------------
-GET /events/_search
+GET /events/_search?include_type_name=false
 {
     "size": 10,
     "sort": [ <1>

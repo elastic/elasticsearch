@@ -11,16 +11,14 @@ For example, let's say we have an index of questions and answers. The answer typ
 
 [source,js]
 --------------------------------------------------
-PUT child_example
+PUT child_example?include_type_name=false
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "join": {
-          "type": "join",
-          "relations": {
-            "question": "answer"
-          }
+    "properties": {
+      "join": {
+        "type": "join",
+        "relations": {
+          "question": "answer"
         }
       }
     }
@@ -37,7 +35,7 @@ An example of a question document:
 
 [source,js]
 --------------------------------------------------
-PUT child_example/_doc/1
+PUT child_example/_doc/1?include_type_name=false
 {
   "join": {
     "name": "question"
@@ -58,7 +56,7 @@ Examples of `answer` documents:
 
 [source,js]
 --------------------------------------------------
-PUT child_example/_doc/2?routing=1
+PUT child_example/_doc/2?routing=1&include_type_name=false
 {
   "join": {
     "name": "answer",
@@ -73,7 +71,7 @@ PUT child_example/_doc/2?routing=1
   "creation_date": "2009-05-04T13:45:37.030"
 }
 
-PUT child_example/_doc/3?routing=1&refresh
+PUT child_example/_doc/3?routing=1&refresh&include_type_name=false
 {
   "join": {
     "name": "answer",
@@ -95,7 +93,7 @@ The following request can be built that connects the two together:
 
 [source,js]
 --------------------------------------------------
-POST child_example/_search?size=0
+POST child_example/_search?size=0&include_type_name=false
 {
   "aggs": {
     "top-tags": {

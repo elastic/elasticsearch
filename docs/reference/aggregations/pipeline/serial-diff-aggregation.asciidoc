@@ -60,7 +60,7 @@ A `serial_diff` aggregation looks like this in isolation:
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
    "size": 0,
    "aggs": {

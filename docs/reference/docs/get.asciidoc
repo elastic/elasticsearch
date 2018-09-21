@@ -7,7 +7,7 @@ twitter, under a type called _doc, with id valued 0:
 
 [source,js]
 --------------------------------------------------
-GET twitter/_doc/0
+GET twitter/_doc/0?include_type_name=false
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -18,7 +18,6 @@ The result of the above get operation is:
 --------------------------------------------------
 {
     "_index" : "twitter",
-    "_type" : "_doc",
     "_id" : "0",
     "_version" : 1,
     "found": true,
@@ -142,7 +141,7 @@ PUT twitter/_doc/1
 
 [source,js]
 --------------------------------------------------
-GET twitter/_doc/1?stored_fields=tags,counter
+GET twitter/_doc/1?stored_fields=tags,counter&include_type_name=false
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -153,7 +152,6 @@ The result of the above get operation is:
 --------------------------------------------------
 {
    "_index": "twitter",
-   "_type": "_doc",
    "_id": "1",
    "_version": 1,
    "found": true,
@@ -174,7 +172,7 @@ It is also possible to retrieve metadata fields like the `_routing` field:
 
 [source,js]
 --------------------------------------------------
-PUT twitter/_doc/2?routing=user1
+PUT twitter/_doc/2?routing=user1&include_type_name=false
 {
     "counter" : 1,
     "tags" : ["white"]
@@ -185,7 +183,7 @@ PUT twitter/_doc/2?routing=user1
 
 [source,js]
 --------------------------------------------------
-GET twitter/_doc/2?routing=user1&stored_fields=tags,counter
+GET twitter/_doc/2?routing=user1&stored_fields=tags,counter&include_type_name=false
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -196,7 +194,6 @@ The result of the above get operation is:
 --------------------------------------------------
 {
    "_index": "twitter",
-   "_type": "_doc",
    "_id": "2",
    "_version": 1,
    "_routing": "user1",
@@ -256,7 +253,7 @@ a document, the routing value should also be provided. For example:
 
 [source,js]
 --------------------------------------------------
-GET twitter/_doc/2?routing=user1
+GET twitter/_doc/2?routing=user1&include_type_name=false
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

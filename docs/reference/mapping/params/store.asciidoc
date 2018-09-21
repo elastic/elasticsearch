@@ -46,7 +46,7 @@ PUT my_index/_doc/1
   "content": "A very long content field..."
 }
 
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "stored_fields": [ "title", "date" ] <2>
 }

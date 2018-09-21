@@ -21,7 +21,7 @@ The following snippet "buckets" the products based on their `price` by interval 
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search?size=0
+POST /sales/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "prices" : {
@@ -80,7 +80,7 @@ a higher minimum count thanks to the `min_doc_count` setting:
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search?size=0
+POST /sales/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "prices" : {
@@ -156,7 +156,7 @@ Example:
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search?size=0
+POST /sales/_search?size=0&include_type_name=false
 {
     "query" : {
         "constant_score" : { "filter": { "range" : { "price" : { "to" : "500" } } } }
@@ -199,7 +199,7 @@ instead keyed by the buckets keys:
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search?size=0
+POST /sales/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "prices" : {
@@ -259,7 +259,7 @@ had a value.
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search?size=0
+POST /sales/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "quantity" : {

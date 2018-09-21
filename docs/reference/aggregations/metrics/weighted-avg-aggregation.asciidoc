@@ -47,7 +47,7 @@ we can calculate the weighted average using:
 
 [source,js]
 --------------------------------------------------
-POST /exams/_search
+POST /exams/_search?include_type_name=false
 {
     "size": 0,
     "aggs" : {
@@ -100,7 +100,7 @@ POST /exams/_doc?refresh
     "weight": 2
 }
 
-POST /exams/_search
+POST /exams/_search?include_type_name=false
 {
     "size": 0,
     "aggs" : {
@@ -145,7 +145,7 @@ will add one to the grade and weight in the document using a script:
 
 [source,js]
 --------------------------------------------------
-POST /exams/_search
+POST /exams/_search?include_type_name=false
 {
     "size": 0,
     "aggs" : {
@@ -178,7 +178,7 @@ Both of these defaults can be overridden with the `missing` parameter:
 
 [source,js]
 --------------------------------------------------
-POST /exams/_search
+POST /exams/_search?include_type_name=false
 {
     "size": 0,
     "aggs" : {

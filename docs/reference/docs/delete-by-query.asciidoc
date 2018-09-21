@@ -467,7 +467,7 @@ Which you can verify works with:
 [source,js]
 ----------------------------------------------------------------
 GET _refresh
-POST twitter/_search?size=0&filter_path=hits.total
+POST twitter/_search?size=0&filter_path=hits.total&include_type_name=false
 {
   "query": {
     "range": {
@@ -521,7 +521,7 @@ Which you also can verify works with:
 
 [source,js]
 ----------------------------------------------------------------
-POST twitter/_search?size=0&filter_path=hits.total
+POST twitter/_search?size=0&filter_path=hits.total&include_type_name=false
 {
   "query": {
     "range": {

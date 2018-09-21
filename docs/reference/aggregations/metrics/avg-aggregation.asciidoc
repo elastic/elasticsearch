@@ -8,7 +8,7 @@ and 100) of students we can average their scores with:
 
 [source,js]
 --------------------------------------------------
-POST /exams/_search?size=0
+POST /exams/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "avg_grade" : { "avg" : { "field" : "grade" } }
@@ -41,7 +41,7 @@ Computing the average grade based on a script:
 
 [source,js]
 --------------------------------------------------
-POST /exams/_search?size=0
+POST /exams/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "avg_grade" : {
@@ -61,7 +61,7 @@ This will interpret the `script` parameter as an `inline` script with the `painl
 
 [source,js]
 --------------------------------------------------
-POST /exams/_search?size=0
+POST /exams/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "avg_grade" : {
@@ -86,7 +86,7 @@ It turned out that the exam was way above the level of the students and a grade 
 
 [source,js]
 --------------------------------------------------
-POST /exams/_search?size=0
+POST /exams/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "avg_corrected_grade" : {
@@ -115,7 +115,7 @@ had a value.
 
 [source,js]
 --------------------------------------------------
-POST /exams/_search?size=0
+POST /exams/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "grade_avg" : {

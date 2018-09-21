@@ -920,7 +920,7 @@ You can verify this works by:
 [source,js]
 ----------------------------------------------------------------
 GET _refresh
-POST new_twitter/_search?size=0&filter_path=hits.total
+POST new_twitter/_search?size=0&filter_path=hits.total&include_type_name=false
 ----------------------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -963,7 +963,7 @@ You can also this verify works by:
 
 [source,js]
 ----------------------------------------------------------------
-POST new_twitter/_search?size=0&filter_path=hits.total
+POST new_twitter/_search?size=0&filter_path=hits.total&include_type_name=false
 ----------------------------------------------------------------
 // CONSOLE
 // TEST[continued]

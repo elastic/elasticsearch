@@ -24,17 +24,15 @@ which indexes the field values for fast completions.
 
 [source,js]
 --------------------------------------------------
-PUT music
+PUT music?include_type_name=false
 {
     "mappings": {
-        "_doc" : {
-            "properties" : {
-                "suggest" : {
-                    "type" : "completion"
-                },
-                "title" : {
-                    "type": "keyword"
-                }
+        "properties" : {
+            "suggest" : {
+                "type" : "completion"
+            },
+            "title" : {
+                "type": "keyword"
             }
         }
     }
@@ -86,7 +84,7 @@ the suggestions will be scored. Indexing a suggestion is as follows:
 
 [source,js]
 --------------------------------------------------
-PUT music/_doc/1?refresh
+PUT music/_doc/1?refresh&include_type_name=false
 {
     "suggest" : {
         "input": [ "Nevermind", "Nirvana" ],
@@ -112,7 +110,7 @@ You can index multiple suggestions for a document as follows:
 
 [source,js]
 --------------------------------------------------
-PUT music/_doc/1?refresh
+PUT music/_doc/1?refresh&include_type_name=false
 {
     "suggest" : [
         {
@@ -134,7 +132,7 @@ a weight with suggestion(s) in the shorthand form.
 
 [source,js]
 --------------------------------------------------
-PUT music/_doc/1?refresh
+PUT music/_doc/1?refresh&include_type_name=false
 {
   "suggest" : [ "Nevermind", "Nirvana" ]
 }
@@ -152,7 +150,7 @@ documents once deleted are never shown. This request:
 
 [source,js]
 --------------------------------------------------
-POST music/_search?pretty
+POST music/_search?pretty&include_type_name=false
 {
     "suggest": {
         "song-suggest" : {
@@ -193,7 +191,6 @@ returns this response:
       "options" : [ {
         "text" : "Nirvana",
         "_index": "music",
-        "_type": "_doc",
         "_id": "1",
         "_score": 1.0,
         "_source": {
@@ -222,7 +219,7 @@ filtering but using suggest on the `_search` endpoint does:
 
 [source,js]
 --------------------------------------------------
-POST music/_search
+POST music/_search?include_type_name=false
 {
     "_source": "suggest", <1>
     "suggest": {
@@ -269,7 +266,6 @@ Which should look like:
             "options" : [ {
                 "text" : "Nirvana",
                 "_index": "music",
-                "_type": "_doc",
                 "_id": "1",
                 "_score": 1.0,
                 "_source": {
@@ -310,7 +306,7 @@ When set, this option filters out documents with duplicate suggestions from the 
 
 [source,js]
 --------------------------------------------------
-POST music/_search?pretty
+POST music/_search?pretty&include_type_name=false
 {
     "suggest": {
         "song-suggest" : {
@@ -336,7 +332,7 @@ you can have a typo in your search and still get results back.
 
 [source,js]
 --------------------------------------------------
-POST music/_search?pretty
+POST music/_search?pretty&include_type_name=false
 {
     "suggest": {
         "song-suggest" : {
@@ -395,7 +391,7 @@ you can express a prefix as a regular expression
 
 [source,js]
 --------------------------------------------------
-POST music/_search?pretty
+POST music/_search?pretty&include_type_name=false
 {
     "suggest": {
         "song-suggest" : {

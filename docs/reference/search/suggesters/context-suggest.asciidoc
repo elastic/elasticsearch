@@ -21,53 +21,49 @@ field:
 
 [source,js]
 --------------------------------------------------
-PUT place
+PUT place?include_type_name=false
 {
     "mappings": {
-        "_doc" : {
-            "properties" : {
-                "suggest" : {
-                    "type" : "completion",
-                    "contexts": [
-                        { <1>
-                            "name": "place_type",
-                            "type": "category"
-                        },
-                        { <2>
-                            "name": "location",
-                            "type": "geo",
-                            "precision": 4
-                        }
-                    ]
-                }
+        "properties" : {
+            "suggest" : {
+                "type" : "completion",
+                "contexts": [
+                    { <1>
+                        "name": "place_type",
+                        "type": "category"
+                    },
+                    { <2>
+                        "name": "location",
+                        "type": "geo",
+                        "precision": 4
+                    }
+                ]
             }
         }
     }
 }
-PUT place_path_category
+PUT place_path_category?include_type_name=false
 {
     "mappings": {
-        "_doc" : {
-            "properties" : {
-                "suggest" : {
-                    "type" : "completion",
-                    "contexts": [
-                        { <3>
-                            "name": "place_type",
-                            "type": "category",
-                            "path": "cat"
-                        },
-                        { <4>
-                            "name": "location",
-                            "type": "geo",
-                            "precision": 4,
-                            "path": "loc"
-                        }
-                    ]
-                },
-                "loc": {
-                    "type": "geo_point"
-                }
+        "properties" : {
+            "suggest" : {
+                "type" : "completion",
+                "contexts": [
+                    { <3>
+                        "name": "place_type",
+                        "type": "category",
+                        "path": "cat"
+                    },
+                    { <4>
+                        "name": "location",
+                        "type": "geo",
+                        "precision": 4,
+                        "path": "loc"
+                    }
+                ]
+            },
+            "loc": {
+                "type": "geo_point"
             }
         }
     }
@@ -100,7 +96,7 @@ be sent in the suggest field like this:
 
 [source,js]
 --------------------------------------------------
-PUT place/_doc/1
+PUT place/_doc/1?include_type_name=false
 {
     "suggest": {
         "input": ["timmy's", "starbucks", "dunkin donuts"],
@@ -118,7 +114,7 @@ add the categories:
 
 [source,js]
 --------------------------------------------------
-PUT place_path_category/_doc/1
+PUT place_path_category/_doc/1?include_type_name=false
 {
     "suggest": ["timmy's", "starbucks", "dunkin donuts"],
     "cat": ["cafe", "food"] <1>
@@ -140,7 +136,7 @@ filters suggestions by multiple categories:
 
 [source,js]
 --------------------------------------------------
-POST place/_search?pretty
+POST place/_search?pretty&include_type_name=false
 {
     "suggest": {
         "place_suggestion" : {
@@ -169,7 +165,7 @@ suggestions associated with some categories:
 
 [source,js]
 --------------------------------------------------
-POST place/_search?pretty
+POST place/_search?pretty&include_type_name=false
 {
     "suggest": {
         "place_suggestion" : {
@@ -254,7 +250,7 @@ with two geo location contexts:
 
 [source,js]
 --------------------------------------------------
-PUT place/_doc/1
+PUT place/_doc/1?include_type_name=false
 {
     "suggest": {
         "input": "timmy's",
@@ -284,7 +280,7 @@ the encoded geohash of a geo point:
 
 [source,js]
 --------------------------------------------------
-POST place/_search
+POST place/_search?include_type_name=false
 {
     "suggest": {
         "place_suggestion" : {
@@ -318,7 +314,7 @@ than others, as shown by the following:
 
 [source,js]
 --------------------------------------------------
-POST place/_search?pretty
+POST place/_search?pretty&include_type_name=false
 {
     "suggest": {
         "place_suggestion" : {

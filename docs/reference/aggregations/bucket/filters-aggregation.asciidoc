@@ -9,7 +9,7 @@ Example:
 
 [source,js]
 --------------------------------------------------
-PUT /logs/_doc/_bulk?refresh
+PUT /logs/_bulk?refresh&include_type_name=false
 { "index" : { "_id" : 1 } }
 { "body" : "warning: page could not be rendered" }
 { "index" : { "_id" : 2 } }
@@ -17,7 +17,7 @@ PUT /logs/_doc/_bulk?refresh
 { "index" : { "_id" : 3 } }
 { "body" : "warning: connection timed out" }
 
-GET logs/_search
+GET logs/_search?include_type_name=false
 {
   "size": 0,
   "aggs" : {
@@ -72,7 +72,7 @@ following request:
 
 [source,js]
 --------------------------------------------------
-GET logs/_search
+GET logs/_search?include_type_name=false
 {
   "size": 0,
   "aggs" : {
@@ -134,12 +134,12 @@ The following snippet shows a response where the `other` bucket is requested to 
 
 [source,js]
 --------------------------------------------------
-PUT logs/_doc/4?refresh
+PUT logs/_doc/4?refresh&include_type_name=false
 {
   "body": "info: user Bob logged out"
 }
 
-GET logs/_search
+GET logs/_search?include_type_name=false
 {
   "size": 0,
   "aggs" : {

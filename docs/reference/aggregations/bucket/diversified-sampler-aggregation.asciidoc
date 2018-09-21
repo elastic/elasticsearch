@@ -28,7 +28,7 @@ forum posts but ignoring the effects of some prolific users with a tendency to m
 
 [source,js]
 --------------------------------------------------
-POST /stackoverflow/_search?size=0
+POST /stackoverflow/_search?size=0&include_type_name=false
 {
     "query": {
         "query_string": {
@@ -94,7 +94,7 @@ multiple values in a tags field to ensure we don't have a sample that consists o
 
 [source,js]
 --------------------------------------------------
-POST /stackoverflow/_search?size=0
+POST /stackoverflow/_search?size=0&include_type_name=false
 {
     "query": {
         "query_string": {

@@ -20,7 +20,7 @@ settings.
 
 [source,js]
 --------------------------------------------------
-PUT /index
+PUT /index?include_type_name=false
 {
     "settings" : {
         "index" : {
@@ -200,7 +200,7 @@ TF-IDF:
 
 [source,js]
 --------------------------------------------------
-PUT /index
+PUT /index?include_type_name=false
 {
   "settings": {
     "number_of_shards": 1, 
@@ -214,30 +214,28 @@ PUT /index
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "field": {
-          "type": "text",
-          "similarity": "scripted_tfidf"
-        }
+    "properties": {
+      "field": {
+        "type": "text",
+        "similarity": "scripted_tfidf"
       }
     }
   }
 }
 
-PUT /index/_doc/1
+PUT /index/_doc/1?include_type_name=false
 {
   "field": "foo bar foo"
 }
 
-PUT /index/_doc/2
+PUT /index/_doc/2?include_type_name=false
 {
   "field": "bar baz"
 }
 
 POST /index/_refresh
 
-GET /index/_search?explain=true
+GET /index/_search?explain=true&include_type_name=false
 {
   "query": {
     "query_string": {
@@ -270,7 +268,6 @@ Which yields:
         "_shard": "[index][0]",
         "_node": "OzrdjxNtQGaqs4DmioFw9A",
         "_index": "index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 1.9508477,
         "_source": {
@@ -366,7 +363,7 @@ more efficient:
 
 [source,js]
 --------------------------------------------------
-PUT /index
+PUT /index?include_type_name=false
 {
   "settings": {
     "number_of_shards": 1, 
@@ -383,12 +380,10 @@ PUT /index
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "field": {
-          "type": "text",
-          "similarity": "scripted_tfidf"
-        }
+    "properties": {
+      "field": {
+        "type": "text",
+        "similarity": "scripted_tfidf"
       }
     }
   }
@@ -400,19 +395,19 @@ PUT /index
 
 [source,js]
 --------------------------------------------------
-PUT /index/_doc/1
+PUT /index/_doc/1?include_type_name=false
 {
   "field": "foo bar foo"
 }
 
-PUT /index/_doc/2
+PUT /index/_doc/2?include_type_name=false
 {
   "field": "bar baz"
 }
 
 POST /index/_refresh
 
-GET /index/_search?explain=true
+GET /index/_search?explain=true&include_type_name=false
 {
   "query": {
     "query_string": {
@@ -444,7 +439,6 @@ GET /index/_search?explain=true
         "_shard": "[index][0]",
         "_node": "OzrdjxNtQGaqs4DmioFw9A",
         "_index": "index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 1.9508477,
         "_source": {
@@ -531,7 +525,7 @@ it is <<indices-create-index,created>>:
 
 [source,js]
 --------------------------------------------------
-PUT /index
+PUT /index?include_type_name=false
 {
   "settings": {
     "index": {

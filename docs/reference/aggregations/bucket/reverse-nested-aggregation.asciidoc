@@ -55,7 +55,7 @@ POST /issues/issue/0?refresh
 
 [source,js]
 --------------------------------------------------
-GET /issues/_search
+GET /issues/_search?include_type_name=false
 {
   "query": {
     "match_all": {}

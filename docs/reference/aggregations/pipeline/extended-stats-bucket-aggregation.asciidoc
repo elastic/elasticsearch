@@ -35,7 +35,7 @@ The following snippet calculates the extended stats for monthly `sales` bucket:
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search
+POST /sales/_search?include_type_name=false
 {
     "size": 0,
     "aggs" : {

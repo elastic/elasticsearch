@@ -18,29 +18,27 @@ a composite bucket.
 
 [source,js]
 --------------------------------------------------
-PUT /sales
+PUT /sales?include_type_name=false
 {
     "mappings": {
-        "docs": {
-            "properties": {
-                "product": {
-                    "type": "keyword"
-                },
-                "timestamp": {
-                    "type": "date"
-                },
-                "price": {
-                    "type": "long"
-                },
-                "shop": {
-                    "type": "keyword"
-                }
+        "properties": {
+            "product": {
+                "type": "keyword"
+            },
+            "timestamp": {
+                "type": "date"
+            },
+            "price": {
+                "type": "long"
+            },
+            "shop": {
+                "type": "keyword"
             }
         }
     }
 }
 
-POST /sales/docs/_bulk?refresh
+POST /sales/_bulk?refresh&include_type_name=false
 {"index":{"_id":0}}
 {"product": "mad max", "price": "20", "timestamp": "2017-05-09T14:35"}
 {"index":{"_id":1}}
@@ -96,7 +94,7 @@ Example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "my_buckets": {
@@ -115,7 +113,7 @@ Like the `terms` aggregation it is also possible to use a script to create the v
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "my_buckets": {
@@ -150,7 +148,7 @@ Example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "my_buckets": {
@@ -169,7 +167,7 @@ The values are built from a numeric field or a script that return numerical valu
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "my_buckets": {
@@ -202,7 +200,7 @@ is specified by date/time expression:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "my_buckets": {
@@ -232,7 +230,7 @@ the format specified with the format parameter:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "my_buckets": {
@@ -275,7 +273,7 @@ For example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "my_buckets": {
@@ -299,7 +297,7 @@ in the composite buckets.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "my_buckets": {
@@ -329,7 +327,7 @@ For example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "my_buckets": {
@@ -356,7 +354,7 @@ It is possible to include them in the response by setting `missing_bucket` to
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "my_buckets": {
@@ -396,7 +394,7 @@ For example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "my_buckets": {
@@ -462,7 +460,7 @@ round of result can be retrieved with:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "my_buckets": {
@@ -492,7 +490,7 @@ per composite bucket:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "my_buckets": {

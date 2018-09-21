@@ -41,7 +41,7 @@ the usage of `avg` here is not allowed:
 
 [source,js]
 --------------------------------------------------
-GET sensor_rollup/_rollup_search
+GET sensor_rollup/_rollup_search?include_type_name=false
 {
     "size": 0,
     "aggregations": {

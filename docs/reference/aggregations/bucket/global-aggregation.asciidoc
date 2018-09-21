@@ -13,7 +13,7 @@ Example:
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search?size=0
+POST /sales/_search?size=0&include_type_name=false
 {
     "query" : {
         "match" : { "type" : "t-shirt" }

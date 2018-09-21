@@ -11,7 +11,7 @@ by a search hit.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "stored_fields" : ["user", "postDate"],
     "query" : {
@@ -28,7 +28,7 @@ returned, for example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "stored_fields" : [],
     "query" : {
@@ -55,7 +55,7 @@ To disable the stored fields (and metadata fields) entirely use: `_none_`:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "stored_fields": "_none_",
     "query" : {

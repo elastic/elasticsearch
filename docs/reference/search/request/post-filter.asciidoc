@@ -9,20 +9,18 @@ Imagine that you are selling shirts that have the following properties:
 
 [source,js]
 --------------------------------------------------
-PUT /shirts
+PUT /shirts?include_type_name=false
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "brand": { "type": "keyword"},
-                "color": { "type": "keyword"},
-                "model": { "type": "keyword"}
-            }
+        "properties": {
+            "brand": { "type": "keyword"},
+            "color": { "type": "keyword"},
+            "model": { "type": "keyword"}
         }
     }
 }
 
-PUT /shirts/_doc/1?refresh
+PUT /shirts/_doc/1?refresh&include_type_name=false
 {
     "brand": "gucci",
     "color": "red",
@@ -41,7 +39,7 @@ Gucci in the search results.  Normally you would do this with a
 
 [source,js]
 --------------------------------------------------
-GET /shirts/_search 
+GET /shirts/_search?include_type_name=false
 {
   "query": {
     "bool": {
@@ -65,7 +63,7 @@ This can be done with a
 
 [source,js]
 --------------------------------------------------
-GET /shirts/_search 
+GET /shirts/_search?include_type_name=false
 {
   "query": {
     "bool": {
@@ -96,7 +94,7 @@ the `post_filter`:
 
 [source,js]
 --------------------------------------------------
-GET /shirts/_search
+GET /shirts/_search?include_type_name=false
 {
   "query": {
     "bool": {

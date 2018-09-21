@@ -8,7 +8,7 @@ Example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "price_ranges" : {
@@ -26,7 +26,7 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:sales]
-// TEST[s/GET \/_search/GET \/_search\?filter_path=aggregations/]
+// TEST[s/GET \/_search\?/GET \/_search\?filter_path=aggregations&/]
 
 Response:
 
@@ -66,7 +66,7 @@ Setting the `keyed` flag to `true` will associate a unique string key with each 
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "price_ranges" : {
@@ -120,7 +120,7 @@ It is also possible to customize the key for each range:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "price_ranges" : {
@@ -179,7 +179,7 @@ The following example shows how to use an `inline` script with the `painless` sc
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "price_ranges" : {
@@ -219,7 +219,7 @@ And this new stored script can be used in the range aggregation like this:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "price_ranges" : {
@@ -280,7 +280,7 @@ Lets say the product prices are in USD but we would like to get the price ranges
 
 [source,js]
 --------------------------------------------------
-GET /sales/_search
+GET /sales/_search?include_type_name=false
 {
     "aggs" : {
         "price_ranges" : {
@@ -311,7 +311,7 @@ The following example, not only "bucket" the documents to the different buckets 
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "price_ranges" : {
@@ -393,7 +393,7 @@ If a sub aggregation is also based on the same value source as the range aggrega
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "price_ranges" : {

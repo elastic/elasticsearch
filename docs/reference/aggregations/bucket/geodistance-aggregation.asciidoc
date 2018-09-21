@@ -5,20 +5,18 @@ A multi-bucket aggregation that works on `geo_point` fields and conceptually wor
 
 [source,js]
 --------------------------------------------------
-PUT /museums
+PUT museums?include_type_name=false
 {
     "mappings": {
-        "doc": {
-            "properties": {
-                "location": {
-                    "type": "geo_point"
-                }
+        "properties": {
+            "location": {
+                "type": "geo_point"
             }
         }
     }
 }
 
-POST /museums/doc/_bulk?refresh
+POST /museums/_bulk?refresh&include_type_name=false
 {"index":{"_id":1}}
 {"location": "52.374081,4.912350", "name": "NEMO Science Museum"}
 {"index":{"_id":2}}
@@ -32,7 +30,7 @@ POST /museums/doc/_bulk?refresh
 {"index":{"_id":6}}
 {"location": "48.860000,2.327000", "name": "Musée d'Orsay"}
 
-POST /museums/_search?size=0
+POST museums/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "rings_around_amsterdam" : {
@@ -94,7 +92,7 @@ By default, the distance unit is `m` (meters) but it can also accept: `mi` (mile
 
 [source,js]
 --------------------------------------------------
-POST /museums/_search?size=0
+POST /museums/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "rings" : {
@@ -121,7 +119,7 @@ There are two distance calculation modes: `arc` (the default), and `plane`. The 
 
 [source,js]
 --------------------------------------------------
-POST /museums/_search?size=0
+POST museums/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "rings" : {
@@ -149,7 +147,7 @@ Setting the `keyed` flag to `true` will associate a unique string key with each 
 
 [source,js]
 --------------------------------------------------
-POST /museums/_search?size=0
+POST museums/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "rings_around_amsterdam" : {
@@ -204,7 +202,7 @@ It is also possible to customize the key for each range:
 
 [source,js]
 --------------------------------------------------
-POST /museums/_search?size=0
+POST museums/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "rings_around_amsterdam" : {

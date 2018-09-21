@@ -14,7 +14,7 @@ Computing the max price value across all documents
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search?size=0
+POST /sales/_search?size=0&include_type_name=false
 {
     "aggs" : {
         "max_price" : { "max" : { "field" : "price" } }
@@ -50,7 +50,7 @@ below computes the maximum price:
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search
+POST /sales/_search?include_type_name=false
 {
     "aggs" : {
         "max_price" : {
@@ -71,7 +71,7 @@ and no script parameters. To use a stored script use the following syntax:
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search
+POST /sales/_search?include_type_name=false
 {
     "aggs" : {
         "max_price" : {
@@ -99,7 +99,7 @@ conversion rate to every value before it is aggregated:
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search
+POST /sales/_search?include_type_name=false
 {
     "aggs" : {
         "max_price_in_euros" : {
@@ -127,7 +127,7 @@ them as if they had a value.
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search
+POST /sales/_search?include_type_name=false
 {
     "aggs" : {
         "grade_max" : {

@@ -24,7 +24,7 @@ PUT my_index/_doc/1
   "ip_addr": "192.168.1.1"
 }
 
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "query": {
     "term": {
@@ -79,7 +79,7 @@ notation: `[ip_address]/[prefix_length]`. For instance:
 
 [source,js]
 --------------------------------------------------
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "query": {
     "term": {
@@ -94,7 +94,7 @@ or
 
 [source,js]
 --------------------------------------------------
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "query": {
     "term": {
@@ -112,7 +112,7 @@ searched value:
 
 [source,js]
 --------------------------------------------------
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "query": {
     "query_string" : {

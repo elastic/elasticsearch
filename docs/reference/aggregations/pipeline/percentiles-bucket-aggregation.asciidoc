@@ -33,7 +33,7 @@ The following snippet calculates the percentiles for the total monthly `sales` b
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search
+POST /sales/_search?include_type_name=false
 {
     "size": 0,
     "aggs" : {

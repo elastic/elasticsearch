@@ -9,16 +9,14 @@ A parent/child relation can be defined as follows:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=false
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_join_field": { <1>
-          "type": "join",
-          "relations": {
-            "question": "answer" <2>
-          }
+    "properties": {
+      "my_join_field": { <1>
+        "type": "join",
+        "relations": {
+          "question": "answer" <2>
         }
       }
     }
@@ -36,7 +34,7 @@ For instance the following example creates two `parent` documents in the `questi
 
 [source,js]
 --------------------------------------------------
-PUT my_index/_doc/1?refresh
+PUT my_index/_doc/1?refresh&include_type_name=false
 {
   "text": "This is a question",
   "my_join_field": {
@@ -44,7 +42,7 @@ PUT my_index/_doc/1?refresh
   }
 }
 
-PUT my_index/_doc/2?refresh
+PUT my_index/_doc/2?refresh&include_type_name=false
 {
   "text": "This is a another question",
   "my_join_field": {
@@ -62,13 +60,13 @@ as a shortcut instead of encapsulating it in the normal object notation:
 
 [source,js]
 --------------------------------------------------
-PUT my_index/_doc/1?refresh
+PUT my_index/_doc/1?refresh&include_type_name=false
 {
   "text": "This is a question",
   "my_join_field": "question" <1>
 }
 
-PUT my_index/_doc/2?refresh
+PUT my_index/_doc/2?refresh&include_type_name=false
 {
   "text": "This is another question",
   "my_join_field": "question"
@@ -89,7 +87,7 @@ For instance the following example shows how to index two `child` documents:
 
 [source,js]
 --------------------------------------------------
-PUT my_index/_doc/3?routing=1&refresh <1>
+PUT my_index/_doc/3?routing=1&refresh&include_type_name=false <1>
 {
   "text": "This is an answer",
   "my_join_field": {
@@ -98,7 +96,7 @@ PUT my_index/_doc/3?routing=1&refresh <1>
   }
 }
 
-PUT my_index/_doc/4?routing=1&refresh
+PUT my_index/_doc/4?routing=1&refresh&include_type_name=false
 {
   "text": "This is another answer",
   "my_join_field": {
@@ -157,7 +155,7 @@ returned in the search response:
 
 [source,js]
 --------------------------
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "query": {
     "match_all": {}
@@ -180,7 +178,6 @@ Will return:
         "hits": [
             {
                 "_index": "my_index",
-                "_type": "_doc",
                 "_id": "1",
                 "_score": null,
                 "_source": {
@@ -193,7 +190,6 @@ Will return:
             },
             {
                 "_index": "my_index",
-                "_type": "_doc",
                 "_id": "2",
                 "_score": null,
                 "_source": {
@@ -206,7 +202,6 @@ Will return:
             },
             {
                 "_index": "my_index",
-                "_type": "_doc",
                 "_id": "3",
                 "_score": null,
                 "_routing": "1",
@@ -223,7 +218,6 @@ Will return:
             },
             {
                 "_index": "my_index",
-                "_type": "_doc",
                 "_id": "4",
                 "_score": null,
                 "_routing": "1",
@@ -262,7 +256,7 @@ and scripts, and may be queried with the
 
 [source,js]
 --------------------------
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "query": {
     "parent_id": { <1>
@@ -316,18 +310,16 @@ make sense to disable eager loading:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=false
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_join_field": {
-          "type": "join",
-          "relations": {
-             "question": "answer"
-          },
-          "eager_global_ordinals": false
-        }
+    "properties": {
+      "my_join_field": {
+        "type": "join",
+        "relations": {
+           "question": "answer"
+        },
+        "eager_global_ordinals": false
       }
     }
   }
@@ -355,16 +347,14 @@ It is also possible to define multiple children for a single parent:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=false
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_join_field": {
-          "type": "join",
-          "relations": {
-            "question": ["answer", "comment"]  <1>
-          }
+    "properties": {
+      "my_join_field": {
+        "type": "join",
+        "relations": {
+          "question": ["answer", "comment"]  <1>
         }
       }
     }
@@ -385,17 +375,15 @@ Multiple levels of parent/child:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=false
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_join_field": {
-          "type": "join",
-          "relations": {
-            "question": ["answer", "comment"],  <1>
-            "answer": "vote" <2>
-          }
+    "properties": {
+      "my_join_field": {
+        "type": "join",
+        "relations": {
+          "question": ["answer", "comment"],  <1>
+          "answer": "vote" <2>
         }
       }
     }
@@ -423,7 +411,7 @@ to the grand-parent (the greater parent of the lineage):
 
 [source,js]
 --------------------------------------------------
-PUT my_index/_doc/3?routing=1&refresh <1>
+PUT my_index/_doc/3?routing=1&refresh&include_type_name=false <1>
 {
   "text": "This is a vote",
   "my_join_field": {

@@ -17,7 +17,7 @@ the most interesting parts of our query we use a sample.
 
 [source,js]
 --------------------------------------------------
-POST /stackoverflow/_search?size=0
+POST /stackoverflow/_search?size=0&include_type_name=false
 {
     "query": {
         "query_string": {
@@ -87,7 +87,7 @@ less significant terms such as `jquery` and `angular` rather than focusing on th
 
 [source,js]
 --------------------------------------------------
-POST /stackoverflow/_search?size=0
+POST /stackoverflow/_search?size=0&include_type_name=false
 {
     "query": {
         "query_string": {

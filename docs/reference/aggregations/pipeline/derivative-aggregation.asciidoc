@@ -34,7 +34,7 @@ The following snippet calculates the derivative of the total monthly `sales`:
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search
+POST /sales/_search?include_type_name=false
 {
     "size": 0,
     "aggs" : {
@@ -128,7 +128,7 @@ monthly sales:
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search
+POST /sales/_search?include_type_name=false
 {
     "size": 0,
     "aggs" : {
@@ -228,7 +228,7 @@ of the total sales per month but ask for the derivative of the sales as in the u
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search
+POST /sales/_search?include_type_name=false
 {
     "size": 0,
     "aggs" : {

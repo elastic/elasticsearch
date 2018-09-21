@@ -46,7 +46,7 @@ final `_score` for each document.
 
 [source,js]
 --------------------------------------------------
-POST _search
+POST _search?include_type_name=false
 {
   "query": {
     "bool" : {
@@ -85,7 +85,7 @@ query has been specified:
 
 [source,js]
 ---------------------------------
-GET _search
+GET _search?include_type_name=false
 {
   "query": {
     "bool": {
@@ -105,7 +105,7 @@ all documents.
 
 [source,js]
 ---------------------------------
-GET _search
+GET _search?include_type_name=false
 {
   "query": {
     "bool": {
@@ -129,7 +129,7 @@ by the filter.
 
 [source,js]
 ---------------------------------
-GET _search
+GET _search?include_type_name=false
 {
   "query": {
     "constant_score": {

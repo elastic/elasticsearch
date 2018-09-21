@@ -14,7 +14,7 @@ fields, limiting the number of selected terms to 12.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "more_like_this" : {
@@ -34,7 +34,7 @@ similar to the one used in the <<docs-multi-get,Multi GET API>>.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "more_like_this" : {
@@ -66,7 +66,7 @@ present in the index, the syntax is similar to <<docs-termvectors-artificial-doc
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "more_like_this" : {

@@ -54,7 +54,7 @@ The following query will find the point using the Elasticsearch's
 
 [source,js]
 --------------------------------------------------
-GET /example/_search
+GET /example/_search?include_type_name=false
 {
     "query":{
         "bool": {
@@ -121,7 +121,7 @@ PUT /shapes/_doc/deu
     }
 }
 
-GET /example/_search
+GET /example/_search?include_type_name=false
 {
     "query": {
         "bool": {

@@ -90,8 +90,8 @@ all special characters should be URI encoded. For example:
 
 [source,js]
 ----------------------------------------------------------------------
-# GET /<logstash-{now/d}>/_search
-GET /%3Clogstash-%7Bnow%2Fd%7D%3E/_search
+# GET /<logstash-{now/d}>/_search?include_type_name=false
+GET /%3Clogstash-%7Bnow%2Fd%7D%3E/_search?include_type_name=false
 {
   "query" : {
     "match": {
@@ -145,8 +145,8 @@ three days, assuming the indices use the default Logstash index name format,
 
 [source,js]
 ----------------------------------------------------------------------
-# GET /<logstash-{now/d-2d}>,<logstash-{now/d-1d}>,<logstash-{now/d}>/_search
-GET /%3Clogstash-%7Bnow%2Fd-2d%7D%3E%2C%3Clogstash-%7Bnow%2Fd-1d%7D%3E%2C%3Clogstash-%7Bnow%2Fd%7D%3E/_search
+# GET /<logstash-{now/d-2d}>,<logstash-{now/d-1d}>,<logstash-{now/d}>/_search?include_type_name=false
+GET /%3Clogstash-%7Bnow%2Fd-2d%7D%3E%2C%3Clogstash-%7Bnow%2Fd-1d%7D%3E%2C%3Clogstash-%7Bnow%2Fd%7D%3E/_search?include_type_name=false
 {
   "query" : {
     "match": {
@@ -232,7 +232,7 @@ separated list of filters expressed with the dot notation:
 
 [source,js]
 --------------------------------------------------
-GET /_search?q=elasticsearch&filter_path=took,hits.hits._id,hits.hits._score
+GET /_search?q=elasticsearch&filter_path=took,hits.hits._id,hits.hits._score&include_type_name=false
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -363,13 +363,13 @@ parameter like this:
 
 [source,js]
 --------------------------------------------------
-POST /library/book?refresh
+POST /library/_doc?refresh&include_type_name=false
 {"title": "Book #1", "rating": 200.1}
-POST /library/book?refresh
+POST /library/_doc?refresh&include_type_name=false
 {"title": "Book #2", "rating": 1.7}
-POST /library/book?refresh
+POST /library/_doc?refresh&include_type_name=false
 {"title": "Book #3", "rating": 0.1}
-GET /_search?filter_path=hits.hits._source&_source=title&sort=rating:desc
+GET /_search?filter_path=hits.hits._source&_source=title&sort=rating:desc&include_type_name=false
 --------------------------------------------------
 // CONSOLE
 
@@ -594,7 +594,7 @@ invalid `size` parameter to the `_search` API:
 
 [source,js]
 ----------------------------------------------------------------------
-POST /twitter/_search?size=surprise_me
+POST /twitter/_search?size=surprise_me&include_type_name=false
 ----------------------------------------------------------------------
 // CONSOLE
 // TEST[s/surprise_me/surprise_me&error_trace=false/ catch:bad_request]
@@ -628,7 +628,7 @@ But if you set `error_trace=true`:
 
 [source,js]
 ----------------------------------------------------------------------
-POST /twitter/_search?size=surprise_me&error_trace=true
+POST /twitter/_search?size=surprise_me&error_trace=true&include_type_name=false
 ----------------------------------------------------------------------
 // CONSOLE
 // TEST[catch:bad_request]

@@ -55,7 +55,7 @@ embedded like any other metric aggregation:
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
     "size": 0,
     "aggs": {
@@ -158,7 +158,7 @@ the values from a `simple` moving average tend to "lag" behind the real data.
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
     "size": 0,
     "aggs": {
@@ -212,7 +212,7 @@ the "lag" behind the data's mean, since older points have less influence.
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
     "size": 0,
     "aggs": {
@@ -272,7 +272,7 @@ The EWMA model can be <<movavg-minimizer, Minimized>>
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
     "size": 0,
     "aggs": {
@@ -331,7 +331,7 @@ The Holt-Linear model can be <<movavg-minimizer, Minimized>>
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
     "size": 0,
     "aggs": {
@@ -420,7 +420,7 @@ The additive Holt-Winters model can be <<movavg-minimizer, Minimized>>
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
     "size": 0,
     "aggs": {
@@ -481,7 +481,7 @@ you can disable this behavior with `pad: false`
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
     "size": 0,
     "aggs": {
@@ -531,7 +531,7 @@ as your buckets:
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
     "size": 0,
     "aggs": {
@@ -610,7 +610,7 @@ Minimization is enabled/disabled via the `minimize` parameter:
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
     "size": 0,
     "aggs": {

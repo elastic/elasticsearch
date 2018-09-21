@@ -45,7 +45,7 @@ The following snippet only retains buckets where the total sales for the month i
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search
+POST /sales/_search?include_type_name=false
 {
     "size": 0,
     "aggs" : {

@@ -6,7 +6,7 @@ to allow multi-field queries:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
   "query": {
     "multi_match" : {
@@ -27,7 +27,7 @@ Fields can be specified with wildcards, eg:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
   "query": {
     "multi_match" : {
@@ -44,7 +44,7 @@ Individual fields can be boosted with the caret (`^`) notation:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
   "query": {
     "multi_match" : {
@@ -102,7 +102,7 @@ find the single best matching field.  For instance, this query:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
   "query": {
     "multi_match" : {
@@ -120,7 +120,7 @@ would be executed as:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
   "query": {
     "dis_max": {
@@ -161,7 +161,7 @@ Take this query for example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
   "query": {
     "multi_match" : {
@@ -204,7 +204,7 @@ This query:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
   "query": {
     "multi_match" : {
@@ -221,7 +221,7 @@ would be executed as:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
   "query": {
     "bool": {
@@ -254,7 +254,7 @@ but they use a `match_phrase` or `match_phrase_prefix` query instead of a
 This query:
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
   "query": {
     "multi_match" : {
@@ -271,7 +271,7 @@ would be executed as:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
   "query": {
     "dis_max": {
@@ -338,7 +338,7 @@ A query like:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
   "query": {
     "multi_match" : {
@@ -398,7 +398,7 @@ both use an `edge_ngram` analyzer, this query:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
   "query": {
     "multi_match" : {
@@ -437,7 +437,7 @@ parameter to just one of them:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
   "query": {
     "bool": {
@@ -472,7 +472,7 @@ parameter in the query.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
   "query": {
    "multi_match" : {

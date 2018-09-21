@@ -8,7 +8,7 @@ example:
 
 [source,js]
 --------------------------------------------------
-GET twitter/_search?q=user:kimchy
+GET twitter/_search?q=user:kimchy&include_type_name=false
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -32,7 +32,6 @@ And here is a sample response:
         "hits" : [
             {
                 "_index" : "twitter",
-                "_type" : "_doc",
                 "_id" : "0",
                 "_score": 1.3862944,
                 "_source" : {

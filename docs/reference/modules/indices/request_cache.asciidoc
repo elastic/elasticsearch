@@ -84,7 +84,7 @@ caching on a *per-request* basis.  If set, it overrides the index-level setting:
 
 [source,js]
 -----------------------------
-GET /my_index/_search?request_cache=true
+GET /my_index/_search?request_cache=true&include_type_name=false
 {
   "size": 0,
   "aggs": {

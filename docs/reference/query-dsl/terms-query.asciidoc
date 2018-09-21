@@ -6,7 +6,7 @@ Filters documents that have fields that match any of the provided terms
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "terms" : { "user" : ["kimchy", "elasticsearch"]}
@@ -87,7 +87,7 @@ PUT /tweets/_doc/1
     "user" : "1"
 }
 
-GET /tweets/_search
+GET /tweets/_search?include_type_name=false
 {
     "query" : {
         "terms" : {

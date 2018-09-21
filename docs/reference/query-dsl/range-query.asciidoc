@@ -9,7 +9,7 @@ a `NumericRangeQuery`. The following example returns all documents where
 
 [source,js]
 --------------------------------------------------
-GET _search
+GET _search?include_type_name=false
 {
     "query": {
         "range" : {
@@ -42,7 +42,7 @@ specified using <<date-math>>:
 
 [source,js]
 --------------------------------------------------
-GET _search
+GET _search?include_type_name=false
 {
     "query": {
         "range" : {
@@ -94,7 +94,7 @@ passing the `format` parameter to the `range` query:
 
 [source,js]
 --------------------------------------------------
-GET _search
+GET _search?include_type_name=false
 {
     "query": {
         "range" : {
@@ -123,7 +123,7 @@ accepts it), or it can be specified as the `time_zone` parameter:
 
 [source,js]
 --------------------------------------------------
-GET _search
+GET _search?include_type_name=false
 {
     "query": {
         "range" : {

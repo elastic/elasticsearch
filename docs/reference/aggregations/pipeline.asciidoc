@@ -51,7 +51,7 @@ metric `"the_sum"`:
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
     "aggs": {
         "my_date_histo":{
@@ -82,7 +82,7 @@ a metric embedded inside a sibling aggregation:
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
     "aggs" : {
         "sales_per_month" : {
@@ -119,7 +119,7 @@ the pipeline aggregation to use the document count as its input.  For example, a
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
     "aggs": {
         "my_date_histo": {
@@ -146,7 +146,7 @@ used here to filter out buckets which contain no buckets for an inner terms aggr
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search
+POST /sales/_search?include_type_name=false
 {
   "size": 0,
   "aggs": {

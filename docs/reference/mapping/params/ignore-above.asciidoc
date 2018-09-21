@@ -8,31 +8,29 @@ NOTE: All strings/array elements will still be present in the `_source` field, i
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=false
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "message": {
-          "type": "keyword",
-          "ignore_above": 20 <1>
-        }
+    "properties": {
+      "message": {
+        "type": "keyword",
+        "ignore_above": 20 <1>
       }
     }
   }
 }
 
-PUT my_index/_doc/1 <2>
+PUT my_index/_doc/1?include_type_name=false <2>
 {
   "message": "Syntax error"
 }
 
-PUT my_index/_doc/2 <3>
+PUT my_index/_doc/2?include_type_name=false <3>
 {
   "message": "Syntax error with some long stacktrace"
 }
 
-GET _search <4>
+GET _search?include_type_name=false <4>
 {
   "aggs": {
     "messages": {

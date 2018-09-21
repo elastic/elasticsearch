@@ -9,7 +9,7 @@ into the "twitter" index, under a type called "_doc" with an id of 1:
 
 [source,js]
 --------------------------------------------------
-PUT twitter/_doc/1
+PUT twitter/_doc/1?include_type_name=false
 {
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",
@@ -29,7 +29,6 @@ The result of the above index operation is:
         "successful" : 2
     },
     "_index" : "twitter",
-    "_type" : "_doc",
     "_id" : "1",
     "_version" : 1,
     "_seq_no" : 0,
@@ -96,7 +95,7 @@ meantime. For example:
 
 [source,js]
 --------------------------------------------------
-PUT twitter/_doc/1?version=2
+PUT twitter/_doc/1?version=2&include_type_name=false
 {
     "message" : "elasticsearch now has versioning support, double cool!"
 }
@@ -176,7 +175,7 @@ Here is an example of using the `op_type` parameter:
 
 [source,js]
 --------------------------------------------------
-PUT twitter/_doc/1?op_type=create
+PUT twitter/_doc/1?op_type=create&include_type_name=false
 {
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",
@@ -208,7 +207,7 @@ will automatically be set to `create`. Here is an example (note the
 
 [source,js]
 --------------------------------------------------
-POST twitter/_doc/
+POST twitter/_doc?include_type_name=false
 {
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",
@@ -228,7 +227,6 @@ The result of the above index operation is:
         "successful" : 2
     },
     "_index" : "twitter",
-    "_type" : "_doc",
     "_id" : "W0tpsmIBdwcYyG50zbta",
     "_version" : 1,
     "_seq_no" : 0,
@@ -249,7 +247,7 @@ on a per-operation basis using the `routing` parameter. For example:
 
 [source,js]
 --------------------------------------------------
-POST twitter/_doc?routing=kimchy
+POST twitter/_doc?routing=kimchy&include_type_name=false
 {
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",
@@ -372,7 +370,7 @@ to 5 minutes:
 
 [source,js]
 --------------------------------------------------
-PUT twitter/_doc/1?timeout=5m
+PUT twitter/_doc/1?timeout=5m&include_type_name=false
 {
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",

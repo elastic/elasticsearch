@@ -36,7 +36,7 @@ PUT my_index/_doc/2
   "city": "York"
 }
 
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "query": {
     "match": {
@@ -101,7 +101,7 @@ PUT my_index/_doc/1
 PUT my_index/_doc/2
 { "text": "quick brown foxes" } <3>
 
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "query": {
     "multi_match": {

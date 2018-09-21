@@ -8,7 +8,7 @@ an example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
   "query": {
     "simple_query_string" : {
@@ -102,7 +102,7 @@ Be aware that this syntax may have a different behavior depending on the
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "simple_query_string" : {
@@ -137,7 +137,7 @@ introduced fields included). For example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "simple_query_string" : {
@@ -157,7 +157,7 @@ should be enabled. It is specified as a `|`-delimited string with the
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "simple_query_string" : {
@@ -185,7 +185,7 @@ It is also possible to match multi terms synonyms with conjunctions instead:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
    "query": {
        "simple_query_string" : {

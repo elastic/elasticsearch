@@ -70,7 +70,7 @@ In this example, words that have a document frequency greater than 0.1%
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "common": {
@@ -94,7 +94,7 @@ all terms required:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "common": {
@@ -113,7 +113,7 @@ which is roughly equivalent to:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "bool": {
@@ -140,7 +140,7 @@ must be present, for instance:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "common": {
@@ -159,7 +159,7 @@ which is roughly equivalent to:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "bool": {
@@ -192,7 +192,7 @@ additional parameters (note the change in structure):
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "common": {
@@ -214,7 +214,7 @@ which is roughly equivalent to:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "bool": {
@@ -253,7 +253,7 @@ for high frequency terms is when there are only high frequency terms:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "common": {
@@ -275,7 +275,7 @@ which is roughly equivalent to:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "bool": {

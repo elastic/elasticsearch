@@ -222,7 +222,7 @@ Below is an example of how to set up a field for _search-as-you-type_:
 
 [source,js]
 -----------------------------------
-PUT my_index
+PUT my_index?include_type_name=false
 {
   "settings": {
     "analysis": {
@@ -250,26 +250,24 @@ PUT my_index
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "title": {
-          "type": "text",
-          "analyzer": "autocomplete",
-          "search_analyzer": "autocomplete_search"
-        }
+    "properties": {
+      "title": {
+        "type": "text",
+        "analyzer": "autocomplete",
+        "search_analyzer": "autocomplete_search"
       }
     }
   }
 }
 
-PUT my_index/_doc/1
+PUT my_index/_doc/1?include_type_name=false
 {
   "title": "Quick Foxes" <1>
 }
 
 POST my_index/_refresh
 
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "query": {
     "match": {
@@ -305,7 +303,6 @@ GET my_index/_search
     "hits": [
       {
         "_index": "my_index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.5753642,
         "_source": {

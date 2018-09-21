@@ -7,7 +7,7 @@ from an index called `twitter`, under a type called `_doc`, with id `1`:
 
 [source,js]
 --------------------------------------------------
-DELETE /twitter/_doc/1
+DELETE /twitter/_doc/1?include_type_name=false
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -23,7 +23,6 @@ The result of the above delete operation is:
         "successful" : 2
     },
     "_index" : "twitter",
-    "_type" : "_doc",
     "_id" : "1",
     "_version" : 2,
     "_primary_term": 1,
@@ -72,7 +71,7 @@ PUT /twitter/_doc/1?routing=kimchy
 
 [source,js]
 --------------------------------------------------
-DELETE /twitter/_doc/1?routing=kimchy
+DELETE /twitter/_doc/1?routing=kimchy&include_type_name=false
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -138,7 +137,7 @@ to 5 minutes:
 
 [source,js]
 --------------------------------------------------
-DELETE /twitter/_doc/1?timeout=5m
+DELETE /twitter/_doc/1?timeout=5m&include_type_name=false
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]

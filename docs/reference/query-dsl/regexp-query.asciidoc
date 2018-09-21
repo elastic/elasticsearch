@@ -15,7 +15,7 @@ matchers like `.*?+` will mostly lower performance.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "regexp":{
@@ -30,7 +30,7 @@ Boosting is also supported
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "regexp":{
@@ -48,7 +48,7 @@ You can also use special flags
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "regexp":{
@@ -76,7 +76,7 @@ this limit to allow more complex regular expressions to execute.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "regexp":{

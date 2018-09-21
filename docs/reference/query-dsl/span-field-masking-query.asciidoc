@@ -11,7 +11,7 @@ Example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
   "query": {
     "span_near": {

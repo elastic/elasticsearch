@@ -6,7 +6,7 @@ of `1.0`.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 { 
     "query": {
         "match_all": {}
@@ -19,7 +19,7 @@ The `_score` can be changed with the `boost` parameter:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "match_all": { "boost" : 1.2 }
@@ -36,7 +36,7 @@ This is the inverse of the `match_all` query, which matches no documents.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "match_none": {} 

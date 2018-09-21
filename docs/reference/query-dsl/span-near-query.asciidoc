@@ -8,7 +8,7 @@ matches are required to be in-order. The span near query maps to Lucene
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "span_near" : {

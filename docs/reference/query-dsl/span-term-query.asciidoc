@@ -6,7 +6,7 @@ Matches spans containing a term. The span term query maps to Lucene
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "span_term" : { "user" : "kimchy" }
@@ -19,7 +19,7 @@ A boost can also be associated with the query:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
        "span_term" : { "user" : { "value" : "kimchy", "boost" : 2.0 } }
@@ -32,7 +32,7 @@ Or :
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "span_term" : { "user" : { "term" : "kimchy", "boost" : 2.0 } }

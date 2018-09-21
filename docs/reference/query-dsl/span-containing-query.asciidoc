@@ -6,7 +6,7 @@ query maps to Lucene `SpanContainingQuery`. Here is an example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "span_containing" : {

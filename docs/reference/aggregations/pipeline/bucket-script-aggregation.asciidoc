@@ -41,7 +41,7 @@ The following snippet calculates the ratio percentage of t-shirt sales compared 
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search
+POST /sales/_search?include_type_name=false
 {
     "size": 0,
     "aggs" : {

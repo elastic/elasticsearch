@@ -6,7 +6,7 @@ before they are executed and fill existing templates with template parameters.
 
 [source,js]
 ------------------------------------------
-GET _search/template
+GET _search/template?include_type_name=false
 {
     "source" : {
       "query": { "match" : { "{{my_field}}" : "{{my_value}}" } },
@@ -39,7 +39,7 @@ disable scripts per type and context as described in the
 
 [source,js]
 ------------------------------------------
-GET _search/template
+GET _search/template?include_type_name=false
 {
     "source": {
         "query": {
@@ -64,7 +64,7 @@ like maps and array to their JSON representation:
 
 [source,js]
 ------------------------------------------
-GET _search/template
+GET _search/template?include_type_name=false
 {
   "source": "{ \"query\": { \"terms\": {{#toJson}}statuses{{/toJson}} }}",
   "params": {
@@ -97,7 +97,7 @@ A more complex example substitutes an array of JSON objects:
 
 [source,js]
 ------------------------------------------
-GET _search/template
+GET _search/template?include_type_name=false
 {
     "source": "{\"query\":{\"bool\":{\"must\": {{#toJson}}clauses{{/toJson}} }}}",
     "params": {

@@ -8,7 +8,7 @@ that starts with `ki`:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 { "query": {
     "prefix" : { "user" : "ki" }
   }
@@ -20,7 +20,7 @@ A boost can also be associated with the query:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 { "query": {
     "prefix" : { "user" :  { "value" : "ki", "boost" : 2.0 } }
   }

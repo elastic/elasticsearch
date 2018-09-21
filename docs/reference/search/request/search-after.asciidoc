@@ -11,7 +11,7 @@ The idea is to use the results from the previous page to help the retrieval of t
 Suppose that the query to retrieve the first page looks like this:
 [source,js]
 --------------------------------------------------
-GET twitter/_search
+GET twitter/_search?include_type_name=false
 {
     "size": 10,
     "query": {
@@ -39,7 +39,7 @@ For instance we can use the `sort values` of the last document and pass it to `s
 
 [source,js]
 --------------------------------------------------
-GET twitter/_search
+GET twitter/_search?include_type_name=false
 {
     "size": 10,
     "query": {

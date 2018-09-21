@@ -6,7 +6,7 @@ example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query" : {
         "match_all": {}
@@ -34,7 +34,7 @@ Doc value fields can work on fields that are not stored.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query" : {
         "match_all": {}

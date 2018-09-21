@@ -146,7 +146,7 @@ PUT my_index/_doc/2
    "title":"A Quick Brown Fox"
 }
 
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
    "query":{
       "query_string":{

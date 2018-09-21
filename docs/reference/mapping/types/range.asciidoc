@@ -60,7 +60,7 @@ The following is an example of a <<query-dsl-term-query, term query>> on the `in
 
 [source,js]
 --------------------------------------------------
-GET range_index/_search
+GET range_index/_search?include_type_name=false
 {
   "query" : {
     "term" : {
@@ -92,7 +92,6 @@ The result produced by the above query.
     "hits" : [
       {
         "_index" : "range_index",
-        "_type" : "_doc",
         "_id" : "1",
         "_score" : 1.0,
         "_source" : {
@@ -114,7 +113,7 @@ The following is an example of a `date_range` query over the `date_range` field 
 
 [source,js]
 --------------------------------------------------
-GET range_index/_search
+GET range_index/_search?include_type_name=false
 {
   "query" : {
     "range" : {
@@ -152,7 +151,6 @@ This query produces a similar result:
     "hits" : [
       {
         "_index" : "range_index",
-        "_type" : "_doc",
         "_id" : "1",
         "_score" : 1.0,
         "_source" : {
@@ -178,7 +176,7 @@ https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing#CIDR_notation[CIDR]
 
 [source,js]
 --------------------------------------------------
-PUT range_index/_mapping/_doc
+PUT range_index/_mapping?include_type_name=false
 {
   "properties": {
     "ip_whitelist": {
@@ -187,7 +185,7 @@ PUT range_index/_mapping/_doc
   }
 }
 
-PUT range_index/_doc/2
+PUT range_index/_doc/2?include_type_name=false
 {
   "ip_whitelist" : "192.168.0.0/16"
 }

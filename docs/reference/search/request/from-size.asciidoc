@@ -12,7 +12,7 @@ defaults to `10`.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "from" : 0, "size" : 10,
     "query" : {

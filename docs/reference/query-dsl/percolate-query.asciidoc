@@ -13,17 +13,15 @@ Create an index with two fields:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index
+PUT /my-index?include_type_name=false
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "message": {
-                    "type": "text"
-                },
-                "query": {
-                    "type": "percolator"
-                }
+        "properties": {
+            "message": {
+                "type": "text"
+            },
+            "query": {
+                "type": "percolator"
             }
         }
     }
@@ -44,7 +42,7 @@ Register a query in the percolator:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/_doc/1?refresh
+PUT /my-index/_doc/1?refresh&include_type_name=false
 {
     "query" : {
         "match" : {
@@ -60,7 +58,7 @@ Match a document to the registered percolator queries:
 
 [source,js]
 --------------------------------------------------
-GET /my-index/_search
+GET /my-index/_search?include_type_name=false
 {
     "query" : {
         "percolate" : {
@@ -94,7 +92,6 @@ The above request will yield the following response:
     "hits": [
       { <1>
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.5753642,
         "_source": {
@@ -152,7 +149,7 @@ the percolator query in a `bool` query's filter clause or in a `constant_score` 
 
 [source,js]
 --------------------------------------------------
-GET /my-index/_search
+GET /my-index/_search?include_type_name=false
 {
     "query" : {
         "constant_score": {
@@ -193,7 +190,7 @@ correlate with the slot in the `documents` array specified in the `percolate` qu
 
 [source,js]
 --------------------------------------------------
-GET /my-index/_search
+GET /my-index/_search?include_type_name=false
 {
     "query" : {
         "percolate" : {
@@ -238,7 +235,6 @@ GET /my-index/_search
     "hits": [
       {
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 1.5606477,
         "_source": {
@@ -277,7 +273,7 @@ Index the document we want to percolate:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/_doc/2
+PUT /my-index/_doc/2?include_type_name=false
 {
   "message" : "A new bonsai tree in the office"
 }
@@ -290,7 +286,6 @@ Index response:
 --------------------------------------------------
 {
   "_index": "my-index",
-  "_type": "_doc",
   "_id": "2",
   "_version": 1,
   "_shards": {
@@ -309,7 +304,7 @@ Percolating an existing document, using the index response as basis to build to 
 
 [source,js]
 --------------------------------------------------
-GET /my-index/_search
+GET /my-index/_search?include_type_name=false
 {
     "query" : {
         "percolate" : {
@@ -379,7 +374,7 @@ Execute a search request with the `percolate` query and highlighting enabled:
 
 [source,js]
 --------------------------------------------------
-GET /my-index/_search
+GET /my-index/_search?include_type_name=false
 {
     "query" : {
         "percolate" : {
@@ -418,7 +413,6 @@ This will yield the following response.
     "hits": [
       {
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "3",
         "_score": 0.5753642,
         "_source": {
@@ -439,7 +433,6 @@ This will yield the following response.
       },
       {
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "4",
         "_score": 0.5753642,
         "_source": {
@@ -473,7 +466,7 @@ When percolating multiple documents at the same time like the request below then
 
 [source,js]
 --------------------------------------------------
-GET /my-index/_search
+GET /my-index/_search?include_type_name=false
 {
     "query" : {
         "percolate" : {
@@ -523,7 +516,6 @@ The slightly different response:
     "hits": [
       {
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 1.5606477,
         "_source": {
@@ -564,7 +556,7 @@ It is possible to specify multiple `percolate` queries in a single search reques
 
 [source,js]
 --------------------------------------------------
-GET /my-index/_search
+GET /my-index/_search?include_type_name=false
 {
     "query" : {
         "bool" : {
@@ -619,7 +611,6 @@ The above search request returns a response similar to this:
     "hits": [
       {
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.5753642,
         "_source": {
@@ -666,7 +657,7 @@ can be found by running the following search:
 
 [source,js]
 ---------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
   "query": {
     "term" : {

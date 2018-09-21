@@ -47,7 +47,7 @@ conditions are met:
 
 [source,js]
 ------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
   "query": { <1>
     "bool": { <2>

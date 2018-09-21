@@ -74,7 +74,7 @@ notation_:
 
 [source,js]
 --------------------------------------------------
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "query": {
     "match": {

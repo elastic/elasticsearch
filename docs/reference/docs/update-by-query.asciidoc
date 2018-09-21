@@ -516,7 +516,7 @@ Which you can verify works with:
 [source,js]
 ----------------------------------------------------------------
 GET _refresh
-POST twitter/_search?size=0&q=extra:test&filter_path=hits.total
+POST twitter/_search?size=0&q=extra:test&filter_path=hits.total&include_type_name=false
 ----------------------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -557,7 +557,7 @@ Which you also can verify works with:
 
 [source,js]
 ----------------------------------------------------------------
-POST twitter/_search?size=0&q=extra:test&filter_path=hits.total
+POST twitter/_search?size=0&q=extra:test&filter_path=hits.total&include_type_name=false
 ----------------------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -673,7 +673,7 @@ Searching for the data won't find anything:
 
 [source,js]
 --------------------------------------------------
-POST test/_search?filter_path=hits.total
+POST test/_search?filter_path=hits.total&include_type_name=false
 {
   "query": {
     "match": {
@@ -700,7 +700,7 @@ But you can issue an `_update_by_query` request to pick up the new mapping:
 [source,js]
 --------------------------------------------------
 POST test/_update_by_query?refresh&conflicts=proceed
-POST test/_search?filter_path=hits.total
+POST test/_search?filter_path=hits.total&include_type_name=false
 {
   "query": {
     "match": {

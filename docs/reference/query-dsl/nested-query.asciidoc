@@ -31,7 +31,7 @@ And here is a sample nested query usage:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "nested" : {

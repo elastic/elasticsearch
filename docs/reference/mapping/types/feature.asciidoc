@@ -29,7 +29,7 @@ PUT my_index/_doc/1
   "url_length": 22
 }
 
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "query": {
     "feature": {

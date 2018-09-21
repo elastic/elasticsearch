@@ -34,7 +34,7 @@ PUT my_index/_doc/2
   "status_code": [] <2>
 }
 
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "query": {
     "term": {

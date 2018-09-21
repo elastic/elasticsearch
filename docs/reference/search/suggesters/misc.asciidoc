@@ -8,7 +8,7 @@ Considering the following example with two suggesters `term` and `phrase`:
 
 [source,js]
 --------------------------------------------------
-POST _search?typed_keys
+POST _search?typed_keys&include_type_name=false
 {
   "suggest": {
     "text" : "some test mssage",

@@ -56,7 +56,7 @@ PUT my_index/_doc/2?refresh
   "popularity": 5
 }
 
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "query": {
     "function_score": {
@@ -94,7 +94,7 @@ PUT my_index/_doc/1?refresh
   "cost_price": 100
 }
 
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "script_fields": {
     "sales_price": {
@@ -200,7 +200,7 @@ PUT my_index/_doc/1?refresh
   "last_name": "White"
 }
 
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "script_fields": {
     "source": {

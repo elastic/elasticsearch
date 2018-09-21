@@ -33,7 +33,7 @@ For each sale only the date and price fields are being included in the source.
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search?size=0
+POST /sales/_search?size=0&include_type_name=false
 {
     "aggs": {
         "top_tags": {
@@ -86,7 +86,6 @@ Possible response:
                    "hits": [
                       {
                          "_index": "sales",
-                         "_type": "_doc",
                          "_id": "AVnNBmauCQpcRyxw6ChK",
                          "_source": {
                             "date": "2015/03/01 00:00:00",
@@ -111,7 +110,6 @@ Possible response:
                    "hits": [
                       {
                          "_index": "sales",
-                         "_type": "_doc",
                          "_id": "AVnNBmauCQpcRyxw6ChL",
                          "_source": {
                             "date": "2015/03/01 00:00:00",
@@ -136,7 +134,6 @@ Possible response:
                    "hits": [
                       {
                          "_index": "sales",
-                         "_type": "_doc",
                          "_id": "AVnNBmatCQpcRyxw6ChH",
                          "_source": {
                             "date": "2015/01/01 00:00:00",
@@ -177,7 +174,7 @@ relevancy order of the most relevant document in a bucket.
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search
+POST /sales/_search?include_type_name=false
 {
   "query": {
     "match": {
@@ -231,18 +228,16 @@ Let's see how it works with a real sample. Considering the following mapping:
 
 [source,js]
 --------------------------------------------------
-PUT /sales
+PUT /sales?include_type_name=false
 {
     "mappings": {
-        "_doc" : {
-            "properties" : {
-                "tags" : { "type" : "keyword" },
-                "comments" : { <1>
-                    "type" : "nested",
-                    "properties" : {
-                        "username" : { "type" : "keyword" },
-                        "comment" : { "type" : "text" }
-                    }
+        "properties" : {
+            "tags" : { "type" : "keyword" },
+            "comments" : { <1>
+                "type" : "nested",
+                "properties" : {
+                    "username" : { "type" : "keyword" },
+                    "comment" : { "type" : "text" }
                 }
             }
         }
@@ -256,7 +251,7 @@ And some documents:
 
 [source,js]
 --------------------------------------------------
-PUT /sales/_doc/1?refresh
+PUT /sales/_doc/1?refresh&include_type_name=false
 {
     "tags": ["car", "auto"],
     "comments": [
@@ -273,7 +268,7 @@ It's now possible to execute the following `top_hits` aggregation (wrapped in a 
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search
+POST /sales/_search?include_type_name=false
 {
     "query": {
         "term": { "tags": "car" }
@@ -302,7 +297,7 @@ POST /sales/_search
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
-// TEST[s/_search/_search\?filter_path=aggregations.by_sale.by_user.buckets/]
+// TEST[s/_search\?/_search\?filter_path=aggregations.by_sale.by_user.buckets&/]
 
 Top hits response snippet with a nested hit, which resides in the first slot of array field `comments`:
 
@@ -324,7 +319,6 @@ Top hits response snippet with a nested hit, which resides in the first slot of 
                 "hits": [
                   {
                     "_index": "sales",
-                    "_type" : "_doc",
                     "_id": "1",
                     "_nested": {
                       "field": "comments",  <1>
@@ -374,7 +368,6 @@ the second slow of the `nested_child_field` field:
  "hits": [
    {
      "_index": "a",
-     "_type": "b",
      "_id": "1",
      "_score": 1,
      "_nested" : {

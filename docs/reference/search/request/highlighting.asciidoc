@@ -22,7 +22,7 @@ the request body that specifies the `content` field:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query" : {
         "match": { "content": "kimchy" }
@@ -274,7 +274,7 @@ individual fields.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query" : {
         "match": { "user": "kimchy" }
@@ -305,7 +305,7 @@ highlighting would only take the search query into account.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "stored_fields": [ "_id" ],
     "query" : {
@@ -374,7 +374,7 @@ The following is an example that forces the use of the plain highlighter:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query" : {
         "match": { "user": "kimchy" }
@@ -399,7 +399,7 @@ for example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query" : {
         "match": { "user": "kimchy" }
@@ -421,7 +421,7 @@ When using the fast vector highlighter, you can specify additional tags and the
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query" : {
         "match": { "user": "kimchy" }
@@ -442,7 +442,7 @@ You can also use the built-in `styled` tag schema:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query" : {
         "match": { "user": "kimchy" }
@@ -467,7 +467,7 @@ are stored separately. Defaults to `false`.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query" : {
         "match": { "user": "kimchy" }
@@ -492,7 +492,7 @@ By default, only fields that contains a query match are highlighted. Set
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query" : {
         "match": { "user": "kimchy" }
@@ -526,7 +526,7 @@ analyzer and `comment.plain` is analyzed by the `standard` analyzer.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "query_string": {
@@ -556,7 +556,7 @@ are more matches in that fragment.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "query_string": {
@@ -584,7 +584,7 @@ the plain match ("running") is boosted.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "query_string": {
@@ -654,7 +654,7 @@ in which fields are highlighted specify the `fields` as an array:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "highlight": {
         "fields": [
@@ -684,7 +684,7 @@ For example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query" : {
         "match": { "user": "kimchy" }
@@ -704,7 +704,7 @@ to be sorted by score:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query" : {
         "match": { "user": "kimchy" }
@@ -728,7 +728,7 @@ is required. Note that `fragment_size` is ignored in this case.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query" : {
         "match": { "user": "kimchy" }
@@ -755,7 +755,7 @@ specified as it tries to break on a word boundary.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query" : {
         "match": { "user": "kimchy" }
@@ -829,7 +829,7 @@ When using the `plain` highlighter, you can choose between the `simple` and
 
 [source,js]
 --------------------------------------------------
-GET twitter/_search
+GET twitter/_search?include_type_name=false
 {
     "query" : {
         "match_phrase": { "message": "number 1" }
@@ -861,7 +861,6 @@ Response:
         "hits": [
             {
                 "_index": "twitter",
-                "_type": "_doc",
                 "_id": "1",
                 "_score": 1.601195,
                 "_source": {
@@ -885,7 +884,7 @@ Response:
 
 [source,js]
 --------------------------------------------------
-GET twitter/_search
+GET twitter/_search?include_type_name=false
 {
     "query" : {
         "match_phrase": { "message": "number 1" }
@@ -917,7 +916,6 @@ Response:
         "hits": [
             {
                 "_index": "twitter",
-                "_type": "_doc",
                 "_id": "1",
                 "_score": 1.601195,
                 "_source": {

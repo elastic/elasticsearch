@@ -37,7 +37,7 @@ The following example demonstrates the use of matrix stats to describe the relat
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs": {
         "statistics": {
@@ -121,7 +121,7 @@ This is done by adding a set of fieldname : value mappings to specify default va
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs": {
         "matrixstats": {

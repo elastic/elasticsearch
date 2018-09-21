@@ -14,7 +14,7 @@ by the query.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "function_score": {
@@ -37,7 +37,7 @@ given filtering query
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "function_score": {
@@ -134,7 +134,7 @@ simple sample:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "function_score": {
@@ -163,7 +163,7 @@ same script, and provide parameters to it:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "function_score": {
@@ -230,7 +230,7 @@ a lot of memory.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "function_score": {
@@ -259,7 +259,7 @@ doing so would look like:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "function_score": {
@@ -361,7 +361,7 @@ days, weeks, and so on. Example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "function_score": {
@@ -559,7 +559,7 @@ the request would look like this:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "function_score": {

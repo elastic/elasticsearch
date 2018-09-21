@@ -6,7 +6,7 @@ evaluation>> (based on different fields) for each hit, for example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query" : {
         "match_all": {}
@@ -43,7 +43,7 @@ Here is an example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
     {
         "query" : {
             "match_all": {}

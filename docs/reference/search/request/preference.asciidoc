@@ -53,7 +53,7 @@ For instance, use the user's session ID `xyzabc123` as follows:
 
 [source,js]
 ------------------------------------------------
-GET /_search?preference=xyzabc123
+GET /_search?preference=xyzabc123&include_type_name=false
 {
     "query": {
         "match": {

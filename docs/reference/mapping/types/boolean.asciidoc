@@ -35,7 +35,7 @@ POST my_index/_doc/1
   "is_published": "true" <1>
 }
 
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "query": {
     "term": {
@@ -65,7 +65,7 @@ POST my_index/_doc/2
   "is_published": false
 }
 
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "aggs": {
     "publish_state": {

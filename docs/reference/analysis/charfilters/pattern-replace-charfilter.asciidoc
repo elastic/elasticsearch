@@ -100,7 +100,7 @@ camelCase words to be queried individually:
 
 [source,js]
 ----------------------------
-PUT my_index
+PUT my_index?include_type_name=false
 {
   "settings": {
     "analysis": {
@@ -125,12 +125,10 @@ PUT my_index
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "text": {
-          "type": "text",
-          "analyzer": "my_analyzer"
-        }
+    "properties": {
+      "text": {
+        "type": "text",
+        "analyzer": "my_analyzer"
       }
     }
   }
@@ -205,12 +203,12 @@ the length of the original text:
 
 [source,js]
 ----------------------------
-PUT my_index/_doc/1?refresh
+PUT my_index/_doc/1?refresh&include_type_name=false
 {
   "text": "The fooBarBaz method"
 }
 
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "query": {
     "match": {
@@ -246,7 +244,6 @@ The output from the above is:
     "hits": [
       {
         "_index": "my_index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.2876821,
         "_source": {

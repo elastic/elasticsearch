@@ -84,20 +84,18 @@ The nested `inner_hits` can be used to include nested inner objects as inner hit
 
 [source,js]
 --------------------------------------------------
-PUT test
+PUT test?include_type_name=false
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "comments": {
-          "type": "nested"
-        }
+    "properties": {
+      "comments": {
+        "type": "nested"
       }
     }
   }
 }
 
-PUT test/_doc/1?refresh
+PUT test/_doc/1?refresh&include_type_name=false
 {
   "title": "Test title",
   "comments": [
@@ -112,7 +110,7 @@ PUT test/_doc/1?refresh
   ]
 }
 
-POST test/_search
+POST test/_search?include_type_name=false
 {
   "query": {
     "nested": {
@@ -141,7 +139,6 @@ An example of a response snippet that could be generated from the above search r
     "hits": [
       {
         "_index": "test",
-        "_type": "_doc",
         "_id": "1",
         "_score": 1.0,
         "_source": ...,
@@ -153,7 +150,6 @@ An example of a response snippet that could be generated from the above search r
               "hits": [
                 {
                   "_index": "test",
-                  "_type": "_doc",
                   "_id": "1",
                   "_nested": {
                     "field": "comments",
@@ -204,20 +200,18 @@ including the source and solely rely on doc values fields. Like this:
 
 [source,js]
 --------------------------------------------------
-PUT test
+PUT test?include_type_name=false
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "comments": {
-          "type": "nested"
-        }
+    "properties": {
+      "comments": {
+        "type": "nested"
       }
     }
   }
 }
 
-PUT test/_doc/1?refresh
+PUT test/_doc/1?refresh&include_type_name=false
 {
   "title": "Test title",
   "comments": [
@@ -232,7 +226,7 @@ PUT test/_doc/1?refresh
   ]
 }
 
-POST test/_search
+POST test/_search?include_type_name=false
 {
   "query": {
     "nested": {
@@ -269,7 +263,6 @@ Response not included in text but tested for completeness sake.
     "hits": [
       {
         "_index": "test",
-        "_type": "_doc",
         "_id": "1",
         "_score": 1.0444684,
         "_source": ...,
@@ -281,7 +274,6 @@ Response not included in text but tested for completeness sake.
               "hits": [
                 {
                   "_index": "test",
-                  "_type": "_doc",
                   "_id": "1",
                   "_nested": {
                     "field": "comments",
@@ -317,17 +309,15 @@ with the root hits then the following path can be defined:
 
 [source,js]
 --------------------------------------------------
-PUT test
+PUT test?include_type_name=false
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "comments": {
-          "type": "nested",
-          "properties": {
-            "votes": {
-              "type": "nested"
-            }
+    "properties": {
+      "comments": {
+        "type": "nested",
+        "properties": {
+          "votes": {
+            "type": "nested"
           }
         }
       }
@@ -335,7 +325,7 @@ PUT test
   }
 }
 
-PUT test/_doc/1?refresh
+PUT test/_doc/1?refresh&include_type_name=false
 {
   "title": "Test title",
   "comments": [
@@ -355,7 +345,7 @@ PUT test/_doc/1?refresh
   ]
 }
 
-POST test/_search
+POST test/_search?include_type_name=false
 {
   "query": {
     "nested": {
@@ -384,7 +374,6 @@ Which would look like:
     "hits": [
       {
         "_index": "test",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.6931472,
         "_source": ...,
@@ -396,7 +385,6 @@ Which would look like:
               "hits": [
                 {
                   "_index": "test",
-                  "_type": "_doc",
                   "_id": "1",
                   "_nested": {
                     "field": "comments",
@@ -433,29 +421,27 @@ The parent/child `inner_hits` can be used to include parent or child:
 
 [source,js]
 --------------------------------------------------
-PUT test
+PUT test?include_type_name=false
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_join_field": {
-          "type": "join",
-          "relations": {
-            "my_parent": "my_child"
-          }
+    "properties": {
+      "my_join_field": {
+        "type": "join",
+        "relations": {
+          "my_parent": "my_child"
         }
       }
     }
   }
 }
 
-PUT test/_doc/1?refresh
+PUT test/_doc/1?refresh&include_type_name=false
 {
   "number": 1,
   "my_join_field": "my_parent"
 }
 
-PUT test/_doc/2?routing=1&refresh
+PUT test/_doc/2?routing=1&refresh&include_type_name=false
 {
   "number": 1,
   "my_join_field": {
@@ -464,7 +450,7 @@ PUT test/_doc/2?routing=1&refresh
   }
 }
 
-POST test/_search
+POST test/_search?include_type_name=false
 {
   "query": {
     "has_child": {
@@ -495,7 +481,6 @@ An example of a response snippet that could be generated from the above search r
         "hits": [
             {
                 "_index": "test",
-                "_type": "_doc",
                 "_id": "1",
                 "_score": 1.0,
                 "_source": {
@@ -510,7 +495,6 @@ An example of a response snippet that could be generated from the above search r
                             "hits": [
                                 {
                                     "_index": "test",
-                                    "_type": "_doc",
                                     "_id": "2",
                                     "_score": 1.0,
                                     "_routing": "1",

@@ -13,7 +13,7 @@ To disable `_source` retrieval set to `false`:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "_source": false,
     "query" : {
@@ -29,7 +29,7 @@ For example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "_source": "obj.*",
     "query" : {
@@ -43,7 +43,7 @@ Or
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "_source": [ "obj1.*", "obj2.*" ],
     "query" : {
@@ -58,7 +58,7 @@ patterns:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "_source": {
         "includes": [ "obj1.*", "obj2.*" ],

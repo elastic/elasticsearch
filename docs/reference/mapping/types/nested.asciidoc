@@ -50,7 +50,7 @@ incorrectly match a query for `alice AND smith`:
 
 [source,js]
 --------------------------------------------------
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "query": {
     "bool": {
@@ -103,7 +103,7 @@ PUT my_index/_doc/1
   ]
 }
 
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "query": {
     "nested": {
@@ -120,7 +120,7 @@ GET my_index/_search
   }
 }
 
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "query": {
     "nested": {

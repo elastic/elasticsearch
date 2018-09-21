@@ -7,7 +7,7 @@ Example:
 
 [source,js]
 --------------------------------------------------
-POST ledger/_search?size=0
+POST ledger/_search?size=0&include_type_name=false
 {
     "query" : {
         "match_all" : {}
@@ -52,7 +52,7 @@ The above example can also be specified using stored scripts as follows:
 
 [source,js]
 --------------------------------------------------
-POST ledger/_search?size=0
+POST ledger/_search?size=0&include_type_name=false
 {
     "aggs": {
         "profit": {
@@ -147,7 +147,7 @@ Imagine a situation where you index the following documents into an index with 2
 
 [source,js]
 --------------------------------------------------
-PUT /transactions/_doc/_bulk?refresh
+PUT /transactions/_bulk?refresh&include_type_name=false
 {"index":{"_id":1}}
 {"type": "sale","amount": 80}
 {"index":{"_id":2}}

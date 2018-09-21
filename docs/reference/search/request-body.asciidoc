@@ -7,7 +7,7 @@ example:
 
 [source,js]
 --------------------------------------------------
-GET /twitter/_search
+GET /twitter/_search?include_type_name=false
 {
     "query" : {
         "term" : { "user" : "kimchy" }
@@ -36,7 +36,6 @@ And here is a sample response:
         "hits" : [
             {
                 "_index" : "twitter",
-                "_type" : "_doc",
                 "_id" : "0",
                 "_score": 1.3862944,
                 "_source" : {
@@ -137,7 +136,7 @@ matching document was found (per shard).
 
 [source,js]
 --------------------------------------------------
-GET /_search?q=message:number&size=0&terminate_after=1
+GET /_search?q=message:number&size=0&terminate_after=1&include_type_name=false
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]

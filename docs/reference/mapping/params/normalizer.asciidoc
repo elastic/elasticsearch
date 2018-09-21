@@ -12,7 +12,7 @@ such as the <<query-dsl-term-query,`term`>> query.
 
 [source,js]
 --------------------------------
-PUT index
+PUT index?include_type_name=false
 {
   "settings": {
     "analysis": {
@@ -26,35 +26,33 @@ PUT index
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "foo": {
-          "type": "keyword",
-          "normalizer": "my_normalizer"
-        }
+    "properties": {
+      "foo": {
+        "type": "keyword",
+        "normalizer": "my_normalizer"
       }
     }
   }
 }
 
-PUT index/_doc/1
+PUT index/_doc/1?include_type_name=false
 {
   "foo": "BÀR"
 }
 
-PUT index/_doc/2
+PUT index/_doc/2?include_type_name=false
 {
   "foo": "bar"
 }
 
-PUT index/_doc/3
+PUT index/_doc/3?include_type_name=false
 {
   "foo": "baz"
 }
 
 POST index/_refresh
 
-GET index/_search
+GET index/_search?include_type_name=false
 {
   "query": {
     "term": {
@@ -63,7 +61,7 @@ GET index/_search
   }
 }
 
-GET index/_search
+GET index/_search?include_type_name=false
 {
   "query": {
     "match": {
@@ -94,7 +92,6 @@ both index and query time.
     "hits": [
       {
         "_index": "index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.47000363,
         "_source": {
@@ -103,7 +100,6 @@ both index and query time.
       },
       {
         "_index": "index",
-        "_type": "_doc",
         "_id": "2",
         "_score": 0.47000363,
         "_source": {
@@ -121,7 +117,7 @@ aggregations return normalized values:
 
 [source,js]
 ----------------------------
-GET index/_search
+GET index/_search?include_type_name=false
 {
   "size": 0,
   "aggs": {

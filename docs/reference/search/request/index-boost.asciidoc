@@ -9,7 +9,7 @@ graph where each user has an index).
 deprecated[5.2.0, This format is deprecated. Please use array format instead.]
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "indices_boost" : {
         "index1" : 1.4,
@@ -24,7 +24,7 @@ You can also specify it as an array to control the order of boosts.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "indices_boost" : [
         { "alias1" : 1.4 },

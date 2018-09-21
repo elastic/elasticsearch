@@ -48,7 +48,7 @@ PUT my_index/_doc/1
   "text": "Quick brown fox"
 }
 
-GET my_index/_search
+GET my_index/_search?include_type_name=false
 {
   "query": {
     "match": {

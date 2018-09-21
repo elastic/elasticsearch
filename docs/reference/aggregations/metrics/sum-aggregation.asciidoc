@@ -8,7 +8,7 @@ the sale price of all hats with:
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search?size=0
+POST /sales/_search?size=0&include_type_name=false
 {
     "query" : {
         "constant_score" : {
@@ -48,7 +48,7 @@ We could also use a script to fetch the sales price:
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search?size=0
+POST /sales/_search?size=0&include_type_name=false
 {
     "query" : {
         "constant_score" : {
@@ -75,7 +75,7 @@ This will interpret the `script` parameter as an `inline` script with the `painl
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search?size=0
+POST /sales/_search?size=0&include_type_name=false
 {
     "query" : {
         "constant_score" : {
@@ -108,7 +108,7 @@ For example, this will sum the square of the prices for all hats:
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search?size=0
+POST /sales/_search?size=0&include_type_name=false
 {
     "query" : {
         "constant_score" : {
@@ -141,7 +141,7 @@ all hat sales without a price as being `100`.
 
 [source,js]
 --------------------------------------------------
-POST /sales/_search?size=0
+POST /sales/_search?size=0&include_type_name=false
 {
     "query" : {
         "constant_score" : {

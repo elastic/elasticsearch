@@ -43,7 +43,7 @@ filter:
 
 [source,js]
 --------------------------------------------------
-GET /my_locations/_search
+GET /my_locations/_search?include_type_name=false
 {
     "query": {
         "bool" : {
@@ -76,7 +76,7 @@ representations of the geo point, the filter can accept it as well:
 
 [source,js]
 --------------------------------------------------
-GET /my_locations/_search
+GET /my_locations/_search?include_type_name=false
 {
     "query": {
         "bool" : {
@@ -106,7 +106,7 @@ conform with http://geojson.org/[GeoJSON].
 
 [source,js]
 --------------------------------------------------
-GET /my_locations/_search
+GET /my_locations/_search?include_type_name=false
 {
     "query": {
         "bool" : {
@@ -133,7 +133,7 @@ Format in `lat,lon`.
 
 [source,js]
 --------------------------------------------------
-GET /my_locations/_search
+GET /my_locations/_search?include_type_name=false
 {
     "query": {
         "bool" : {
@@ -157,7 +157,7 @@ GET /my_locations/_search
 
 [source,js]
 --------------------------------------------------
-GET /my_locations/_search
+GET /my_locations/_search?include_type_name=false
 {
     "query": {
         "bool" : {

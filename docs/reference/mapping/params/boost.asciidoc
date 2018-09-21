@@ -34,7 +34,7 @@ You can achieve the same effect by using the boost parameter directly in the que
 
 [source,js]
 --------------------------------------------------
-POST _search
+POST _search?include_type_name=false
 {
     "query": {
         "match" : {
@@ -51,7 +51,7 @@ is equivalent to:
 
 [source,js]
 --------------------------------------------------
-POST _search
+POST _search?include_type_name=false
 {
     "query": {
         "match" : {

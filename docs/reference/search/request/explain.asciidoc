@@ -5,7 +5,7 @@ Enables explanation for each hit on how its score was computed.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "explain": true,
     "query" : {

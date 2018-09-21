@@ -31,7 +31,7 @@ PUT /my_index
 
 [source,js]
 --------------------------------------------------
-GET /my_index/_search
+GET /my_index/_search?include_type_name=false
 {
     "sort" : [
         { "post_date" : {"order" : "asc"}},
@@ -98,7 +98,7 @@ PUT /my_index/_doc/1?refresh
    "price": [20, 4]
 }
 
-POST /_search
+POST /_search?include_type_name=false
 {
    "query" : {
       "term" : { "product" : "chocolate" }
@@ -147,7 +147,7 @@ The nested `path` needs to be specified; otherwise, Elasticsearch doesn't know o
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
    "query" : {
       "term" : { "product" : "chocolate" }
@@ -175,7 +175,7 @@ The `nested_path` needs to be specified at each level; otherwise, Elasticsearch 
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST /_search?include_type_name=false
 {
    "query": {
       "nested": {
@@ -232,7 +232,7 @@ For example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "sort" : [
         { "price" : {"missing" : "_last"} }
@@ -257,7 +257,7 @@ example of how it can be used:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "sort" : [
         { "price" : {"unmapped_type" : "long"} }
@@ -280,7 +280,7 @@ Allow to sort by `_geo_distance`. Here is an example, assuming `pin.location` is
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "sort" : [
         {
@@ -334,7 +334,7 @@ The following formats are supported in providing the coordinates:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "sort" : [
         {
@@ -361,7 +361,7 @@ Format in `lat,lon`.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "sort" : [
         {
@@ -383,7 +383,7 @@ GET /_search
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "sort" : [
         {
@@ -408,7 +408,7 @@ conform with http://geojson.org/[GeoJSON].
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "sort" : [
         {
@@ -433,7 +433,7 @@ Multiple geo points can be passed as an array containing any `geo_point` format,
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "sort" : [
         {
@@ -463,7 +463,7 @@ Allow to sort based on custom scripts, here is an example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query" : {
         "term" : { "user" : "kimchy" }
@@ -493,7 +493,7 @@ When sorting on a field, scores are not computed. By setting
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "track_scores": true,
     "sort" : [

@@ -7,7 +7,7 @@ an example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "has_child" : {
@@ -44,7 +44,7 @@ inside the `has_child` query:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "has_child" : {
@@ -70,7 +70,7 @@ a match:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "has_child" : {
@@ -114,7 +114,7 @@ Sorting blogs by child documents' `click_count` field:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "has_child" : {

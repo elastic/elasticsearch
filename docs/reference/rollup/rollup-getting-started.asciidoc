@@ -129,7 +129,7 @@ For example, take this query:
 
 [source,js]
 --------------------------------------------------
-GET /sensor_rollup/_rollup_search
+GET /sensor_rollup/_rollup_search?include_type_name=false
 {
     "size": 0,
     "aggregations": {
@@ -184,7 +184,7 @@ Finally, we can use those grouping fields we defined to construct a more complic
 
 [source,js]
 --------------------------------------------------
-GET /sensor_rollup/_rollup_search
+GET /sensor_rollup/_rollup_search?include_type_name=false
 {
     "size": 0,
     "aggregations": {

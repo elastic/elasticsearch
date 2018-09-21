@@ -15,17 +15,15 @@ If the following mapping configures the `percolator` field type for the
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=false
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "query": {
-                    "type": "percolator"
-                },
-                "field": {
-                    "type": "text"
-                }
+        "properties": {
+            "query": {
+                "type": "percolator"
+            },
+            "field": {
+                "type": "text"
             }
         }
     }
@@ -38,7 +36,7 @@ Then you can index a query:
 
 [source,js]
 --------------------------------------------------
-PUT my_index/_doc/match_value
+PUT my_index/_doc/match_value?include_type_name=false
 {
     "query" : {
         "match" : {
@@ -70,17 +68,15 @@ Lets take a look at the following index with a percolator field type:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=false
 {
   "mappings": {
-    "_doc" : {
-      "properties": {
-        "query" : {
-          "type" : "percolator"
-        },
-        "body" : {
-          "type": "text"
-        }
+    "properties": {
+      "query" : {
+        "type" : "percolator"
+      },
+      "body" : {
+        "type": "text"
       }
     }
   }
@@ -98,7 +94,7 @@ POST _aliases
   ]
 }
 
-PUT queries/_doc/1?refresh
+PUT queries/_doc/1?refresh&include_type_name=false
 {
   "query" : {
     "match" : {
@@ -118,17 +114,15 @@ to read your queries you need to reindex your queries into a new index on the cu
 
 [source,js]
 --------------------------------------------------
-PUT new_index
+PUT new_index?include_type_name=false
 {
   "mappings": {
-    "_doc" : {
-      "properties": {
-        "query" : {
-          "type" : "percolator"
-        },
-        "body" : {
-          "type": "text"
-        }
+    "properties": {
+      "query" : {
+        "type" : "percolator"
+      },
+      "body" : {
+        "type": "text"
       }
     }
   }
@@ -171,7 +165,7 @@ Executing the `percolate` query via the `queries` alias:
 
 [source,js]
 --------------------------------------------------
-GET /queries/_search
+GET /queries/_search?include_type_name=false
 {
   "query": {
     "percolate" : {
@@ -205,7 +199,6 @@ now returns matches from the new index:
     "hits": [
       {
         "_index": "new_index", <1>
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.2876821,
         "_source": {
@@ -267,7 +260,7 @@ with these settings and mapping:
 
 [source,js]
 --------------------------------------------------
-PUT /test_index
+PUT /test_index?include_type_name=false
 {
   "settings": {
     "analysis": {
@@ -280,15 +273,13 @@ PUT /test_index
     }
   },
   "mappings": {
-    "_doc" : {
-      "properties": {
-        "query" : {
-          "type": "percolator"
-        },
-        "body" : {
-          "type": "text",
-          "analyzer": "my_analyzer" <1>
-        }
+    "properties": {
+      "query" : {
+        "type": "percolator"
+      },
+      "body" : {
+        "type": "text",
+        "analyzer": "my_analyzer" <1>
       }
     }
   }
@@ -341,7 +332,7 @@ All the tokens in the returned order need to replace the query text in the perco
 
 [source,js]
 --------------------------------------------------
-PUT /test_index/_doc/1?refresh
+PUT /test_index/_doc/1?refresh&include_type_name=false
 {
   "query" : {
     "match" : {
@@ -366,7 +357,7 @@ At percolate time nothing changes and the `percolate` query can be defined norma
 
 [source,js]
 --------------------------------------------------
-GET /test_index/_search
+GET /test_index/_search?include_type_name=false
 {
   "query": {
     "percolate" : {
@@ -400,7 +391,6 @@ This results in a response like this:
     "hits": [
       {
         "_index": "test_index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.2876821,
         "_source": {
@@ -437,7 +427,7 @@ Creating an index with custom analysis settings:
 
 [source,js]
 --------------------------------------------------
-PUT my_queries1
+PUT my_queries1?include_type_name=false
 {
   "settings": {
     "analysis": {
@@ -461,19 +451,17 @@ PUT my_queries1
     }
   },
   "mappings": {
-    "query": {
-      "properties": {
-        "query": {
-          "type": "percolator"
-        },
-        "my_field": {
-          "type": "text",
-          "fields": {
-            "prefix": { <3>
-              "type": "text",
-              "analyzer": "wildcard_prefix",
-              "search_analyzer": "standard"
-            }
+    "properties": {
+      "query": {
+        "type": "percolator"
+      },
+      "my_field": {
+        "type": "text",
+        "fields": {
+          "prefix": { <3>
+            "type": "text",
+            "analyzer": "wildcard_prefix",
+            "search_analyzer": "standard"
           }
         }
       }
@@ -508,7 +496,7 @@ this query below should be indexed:
 
 [source,js]
 --------------------------------------------------
-PUT /my_queries1/query/1?refresh
+PUT /my_queries1/_doc/1?refresh&include_type_name=false
 {
   "query": {
     "term": {
@@ -527,7 +515,7 @@ percolator query:
 
 [source,js]
 --------------------------------------------------
-GET /my_queries1/_search
+GET /my_queries1/_search?include_type_name=false
 {
   "query": {
     "percolate": {
@@ -559,7 +547,6 @@ GET /my_queries1/_search
     "hits": [
       {
         "_index": "my_queries1",
-        "_type": "query",
         "_id": "1",
         "_score": 0.41501677,
         "_source": {
@@ -587,7 +574,7 @@ before the `edge_ngram` token filter.
 
 [source,js]
 --------------------------------------------------
-PUT my_queries2
+PUT my_queries2?include_type_name=false
 {
   "settings": {
     "analysis": {
@@ -620,19 +607,17 @@ PUT my_queries2
     }
   },
   "mappings": {
-    "query": {
-      "properties": {
-        "query": {
-          "type": "percolator"
-        },
-        "my_field": {
-          "type": "text",
-          "fields": {
-            "suffix": {
-              "type": "text",
-              "analyzer": "wildcard_suffix",
-              "search_analyzer": "wildcard_suffix_search_time" <1>
-            }
+    "properties": {
+      "query": {
+        "type": "percolator"
+      },
+      "my_field": {
+        "type": "text",
+        "fields": {
+          "suffix": {
+            "type": "text",
+            "analyzer": "wildcard_suffix",
+            "search_analyzer": "wildcard_suffix_search_time" <1>
           }
         }
       }
@@ -665,7 +650,7 @@ the following query below should be indexed:
 
 [source,js]
 --------------------------------------------------
-PUT /my_queries2/query/2?refresh
+PUT /my_queries2/_doc/2?refresh&include_type_name=false
 {
   "query": {
     "match": { <1>
@@ -685,7 +670,7 @@ percolator query:
 
 [source,js]
 --------------------------------------------------
-GET /my_queries2/_search
+GET /my_queries2/_search?include_type_name=false
 {
   "query": {
     "percolate": {

@@ -119,7 +119,7 @@ PUT logs/_doc/1
   }
 }
 
-GET logs/_search
+GET logs/_search?include_type_name=false
 {
   "query": {
     "match": {

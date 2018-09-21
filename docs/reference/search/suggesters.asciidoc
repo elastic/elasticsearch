@@ -14,7 +14,7 @@ suggest only search requests.
 
 [source,js]
 --------------------------------------------------
-POST twitter/_search
+POST twitter/_search?include_type_name=false
 {
   "query" : {
     "match": {
@@ -41,7 +41,7 @@ the `term` suggester, but have a different `text`.
 
 [source,js]
 --------------------------------------------------
-POST _search
+POST _search?include_type_name=false
 {
   "suggest": {
     "my-suggest-1" : {
@@ -117,7 +117,7 @@ and applies to the `my-suggest-1` and `my-suggest-2` suggestions.
 
 [source,js]
 --------------------------------------------------
-POST _search
+POST _search?include_type_name=false
 {
   "suggest": {
     "text" : "tring out Elasticsearch",

@@ -7,23 +7,21 @@ A multi-bucket value source based aggregation where buckets are dynamically buil
 
 [source,js]
 --------------------------------------------------
-PUT /products
+PUT /products?include_type_name=false
 {
     "mappings": {
-        "product": {
-            "properties": {
-                "genre": {
-                    "type": "keyword"
-                },
-                "product": {
-                    "type": "keyword"
-                }
+        "properties": {
+            "genre": {
+                "type": "keyword"
+            },
+            "product": {
+                "type": "keyword"
             }
         }
     }
 }
 
-POST /products/product/_bulk?refresh
+POST /products/_bulk?refresh&include_type_name=false
 {"index":{"_id":0}}
 {"genre": "rock", "product": "Product A"}
 {"index":{"_id":1}}
@@ -57,7 +55,7 @@ Example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "genres" : {
@@ -132,7 +130,7 @@ A request is made to obtain the top 5 terms in the field product, ordered by des
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "products" : {
@@ -263,7 +261,7 @@ The second error value can be enabled by setting the `show_term_doc_count_error`
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "products" : {
@@ -341,7 +339,7 @@ Ordering the buckets by their doc `_count` in an ascending manner:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "genres" : {
@@ -359,7 +357,7 @@ Ordering the buckets alphabetically by their terms in an ascending manner:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "genres" : {
@@ -379,7 +377,7 @@ Ordering the buckets by single value metrics sub-aggregation (identified by the 
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "genres" : {
@@ -400,7 +398,7 @@ Ordering the buckets by multi value metrics sub-aggregation (identified by the a
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "genres" : {
@@ -447,7 +445,7 @@ PATH                =  <AGG_NAME> [ <AGG_SEPARATOR>, <AGG_NAME> ]* [ <METRIC_SEP
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "countries" : {
@@ -475,7 +473,7 @@ Multiple criteria can be used to order the buckets by providing an array of orde
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "countries" : {
@@ -509,7 +507,7 @@ It is possible to only return terms that match more than a configured number of 
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "tags" : {
@@ -551,7 +549,7 @@ Generating the terms using a script:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "genres" : {
@@ -587,7 +585,7 @@ POST /_scripts/my_script
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "genres" : {
@@ -610,7 +608,7 @@ GET /_search
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "genres" : {
@@ -637,7 +635,7 @@ It is possible to filter the values for which buckets will be created. This can 
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "tags" : {
@@ -666,7 +664,7 @@ strings that represent the terms as they are found in the index:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "JapaneseCars" : {
@@ -696,7 +694,7 @@ Consider this request which is looking for accounts that have not logged any acc
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
    "size": 0,
    "aggs": {
@@ -788,7 +786,7 @@ An example problem scenario is querying a movie database for the 10 most popular
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "actors" : {
@@ -820,7 +818,7 @@ It is possible to override the default heuristic and to provide a collect mode d
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "actors" : {
@@ -872,7 +870,7 @@ ordinals.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "tags" : {
@@ -898,7 +896,7 @@ had a value.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "tags" : {

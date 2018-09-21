@@ -19,23 +19,21 @@ that is significant and probably very relevant to their search. 5/10,000,000 vs 
 
 [source,js]
 --------------------------------------------------
-PUT /reports
+PUT /reports?include_type_name=false
 {
     "mappings": {
-        "report": {
-            "properties": {
-                "force": {
-                    "type": "keyword"
-                },
-                "crime_type": {
-                    "type": "keyword"
-                }
+        "properties": {
+            "force": {
+                "type": "keyword"
+            },
+            "crime_type": {
+                "type": "keyword"
             }
         }
     }
 }
 
-POST /reports/report/_bulk?refresh
+POST /reports/_bulk?refresh&include_type_name=false
 {"index":{"_id":0}}
 {"force": "British Transport Police", "crime_type": "Bicycle theft"}
 {"index":{"_id":1}}
@@ -68,7 +66,7 @@ Example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query" : {
         "terms" : {"force" : [ "British Transport Police" ]}
@@ -129,7 +127,7 @@ Example using a parent aggregation for segmentation:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggregations": {
         "forces": {
@@ -207,7 +205,7 @@ area to identify unusual hot-spots of a particular crime type:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs": {
         "hotspots": {
@@ -467,7 +465,7 @@ It is possible to only return terms that match more than a configured number of 
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "tags" : {
@@ -510,7 +508,7 @@ context:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query" : {
         "match" : {
@@ -563,7 +561,7 @@ ordinals.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "aggs" : {
         "tags" : {

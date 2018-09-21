@@ -6,7 +6,7 @@ an example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "query_string" : {
@@ -23,7 +23,7 @@ Each textual part is analyzed independently of each other. For instance the foll
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "query_string" : {
@@ -159,7 +159,7 @@ For example, the following query
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "query_string" : {
@@ -176,7 +176,7 @@ matches the same words as
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "query_string": {
@@ -193,7 +193,7 @@ For example (the `name` is boosted by 5 using `^5` notation):
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "query_string" : {
@@ -213,7 +213,7 @@ search on all "city" fields:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "query_string" : {
@@ -231,7 +231,7 @@ string itself (properly escaping the `*` sign), for example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "query_string" : {
@@ -272,7 +272,7 @@ introduced fields included). For example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "query_string" : {
@@ -297,7 +297,7 @@ It is also possible to match multi terms synonyms with conjunctions instead:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
    "query": {
        "query_string" : {

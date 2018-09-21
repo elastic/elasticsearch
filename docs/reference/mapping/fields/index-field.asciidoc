@@ -26,7 +26,7 @@ PUT index_2/_doc/2?refresh=true
   "text": "Document in index 2"
 }
 
-GET index_1,index_2/_search
+GET index_1,index_2/_search?include_type_name=false
 {
   "query": {
     "terms": {

@@ -7,7 +7,7 @@ it can be nested. Example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "span_multi":{
@@ -24,7 +24,7 @@ A boost can also be associated with the query:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /_search?include_type_name=false
 {
     "query": {
         "span_multi":{

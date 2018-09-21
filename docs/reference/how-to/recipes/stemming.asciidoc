@@ -9,7 +9,7 @@ content indexed in two different ways:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=false
 {
   "settings": {
     "analysis": {
@@ -24,16 +24,14 @@ PUT index
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "body": {
-          "type": "text",
-          "analyzer": "english",
-          "fields": {
-            "exact": {
-              "type": "text",
-              "analyzer": "english_exact"
-            }
+    "properties": {
+      "body": {
+        "type": "text",
+        "analyzer": "english",
+        "fields": {
+          "exact": {
+            "type": "text",
+            "analyzer": "english_exact"
           }
         }
       }
@@ -41,12 +39,12 @@ PUT index
   }
 }
 
-PUT index/_doc/1
+PUT index/_doc/1?include_type_name=false
 {
   "body": "Ski resort"
 }
 
-PUT index/_doc/2
+PUT index/_doc/2?include_type_name=false
 {
   "body": "A pair of skis"
 }
@@ -59,7 +57,7 @@ With such a setup, searching for `ski` on `body` would return both documents:
 
 [source,js]
 --------------------------------------------------
-GET index/_search
+GET index/_search?include_type_name=false
 {
   "query": {
     "simple_query_string": {
@@ -89,7 +87,6 @@ GET index/_search
     "hits": [
       {
         "_index": "index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.18232156,
         "_source": {
@@ -98,7 +95,6 @@ GET index/_search
       },
       {
         "_index": "index",
-        "_type": "_doc",
         "_id": "2",
         "_score": 0.18232156,
         "_source": {
@@ -117,7 +113,7 @@ stemming.
 
 [source,js]
 --------------------------------------------------
-GET index/_search
+GET index/_search?include_type_name=false
 {
   "query": {
     "simple_query_string": {
@@ -147,7 +143,6 @@ GET index/_search
     "hits": [
       {
         "_index": "index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.8025915,
         "_source": {
@@ -173,7 +168,7 @@ field, see below:
 
 [source,js]
 --------------------------------------------------
-GET index/_search
+GET index/_search?include_type_name=false
 {
   "query": {
     "simple_query_string": {
@@ -204,7 +199,6 @@ GET index/_search
     "hits": [
       {
         "_index": "index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.8025915,
         "_source": {

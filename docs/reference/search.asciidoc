@@ -19,7 +19,7 @@ the user name:
 
 [source,js]
 --------------------------------------------------
-POST /twitter/tweet?routing=kimchy
+POST twitter/_doc?routing=kimchy&include_type_name=false
 {
     "user" : "kimchy",
     "postDate" : "2009-11-15T14:12:12",
@@ -34,7 +34,7 @@ only the relevant shard:
 
 [source,js]
 --------------------------------------------------
-POST /twitter/_search?routing=kimchy
+POST twitter/_search?routing=kimchy&include_type_name=false
 {
     "query": {
         "bool" : {
@@ -100,7 +100,7 @@ the request with two different groups:
 
 [source,js]
 --------------------------------------------------
-POST /_search
+POST _search?include_type_name=false
 {
     "query" : {
         "match_all" : {}

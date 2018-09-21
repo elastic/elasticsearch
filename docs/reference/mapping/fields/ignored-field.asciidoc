@@ -16,7 +16,7 @@ that got ignored:
 
 [source,js]
 --------------------------------------------------
-GET _search
+GET _search?include_type_name=false
 {
   "query": {
     "exists": {
@@ -32,7 +32,7 @@ ignored at index time:
 
 [source,js]
 --------------------------------------------------
-GET _search
+GET _search?include_type_name=false
 {
   "query": {
     "term": {

@@ -37,7 +37,7 @@ associated with it, defined in the body:
 
 [source,js]
 --------------------------------------------------
-PUT twitter
+PUT twitter?include_type_name=false
 {
     "settings" : {
         "index" : {
@@ -55,7 +55,7 @@ or more simplified
 
 [source,js]
 --------------------------------------------------
-PUT twitter
+PUT twitter?include_type_name=false
 {
     "settings" : {
         "number_of_shards" : 3,
@@ -82,16 +82,14 @@ The create index API allows to provide a type mapping:
 
 [source,js]
 --------------------------------------------------
-PUT test
+PUT test?include_type_name=false
 {
     "settings" : {
         "number_of_shards" : 1
     },
     "mappings" : {
-        "type1" : {
-            "properties" : {
-                "field1" : { "type" : "text" }
-            }
+        "properties" : {
+            "field1" : { "type" : "text" }
         }
     }
 }
@@ -106,7 +104,7 @@ The create index API allows also to provide a set of <<indices-aliases,aliases>>
 
 [source,js]
 --------------------------------------------------
-PUT test
+PUT test?include_type_name=false
 {
     "aliases" : {
         "alias_1" : {},
@@ -156,7 +154,7 @@ the `wait_for_active_shards` value on all subsequent write operations):
 
 [source,js]
 --------------------------------------------------
-PUT test
+PUT test?include_type_name=false
 {
     "settings": {
         "index.write.wait_for_active_shards": "2"
@@ -170,7 +168,7 @@ or through the request parameter `wait_for_active_shards`:
 
 [source,js]
 --------------------------------------------------
-PUT test?wait_for_active_shards=2
+PUT test?wait_for_active_shards=2&include_type_name=false
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:requires two nodes]

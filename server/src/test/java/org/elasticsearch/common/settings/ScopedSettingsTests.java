@@ -152,7 +152,10 @@ public class ScopedSettingsTests extends ESTestCase {
         }
 
         try {
-            service.addSettingsUpdateConsumer(testSetting, testSetting2, (a, b) -> {consumer.set(a); consumer2.set(b);});
+            service.addSettingsUpdateConsumer(testSetting, testSetting2, (a, b) -> {
+                consumer.set(a);
+                consumer2.set(b);
+            });
             fail("setting not registered");
         } catch (IllegalArgumentException ex) {
             assertEquals("Setting is not registered for key [foo.bar.baz]", ex.getMessage());
@@ -467,7 +470,10 @@ public class ScopedSettingsTests extends ESTestCase {
 
         AtomicInteger aC = new AtomicInteger();
         AtomicInteger bC = new AtomicInteger();
-        service.addSettingsUpdateConsumer(testSetting, testSetting2, (a, b) -> {aC.set(a); bC.set(b);});
+        service.addSettingsUpdateConsumer(testSetting, testSetting2, (a, b) -> {
+            aC.set(a);
+            bC.set(b);
+        });
 
         assertEquals(0, consumer.get());
         assertEquals(0, consumer2.get());

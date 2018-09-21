@@ -227,7 +227,7 @@ public class FollowersChecker extends AbstractComponent {
 
                 @Override
                 public String toString() {
-                    return "calculating response to " + request;
+                    return "slow path response to " + request;
                 }
             });
         }

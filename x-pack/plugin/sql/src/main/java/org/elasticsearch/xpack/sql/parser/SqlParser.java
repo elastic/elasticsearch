@@ -63,7 +63,7 @@ public class SqlParser {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", sql);
         }
-        return invokeParser("statement", sql, params, SqlBaseParser::singleStatement, AstBuilder::plan);
+        return invokeParser(sql, params, SqlBaseParser::singleStatement, AstBuilder::plan);
     }
 
     /**
@@ -81,11 +81,10 @@ public class SqlParser {
             log.debug("Parsing as expression: {}", expression);
         }
 
-        return invokeParser("expression", expression, params, SqlBaseParser::singleExpression, AstBuilder::expression);
+        return invokeParser(expression, params, SqlBaseParser::singleExpression, AstBuilder::expression);
     }
 
-    private <T> T invokeParser(String name,
-                               String sql,
+    private <T> T invokeParser(String sql,
                                List<SqlTypedParamValue> params, Function<SqlBaseParser,
                                ParserRuleContext> parseFunction,
                                BiFunction<AstBuilder, ParserRuleContext, T> visitor) {
@@ -100,6 +99,7 @@ public class SqlParser {
         CommonTokenStream tokenStream = new CommonTokenStream(tokenSource);
         SqlBaseParser parser = new SqlBaseParser(tokenStream);
 
+        parser.addParseListener(new CircuitBreakerProcessor());
         parser.addParseListener(new PostProcessor(Arrays.asList(parser.getRuleNames())));
 
         parser.removeErrorListeners();
@@ -126,11 +126,7 @@ public class SqlParser {
             log.info("Parse tree {} " + tree.toStringTree());
         }
 
-        try {
-            return visitor.apply(new AstBuilder(paramTokens), tree);
-        } catch (StackOverflowError e) {
-            throw new ParsingException("{} is too large to parse (causes stack overflow)", name);
-        }
+        return visitor.apply(new AstBuilder(paramTokens), tree);
     }
 
     private static void debug(SqlBaseParser parser) {
@@ -162,7 +158,7 @@ public class SqlParser {
         public void exitBackQuotedIdentifier(SqlBaseParser.BackQuotedIdentifierContext context) {
             Token token = context.BACKQUOTED_IDENTIFIER().getSymbol();
             throw new ParsingException(
-                    "backquoted indetifiers not supported; please use double quotes instead",
+                    "backquoted identifiers not supported; please use double quotes instead",
                     null,
                     token.getLine(),
                     token.getCharPositionInLine());
@@ -210,6 +206,24 @@ public class SqlParser {
                     token.getChannel(),
                     token.getStartIndex(),
                     token.getStopIndex()));
+        }
+    }
+
+    /**
+     * Used to catch large expressions that can lead to stack overflows
+     */
+    private class CircuitBreakerProcessor extends SqlBaseBaseListener {
+
+        private static final short MAX_BOOLEAN_ELEMENTS = 1000;
+        private short countElementsInBooleanExpressions = 0;
+
+        @Override
+        public void enterLogicalBinary(SqlBaseParser.LogicalBinaryContext ctx) {
+            if (++countElementsInBooleanExpressions == MAX_BOOLEAN_ELEMENTS) {
+                throw new ParsingException("boolean expression is too large to parse, (exceeds {} elements)",
+                    MAX_BOOLEAN_ELEMENTS);
+            }
+            super.enterLogicalBinary(ctx);
         }
     }
 

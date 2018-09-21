@@ -138,16 +138,14 @@ public class SqlParserTests extends ESTestCase {
         assertThat(mmqp.optionMap(), hasEntry("fuzzy_rewrite", "scoring_boolean"));
     }
 
-    public void testStackOverflowStatement() {
-        ParsingException e = expectThrows(ParsingException.class, () ->
-            parseStatement("SELECT " + Joiner.on(" OR ").join(nCopies(2000, "a = b"))));
-        assertEquals("statement is too large to parse (causes stack overflow)", e.getErrorMessage());
-    }
+    public void testLimitToPreventStackOverflowFromLargeBooleanExpression() {
+        // 1000 elements is ok
+        new SqlParser().createExpression(Joiner.on(" OR ").join(nCopies(1000, "a = b")));
 
-    public void testStackOverflowExpression() {
+        // 1001 elements parser's "circuit breaker" is triggered
         ParsingException e = expectThrows(ParsingException.class, () ->
-            new SqlParser().createExpression(Joiner.on(" OR ").join(nCopies(2000, "a = b"))));
-        assertEquals("expression is too large to parse (causes stack overflow)", e.getErrorMessage());
+            new SqlParser().createExpression(Joiner.on(" OR ").join(nCopies(1001, "a = b"))));
+        assertEquals("boolean expression is too large to parse, (exceeds 1000 elements)", e.getErrorMessage());
     }
 
     private LogicalPlan parseStatement(String sql) {

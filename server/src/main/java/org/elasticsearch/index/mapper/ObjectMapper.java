@@ -458,6 +458,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         for (Mapper mergeWithMapper : mergeWith) {
             Mapper mergeIntoMapper = mappers.get(mergeWithMapper.simpleName());
+            throwMappingExceptionOnTypeEnabledAttributeUpdate(mergeWith, mergeWithMapper, mergeIntoMapper);
+
             Mapper merged;
             if (mergeIntoMapper == null) {
                 // no mapping, simply add it
@@ -467,6 +469,25 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 merged = mergeIntoMapper.merge(mergeWithMapper);
             }
             putMapper(merged);
+        }
+    }
+
+    private void throwMappingExceptionOnTypeEnabledAttributeUpdate(ObjectMapper mergeWith, Mapper mergeWithMapper, Mapper mergeIntoMapper) {
+        if (mergeIntoMapper instanceof ObjectMapper && mergeWithMapper instanceof ObjectMapper) {
+            final ObjectMapper mergeIntoObjectMapper = (ObjectMapper) mergeIntoMapper;
+            final ObjectMapper mergeWithObjectMapper = (ObjectMapper) mergeWithMapper;
+
+            if (mergeIntoObjectMapper.isEnabled() != mergeWithObjectMapper.isEnabled()) {
+                if (mergeIntoObjectMapper.nestedTypeFilter() instanceof TermQuery) {
+                    final TermQuery termQuery = (TermQuery) mergeIntoObjectMapper.nestedTypeFilter();
+
+                    if (termQuery.getTerm() != null && "_type".equals(termQuery.getTerm().field())) {
+                        final String path = mergeWith.fullPath() + "." + mergeWithObjectMapper.simpleName() + ".enabled";
+
+                        throw new MapperException("Can't update attribute for type [{}] in index mapping", path);
+                    }
+                }
+            }
         }
     }
 

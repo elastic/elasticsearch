@@ -48,7 +48,7 @@ public class CcrAutoFollowStatsCollectorTests extends AbstractCcrCollectorTestCa
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 120));
-        withCollectionTimeout(CcrStatsCollector.CCR_STATS_TIMEOUT, timeout);
+        withCollectionTimeout(CcrAutoFollowStatsCollector.CCR_AUTO_FOLLOW_STATS_TIMEOUT, timeout);
 
         final CcrAutoFollowStatsCollector collector =
             new CcrAutoFollowStatsCollector(Settings.EMPTY, clusterService, licenseState, client, threadContext);

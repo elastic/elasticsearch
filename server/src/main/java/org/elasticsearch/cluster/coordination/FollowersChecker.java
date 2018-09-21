@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -88,7 +87,7 @@ public class FollowersChecker extends AbstractComponent {
 
     private final TransportService transportService;
 
-    private volatile Responder responder;
+    private volatile FastResponseState fastResponseState;
 
     public FollowersChecker(Settings settings, TransportService transportService,
                             Consumer<FollowerCheckRequest> handleRequestAndUpdateState,
@@ -102,9 +101,9 @@ public class FollowersChecker extends AbstractComponent {
         followerCheckTimeout = FOLLOWER_CHECK_TIMEOUT_SETTING.get(settings);
         followerCheckRetryCount = FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings);
 
-        updateResponder(0, Mode.CANDIDATE);
+        updateFastResponseState(0, Mode.CANDIDATE);
         transportService.registerRequestHandler(FOLLOWER_CHECK_ACTION_NAME, Names.SAME, FollowerCheckRequest::new,
-            (request, transportChannel, task) -> responder.handleFollowerCheck(request, transportChannel));
+            (request, transportChannel, task) -> handleFollowerCheck(request, transportChannel));
     }
 
     /**
@@ -135,8 +134,48 @@ public class FollowersChecker extends AbstractComponent {
      * entirely on the network thread, and only if the fast path fails do we perform some work in the background, by notifying the
      * FollowersChecker whenever our term or mode changes here.
      */
-    public void updateResponder(final long term, final Mode mode) {
-        responder = new Responder(logger, term, mode, transportService.getThreadPool().generic()::execute, handleRequestAndUpdateState);
+    public void updateFastResponseState(final long term, final Mode mode) {
+        fastResponseState = new FastResponseState(term, mode);
+    }
+
+    private void handleFollowerCheck(FollowerCheckRequest request, TransportChannel transportChannel) throws IOException {
+        FastResponseState responder = this.fastResponseState;
+
+        if (responder.mode == Mode.FOLLOWER && responder.term == request.term) {
+            // TODO trigger a term bump if we voted for a different leader in this term
+            logger.trace("responding to {} on fast path", request);
+            transportChannel.sendResponse(Empty.INSTANCE);
+            return;
+        }
+
+        if (request.term < responder.term) {
+            throw new CoordinationStateRejectedException(new ParameterizedMessage("rejecting {} since local state is {}",
+                request, this).getFormattedMessage());
+        }
+
+        transportService.getThreadPool().generic().execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() throws IOException {
+                logger.trace("responding to {} on slow path", request);
+                try {
+                    handleRequestAndUpdateState.accept(request);
+                } catch (Exception e) {
+                    transportChannel.sendResponse(e);
+                    return;
+                }
+                transportChannel.sendResponse(Empty.INSTANCE);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.debug(new ParameterizedMessage("exception while responding to {}", request), e);
+            }
+
+            @Override
+            public String toString() {
+                return "slow path response to " + request;
+            }
+        });
     }
 
     // TODO in the PoC a faulty node was considered non-faulty again if it sent us a PeersRequest:
@@ -165,90 +204,25 @@ public class FollowersChecker extends AbstractComponent {
             ", followerCheckRetryCount=" + followerCheckRetryCount +
             ", followerCheckers=" + followerCheckers +
             ", faultyNodes=" + faultyNodes +
-            ", responder=" + responder +
+            ", fastResponseState=" + fastResponseState +
             '}';
     }
 
-    static class Responder {
-        // static immutable class to be sure that it's usable without locks; exposed for testing and assertions
+    static class FastResponseState {
+        final long term;
+        final Mode mode;
 
-        private final Logger logger;
-        private final long term;
-        private final Mode mode;
-        private final Consumer<Runnable> executeRunnable;
-        private final Consumer<FollowerCheckRequest> handleRequestAndUpdateState;
-
-        Responder(final Logger logger, final long term, final Mode mode, final Consumer<Runnable> executeRunnable,
-                  final Consumer<FollowerCheckRequest> handleRequestAndUpdateState) {
-            this.logger = logger;
+        FastResponseState(final long term, final Mode mode) {
             this.term = term;
             this.mode = mode;
-            this.executeRunnable = executeRunnable;
-            this.handleRequestAndUpdateState = handleRequestAndUpdateState;
-        }
-
-        long getTerm() {
-            return term;
         }
 
         @Override
         public String toString() {
-            return "Responder{" +
+            return "FastResponseState{" +
                 "term=" + term +
                 ", mode=" + mode +
                 '}';
-        }
-
-        void handleFollowerCheck(final FollowerCheckRequest request, final TransportChannel transportChannel) throws IOException {
-            if (this.mode == Mode.FOLLOWER && this.term == request.term) {
-                // TODO trigger a term bump if we voted for a different leader in this term
-                logger.trace("responding to {} on fast path", request);
-                transportChannel.sendResponse(Empty.INSTANCE);
-                return;
-            }
-
-            if (request.term < this.term) {
-                throw new CoordinationStateRejectedException(new ParameterizedMessage("rejecting {} since local state is {}",
-                    request, this).getFormattedMessage());
-            }
-
-            executeRunnable.accept(new AbstractRunnable() {
-                @Override
-                protected void doRun() throws IOException {
-                    logger.trace("responding to {} on slow path", request);
-                    try {
-                        handleRequestAndUpdateState.accept(request);
-                    } catch (Exception e) {
-                        transportChannel.sendResponse(e);
-                        return;
-                    }
-                    transportChannel.sendResponse(Empty.INSTANCE);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.debug(new ParameterizedMessage("exception while responding to {}", request), e);
-                }
-
-                @Override
-                public String toString() {
-                    return "slow path response to " + request;
-                }
-            });
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Responder responder = (Responder) o;
-            return term == responder.term &&
-                mode == responder.mode;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(term, mode);
         }
     }
 
@@ -278,7 +252,7 @@ public class FollowersChecker extends AbstractComponent {
                 return;
             }
 
-            final FollowerCheckRequest request = new FollowerCheckRequest(responder.getTerm());
+            final FollowerCheckRequest request = new FollowerCheckRequest(fastResponseState.term);
             logger.trace("handleWakeUp: checking {} with {}", discoveryNode, request);
             transportService.sendRequest(discoveryNode, FOLLOWER_CHECK_ACTION_NAME, request,
                 TransportRequestOptions.builder().withTimeout(followerCheckTimeout).withType(Type.PING).build(),

@@ -355,7 +355,7 @@ public class FollowersCheckerTests extends ESTestCase {
         {
             // Does not call into the coordinator in the normal case
             final long term = randomNonNegativeLong();
-            followersChecker.updateResponder(term, Mode.FOLLOWER);
+            followersChecker.updateFastResponseState(term, Mode.FOLLOWER);
 
             final ExpectsSuccess expectsSuccess = new ExpectsSuccess();
             transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(term), expectsSuccess);
@@ -368,7 +368,7 @@ public class FollowersCheckerTests extends ESTestCase {
             // Does not call into the coordinator for a term that's too low, just rejects immediately
             final long leaderTerm = randomLongBetween(1, Long.MAX_VALUE - 1);
             final long followerTerm = randomLongBetween(leaderTerm + 1, Long.MAX_VALUE);
-            followersChecker.updateResponder(followerTerm, Mode.FOLLOWER);
+            followersChecker.updateFastResponseState(followerTerm, Mode.FOLLOWER);
 
             final AtomicReference<TransportException> receivedException = new AtomicReference<>();
             transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(leaderTerm),
@@ -398,7 +398,7 @@ public class FollowersCheckerTests extends ESTestCase {
             // Calls into the coordinator if the term needs bumping
             final long leaderTerm = randomLongBetween(2, Long.MAX_VALUE);
             final long followerTerm = randomLongBetween(1, leaderTerm - 1);
-            followersChecker.updateResponder(followerTerm, Mode.FOLLOWER);
+            followersChecker.updateFastResponseState(followerTerm, Mode.FOLLOWER);
 
             final ExpectsSuccess expectsSuccess = new ExpectsSuccess();
             transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(leaderTerm), expectsSuccess);
@@ -411,7 +411,7 @@ public class FollowersCheckerTests extends ESTestCase {
         {
             // Calls into the coordinator if not a follower
             final long term = randomNonNegativeLong();
-            followersChecker.updateResponder(term, randomFrom(Mode.LEADER, Mode.CANDIDATE));
+            followersChecker.updateFastResponseState(term, randomFrom(Mode.LEADER, Mode.CANDIDATE));
 
             final ExpectsSuccess expectsSuccess = new ExpectsSuccess();
             transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(term), expectsSuccess);
@@ -424,7 +424,7 @@ public class FollowersCheckerTests extends ESTestCase {
         {
             // If it calls into the coordinator and the coordinator throws an exception then it's passed back to the caller
             final long term = randomNonNegativeLong();
-            followersChecker.updateResponder(term, randomFrom(Mode.LEADER, Mode.CANDIDATE));
+            followersChecker.updateFastResponseState(term, randomFrom(Mode.LEADER, Mode.CANDIDATE));
             final String exceptionMessage = "test simulated exception " + randomNonNegativeLong();
             coordinatorException.set(new ElasticsearchException(exceptionMessage));
 

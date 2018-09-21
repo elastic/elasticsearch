@@ -1352,14 +1352,28 @@ public class Cron implements ToXContentFragment {
         int max = -1;
         if (stopAt < startAt) {
             switch (type) {
-                case       SECOND : max = 60; break;
-                case       MINUTE : max = 60; break;
-                case         HOUR : max = 24; break;
-                case        MONTH : max = 12; break;
-                case  DAY_OF_WEEK : max = 7;  break;
-                case DAY_OF_MONTH : max = 31; break;
-                case         YEAR : throw new IllegalArgumentException("Start year must be less than stop year");
-                default           : throw new IllegalArgumentException("Unexpected type encountered");
+                case SECOND:
+                    max = 60;
+                    break;
+                case MINUTE:
+                    max = 60;
+                    break;
+                case HOUR:
+                    max = 24;
+                    break;
+                case MONTH:
+                    max = 12;
+                    break;
+                case DAY_OF_WEEK:
+                    max = 7;
+                    break;
+                case DAY_OF_MONTH:
+                    max = 31;
+                    break;
+                case YEAR:
+                    throw new IllegalArgumentException("Start year must be less than stop year");
+                default:
+                    throw new IllegalArgumentException("Unexpected type encountered");
             }
             stopAt += max;
         }

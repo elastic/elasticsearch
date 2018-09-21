@@ -224,10 +224,6 @@ fi
     install_and_check_plugin discovery ec2 aws-java-sdk-core-*.jar
 }
 
-@test "[$GROUP] install discovery-file plugin" {
-    install_and_check_plugin discovery file
-}
-
 @test "[$GROUP] install ingest-attachment plugin" {
     # we specify the version on the poi-3.17.jar so that the test does
     # not spuriously pass if the jar is missing but the other poi jars
@@ -264,6 +260,10 @@ fi
 
 @test "[$GROUP] install murmur3 mapper plugin" {
     install_and_check_plugin mapper murmur3
+}
+
+@test "[$GROUP] install annotated-text mapper plugin" {
+    install_and_check_plugin mapper annotated-text
 }
 
 @test "[$GROUP] check reindex module" {
@@ -360,10 +360,6 @@ fi
     remove_plugin discovery-ec2
 }
 
-@test "[$GROUP] remove discovery-file plugin" {
-    remove_plugin discovery-file
-}
-
 @test "[$GROUP] remove ingest-attachment plugin" {
     remove_plugin ingest-attachment
 }
@@ -378,6 +374,10 @@ fi
 
 @test "[$GROUP] remove murmur3 mapper plugin" {
     remove_plugin mapper-murmur3
+}
+
+@test "[$GROUP] remove annotated-text mapper plugin" {
+    remove_plugin mapper-annotated-text
 }
 
 @test "[$GROUP] remove size mapper plugin" {

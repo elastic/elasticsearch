@@ -1,0 +1,49 @@
+[[java-rest-high-x-pack-ml-delete-datafeed]]
+=== Delete Datafeed API
+
+[[java-rest-high-x-pack-machine-learning-delete-datafeed-request]]
+==== Delete Datafeed Request
+
+A `DeleteDatafeedRequest` object requires a non-null `datafeedId` and can optionally set `force`.
+Can be executed as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-delete-ml-datafeed-request]
+---------------------------------------------------
+<1> Use to forcefully delete a started datafeed;
+this method is quicker than stopping and deleting the datafeed.
+Defaults to `false`.
+
+[[java-rest-high-x-pack-machine-learning-delete-datafeed-response]]
+==== Delete Datafeed Response
+
+The returned `AcknowledgedResponse` object indicates the acknowledgement of the request:
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-delete-ml-datafeed-response]
+---------------------------------------------------
+<1> `isAcknowledged` was the deletion request acknowledged or not
+
+[[java-rest-high-x-pack-machine-learning-delete-datafeed-async]]
+==== Delete Datafeed Asynchronously
+
+This request can also be made asynchronously.
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-delete-ml-datafeed-request-async]
+---------------------------------------------------
+<1> The `DeleteDatafeedRequest` to execute and the `ActionListener` to alert on completion or error.
+
+The deletion request returns immediately. Once the request is completed, the `ActionListener` is
+called back using the `onResponse` or `onFailure`. The latter indicates some failure occurred when
+making the request.
+
+A typical listener for a `DeleteDatafeedRequest` could be defined as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-delete-ml-datafeed-request-listener]
+---------------------------------------------------
+<1> The action to be taken when it is completed
+<2> What to do when a failure occurs

@@ -41,7 +41,7 @@ public enum ScriptType implements Writeable {
      * (Groovy and others), but can be overridden by the specific {@link ScriptEngine}
      * if the language is naturally secure (Painless, Mustache, and Expressions).
      */
-    INLINE ( 0 , new ParseField("source", "inline") , false ),
+    INLINE ( 0 , new ParseField("source", "inline")),
 
     /**
      * STORED scripts are saved as part of the {@link org.elasticsearch.cluster.ClusterState}
@@ -50,7 +50,7 @@ public enum ScriptType implements Writeable {
      * (Groovy and others), but can be overridden by the specific {@link ScriptEngine}
      * if the language is naturally secure (Painless, Mustache, and Expressions).
      */
-    STORED ( 1 , new ParseField("id", "stored") , false );
+    STORED ( 1 , new ParseField("id", "stored"));
 
     /**
      * Reads an int from the input stream and converts it to a {@link ScriptType}.
@@ -73,18 +73,15 @@ public enum ScriptType implements Writeable {
 
     private final int id;
     private final ParseField parseField;
-    private final boolean defaultEnabled;
 
     /**
      * Standard constructor.
      * @param id A unique identifier for a type that can be read/written to a stream.
      * @param parseField Specifies the name used to parse input from queries.
-     * @param defaultEnabled Whether or not a {@link ScriptType} can be run by default.
      */
-    ScriptType(int id, ParseField parseField, boolean defaultEnabled) {
+    ScriptType(int id, ParseField parseField) {
         this.id = id;
         this.parseField = parseField;
-        this.defaultEnabled = defaultEnabled;
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -110,14 +107,6 @@ public enum ScriptType implements Writeable {
      */
     public ParseField getParseField() {
         return parseField;
-    }
-
-    /**
-     * @return Whether or not a {@link ScriptType} can be run by default.  Note
-     * this can be potentially overridden by any {@link ScriptEngine}.
-     */
-    public boolean isDefaultEnabled() {
-        return defaultEnabled;
     }
 
     /**

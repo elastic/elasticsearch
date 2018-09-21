@@ -244,8 +244,7 @@ public class GrokPatternCreatorTests extends FileStructureTestCase {
             grokPatternCreator.createGrokPatternFromExamples("TIMESTAMP_ISO8601", "timestamp"));
         assertEquals(5, mappings.size());
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"),
-            mappings.get("extra_timestamp"));
+        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"), mappings.get("extra_timestamp"));
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field2"));
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "ip"), mappings.get("ipaddress"));
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("loglevel"));
@@ -273,7 +272,8 @@ public class GrokPatternCreatorTests extends FileStructureTestCase {
         Map<String, Object> mappings = new HashMap<>();
         GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings, null);
 
-        assertEquals(new Tuple<>("timestamp", "%{COMBINEDAPACHELOG}"), grokPatternCreator.findFullLineGrokPattern());
+        assertEquals(new Tuple<>("timestamp", "%{COMBINEDAPACHELOG}"),
+            grokPatternCreator.findFullLineGrokPattern(randomBoolean() ? "timestamp" : null));
         assertEquals(10, mappings.size());
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "text"), mappings.get("agent"));
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("auth"));
@@ -322,5 +322,60 @@ public class GrokPatternCreatorTests extends FileStructureTestCase {
 
         assertEquals("", grokPatternCreator.getOverallGrokPatternBuilder().toString());
         assertSame(snippets, adjustedSnippets);
+    }
+
+    public void testValidateFullLineGrokPatternGivenValid() {
+
+        String timestampField = "utc_timestamp";
+        String grokPattern = "%{INT:serial_no}\\t%{TIMESTAMP_ISO8601:local_timestamp}\\t%{TIMESTAMP_ISO8601:utc_timestamp}\\t" +
+            "%{INT:user_id}\\t%{HOSTNAME:host}\\t%{IP:client_ip}\\t%{WORD:method}\\t%{LOGLEVEL:severity}\\t%{PROG:program}\\t" +
+            "%{GREEDYDATA:message}";
+
+        // Two timestamps: one local, one UTC
+        Collection<String> sampleMessages = Arrays.asList(
+            "559550912540598297\t2016-04-20T14:06:53\t2016-04-20T21:06:53Z\t38545844\tserv02nw07\t192.168.114.28\tAuthpriv\t" +
+                "Info\tsshd\tsubsystem request for sftp",
+            "559550912548986880\t2016-04-20T14:06:53\t2016-04-20T21:06:53Z\t9049724\tserv02nw03\t10.120.48.147\tAuthpriv\t" +
+                "Info\tsshd\tsubsystem request for sftp",
+            "559550912548986887\t2016-04-20T14:06:53\t2016-04-20T21:06:53Z\t884343\tserv02tw03\t192.168.121.189\tAuthpriv\t" +
+                "Info\tsshd\tsubsystem request for sftp",
+            "559550912603512850\t2016-04-20T14:06:53\t2016-04-20T21:06:53Z\t8907014\tserv02nw01\t192.168.118.208\tAuthpriv\t" +
+                "Info\tsshd\tsubsystem request for sftp");
+
+        Map<String, Object> mappings = new HashMap<>();
+        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings, null);
+
+        grokPatternCreator.validateFullLineGrokPattern(grokPattern, timestampField);
+        assertEquals(9, mappings.size());
+        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("serial_no"));
+        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"), mappings.get("local_timestamp"));
+        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("user_id"));
+        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("host"));
+        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "ip"), mappings.get("client_ip"));
+        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("method"));
+        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("program"));
+        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("message"));
+    }
+
+    public void testValidateFullLineGrokPatternGivenInvalid() {
+
+        String timestampField = "utc_timestamp";
+        String grokPattern = "%{INT:serial_no}\\t%{TIMESTAMP_ISO8601:local_timestamp}\\t%{TIMESTAMP_ISO8601:utc_timestamp}\\t" +
+            "%{INT:user_id}\\t%{HOSTNAME:host}\\t%{IP:client_ip}\\t%{WORD:method}\\t%{LOGLEVEL:severity}\\t%{PROG:program}\\t" +
+            "%{GREEDYDATA:message}";
+
+        Collection<String> sampleMessages = Arrays.asList(
+            "Sep  8 11:55:06 linux named[22529]: error (unexpected RCODE REFUSED) resolving 'elastic.slack.com/A/IN': 95.110.64.205#53",
+            "Sep  8 11:55:08 linux named[22529]: error (unexpected RCODE REFUSED) resolving 'slack-imgs.com/A/IN': 95.110.64.205#53",
+            "Sep  8 11:55:35 linux named[22529]: error (unexpected RCODE REFUSED) resolving 'www.elastic.co/A/IN': 95.110.68.206#53",
+            "Sep  8 11:55:42 linux named[22529]: error (unexpected RCODE REFUSED) resolving 'b.akamaiedge.net/A/IN': 95.110.64.205#53");
+
+        Map<String, Object> mappings = new HashMap<>();
+        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings, null);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> grokPatternCreator.validateFullLineGrokPattern(grokPattern, timestampField));
+
+        assertEquals("Supplied Grok pattern [" + grokPattern + "] does not match sample messages", e.getMessage());
     }
 }

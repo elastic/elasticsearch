@@ -83,7 +83,7 @@ See <<input-search>> for more details.
 [[loading-http-data]]
 ==== Loading a Payload from a remote HTTP Service with HTTP Input
 
-Use the `http` input to issue a HTTP request and load the returned response as
+Use the `http` input to issue an HTTP request and load the returned response as
 the watch initial payload. This input expects the response body content type
 to either be JSON or YAML.
 

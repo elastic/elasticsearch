@@ -176,8 +176,8 @@ public class JdbcAssert {
                     Object expectedObject = expected.getObject(column);
                     Object actualObject = lenient ? actual.getObject(column, expectedColumnClass) : actual.getObject(column);
 
-                    String msg = format(Locale.ROOT, "Different result for column [" + metaData.getColumnName(column) + "], "
-                            + "entry [" + (count + 1) + "]");
+                    String msg = format(Locale.ROOT, "Different result for column [%s], entry [%d]",
+                        metaData.getColumnName(column), count + 1);
 
                     // handle nulls first
                     if (expectedObject == null || actualObject == null) {

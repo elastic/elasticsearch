@@ -32,11 +32,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class AutoFollowStatsCollectorTests extends AbstractCcrCollectorTestCase {
+public class CcrAutoFollowStatsCollectorTests extends AbstractCcrCollectorTestCase {
 
     @Override
     AbstractCcrCollector createCollector(Settings settings, ClusterService clusterService, XPackLicenseState licenseState, Client client) {
-        return new AutoFollowStatsCollector(settings, clusterService, licenseState, client);
+        return new CcrAutoFollowStatsCollector(settings, clusterService, licenseState, client);
     }
 
     public void testDoCollect() throws Exception {
@@ -50,8 +50,8 @@ public class AutoFollowStatsCollectorTests extends AbstractCcrCollectorTestCase 
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 120));
         withCollectionTimeout(CcrStatsCollector.CCR_STATS_TIMEOUT, timeout);
 
-        final AutoFollowStatsCollector collector =
-            new AutoFollowStatsCollector(Settings.EMPTY, clusterService, licenseState, client, threadContext);
+        final CcrAutoFollowStatsCollector collector =
+            new CcrAutoFollowStatsCollector(Settings.EMPTY, clusterService, licenseState, client, threadContext);
         assertEquals(timeout, collector.getCollectionTimeout());
 
         final AutoFollowStats autoFollowStats = mock(AutoFollowStats.class);

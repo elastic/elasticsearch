@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.monitoring.collector.ccr;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackClient;
@@ -19,23 +21,26 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import java.util.Collection;
 import java.util.Collections;
 
-public final class AutoFollowStatsCollector extends AbstractCcrCollector {
+public final class CcrAutoFollowStatsCollector extends AbstractCcrCollector {
 
-    public AutoFollowStatsCollector(
+    public static final Setting<TimeValue> CCR_AUTO_FOLLOW_STATS_TIMEOUT = collectionTimeoutSetting("ccr.auto_follow.stats.timeout");
+
+    public CcrAutoFollowStatsCollector(
             final Settings settings,
             final ClusterService clusterService,
             final XPackLicenseState licenseState,
             final Client client) {
-        super(settings, clusterService, licenseState, new XPackClient(client).ccr(), client.threadPool().getThreadContext());
+        super(settings, clusterService, CCR_AUTO_FOLLOW_STATS_TIMEOUT, licenseState, new XPackClient(client).ccr(),
+            client.threadPool().getThreadContext());
     }
 
-    AutoFollowStatsCollector(
+    CcrAutoFollowStatsCollector(
             final Settings settings,
             final ClusterService clusterService,
             final XPackLicenseState licenseState,
             final CcrClient ccrClient,
             final ThreadContext threadContext) {
-        super(settings, clusterService, licenseState, ccrClient, threadContext);
+        super(settings, clusterService, CCR_AUTO_FOLLOW_STATS_TIMEOUT, licenseState, ccrClient, threadContext);
     }
 
     @Override

@@ -26,18 +26,17 @@ import static org.elasticsearch.xpack.monitoring.collector.ccr.CcrStatsMonitorin
 
 public abstract class AbstractCcrCollector extends Collector {
 
-    public static final Setting<TimeValue> CCR_STATS_TIMEOUT = collectionTimeoutSetting("ccr.stats.timeout");
-
     private final ThreadContext threadContext;
     final CcrClient ccrClient;
 
     AbstractCcrCollector(
             final Settings settings,
             final ClusterService clusterService,
+            final Setting<TimeValue> timeoutSetting,
             final XPackLicenseState licenseState,
             final CcrClient ccrClient,
             final ThreadContext threadContext) {
-        super(settings, TYPE, clusterService, CCR_STATS_TIMEOUT, licenseState);
+        super(settings, TYPE, clusterService, timeoutSetting, licenseState);
         this.ccrClient = ccrClient;
         this.threadContext = threadContext;
     }

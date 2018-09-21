@@ -84,6 +84,22 @@ stats to be calculated until it finally times out. A single `node_stats`
 document is created per collection. This is collected per node to help to
 discover issues with nodes communicating with each other, but not with the
 monitoring cluster (for example, intermittent network issues or memory pressure).
+| Ccr Stats      | `ccr_stats`
+| Gathers details about how ccr is replication documents from leader indices
+into follower indices.
++
+This information only needs to be collected once, so it is collected on the
+_elected_ master node. However, for the master node to be able to perform the
+collection, the master node must have `xpack.ml.enabled` set to true (default)
+and a license level that supports {ccr}.
+| Ccr Auto Follow Stats      | `ccr_auto_follow_stats`
+| Gathers details about the indices that have been automatically auto-followed
+based on configured auto follow patterns.
++
+This information only needs to be collected once, so it is collected on the
+_elected_ master node. However, for the master node to be able to perform the
+collection, the master node must have `xpack.ml.enabled` set to true (default)
+and a license level that supports {ccr}.
 |=======================
 
 {monitoring} uses a single threaded scheduler to run the collection of {es} 

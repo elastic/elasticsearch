@@ -142,8 +142,14 @@ public class AsyncIOProcessorTests extends ESTestCase {
                 received.addAndGet(candidates.size());
             }
         };
-        processor.put(new Object(), (e) -> {notified.incrementAndGet();throw new RuntimeException();});
-        processor.put(new Object(), (e) -> {notified.incrementAndGet();throw new RuntimeException();});
+        processor.put(new Object(), (e) -> {
+            notified.incrementAndGet();
+            throw new RuntimeException();
+        });
+        processor.put(new Object(), (e) -> {
+            notified.incrementAndGet();
+            throw new RuntimeException();
+        });
         assertEquals(2, notified.get());
         assertEquals(2, received.get());
     }

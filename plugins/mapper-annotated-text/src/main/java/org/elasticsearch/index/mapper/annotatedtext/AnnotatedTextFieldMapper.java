@@ -295,7 +295,10 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
            StringBuilder sb = new StringBuilder();
            sb.append(textMinusMarkup);
            sb.append("\n");
-           annotations.forEach(a -> {sb.append(a); sb.append("\n");});
+           annotations.forEach(a -> {
+               sb.append(a); 
+               sb.append("\n");
+           });
            return sb.toString();
         }
 

@@ -139,38 +139,46 @@ public class SqlParserTests extends ESTestCase {
     }
 
     public void testLimitToPreventStackOverflowFromLargeUnaryBooleanExpression() {
-        // 100 elements is ok
-        new SqlParser().createExpression(
-            Joiner.on("NOT(").join(nCopies(100, "true")).concat(Joiner.on("").join(nCopies(99, ")"))));
+        // Create expression in the form of NOT(NOT(NOT ... (b) ...)
 
-        // 101 elements parser's "circuit breaker" is triggered
+        // 40 elements is ok
+        new SqlParser().createExpression(
+            Joiner.on("").join(nCopies(40, "NOT(")).concat("b").concat(Joiner.on("").join(nCopies(40, ")"))));
+
+        // 100 elements parser's "circuit breaker" is triggered
         ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createExpression(
-            Joiner.on("NOT(").join(nCopies(101, "true")).concat(Joiner.on("").join(nCopies(100, ")")))));
+            Joiner.on("").join(nCopies(100, "NOT(")).concat("b").concat(Joiner.on("").join(nCopies(100, ")")))));
         assertEquals("expression is too large to parse, (tree's depth exceeds 100)", e.getErrorMessage());
     }
 
     public void testLimitToPreventStackOverflowFromLargeBinaryBooleanExpression() {
-        // 100 elements is ok
-        new SqlParser().createExpression(Joiner.on(" OR ").join(nCopies(100, "true")));
+        // Create expression in the form of a = b OR a = b OR ... a = b
 
-        // 101 elements parser's "circuit breaker" is triggered
+        // 50 elements is ok
+        new SqlParser().createExpression(Joiner.on(" OR ").join(nCopies(50, "a = b")));
+
+        // 100 elements parser's "circuit breaker" is triggered
         ParsingException e = expectThrows(ParsingException.class, () ->
-            new SqlParser().createExpression(Joiner.on(" OR ").join(nCopies(101, "true"))));
+            new SqlParser().createExpression(Joiner.on(" OR ").join(nCopies(100, "a = b"))));
         assertEquals("expression is too large to parse, (tree's depth exceeds 100)", e.getErrorMessage());
     }
 
     public void testLimitToPreventStackOverflowFromLargeUnaryArithmeticExpression() {
-        // 100 elements is ok
+        // Create expression in the form of abs(abs(abs ... (i) ...)
+
+        // 50 elements is ok
         new SqlParser().createExpression(
-            Joiner.on("abs(").join(nCopies(100, "i")).concat(Joiner.on("").join(nCopies(99, ")"))));
+            Joiner.on("").join(nCopies(50, "abs(")).concat("i").concat(Joiner.on("").join(nCopies(50, ")"))));
 
         // 101 elements parser's "circuit breaker" is triggered
         ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createExpression(
-            Joiner.on("abs(").join(nCopies(101, "i")).concat(Joiner.on("").join(nCopies(100, ")")))));
+            Joiner.on("").join(nCopies(101, "abs(")).concat("i").concat(Joiner.on("").join(nCopies(101, ")")))));
         assertEquals("expression is too large to parse, (tree's depth exceeds 100)", e.getErrorMessage());
     }
 
     public void testLimitToPreventStackOverflowFromLargeBinaryArithmeticExpression() {
+        // Create expression in the form of a + a + a + ... + a
+
         // 100 elements is ok
         new SqlParser().createExpression(Joiner.on(" + ").join(nCopies(100, "a")));
 

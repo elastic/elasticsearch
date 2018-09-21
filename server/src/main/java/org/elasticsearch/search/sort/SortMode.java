@@ -36,7 +36,7 @@ import java.util.Objects;
  * <li>sum - Use the sum of all values as sort value. Only applicable for number based array fields.</li>
  * <li>avg - Use the average of all values as sort value. Only applicable for number based array fields.</li>
  * <li>median - Use the median of all values as sort value. Only applicable for number based array fields.</li>
- * <li>first - Pick the first value.</li>
+ * <li>first - Pick the first value. Only applicable for nested fields.</li>
  * </ul>
  */
 public enum SortMode implements Writeable {
@@ -50,7 +50,7 @@ public enum SortMode implements Writeable {
     AVG,
     /** Use the median of all values as sort value. Only applicable for number based array fields. **/
     MEDIAN,
-    /** Pick the first value **/
+    /** Pick the first value. Only applicable for nested fields. **/
     FIRST;
 
     @Override

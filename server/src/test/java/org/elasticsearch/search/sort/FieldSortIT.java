@@ -1427,6 +1427,11 @@ public class FieldSortIT extends ESIntegTestCase {
                     .field("foo", "bar bar")
                 .endObject()
                 .endObject()).execute().actionGet();
+        client().prepareIndex("test", "type", "2").setSource(jsonBuilder().startObject()
+                .startObject("nested")
+                    .field("foo", "abc abc")
+                .endObject()
+                .endObject()).execute().actionGet();
         refresh();
 
         // We sort on nested field
@@ -1436,11 +1441,24 @@ public class FieldSortIT extends ESIntegTestCase {
                 .execute().actionGet();
         assertNoFailures(searchResponse);
         SearchHit[] hits = searchResponse.getHits().getHits();
-        for (int i = 0; i < hits.length; ++i) {
-            assertThat(hits[i].getSortValues().length, is(1));
-            assertThat(hits[i].getSortValues()[0], is("bar"));
-        }
+        assertThat(hits.length, is(2));
+        assertThat(hits[0].getSortValues().length, is(1));
+        assertThat(hits[1].getSortValues().length, is(1));
+        assertThat(hits[0].getSortValues()[0], is("bar"));
+        assertThat(hits[1].getSortValues()[0], is("abc"));
 
+        // We sort on nested field with 'first' sort mode
+        searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addSort(SortBuilders.fieldSort("nested.foo").setNestedPath("nested").order(SortOrder.ASC).sortMode(SortMode.FIRST))
+            .execute().actionGet();
+        assertNoFailures(searchResponse);
+        hits = searchResponse.getHits().getHits();
+        assertThat(hits.length, is(2));
+        assertThat(hits[0].getSortValues().length, is(1));
+        assertThat(hits[1].getSortValues().length, is(1));
+        assertThat(hits[0].getSortValues()[0], is("abc"));
+        assertThat(hits[1].getSortValues()[0], is("bar"));
 
         // We sort on nested sub field
         searchResponse = client().prepareSearch()
@@ -1449,10 +1467,11 @@ public class FieldSortIT extends ESIntegTestCase {
                 .execute().actionGet();
         assertNoFailures(searchResponse);
         hits = searchResponse.getHits().getHits();
-        for (int i = 0; i < hits.length; ++i) {
-            assertThat(hits[i].getSortValues().length, is(1));
-            assertThat(hits[i].getSortValues()[0], is("bar bar"));
-        }
+        assertThat(hits.length, is(2));
+        assertThat(hits[0].getSortValues().length, is(1));
+        assertThat(hits[1].getSortValues().length, is(1));
+        assertThat(hits[0].getSortValues()[0], is("bar bar"));
+        assertThat(hits[1].getSortValues()[0], is("abc abc"));
     }
 
     public void testSortDuelBetweenSingleShardAndMultiShardIndex() throws Exception {

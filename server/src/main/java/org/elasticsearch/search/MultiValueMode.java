@@ -391,14 +391,9 @@ public enum MultiValueMode implements Writeable {
     },
 
     /**
-     * Pick the first of all the values
+     * Pick the first of all the values.
      */
     FIRST {
-        @Override
-        protected long pick(SortedNumericDocValues values) throws IOException {
-            return values.nextValue();
-        }
-
         @Override
         protected long pick(SortedNumericDocValues values, long missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) throws IOException {
             boolean hasValue = false;
@@ -410,11 +405,6 @@ public enum MultiValueMode implements Writeable {
                 }
             }
             return hasValue ? value : missingValue;
-        }
-
-        @Override
-        protected double pick(SortedNumericDoubleValues values) throws IOException {
-            return values.nextValue();
         }
 
         @Override
@@ -431,11 +421,6 @@ public enum MultiValueMode implements Writeable {
         }
 
         @Override
-        protected BytesRef pick(SortedBinaryDocValues values) throws IOException {
-            return values.nextValue();
-        }
-
-        @Override
         protected BytesRef pick(BinaryDocValues values, BytesRefBuilder builder, DocIdSetIterator docItr, int startDoc, int endDoc) throws IOException {
             BytesRefBuilder value = null;
             for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
@@ -446,11 +431,6 @@ public enum MultiValueMode implements Writeable {
                 }
             }
             return value == null ? null : value.get();
-        }
-
-        @Override
-        protected int pick(SortedSetDocValues values) throws IOException {
-            return Math.toIntExact(values.nextOrd());
         }
 
         @Override
@@ -483,7 +463,7 @@ public enum MultiValueMode implements Writeable {
      * with this mode and the provided values. When a document has no value,
      * <code>missingValue</code> is returned.
      *
-     * Allowed Modes: SUM, AVG, MEDIAN, MIN, MAX, FIRST
+     * Allowed Modes: SUM, AVG, MEDIAN, MIN, MAX
      */
     public NumericDocValues select(final SortedNumericDocValues values) {
         final NumericDocValues singleton = DocValues.unwrapSingleton(values);
@@ -585,7 +565,7 @@ public enum MultiValueMode implements Writeable {
      * with this mode and the provided values. When a document has no value,
      * <code>missingValue</code> is returned.
      *
-     * Allowed Modes: SUM, AVG, MEDIAN, MIN, MAX, FIRST
+     * Allowed Modes: SUM, AVG, MEDIAN, MIN, MAX
      */
     public NumericDoubleValues select(final SortedNumericDoubleValues values) {
         final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
@@ -674,7 +654,7 @@ public enum MultiValueMode implements Writeable {
      * with this mode and the provided values. When a document has no value,
      * <code>missingValue</code> is returned.
      *
-     * Allowed Modes: MIN, MAX, FIRST
+     * Allowed Modes: MIN, MAX
      */
     public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue) {
         final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
@@ -788,7 +768,7 @@ public enum MultiValueMode implements Writeable {
      * Return a {@link SortedDocValues} instance that can be used to sort documents
      * with this mode and the provided values.
      *
-     * Allowed Modes: MIN, MAX, FIRST
+     * Allowed Modes: MIN, MAX
      */
     public SortedDocValues select(final SortedSetDocValues values) {
         if (values.getValueCount() >= Integer.MAX_VALUE) {

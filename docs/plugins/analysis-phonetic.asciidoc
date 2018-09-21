@@ -38,7 +38,6 @@ PUT phonetic_sample
           "my_analyzer": {
             "tokenizer": "standard",
             "filter": [
-              "standard",
               "lowercase",
               "my_metaphone"
             ]

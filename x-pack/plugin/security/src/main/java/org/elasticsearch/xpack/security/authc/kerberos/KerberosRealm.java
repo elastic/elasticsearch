@@ -30,6 +30,7 @@ import org.ietf.jgss.GSSException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -57,6 +58,9 @@ import static org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthentica
  * status to terminate authentication process.
  */
 public final class KerberosRealm extends Realm implements CachingRealm {
+
+    public static final String KRB_METADATA_REALM_NAME_KEY = "kerberos_realm";
+    public static final String KRB_METADATA_UPN_KEY = "kerberos_user_principal_name";
 
     private final Cache<String, User> userPrincipalNameToUserCache;
     private final NativeRoleMappingStore userRoleMapper;
@@ -151,8 +155,7 @@ public final class KerberosRealm extends Realm implements CachingRealm {
         kerberosTicketValidator.validateTicket((byte[]) kerbAuthnToken.credentials(), keytabPath, enableKerberosDebug,
                 ActionListener.wrap(userPrincipalNameOutToken -> {
                     if (userPrincipalNameOutToken.v1() != null) {
-                        final String username = maybeRemoveRealmName(userPrincipalNameOutToken.v1());
-                        resolveUser(username, userPrincipalNameOutToken.v2(), listener);
+                        resolveUser(userPrincipalNameOutToken.v1(), userPrincipalNameOutToken.v2(), listener);
                     } else {
                         /**
                          * This is when security context could not be established may be due to ongoing
@@ -171,23 +174,8 @@ public final class KerberosRealm extends Realm implements CachingRealm {
                 }, e -> handleException(e, listener)));
     }
 
-    /**
-     * Usually principal names are in the form 'user/instance@REALM'. This method
-     * removes '@REALM' part from the principal name if
-     * {@link KerberosRealmSettings#SETTING_REMOVE_REALM_NAME} is {@code true} else
-     * will return the input string.
-     *
-     * @param principalName user principal name
-     * @return username after removal of realm
-     */
-    protected String maybeRemoveRealmName(final String principalName) {
-        if (this.removeRealmName) {
-            int foundAtIndex = principalName.indexOf('@');
-            if (foundAtIndex > 0) {
-                return principalName.substring(0, foundAtIndex);
-            }
-        }
-        return principalName;
+    private String[] splitUserPrincipalName(final String userPrincipalName) {
+        return userPrincipalName.split("@");
     }
 
     private void handleException(Exception e, final ActionListener<AuthenticationResult> listener) {
@@ -205,12 +193,20 @@ public final class KerberosRealm extends Realm implements CachingRealm {
         }
     }
 
-    private void resolveUser(final String username, final String outToken, final ActionListener<AuthenticationResult> listener) {
+    private void resolveUser(final String userPrincipalName, final String outToken, final ActionListener<AuthenticationResult> listener) {
         // if outToken is present then it needs to be communicated with peer, add it to
         // response header in thread context.
         if (Strings.hasText(outToken)) {
             threadPool.getThreadContext().addResponseHeader(WWW_AUTHENTICATE, NEGOTIATE_AUTH_HEADER_PREFIX + outToken);
         }
+
+        final String[] userAndRealmName = splitUserPrincipalName(userPrincipalName);
+        /*
+         * Usually principal names are in the form 'user/instance@REALM'. If
+         * KerberosRealmSettings#SETTING_REMOVE_REALM_NAME is true then remove
+         * '@REALM' part from the user principal name to get username.
+         */
+        final String username = (this.removeRealmName) ? userAndRealmName[0] : userPrincipalName;
 
         if (delegatedRealms.hasDelegation()) {
             delegatedRealms.resolve(username, listener);
@@ -219,15 +215,19 @@ public final class KerberosRealm extends Realm implements CachingRealm {
             if (user != null) {
                 listener.onResponse(AuthenticationResult.success(user));
             } else {
-                buildUser(username, listener);
+                final String realmName = (userAndRealmName.length > 1) ? userAndRealmName[1] : null;
+                final Map<String, Object> metadata = new HashMap<>();
+                metadata.put(KRB_METADATA_REALM_NAME_KEY, realmName);
+                metadata.put(KRB_METADATA_UPN_KEY, userPrincipalName);
+                buildUser(username, metadata, listener);
             }
         }
     }
 
-    private void buildUser(final String username, final ActionListener<AuthenticationResult> listener) {
-        final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(username, null, Collections.emptySet(), null, this.config);
+    private void buildUser(final String username, final Map<String, Object> metadata, final ActionListener<AuthenticationResult> listener) {
+        final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(username, null, Collections.emptySet(), metadata, this.config);
         userRoleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
-            final User computedUser = new User(username, roles.toArray(new String[roles.size()]), null, null, null, true);
+            final User computedUser = new User(username, roles.toArray(new String[roles.size()]), null, null, userData.getMetadata(), true);
             if (userPrincipalNameToUserCache != null) {
                 userPrincipalNameToUserCache.put(username, computedUser);
             }

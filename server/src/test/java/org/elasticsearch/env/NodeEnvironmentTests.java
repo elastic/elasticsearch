@@ -79,8 +79,8 @@ public class NodeEnvironmentTests extends ESTestCase {
         List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
 
         // Reuse the same location and attempt to lock again
-        IllegalStateException ex =
-            expectThrows(IllegalStateException.class, () -> new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings)));
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
+                new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings)));
         assertThat(ex.getMessage(), containsString("failed to obtain node lock"));
 
         // Close the environment that holds the lock and make sure we can get the lock after release

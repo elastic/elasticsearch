@@ -25,8 +25,6 @@ import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedOrdinalsSamplerAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator;
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregator;
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregator;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -180,7 +178,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
 
             ProfileResult avgAggResult = termsAggResult.getProfiledChildren().get(0);
             assertThat(avgAggResult, notNullValue());
-            assertThat(avgAggResult.getQueryName(), equalTo(AvgAggregator.class.getSimpleName()));
+            assertThat(avgAggResult.getQueryName(), equalTo("AvgAggregator"));
             assertThat(avgAggResult.getLuceneDescription(), equalTo("avg"));
             assertThat(avgAggResult.getTime(), greaterThan(0L));
             Map<String, Long> avgBreakdown = termsAggResult.getTimeBreakdown();
@@ -250,7 +248,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
 
             ProfileResult avgAggResult = termsAggResult.getProfiledChildren().get(0);
             assertThat(avgAggResult, notNullValue());
-            assertThat(avgAggResult.getQueryName(), equalTo(AvgAggregator.class.getSimpleName()));
+            assertThat(avgAggResult.getQueryName(), equalTo("AvgAggregator"));
             assertThat(avgAggResult.getLuceneDescription(), equalTo("avg"));
             assertThat(avgAggResult.getTime(), greaterThan(0L));
             Map<String, Long> avgBreakdown = termsAggResult.getTimeBreakdown();
@@ -303,7 +301,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
 
             ProfileResult maxAggResult = diversifyAggResult.getProfiledChildren().get(0);
             assertThat(maxAggResult, notNullValue());
-            assertThat(maxAggResult.getQueryName(), equalTo(MaxAggregator.class.getSimpleName()));
+            assertThat(maxAggResult.getQueryName(), equalTo("MaxAggregator"));
             assertThat(maxAggResult.getLuceneDescription(), equalTo("max"));
             assertThat(maxAggResult.getTime(), greaterThan(0L));
             Map<String, Long> termsBreakdown = maxAggResult.getTimeBreakdown();
@@ -381,7 +379,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
 
             ProfileResult avgAggResult = tagsAggResult.getProfiledChildren().get(0);
             assertThat(avgAggResult, notNullValue());
-            assertThat(avgAggResult.getQueryName(), equalTo(AvgAggregator.class.getSimpleName()));
+            assertThat(avgAggResult.getQueryName(), equalTo("AvgAggregator"));
             assertThat(avgAggResult.getLuceneDescription(), equalTo("avg"));
             assertThat(avgAggResult.getTime(), greaterThan(0L));
             Map<String, Long> avgBreakdown = tagsAggResult.getTimeBreakdown();
@@ -398,7 +396,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
 
             ProfileResult maxAggResult = tagsAggResult.getProfiledChildren().get(1);
             assertThat(maxAggResult, notNullValue());
-            assertThat(maxAggResult.getQueryName(), equalTo(MaxAggregator.class.getSimpleName()));
+            assertThat(maxAggResult.getQueryName(), equalTo("MaxAggregator"));
             assertThat(maxAggResult.getLuceneDescription(), equalTo("max"));
             assertThat(maxAggResult.getTime(), greaterThan(0L));
             Map<String, Long> maxBreakdown = tagsAggResult.getTimeBreakdown();
@@ -432,7 +430,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
 
             avgAggResult = stringsAggResult.getProfiledChildren().get(0);
             assertThat(avgAggResult, notNullValue());
-            assertThat(avgAggResult.getQueryName(), equalTo(AvgAggregator.class.getSimpleName()));
+            assertThat(avgAggResult.getQueryName(), equalTo("AvgAggregator"));
             assertThat(avgAggResult.getLuceneDescription(), equalTo("avg"));
             assertThat(avgAggResult.getTime(), greaterThan(0L));
             avgBreakdown = stringsAggResult.getTimeBreakdown();
@@ -449,7 +447,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
 
             maxAggResult = stringsAggResult.getProfiledChildren().get(1);
             assertThat(maxAggResult, notNullValue());
-            assertThat(maxAggResult.getQueryName(), equalTo(MaxAggregator.class.getSimpleName()));
+            assertThat(maxAggResult.getQueryName(), equalTo("MaxAggregator"));
             assertThat(maxAggResult.getLuceneDescription(), equalTo("max"));
             assertThat(maxAggResult.getTime(), greaterThan(0L));
             maxBreakdown = stringsAggResult.getTimeBreakdown();
@@ -483,7 +481,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
 
             avgAggResult = tagsAggResult.getProfiledChildren().get(0);
             assertThat(avgAggResult, notNullValue());
-            assertThat(avgAggResult.getQueryName(), equalTo(AvgAggregator.class.getSimpleName()));
+            assertThat(avgAggResult.getQueryName(), equalTo("AvgAggregator"));
             assertThat(avgAggResult.getLuceneDescription(), equalTo("avg"));
             assertThat(avgAggResult.getTime(), greaterThan(0L));
             avgBreakdown = tagsAggResult.getTimeBreakdown();
@@ -500,7 +498,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
 
             maxAggResult = tagsAggResult.getProfiledChildren().get(1);
             assertThat(maxAggResult, notNullValue());
-            assertThat(maxAggResult.getQueryName(), equalTo(MaxAggregator.class.getSimpleName()));
+            assertThat(maxAggResult.getQueryName(), equalTo("MaxAggregator"));
             assertThat(maxAggResult.getLuceneDescription(), equalTo("max"));
             assertThat(maxAggResult.getTime(), greaterThan(0L));
             maxBreakdown = tagsAggResult.getTimeBreakdown();

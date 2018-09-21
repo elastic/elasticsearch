@@ -21,15 +21,18 @@ package org.elasticsearch.index.translog;
 
 import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.index.shard.RemoveCorruptedShardDataCommand;
 
 /**
  * Class encapsulating and dispatching commands from the {@code elasticsearch-translog} command line tool
  */
+@Deprecated
 public class TranslogToolCli extends LoggingAwareMultiCommand {
 
     private TranslogToolCli() {
+        // that's only for 6.x branch for bwc with elasticsearch-translog
         super("A CLI tool for various Elasticsearch translog actions");
-        subcommands.put("truncate", new TruncateTranslogCommand());
+        subcommands.put("truncate", new RemoveCorruptedShardDataCommand(true));
     }
 
     public static void main(String[] args) throws Exception {

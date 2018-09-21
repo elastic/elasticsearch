@@ -109,7 +109,7 @@ public class GetOverallBucketsRequest extends ActionRequest implements ToXConten
     }
 
     /**
-     * Sets the value of `top_n`.
+     * Sets the value of "top_n".
      * @param topN The number of top job bucket scores to be used in the overall_score calculation. Defaults to 1.
      */
     public void setTopN(Integer topN) {
@@ -121,7 +121,7 @@ public class GetOverallBucketsRequest extends ActionRequest implements ToXConten
     }
 
     /**
-     * Sets the value of `bucket_span`.
+     * Sets the value of "bucket_span".
      * @param bucketSpan The span of the overall buckets. Must be greater or equal to the largest job’s bucket_span.
      *                   Defaults to the largest job’s bucket_span.
      */
@@ -154,7 +154,7 @@ public class GetOverallBucketsRequest extends ActionRequest implements ToXConten
     /**
      * Sets the value of "start" which is a timestamp.
      * Only overall buckets whose timestamp is on or after the "start" value will be returned.
-     * @param start value of "start" to be set
+     * @param start String representation of a timestamp; may be an epoch seconds, epoch millis or an ISO string
      */
     public void setStart(String start) {
         this.start = start;
@@ -167,7 +167,7 @@ public class GetOverallBucketsRequest extends ActionRequest implements ToXConten
     /**
      * Sets the value of "end" which is a timestamp.
      * Only overall buckets whose timestamp is before the "end" value will be returned.
-     * @param end value of "end" to be set
+     * @param end String representation of a timestamp; may be an epoch seconds, epoch millis or an ISO string
      */
     public void setEnd(String end) {
         this.end = end;
@@ -197,7 +197,7 @@ public class GetOverallBucketsRequest extends ActionRequest implements ToXConten
     /**
      * Whether to ignore if a wildcard expression matches no jobs.
      *
-     * If this is `false`, then an error is returned when a wildcard (or `_all`) does not match any jobs
+     * If this is {@code false}, then an error is returned when a wildcard (or {@code _all}) does not match any jobs
      */
     public Boolean isAllowNoJobs() {
         return allowNoJobs;

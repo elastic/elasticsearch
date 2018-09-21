@@ -31,7 +31,7 @@ the index setting `index.mapping.nested_objects.limit`.
 
 This option is useless now that all indices have at most one type.
 
-=== The `classic` similarity has been removed
+==== The `classic` similarity has been removed
 
 The `classic` similarity relied on coordination factors for scoring to be good
 in presence of stopwords in the query. This feature has been removed from
@@ -39,7 +39,7 @@ Lucene, which means that the `classic` similarity now produces scores of lower
 quality. It is advised to switch to `BM25` instead, which is widely accepted
 as a better alternative.
 
-=== Similarities fail when unsupported options are provided
+==== Similarities fail when unsupported options are provided
 
 An error will now be thrown when unknown configuration options are provided
 to similarities. Such unknown parameters were ignored before.

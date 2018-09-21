@@ -12,7 +12,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
@@ -30,8 +29,12 @@ public final class TimestampFormatFinder {
     private static final String PREFACE = "preface";
     private static final String EPILOGUE = "epilogue";
 
-    private static final Pattern FRACTIONAL_SECOND_INTERPRETER = Pattern.compile("([:.,])(\\d{3,9})");
+    private static final String FRACTIONAL_SECOND_SEPARATORS = ":.,";
+    private static final Pattern FRACTIONAL_SECOND_INTERPRETER = Pattern.compile("([" + FRACTIONAL_SECOND_SEPARATORS + "])(\\d{3,9})");
     private static final char DEFAULT_FRACTIONAL_SECOND_SEPARATOR = ',';
+    private static final Pattern FRACTIONAL_SECOND_TIMESTAMP_FORMAT_PATTERN =
+        Pattern.compile("([" + FRACTIONAL_SECOND_SEPARATORS + "]S{3,9})");
+    private static final String DEFAULT_FRACTIONAL_SECOND_FORMAT = DEFAULT_FRACTIONAL_SECOND_SEPARATOR + "SSS";
 
     /**
      * The timestamp patterns are complex and it can be slow to prove they do not
@@ -206,10 +209,15 @@ public final class TimestampFormatFinder {
      * @return The timestamp format, or <code>null</code> if none matches.
      */
     public static TimestampMatch findFirstMatch(String text, int ignoreCandidates, String requiredFormat) {
+        if (ignoreCandidates >= ORDERED_CANDIDATE_FORMATS.size()) {
+            return null;
+        }
         Boolean[] quickRuleoutMatches = new Boolean[QUICK_RULE_OUT_PATTERNS.size()];
         int index = ignoreCandidates;
+        String adjustedRequiredFormat = adjustRequiredFormat(requiredFormat);
         for (CandidateTimestampFormat candidate : ORDERED_CANDIDATE_FORMATS.subList(ignoreCandidates, ORDERED_CANDIDATE_FORMATS.size())) {
-            if (requiredFormat == null || candidate.jodaTimestampFormats.contains(requiredFormat)) {
+            if (adjustedRequiredFormat == null || candidate.jodaTimestampFormats.contains(adjustedRequiredFormat) ||
+                candidate.javaTimestampFormats.contains(adjustedRequiredFormat)) {
                 boolean quicklyRuledOut = false;
                 for (Integer quickRuleOutIndex : candidate.quickRuleOutIndices) {
                     if (quickRuleoutMatches[quickRuleOutIndex] == null) {
@@ -274,8 +282,11 @@ public final class TimestampFormatFinder {
      * @return The timestamp format, or <code>null</code> if none matches.
      */
     public static TimestampMatch findFirstFullMatch(String text, int ignoreCandidates, String requiredFormat) {
+        if (ignoreCandidates >= ORDERED_CANDIDATE_FORMATS.size()) {
+            return null;
+        }
         int index = ignoreCandidates;
-        String adjustedRequiredFormat = (requiredFormat == null) ? null : requiredFormat.replaceAll("S{3,9}", "SSS");
+        String adjustedRequiredFormat = adjustRequiredFormat(requiredFormat);
         for (CandidateTimestampFormat candidate : ORDERED_CANDIDATE_FORMATS.subList(ignoreCandidates, ORDERED_CANDIDATE_FORMATS.size())) {
             if (adjustedRequiredFormat == null || candidate.jodaTimestampFormats.contains(adjustedRequiredFormat) ||
                 candidate.javaTimestampFormats.contains(adjustedRequiredFormat)) {
@@ -287,6 +298,17 @@ public final class TimestampFormatFinder {
             ++index;
         }
         return null;
+    }
+
+    /**
+     * If a required timestamp format contains a fractional seconds component, adjust it to the
+     * fractional seconds format that's in the candidate timestamp formats, i.e. ",SSS".  So, for
+     * example, "YYYY-MM-dd HH:mm:ss.SSSSSSSSS Z" would get adjusted to "YYYY-MM-dd HH:mm:ss,SSS Z".
+     */
+    static String adjustRequiredFormat(String requiredFormat) {
+
+        return (requiredFormat == null) ? null :
+            FRACTIONAL_SECOND_TIMESTAMP_FORMAT_PATTERN.matcher(requiredFormat).replaceFirst(DEFAULT_FRACTIONAL_SECOND_FORMAT);
     }
 
     private static TimestampMatch makeTimestampMatch(CandidateTimestampFormat chosenTimestampFormat, int chosenIndex,
@@ -391,12 +413,6 @@ public final class TimestampFormatFinder {
                 simpleRegex, grokPatternName, epilogue);
         }
 
-        TimestampMatch(int candidateIndex, String preface, String jodaTimestampFormat, String javaTimestampFormat, String simpleRegex,
-                       String grokPatternName, String epilogue, boolean hasFractionalComponentSmallerThanMillisecond) {
-            this(candidateIndex, preface, Collections.singletonList(jodaTimestampFormat), Collections.singletonList(javaTimestampFormat),
-                simpleRegex, grokPatternName, epilogue);
-        }
-
         TimestampMatch(int candidateIndex, String preface, List<String> jodaTimestampFormats, List<String> javaTimestampFormats,
                        String simpleRegex, String grokPatternName, String epilogue) {
             this(candidateIndex, preface, jodaTimestampFormats, javaTimestampFormats, Pattern.compile(simpleRegex), grokPatternName,
@@ -420,8 +436,8 @@ public final class TimestampFormatFinder {
          * I.e., does the textual representation NOT define the timezone?
          */
         public boolean hasTimezoneDependentParsing() {
-            return jodaTimestampFormats.stream().anyMatch(jodaTimestampFormat ->
-                jodaTimestampFormat.contains("HH") && jodaTimestampFormat.toLowerCase(Locale.ROOT).indexOf('z') == -1);
+            return javaTimestampFormats.stream().anyMatch(javaTimestampFormat ->
+                javaTimestampFormat.indexOf('X') == -1 && javaTimestampFormat.indexOf('z') == -1 && javaTimestampFormat.contains("mm"));
         }
 
         /**

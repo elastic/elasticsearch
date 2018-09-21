@@ -196,6 +196,35 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
                     "'User1'(id:2) in channel '3er Instanz'(id:2)"),
             TimestampFormatFinder.findFirstMatch("2018-01-06 19:22:20.106822|INFO    |VirtualServer |1  |client " +
                 " 'User1'(id:2) was added to channelgroup 'Channel Admin'(id:5) by client 'User1'(id:2) in channel '3er Instanz'(id:2)"));
+
+        // Differs from the above as the required format is specified
+        assertEquals(new TimestampMatch(3, "", "YYYY-MM-dd HH:mm:ss.SSSSSS", "yyyy-MM-dd HH:mm:ss.SSSSSS",
+                "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}", "TIMESTAMP_ISO8601",
+                "|INFO    |VirtualServer |1  |client  'User1'(id:2) was added to channelgroup 'Channel Admin'(id:5) by client " +
+                    "'User1'(id:2) in channel '3er Instanz'(id:2)"),
+            TimestampFormatFinder.findFirstMatch("2018-01-06 19:22:20.106822|INFO    |VirtualServer |1  |client " +
+                " 'User1'(id:2) was added to channelgroup 'Channel Admin'(id:5) by client 'User1'(id:2) in channel '3er Instanz'(id:2)",
+                randomFrom("YYYY-MM-dd HH:mm:ss.SSSSSS", "yyyy-MM-dd HH:mm:ss.SSSSSS")));
+
+        // Non-matching required format specified
+        assertNull(TimestampFormatFinder.findFirstMatch("2018-01-06 19:22:20.106822|INFO    |VirtualServer |1  |client " +
+                " 'User1'(id:2) was added to channelgroup 'Channel Admin'(id:5) by client 'User1'(id:2) in channel '3er Instanz'(id:2)",
+            randomFrom("UNIX", "EEE MMM dd YYYY HH:mm zzz")));
+    }
+
+    public void testAdjustRequiredFormat() {
+        assertEquals("YYYY-MM-dd HH:mm:ss,SSS Z", TimestampFormatFinder.adjustRequiredFormat("YYYY-MM-dd HH:mm:ss,SSS Z"));
+        assertEquals("YYYY-MM-dd HH:mm:ss,SSS Z", TimestampFormatFinder.adjustRequiredFormat("YYYY-MM-dd HH:mm:ss,SSSSSS Z"));
+        assertEquals("YYYY-MM-dd HH:mm:ss,SSS Z", TimestampFormatFinder.adjustRequiredFormat("YYYY-MM-dd HH:mm:ss,SSSSSSSSS Z"));
+        assertEquals("YYYY-MM-dd HH:mm:ss,SSS Z", TimestampFormatFinder.adjustRequiredFormat("YYYY-MM-dd HH:mm:ss.SSS Z"));
+        assertEquals("YYYY-MM-dd HH:mm:ss,SSS Z", TimestampFormatFinder.adjustRequiredFormat("YYYY-MM-dd HH:mm:ss.SSSSSS Z"));
+        assertEquals("YYYY-MM-dd HH:mm:ss,SSS Z", TimestampFormatFinder.adjustRequiredFormat("YYYY-MM-dd HH:mm:ss.SSSSSSSSS Z"));
+        assertEquals("YYYY-MM-dd HH:mm:ss,SSS", TimestampFormatFinder.adjustRequiredFormat("YYYY-MM-dd HH:mm:ss,SSS"));
+        assertEquals("YYYY-MM-dd HH:mm:ss,SSS", TimestampFormatFinder.adjustRequiredFormat("YYYY-MM-dd HH:mm:ss,SSSSSS"));
+        assertEquals("YYYY-MM-dd HH:mm:ss,SSS", TimestampFormatFinder.adjustRequiredFormat("YYYY-MM-dd HH:mm:ss,SSSSSSSSS"));
+        assertEquals("YYYY-MM-dd HH:mm:ss,SSS", TimestampFormatFinder.adjustRequiredFormat("YYYY-MM-dd HH:mm:ss.SSS"));
+        assertEquals("YYYY-MM-dd HH:mm:ss,SSS", TimestampFormatFinder.adjustRequiredFormat("YYYY-MM-dd HH:mm:ss.SSSSSS"));
+        assertEquals("YYYY-MM-dd HH:mm:ss,SSS", TimestampFormatFinder.adjustRequiredFormat("YYYY-MM-dd HH:mm:ss.SSSSSSSSS"));
     }
 
     public void testInterpretFractionalSeconds() {
@@ -219,6 +248,16 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
 
         assertEquals(expected, TimestampFormatFinder.findFirstMatch(text));
         assertEquals(expected, TimestampFormatFinder.findFirstFullMatch(text));
+        assertEquals(expected, TimestampFormatFinder.findFirstMatch(text, expected.candidateIndex));
+        assertEquals(expected, TimestampFormatFinder.findFirstFullMatch(text, expected.candidateIndex));
+        assertNull(TimestampFormatFinder.findFirstMatch(text, Integer.MAX_VALUE));
+        assertNull(TimestampFormatFinder.findFirstFullMatch(text, Integer.MAX_VALUE));
+        assertEquals(expected, TimestampFormatFinder.findFirstMatch(text, randomFrom(expected.jodaTimestampFormats)));
+        assertEquals(expected, TimestampFormatFinder.findFirstFullMatch(text, randomFrom(expected.jodaTimestampFormats)));
+        assertEquals(expected, TimestampFormatFinder.findFirstMatch(text, randomFrom(expected.javaTimestampFormats)));
+        assertEquals(expected, TimestampFormatFinder.findFirstFullMatch(text, randomFrom(expected.javaTimestampFormats)));
+        assertNull(TimestampFormatFinder.findFirstMatch(text, "wrong format"));
+        assertNull(TimestampFormatFinder.findFirstFullMatch(text, "wrong format"));
 
         validateJodaTimestampFormats(expected.jodaTimestampFormats, text, expectedEpochMs);
         validateJavaTimestampFormats(expected.javaTimestampFormats, text, expectedEpochMs);

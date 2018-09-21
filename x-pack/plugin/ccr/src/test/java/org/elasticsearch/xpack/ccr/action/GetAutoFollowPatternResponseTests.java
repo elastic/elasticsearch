@@ -30,8 +30,7 @@ public class GetAutoFollowPatternResponseTests extends AbstractStreamableTestCas
             randomIntBetween(0, Integer.MAX_VALUE),
             randomIntBetween(0, Integer.MAX_VALUE),
             TimeValue.timeValueMillis(500),
-            TimeValue.timeValueMillis(500),
-            randomBoolean() ? null : Collections.singletonMap("key", "value"));
+            TimeValue.timeValueMillis(500));
         return new GetAutoFollowPatternAction.Response(autoFollowPattern);
     }
 }

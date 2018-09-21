@@ -21,9 +21,9 @@ public class TransportGetAutoFollowPatternActionTests extends ESTestCase {
 
     public void testGetAutoFollowPattern() {
         Map<String, AutoFollowPattern> patterns = Collections.singletonMap("test_alias",
-            new AutoFollowPattern(Collections.singletonList("index-*"), null, null, null, null, null, null, null, null, null));
+            new AutoFollowPattern(Collections.singletonList("index-*"), null, null, null, null, null, null, null, null));
         MetaData metaData = MetaData.builder()
-            .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap()))
+            .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()))
             .build();
 
         AutoFollowPattern result = TransportGetAutoFollowPatternAction.getAutoFollowPattern(metaData, "test_alias");
@@ -34,8 +34,10 @@ public class TransportGetAutoFollowPatternActionTests extends ESTestCase {
     }
 
     public void testGetAutoFollowPatternNoAutoFollowPatterns() {
+        AutoFollowMetadata autoFollowMetadata =
+            new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
         MetaData metaData = MetaData.builder()
-            .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap()))
+            .putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)
             .build();
         expectThrows(ResourceNotFoundException.class,
             () -> TransportGetAutoFollowPatternAction.getAutoFollowPattern(metaData, "test_alias"));

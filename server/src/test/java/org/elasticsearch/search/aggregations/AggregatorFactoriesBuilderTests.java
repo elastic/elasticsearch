@@ -31,7 +31,9 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
@@ -96,6 +98,37 @@ public class AggregatorFactoriesBuilderTests extends AbstractSerializingTestCase
     @Override
     protected Reader<Builder> instanceReader() {
         return AggregatorFactories.Builder::new;
+    }
+
+    public void testUnorderedEqualsSubSet() {
+        Set<String> names = new HashSet<>();
+        List<AggregationBuilder> aggBuilders = new ArrayList<>();
+
+        while (names.size() < 2) {
+            AggregationBuilder aggBuilder = getRandomAggregation();
+
+            if (names.add(aggBuilder.getName())) {
+                aggBuilders.add(aggBuilder);
+            }
+        }
+
+        AggregatorFactories.Builder builder1 = new AggregatorFactories.Builder();
+        AggregatorFactories.Builder builder2 = new AggregatorFactories.Builder();
+
+        builder1.addAggregator(aggBuilders.get(0));
+        builder1.addAggregator(aggBuilders.get(1));
+        builder2.addAggregator(aggBuilders.get(1));
+
+        assertFalse(builder1.equals(builder2));
+        assertFalse(builder2.equals(builder1));
+
+        builder2.addAggregator(aggBuilders.get(0));
+        assertTrue(builder1.equals(builder2));
+        assertTrue(builder2.equals(builder1));
+
+        builder1.addPipelineAggregator(getRandomPipelineAggregation());
+        assertFalse(builder1.equals(builder2));
+        assertFalse(builder2.equals(builder1));
     }
 
     private static AggregationBuilder getRandomAggregation() {

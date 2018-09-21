@@ -144,7 +144,7 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
 
     String getAppEngineValueFromMetadataServer(String serviceURL) throws GeneralSecurityException, IOException {
         String metadata = GceMetadataService.GCE_HOST.get(settings);
-        GenericUrl url = new GenericUrl(metadata + serviceURL);
+        GenericUrl url = Access.doPrivileged(() -> new GenericUrl(metadata + serviceURL));
 
         HttpTransport httpTransport = getGceHttpTransport();
         HttpRequestFactory requestFactory = httpTransport.createRequestFactory();

@@ -95,6 +95,8 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
+            GceMetadataService.GCE_HOST,
+            GceInstancesServiceImpl.GCE_ROOT_URL,
             // Register GCE settings
             GceInstancesService.PROJECT_SETTING,
             GceInstancesService.ZONE_SETTING,

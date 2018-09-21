@@ -215,7 +215,7 @@ public class GceDiscoveryTests extends ESTestCase {
     public void testIllegalSettingsMissingAllRequired() {
         Settings nodeSettings = Settings.builder()
             // to prevent being resolved using default GCE host
-            .put(GceMetadataService.GCE_HOST.getKey(), "http://internal/")
+            .put(GceMetadataService.GCE_HOST.getKey(), "http://internal")
             .build();
         mock = new GceInstancesServiceMock(nodeSettings);
         try {
@@ -229,7 +229,7 @@ public class GceDiscoveryTests extends ESTestCase {
     public void testIllegalSettingsMissingProject() {
         Settings nodeSettings = Settings.builder()
             // to prevent being resolved using default GCE host
-            .put(GceMetadataService.GCE_HOST.getKey(), "http://internal/")
+            .put(GceMetadataService.GCE_HOST.getKey(), "http://internal")
             .putList(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "us-central1-a", "us-central1-b")
             .build();
         mock = new GceInstancesServiceMock(nodeSettings);
@@ -244,7 +244,7 @@ public class GceDiscoveryTests extends ESTestCase {
     public void testIllegalSettingsMissingZone() {
         Settings nodeSettings = Settings.builder()
             // to prevent being resolved using default GCE host
-            .put(GceMetadataService.GCE_HOST.getKey(), "http://internal/")
+            .put(GceMetadataService.GCE_HOST.getKey(), "http://internal")
             .put(GceInstancesServiceImpl.PROJECT_SETTING.getKey(), projectName)
             .build();
         mock = new GceInstancesServiceMock(nodeSettings);

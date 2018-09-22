@@ -557,9 +557,15 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     : "[" + currentPublication.get() + "] in progress, cannot start [" + publication + ']';
                 currentPublication = Optional.of(publication);
 
-                transportService.getThreadPool().schedule(publishTimeout, Names.GENERIC, () -> {
-                    synchronized (mutex) {
+                transportService.getThreadPool().schedule(publishTimeout, Names.GENERIC, new Runnable() {
+                    @Override
+                    public void run() {
                         publication.onTimeout();
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "scheduled timeout for " + publication;
                     }
                 });
                 publication.start(Collections.emptySet()); // TODO start failure detector and put faultyNodes here
@@ -625,14 +631,22 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     if (foundQuorum) {
                         if (electionScheduler == null) {
                             final TimeValue gracePeriod = TimeValue.ZERO; // TODO variable grace period
-                            electionScheduler = electionSchedulerFactory.startElectionScheduler(gracePeriod, () -> {
-                                synchronized (mutex) {
-                                    if (mode == Mode.CANDIDATE) {
-                                        if (prevotingRound != null) {
-                                            prevotingRound.close();
+                            electionScheduler = electionSchedulerFactory.startElectionScheduler(gracePeriod, new Runnable() {
+                                @Override
+                                public void run() {
+                                    synchronized (mutex) {
+                                        if (mode == Mode.CANDIDATE) {
+                                            if (prevotingRound != null) {
+                                                prevotingRound.close();
+                                            }
+                                            prevotingRound = preVoteCollector.start(lastAcceptedState, getDiscoveredNodes());
                                         }
-                                        prevotingRound = preVoteCollector.start(lastAcceptedState, getDiscoveredNodes());
                                     }
+                                }
+
+                                @Override
+                                public String toString() {
+                                    return "scheduling of new prevoting round";
                                 }
                             });
                         }

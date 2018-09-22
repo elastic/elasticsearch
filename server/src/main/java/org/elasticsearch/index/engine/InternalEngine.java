@@ -822,6 +822,8 @@ public class InternalEngine extends Engine {
                     assert indexResult.getResultType() == Result.Type.FAILURE : indexResult.getResultType();
                 } else if (plan.indexIntoLucene || plan.addStaleOpToLucene) {
                     indexResult = indexIntoLucene(index, plan);
+                    assert (index.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO || indexResult.isCreated() || indexResult.getFailure() != null)
+                        || indexResult.getSeqNo() <= getMaxSeqNoOfUpdatesOrDeletes() : indexResult.getSeqNo() + " > " + getMaxSeqNoOfUpdatesOrDeletes();
                 } else {
                     indexResult = new IndexResult(
                             plan.versionForIndexing, getPrimaryTerm(), plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
@@ -1169,6 +1171,7 @@ public class InternalEngine extends Engine {
                 deleteResult = plan.earlyResultOnPreflightError.get();
             } else if (plan.deleteFromLucene || plan.addStaleOpToLucene) {
                 deleteResult = deleteInLucene(delete, plan);
+                assert deleteResult.getSeqNo() <= getMaxSeqNoOfUpdatesOrDeletes() : deleteResult.getSeqNo() + " > " + getMaxSeqNoOfUpdatesOrDeletes();
             } else {
                 deleteResult = new DeleteResult(
                         plan.versionOfDeletion, getPrimaryTerm(), plan.seqNoOfDeletion, plan.currentlyDeleted == false);

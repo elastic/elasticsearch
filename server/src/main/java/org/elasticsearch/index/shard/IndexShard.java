@@ -515,7 +515,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                     // If the old primary was on an old version, this promoting primary (was replica before)
                                     // does not have max_seq_no_of_updates. We need to bootstrap it manually from its local history.
                                     assert indexSettings.getIndexVersionCreated().before(Version.V_7_0_0_alpha1);
-                                    engine.initializeMaxSeqNoOfUpdatesOrDeletes();
+                                    engine.advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats().getMaxSeqNo());
                                 }
                                 replicationTracker.updateLocalCheckpoint(currentRouting.allocationId().getId(), getLocalCheckpoint());
                                 primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
@@ -1959,7 +1959,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // If the old primary was on an old version, this promoting primary (was replica before)
                 // does not have max_seq_no_of_updates. We need to bootstrap it manually from its local history.
                 assert indexSettings.getIndexVersionCreated().before(Version.V_7_0_0_alpha1);
-                getEngine().initializeMaxSeqNoOfUpdatesOrDeletes();
+                getEngine().advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats().getMaxSeqNo());
             }
         }
     }
@@ -2350,7 +2350,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 logger.info("detected new primary with primary term [{}], global checkpoint [{}], max_seq_no [{}]",
                                              opPrimaryTerm, currentGlobalCheckpoint, maxSeqNo);
                                 if (currentGlobalCheckpoint < maxSeqNo) {
-                                    resetEngineToGlobalCheckpoint(maxSeqNoOfUpdatesOrDeletes);
+                                    resetEngineToGlobalCheckpoint();
                                 } else {
                                     getEngine().rollTranslogGeneration();
                                 }
@@ -2719,10 +2719,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Rollback the current engine to the safe commit, then replay local translog up to the global checkpoint.
      */
-    void resetEngineToGlobalCheckpoint(final long maxSeqNoOfUpdates) throws IOException {
+    void resetEngineToGlobalCheckpoint() throws IOException {
         assert getActiveOperationsCount() == 0 : "Ongoing writes [" + getActiveOperations() + "]";
         sync(); // persist the global checkpoint to disk
-        final long globalCheckpoint = getGlobalCheckpoint();
+        final SeqNoStats seqNoStats = seqNoStats();
         final Engine newEngine;
         synchronized (mutex) {
             verifyNotClosed();
@@ -2731,12 +2731,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             newEngine = createNewEngine(newEngineConfig());
             active.set(true);
         }
+        newEngine.advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats.getMaxSeqNo());
         final Engine.TranslogRecoveryRunner translogRunner = (engine, snapshot) -> runTranslogRecovery(
             engine, snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {
                 // TODO: add a dedicate recovery stats for the reset translog
             });
-        newEngine.advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNoOfUpdates);
-        newEngine.recoverFromTranslog(translogRunner, globalCheckpoint);
+        newEngine.recoverFromTranslog(translogRunner, seqNoStats.getGlobalCheckpoint());
     }
 
     /**

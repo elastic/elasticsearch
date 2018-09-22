@@ -97,6 +97,7 @@ import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase {
 
@@ -444,7 +445,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 for (IndexShard replica : replicas) {
                     try {
                         assertThat(replica.getMaxSeenAutoIdTimestamp(), equalTo(primary.getMaxSeenAutoIdTimestamp()));
-                        assertThat(replica.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(primary.getMaxSeqNoOfUpdatesOrDeletes()));
+                        assertThat(replica.getMaxSeqNoOfUpdatesOrDeletes(), greaterThanOrEqualTo(primary.getMaxSeqNoOfUpdatesOrDeletes()));
                     } catch (AlreadyClosedException ignored) {
                     }
                 }

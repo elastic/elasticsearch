@@ -962,7 +962,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(indexShard.getLocalCheckpoint(), equalTo(maxSeqNo));
         assertThat(indexShard.seqNoStats().getMaxSeqNo(), equalTo(maxSeqNo));
         assertThat(getShardDocUIDs(indexShard), equalTo(docsBeforeRollback));
-        assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNoOfUpdatesOrDeletes));
+        assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(Math.max(maxSeqNo, maxSeqNoOfUpdatesOrDeletes)));
         closeShard(indexShard, false);
     }
 
@@ -3459,12 +3459,12 @@ public class IndexShardTests extends IndexShardTestCase {
         Set<String> docBelowGlobalCheckpoint = getShardDocUIDs(shard).stream()
             .filter(id -> Long.parseLong(id) <= globalCheckpoint).collect(Collectors.toSet());
         TranslogStats translogStats = shard.translogStats();
-        long maxSeqNofUpdates = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
-        shard.resetEngineToGlobalCheckpoint(maxSeqNofUpdates);
+        final long maxSeqNoBeforeRollback = shard.seqNoStats().getMaxSeqNo();
+        shard.resetEngineToGlobalCheckpoint();
         assertThat(getShardDocUIDs(shard), equalTo(docBelowGlobalCheckpoint));
         assertThat(shard.seqNoStats().getMaxSeqNo(), equalTo(globalCheckpoint));
         assertThat(shard.translogStats().estimatedNumberOfOperations(), equalTo(translogStats.estimatedNumberOfOperations()));
-        assertThat(shard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNofUpdates));
+        assertThat(shard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNoBeforeRollback));
         closeShard(shard, false);
     }
 

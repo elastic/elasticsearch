@@ -405,7 +405,8 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             }
             shards.assertAllEqual(initialDocs + extraDocs);
             for (IndexShard replica : shards.getReplicas()) {
-                assertThat(replica.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(shards.getPrimary().getMaxSeqNoOfUpdatesOrDeletes()));
+                assertThat(replica.getMaxSeqNoOfUpdatesOrDeletes(),
+                    greaterThanOrEqualTo(shards.getPrimary().getMaxSeqNoOfUpdatesOrDeletes()));
             }
 
             // check translog on replica is trimmed

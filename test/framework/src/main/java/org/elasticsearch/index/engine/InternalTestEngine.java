@@ -31,7 +31,6 @@ import java.util.function.BiFunction;
  * An alternative of {@link InternalEngine} that allows tweaking internals to reduce noise in engine tests.
  */
 class InternalTestEngine extends InternalEngine {
-    private volatile boolean autoAdjustMaxSeqNoOfUpdatesOrDeletes = true;
     private final Map<String, Long> idToMaxSeqNo = ConcurrentCollections.newConcurrentMap();
 
     InternalTestEngine(EngineConfig engineConfig) {
@@ -44,7 +43,7 @@ class InternalTestEngine extends InternalEngine {
 
     @Override
     public IndexResult index(Index index) throws IOException {
-        if (autoAdjustMaxSeqNoOfUpdatesOrDeletes && index.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+        if (index.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
             idToMaxSeqNo.compute(index.id(), (id, existing) -> {
                 if (existing == null) {
                     return index.seqNo();
@@ -55,16 +54,12 @@ class InternalTestEngine extends InternalEngine {
                 }
             });
         }
-        final IndexResult result = super.index(index);
-        if (index.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO && result.getFailure() == null && result.isCreated() == false) {
-            assert getMaxSeqNoOfUpdatesOrDeletes() >= result.getSeqNo() : getMaxSeqNoOfUpdatesOrDeletes() + " < " + result.getSeqNo();
-        }
-        return result;
+        return super.index(index);
     }
 
     @Override
     public DeleteResult delete(Delete delete) throws IOException {
-        if (autoAdjustMaxSeqNoOfUpdatesOrDeletes && delete.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+        if (delete.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
             final long maxSeqNo = idToMaxSeqNo.compute(delete.id(), (id, existing) -> {
                 if (existing == null) {
                     return delete.seqNo();
@@ -74,10 +69,6 @@ class InternalTestEngine extends InternalEngine {
             });
             advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNo);
         }
-        final DeleteResult result = super.delete(delete);
-        if (delete.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO && result.getFailure() == null) {
-            assert getMaxSeqNoOfUpdatesOrDeletes() >= result.getSeqNo() : getMaxSeqNoOfUpdatesOrDeletes() + " < " + result.getSeqNo();
-        }
-        return result;
+        return super.delete(delete);
     }
 }

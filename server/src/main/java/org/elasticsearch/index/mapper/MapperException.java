@@ -33,10 +33,6 @@ public class MapperException extends ElasticsearchException {
         super(message);
     }
 
-    public MapperException(String msg, Object... args) {
-        super(msg, args);
-    }
-
     public MapperException(String message, Throwable cause) {
         super(message, cause);
     }

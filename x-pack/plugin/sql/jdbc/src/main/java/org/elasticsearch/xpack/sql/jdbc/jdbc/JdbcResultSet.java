@@ -25,6 +25,7 @@ import java.sql.ResultSetMetaData;
 import java.sql.RowId;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLType;
 import java.sql.SQLWarning;
 import java.sql.SQLXML;
 import java.sql.Statement;
@@ -133,7 +134,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public boolean getBoolean(int columnIndex) throws SQLException {
-        return column(columnIndex) != null ? getObject(columnIndex, Boolean.class) : false; 
+        return column(columnIndex) != null ? getObject(columnIndex, Boolean.class) : false;
     }
 
     @Override
@@ -245,7 +246,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     private Long dateTime(int columnIndex) throws SQLException {
         Object val = column(columnIndex);
-        JDBCType type = cursor.columns().get(columnIndex - 1).type;
+        SQLType type = cursor.columns().get(columnIndex - 1).type;
         try {
             // TODO: the B6 appendix of the jdbc spec does mention CHAR, VARCHAR, LONGVARCHAR, DATE, TIMESTAMP as supported
             // jdbc types that should be handled by getDate and getTime methods. From all of those we support VARCHAR and
@@ -338,7 +339,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             return null;
         }
 
-        JDBCType columnType = cursor.columns().get(columnIndex - 1).type;
+        SQLType columnType = cursor.columns().get(columnIndex - 1).type;
         
         return TypeConverter.convert(val, columnType, type);
     }

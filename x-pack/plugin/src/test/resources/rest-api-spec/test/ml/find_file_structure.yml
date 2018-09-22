@@ -38,6 +38,11 @@
   - match: { field_stats.airline.cardinality: 2 }
   - match: { field_stats.responsetime.count: 3 }
   - match: { field_stats.responsetime.cardinality: 3 }
+  - match: { field_stats.responsetime.min_value: 132.2046 }
+  - match: { field_stats.responsetime.max_value: 990.4628 }
+  # Not asserting on field_stats.responsetime.mean as it's a recurring decimal
+  # so its representation in the response could cause spurious failures
+  - match: { field_stats.responsetime.median_value: 134.2046 }
   - match: { field_stats.sourcetype.count: 3 }
   - match: { field_stats.sourcetype.cardinality: 1 }
   - match: { field_stats.time.count: 3 }
@@ -89,6 +94,11 @@
   - match: { field_stats.airline.cardinality: 2 }
   - match: { field_stats.responsetime.count: 3 }
   - match: { field_stats.responsetime.cardinality: 3 }
+  - match: { field_stats.responsetime.min_value: 132.2046 }
+  - match: { field_stats.responsetime.max_value: 990.4628 }
+  # Not asserting on field_stats.responsetime.mean as it's a recurring decimal
+  # so its representation in the response could cause spurious failures
+  - match: { field_stats.responsetime.median_value: 134.2046 }
   - match: { field_stats.sourcetype.count: 3 }
   - match: { field_stats.sourcetype.cardinality: 1 }
   - match: { field_stats.time.count: 3 }

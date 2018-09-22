@@ -338,7 +338,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         assertEquals(3, fieldStats.size());
         assertEquals(new FieldStats(2, 2, makeTopHits("not a time", 1, "whatever", 1)), fieldStats.get("foo"));
         assertEquals(new FieldStats(2, 2, makeTopHits("2018-05-24 17:28:31,735", 1, "2018-05-29 11:53:02,837", 1)), fieldStats.get("time"));
-        assertEquals(new FieldStats(2, 2, 17.0, 42.0, 29.5, 29.5, makeTopHits(17.0, 1, 42.0, 1)), fieldStats.get("bar"));
+        assertEquals(new FieldStats(2, 2, 17.0, 42.0, 29.5, 29.5, makeTopHits(17, 1, 42, 1)), fieldStats.get("bar"));
         assertNull(fieldStats.get("nothing"));
     }
 

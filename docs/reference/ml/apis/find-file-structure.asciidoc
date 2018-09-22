@@ -365,49 +365,49 @@ If the request does not encounter errors, you receive the following result:
     "page_count" : {
       "count" : 24,
       "cardinality" : 24,
-      "min_value" : 180.0,
-      "max_value" : 768.0,
+      "min_value" : 180,
+      "max_value" : 768,
       "mean_value" : 387.0833333333333,
       "median_value" : 329.5,
       "top_hits" : [
         {
-          "value" : 180.0,
+          "value" : 180,
           "count" : 1
         },
         {
-          "value" : 208.0,
+          "value" : 208,
           "count" : 1
         },
         {
-          "value" : 224.0,
+          "value" : 224,
           "count" : 1
         },
         {
-          "value" : 227.0,
+          "value" : 227,
           "count" : 1
         },
         {
-          "value" : 268.0,
+          "value" : 268,
           "count" : 1
         },
         {
-          "value" : 271.0,
+          "value" : 271,
           "count" : 1
         },
         {
-          "value" : 275.0,
+          "value" : 275,
           "count" : 1
         },
         {
-          "value" : 288.0,
+          "value" : 288,
           "count" : 1
         },
         {
-          "value" : 304.0,
+          "value" : 304,
           "count" : 1
         },
         {
-          "value" : 311.0,
+          "value" : 311,
           "count" : 1
         }
       ]

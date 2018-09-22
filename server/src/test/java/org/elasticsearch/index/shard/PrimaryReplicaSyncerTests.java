@@ -76,7 +76,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
             // Index doc but not advance local checkpoint.
             shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
                 SourceToParse.source(shard.shardId().getIndexName(), "_doc", Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
-                randomNonNegativeLong(), randomBoolean());
+                randomBoolean() ? IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP : randomNonNegativeLong(), true);
         }
 
         long globalCheckPoint = numDocs > 0 ? randomIntBetween(0, numDocs - 1) : 0;

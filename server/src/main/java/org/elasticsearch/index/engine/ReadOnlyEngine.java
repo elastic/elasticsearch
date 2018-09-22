@@ -402,4 +402,9 @@ public final class ReadOnlyEngine extends Engine {
     public void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {
 
     }
+
+    @Override
+    public void initializeMaxSeqNoOfUpdatesOrDeletes() {
+        advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats.getMaxSeqNo());
+    }
 }

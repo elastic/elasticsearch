@@ -940,6 +940,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(indexShard.getLocalCheckpoint(), equalTo(maxSeqNo));
         assertThat(indexShard.seqNoStats().getMaxSeqNo(), equalTo(maxSeqNo));
         assertThat(getShardDocUIDs(indexShard), equalTo(docsBeforeRollback));
+        assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNo));
         closeShard(indexShard, false);
     }
 
@@ -1695,6 +1696,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(newShard.getLocalCheckpoint(), equalTo(totalOps - 1L));
         assertThat(newShard.getReplicationTracker().getTrackedLocalCheckpointForShard(newShard.routingEntry().allocationId().getId())
                 .getLocalCheckpoint(), equalTo(totalOps - 1L));
+        assertThat(newShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(totalOps - 1L));
         assertDocCount(newShard, totalOps);
         assertThat(newShard.getHistoryUUID(), equalTo(historyUUID));
         closeShards(newShard);

@@ -271,6 +271,7 @@ public class FollowingEngineTests extends ESTestCase {
         store.associateIndexWithNewTranslog(translogUuid);
         FollowingEngine followingEngine = new FollowingEngine(config);
         TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), config.getIndexSettings());
+        followingEngine.initializeMaxSeqNoOfUpdatesOrDeletes();
         followingEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
         return followingEngine;
     }

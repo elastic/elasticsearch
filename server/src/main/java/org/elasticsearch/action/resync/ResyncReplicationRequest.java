@@ -81,7 +81,7 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
         } else {
             trimAboveSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
             maxSeenAutoIdTimestampOnPrimary = in.readZLong();
         } else {
             maxSeenAutoIdTimestampOnPrimary = IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
@@ -95,7 +95,7 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
         if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeZLong(trimAboveSeqNo);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
             out.writeZLong(maxSeenAutoIdTimestampOnPrimary);
         }
         out.writeArray(Translog.Operation::writeOperation, operations);

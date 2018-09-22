@@ -293,7 +293,7 @@ public class FollowersChecker extends AbstractComponent {
                             public void run() {
                                 synchronized (mutex) {
                                     if (running() == false) {
-                                        logger.debug("{} no longer running, not marking faulty");
+                                        logger.debug("{} no longer running, not marking faulty", FollowerChecker.this);
                                         return;
                                     }
                                     faultyNodes.add(discoveryNode);

@@ -511,6 +511,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  */
                                 engine.rollTranslogGeneration();
                                 engine.fillSeqNoGaps(newPrimaryTerm);
+                                if (getMaxSeqNoOfUpdatesOrDeletes() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                                    // TODO: Enable this assertion after we replicate max_seq_no_updates during replication
+                                    // assert indexSettings.getIndexVersionCreated().before(Version.V_7_0_0_alpha1) :
+                                    //    indexSettings.getIndexVersionCreated();
+                                    engine.initializeMaxSeqNoOfUpdatesOrDeletes();
+                                }
                                 replicationTracker.updateLocalCheckpoint(currentRouting.allocationId().getId(), getLocalCheckpoint());
                                 primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
                                     @Override
@@ -1321,7 +1327,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 translogRecoveryStats::incrementRecoveredOperations);
         };
         innerOpenEngineAndTranslog();
-        getEngine().recoverFromTranslog(translogRecoveryRunner, Long.MAX_VALUE);
+        final Engine engine = getEngine();
+        engine.initializeMaxSeqNoOfUpdatesOrDeletes();
+        engine.recoverFromTranslog(translogRecoveryRunner, Long.MAX_VALUE);
     }
 
     /**
@@ -1947,6 +1955,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId()).getLocalCheckpoint();
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
+            // If the old primary was on an old version, this primary (was replica before)
+            // does not have max_of_updates yet. Thus we need to bootstrap it manually.
+            if (getMaxSeqNoOfUpdatesOrDeletes() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                // TODO: Enable this assertion after we replicate max_seq_no_updates during replication
+                // assert indexSettings.getIndexVersionCreated().before(Version.V_7_0_0_alpha1) : indexSettings.getIndexVersionCreated();
+                getEngine().initializeMaxSeqNoOfUpdatesOrDeletes();
+            }
         }
     }
 
@@ -2718,6 +2733,41 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             engine, snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {
                 // TODO: add a dedicate recovery stats for the reset translog
             });
+        // TODO: do not use init method here but use advance with the max_seq_no received from the primary
+        newEngine.initializeMaxSeqNoOfUpdatesOrDeletes();
         newEngine.recoverFromTranslog(translogRunner, globalCheckpoint);
+    }
+
+    /**
+     * Returns the maximum sequence number of either update or delete operations have been processed in this shard
+     * or the sequence number from {@link #advanceMaxSeqNoOfUpdatesOrDeletes(long)}. An index request is considered
+     * as an update operation if it overwrites the existing documents in Lucene index with the same document id.
+     * <p>
+     * The primary captures this value after executes a replication request, then transfers it to a replica before
+     * executing that replication request on a replica.
+     */
+    public long getMaxSeqNoOfUpdatesOrDeletes() {
+        return getEngine().getMaxSeqNoOfUpdatesOrDeletes();
+    }
+
+    /**
+     * A replica calls this method to advance the max_seq_no_of_updates marker of its engine to at least the max_seq_no_of_updates
+     * value (piggybacked in a replication request) that it receives from its primary before executing that replication request.
+     * The receiving value is at least as high as the max_seq_no_of_updates on the primary was when any of the operations of that
+     * replication request were processed on it.
+     * <p>
+     * A replica shard also calls this method to bootstrap the max_seq_no_of_updates marker with the value that it received from
+     * the primary in peer-recovery, before it replays remote translog operations from the primary. The receiving value is at least
+     * as high as the max_seq_no_of_updates on the primary was when any of these operations were processed on it.
+     * <p>
+     * These transfers guarantee that every index/delete operation when executing on a replica engine will observe this marker a value
+     * which is at least the value of the max_seq_no_of_updates marker on the primary after that operation was executed on the primary.
+     *
+     * @see #acquireReplicaOperationPermit(long, long, ActionListener, String, Object)
+     * @see org.elasticsearch.indices.recovery.RecoveryTarget#indexTranslogOperations(List, int, long)
+     */
+    public void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {
+        getEngine().advanceMaxSeqNoOfUpdatesOrDeletes(seqNo);
+        assert seqNo <= getMaxSeqNoOfUpdatesOrDeletes() : getMaxSeqNoOfUpdatesOrDeletes() + " < " + seqNo;
     }
 }

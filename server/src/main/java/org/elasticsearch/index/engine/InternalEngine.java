@@ -385,6 +385,7 @@ public class InternalEngine extends Engine {
         flushLock.lock();
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
+            assert getMaxSeqNoOfUpdatesOrDeletes() != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is uninitialized";
             if (pendingTranslogRecovery.get() == false) {
                 throw new IllegalStateException("Engine has already been recovered");
             }
@@ -918,6 +919,7 @@ public class InternalEngine extends Engine {
 
     protected final IndexingStrategy planIndexingAsPrimary(Index index) throws IOException {
         assert index.origin() == Operation.Origin.PRIMARY : "planing as primary but origin isn't. got " + index.origin();
+        assert getMaxSeqNoOfUpdatesOrDeletes() != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is not initialized";
         final IndexingStrategy plan;
         // resolve an external operation into an internal one which is safe to replay
         if (canOptimizeAddDocument(index)) {
@@ -951,6 +953,10 @@ public class InternalEngine extends Engine {
                     index.versionType().updateVersion(currentVersion, index.version())
                 );
             }
+        }
+        final boolean toAppend = plan.indexIntoLucene && plan.useLuceneUpdateDocument == false;
+        if (toAppend == false) {
+            advanceMaxSeqNoOfUpdatesOrDeletes(plan.seqNoForIndexing);
         }
         return plan;
     }
@@ -1242,6 +1248,7 @@ public class InternalEngine extends Engine {
 
     protected final DeletionStrategy planDeletionAsPrimary(Delete delete) throws IOException {
         assert delete.origin() == Operation.Origin.PRIMARY : "planing as primary but got " + delete.origin();
+        assert getMaxSeqNoOfUpdatesOrDeletes() != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is not initialized";
         // resolve operation from external to internal
         final VersionValue versionValue = resolveDocVersion(delete);
         assert incrementVersionLookup();
@@ -1263,6 +1270,7 @@ public class InternalEngine extends Engine {
                     currentlyDeleted,
                     generateSeqNoForOperation(delete),
                     delete.versionType().updateVersion(currentVersion, delete.version()));
+            advanceMaxSeqNoOfUpdatesOrDeletes(plan.seqNoOfDeletion);
         }
         return plan;
     }
@@ -2548,4 +2556,12 @@ public class InternalEngine extends Engine {
         assert maxUnsafeAutoIdTimestamp.get() <= maxSeenAutoIdTimestamp.get();
     }
 
+
+    @Override
+    public void initializeMaxSeqNoOfUpdatesOrDeletes() {
+        assert getMaxSeqNoOfUpdatesOrDeletes() == SequenceNumbers.UNASSIGNED_SEQ_NO :
+            "max_seq_no_of_updates is already initialized [" + getMaxSeqNoOfUpdatesOrDeletes() + "]";
+        final long maxSeqNo = SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translog.getMaxSeqNo());
+        advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNo);
+    }
 }

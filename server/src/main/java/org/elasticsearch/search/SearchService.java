@@ -19,16 +19,22 @@
 
 package org.elasticsearch.search;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -48,6 +54,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -110,6 +117,7 @@ import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -607,12 +615,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     final SearchContext createContext(ShardSearchRequest request) throws IOException {
         final DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout);
+
+        final SearchSourceBuilder source = request.source();
+
+        checkRoutingRequirements(request);
+
         try {
             if (request.scroll() != null) {
                 context.scrollContext(new ScrollContext());
                 context.scrollContext().scroll = request.scroll();
             }
-            parseSource(context, request.source());
+            parseSource(context, source);
 
             // if the from and size are still not set, default them
             if (context.from() == -1) {
@@ -640,6 +653,61 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
 
         return context;
+    }
+
+    void checkRoutingRequirements(ShardSearchRequest request) {
+        if (request != null && request.source() != null) {
+            final QueryBuilder query = request.source().query();
+
+            if (query instanceof MoreLikeThisQueryBuilder) {
+                final MoreLikeThisQueryBuilder mlt = (MoreLikeThisQueryBuilder) query;
+
+                // Performances: lazy resolution to be moved before query type condition
+                // as soon as other queries than MLT have to be checked.
+                // Routing requirements for other queries are checked from the transport action layer
+                // (see o.e.c.m.MetaData.routingRequired API usages).
+                final Map<String, Boolean> perTypeIsRoutingRequired = resolvePerTypeIsRoutingRequired(request);
+
+                if (!perTypeIsRoutingRequired.isEmpty() && mlt.likeItems() != null) {
+                    for (MoreLikeThisQueryBuilder.Item item : mlt.likeItems()) {
+                        checkRoutingRequirement(item, perTypeIsRoutingRequired);
+                    }
+                }
+            }
+        }
+    }
+
+    private Map<String, Boolean> resolvePerTypeIsRoutingRequired(final ShardSearchRequest request) {
+        final MetaData metaData = clusterService.state().getMetaData();
+        final ImmutableOpenMap<String, IndexMetaData> indices = metaData.getIndices();
+
+        final String index = request.shardId().getIndexName();
+
+        final Map<String, Boolean> perTypeIsRoutingRequired = new HashMap<>();
+
+        indices.get(index).getMappings().values().forEach((Consumer<ObjectCursor<MappingMetaData>>) mapping -> {
+            final String type = mapping.value.type();
+            final boolean required = metaData.routingRequired(index, type);
+
+            perTypeIsRoutingRequired.put(type, required);
+        });
+
+        return perTypeIsRoutingRequired;
+    }
+
+    private void checkRoutingRequirement(MoreLikeThisQueryBuilder.Item item, final Map<String, Boolean> perTypeIsRoutingRequired) {
+        final String id = item.id();
+        final String index = item.index();
+        final String type = item.type();
+
+        if (id != null && index != null && type != null) {
+            final String routing = item.routing();
+            final boolean isRoutingRequired = perTypeIsRoutingRequired.getOrDefault(type, false);
+
+            if (routing == null && isRoutingRequired) {
+                throw new RoutingMissingException(index, type, id);
+            }
+        }
     }
 
     public DefaultSearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout)

@@ -19,10 +19,10 @@
 package org.elasticsearch.search;
 
 import com.carrotsearch.hppc.IntArrayList;
-
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -43,6 +43,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -81,8 +82,10 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
+import static java.lang.System.currentTimeMillis;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
@@ -91,6 +94,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.Matchers.containsString;
 
 public class SearchServiceTests extends ESSingleNodeTestCase {
 
@@ -551,5 +555,74 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         Thread currentThread = Thread.currentThread();
         // we still make sure can match is executed on the network thread
         service.canMatch(req, ActionListener.wrap(r -> assertSame(Thread.currentThread(), currentThread), e -> fail("unexpected")));
+    }
+
+    public void testCheckRoutingRequirements_noRequirement_noRequiredAttribute() throws IOException {
+        final boolean isRoutingRequired = false;
+        final boolean addRoutingToQuery = false;
+
+        testCheckRoutingRequirements(isRoutingRequired, addRoutingToQuery);
+    }
+
+    public void testCheckRoutingRequirements_satisfiedRequirement() throws IOException {
+        final boolean isRoutingRequired = true;
+        final boolean addRoutingToQuery = true;
+
+        testCheckRoutingRequirements(isRoutingRequired, addRoutingToQuery);
+    }
+
+    public void testCheckRoutingRequirements_missingRequiredAttribute() throws IOException {
+        final boolean isRoutingRequired = true;
+        final boolean addRoutingToQuery = false;
+
+        try {
+            testCheckRoutingRequirements(isRoutingRequired, addRoutingToQuery);
+
+            fail("[RoutingMissingException] expected");
+        } catch (final RoutingMissingException e) {
+            assertThat(e.getMessage(), containsString("routing is required for [test]/[type1]/[1]"));
+        }
+    }
+
+    public void testCheckRoutingRequirements_unnecessaryRequiredAttribute() throws IOException {
+        final boolean isRoutingRequired = false;
+        final boolean addRoutingToQuery = true;
+
+        testCheckRoutingRequirements(isRoutingRequired, addRoutingToQuery);
+    }
+
+    private void testCheckRoutingRequirements(boolean isRoutingRequired, boolean addRoutingToQuery) throws IOException {
+        // GIVEN an index and its mapping with routing required or not
+        final XContentBuilder mapping = jsonBuilder()
+            .startObject()
+            .startObject("type1")
+            .startObject("_routing").field("required", isRoutingRequired).endObject()
+            .endObject()
+            .endObject();
+        createIndex("test", Settings.EMPTY, "type1", mapping);
+
+        // GIVEN search services
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("test"));
+
+        // GIVEN a More Like This query with routing attribute added or not
+        final MoreLikeThisQueryBuilder.Item item = new MoreLikeThisQueryBuilder.Item("test", "type1", "1");
+        if (addRoutingToQuery) {
+            item.routing("routing1");
+        }
+        final MoreLikeThisQueryBuilder mlt = new MoreLikeThisQueryBuilder(new String[]{}, new MoreLikeThisQueryBuilder.Item[]{item});
+        final SearchSourceBuilder query = new SearchSourceBuilder().query(mlt);
+
+        // GIVEN search request wrapping previous MLT query
+        final ShardId shardId = indexService.getShard(0).shardId();
+        final String[] types = {"type1"};
+        final ShardSearchLocalRequest request = new ShardSearchLocalRequest(shardId, types, currentTimeMillis(), AliasFilter.EMPTY);
+        request.source(query);
+
+        // WHEN checking routing requirements
+        service.checkRoutingRequirements(request);
+
+        // THEN a RoutingMissingException may be thrown or not
     }
 }

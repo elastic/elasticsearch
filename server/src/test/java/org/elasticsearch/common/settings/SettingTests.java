@@ -907,7 +907,7 @@ public class SettingTests extends ESTestCase {
     }
 
     private void testAffixMapUpdateWithNullSettingValue(boolean omitDefaults, int expectedChangeCount) {
-        // GIVEN an affix setting
+        // GIVEN an affix setting changed from "prefix._foo"="bar" to "prefix._foo"=null
         final Settings current = Settings.builder()
             .put("prefix._foo", (String) null)
             .build();
@@ -923,16 +923,18 @@ public class SettingTests extends ESTestCase {
         final Consumer<Map<String, String>> consumer = (map) -> {};
         final BiConsumer<String, String> validator = (s1, s2) -> {};
 
-        // WHEN using an affix updater with a given "omitDefaults" parameter to check for setting changes
+        // WHEN creating an affix updater
         final SettingUpdater<Map<String, String>> updater = affixSetting.newAffixMapUpdater(consumer, logger, validator, omitDefaults);
 
-        // THEN changes can be expected or not based on the given "omitDefaults" parameter
+        // THEN affix updater is always expected to have changed (even when defaults are omitted)
         assertTrue(updater.hasChanged(current, previous));
 
+        // THEN changes are expected when defaults aren't omitted
         final Map<String, String> updatedSettings = updater.getValue(current, previous);
         assertNotNull(updatedSettings);
         assertEquals(expectedChangeCount, updatedSettings.size());
 
+        // THEN changes are reported when defaults aren't omitted
         if (expectedChangeCount == 1) {
             final String key = updatedSettings.keySet().iterator().next();
             final String value = updatedSettings.get(key);

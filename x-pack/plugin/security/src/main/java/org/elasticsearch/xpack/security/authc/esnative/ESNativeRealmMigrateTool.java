@@ -105,10 +105,10 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
             super("Migrates users or roles from file to native realm");
             this.username = parser.acceptsAll(Arrays.asList("u", "username"),
                     "User used to authenticate with Elasticsearch")
-                    .withRequiredArg();
+                    .withRequiredArg().required();
             this.password = parser.acceptsAll(Arrays.asList("p", "password"),
                     "Password used to authenticate with Elasticsearch")
-                    .withRequiredArg();
+                    .withRequiredArg().required();
             this.url = parser.acceptsAll(Arrays.asList("U", "url"),
                     "URL of Elasticsearch host")
                     .withRequiredArg();

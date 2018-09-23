@@ -49,7 +49,6 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -91,11 +90,11 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.Matchers.containsString;
 
 public class SearchServiceTests extends ESSingleNodeTestCase {
 
@@ -112,7 +111,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     public static class CustomScriptPlugin extends MockScriptPlugin {
 
         static final String DUMMY_SCRIPT = "dummyScript";
-
 
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
@@ -150,7 +148,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 }
             });
         }
-
     }
 
     @Override
@@ -206,7 +203,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final int activeContexts = service.getActiveContexts();
         final int activeRefs = indexShard.store().refCount();
         expectThrows(SearchPhaseExecutionException.class, () ->
-                client().prepareSearch("index").setQuery(new FailOnRewriteQueryBuilder()).get());
+            client().prepareSearch("index").setQuery(new FailOnRewriteQueryBuilder()).get());
         assertEquals(activeContexts, service.getActiveContexts());
         assertEquals(activeRefs, indexShard.store().refCount());
     }
@@ -226,7 +223,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             @Override
             public void run() {
                 startGun.countDown();
-                while(running.get()) {
+                while (running.get()) {
                     service.afterIndexRemoved(indexService.index(), indexService.getIndexSettings(), DELETED);
                     if (randomBoolean()) {
                         // here we trigger some refreshes to ensure the IR go out of scope such that we hit ACE if we access a search
@@ -274,7 +271,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         listener.get();
                     } catch (ExecutionException ex) {
                         assertThat(ex.getCause(), instanceOf(RuntimeException.class));
-                        throw ((RuntimeException)ex.getCause());
+                        throw ((RuntimeException) ex.getCause());
                     }
                 } catch (AlreadyClosedException ex) {
                     throw ex;
@@ -298,15 +295,15 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
         final IndexShard indexShard = indexService.getShard(0);
         final SearchContext contextWithDefaultTimeout = service.createContext(
-                new ShardSearchLocalRequest(
-                        indexShard.shardId(),
-                        1,
-                        SearchType.DEFAULT,
-                        new SearchSourceBuilder(),
-                        new String[0],
-                        false,
-                        new AliasFilter(null, Strings.EMPTY_ARRAY),
-                        1.0f, true, null, null)
+            new ShardSearchLocalRequest(
+                indexShard.shardId(),
+                1,
+                SearchType.DEFAULT,
+                new SearchSourceBuilder(),
+                new String[0],
+                false,
+                new AliasFilter(null, Strings.EMPTY_ARRAY),
+                1.0f, true, null, null)
         );
         try {
             // the search context should inherit the default timeout
@@ -318,15 +315,15 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         final long seconds = randomIntBetween(6, 10);
         final SearchContext context = service.createContext(
-                new ShardSearchLocalRequest(
-                        indexShard.shardId(),
-                        1,
-                        SearchType.DEFAULT,
-                        new SearchSourceBuilder().timeout(TimeValue.timeValueSeconds(seconds)),
-                        new String[0],
-                        false,
-                        new AliasFilter(null, Strings.EMPTY_ARRAY),
-                        1.0f, true, null, null)
+            new ShardSearchLocalRequest(
+                indexShard.shardId(),
+                1,
+                SearchType.DEFAULT,
+                new SearchSourceBuilder().timeout(TimeValue.timeValueSeconds(seconds)),
+                new String[0],
+                false,
+                new AliasFilter(null, Strings.EMPTY_ARRAY),
+                1.0f, true, null, null)
         );
         try {
             // the search context should inherit the query timeout
@@ -335,7 +332,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             context.decRef();
             service.freeContext(context.id());
         }
-
     }
 
     /**
@@ -354,17 +350,17 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             searchSourceBuilder.docValueField("field" + i);
         }
         try (SearchContext context = service.createContext(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
-                searchSourceBuilder, new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, true, null, null))) {
+            searchSourceBuilder, new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, true, null, null))) {
             assertNotNull(context);
             searchSourceBuilder.docValueField("one_field_too_much");
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-                    () -> service.createContext(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
-                            searchSourceBuilder, new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f,
-                        true, null, null)));
+                () -> service.createContext(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
+                    searchSourceBuilder, new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f,
+                    true, null, null)));
             assertEquals(
-                    "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [100] but was [101]. "
-                            + "This limit can be set by changing the [index.max_docvalue_fields_search] index level setting.",
-                    ex.getMessage());
+                "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [100] but was [101]. "
+                    + "This limit can be set by changing the [index.max_docvalue_fields_search] index level setting.",
+                ex.getMessage());
         }
     }
 
@@ -383,22 +379,22 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         int maxScriptFields = indexService.getIndexSettings().getMaxScriptFields();
         for (int i = 0; i < maxScriptFields; i++) {
             searchSourceBuilder.scriptField("field" + i,
-                    new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, Collections.emptyMap()));
+                new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, Collections.emptyMap()));
         }
         try (SearchContext context = service.createContext(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
-                searchSourceBuilder, new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, true, null, null))) {
+            searchSourceBuilder, new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, true, null, null))) {
             assertNotNull(context);
             searchSourceBuilder.scriptField("anotherScriptField",
-                    new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, Collections.emptyMap()));
+                new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, Collections.emptyMap()));
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-                    () -> service.createContext(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
-                            searchSourceBuilder, new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY),
-                        1.0f, true, null, null)));
+                () -> service.createContext(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
+                    searchSourceBuilder, new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY),
+                    1.0f, true, null, null)));
             assertEquals(
-                    "Trying to retrieve too many script_fields. Must be less than or equal to: [" + maxScriptFields + "] but was ["
-                            + (maxScriptFields + 1)
-                            + "]. This limit can be set by changing the [index.max_script_fields] index level setting.",
-                    ex.getMessage());
+                "Trying to retrieve too many script_fields. Must be less than or equal to: [" + maxScriptFields + "] but was ["
+                    + (maxScriptFields + 1)
+                    + "]. This limit can be set by changing the [index.max_script_fields] index level setting.",
+                ex.getMessage());
         }
     }
 
@@ -411,11 +407,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.scriptField("field" + 0,
-                new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, Collections.emptyMap()));
+            new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, Collections.emptyMap()));
         searchSourceBuilder.size(0);
         try (SearchContext context = service.createContext(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
-                searchSourceBuilder, new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, true, null, null))) {
-                assertEquals(0, context.scriptFields().fields().size());
+            searchSourceBuilder, new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, true, null, null))) {
+            assertEquals(0, context.scriptFields().fields().size());
         }
     }
 
@@ -494,8 +490,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         assertTrue(service.canMatch(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.QUERY_THEN_FETCH,
             new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
-            .aggregation(new TermsAggregationBuilder("test", ValueType.STRING).minDocCount(0)), Strings.EMPTY_ARRAY, false,
-            new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, allowPartialSearchResults,  null, null)));
+                .aggregation(new TermsAggregationBuilder("test", ValueType.STRING).minDocCount(0)), Strings.EMPTY_ARRAY, false,
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, allowPartialSearchResults, null, null)));
         assertTrue(service.canMatch(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.QUERY_THEN_FETCH,
             new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
                 .aggregation(new GlobalAggregationBuilder("test")), Strings.EMPTY_ARRAY, false,
@@ -504,7 +500,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertFalse(service.canMatch(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.QUERY_THEN_FETCH,
             new SearchSourceBuilder().query(new MatchNoneQueryBuilder()), Strings.EMPTY_ARRAY, false,
             new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, allowPartialSearchResults, null, null)));
-
     }
 
     public void testCanRewriteToMatchNone() {

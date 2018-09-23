@@ -10,7 +10,9 @@ import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
 public class GetAutoFollowPatternResponseTests extends AbstractStreamableTestCase<GetAutoFollowPatternAction.Response> {
 
@@ -21,16 +23,21 @@ public class GetAutoFollowPatternResponseTests extends AbstractStreamableTestCas
 
     @Override
     protected GetAutoFollowPatternAction.Response createTestInstance() {
-        AutoFollowMetadata.AutoFollowPattern autoFollowPattern = new AutoFollowMetadata.AutoFollowPattern(
-            Collections.singletonList(randomAlphaOfLength(4)),
-            randomAlphaOfLength(4),
-            randomIntBetween(0, Integer.MAX_VALUE),
-            randomIntBetween(0, Integer.MAX_VALUE),
-            randomNonNegativeLong(),
-            randomIntBetween(0, Integer.MAX_VALUE),
-            randomIntBetween(0, Integer.MAX_VALUE),
-            TimeValue.timeValueMillis(500),
-            TimeValue.timeValueMillis(500));
-        return new GetAutoFollowPatternAction.Response(autoFollowPattern);
+        int numPatterns = randomIntBetween(1, 8);
+        List<AutoFollowMetadata.AutoFollowPattern> patterns = new ArrayList<>(numPatterns);
+        for (int i = 0; i < numPatterns; i++) {
+            AutoFollowMetadata.AutoFollowPattern autoFollowPattern = new AutoFollowMetadata.AutoFollowPattern(
+                Collections.singletonList(randomAlphaOfLength(4)),
+                randomAlphaOfLength(4),
+                randomIntBetween(0, Integer.MAX_VALUE),
+                randomIntBetween(0, Integer.MAX_VALUE),
+                randomNonNegativeLong(),
+                randomIntBetween(0, Integer.MAX_VALUE),
+                randomIntBetween(0, Integer.MAX_VALUE),
+                TimeValue.timeValueMillis(500),
+                TimeValue.timeValueMillis(500));
+            patterns.add(autoFollowPattern);
+        }
+        return new GetAutoFollowPatternAction.Response(patterns);
     }
 }

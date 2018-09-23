@@ -17,9 +17,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class GetAutoFollowPatternAction extends Action<GetAutoFollowPatternAction.Response> {
 
@@ -44,16 +43,12 @@ public class GetAutoFollowPatternAction extends Action<GetAutoFollowPatternActio
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.leaderClusterAlias = in.readString();
+            this.leaderClusterAlias = in.readOptionalString();
         }
 
         @Override
         public ActionRequestValidationException validate() {
-            ActionRequestValidationException validationException = null;
-            if (leaderClusterAlias == null) {
-                validationException = addValidationError("leaderClusterAlias is missing", validationException);
-            }
-            return validationException;
+            return null;
         }
 
         public String getLeaderClusterAlias() {
@@ -67,7 +62,7 @@ public class GetAutoFollowPatternAction extends Action<GetAutoFollowPatternActio
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(leaderClusterAlias);
+            out.writeOptionalString(leaderClusterAlias);
         }
 
         @Override
@@ -86,36 +81,40 @@ public class GetAutoFollowPatternAction extends Action<GetAutoFollowPatternActio
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private AutoFollowPattern autoFollowPattern;
+        private List<AutoFollowPattern> autoFollowPatterns;
 
-        public Response(AutoFollowPattern autoFollowPattern) {
-            this.autoFollowPattern = autoFollowPattern;
+        public Response(List<AutoFollowPattern> autoFollowPatterns) {
+            this.autoFollowPatterns = autoFollowPatterns;
         }
 
         public Response() {
         }
 
-        public AutoFollowPattern getAutoFollowPattern() {
-            return autoFollowPattern;
+        public List<AutoFollowPattern> getAutoFollowPatterns() {
+            return autoFollowPatterns;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            autoFollowPattern = new AutoFollowPattern(in);
+            autoFollowPatterns = in.readList(AutoFollowPattern::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            autoFollowPattern.writeTo(out);
+            out.writeList(autoFollowPatterns);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            autoFollowPattern.toXContent(builder, params);
-            builder.endObject();
+            builder.startArray();
+            for (AutoFollowPattern autoFollowPattern : autoFollowPatterns) {
+                builder.startObject();
+                autoFollowPattern.toXContent(builder, params);
+                builder.endObject();
+            }
+            builder.endArray();
             return builder;
         }
 
@@ -124,12 +123,12 @@ public class GetAutoFollowPatternAction extends Action<GetAutoFollowPatternActio
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return Objects.equals(autoFollowPattern, response.autoFollowPattern);
+            return Objects.equals(autoFollowPatterns, response.autoFollowPatterns);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(autoFollowPattern);
+            return Objects.hash(autoFollowPatterns);
         }
     }
 

@@ -22,6 +22,7 @@ public class RestGetAutoFollowPatternAction extends BaseRestHandler {
     public RestGetAutoFollowPatternAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.GET, "/_ccr/auto_follow/{leader_cluster_alias}", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_ccr/auto_follow", this);
     }
 
     @Override

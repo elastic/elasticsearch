@@ -13,8 +13,10 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class TransportGetAutoFollowPatternActionTests extends ESTestCase {
@@ -26,8 +28,13 @@ public class TransportGetAutoFollowPatternActionTests extends ESTestCase {
             .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()))
             .build();
 
-        AutoFollowPattern result = TransportGetAutoFollowPatternAction.getAutoFollowPattern(metaData, "test_alias");
-        assertThat(result, sameInstance(patterns.get("test_alias")));
+        List<AutoFollowPattern> result = TransportGetAutoFollowPatternAction.getAutoFollowPattern(metaData, "test_alias");
+        assertThat(result, hasSize(1));
+        assertThat(result.get(0), sameInstance(patterns.get("test_alias")));
+
+        result = TransportGetAutoFollowPatternAction.getAutoFollowPattern(metaData, null);
+        assertThat(result, hasSize(1));
+        assertThat(result.get(0), sameInstance(patterns.get("test_alias")));
 
         expectThrows(ResourceNotFoundException.class,
             () -> TransportGetAutoFollowPatternAction.getAutoFollowPattern(metaData, "another_alias"));

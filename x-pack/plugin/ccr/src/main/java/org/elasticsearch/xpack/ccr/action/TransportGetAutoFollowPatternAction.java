@@ -24,6 +24,12 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
 
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 public class TransportGetAutoFollowPatternAction
     extends TransportMasterNodeReadAction<GetAutoFollowPatternAction.Request, GetAutoFollowPatternAction.Response> {
 
@@ -52,8 +58,8 @@ public class TransportGetAutoFollowPatternAction
     protected void masterOperation(GetAutoFollowPatternAction.Request request,
                                    ClusterState state,
                                    ActionListener<GetAutoFollowPatternAction.Response> listener) throws Exception {
-        AutoFollowPattern autoFollowPattern = getAutoFollowPattern(state.metaData(), request.getLeaderClusterAlias());
-        listener.onResponse(new GetAutoFollowPatternAction.Response(autoFollowPattern));
+        List<AutoFollowPattern> autoFollowPatterns = getAutoFollowPattern(state.metaData(), request.getLeaderClusterAlias());
+        listener.onResponse(new GetAutoFollowPatternAction.Response(autoFollowPatterns));
     }
 
     @Override
@@ -61,16 +67,23 @@ public class TransportGetAutoFollowPatternAction
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
-    static AutoFollowPattern getAutoFollowPattern(MetaData metaData, String leaderClusterAlias) {
+    static List<AutoFollowPattern> getAutoFollowPattern(MetaData metaData, String leaderClusterAlias) {
         AutoFollowMetadata autoFollowMetadata = metaData.custom(AutoFollowMetadata.TYPE);
         if (autoFollowMetadata == null) {
             throw new ResourceNotFoundException("no auto-follow patterns for cluster alias [{}] found", leaderClusterAlias);
+        }
+
+        if (leaderClusterAlias == null) {
+            return autoFollowMetadata.getPatterns().entrySet().stream()
+                .sorted(Comparator.comparing(Map.Entry::getKey))
+                .map(Map.Entry::getValue)
+                .collect(Collectors.toList());
         }
 
         AutoFollowPattern autoFollowPattern = autoFollowMetadata.getPatterns().get(leaderClusterAlias);
         if (autoFollowPattern == null) {
             throw new ResourceNotFoundException("no auto-follow patterns for cluster alias [{}] found", leaderClusterAlias);
         }
-        return autoFollowPattern;
+        return Collections.singletonList(autoFollowPattern);
     }
 }

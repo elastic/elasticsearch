@@ -259,8 +259,8 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                     if (leaderClusterState != null) {
                         assert e == null;
                         final List<String> followedIndices = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get(clusterAlias);
-                        final List<Index> leaderIndicesToFollow =
-                            getLeaderIndicesToFollow(autoFollowPattern, leaderClusterState, followerClusterState, followedIndices);
+                        final List<Index> leaderIndicesToFollow = getLeaderIndicesToFollow(clusterAlias, autoFollowPattern,
+                            leaderClusterState, followerClusterState, followedIndices);
                         if (leaderIndicesToFollow.isEmpty()) {
                             finalise(slot, new AutoFollowResult(clusterAlias));
                         } else {
@@ -331,17 +331,18 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
             }
         }
 
-        static List<Index> getLeaderIndicesToFollow(AutoFollowPattern autoFollowPattern,
+        static List<Index> getLeaderIndicesToFollow(String clusterAlias,
+                                                    AutoFollowPattern autoFollowPattern,
                                                     ClusterState leaderClusterState,
                                                     ClusterState followerClusterState,
                                                     List<String> followedIndexUUIDs) {
             List<Index> leaderIndicesToFollow = new ArrayList<>();
             for (IndexMetaData leaderIndexMetaData : leaderClusterState.getMetaData()) {
-                // We should not automatically follow a leader index that is also a follow index and
-                // that both leader and follow index are in the same cluster otherwise this can
-                // result into an index creation explosion.
+                // If an auto follow pattern has been set up for the local cluster then
+                // we should not automatically follow a leader index that is also a follow index because
+                // this can result into an index creation explosion.
                 if (leaderIndexMetaData.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY) != null &&
-                    leaderClusterState.getClusterName().equals(followerClusterState.getClusterName())) {
+                    clusterAlias.equals("_local_")) {
                     continue;
                 }
 

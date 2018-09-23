@@ -28,6 +28,7 @@ U7321H6 discovery-gce           {version} The Google Compute Engine (GCE) Discov
 U7321H6 ingest-attachment       {version} Ingest processor that uses Apache Tika to extract contents
 U7321H6 ingest-geoip            {version} Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database
 U7321H6 ingest-user-agent       {version} Ingest processor that extracts information from a user agent
+U7321H6 mapper-annotated-text   {version} The Mapper Annotated_text plugin adds support for text fields with markup used to inject annotation tokens into the index.
 U7321H6 mapper-murmur3          {version} The Mapper Murmur3 plugin allows to compute hashes of a field's values at index-time and to store them in the index.
 U7321H6 mapper-size             {version} The Mapper Size plugin allows document to record their uncompressed size at index time.
 U7321H6 store-smb               {version} The Store SMB plugin adds support for SMB stores.

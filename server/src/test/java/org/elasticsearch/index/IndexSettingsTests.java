@@ -577,7 +577,8 @@ public class IndexSettingsTests extends ESTestCase {
         //Set Valid value
         TimeValue newValidTlogSyncIntervalSetting = new TimeValue(30, TimeUnit.SECONDS);
 
-        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(),
+        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder()
+            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(),
             newValidTlogSyncIntervalSetting.getStringRep()).build()));
 
         assertEquals(TimeValue.parseTimeValue(newValidTlogSyncIntervalSetting.getStringRep(), new TimeValue(30, TimeUnit.SECONDS),

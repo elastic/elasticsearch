@@ -170,8 +170,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
 
     public static class AutoFollowPattern implements Writeable, ToXContentObject {
 
-        private static final ParseField LEADER_PATTERNS_FIELD = new ParseField("leader_patterns");
-        private static final ParseField FOLLOW_PATTERN_FIELD = new ParseField("follow_pattern");
+        public static final ParseField LEADER_PATTERNS_FIELD = new ParseField("leader_index_patterns");
+        public static final ParseField FOLLOW_PATTERN_FIELD = new ParseField("follow_index_pattern");
         public static final ParseField MAX_BATCH_OPERATION_COUNT = new ParseField("max_batch_operation_count");
         public static final ParseField MAX_CONCURRENT_READ_BATCHES = new ParseField("max_concurrent_read_batches");
         public static final ParseField MAX_BATCH_SIZE_IN_BYTES = new ParseField("max_batch_size_in_bytes");

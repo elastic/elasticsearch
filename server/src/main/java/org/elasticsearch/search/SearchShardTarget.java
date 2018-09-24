@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -52,11 +51,7 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
         }
         shardId = ShardId.readShardId(in);
         this.originalIndices = null;
-        if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
-            clusterAlias = in.readOptionalString();
-        } else {
-            clusterAlias = null;
-        }
+        clusterAlias = in.readOptionalString();
     }
 
     public SearchShardTarget(String nodeId, ShardId shardId, String clusterAlias, OriginalIndices originalIndices) {
@@ -121,9 +116,7 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
             out.writeText(nodeId);
         }
         shardId.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
-            out.writeOptionalString(clusterAlias);
-        }
+        out.writeOptionalString(clusterAlias);
     }
 
     @Override

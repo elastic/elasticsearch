@@ -21,5 +21,3 @@ has been removed. `missing_bucket` should be used instead.
 The object used to share aggregation state between the scripts in a Scripted Metric
 Aggregation is now a variable called `state` available in the script context, rather than
 being provided via the `params` object as `params._agg`.
-
-The old `params._agg` variable is still available as well.

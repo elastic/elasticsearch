@@ -6,21 +6,20 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.process.NativeController;
-import org.elasticsearch.xpack.ml.job.process.ProcessCtrl;
 import org.elasticsearch.xpack.ml.job.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultsParser;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.StateProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
 import java.io.IOException;
@@ -55,8 +54,9 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
                                                      ExecutorService executorService,
                                                      Runnable onProcessCrash) {
         List<Path> filesToDelete = new ArrayList<>();
-        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, ProcessCtrl.AUTODETECT, job.getId(),
-                true, false, true, true, params.modelSnapshot() != null, !ProcessCtrl.DONT_PERSIST_MODEL_STATE_SETTING.get(settings));
+        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, AutodetectBuilder.AUTODETECT, job.getId(),
+                true, false, true, true, params.modelSnapshot() != null,
+                !AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING.get(settings));
         createNativeProcess(job, params, processPipes, filesToDelete);
         boolean includeTokensField = MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA
                 && job.getAnalysisConfig().getCategorizationFieldName() != null;

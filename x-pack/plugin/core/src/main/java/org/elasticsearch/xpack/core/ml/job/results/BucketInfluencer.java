@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -100,10 +99,6 @@ public class BucketInfluencer implements ToXContentObject, Writeable {
         isInterim = in.readBoolean();
         timestamp = new Date(in.readLong());
         bucketSpan = in.readLong();
-        // bwc for removed sequenceNum field
-        if (in.getVersion().before(Version.V_5_5_0)) {
-            in.readInt();
-        }
     }
 
     @Override
@@ -117,10 +112,6 @@ public class BucketInfluencer implements ToXContentObject, Writeable {
         out.writeBoolean(isInterim);
         out.writeLong(timestamp.getTime());
         out.writeLong(bucketSpan);
-        // bwc for removed sequenceNum field
-        if (out.getVersion().before(Version.V_5_5_0)) {
-            out.writeInt(0);
-        }
     }
 
     @Override

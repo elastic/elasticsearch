@@ -19,6 +19,8 @@
 
 package org.elasticsearch.test;
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.carrotsearch.randomizedtesting.SeedUtils;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
@@ -39,6 +41,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
@@ -84,11 +87,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toList;
 
 public abstract class AbstractBuilderTestCase extends ESTestCase {
@@ -124,14 +129,12 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         ALIAS_TO_CONCRETE_FIELD_NAME.put(GEO_POINT_ALIAS_FIELD_NAME, GEO_POINT_FIELD_NAME);
     }
 
-    protected static Version indexVersionCreated;
-
     private static ServiceHolder serviceHolder;
     private static ServiceHolder serviceHolderWithNoType;
     private static int queryNameId = 0;
     private static Settings nodeSettings;
     private static Index index;
-    private static Index indexWithNoType;
+    private static long nowInMillis;
 
     protected static Index getIndex() {
         return index;
@@ -152,7 +155,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             .build();
 
         index = new Index(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLength(10));
-        indexWithNoType = new Index(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLength(10));
+        nowInMillis = randomNonNegativeLong();
     }
 
     @Override
@@ -173,13 +176,17 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         return queryName;
     }
 
-    protected Settings indexSettings() {
+    protected Settings createTestIndexSettings() {
         // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
-        indexVersionCreated = randomBoolean() ? Version.CURRENT
+        Version indexVersionCreated = randomBoolean() ? Version.CURRENT
                 : VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
         return Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated)
             .build();
+    }
+
+    protected static IndexSettings indexSettings() {
+        return serviceHolder.idxSettings;
     }
 
     protected static String expectedFieldName(String builderFieldName) {
@@ -188,21 +195,31 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
     @AfterClass
     public static void afterClass() throws Exception {
-        org.apache.lucene.util.IOUtils.close(serviceHolder);
-        org.apache.lucene.util.IOUtils.close(serviceHolderWithNoType);
+        IOUtils.close(serviceHolder);
+        IOUtils.close(serviceHolderWithNoType);
         serviceHolder = null;
         serviceHolderWithNoType = null;
     }
 
     @Before
-    public void beforeTest() throws IOException {
+    public void beforeTest() throws Exception {
         if (serviceHolder == null) {
-            serviceHolder = new ServiceHolder(nodeSettings, indexSettings(), getPlugins(), this, true);
+            assert serviceHolderWithNoType == null;
+            // we initialize the serviceHolder and serviceHolderWithNoType just once, but need some
+            // calls to the randomness source during its setup. In order to not mix these calls with
+            // the randomness source that is later used in the test method, we use the master seed during
+            // this setup
+            long masterSeed = SeedUtils.parseSeed(RandomizedTest.getContext().getRunnerSeedAsString());
+            RandomizedTest.getContext().runWithPrivateRandomness(masterSeed, (Callable<Void>) () -> {
+                serviceHolder = new ServiceHolder(nodeSettings, createTestIndexSettings(), getPlugins(), nowInMillis,
+                        AbstractBuilderTestCase.this, true);
+                serviceHolderWithNoType = new ServiceHolder(nodeSettings, createTestIndexSettings(), getPlugins(), nowInMillis,
+                        AbstractBuilderTestCase.this, false);
+                return null;
+            });
         }
+
         serviceHolder.clientInvocationHandler.delegate = this;
-        if (serviceHolderWithNoType == null) {
-            serviceHolderWithNoType = new ServiceHolder(nodeSettings, indexSettings(), getPlugins(), this, false);
-        }
         serviceHolderWithNoType.clientInvocationHandler.delegate = this;
     }
 
@@ -305,14 +322,19 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         private final BitsetFilterCache bitsetFilterCache;
         private final ScriptService scriptService;
         private final Client client;
-        private final long nowInMillis = randomNonNegativeLong();
+        private final long nowInMillis;
 
         ServiceHolder(Settings nodeSettings,
                         Settings indexSettings,
                         Collection<Class<? extends Plugin>> plugins,
+                        long nowInMillis,
                         AbstractBuilderTestCase testCase,
                         boolean registerType) throws IOException {
-            Environment env = InternalSettingsPreparer.prepareEnvironment(nodeSettings);
+            this.nowInMillis = nowInMillis;
+            Environment env = InternalSettingsPreparer.prepareEnvironment(nodeSettings, emptyMap(),
+                    null, () -> {
+                        throw new AssertionError("node.name must be set");
+                    });
             PluginsService pluginsService;
             pluginsService = new PluginsService(nodeSettings, null, env.modulesFile(), env.pluginsFile(), plugins);
 
@@ -322,8 +344,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                     clientInvocationHandler);
             ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));
             List<Setting<?>> additionalSettings = pluginsService.getPluginSettings();
-            additionalSettings.add(InternalSettingsPlugin.VERSION_CREATED);
-            SettingsModule settingsModule = new SettingsModule(nodeSettings, additionalSettings, pluginsService.getPluginSettingsFilter());
+            SettingsModule settingsModule =
+                    new SettingsModule(nodeSettings, additionalSettings, pluginsService.getPluginSettingsFilter(), Collections.emptySet());
             searchModule = new SearchModule(nodeSettings, false, pluginsService.filterPlugins(SearchPlugin.class));
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();

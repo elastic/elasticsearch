@@ -36,14 +36,11 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -60,7 +57,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Set;
@@ -261,34 +257,6 @@ public class TermVectorsUnitTests extends ESTestCase {
             assertThat(request.routing(), equalTo(null));
             assertEquals(new BytesArray("{}"), request.doc());
             assertEquals(XContentType.JSON, request.xContentType());
-        }
-    }
-
-    public void testStreamRequestWithXContentBwc() throws IOException {
-        final byte[] data = Base64.getDecoder().decode("AAABBWluZGV4BHR5cGUCaWQBAnt9AAABDnNvbWVQcmVmZXJlbmNlFgAAAAEA//////////0AAAA=");
-        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-            Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
-        try (StreamInput in = StreamInput.wrap(data)) {
-            in.setVersion(version);
-            TermVectorsRequest request = new TermVectorsRequest();
-            request.readFrom(in);
-            assertEquals("index", request.index());
-            assertEquals("type", request.type());
-            assertEquals("id", request.id());
-            assertTrue(request.offsets());
-            assertFalse(request.fieldStatistics());
-            assertTrue(request.payloads());
-            assertFalse(request.positions());
-            assertTrue(request.termStatistics());
-            assertEquals("somePreference", request.preference());
-            assertEquals("{}", request.doc().utf8ToString());
-            assertEquals(XContentType.JSON, request.xContentType());
-
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(version);
-                request.writeTo(out);
-                assertArrayEquals(data, out.bytes().toBytesRef().bytes);
-            }
         }
     }
 

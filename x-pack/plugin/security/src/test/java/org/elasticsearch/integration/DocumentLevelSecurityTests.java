@@ -97,7 +97,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         return super.configUsers() +
             "user1:" + usersPasswdHashed + "\n" +
             "user2:" + usersPasswdHashed + "\n" +
-            "user3:" + usersPasswdHashed + "\n";
+            "user3:" + usersPasswdHashed + "\n" +
+            "user4:" + usersPasswdHashed + "\n";
     }
 
     @Override
@@ -105,7 +106,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         return super.configUsersRoles() +
                 "role1:user1,user2,user3\n" +
                 "role2:user1,user3\n" +
-                "role3:user2,user3\n";
+                "role3:user2,user3\n" +
+                "role4:user4\n";
     }
 
     @Override
@@ -131,7 +133,14 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 "  indices:\n" +
                 "    - names: '*'\n" +
                 "      privileges: [ ALL ]\n" +
-                "      query: '{\"term\" : {\"field2\" : \"value2\"}}'"; // <-- query defined as json in a string
+                "      query: '{\"term\" : {\"field2\" : \"value2\"}}'\n" + // <-- query defined as json in a string
+                "role4:\n" +
+                "  cluster: [ all ]\n" +
+                "  indices:\n" +
+                "    - names: '*'\n" +
+                "      privileges: [ ALL ]\n" +
+                // query that can match nested documents
+                "      query: '{\"bool\": { \"must_not\": { \"term\" : {\"field1\" : \"value2\"}}}}'";
     }
 
     @Override
@@ -869,7 +878,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         refresh("test");
 
         SearchResponse response = client()
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
                 .prepareSearch("test")
                 .setQuery(QueryBuilders.nestedQuery("nested_field", QueryBuilders.termQuery("nested_field.field2", "value2"),
                         ScoreMode.None).innerHit(new InnerHitBuilder()))

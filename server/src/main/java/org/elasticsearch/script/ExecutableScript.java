@@ -46,7 +46,4 @@ public interface ExecutableScript {
     }
 
     ScriptContext<Factory> CONTEXT = new ScriptContext<>("executable", Factory.class);
-
-    // TODO: remove these once each has its own script interface
-    ScriptContext<Factory> UPDATE_CONTEXT = new ScriptContext<>("update", Factory.class);
 }

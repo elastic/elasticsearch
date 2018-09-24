@@ -62,20 +62,10 @@ public class Locate extends ScalarFunction {
 
     @Override
     protected ProcessorDefinition makeProcessorDefinition() {
-        LocateFunctionProcessorDefinition processorDefinition;
-        if (start == null) {
-            processorDefinition = new LocateFunctionProcessorDefinition(location(), this,
-                    ProcessorDefinitions.toProcessorDefinition(pattern),
-                    ProcessorDefinitions.toProcessorDefinition(source));
-        }
-        else {
-            processorDefinition = new LocateFunctionProcessorDefinition(location(), this,
-                    ProcessorDefinitions.toProcessorDefinition(pattern),
-                    ProcessorDefinitions.toProcessorDefinition(source),
-                    ProcessorDefinitions.toProcessorDefinition(start));
-        }
-        
-        return processorDefinition;
+        return new LocateFunctionProcessorDefinition(location(), this,
+            ProcessorDefinitions.toProcessorDefinition(pattern),
+            ProcessorDefinitions.toProcessorDefinition(source),
+            start == null ? null : ProcessorDefinitions.toProcessorDefinition(start));
     }
 
     @Override

@@ -166,14 +166,14 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     }
 
     /**
-     * Whether this field is indexed for search on all indices.
+     * Whether this field can be aggregated on all indices.
      */
     public boolean isAggregatable() {
         return isAggregatable;
     }
 
     /**
-     * Whether this field can be aggregated on all indices.
+     * Whether this field is indexed for search on all indices.
      */
     public boolean isSearchable() {
         return isSearchable;

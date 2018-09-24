@@ -27,7 +27,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.JoinUtil;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.similarities.Similarity;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -125,15 +124,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         out.writeInt(maxChildren);
         out.writeVInt(scoreMode.ordinal());
         out.writeNamedWriteable(query);
-        if (out.getVersion().before(Version.V_5_5_0)) {
-            final boolean hasInnerHit = innerHitBuilder != null;
-            out.writeBoolean(hasInnerHit);
-            if (hasInnerHit) {
-                innerHitBuilder.writeToParentChildBWC(out, query, type);
-            }
-        } else {
-            out.writeOptionalWriteable(innerHitBuilder);
-        }
+        out.writeOptionalWriteable(innerHitBuilder);
         out.writeBoolean(ignoreUnmapped);
     }
 
@@ -192,7 +183,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     /**
      * Returns the minimum number of children that are required to match for the parent to be considered a match.
-     * The default is {@value #DEFAULT_MAX_CHILDREN}
+     * The default is {@value #DEFAULT_MIN_CHILDREN}
      */
     public int minChildren() {
         return minChildren;
@@ -200,7 +191,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     /**
      * Returns the maximum number of children that are required to match for the parent to be considered a match.
-     * The default is {@value #DEFAULT_MIN_CHILDREN}
+     * The default is {@value #DEFAULT_MAX_CHILDREN}
      */
     public int maxChildren() { return maxChildren; }
 

@@ -237,7 +237,9 @@ public class FileRolesStoreTests extends ESTestCase {
 
     public void testParseFileWithFLSAndDLSDisabled() throws Exception {
         Path path = getDataPath("roles.yml");
-        Logger logger = CapturingLogger.newCapturingLogger(Level.ERROR);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.ERROR, null);
+        List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
+        events.clear();
         Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.builder()
                 .put(XPackSettings.DLS_FLS_ENABLED.getKey(), false)
                 .build(), new XPackLicenseState(Settings.EMPTY));
@@ -247,7 +249,6 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(roles.get("role_query"), nullValue());
         assertThat(roles.get("role_query_fields"), nullValue());
 
-        List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
         assertThat(events, hasSize(3));
         assertThat(
                 events.get(0),
@@ -263,7 +264,9 @@ public class FileRolesStoreTests extends ESTestCase {
 
     public void testParseFileWithFLSAndDLSUnlicensed() throws Exception {
         Path path = getDataPath("roles.yml");
-        Logger logger = CapturingLogger.newCapturingLogger(Level.WARN);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.WARN, null);
+        List<String> events = CapturingLogger.output(logger.getName(), Level.WARN);
+        events.clear();
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(false);
         Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, licenseState);
@@ -273,7 +276,6 @@ public class FileRolesStoreTests extends ESTestCase {
         assertNotNull(roles.get("role_query"));
         assertNotNull(roles.get("role_query_fields"));
 
-        List<String> events = CapturingLogger.output(logger.getName(), Level.WARN);
         assertThat(events, hasSize(3));
         assertThat(
                 events.get(0),
@@ -369,7 +371,9 @@ public class FileRolesStoreTests extends ESTestCase {
 
     public void testThatInvalidRoleDefinitions() throws Exception {
         Path path = getDataPath("invalid_roles.yml");
-        Logger logger = CapturingLogger.newCapturingLogger(Level.ERROR);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.ERROR, null);
+        List<String> entries = CapturingLogger.output(logger.getName(), Level.ERROR);
+        entries.clear();
         Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, new XPackLicenseState(Settings.EMPTY));
         assertThat(roles.size(), is(1));
         assertThat(roles, hasKey("valid_role"));
@@ -379,7 +383,6 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "valid_role" }));
 
-        List<String> entries = CapturingLogger.output(logger.getName(), Level.ERROR);
         assertThat(entries, hasSize(6));
         assertThat(
                 entries.get(0),
@@ -395,12 +398,13 @@ public class FileRolesStoreTests extends ESTestCase {
 
     public void testThatRoleNamesDoesNotResolvePermissions() throws Exception {
         Path path = getDataPath("invalid_roles.yml");
-        Logger logger = CapturingLogger.newCapturingLogger(Level.ERROR);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.ERROR, null);
+        List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
+        events.clear();
         Set<String> roleNames = FileRolesStore.parseFileForRoleNames(path, logger);
         assertThat(roleNames.size(), is(6));
         assertThat(roleNames, containsInAnyOrder("valid_role", "role1", "role2", "role3", "role4", "role5"));
 
-        List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
         assertThat(events, hasSize(1));
         assertThat(
                 events.get(0),
@@ -408,9 +412,9 @@ public class FileRolesStoreTests extends ESTestCase {
     }
 
     public void testReservedRoles() throws Exception {
-
-        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
-
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
+        List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
+        events.clear();
         Path path = getDataPath("reserved_roles.yml");
         Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, new XPackLicenseState(Settings.EMPTY));
         assertThat(roles, notNullValue());
@@ -418,7 +422,6 @@ public class FileRolesStoreTests extends ESTestCase {
 
         assertThat(roles, hasKey("admin"));
 
-        List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
         assertThat(events, notNullValue());
         assertThat(events, hasSize(4));
         // the system role will always be checked first

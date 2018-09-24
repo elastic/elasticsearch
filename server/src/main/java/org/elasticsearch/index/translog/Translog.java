@@ -60,12 +60,14 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -117,6 +119,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final Path location;
     private TranslogWriter current;
 
+    protected final TragicExceptionHolder tragedy = new TragicExceptionHolder();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final TranslogConfig config;
     private final LongSupplier globalCheckpointSupplier;
@@ -310,8 +313,28 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return closed.get() == false;
     }
 
+    private static boolean calledFromOutsideOrViaTragedyClose() {
+        List<StackTraceElement> frames = Stream.of(Thread.currentThread().getStackTrace()).
+                skip(3). //skip getStackTrace, current method and close method frames
+                limit(10). //limit depth of analysis to 10 frames, it should be enough to catch closing with, e.g. IOUtils
+                filter(f ->
+                    {
+                        try {
+                            return Translog.class.isAssignableFrom(Class.forName(f.getClassName()));
+                        } catch (Exception ignored) {
+                            return false;
+                        }
+                    }
+                ). //find all inner callers including Translog subclasses
+                collect(Collectors.toList());
+        //the list of inner callers should be either empty or should contain closeOnTragicEvent method
+        return frames.isEmpty() || frames.stream().anyMatch(f -> f.getMethodName().equals("closeOnTragicEvent"));
+    }
+
     @Override
     public void close() throws IOException {
+        assert calledFromOutsideOrViaTragedyClose() :
+                "Translog.close method is called from inside Translog, but not via closeOnTragicEvent method";
         if (closed.compareAndSet(false, true)) {
             try (ReleasableLock lock = writeLock.acquire()) {
                 try {
@@ -462,7 +485,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 getChannelFactory(),
                 config.getBufferSize(),
                 initialMinTranslogGen, initialGlobalCheckpoint,
-                globalCheckpointSupplier, this::getMinFileGeneration, primaryTermSupplier.getAsLong());
+                globalCheckpointSupplier, this::getMinFileGeneration, primaryTermSupplier.getAsLong(), tragedy);
         } catch (final IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
         }
@@ -555,21 +578,27 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public Snapshot newSnapshot() throws IOException {
         try (ReleasableLock ignored = readLock.acquire()) {
-            return newSnapshotFromGen(getMinFileGeneration());
+            return newSnapshotFromGen(new TranslogGeneration(translogUUID, getMinFileGeneration()), Long.MAX_VALUE);
         }
     }
 
-    public Snapshot newSnapshotFromGen(long minGeneration) throws IOException {
+    public Snapshot newSnapshotFromGen(TranslogGeneration fromGeneration, long upToSeqNo) throws IOException {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
-            if (minGeneration < getMinFileGeneration()) {
-                throw new IllegalArgumentException("requested snapshot generation [" + minGeneration + "] is not available. " +
+            final long fromFileGen = fromGeneration.translogFileGeneration;
+            if (fromFileGen < getMinFileGeneration()) {
+                throw new IllegalArgumentException("requested snapshot generation [" + fromFileGen + "] is not available. " +
                     "Min referenced generation is [" + getMinFileGeneration() + "]");
             }
             TranslogSnapshot[] snapshots = Stream.concat(readers.stream(), Stream.of(current))
-                .filter(reader -> reader.getGeneration() >= minGeneration)
+                .filter(reader -> reader.getGeneration() >= fromFileGen && reader.getCheckpoint().minSeqNo <= upToSeqNo)
                 .map(BaseTranslogReader::newSnapshot).toArray(TranslogSnapshot[]::new);
-            return newMultiSnapshot(snapshots);
+            final Snapshot snapshot = newMultiSnapshot(snapshots);
+            if (upToSeqNo == Long.MAX_VALUE) {
+                return snapshot;
+            } else {
+                return new SeqNoFilterSnapshot(snapshot, Long.MIN_VALUE, upToSeqNo);
+            }
         }
     }
 
@@ -726,7 +755,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 }
             } catch (IOException e) {
                 IOUtils.closeWhileHandlingException(newReaders);
-                close();
+                tragedy.setTragicException(e);
+                closeOnTragicEvent(e);
                 throw e;
             }
 
@@ -779,10 +809,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      *
      * @param ex if an exception occurs closing the translog, it will be suppressed into the provided exception
      */
-    private void closeOnTragicEvent(final Exception ex) {
+    protected void closeOnTragicEvent(final Exception ex) {
         // we can not hold a read lock here because closing will attempt to obtain a write lock and that would result in self-deadlock
         assert readLock.isHeldByCurrentThread() == false : Thread.currentThread().getName();
-        if (current.getTragicException() != null) {
+        if (tragedy.get() != null) {
             try {
                 close();
             } catch (final AlreadyClosedException inner) {
@@ -903,7 +933,59 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
          * Returns the next operation in the snapshot or <code>null</code> if we reached the end.
          */
         Translog.Operation next() throws IOException;
+    }
 
+    /**
+     * A filtered snapshot consisting of only operations whose sequence numbers are in the given range
+     * between {@code fromSeqNo} (inclusive) and {@code toSeqNo} (inclusive). This filtered snapshot
+     * shares the same underlying resources with the {@code delegate} snapshot, therefore we should not
+     * use the {@code delegate} after passing it to this filtered snapshot.
+     */
+    static final class SeqNoFilterSnapshot implements Snapshot {
+        private final Snapshot delegate;
+        private int filteredOpsCount;
+        private final long fromSeqNo; // inclusive
+        private final long toSeqNo;   // inclusive
+
+        SeqNoFilterSnapshot(Snapshot delegate, long fromSeqNo, long toSeqNo) {
+            assert fromSeqNo <= toSeqNo : "from_seq_no[" + fromSeqNo + "] > to_seq_no[" + toSeqNo + "]";
+            this.delegate = delegate;
+            this.fromSeqNo = fromSeqNo;
+            this.toSeqNo = toSeqNo;
+        }
+
+        @Override
+        public int totalOperations() {
+            return delegate.totalOperations();
+        }
+
+        @Override
+        public int skippedOperations() {
+            return filteredOpsCount + delegate.skippedOperations();
+        }
+
+        @Override
+        public int overriddenOperations() {
+            return delegate.overriddenOperations();
+        }
+
+        @Override
+        public Operation next() throws IOException {
+            Translog.Operation op;
+            while ((op = delegate.next()) != null) {
+                if (fromSeqNo <= op.seqNo() && op.seqNo() <= toSeqNo) {
+                    return op;
+                } else {
+                    filteredOpsCount++;
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
     }
 
     /**
@@ -1180,6 +1262,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 ", type='" + type + '\'' +
                 ", seqNo=" + seqNo +
                 ", primaryTerm=" + primaryTerm +
+                ", version=" + version +
+                ", autoGeneratedIdTimestamp=" + autoGeneratedIdTimestamp +
                 '}';
         }
 
@@ -1322,6 +1406,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 "uid=" + uid +
                 ", seqNo=" + seqNo +
                 ", primaryTerm=" + primaryTerm +
+                ", version=" + version +
                 '}';
         }
     }
@@ -1556,7 +1641,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 current = createWriter(current.getGeneration() + 1);
                 logger.trace("current translog set to [{}]", current.getGeneration());
             } catch (final Exception e) {
-                IOUtils.closeWhileHandlingException(this); // tragic event
+                tragedy.setTragicException(e);
+                closeOnTragicEvent(e);
                 throw e;
             }
         }
@@ -1669,7 +1755,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     private void ensureOpen() {
         if (closed.get()) {
-            throw new AlreadyClosedException("translog is already closed", current.getTragicException());
+            throw new AlreadyClosedException("translog is already closed", tragedy.get());
         }
     }
 
@@ -1683,7 +1769,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * Otherwise (no tragic exception has occurred) it returns null.
      */
     public Exception getTragicException() {
-        return current.getTragicException();
+        return tragedy.get();
     }
 
     /** Reads and returns the current checkpoint */
@@ -1740,6 +1826,19 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return translogUUID;
     }
 
+    /**
+     * Returns the max seq_no of translog operations found in this translog. Since this value is calculated based on the current
+     * existing readers, this value is not necessary to be the max seq_no of all operations have been stored in this translog.
+     */
+    public long getMaxSeqNo() {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            final OptionalLong maxSeqNo = Stream.concat(readers.stream(), Stream.of(current))
+                .mapToLong(reader -> reader.getCheckpoint().maxSeqNo).max();
+            assert maxSeqNo.isPresent() : "must have at least one translog generation";
+            return maxSeqNo.getAsLong();
+        }
+    }
 
     TranslogWriter getCurrent() {
         return current;
@@ -1766,8 +1865,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         final String translogUUID = UUIDs.randomBase64UUID();
         TranslogWriter writer = TranslogWriter.create(shardId, translogUUID, 1, location.resolve(getFilename(1)), channelFactory,
             new ByteSizeValue(10), 1, initialGlobalCheckpoint,
-            () -> { throw new UnsupportedOperationException(); }, () -> { throw new UnsupportedOperationException(); }, primaryTerm
-        );
+            () -> { throw new UnsupportedOperationException(); }, () -> { throw new UnsupportedOperationException(); }, primaryTerm,
+                new TragicExceptionHolder());
         writer.close();
         return translogUUID;
     }

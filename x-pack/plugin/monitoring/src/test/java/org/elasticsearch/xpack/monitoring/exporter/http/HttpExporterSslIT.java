@@ -134,7 +134,6 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
         clearTransientSettings("plaintext");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32673")
     public void testCanAddNewExporterWithSsl() {
         Path truststore = getDataPath("/org/elasticsearch/xpack/monitoring/exporter/http/testnode.jks");
         assertThat(Files.exists(truststore), CoreMatchers.is(true));
@@ -145,7 +144,7 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
             .put("xpack.monitoring.exporters._new.host", "https://" + webServer.getHostName() + ":" + webServer.getPort())
             .put("xpack.monitoring.exporters._new.ssl.truststore.path", truststore)
             .put("xpack.monitoring.exporters._new.ssl.truststore.password", "testnode")
-            .put("xpack.monitoring.exporters._new.ssl.verification_mode", VerificationMode.NONE.name())
+            .put("xpack.monitoring.exporters._new.ssl.verification_mode", VerificationMode.CERTIFICATE.name())
             .build();
         updateSettings.transientSettings(settings);
         final ActionFuture<ClusterUpdateSettingsResponse> future = client().admin().cluster().updateSettings(updateSettings);

@@ -28,10 +28,7 @@ import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.common.http.Scheme;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
+import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.input.InputBuilders;
@@ -73,8 +70,7 @@ public class HttpInputTests extends ESTestCase {
     public void init() throws Exception {
         httpClient = mock(HttpClient.class);
         templateEngine = mock(TextTemplateEngine.class);
-        HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap("basic", new BasicAuthFactory(null)));
-        httpParser = new HttpInputFactory(Settings.EMPTY, httpClient, templateEngine, new HttpRequestTemplate.Parser(registry));
+        httpParser = new HttpInputFactory(Settings.EMPTY, httpClient, templateEngine);
     }
 
     public void testExecute() throws Exception {
@@ -158,7 +154,7 @@ public class HttpInputTests extends ESTestCase {
                 randomBoolean() ? new MapBuilder<String, TextTemplate>().put("a", new TextTemplate("b")).map() : null;
         Map<String, TextTemplate> headers =
                 randomBoolean() ? new MapBuilder<String, TextTemplate>().put("c", new TextTemplate("d")).map() : null;
-        HttpAuth auth = randomBoolean() ? new BasicAuth("username", "password".toCharArray()) : null;
+        BasicAuth auth = randomBoolean() ? new BasicAuth("username", "password".toCharArray()) : null;
         HttpRequestTemplate.Builder requestBuilder = HttpRequestTemplate.builder(host, port)
                 .scheme(scheme)
                 .method(httpMethod)

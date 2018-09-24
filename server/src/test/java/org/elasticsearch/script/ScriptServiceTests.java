@@ -167,7 +167,7 @@ public class ScriptServiceTests extends ESTestCase {
 
         assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
         assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.AGGS_CONTEXT);
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, ExecutableScript.UPDATE_CONTEXT);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, UpdateScript.CONTEXT);
         assertCompileAccepted("painless", "script", ScriptType.INLINE, IngestScript.CONTEXT);
     }
 
@@ -187,7 +187,7 @@ public class ScriptServiceTests extends ESTestCase {
 
         assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
         assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.AGGS_CONTEXT);
-        assertCompileRejected("painless", "script", ScriptType.INLINE, ExecutableScript.UPDATE_CONTEXT);
+        assertCompileRejected("painless", "script", ScriptType.INLINE, UpdateScript.CONTEXT);
     }
 
     public void testAllowNoScriptTypeSettings() throws IOException {

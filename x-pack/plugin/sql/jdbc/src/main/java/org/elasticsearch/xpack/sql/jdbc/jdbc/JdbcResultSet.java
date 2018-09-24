@@ -17,6 +17,7 @@ import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Date;
+import java.sql.JDBCType;
 import java.sql.NClob;
 import java.sql.Ref;
 import java.sql.ResultSet;
@@ -24,6 +25,7 @@ import java.sql.ResultSetMetaData;
 import java.sql.RowId;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLType;
 import java.sql.SQLWarning;
 import java.sql.SQLXML;
 import java.sql.Statement;
@@ -132,72 +134,37 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public boolean getBoolean(int columnIndex) throws SQLException {
-        Object val = column(columnIndex);
-        try {
-            return val != null ? (Boolean) val : false;
-        } catch (ClassCastException cce) {
-            throw new SQLException("unable to convert column " + columnIndex + " to a boolean", cce);
-        }
+        return column(columnIndex) != null ? getObject(columnIndex, Boolean.class) : false;
     }
 
     @Override
     public byte getByte(int columnIndex) throws SQLException {
-        Object val = column(columnIndex);
-        try {
-            return val != null ? ((Number) val).byteValue() : 0;
-        } catch (ClassCastException cce) {
-            throw new SQLException("unable to convert column " + columnIndex + " to a byte", cce);
-        }
+        return column(columnIndex) != null ? getObject(columnIndex, Byte.class) : 0;
     }
 
     @Override
     public short getShort(int columnIndex) throws SQLException {
-        Object val = column(columnIndex);
-        try {
-            return val != null ? ((Number) val).shortValue() : 0;
-        } catch (ClassCastException cce) {
-            throw new SQLException("unable to convert column " + columnIndex + " to a short", cce);
-        }
+        return column(columnIndex) != null ? getObject(columnIndex, Short.class) : 0;
     }
 
     @Override
     public int getInt(int columnIndex) throws SQLException {
-        Object val = column(columnIndex);
-        try {
-            return val != null ? ((Number) val).intValue() : 0;
-        } catch (ClassCastException cce) {
-            throw new SQLException("unable to convert column " + columnIndex + " to an int", cce);
-        }
+        return column(columnIndex) != null ? getObject(columnIndex, Integer.class) : 0;
     }
 
     @Override
     public long getLong(int columnIndex) throws SQLException {
-        Object val = column(columnIndex);
-        try {
-            return val != null ? ((Number) val).longValue() : 0;
-        } catch (ClassCastException cce) {
-            throw new SQLException("unable to convert column " + columnIndex + " to a long", cce);
-        }
+        return column(columnIndex) != null ? getObject(columnIndex, Long.class) : 0;
     }
 
     @Override
     public float getFloat(int columnIndex) throws SQLException {
-        Object val = column(columnIndex);
-        try {
-            return val != null ? ((Number) val).floatValue() : 0;
-        } catch (ClassCastException cce) {
-            throw new SQLException("unable to convert column " + columnIndex + " to a float", cce);
-        }
+        return column(columnIndex) != null ? getObject(columnIndex, Float.class) : 0;
     }
 
     @Override
     public double getDouble(int columnIndex) throws SQLException {
-        Object val = column(columnIndex);
-        try {
-            return val != null ? ((Number) val).doubleValue() : 0;
-        } catch (ClassCastException cce) {
-            throw new SQLException("unable to convert column " + columnIndex + " to a double", cce);
-        }
+        return column(columnIndex) != null ? getObject(columnIndex, Double.class) : 0;
     }
 
     @Override
@@ -271,15 +238,29 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public Date getDate(String columnLabel) throws SQLException {
+        // TODO: the error message in case the value in the column cannot be converted to a Date refers to a column index
+        // (for example - "unable to convert column 4 to a long") and not to the column name, which is a bit confusing.
+        // Should we reconsider this? Maybe by catching the exception here and rethrowing it with the columnLabel instead.
         return getDate(column(columnLabel));
     }
 
     private Long dateTime(int columnIndex) throws SQLException {
         Object val = column(columnIndex);
+        SQLType type = cursor.columns().get(columnIndex - 1).type;
         try {
+            // TODO: the B6 appendix of the jdbc spec does mention CHAR, VARCHAR, LONGVARCHAR, DATE, TIMESTAMP as supported
+            // jdbc types that should be handled by getDate and getTime methods. From all of those we support VARCHAR and
+            // TIMESTAMP. Should we consider the VARCHAR conversion as a later enhancement?
+            if (JDBCType.TIMESTAMP.equals(type)) {
+                // the cursor can return an Integer if the date-since-epoch is small enough, XContentParser (Jackson) will
+                // return the "smallest" data type for numbers when parsing
+                // TODO: this should probably be handled server side
+                return val == null ? null : ((Number) val).longValue();
+            };
             return val == null ? null : (Long) val;
         } catch (ClassCastException cce) {
-            throw new SQLException("unable to convert column " + columnIndex + " to a long", cce);
+            throw new SQLException(
+                    format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Long", val, type.getName()), cce);
         }
     }
 
@@ -357,7 +338,6 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         if (val == null) {
             return null;
         }
-
 
         ColumnInfo columnInfo = cursor.columns().get(columnIndex - 1);
 

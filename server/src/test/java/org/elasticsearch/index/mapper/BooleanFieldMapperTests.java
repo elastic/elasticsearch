@@ -142,7 +142,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject());
         MapperParsingException ex = expectThrows(MapperParsingException.class,
                 () -> defaultMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON)));
-        assertEquals("failed to parse [field]", ex.getMessage());
+        assertEquals("failed to parse field [field] of type [boolean]", ex.getMessage());
     }
 
     public void testMultiFields() throws IOException {

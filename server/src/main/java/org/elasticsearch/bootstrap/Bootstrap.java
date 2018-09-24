@@ -37,7 +37,6 @@ import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -256,7 +255,9 @@ final class Bootstrap {
         if (secureSettings != null) {
             builder.setSecureSettings(secureSettings);
         }
-        return InternalSettingsPreparer.prepareEnvironment(builder.build(), Collections.emptyMap(), configPath);
+        return InternalSettingsPreparer.prepareEnvironment(builder.build(), Collections.emptyMap(), configPath,
+                // HOSTNAME is set by elasticsearch-env and elasticsearch-env.bat so it is always available
+                () -> System.getenv("HOSTNAME"));
     }
 
     private void start() throws NodeValidationException {
@@ -289,9 +290,7 @@ final class Bootstrap {
         final SecureSettings keystore = loadSecureSettings(initialEnv);
         final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
 
-        String nodeName = Node.NODE_NAME_SETTING.get(environment.settings());
-        NodeNamePatternConverter.setNodeName(nodeName);
-
+        LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
         try {
             LogConfigurator.configure(environment);
         } catch (IOException e) {
@@ -345,10 +344,7 @@ final class Bootstrap {
             if (foreground && maybeConsoleAppender != null) {
                 Loggers.removeAppender(rootLogger, maybeConsoleAppender);
             }
-            Logger logger = Loggers.getLogger(Bootstrap.class);
-            if (INSTANCE.node != null) {
-                logger = Loggers.getLogger(Bootstrap.class, Node.NODE_NAME_SETTING.get(INSTANCE.node.settings()));
-            }
+            Logger logger = LogManager.getLogger(Bootstrap.class);
             // HACK, it sucks to do this, but we will run users out of disk space otherwise
             if (e instanceof CreationException) {
                 // guice: log the shortened exc to the log file

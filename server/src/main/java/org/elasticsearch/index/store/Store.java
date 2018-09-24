@@ -64,7 +64,6 @@ import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
@@ -153,18 +152,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     };
 
-    public Store(ShardId shardId, IndexSettings indexSettings, DirectoryService directoryService, ShardLock shardLock) throws IOException {
-        this(shardId, indexSettings, directoryService, shardLock, OnClose.EMPTY);
+    public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock) {
+        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY);
     }
 
-    public Store(ShardId shardId, IndexSettings indexSettings, DirectoryService directoryService, ShardLock shardLock,
-                 OnClose onClose) throws IOException {
+    public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock,
+                 OnClose onClose) {
         super(shardId, indexSettings);
-        final Settings settings = indexSettings.getSettings();
-        Directory dir = directoryService.newDirectory();
         final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
         logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
-        ByteSizeCachingDirectory sizeCachingDir = new ByteSizeCachingDirectory(dir, refreshInterval);
+        ByteSizeCachingDirectory sizeCachingDir = new ByteSizeCachingDirectory(directory, refreshInterval);
         this.directory = new StoreDirectory(sizeCachingDir, Loggers.getLogger("index.store.deletes", shardId));
         this.shardLock = shardLock;
         this.onClose = onClose;
@@ -188,7 +185,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         failIfCorrupted();
         try {
             return readSegmentsInfo(null, directory());
-        } catch (CorruptIndexException ex) {
+        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             markStoreCorrupted(ex);
             throw ex;
         }
@@ -1442,11 +1439,28 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void bootstrapNewHistory() throws IOException {
         metadataLock.writeLock().lock();
-        try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory, null)) {
-            final Map<String, String> userData = getUserData(writer);
+        try {
+            Map<String, String> userData = readLastCommittedSegmentsInfo().getUserData();
             final long maxSeqNo = Long.parseLong(userData.get(SequenceNumbers.MAX_SEQ_NO));
+            bootstrapNewHistory(maxSeqNo);
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Marks an existing lucene index with a new history uuid and sets the given maxSeqNo as the local checkpoint
+     * as well as the maximum sequence number.
+     * This is used to make sure no existing shard will recovery from this index using ops based recovery.
+     * @see SequenceNumbers#LOCAL_CHECKPOINT_KEY
+     * @see SequenceNumbers#MAX_SEQ_NO
+     */
+    public void bootstrapNewHistory(long maxSeqNo) throws IOException {
+        metadataLock.writeLock().lock();
+        try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory, null)) {
             final Map<String, String> map = new HashMap<>();
             map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
+            map.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
             map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(maxSeqNo));
             updateCommitData(writer, map);
         } finally {

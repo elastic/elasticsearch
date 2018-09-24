@@ -128,7 +128,7 @@ public class SqlParser {
     private void debug(SqlBaseParser parser) {
         
         // when debugging, use the exact prediction mode (needed for diagnostics as well)
-        parser.getInterpreter().setPredictionMode(PredictionMode.SLL);
+        parser.getInterpreter().setPredictionMode(PredictionMode.LL_EXACT_AMBIG_DETECTION);
 
         parser.addParseListener(parser.new TraceListener());
 

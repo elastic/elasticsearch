@@ -19,27 +19,45 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.apache.http.entity.ByteArrayEntity;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.client.ml.CloseJobRequest;
+import org.elasticsearch.client.ml.DeleteCalendarRequest;
+import org.elasticsearch.client.ml.DeleteDatafeedRequest;
+import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
+import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
+import org.elasticsearch.client.ml.GetCalendarsRequest;
+import org.elasticsearch.client.ml.GetCategoriesRequest;
+import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
+import org.elasticsearch.client.ml.PostDataRequest;
+import org.elasticsearch.client.ml.PutCalendarRequest;
+import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
+import org.elasticsearch.client.ml.StartDatafeedRequest;
+import org.elasticsearch.client.ml.StopDatafeedRequest;
+import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
 
 import static org.elasticsearch.client.RequestConverters.REQUEST_BODY_CONTENT_TYPE;
+import static org.elasticsearch.client.RequestConverters.createContentType;
 import static org.elasticsearch.client.RequestConverters.createEntity;
 
 final class MLRequestConverters {
@@ -146,6 +164,121 @@ final class MLRequestConverters {
         return request;
     }
 
+    static Request forecastJob(ForecastJobRequest forecastJobRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(forecastJobRequest.getJobId())
+            .addPathPartAsIs("_forecast")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(forecastJobRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request updateJob(UpdateJobRequest updateJobRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+                .addPathPartAsIs("_xpack")
+                .addPathPartAsIs("ml")
+                .addPathPartAsIs("anomaly_detectors")
+                .addPathPart(updateJobRequest.getJobUpdate().getJobId())
+                .addPathPartAsIs("_update")
+                .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(updateJobRequest.getJobUpdate(), REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request putDatafeed(PutDatafeedRequest putDatafeedRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+                .addPathPartAsIs("_xpack")
+                .addPathPartAsIs("ml")
+                .addPathPartAsIs("datafeeds")
+                .addPathPart(putDatafeedRequest.getDatafeed().getId())
+                .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(putDatafeedRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getDatafeed(GetDatafeedRequest getDatafeedRequest) {
+        String endpoint = new EndpointBuilder()
+                .addPathPartAsIs("_xpack")
+                .addPathPartAsIs("ml")
+                .addPathPartAsIs("datafeeds")
+                .addPathPart(Strings.collectionToCommaDelimitedString(getDatafeedRequest.getDatafeedIds()))
+                .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        if (getDatafeedRequest.isAllowNoDatafeeds() != null) {
+            params.putParam(GetDatafeedRequest.ALLOW_NO_DATAFEEDS.getPreferredName(),
+                    Boolean.toString(getDatafeedRequest.isAllowNoDatafeeds()));
+        }
+
+        return request;
+    }
+
+    static Request deleteDatafeed(DeleteDatafeedRequest deleteDatafeedRequest) {
+        String endpoint = new EndpointBuilder()
+                .addPathPartAsIs("_xpack")
+                .addPathPartAsIs("ml")
+                .addPathPartAsIs("datafeeds")
+                .addPathPart(deleteDatafeedRequest.getDatafeedId())
+                .build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        params.putParam("force", Boolean.toString(deleteDatafeedRequest.isForce()));
+        return request;
+    }
+
+    static Request startDatafeed(StartDatafeedRequest startDatafeedRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("datafeeds")
+            .addPathPart(startDatafeedRequest.getDatafeedId())
+            .addPathPartAsIs("_start")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(startDatafeedRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request stopDatafeed(StopDatafeedRequest stopDatafeedRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("datafeeds")
+            .addPathPart(Strings.collectionToCommaDelimitedString(stopDatafeedRequest.getDatafeedIds()))
+            .addPathPartAsIs("_stop")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(stopDatafeedRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request deleteForecast(DeleteForecastRequest deleteForecastRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(deleteForecastRequest.getJobId())
+            .addPathPartAsIs("_forecast")
+            .addPathPart(Strings.collectionToCommaDelimitedString(deleteForecastRequest.getForecastIds()))
+            .build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        if (deleteForecastRequest.isAllowNoForecasts() != null) {
+            params.putParam("allow_no_forecasts", Boolean.toString(deleteForecastRequest.isAllowNoForecasts()));
+        }
+        if (deleteForecastRequest.timeout() != null) {
+            params.putParam("timeout", deleteForecastRequest.timeout().getStringRep());
+        }
+        return request;
+    }
+
     static Request getBuckets(GetBucketsRequest getBucketsRequest) throws IOException {
         String endpoint = new EndpointBuilder()
                 .addPathPartAsIs("_xpack")
@@ -157,6 +290,20 @@ final class MLRequestConverters {
                 .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.setEntity(createEntity(getBucketsRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getCategories(GetCategoriesRequest getCategoriesRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(getCategoriesRequest.getJobId())
+            .addPathPartAsIs("results")
+            .addPathPartAsIs("categories")
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(getCategoriesRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
@@ -188,6 +335,35 @@ final class MLRequestConverters {
         return request;
     }
 
+    static Request postData(PostDataRequest postDataRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(postDataRequest.getJobId())
+            .addPathPartAsIs("_data")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        if (postDataRequest.getResetStart() != null) {
+            params.putParam(PostDataRequest.RESET_START.getPreferredName(), postDataRequest.getResetStart());
+        }
+        if (postDataRequest.getResetEnd() != null) {
+            params.putParam(PostDataRequest.RESET_END.getPreferredName(), postDataRequest.getResetEnd());
+        }
+        BytesReference content = postDataRequest.getContent();
+        if (content != null) {
+            BytesRef source = postDataRequest.getContent().toBytesRef();
+            HttpEntity byteEntity = new ByteArrayEntity(source.bytes,
+                source.offset,
+                source.length,
+                createContentType(postDataRequest.getXContentType()));
+            request.setEntity(byteEntity);
+        }
+        return request;
+    }
+
     static Request getInfluencers(GetInfluencersRequest getInfluencersRequest) throws IOException {
         String endpoint = new EndpointBuilder()
                 .addPathPartAsIs("_xpack")
@@ -199,6 +375,41 @@ final class MLRequestConverters {
                 .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.setEntity(createEntity(getInfluencersRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request putCalendar(PutCalendarRequest putCalendarRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+                .addPathPartAsIs("_xpack")
+                .addPathPartAsIs("ml")
+                .addPathPartAsIs("calendars")
+                .addPathPart(putCalendarRequest.getCalendar().getId())
+                .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(putCalendarRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getCalendars(GetCalendarsRequest getCalendarsRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+                .addPathPartAsIs("_xpack")
+                .addPathPartAsIs("ml")
+                .addPathPartAsIs("calendars")
+                .addPathPart(getCalendarsRequest.getCalendarId())
+                .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(getCalendarsRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request deleteCalendar(DeleteCalendarRequest deleteCalendarRequest) {
+        String endpoint = new EndpointBuilder()
+                .addPathPartAsIs("_xpack")
+                .addPathPartAsIs("ml")
+                .addPathPartAsIs("calendars")
+                .addPathPart(deleteCalendarRequest.getCalendarId())
+                .build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         return request;
     }
 }

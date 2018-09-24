@@ -539,9 +539,9 @@ class BuildPlugin implements Plugin<Project> {
                     from generatePOMTask.destination
                     into "${project.buildDir}/distributions"
                     rename {
-                        generatePOMTask.ext.pomFileName == null ? 
-                            "${project.archivesBaseName}-${project.version}.pom" : 
-                            generatePOMTask.ext.pomFileName 
+                        generatePOMTask.ext.pomFileName == null ?
+                            "${project.archivesBaseName}-${project.version}.pom" :
+                            generatePOMTask.ext.pomFileName
                     }
                 }
             }
@@ -824,9 +824,6 @@ class BuildPlugin implements Plugin<Project> {
                     systemProperty property.getKey(), property.getValue()
                 }
             }
-
-            // TODO: remove this once joda time is removed from scripting in 7.0
-            systemProperty 'es.scripting.use_java_time', 'true'
 
             // TODO: remove this once ctx isn't added to update script params in 7.0
             systemProperty 'es.scripting.update.ctx_in_params', 'false'

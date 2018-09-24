@@ -19,7 +19,7 @@ package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats;
  * under the License.
  */
 
-import org.elasticsearch.search.aggregations.metrics.stats.Stats;
+import org.elasticsearch.search.aggregations.metrics.Stats;
 
 /**
  * Statistics over a set of buckets

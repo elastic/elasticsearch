@@ -286,7 +286,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                     .get();
             fail("bogus value");
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Failed to parse value [-1] for setting [discovery.zen.publish_timeout] must be >= 0s");
+            assertEquals(ex.getMessage(), "failed to parse value [-1] for setting [discovery.zen.publish_timeout], must be >= [0ms]");
         }
 
         assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));

@@ -66,7 +66,6 @@ public class Job implements ToXContentObject {
     public static final ParseField RESULTS_RETENTION_DAYS = new ParseField("results_retention_days");
     public static final ParseField MODEL_SNAPSHOT_ID = new ParseField("model_snapshot_id");
     public static final ParseField RESULTS_INDEX_NAME = new ParseField("results_index_name");
-    public static final ParseField DELETED = new ParseField("deleted");
 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("job_details", true, Builder::new);
 
@@ -100,7 +99,6 @@ public class Job implements ToXContentObject {
         PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.map(), CUSTOM_SETTINGS, ValueType.OBJECT);
         PARSER.declareStringOrNull(Builder::setModelSnapshotId, MODEL_SNAPSHOT_ID);
         PARSER.declareString(Builder::setResultsIndexName, RESULTS_INDEX_NAME);
-        PARSER.declareBoolean(Builder::setDeleted, DELETED);
     }
 
     private final String jobId;
@@ -123,14 +121,13 @@ public class Job implements ToXContentObject {
     private final Map<String, Object> customSettings;
     private final String modelSnapshotId;
     private final String resultsIndexName;
-    private final boolean deleted;
 
     private Job(String jobId, String jobType, List<String> groups, String description, Date createTime,
                 Date finishedTime, Date lastDataTime, Long establishedModelMemory,
                 AnalysisConfig analysisConfig, AnalysisLimits analysisLimits, DataDescription dataDescription,
                 ModelPlotConfig modelPlotConfig, Long renormalizationWindowDays, TimeValue backgroundPersistInterval,
                 Long modelSnapshotRetentionDays, Long resultsRetentionDays, Map<String, Object> customSettings,
-                String modelSnapshotId, String resultsIndexName, boolean deleted) {
+                String modelSnapshotId, String resultsIndexName) {
 
         this.jobId = jobId;
         this.jobType = jobType;
@@ -151,7 +148,6 @@ public class Job implements ToXContentObject {
         this.customSettings = customSettings == null ? null : Collections.unmodifiableMap(customSettings);
         this.modelSnapshotId = modelSnapshotId;
         this.resultsIndexName = resultsIndexName;
-        this.deleted = deleted;
     }
 
     /**
@@ -296,10 +292,6 @@ public class Job implements ToXContentObject {
         return modelSnapshotId;
     }
 
-    public boolean isDeleted() {
-        return deleted;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -359,9 +351,6 @@ public class Job implements ToXContentObject {
         if (resultsIndexName != null) {
             builder.field(RESULTS_INDEX_NAME.getPreferredName(), resultsIndexName);
         }
-        if (params.paramAsBoolean("all", false)) {
-            builder.field(DELETED.getPreferredName(), deleted);
-        }
         builder.endObject();
         return builder;
     }
@@ -395,8 +384,7 @@ public class Job implements ToXContentObject {
             && Objects.equals(this.resultsRetentionDays, that.resultsRetentionDays)
             && Objects.equals(this.customSettings, that.customSettings)
             && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
-            && Objects.equals(this.resultsIndexName, that.resultsIndexName)
-            && Objects.equals(this.deleted, that.deleted);
+            && Objects.equals(this.resultsIndexName, that.resultsIndexName);
     }
 
     @Override
@@ -404,7 +392,7 @@ public class Job implements ToXContentObject {
         return Objects.hash(jobId, jobType, groups, description, createTime, finishedTime, lastDataTime, establishedModelMemory,
             analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
             backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
-            modelSnapshotId, resultsIndexName, deleted);
+            modelSnapshotId, resultsIndexName);
     }
 
     @Override
@@ -437,7 +425,6 @@ public class Job implements ToXContentObject {
         private Map<String, Object> customSettings;
         private String modelSnapshotId;
         private String resultsIndexName;
-        private boolean deleted;
 
         private Builder() {
         }
@@ -466,7 +453,6 @@ public class Job implements ToXContentObject {
             this.customSettings = job.getCustomSettings();
             this.modelSnapshotId = job.getModelSnapshotId();
             this.resultsIndexName = job.getResultsIndexNameNoPrefix();
-            this.deleted = job.isDeleted();
         }
 
         public Builder setId(String id) {
@@ -573,11 +559,6 @@ public class Job implements ToXContentObject {
             return this;
         }
 
-        public Builder setDeleted(boolean deleted) {
-            this.deleted = deleted;
-            return this;
-        }
-
         /**
          * Builds a job.
          *
@@ -590,7 +571,7 @@ public class Job implements ToXContentObject {
                 id, jobType, groups, description, createTime, finishedTime, lastDataTime, establishedModelMemory,
                 analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
-                modelSnapshotId, resultsIndexName, deleted);
+                modelSnapshotId, resultsIndexName);
         }
     }
 }

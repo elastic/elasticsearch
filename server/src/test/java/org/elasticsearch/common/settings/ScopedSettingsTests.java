@@ -32,6 +32,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -46,6 +47,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -53,6 +55,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ScopedSettingsTests extends ESTestCase {
 
@@ -149,7 +152,10 @@ public class ScopedSettingsTests extends ESTestCase {
         }
 
         try {
-            service.addSettingsUpdateConsumer(testSetting, testSetting2, (a, b) -> {consumer.set(a); consumer2.set(b);});
+            service.addSettingsUpdateConsumer(testSetting, testSetting2, (a, b) -> {
+                consumer.set(a);
+                consumer2.set(b);
+            });
             fail("setting not registered");
         } catch (IllegalArgumentException ex) {
             assertEquals("Setting is not registered for key [foo.bar.baz]", ex.getMessage());
@@ -171,7 +177,7 @@ public class ScopedSettingsTests extends ESTestCase {
 
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
             () -> service.validate(Settings.builder().put("foo.test.bar", 7).build(), true));
-        assertEquals("Missing required setting [foo.test.name] for setting [foo.test.bar]", iae.getMessage());
+        assertEquals("missing required setting [foo.test.name] for setting [foo.test.bar]", iae.getMessage());
 
         service.validate(Settings.builder()
             .put("foo.test.name", "test")
@@ -179,6 +185,34 @@ public class ScopedSettingsTests extends ESTestCase {
             .build(), true);
 
         service.validate(Settings.builder().put("foo.test.bar", 7).build(), false);
+    }
+
+    public void testDependentSettingsWithFallback() {
+        Setting.AffixSetting<String> nameFallbackSetting =
+                Setting.affixKeySetting("fallback.", "name", k -> Setting.simpleString(k, Property.Dynamic, Property.NodeScope));
+        Setting.AffixSetting<String> nameSetting = Setting.affixKeySetting(
+                "foo.",
+                "name",
+                k -> Setting.simpleString(
+                        k,
+                        "_na_".equals(k)
+                                ? nameFallbackSetting.getConcreteSettingForNamespace(k)
+                                : nameFallbackSetting.getConcreteSetting(k.replaceAll("^foo", "fallback")),
+                        Property.Dynamic,
+                        Property.NodeScope));
+        Setting.AffixSetting<Integer> barSetting =
+                Setting.affixKeySetting("foo.", "bar", k -> Setting.intSetting(k, 1, Property.Dynamic, Property.NodeScope), nameSetting);
+
+        final AbstractScopedSettings service =
+                new ClusterSettings(Settings.EMPTY,new HashSet<>(Arrays.asList(nameFallbackSetting, nameSetting, barSetting)));
+
+        final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> service.validate(Settings.builder().put("foo.test.bar", 7).build(), true));
+        assertThat(e, hasToString(containsString("missing required setting [foo.test.name] for setting [foo.test.bar]")));
+
+        service.validate(Settings.builder().put("foo.test.name", "test").put("foo.test.bar", 7).build(), true);
+        service.validate(Settings.builder().put("fallback.test.name", "test").put("foo.test.bar", 7).build(), true);
     }
 
     public void testTupleAffixUpdateConsumer() {
@@ -436,7 +470,10 @@ public class ScopedSettingsTests extends ESTestCase {
 
         AtomicInteger aC = new AtomicInteger();
         AtomicInteger bC = new AtomicInteger();
-        service.addSettingsUpdateConsumer(testSetting, testSetting2, (a, b) -> {aC.set(a); bC.set(b);});
+        service.addSettingsUpdateConsumer(testSetting, testSetting2, (a, b) -> {
+            aC.set(a);
+            bC.set(b);
+        });
 
         assertEquals(0, consumer.get());
         assertEquals(0, consumer2.get());
@@ -1015,6 +1052,173 @@ public class ScopedSettingsTests extends ESTestCase {
         // nothing should happen, validation should not throw an exception
         final Settings settings = Settings.builder().put("index.private", "private").build();
         indexScopedSettings.validate(settings, false, /* validateInternalOrPrivateIndex */ false);
+    }
+
+    public void testUpgradeSetting() {
+        final Setting<String> oldSetting = Setting.simpleString("foo.old", Property.NodeScope);
+        final Setting<String> newSetting = Setting.simpleString("foo.new", Property.NodeScope);
+        final Setting<String> remainingSetting = Setting.simpleString("foo.remaining", Property.NodeScope);
+
+        final AbstractScopedSettings service =
+                new ClusterSettings(
+                        Settings.EMPTY,
+                        new HashSet<>(Arrays.asList(oldSetting, newSetting, remainingSetting)),
+                        Collections.singleton(new SettingUpgrader<String>() {
+
+                            @Override
+                            public Setting<String> getSetting() {
+                                return oldSetting;
+                            }
+
+                            @Override
+                            public String getKey(final String key) {
+                                return "foo.new";
+                            }
+
+                            @Override
+                            public String getValue(final String value) {
+                                return "new." + value;
+                            }
+
+                        }));
+
+        final Settings settings =
+                Settings.builder()
+                        .put("foo.old", randomAlphaOfLength(8))
+                        .put("foo.remaining", randomAlphaOfLength(8))
+                        .build();
+        final Settings upgradedSettings = service.upgradeSettings(settings);
+        assertFalse(oldSetting.exists(upgradedSettings));
+        assertTrue(newSetting.exists(upgradedSettings));
+        assertThat(newSetting.get(upgradedSettings), equalTo("new." + oldSetting.get(settings)));
+        assertTrue(remainingSetting.exists(upgradedSettings));
+        assertThat(remainingSetting.get(upgradedSettings), equalTo(remainingSetting.get(settings)));
+    }
+
+    public void testUpgradeSettingsNoChangesPreservesInstance() {
+        final Setting<String> oldSetting = Setting.simpleString("foo.old", Property.NodeScope);
+        final Setting<String> newSetting = Setting.simpleString("foo.new", Property.NodeScope);
+        final Setting<String> remainingSetting = Setting.simpleString("foo.remaining", Property.NodeScope);
+
+        final AbstractScopedSettings service =
+                new ClusterSettings(
+                        Settings.EMPTY,
+                        new HashSet<>(Arrays.asList(oldSetting, newSetting, remainingSetting)),
+                        Collections.singleton(new SettingUpgrader<String>() {
+
+                            @Override
+                            public Setting<String> getSetting() {
+                                return oldSetting;
+                            }
+
+                            @Override
+                            public String getKey(final String key) {
+                                return "foo.new";
+                            }
+
+                        }));
+
+        final Settings settings = Settings.builder().put("foo.remaining", randomAlphaOfLength(8)).build();
+        final Settings upgradedSettings = service.upgradeSettings(settings);
+        assertThat(upgradedSettings, sameInstance(settings));
+    }
+
+    public void testUpgradeComplexSetting() {
+        final Setting.AffixSetting<String> oldSetting =
+                Setting.affixKeySetting("foo.old.", "suffix", key -> Setting.simpleString(key, Property.NodeScope));
+        final Setting.AffixSetting<String> newSetting =
+                Setting.affixKeySetting("foo.new.", "suffix", key -> Setting.simpleString(key, Property.NodeScope));
+        final Setting.AffixSetting<String> remainingSetting =
+                Setting.affixKeySetting("foo.remaining.", "suffix", key -> Setting.simpleString(key, Property.NodeScope));
+
+        final AbstractScopedSettings service =
+                new ClusterSettings(
+                        Settings.EMPTY,
+                        new HashSet<>(Arrays.asList(oldSetting, newSetting, remainingSetting)),
+                        Collections.singleton(new SettingUpgrader<String>() {
+
+                            @Override
+                            public Setting<String> getSetting() {
+                                return oldSetting;
+                            }
+
+                            @Override
+                            public String getKey(final String key) {
+                                return key.replaceFirst("^foo\\.old", "foo\\.new");
+                            }
+
+                            @Override
+                            public String getValue(final String value) {
+                                return "new." + value;
+                            }
+
+                        }));
+
+        final int count = randomIntBetween(1, 8);
+        final List<String> concretes = new ArrayList<>(count);
+        final Settings.Builder builder = Settings.builder();
+        for (int i = 0; i < count; i++) {
+            final String concrete = randomAlphaOfLength(8);
+            concretes.add(concrete);
+            builder.put("foo.old." + concrete + ".suffix", randomAlphaOfLength(8));
+            builder.put("foo.remaining." + concrete + ".suffix", randomAlphaOfLength(8));
+        }
+        final Settings settings = builder.build();
+        final Settings upgradedSettings = service.upgradeSettings(settings);
+        for (final String concrete : concretes) {
+            assertFalse(oldSetting.getConcreteSettingForNamespace(concrete).exists(upgradedSettings));
+            assertTrue(newSetting.getConcreteSettingForNamespace(concrete).exists(upgradedSettings));
+            assertThat(
+                    newSetting.getConcreteSettingForNamespace(concrete).get(upgradedSettings),
+                    equalTo("new." + oldSetting.getConcreteSettingForNamespace(concrete).get(settings)));
+            assertTrue(remainingSetting.getConcreteSettingForNamespace(concrete).exists(upgradedSettings));
+            assertThat(
+                    remainingSetting.getConcreteSettingForNamespace(concrete).get(upgradedSettings),
+                    equalTo(remainingSetting.getConcreteSettingForNamespace(concrete).get(settings)));
+        }
+    }
+
+    public void testUpgradeListSetting() {
+        final Setting<List<String>> oldSetting =
+                Setting.listSetting("foo.old", Collections.emptyList(), Function.identity(), Property.NodeScope);
+        final Setting<List<String>> newSetting =
+                Setting.listSetting("foo.new", Collections.emptyList(), Function.identity(), Property.NodeScope);
+
+        final AbstractScopedSettings service =
+                new ClusterSettings(
+                        Settings.EMPTY,
+                        new HashSet<>(Arrays.asList(oldSetting, newSetting)),
+                        Collections.singleton(new SettingUpgrader<List<String>>() {
+
+                            @Override
+                            public Setting<List<String>> getSetting() {
+                                return oldSetting;
+                            }
+
+                            @Override
+                            public String getKey(final String key) {
+                                return "foo.new";
+                            }
+
+                            @Override
+                            public List<String> getListValue(final List<String> value) {
+                                return value.stream().map(s -> "new." + s).collect(Collectors.toList());
+                            }
+                        }));
+
+        final int length = randomIntBetween(0, 16);
+        final List<String> values = length == 0 ? Collections.emptyList() : new ArrayList<>(length);
+        for (int i = 0; i < length; i++) {
+            values.add(randomAlphaOfLength(8));
+        }
+
+        final Settings settings = Settings.builder().putList("foo.old", values).build();
+        final Settings upgradedSettings = service.upgradeSettings(settings);
+        assertFalse(oldSetting.exists(upgradedSettings));
+        assertTrue(newSetting.exists(upgradedSettings));
+        assertThat(
+                newSetting.get(upgradedSettings),
+                equalTo(oldSetting.get(settings).stream().map(s -> "new." + s).collect(Collectors.toList())));
     }
 
 }

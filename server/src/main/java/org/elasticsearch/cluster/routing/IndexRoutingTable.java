@@ -27,10 +27,11 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource;
+import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.LocalShardsRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
-import org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -386,7 +387,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                     if (asNew && ignoreShards.contains(shardNumber)) {
                         // This shards wasn't completely snapshotted - restore it as new shard
                         indexShardRoutingBuilder.addShard(ShardRouting.newUnassigned(shardId, primary,
-                            primary ? StoreRecoverySource.EMPTY_STORE_INSTANCE : PeerRecoverySource.INSTANCE, unassignedInfo));
+                            primary ? EmptyStoreRecoverySource.INSTANCE : PeerRecoverySource.INSTANCE, unassignedInfo));
                     } else {
                         indexShardRoutingBuilder.addShard(ShardRouting.newUnassigned(shardId, primary,
                             primary ? recoverySource : PeerRecoverySource.INSTANCE, unassignedInfo));
@@ -410,13 +411,13 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 final RecoverySource primaryRecoverySource;
                 if (indexMetaData.inSyncAllocationIds(shardNumber).isEmpty() == false) {
                     // we have previous valid copies for this shard. use them for recovery
-                    primaryRecoverySource = StoreRecoverySource.EXISTING_STORE_INSTANCE;
+                    primaryRecoverySource = ExistingStoreRecoverySource.INSTANCE;
                 } else if (indexMetaData.getResizeSourceIndex() != null) {
                     // this is a new index but the initial shards should merged from another index
                     primaryRecoverySource = LocalShardsRecoverySource.INSTANCE;
                 } else {
                     // a freshly created index with no restriction
-                    primaryRecoverySource = StoreRecoverySource.EMPTY_STORE_INSTANCE;
+                    primaryRecoverySource = EmptyStoreRecoverySource.INSTANCE;
                 }
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
                 for (int i = 0; i <= indexMetaData.getNumberOfReplicas(); i++) {

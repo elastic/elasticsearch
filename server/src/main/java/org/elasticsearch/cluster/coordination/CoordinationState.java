@@ -158,13 +158,21 @@ public class CoordinationState extends AbstractComponent {
      */
     public Join handleStartJoin(StartJoinRequest startJoinRequest) {
         if (startJoinRequest.getTerm() <= getCurrentTerm()) {
-            logger.debug("handleStartJoin: ignored as term provided [{}] not greater than current term [{}]",
-                startJoinRequest.getTerm(), getCurrentTerm());
+            logger.debug("handleStartJoin: ignoring [{}] as term provided is not greater than current term [{}]",
+                startJoinRequest, getCurrentTerm());
             throw new CoordinationStateRejectedException("incoming term " + startJoinRequest.getTerm() +
                 " not greater than current term " + getCurrentTerm());
         }
 
-        logger.debug("handleStartJoin: updating term from [{}] to [{}]", getCurrentTerm(), startJoinRequest.getTerm());
+        logger.debug("handleStartJoin: leaving term [{}] due to {}", getCurrentTerm(), startJoinRequest);
+
+        if (joinVotes.isEmpty() == false) {
+            if (electionWon == false) {
+                logger.debug("handleStartJoin: failed election, discarding {}", joinVotes);
+            } else if (startJoinRequest.getSourceNode().equals(localNode) == false) {
+                logger.debug("handleStartJoin: standing down as leader, discarding {}", joinVotes);
+            }
+        }
 
         persistedState.setCurrentTerm(startJoinRequest.getTerm());
         assert getCurrentTerm() == startJoinRequest.getTerm();

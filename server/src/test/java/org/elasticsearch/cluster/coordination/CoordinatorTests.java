@@ -76,6 +76,8 @@ public class CoordinatorTests extends ESTestCase {
 
         final ClusterNode leader = cluster.getAnyLeader();
         long finalValue = randomLong();
+
+        logger.info("--> submitting value [{}] to [{}]", finalValue, leader);
         leader.submitValue(finalValue);
         cluster.stabilise(); // TODO this should only need a short stabilisation
 
@@ -96,6 +98,7 @@ public class CoordinatorTests extends ESTestCase {
 
         final List<ClusterNode> clusterNodes;
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
+            // TODO does ThreadPool need a node name any more?
             Settings.builder().put(NODE_NAME_SETTING.getKey(), "deterministic-task-queue").build());
         private final VotingConfiguration initialConfiguration;
 
@@ -267,17 +270,27 @@ public class CoordinatorTests extends ESTestCase {
             }
 
             void submitValue(final long value) {
-                masterService.submitStateUpdateTask("new value [" + value + "]", new ClusterStateUpdateTask() {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        return setValue(currentState, value);
-                    }
+                onNode(localNode, new Runnable() {
+                        @Override
+                        public void run() {
+                            masterService.submitStateUpdateTask("new value [" + value + "]", new ClusterStateUpdateTask() {
+                                @Override
+                                public ClusterState execute(ClusterState currentState) {
+                                    return setValue(currentState, value);
+                                }
+
+                                @Override
+                                public void onFailure(String source, Exception e) {
+                                    logger.debug(() -> new ParameterizedMessage("failed to publish: [{}]", source), e);
+                                }
+                            });
+                        }
 
                     @Override
-                    public void onFailure(String source, Exception e) {
-                        logger.debug(() -> new ParameterizedMessage("failed to publish: [{}]", source), e);
+                    public String toString() {
+                        return "submitStateUpdateTask: new value [" + value + "]";
                     }
-                });
+                }).run();
             }
         }
 

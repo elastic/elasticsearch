@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractXContentTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
 
-public class GetRollupCapsResponseTests extends AbstractStreamableXContentTestCase<GetRollupCapsResponse> {
+public class GetRollupCapsResponseTests extends AbstractXContentTestCase<GetRollupCapsResponse> {
 
     private Map<String, RollableIndexCaps> indices;
 
@@ -73,11 +73,6 @@ public class GetRollupCapsResponseTests extends AbstractStreamableXContentTestCa
     @Override
     protected boolean supportsUnknownFields() {
         return false;
-    }
-
-    @Override
-    protected GetRollupCapsResponse createBlankInstance() {
-        return new GetRollupCapsResponse();
     }
 
     @Override

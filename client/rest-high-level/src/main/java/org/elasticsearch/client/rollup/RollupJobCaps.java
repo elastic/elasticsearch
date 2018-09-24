@@ -20,9 +20,6 @@ package org.elasticsearch.client.rollup;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -40,7 +37,7 @@ import java.util.function.Function;
 /**
  * Represents the Rollup capabilities for a specific job on a single rollup index
  */
-public class RollupJobCaps implements Writeable, ToXContentObject {
+public class RollupJobCaps implements ToXContentObject {
     private static ParseField JOB_ID = new ParseField("job_id");
     private static ParseField ROLLUP_INDEX = new ParseField("rollup_index");
     private static ParseField INDEX_PATTERN = new ParseField("index_pattern");
@@ -79,13 +76,6 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
         this.fieldCapLookup = Collections.unmodifiableMap(Objects.requireNonNull(fieldCapLookup));
     }
 
-    public RollupJobCaps(StreamInput in) throws IOException {
-        this.jobID = in.readString();
-        this.rollupIndex = in.readString();
-        this.indexPattern = in.readString();
-        this.fieldCapLookup = Collections.unmodifiableMap(in.readMap(StreamInput::readString, RollupFieldCaps::new));
-    }
-
     public Map<String, RollupFieldCaps> getFieldCaps() {
         return fieldCapLookup;
     }
@@ -100,14 +90,6 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
 
     public String getJobID() {
         return jobID;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(jobID);
-        out.writeString(rollupIndex);
-        out.writeString(indexPattern);
-        out.writeMap(fieldCapLookup, StreamOutput::writeString, (o, value) -> value.writeTo(o));
     }
 
     @Override
@@ -148,7 +130,7 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
         return Objects.hash(jobID, rollupIndex, fieldCapLookup);
     }
 
-    public static class RollupFieldCaps implements Writeable, ToXContentObject {
+    public static class RollupFieldCaps implements ToXContentObject {
         private List<Map<String, Object>> aggs;
         private static final String NAME = "rollup_field_caps";
 
@@ -172,29 +154,12 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
             return new RollupFieldCaps(Collections.unmodifiableList(aggs));
         }
 
-        RollupFieldCaps(StreamInput in) throws IOException {
-            int size = in.readInt();
-            aggs = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                aggs.add(Collections.unmodifiableMap(in.readMap()));
-            }
-            aggs = Collections.unmodifiableList(aggs);
-        }
-
         RollupFieldCaps(List<Map<String, Object>> aggs) {
             this.aggs = Collections.unmodifiableList(Objects.requireNonNull(aggs));
         }
 
         public List<Map<String, Object>> getAggs() {
             return aggs;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeInt(aggs.size());
-            for (Map<String, Object> agg : aggs) {
-                out.writeMap(agg);
-            }
         }
 
         @Override

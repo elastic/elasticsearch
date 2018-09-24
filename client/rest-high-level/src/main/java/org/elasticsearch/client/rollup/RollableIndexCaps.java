@@ -19,9 +19,6 @@
 package org.elasticsearch.client.rollup;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -40,7 +37,7 @@ import java.util.function.Function;
  *
  * The index name can either be a single index, or an index pattern (logstash-*)
  */
-public class RollableIndexCaps implements Writeable, ToXContentFragment {
+public class RollableIndexCaps implements ToXContentFragment {
     private static final ParseField ROLLUP_JOBS = new ParseField("rollup_jobs");
 
     public static final Function<String, ConstructingObjectParser<RollableIndexCaps, Void>> PARSER = indexName -> {
@@ -64,23 +61,12 @@ public class RollableIndexCaps implements Writeable, ToXContentFragment {
         this.jobCaps = Collections.unmodifiableList(jobCaps);
     }
 
-    public RollableIndexCaps(StreamInput in) throws IOException {
-        this.indexName = in.readString();
-        this.jobCaps = in.readList(RollupJobCaps::new);
-    }
-
     public String getIndexName() {
         return indexName;
     }
 
     public List<RollupJobCaps> getJobCaps() {
         return jobCaps;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(indexName);
-        out.writeList(jobCaps);
     }
 
     @Override

@@ -18,24 +18,17 @@
  */
 package org.elasticsearch.client.rollup;
 
-
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.equalTo;
 
-public class GetRollupCapsRequestTests extends AbstractStreamableTestCase<GetRollupCapsRequest> {
+public class GetRollupCapsRequestTests extends ESTestCase {
 
-    @Override
-    protected GetRollupCapsRequest createTestInstance() {
-        if (randomBoolean()) {
-            return new GetRollupCapsRequest(MetaData.ALL);
-        }
-        return new GetRollupCapsRequest(randomAlphaOfLengthBetween(1, 20));
-    }
-
-    @Override
-    protected GetRollupCapsRequest createBlankInstance() {
-        return new GetRollupCapsRequest();
+    public void testImplicitIndexPattern() {
+        String pattern = randomFrom("", "*", MetaData.ALL, null);
+        GetRollupCapsRequest request = new GetRollupCapsRequest(pattern);
+        assertThat(request.getIndexPattern(), equalTo(MetaData.ALL));
     }
 
 }

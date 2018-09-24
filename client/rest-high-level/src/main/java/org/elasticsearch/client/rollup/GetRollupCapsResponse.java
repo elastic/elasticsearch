@@ -18,11 +18,8 @@
  */
 package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -33,11 +30,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetRollupCapsResponse extends ActionResponse implements Writeable, ToXContentObject {
+public class GetRollupCapsResponse implements ToXContentObject {
 
     private Map<String, RollableIndexCaps> jobs = Collections.emptyMap();
-
-    public GetRollupCapsResponse() {}
 
     public GetRollupCapsResponse(Map<String, RollableIndexCaps> jobs) {
         this.jobs = Collections.unmodifiableMap(Objects.requireNonNull(jobs));
@@ -48,19 +43,7 @@ public class GetRollupCapsResponse extends ActionResponse implements Writeable, 
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeMap(jobs, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        jobs = in.readMap(StreamInput::readString, RollableIndexCaps::new);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         for (Map.Entry<String, RollableIndexCaps> entry : jobs.entrySet()) {
             entry.getValue().toXContent(builder, params);

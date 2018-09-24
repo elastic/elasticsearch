@@ -18,19 +18,18 @@
  */
 package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.Validatable;
+import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
-public class GetRollupCapsRequest extends ActionRequest implements ToXContentObject {
+public class GetRollupCapsRequest implements Validatable, ToXContentObject {
     private String indexPattern;
     private static final String ID = "id";
 
@@ -42,33 +41,19 @@ public class GetRollupCapsRequest extends ActionRequest implements ToXContentObj
         }
     }
 
-    public GetRollupCapsRequest() {}
-
     public String getIndexPattern() {
         return indexPattern;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.indexPattern = in.readString();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(indexPattern);
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(ID, indexPattern);
         return builder;
+    }
+
+    @Override
+    public Optional<ValidationException> validate() {
+        return Optional.empty();
     }
 
     @Override

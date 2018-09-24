@@ -86,8 +86,11 @@ public class RollupClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public GetRollupCapsResponse getRollupCapabilities(GetRollupCapsRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, RollupRequestConverters::getRollupCaps, options,
-            GetRollupCapsResponse::fromXContent, Collections.emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            RollupRequestConverters::getRollupCaps,
+            options,
+            GetRollupCapsResponse::fromXContent,
+            Collections.emptySet());
     }
 
     /**

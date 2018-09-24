@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.monitoring.collector.cluster;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
@@ -121,7 +122,11 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
     }
 
     Settings getClusterMetaDataSettings() {
-        return this.clusterState.getMetaData().settings().getAsSettings(SETTING_CLUSTER_METADATA);
+        MetaData metaData = this.clusterState.getMetaData();
+        if (metaData == null) {
+            return Settings.EMPTY;
+        }
+        return metaData.settings().getAsSettings(SETTING_CLUSTER_METADATA);
     }
 
     @Override

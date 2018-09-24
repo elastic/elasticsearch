@@ -1447,19 +1447,6 @@ public class FieldSortIT extends ESIntegTestCase {
         assertThat(hits[0].getSortValues()[0], is("bar"));
         assertThat(hits[1].getSortValues()[0], is("abc"));
 
-        // We sort on nested field with 'first' sort mode
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addSort(SortBuilders.fieldSort("nested.foo").setNestedPath("nested").order(SortOrder.ASC).sortMode(SortMode.FIRST))
-            .execute().actionGet();
-        assertNoFailures(searchResponse);
-        hits = searchResponse.getHits().getHits();
-        assertThat(hits.length, is(2));
-        assertThat(hits[0].getSortValues().length, is(1));
-        assertThat(hits[1].getSortValues().length, is(1));
-        assertThat(hits[0].getSortValues()[0], is("abc"));
-        assertThat(hits[1].getSortValues()[0], is("bar"));
-
         // We sort on nested sub field
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())

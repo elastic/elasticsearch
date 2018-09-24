@@ -338,10 +338,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 nested = resolveNested(context, nestedPath, nestedFilter);
             }
 
-            if (sortMode == SortMode.FIRST && nested == null) {
-                throw new QueryShardException(context, "FIRST only supported on nested fields");
-            }
-
             IndexFieldData<?> fieldData = context.getForField(fieldType);
             if (fieldData instanceof IndexNumericFieldData == false
                     && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {

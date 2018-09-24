@@ -39,7 +39,6 @@ final class NumericField {
     static final String GETVALUE_METHOD         = "getValue";
     static final String ISEMPTY_METHOD          = "isEmpty";
     static final String SIZE_METHOD             = "size";
-    static final String FIRST_METHOD            = "first";
     static final String MINIMUM_METHOD          = "min";
     static final String MAXIMUM_METHOD          = "max";
     static final String AVERAGE_METHOD          = "avg";
@@ -69,8 +68,6 @@ final class NumericField {
                 return new EmptyMemberValueSource(fieldData);
             case SIZE_METHOD:
                 return new CountMethodValueSource(fieldData);
-            case FIRST_METHOD:
-                return new FieldDataValueSource(fieldData, MultiValueMode.FIRST);
             case MINIMUM_METHOD:
                 return new FieldDataValueSource(fieldData, MultiValueMode.MIN);
             case MAXIMUM_METHOD:

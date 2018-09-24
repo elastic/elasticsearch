@@ -91,7 +91,8 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                     } else {
                         final BitSet rootDocs = nested.rootDocs(context);
                         final DocIdSetIterator innerDocs = nested.innerDocs(context);
-                        selectedValues = sortMode.select(values, rootDocs, innerDocs);
+                        final Integer maxChildren = nested.getNestedSort() != null ? nested.getNestedSort().getMaxChildren() : null;
+                        selectedValues = sortMode.select(values, rootDocs, innerDocs, maxChildren);
                     }
                     if (sortMissingFirst(missingValue) || sortMissingLast(missingValue)) {
                         return selectedValues;
@@ -119,7 +120,8 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                 } else {
                     final BitSet rootDocs = nested.rootDocs(context);
                     final DocIdSetIterator innerDocs = nested.innerDocs(context);
-                    selectedValues = sortMode.select(values, missingBytes, rootDocs, innerDocs, context.reader().maxDoc());
+                    final Integer maxChildren = nested.getNestedSort() != null ? nested.getNestedSort().getMaxChildren() : null;
+                    selectedValues = sortMode.select(values, missingBytes, rootDocs, innerDocs, context.reader().maxDoc(), maxChildren);
                 }
                 return selectedValues;
             }

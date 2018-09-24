@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
@@ -38,7 +39,6 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -123,7 +123,6 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
     }
 
     @SuppressForbidden(reason = "Need to open socket connection")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33772")
     public void testRenegotiation() throws Exception {
         SSLService sslService = createSSLService();
         final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.ssl");
@@ -148,27 +147,24 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
             HandshakeCompletedListener secondListener = event -> renegotiationLatch.countDown();
             socket.addHandshakeCompletedListener(secondListener);
             socket.startHandshake();
-
-            AtomicReference<Exception> error = new AtomicReference<>();
-            CountDownLatch catchReadErrorsLatch = new CountDownLatch(1);
-            Thread renegotiationThread = new Thread(() -> {
-                try {
-                    socket.setSoTimeout(50);
-                    socket.getInputStream().read();
-                } catch (SocketTimeoutException e) {
-                    // Ignore. We expect a timeout.
-                } catch (IOException e) {
-                    error.set(e);
-                } finally {
-                    catchReadErrorsLatch.countDown();
+            AtomicBoolean stopped = new AtomicBoolean(false);
+            socket.setSoTimeout(10);
+            Thread emptyReader = new Thread(() -> {
+                while (stopped.get() == false) {
+                    try {
+                        socket.getInputStream().read();
+                    } catch (SocketTimeoutException e) {
+                        // Ignore. We expect a timeout.
+                    } catch (IOException e) {
+                        throw new AssertionError(e);
+                    }
                 }
             });
-            renegotiationThread.start();
+            emptyReader.start();
             renegotiationLatch.await();
+            stopped.set(true);
+            emptyReader.join();
             socket.removeHandshakeCompletedListener(secondListener);
-            catchReadErrorsLatch.await();
-
-            assertNull(error.get());
 
             stream.writeByte((byte) 'E');
             stream.writeByte((byte) 'S');

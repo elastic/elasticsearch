@@ -175,9 +175,9 @@ public class AutodetectBuilder {
     /**
      * Requests that the controller daemon start an autodetect process.
      */
-    public void build(int maxAnomalyRecords) throws IOException {
+    public void build() throws IOException {
 
-        List<String> command = buildAutodetectCommand(maxAnomalyRecords);
+        List<String> command = buildAutodetectCommand();
 
         buildLimits(command);
         buildModelPlotConfig(command);
@@ -191,7 +191,7 @@ public class AutodetectBuilder {
     /**
      * Visible for testing
      */
-    List<String> buildAutodetectCommand(int maxAnomalyRecords) {
+    List<String> buildAutodetectCommand() {
         List<String> command = new ArrayList<>();
         command.add(AUTODETECT_PATH);
 
@@ -219,7 +219,7 @@ public class AutodetectBuilder {
         command.add(LENGTH_ENCODED_INPUT_ARG);
 
         // Limit the number of output records
-        command.add(maxAnomalyRecordsArg(maxAnomalyRecords));
+        command.add(maxAnomalyRecordsArg(settings));
 
         // always set the time field
         String timeFieldArg = TIME_FIELD_ARG + getTimeFieldOrDefault(job);
@@ -251,8 +251,8 @@ public class AutodetectBuilder {
         return command;
     }
 
-    static String maxAnomalyRecordsArg(int maxAnomalyRecords) {
-        return "--maxAnomalyRecords=" + maxAnomalyRecords;
+    static String maxAnomalyRecordsArg(Settings settings) {
+        return "--maxAnomalyRecords=" + MAX_ANOMALY_RECORDS_SETTING_DYNAMIC.get(settings);
     }
 
     private static String getTimeFieldOrDefault(Job job) {

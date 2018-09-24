@@ -41,7 +41,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     private final Environment env;
     private final Settings settings;
     private final NativeController nativeController;
-    private volatile int maxAnomalyRecords;
+    private final ClusterService clusterService;
 
     public NativeAutodetectProcessFactory(Environment env, Settings settings, NativeController nativeController, Client client,
                                           ClusterService clusterService) {
@@ -49,9 +49,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         this.settings = Objects.requireNonNull(settings);
         this.nativeController = Objects.requireNonNull(nativeController);
         this.client = client;
-        this.maxAnomalyRecords = AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC.get(settings);
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC, this::setMaxAnomalyRecords);
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -91,8 +89,15 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     private void createNativeProcess(Job job, AutodetectParams autodetectParams, ProcessPipes processPipes,
                                      List<Path> filesToDelete) {
         try {
+
+            Settings updatedSettings = Settings.builder()
+                .put(settings)
+                .put(AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC.getKey(),
+                    clusterService.getClusterSettings().get(AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC))
+                .build();
+
             AutodetectBuilder autodetectBuilder = new AutodetectBuilder(job, filesToDelete, LOGGER, env,
-                    settings, nativeController, processPipes)
+                updatedSettings, nativeController, processPipes)
                     .referencedFilters(autodetectParams.filters())
                     .scheduledEvents(autodetectParams.scheduledEvents());
 
@@ -101,7 +106,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
             if (autodetectParams.quantiles() != null) {
                 autodetectBuilder.quantiles(autodetectParams.quantiles());
             }
-            autodetectBuilder.build(maxAnomalyRecords);
+            autodetectBuilder.build();
             processPipes.connectStreams(PROCESS_STARTUP_TIMEOUT);
         } catch (IOException e) {
             String msg = "Failed to launch autodetect for job " + job.getId();
@@ -110,10 +115,5 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         }
     }
 
-    private void setMaxAnomalyRecords(int maxAnomalyRecords) {
-        LOGGER.info("Changing [{}] from [{}] to [{}]", AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC.getKey(),
-            this.maxAnomalyRecords, maxAnomalyRecords);
-        this.maxAnomalyRecords = maxAnomalyRecords;
-    }
 }
 

@@ -39,37 +39,37 @@ public class ClusterNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testExactMatch() {
-        List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusters, "totallyDifferent");
+        List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusters, "totallyDifferent", true, true);
         assertEquals(new HashSet<>(Arrays.asList("totallyDifferent")), new HashSet<>(clusters));
     }
 
     public void testNoWildCardNoMatch() {
-        List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusters, "totallyDifferent2");
+        List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusters, "totallyDifferent2", true, true);
         assertTrue(clusters.isEmpty());
     }
 
     public void testWildCardNoMatch() {
-        List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusters, "totally*2");
+        List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusters, "totally*2", true, true);
         assertTrue(clusters.isEmpty());
     }
 
     public void testSimpleWildCard() {
-        List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusters, "*");
+        List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusters, "*", true, true);
         assertEquals(new HashSet<>(Arrays.asList("cluster1", "cluster2", "totallyDifferent")), new HashSet<>(clusters));
     }
 
     public void testSuffixWildCard() {
-        List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusters, "cluster*");
+        List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusters, "cluster*", true, true);
         assertEquals(new HashSet<>(Arrays.asList("cluster1", "cluster2")), new HashSet<>(clusters));
     }
 
     public void testPrefixWildCard() {
-        List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusters, "*Different");
+        List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusters, "*Different", true, true);
         assertEquals(new HashSet<>(Arrays.asList("totallyDifferent")), new HashSet<>(clusters));
     }
 
     public void testMiddleWildCard() {
-        List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusters, "clu*1");
+        List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusters, "clu*1", true, true);
         assertEquals(new HashSet<>(Arrays.asList("cluster1")), new HashSet<>(clusters));
     }
 }

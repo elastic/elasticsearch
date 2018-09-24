@@ -529,6 +529,19 @@ public class ShardChangesIT extends ESIntegTestCase {
             "this setting is managed via a dedicated API"));
     }
 
+    public void testUnknownClusterAlias() throws Exception {
+        String leaderIndexSettings = getIndexSettings(1, 0,
+            Collections.singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureGreen("index1");
+
+        FollowIndexAction.Request followRequest = createFollowRequest("leader_cluster:index1", "index2");
+        CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("unknown cluster expression [leader_cluster]"));
+    }
+
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {
         return () -> {
             final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();

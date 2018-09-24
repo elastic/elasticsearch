@@ -216,19 +216,24 @@ public abstract class RemoteClusterAware extends AbstractComponent {
      * indices per cluster are collected as a list in the returned map keyed by the cluster alias. Local indices are grouped under
      * {@link #LOCAL_CLUSTER_GROUP_KEY}. The returned map is mutable.
      *
-     * @param requestIndices the indices in the search request to filter
-     * @param indexExists a predicate that can test if a certain index or alias exists in the local cluster
-     *
+     * @param requestIndices            the indices in the search request to filter
+     * @param indexExists               a predicate that can test if a certain index or alias exists in the local cluster
+     * @param expandExpressions         Whether expressions with wildcards are expanded
+     * @param ignoreNoneExistingAliases Whether none existing aliases are ignored
      * @return a map of grouped remote and local indices
      */
-    public Map<String, List<String>> groupClusterIndices(String[] requestIndices, Predicate<String> indexExists) {
+    public Map<String, List<String>> groupClusterIndices(String[] requestIndices,
+                                                         Predicate<String> indexExists,
+                                                         boolean expandExpressions,
+                                                         boolean ignoreNoneExistingAliases) {
         Map<String, List<String>> perClusterIndices = new HashMap<>();
         Set<String> remoteClusterNames = getRemoteClusterNames();
         for (String index : requestIndices) {
             int i = index.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
             if (i >= 0) {
                 String remoteClusterName = index.substring(0, i);
-                List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusterNames, remoteClusterName);
+                List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusterNames, remoteClusterName,
+                    expandExpressions, ignoreNoneExistingAliases);
                 if (clusters.isEmpty() == false) {
                     if (indexExists.test(index)) {
                         // we use : as a separator for remote clusters. might conflict if there is an index that is actually named

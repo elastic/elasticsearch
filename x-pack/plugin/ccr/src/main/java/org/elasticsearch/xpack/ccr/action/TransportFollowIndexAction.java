@@ -102,7 +102,7 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
             return;
         }
         final String[] indices = new String[]{request.getLeaderIndex()};
-        final Map<String, List<String>> remoteClusterIndices = remoteClusterService.groupClusterIndices(indices, s -> false);
+        final Map<String, List<String>> remoteClusterIndices = remoteClusterService.groupClusterIndices(indices, s -> false, false, false);
         if (remoteClusterIndices.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
             followLocalIndex(request, listener);
         } else {

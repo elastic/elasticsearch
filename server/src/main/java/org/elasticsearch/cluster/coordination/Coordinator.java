@@ -191,6 +191,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             logger.debug("joinLeaderInTerm: for [{}] with term {}", startJoinRequest.getSourceNode(), startJoinRequest.getTerm());
             final Join join = coordinationState.get().handleStartJoin(startJoinRequest);
             lastJoin = Optional.of(join);
+            peerFinder.setCurrentTerm(getCurrentTerm());
             if (mode != Mode.CANDIDATE) {
                 becomeCandidate("joinLeaderInTerm");
             }
@@ -293,6 +294,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     protected void doStart() {
         CoordinationState.PersistedState persistedState = persistedStateSupplier.get();
         coordinationState.set(new CoordinationState(settings, getLocalNode(), persistedState));
+        peerFinder.setCurrentTerm(getCurrentTerm());
         configuredHostsResolver.start();
     }
 
@@ -322,6 +324,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     public void invariant() {
         synchronized (mutex) {
             final Optional<DiscoveryNode> peerFinderLeader = peerFinder.getLeader();
+            assert peerFinder.getCurrentTerm() == getCurrentTerm();
             if (mode == Mode.LEADER) {
                 assert coordinationState.get().electionWon();
                 assert lastKnownLeader.isPresent() && lastKnownLeader.get().equals(getLocalNode());

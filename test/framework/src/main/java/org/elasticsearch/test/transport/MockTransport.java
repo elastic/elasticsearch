@@ -91,15 +91,11 @@ public class MockTransport implements Transport, LifecycleComponent {
         final TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
         if (transportResponseHandler != null) {
             final TransportResponse deliveredResponse;
-            if (rarely()) {
-                deliveredResponse = response;
-            } else {
-                try (BytesStreamOutput output = new BytesStreamOutput()) {
-                    response.writeTo(output);
-                    deliveredResponse = transportResponseHandler.read(output.bytes().streamInput());
-                } catch (IOException | UnsupportedOperationException e) {
-                    throw new AssertionError("failed to serialize/deserialize response " + response, e);
-                }
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                response.writeTo(output);
+                deliveredResponse = transportResponseHandler.read(output.bytes().streamInput());
+            } catch (IOException | UnsupportedOperationException e) {
+                throw new AssertionError("failed to serialize/deserialize response " + response, e);
             }
             transportResponseHandler.handleResponse(deliveredResponse);
         }

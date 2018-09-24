@@ -184,7 +184,7 @@ public class TranslogTests extends ESTestCase {
         markCurrentGenAsCommitted(translog);
     }
 
-    private void commit(Translog translog, long genToRetain, long genToCommit) throws IOException {
+    private long commit(Translog translog, long genToRetain, long genToCommit) throws IOException {
         final TranslogDeletionPolicy deletionPolicy = translog.getDeletionPolicy();
         deletionPolicy.setTranslogGenerationOfLastCommit(genToCommit);
         deletionPolicy.setMinTranslogGenerationForRecovery(genToRetain);
@@ -192,6 +192,7 @@ public class TranslogTests extends ESTestCase {
         translog.trimUnreferencedReaders();
         assertThat(minGenRequired, equalTo(translog.getMinFileGeneration()));
         assertFilePresences(translog);
+        return minGenRequired;
     }
 
     @Override
@@ -3052,6 +3053,31 @@ public class TranslogTests extends ESTestCase {
         expectThrows(AssertionError.class, () -> misbehavingTranslog.callCloseUsingIOUtils());
         expectThrows(AssertionError.class, () -> misbehavingTranslog.callCloseUsingIOUtilsWithExceptionHandling());
         misbehavingTranslog.callCloseOnTragicEvent();
+    }
+
+    public void testMaxSeqNo() throws Exception {
+        Map<Long, Long> maxSeqNoPerGeneration = new HashMap<>();
+        for (int iterations = between(1, 10), i = 0; i < iterations; i++) {
+            long startSeqNo = randomLongBetween(0, Integer.MAX_VALUE);
+            List<Long> seqNos = LongStream.range(startSeqNo, startSeqNo + randomInt(100)).boxed().collect(Collectors.toList());
+            Randomness.shuffle(seqNos);
+            for (long seqNo : seqNos) {
+                if (frequently()) {
+                    translog.add(new Translog.Index("test", "id", seqNo, primaryTerm.get(), new byte[]{1}));
+                    maxSeqNoPerGeneration.compute(translog.currentFileGeneration(),
+                        (key, existing) -> existing == null ? seqNo : Math.max(existing, seqNo));
+                }
+            }
+            translog.rollGeneration();
+        }
+        translog.sync();
+        assertThat(translog.getMaxSeqNo(),
+            equalTo(maxSeqNoPerGeneration.isEmpty() ? SequenceNumbers.NO_OPS_PERFORMED : Collections.max(maxSeqNoPerGeneration.values())));
+        long minRetainedGen = commit(translog, randomLongBetween(1, translog.currentFileGeneration()), translog.currentFileGeneration());
+        long expectedMaxSeqNo = maxSeqNoPerGeneration.entrySet().stream()
+            .filter(e -> e.getKey() >= minRetainedGen).mapToLong(e -> e.getValue())
+            .max().orElse(SequenceNumbers.NO_OPS_PERFORMED);
+        assertThat(translog.getMaxSeqNo(), equalTo(expectedMaxSeqNo));
     }
 
     static class SortedSnapshot implements Translog.Snapshot {

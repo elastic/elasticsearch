@@ -1,0 +1,66 @@
+[[java-rest-high-x-pack-ml-stop-datafeed]]
+=== Stop Datafeed API
+
+The Stop Datafeed API provides the ability to stop a {ml} datafeed in the cluster.
+It accepts a `StopDatafeedRequest` object and responds
+with a `StopDatafeedResponse` object.
+
+[[java-rest-high-x-pack-ml-stop-datafeed-request]]
+==== Stop Datafeed Request
+
+A `StopDatafeedRequest` object is created referencing any number of non-null `datafeedId` entries.
+Wildcards and `_all` are also accepted.
+All other fields are optional for the request.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-stop-datafeed-request]
+--------------------------------------------------
+<1> Constructing a new request referencing existing `datafeedId` entries.
+
+==== Optional Arguments
+
+The following arguments are optional.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-stop-datafeed-request-options]
+--------------------------------------------------
+<1> Whether to ignore if a wildcard expression matches no datafeeds. (This includes `_all` string)
+<2> If true, the datafeed is stopped forcefully.
+<3> Controls the amount of time to wait until a datafeed stops. The default value is 20 seconds.
+
+[[java-rest-high-x-pack-ml-stop-datafeed-execution]]
+==== Execution
+
+The request can be executed through the `MachineLearningClient` contained
+in the `RestHighLevelClient` object, accessed via the `machineLearningClient()` method.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-stop-datafeed-execute]
+--------------------------------------------------
+<1> Did the datafeed successfully stop?
+
+[[java-rest-high-x-pack-ml-stop-datafeed-execution-async]]
+==== Asynchronous Execution
+
+The request can also be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-stop-datafeed-execute-async]
+--------------------------------------------------
+<1> The `StopDatafeedRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The method does not block and returns immediately. The passed `ActionListener` is used
+to notify the caller of completion. A typical `ActionListener` for `StopDatafeedResponse` may
+look like
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-stop-datafeed-listener]
+--------------------------------------------------
+<1> `onResponse` is called back when the action is completed successfully
+<2> `onFailure` is called back when some unexpected error occurs

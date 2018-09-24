@@ -290,7 +290,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                     .startObject()
                         .startObject("script")
                             .field("lang", "painless")
-                            .field("code", "ctx._source.field += params.count")
+                            .field("source", "ctx._source.field += params.count")
                         .endObject()
                     .endObject()));
             Response response = client().performRequest(request);

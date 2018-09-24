@@ -21,11 +21,8 @@ package org.elasticsearch.client.rollup;
 
 import org.elasticsearch.client.rollup.job.config.RollupJobConfig;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -37,22 +34,23 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static java.util.Collections.unmodifiableList;
+import static java.util.stream.Collectors.joining;
 
 /**
  * Response from rollup's get jobs api.
  */
-public class GetRollupJobResponse implements ToXContentObject {
-    private static final ParseField JOBS = new ParseField("jobs");
-    private static final ParseField CONFIG = new ParseField("config");
-    private static final ParseField STATS = new ParseField("stats");
-    private static final ParseField STATUS = new ParseField("status");
-    private static ParseField NUM_PAGES = new ParseField("pages_processed");
-    private static ParseField NUM_INPUT_DOCUMENTS = new ParseField("documents_processed");
-    private static ParseField NUM_OUTPUT_DOCUMENTS = new ParseField("rollups_indexed");
-    private static ParseField NUM_INVOCATIONS = new ParseField("trigger_count");
-    private static final ParseField STATE = new ParseField("job_state");
-    private static final ParseField CURRENT_POSITION = new ParseField("current_position");
-    private static final ParseField UPGRADED_DOC_ID = new ParseField("upgraded_doc_id");
+public class GetRollupJobResponse {
+    static final ParseField JOBS = new ParseField("jobs");
+    static final ParseField CONFIG = new ParseField("config");
+    static final ParseField STATS = new ParseField("stats");
+    static final ParseField STATUS = new ParseField("status");
+    static final ParseField NUM_PAGES = new ParseField("pages_processed");
+    static final ParseField NUM_INPUT_DOCUMENTS = new ParseField("documents_processed");
+    static final ParseField NUM_OUTPUT_DOCUMENTS = new ParseField("rollups_indexed");
+    static final ParseField NUM_INVOCATIONS = new ParseField("trigger_count");
+    static final ParseField STATE = new ParseField("job_state");
+    static final ParseField CURRENT_POSITION = new ParseField("current_position");
+    static final ParseField UPGRADED_DOC_ID = new ParseField("upgraded_doc_id");
 
     private List<JobWrapper> jobs;
 
@@ -84,21 +82,6 @@ public class GetRollupJobResponse implements ToXContentObject {
         return Objects.hash(jobs);
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-
-        // XContentBuilder does not support passing the params object for Iterables
-        builder.field(JOBS.getPreferredName());
-        builder.startArray();
-        for (JobWrapper job : jobs) {
-            job.toXContent(builder, params);
-        }
-        builder.endArray();
-        builder.endObject();
-        return builder;
-    }
-
     private static final ConstructingObjectParser<GetRollupJobResponse, Void> PARSER = new ConstructingObjectParser<>(
             "get_rollup_job_response",
             true,
@@ -117,10 +100,10 @@ public class GetRollupJobResponse implements ToXContentObject {
 
     @Override
     public final String toString() {
-        return Strings.toString(this);
+        return "{jobs=" + jobs.stream().map(Object::toString).collect(joining("\n")) + "\n}";
     }
 
-    public static class JobWrapper implements ToXContentObject {
+    public static class JobWrapper {
         private final RollupJobConfig job;
         private final RollupIndexerJobStats stats;
         private final RollupJobStatus status;
@@ -150,17 +133,6 @@ public class GetRollupJobResponse implements ToXContentObject {
          */
         public RollupJobStatus getStatus() {
             return status;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(CONFIG.getPreferredName());
-            job.toXContent(builder, params);
-            builder.field(STATUS.getPreferredName(), status);
-            builder.field(STATS.getPreferredName(), stats, params);
-            builder.endObject();
-            return builder;
         }
 
         private static final ConstructingObjectParser<JobWrapper, Void> PARSER = new ConstructingObjectParser<>(
@@ -194,7 +166,9 @@ public class GetRollupJobResponse implements ToXContentObject {
 
         @Override
         public final String toString() {
-            return Strings.toString(this);
+            return "{job=" + job
+                    + ", stats=" + stats
+                    + ", status=" + status + "}";
         }
     }
 
@@ -202,7 +176,7 @@ public class GetRollupJobResponse implements ToXContentObject {
      * The Rollup specialization of stats for the AsyncTwoPhaseIndexer.
      * Note: instead of `documents_indexed`, this XContent show `rollups_indexed`
      */
-    public static class RollupIndexerJobStats implements ToXContentObject {
+    public static class RollupIndexerJobStats {
         private final long numPages;
         private final long numInputDocuments;
         private final long numOuputDocuments;
@@ -243,17 +217,6 @@ public class GetRollupJobResponse implements ToXContentObject {
             return numOuputDocuments;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(NUM_PAGES.getPreferredName(), numPages);
-            builder.field(NUM_INPUT_DOCUMENTS.getPreferredName(), numInputDocuments);
-            builder.field(NUM_OUTPUT_DOCUMENTS.getPreferredName(), numOuputDocuments);
-            builder.field(NUM_INVOCATIONS.getPreferredName(), numInvocations);
-            builder.endObject();
-            return builder;
-        }
-
         private static final ConstructingObjectParser<RollupIndexerJobStats, Void> PARSER = new ConstructingObjectParser<>(
                 STATS.getPreferredName(),
                 true,
@@ -283,14 +246,17 @@ public class GetRollupJobResponse implements ToXContentObject {
 
         @Override
         public final String toString() {
-            return Strings.toString(this);
+            return "{pages=" + numPages
+                    + ", input_docs=" + numInputDocuments
+                    + ", output_docs=" + numOuputDocuments
+                    + ", invocations=" + numInvocations + "}";
         }
     }
 
     /**
      * Status of the rollup job.
      */
-    public static class RollupJobStatus implements ToXContentObject {
+    public static class RollupJobStatus {
         private final IndexerState state;
         private final Map<String, Object> currentPosition;
         private final boolean upgradedDocumentId;
@@ -319,18 +285,6 @@ public class GetRollupJobResponse implements ToXContentObject {
          */
         public boolean getUpgradedDocumentId() {
             return upgradedDocumentId;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(STATE.getPreferredName(), state.value());
-            if (currentPosition != null) {
-                builder.field(CURRENT_POSITION.getPreferredName(), currentPosition);
-            }
-            builder.field(UPGRADED_DOC_ID.getPreferredName(), upgradedDocumentId);
-            builder.endObject();
-            return builder;
         }
 
         private static final ConstructingObjectParser<RollupJobStatus, Void> PARSER = new ConstructingObjectParser<>(
@@ -376,7 +330,9 @@ public class GetRollupJobResponse implements ToXContentObject {
 
         @Override
         public final String toString() {
-            return Strings.toString(this);
+            return "{stats=" + state
+                    + ", currentPosition=" + currentPosition
+                    + ", upgradedDocumentId=" + upgradedDocumentId + "}";
         }
     }
 

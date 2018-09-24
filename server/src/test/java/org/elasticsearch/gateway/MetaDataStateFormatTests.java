@@ -59,6 +59,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -291,6 +292,96 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
     }
 
+    private DummyState writeAndReadStateSuccessfully(Format format, AtomicBoolean injectFailures, Path... paths) throws IOException {
+        injectFailures.set(false);
+        DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(), randomDouble(), randomBoolean());
+        format.write(state, paths);
+        assertEquals(state, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths));
+        return state;
+    }
+
+
+    public void testFailWriteAndReadPreviousState() throws IOException {
+        Path path = createTempDir();
+        AtomicBoolean injectFailures = new AtomicBoolean();
+        Format format = new Format("foo-", injectFailures, "createOutput", "sync", "rename");
+
+        DummyState initialState = writeAndReadStateSuccessfully(format, injectFailures, path);
+
+        for (int i=0; i<randomIntBetween(1,5); i++) {
+            injectFailures.set(true);
+            DummyState newState = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(), randomDouble(), randomBoolean());
+            expectThrows(IOException.class, () -> format.write(newState, path));
+            injectFailures.set(false);
+            assertEquals(initialState, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, path));
+        }
+
+        writeAndReadStateSuccessfully(format, injectFailures, path);
+    }
+
+
+    public void testFailWriteAndReadAnyState() throws IOException {
+        Path path = createTempDir();
+        AtomicBoolean injectFailures = new AtomicBoolean();
+        Format format = new Format("foo-", injectFailures, "syncMetaData");
+        Set<DummyState> possibleStates = new HashSet<>();
+
+        DummyState initialState = writeAndReadStateSuccessfully(format, injectFailures, path);
+        possibleStates.add(initialState);
+
+        for (int i=0; i<randomIntBetween(1,5); i++) {
+            injectFailures.set(true);
+            DummyState newState = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(), randomDouble(), randomBoolean());
+            possibleStates.add(newState);
+            expectThrows(IOException.class, () -> format.write(newState, path));
+            injectFailures.set(false);
+            assertTrue(possibleStates.contains(format.loadLatestState(logger, NamedXContentRegistry.EMPTY, path)));
+        }
+
+        writeAndReadStateSuccessfully(format, injectFailures, path);
+    }
+
+    public void testFailDeleteTmpStateFile() throws IOException {
+        Path path = createTempDir();
+        AtomicBoolean injectFailures = new AtomicBoolean();
+        Format format = new Format("foo-", injectFailures, "deleteFile");
+
+        writeAndReadStateSuccessfully(format, injectFailures, path);
+
+        for (int i=0; i<randomIntBetween(1,5); i++) {
+            injectFailures.set(true);
+            DummyState newState = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(), randomDouble(), randomBoolean());
+            expectThrows(IOException.class, () -> format.write(newState, path));
+            injectFailures.set(false);
+            assertEquals(newState, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, path));
+        }
+
+        writeAndReadStateSuccessfully(format, injectFailures, path);
+    }
+
+    public void testFailCopyStateToExtraLocation() throws IOException {
+        Path paths[] = new Path[randomIntBetween(2,5)];
+        for (int i=0; i<paths.length; i++){
+            paths[i] = createTempDir();
+        }
+
+        AtomicBoolean injectFailures = new AtomicBoolean();
+        Format format = new Format("foo-", injectFailures, "openInput");
+
+        writeAndReadStateSuccessfully(format, injectFailures, paths);
+
+        for (int i=0; i<randomIntBetween(1,5); i++) {
+            injectFailures.set(true);
+            DummyState newState = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(), randomDouble(), randomBoolean());
+            expectThrows(IOException.class, () -> format.write(newState, paths));
+            injectFailures.set(false);
+            assertEquals(newState, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths));
+        }
+
+        writeAndReadStateSuccessfully(format, injectFailures, paths);
+    }
+
+
     private static MetaDataStateFormat<MetaData> metaDataFormat() {
         return new MetaDataStateFormat<MetaData>(MetaData.GLOBAL_STATE_FILE_PREFIX) {
             @Override
@@ -329,8 +420,31 @@ public class MetaDataStateFormatTests extends ESTestCase {
 
     private class Format extends MetaDataStateFormat<DummyState> {
 
+
+        private final AtomicBoolean injectFailure;
+        private final String[] failureMethods;
+
+        /**
+         * Constructs a MetaDataStateFormat object for storing/retrieving DummyState with no failure injection
+         */
         Format(String prefix) {
             super(prefix);
+            this.injectFailure = new AtomicBoolean(false);
+            this.failureMethods = new String[]{};
+        }
+
+        /**
+         * Constructs a MetaDataStateFormat object for storing/retrieving DummyState
+         *
+         * @param prefix - state file prefix
+         * @param injectFailure - whether to inject failures in Directory method calls, returned by MetaDataStateFormat.newDirectoryMethod
+         * @param failureMethods - one of these method calls will fail on Directory object if injectFailure is set to true.
+         *                       Method that will fail is randomly selected on each newDirectory method call.
+         */
+        Format(String prefix, AtomicBoolean injectFailure, String... failureMethods) {
+            super(prefix);
+            this.injectFailure = injectFailure;
+            this.failureMethods = failureMethods;
         }
 
         @Override
@@ -344,8 +458,22 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
 
         @Override
-        protected Directory newDirectory(Path dir) throws IOException {
-            MockDirectoryWrapper  mock = new MockDirectoryWrapper(random(), super.newDirectory(dir));
+        protected Directory newDirectory(Path dir) {
+            MockDirectoryWrapper mock = newMockFSDirectory(dir);
+            if (injectFailure.get()) {
+                String failMethod = randomFrom(failureMethods);
+                MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
+                    @Override
+                    public void eval(MockDirectoryWrapper dir) throws IOException {
+                        for (StackTraceElement e : Thread.currentThread().getStackTrace()) {
+                                if (failMethod.equals(e.getMethodName())) {
+                                    throw new MockDirectoryWrapper.FakeIOException();
+                                }
+                        }
+                    }
+                };
+                mock.failOn(fail);
+            }
             closeAfterSuite(mock);
             return mock;
         }

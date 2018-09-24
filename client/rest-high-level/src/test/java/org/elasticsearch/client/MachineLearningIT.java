@@ -19,6 +19,7 @@
 package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -425,6 +426,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertTrue(response.isAcknowledged());
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/33966")
     public void testStartDatafeed() throws Exception {
         String jobId = "test-start-datafeed";
         String indexName = "start_data_1";

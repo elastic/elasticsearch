@@ -1057,7 +1057,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
 
         @Override
         public String toString() {
-            return "TimeoutHandler for [" + requestId + "][" + action + "]";
+            return "timeout handler for [" + requestId + "][" + action + "]";
         }
     }
 

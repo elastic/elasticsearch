@@ -158,7 +158,7 @@ public class CoordinatorTests extends ESTestCase {
 
                 final String nodeId = clusterNode.getId();
                 assertThat(nodeId + " has the same term as the leader", clusterNode.coordinator.getCurrentTerm(), is(leaderTerm));
-                assertTrue("leader should have received a vote from " + nodeId,
+                assertTrue("leader " + leader.getId() + " should have received a vote from " + nodeId,
                     leader.coordinator.hasJoinVoteFrom(clusterNode.getLocalNode()));
 
                 assertThat(nodeId + " is a follower", clusterNode.coordinator.getMode(), is(FOLLOWER));

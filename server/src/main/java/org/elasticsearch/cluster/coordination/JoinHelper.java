@@ -202,7 +202,6 @@ public class JoinHelper extends AbstractComponent {
         void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback);
 
         default void close(Mode newMode) {
-
         }
     }
 
@@ -217,6 +216,19 @@ public class JoinHelper extends AbstractComponent {
         @Override
         public String toString() {
             return "LeaderJoinAccumulator";
+        }
+    }
+
+    static class InitialJoinAccumulator implements JoinAccumulator {
+        @Override
+        public void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback) {
+            assert false : "unexpected join from " + sender + " during initialisation";
+            joinCallback.onFailure(new CoordinationStateRejectedException("join target is not initialised yet"));
+        }
+
+        @Override
+        public String toString() {
+            return "InitialJoinAccumulator";
         }
     }
 
@@ -265,13 +277,14 @@ public class JoinHelper extends AbstractComponent {
                 });
                 masterService.submitStateUpdateTasks(stateUpdateSource, pendingAsTasks, ClusterStateTaskConfig.build(Priority.URGENT),
                     joinTaskExecutor);
-            } else if (newMode == Mode.FOLLOWER) {
+            } else {
+                assert newMode == Mode.FOLLOWER : newMode;
                 joinRequestAccumulator.values().forEach(joinCallback -> joinCallback.onFailure(
                     new CoordinationStateRejectedException("became follower")));
-            } else {
-                assert newMode == Mode.CANDIDATE;
-                assert joinRequestAccumulator.isEmpty() : joinRequestAccumulator.keySet();
             }
+
+            // CandidateJoinAccumulator is only closed when becoming leader or follower, otherwise it accumulates all joins received
+            // regardless of term.
         }
 
         @Override

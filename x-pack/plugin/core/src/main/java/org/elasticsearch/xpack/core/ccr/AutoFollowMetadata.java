@@ -79,16 +79,25 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
     public AutoFollowMetadata(Map<String, AutoFollowPattern> patterns,
                               Map<String, List<String>> followedLeaderIndexUUIDs,
                               Map<String, Map<String, String>> headers) {
-        this.patterns = patterns;
-        this.followedLeaderIndexUUIDs = followedLeaderIndexUUIDs;
-        this.headers = Collections.unmodifiableMap(headers);
+        this.patterns = Collections.unmodifiableMap(patterns);
+        final Map<String, List<String>> mutableIndexUUIDs = new HashMap<>(followedLeaderIndexUUIDs.size());
+        for (Map.Entry<String, List<String>> entry : followedLeaderIndexUUIDs.entrySet()) {
+            mutableIndexUUIDs.put(entry.getKey(), Collections.unmodifiableList(entry.getValue()));
+        }
+        this.followedLeaderIndexUUIDs = Collections.unmodifiableMap(mutableIndexUUIDs);
+        final Map<String, Map<String, String>> mutableHeaders = new HashMap<>(headers.size());
+        for (Map.Entry<String, Map<String, String>> entry : headers.entrySet()) {
+            mutableHeaders.put(entry.getKey(), Collections.unmodifiableMap(entry.getValue()));
+        }
+        this.headers = Collections.unmodifiableMap(mutableHeaders);
     }
 
     public AutoFollowMetadata(StreamInput in) throws IOException {
-        patterns = in.readMap(StreamInput::readString, AutoFollowPattern::new);
-        followedLeaderIndexUUIDs = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
-        headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString,
-            valIn -> Collections.unmodifiableMap(valIn.readMap(StreamInput::readString, StreamInput::readString))));
+        this(
+            in.readMap(StreamInput::readString, AutoFollowPattern::new),
+            in.readMapOfLists(StreamInput::readString, StreamInput::readString),
+            in.readMap(StreamInput::readString, valIn -> valIn.readMap(StreamInput::readString, StreamInput::readString))
+        );
     }
 
     public Map<String, AutoFollowPattern> getPatterns() {

@@ -368,18 +368,23 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                                                                                       Index indexToFollow) {
             return currentState -> {
                 AutoFollowMetadata currentAutoFollowMetadata = currentState.metaData().custom(AutoFollowMetadata.TYPE);
-
-                Map<String, List<String>> newFollowedIndexUUIDS =
-                    new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
-                newFollowedIndexUUIDS.get(clusterAlias).add(indexToFollow.getUUID());
-
-                ClusterState.Builder newState = ClusterState.builder(currentState);
-                AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(currentAutoFollowMetadata.getPatterns(),
+                final Map<String, List<String>> newFollowedIndexUUIDS =
+                    new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs().size());
+                for (Map.Entry<String, List<String>> entry : currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs().entrySet()) {
+                    if (entry.getKey().equals(clusterAlias)) {
+                        final ArrayList<String> newIndexUUIDs = new ArrayList<>(entry.getValue());
+                        newIndexUUIDs.add(indexToFollow.getUUID());
+                        newFollowedIndexUUIDS.put(entry.getKey(), Collections.unmodifiableList(newIndexUUIDs));
+                    } else {
+                        newFollowedIndexUUIDS.put(entry.getKey(), entry.getValue());
+                    }
+                }
+                final AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(currentAutoFollowMetadata.getPatterns(),
                     newFollowedIndexUUIDS, currentAutoFollowMetadata.getHeaders());
-                newState.metaData(MetaData.builder(currentState.getMetaData())
-                    .putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata)
-                    .build());
-                return newState.build();
+                return ClusterState.builder(currentState)
+                    .metaData(MetaData.builder(currentState.getMetaData())
+                        .putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata).build())
+                    .build();
             };
         }
 

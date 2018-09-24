@@ -181,7 +181,6 @@ public class MockTransport implements Transport, LifecycleComponent {
     }
 
     protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
-
     }
 
     protected boolean nodeConnected(DiscoveryNode discoveryNode) {

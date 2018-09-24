@@ -20,7 +20,9 @@ package org.elasticsearch.test.disruption;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RequestHandlerRegistry;
@@ -29,7 +31,10 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseOptions;
 
+import java.io.IOException;
 import java.util.Optional;
+
+import static org.elasticsearch.test.ESTestCase.copyWriteable;
 
 public abstract class DisruptableMockTransport extends MockTransport {
     private final Logger logger;
@@ -68,7 +73,6 @@ public abstract class DisruptableMockTransport extends MockTransport {
     protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode destination) {
 
         assert destination.equals(getLocalNode()) == false : "non-local message from " + getLocalNode() + " to itself";
-        super.onSendRequest(requestId, action, request, destination);
 
         final String requestDescription = new ParameterizedMessage("[{}][{}] from {} to {}",
             action, requestId, getLocalNode(), destination).getFormattedMessage();
@@ -162,8 +166,15 @@ public abstract class DisruptableMockTransport extends MockTransport {
                             }
                         };
 
+                        final TransportRequest copiedRequest;
                         try {
-                            requestHandler.processMessageReceived(request, transportChannel);
+                            copiedRequest = copyWriteable(request, writeableRegistry(), requestHandler::newRequest);
+                        } catch (IOException e) {
+                            throw new AssertionError("exception de/serializing request", e);
+                        }
+
+                        try {
+                            requestHandler.processMessageReceived(copiedRequest, transportChannel);
                         } catch (Exception e) {
                             try {
                                 transportChannel.sendResponse(e);
@@ -179,6 +190,10 @@ public abstract class DisruptableMockTransport extends MockTransport {
                 return requestDescription;
             }
         });
+    }
+
+    private NamedWriteableRegistry writeableRegistry() {
+        return new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
     }
 
     public enum ConnectionStatus {

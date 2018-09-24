@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.monitoring.collector.ccr;
 
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -73,7 +72,6 @@ public class CcrStatsCollector extends Collector {
         try (ThreadContext.StoredContext ignore = stashWithOrigin(threadContext, MONITORING_ORIGIN)) {
             final CcrStatsAction.StatsRequest request = new CcrStatsAction.StatsRequest();
             request.setIndices(getCollectionIndices());
-            request.setIndicesOptions(IndicesOptions.lenientExpandOpen());
             final CcrStatsAction.StatsResponses responses = ccrClient.stats(request).actionGet(getCollectionTimeout());
 
             final long timestamp = timestamp();

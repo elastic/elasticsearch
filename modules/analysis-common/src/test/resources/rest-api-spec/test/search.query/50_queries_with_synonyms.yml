@@ -207,3 +207,101 @@
   - match: { hits.hits.1._id: "1" }
   - match: { hits.hits.2._id: "2" }
 
+---
+"Test match query with synonyms - see #3881 for extensive description of the issue":
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  synonym:
+                    type: synonym
+                    synonyms: [ "quick,fast" ]
+                analyzer:
+                  index:
+                    type: custom
+                    tokenizer: standard
+                    filter: lowercase
+                  search:
+                    type: custom
+                    tokenizer: standard
+                    filter: [ lowercase, synonym ]
+            mappings:
+              test:
+                properties:
+                  text:
+                    type: text
+                    analyzer: index
+                    search_analyzer: search
+
+  - do:
+      index:
+          index: test
+          type: test
+          id: 1
+          body:
+            text: quick brown fox
+          refresh: true
+
+  - do:
+      search:
+        body:
+          query:
+            match:
+              text:
+                query: quick
+                operator: and
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        body:
+          query:
+            match:
+              text:
+                query: quick brown
+                operator: and
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        body:
+          query:
+            match:
+              text:
+                query: fast
+                operator: and
+  - match: { hits.total: 1 }
+
+  - do:
+      index:
+          index: test
+          type: test
+          id: 2
+          body:
+            text: fast brown fox
+          refresh: true
+
+  - do:
+      search:
+        body:
+          query:
+            match:
+              text:
+                query: quick
+                operator: and
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        body:
+          query:
+            match:
+              text:
+                query: quick brown
+                operator: and
+  - match: { hits.total: 2 }
+
+

@@ -1442,38 +1442,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch("test").setQuery(queryStringQuery("/value[01]/").field("field1").field("field2")).get(), 1);
         assertHitCount(client().prepareSearch("test").setQuery(queryStringQuery("field\\*:/value[01]/")).get(), 1);
     }
-
-    // see #3881 - for extensive description of the issue
-    public void testMatchQueryWithSynonyms() throws IOException {
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
-                .put(indexSettings())
-                .put("index.analysis.analyzer.index.type", "custom")
-                .put("index.analysis.analyzer.index.tokenizer", "standard")
-                .put("index.analysis.analyzer.index.filter", "lowercase")
-                .put("index.analysis.analyzer.search.type", "custom")
-                .put("index.analysis.analyzer.search.tokenizer", "standard")
-                .putList("index.analysis.analyzer.search.filter", "lowercase", "synonym")
-                .put("index.analysis.filter.synonym.type", "synonym")
-                .putList("index.analysis.filter.synonym.synonyms", "fast, quick"));
-        assertAcked(builder.addMapping("test", "text", "type=text,analyzer=index,search_analyzer=search"));
-
-        client().prepareIndex("test", "test", "1").setSource("text", "quick brown fox").get();
-        refresh();
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "quick").operator(Operator.AND)).get();
-        assertHitCount(searchResponse, 1);
-        searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "quick brown").operator(Operator.AND)).get();
-        assertHitCount(searchResponse, 1);
-        searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "fast").operator(Operator.AND)).get();
-        assertHitCount(searchResponse, 1);
-
-        client().prepareIndex("test", "test", "2").setSource("text", "fast brown fox").get();
-        refresh();
-        searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "quick").operator(Operator.AND)).get();
-        assertHitCount(searchResponse, 2);
-        searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "quick brown").operator(Operator.AND)).get();
-        assertHitCount(searchResponse, 2);
-    }
-
+    
     // see #3797
     public void testMultiMatchLenientIssue3797() {
         createIndex("test");

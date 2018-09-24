@@ -975,10 +975,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::update-by-query-request-conflicts
             request.setConflicts("proceed"); // <1>
             // end::update-by-query-request-conflicts
-            // tag::update-by-query-request-typeOrQuery
-            request.setDocTypes("doc"); // <1>
-            request.setQuery(new TermQueryBuilder("user", "kimchy")); // <2>
-            // end::update-by-query-request-typeOrQuery
+            // tag::update-by-query-request-query
+            request.setQuery(new TermQueryBuilder("user", "kimchy")); // <1>
+            // end::update-by-query-request-query
             // tag::update-by-query-request-size
             request.setSize(10); // <1>
             // end::update-by-query-request-size
@@ -1093,10 +1092,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::delete-by-query-request-conflicts
             request.setConflicts("proceed"); // <1>
             // end::delete-by-query-request-conflicts
-            // tag::delete-by-query-request-typeOrQuery
-            request.setDocTypes("doc"); // <1>
-            request.setQuery(new TermQueryBuilder("user", "kimchy")); // <2>
-            // end::delete-by-query-request-typeOrQuery
+            // tag::delete-by-query-request-query
+            request.setQuery(new TermQueryBuilder("user", "kimchy")); // <1>
+            // end::delete-by-query-request-query
             // tag::delete-by-query-request-size
             request.setSize(10); // <1>
             // end::delete-by-query-request-size

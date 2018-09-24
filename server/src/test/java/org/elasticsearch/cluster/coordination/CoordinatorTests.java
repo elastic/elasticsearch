@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.coordination.CoordinationStateTests.InMemoryPer
 import org.elasticsearch.cluster.coordination.CoordinatorTests.Cluster.ClusterNode;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
@@ -169,6 +170,8 @@ public class CoordinatorTests extends ESTestCase {
                 = equalTo(Optional.of(leader.coordinator.getLastAcceptedState().getVersion()));
 
             assertThat(leader.coordinator.getLastCommittedState().map(ClusterState::getVersion), isPresentAndEqualToLeaderVersion);
+            assertThat(leader.coordinator.getLastCommittedState().map(ClusterState::getNodes).map(dn -> dn.nodeExists(leader.getId())),
+                equalTo(Optional.of(true)));
 
             for (final ClusterNode clusterNode : clusterNodes) {
                 if (clusterNode == leader) {
@@ -188,6 +191,9 @@ public class CoordinatorTests extends ESTestCase {
                 assertThat(clusterNode.coordinator.getLastCommittedState().map(ClusterState::getNodes).map(dn -> dn.nodeExists(nodeId)),
                     equalTo(Optional.of(true)));
             }
+
+            assertThat(leader.coordinator.getLastCommittedState().map(ClusterState::getNodes).map(DiscoveryNodes::getSize),
+                equalTo(Optional.of(clusterNodes.size())));
         }
 
         ClusterNode getAnyLeader() {

@@ -472,7 +472,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
     }
 
-    private void checkEnabledFieldChange(ObjectMapper mergeWith, Mapper mergeWithMapper, Mapper mergeIntoMapper) {
+    private static void checkEnabledFieldChange(ObjectMapper mergeWith, Mapper mergeWithMapper, Mapper mergeIntoMapper) {
         if (mergeIntoMapper instanceof ObjectMapper && mergeWithMapper instanceof ObjectMapper) {
             final ObjectMapper mergeIntoObjectMapper = (ObjectMapper) mergeIntoMapper;
             final ObjectMapper mergeWithObjectMapper = (ObjectMapper) mergeWithMapper;

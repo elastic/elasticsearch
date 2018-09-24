@@ -14,11 +14,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.get.MultiGetItemResponse;
-import org.elasticsearch.action.get.MultiGetRequest;
-import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -36,9 +31,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -153,7 +146,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                                                                             int fallbackMaxNumberOfOpenJobs,
                                                                             int maxMachineMemoryPercent,
                                                                             Logger logger) {
-        List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(job.getResultsIndexName(), clusterState);
+        String resultsIndexName = job != null ? job.getResultsIndexName() : null;
+        List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(resultsIndexName, clusterState);
         if (unavailableIndices.size() != 0) {
             String reason = "Not opening job [" + jobId + "], because not all primary shards are active for the following indices [" +
                     String.join(",", unavailableIndices) + "]";
@@ -221,7 +215,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             if (persistentTasks != null) {
                 // find all the job tasks assigned to this node
                 Collection<PersistentTasksCustomMetaData.PersistentTask<?>> assignedTasks = persistentTasks.findTasks(
-                        OpenJobAction.TASK_NAME, task -> node.getId().equals(task.getExecutorNode()));
+                        MlTasks.JOB_TASK_NAME, task -> node.getId().equals(task.getExecutorNode()));
                 for (PersistentTasksCustomMetaData.PersistentTask<?> assignedTask : assignedTasks) {
                     JobTaskState jobTaskState = (JobTaskState) assignedTask.getState();
                     JobState jobState;
@@ -371,6 +365,9 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     }
 
     static String[] indicesOfInterest(String resultsIndex) {
+        if (resultsIndex == null) {
+            return new String[]{AnomalyDetectorsIndex.jobStateIndexName(), MlMetaIndex.INDEX_NAME};
+        }
         return new String[]{AnomalyDetectorsIndex.jobStateIndexName(), resultsIndex, MlMetaIndex.INDEX_NAME};
     }
 
@@ -506,11 +503,11 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             // Start job task
             ActionListener<Boolean> assignedMemoryListener = ActionListener.wrap(
                     response -> persistentTasksService.sendStartRequest(MlTasks.jobTaskId(jobParams.getJobId()),
-                            OpenJobAction.TASK_NAME, jobParams, waitForJobToStart),
+                            MlTasks.JOB_TASK_NAME, jobParams, waitForJobToStart),
                     listener::onFailure
             );
 
-
+            // Get the memory used by the open jobs
             ActionListener<PutJobAction.Response> jobUpateListener = ActionListener.wrap(
                     response -> {
                         collectOpenJobsAssignedMemory(state, ActionListener.wrap(
@@ -519,9 +516,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                     },
                     listener::onFailure
             );
-
-
-
 
             // Update established model memory for pre-6.1 jobs that haven't had it set
             // and increase the model memory limit for 6.1 - 6.3 jobs
@@ -710,37 +704,38 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         }
     }
 
-    private void collectOpenJobsAssignedMemory(ClusterState clusterState,
-                                                 ActionListener<Map<String, Long>> listener) {
+    void collectOpenJobsAssignedMemory(ClusterState clusterState,
+                                       ActionListener<Map<String, Long>> listener) {
 
         PersistentTasksCustomMetaData persistentTasksCustomMetaData = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
 
         // Get the ml job tasks excluding CLOSED or FAILED jobs as they don't consume native memory
-        List<PersistentTasksCustomMetaData.PersistentTask<?>> assignedTasks =
-                persistentTasksCustomMetaData.findTasks(OpenJobAction.TASK_NAME, task -> true)
-                .stream().filter(task -> ((JobTaskState) task.getState()).getState().isAnyOf(JobState.CLOSED, JobState.FAILED) == false)
-                .collect(Collectors.toList());
+        List<PersistentTasksCustomMetaData.PersistentTask<?>> assignedTasks = MlTasks.activeJobTasks(persistentTasksCustomMetaData);
 
         List<String> openJobIds = assignedTasks.stream()
                 .map(task -> ((OpenJobAction.JobParams) task.getParams()).getJobId())
                 .collect(Collectors.toList());
 
-        Map<String, Long> nodeToMemoryUsage = new HashMap<>();
         getJobsMemory(openJobIds, ActionListener.wrap(
-                jobMems -> {
-                    assignedTasks.forEach(
-                            task -> {
-                                String jobId = ((OpenJobAction.JobParams) task.getParams()).getJobId();
-                                Long estimatedMemory = jobMems.get(jobId);
-                                if (estimatedMemory != null) {
-                                    nodeToMemoryUsage.merge(task.getExecutorNode(), estimatedMemory,
-                                            (oldValue, newValue) -> oldValue + newValue);
-                                }
-                            }
-                    );
-                },
+                jobsMemory -> listener.onResponse(nodeMemoryUsage(assignedTasks, jobsMemory)),
                 listener::onFailure
         ));
+    }
+
+    static Map<String, Long> nodeMemoryUsage(List<PersistentTasksCustomMetaData.PersistentTask<?>> assignedTasks,
+                                             Map<String, Long> jobsMemory) {
+        Map<String, Long> nodeToMemoryUsage = new HashMap<>();
+        assignedTasks.forEach(
+                task -> {
+                    String jobId = ((OpenJobAction.JobParams) task.getParams()).getJobId();
+                    Long estimatedMemory = jobsMemory.get(jobId);
+                    if (estimatedMemory != null) {
+                        nodeToMemoryUsage.merge(task.getExecutorNode(), estimatedMemory,
+                                (oldValue, newValue) -> oldValue + newValue);
+                    }
+                }
+        );
+        return nodeToMemoryUsage;
     }
 
     private void getJobsMemory(List<String> jobIds, ActionListener<Map<String, Long>> listener) {
@@ -778,7 +773,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
         public OpenJobPersistentTasksExecutor(Settings settings, ClusterService clusterService,
                                               AutodetectProcessManager autodetectProcessManager) {
-            super(settings, OpenJobAction.TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
+            super(settings, MlTasks.JOB_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
             this.autodetectProcessManager = autodetectProcessManager;
             this.fallbackMaxNumberOfOpenJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings);
             this.maxConcurrentJobAllocations = MachineLearning.CONCURRENT_JOB_ALLOCATIONS.get(settings);

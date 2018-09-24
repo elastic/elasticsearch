@@ -22,15 +22,6 @@ public class OpenJobActionRequestTests extends AbstractStreamableXContentTestCas
         if (randomBoolean()) {
             params.setTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
         }
-        if (randomBoolean()) {
-            params.setJob(JobTests.createRandomizedJob());
-        }
-        if (randomBoolean()) {
-            Map<String, Long> map = new HashMap<>();
-            map.put(randomAlphaOfLength(4), randomLong());
-            map.put(randomAlphaOfLength(4), randomLong());
-            params.setNodeAssignedJobMemory(map);
-        }
         return new Request(params);
     }
 

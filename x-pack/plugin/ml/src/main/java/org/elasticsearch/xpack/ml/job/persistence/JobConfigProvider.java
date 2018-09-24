@@ -153,7 +153,8 @@ public class JobConfigProvider extends AbstractComponent {
      *
      * WARNING: errors are silently ignored, if a job is not found a
      * {@code ResourceNotFoundException} is not thrown. Only found
-     * jobs are returned.
+     * jobs are returned, this size of the returned jobs list could
+     * be different to the size of the requested ids list.
      *
      * @param jobIds    The jobs to get
      * @param listener  Jobs listener

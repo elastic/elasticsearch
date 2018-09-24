@@ -26,11 +26,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -38,7 +38,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
 
     public static final OpenJobAction INSTANCE = new OpenJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/open";
-    public static final String TASK_NAME = "xpack/ml/job";
+
 
     private OpenJobAction() {
         super(NAME);
@@ -139,25 +139,16 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
 
         /** TODO Remove in 7.0.0 */
         public static final ParseField IGNORE_DOWNTIME = new ParseField("ignore_downtime");
-        public static final ParseField JOB_MEM_MAP = new ParseField("job_mem");
+        public static final ParseField ASSIGNED_JOBS_MEMORY = new ParseField("assigned_jobs_memory");
 
         public static final ParseField TIMEOUT = new ParseField("timeout");
-        public static ObjectParser<JobParams, Void> PARSER = new ObjectParser<>(TASK_NAME, JobParams::new);
+        public static ObjectParser<JobParams, Void> PARSER = new ObjectParser<>(MlTasks.JOB_TASK_NAME, JobParams::new);
 
         static {
             PARSER.declareString(JobParams::setJobId, Job.ID);
             PARSER.declareBoolean((p, v) -> {}, IGNORE_DOWNTIME);
             PARSER.declareString((params, val) ->
                     params.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
-            PARSER.declareObject(JobParams::setJob, (p, c) -> Job.LENIENT_PARSER.apply(p, c).build(), Job.RESULTS_FIELD);
-            PARSER.declareObject(JobParams::setNodeAssignedJobMemory, (p, c) -> {
-                Map<String, Long> stringLongMap = new HashMap<>();
-                Map<String, Object> unparsedScope = p.map();
-                for (Map.Entry<String, Object> entry : unparsedScope.entrySet()) {
-                    stringLongMap.put(entry.getKey(), (Long)entry.getValue());
-                }
-                return stringLongMap;
-            }, JOB_MEM_MAP);
         }
 
         public static JobParams fromXContent(XContentParser parser) {
@@ -237,7 +228,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
 
         @Override
         public String getWriteableName() {
-            return TASK_NAME;
+            return MlTasks.JOB_TASK_NAME;
         }
 
         @Override
@@ -263,13 +254,8 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
             builder.startObject();
             builder.field(Job.ID.getPreferredName(), jobId);
             builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
-            if (job != null) {
-                builder.field(Job.RESULTS_FIELD.getPreferredName(), job);
-            }
-            if (nodeAssignedJobMemory != null) {
-                builder.field(JOB_MEM_MAP.getPreferredName(), nodeAssignedJobMemory);
-            }
             builder.endObject();
+            // The job and nodeAssignedJobMemory fields are streamed but not persisted
             return builder;
         }
 

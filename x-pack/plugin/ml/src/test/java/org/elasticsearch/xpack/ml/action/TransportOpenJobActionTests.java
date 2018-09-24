@@ -65,6 +65,8 @@ import java.util.TreeMap;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -116,13 +118,10 @@ public class TransportOpenJobActionTests extends ESTestCase {
         PersistentTasksCustomMetaData tasks = tasksBuilder.build();
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
-        MetaData.Builder metaData = MetaData.builder();
-        RoutingTable.Builder routingTable = RoutingTable.builder();
-        addIndices(metaData, routingTable);
         cs.nodes(nodes);
+        MetaData.Builder metaData = MetaData.builder();
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
-        cs.routingTable(routingTable.build());
 
         Job.Builder jobBuilder = buildJobBuilder("job_id4");
         jobBuilder.setJobVersion(Version.CURRENT);
@@ -154,14 +153,10 @@ public class TransportOpenJobActionTests extends ESTestCase {
         PersistentTasksCustomMetaData tasks = tasksBuilder.build();
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
-        MetaData.Builder metaData = MetaData.builder();
-        RoutingTable.Builder routingTable = RoutingTable.builder();
-        addIndices(metaData, routingTable);
-
         cs.nodes(nodes);
+        MetaData.Builder metaData = MetaData.builder();
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
-        cs.routingTable(routingTable.build());
 
         Map<String, Long> nodeAssignedMem = new HashMap<>();
         nodeAssignedMem.put("_node_id1", 205L);
@@ -199,12 +194,9 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         MetaData.Builder metaData = MetaData.builder();
-        RoutingTable.Builder routingTable = RoutingTable.builder();
-        addIndices(metaData, routingTable);
         cs.nodes(nodes);
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
-        cs.routingTable(routingTable.build());
 
         Map<String, Long> nodeAssignedMem = new HashMap<>();
         nodeAssignedMem.put("_node_id1", 0L);
@@ -241,12 +233,9 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         MetaData.Builder metaData = MetaData.builder();
-        RoutingTable.Builder routingTable = RoutingTable.builder();
-        addIndices(metaData, routingTable);
         cs.nodes(nodes);
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
-        cs.routingTable(routingTable.build());
 
         Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id0", new ByteSizeValue(150, ByteSizeUnit.MB)).build(new Date());
 
@@ -271,12 +260,9 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         MetaData.Builder metaData = MetaData.builder();
-        RoutingTable.Builder routingTable = RoutingTable.builder();
-        addIndices(metaData, routingTable);
         cs.nodes(nodes);
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
-        cs.routingTable(routingTable.build());
 
         Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id2", new ByteSizeValue(2, ByteSizeUnit.MB)).build(new Date());
 
@@ -309,9 +295,6 @@ public class TransportOpenJobActionTests extends ESTestCase {
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         csBuilder.nodes(nodes);
         MetaData.Builder metaData = MetaData.builder();
-        RoutingTable.Builder routingTable = RoutingTable.builder();
-        addIndices(metaData, routingTable);
-        csBuilder.routingTable(routingTable.build());
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         csBuilder.metaData(metaData);
 
@@ -387,9 +370,6 @@ public class TransportOpenJobActionTests extends ESTestCase {
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         csBuilder.nodes(nodes);
         MetaData.Builder metaData = MetaData.builder();
-        RoutingTable.Builder routingTable = RoutingTable.builder();
-        addIndices(metaData, routingTable);
-        csBuilder.routingTable(routingTable.build());
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         csBuilder.metaData(metaData);
 
@@ -434,8 +414,6 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         MetaData.Builder metaData = MetaData.builder();
-        RoutingTable.Builder routingTable = RoutingTable.builder();
-        addIndices(metaData, routingTable);
 
         Job job = mock(Job.class);
         when(job.getId()).thenReturn("incompatible_type_job");
@@ -446,7 +424,6 @@ public class TransportOpenJobActionTests extends ESTestCase {
         cs.nodes(nodes);
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
-        cs.routingTable(routingTable.build());
         Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("incompatible_type_job", job, Collections.emptyMap(),
                 cs.build(), 2, 10, 30, logger);
         assertThat(result.getExplanation(), containsString("because this node does not support jobs of type [incompatible_type]"));
@@ -469,12 +446,9 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         MetaData.Builder metaData = MetaData.builder();
-        RoutingTable.Builder routingTable = RoutingTable.builder();
-        addIndices(metaData, routingTable);
         cs.nodes(nodes);
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
-        cs.routingTable(routingTable.build());
 
         Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id7", new ByteSizeValue(2, ByteSizeUnit.MB)).build(new Date());
 
@@ -500,12 +474,9 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         MetaData.Builder metaData = MetaData.builder();
-        RoutingTable.Builder routingTable = RoutingTable.builder();
-        addIndices(metaData, routingTable);
         cs.nodes(nodes);
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
-        cs.routingTable(routingTable.build());
 
         Job job = jobWithRules("job_with_rules");
         Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_with_rules", job, Collections.emptyMap(), cs.build(),
@@ -531,12 +502,9 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         MetaData.Builder metaData = MetaData.builder();
-        RoutingTable.Builder routingTable = RoutingTable.builder();
-        addIndices(metaData, routingTable);
         cs.nodes(nodes);
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
-        cs.routingTable(routingTable.build());
 
         Job job = jobWithRules("job_with_rules");
         Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_with_rules", job, Collections.emptyMap(), cs.build(),
@@ -698,8 +666,41 @@ public class TransportOpenJobActionTests extends ESTestCase {
         assertThat(OpenJobAction.JobTaskMatcher.match(jobTask2, "ml-2"), is(true));
     }
 
+    public void testNodeMemoryUsage() {
+
+        String job1Id = "job1";
+        String job2Id = "job2";
+        String job3Id = "job3";
+        String node1Id = "node_1";
+        String node2Id = "node_2";
+
+        long allocationId = 1L;
+        List<PersistentTasksCustomMetaData.PersistentTask<?>> tasks = new ArrayList<>();
+        tasks.add(new PersistentTasksCustomMetaData.PersistentTask<>(MlTasks.jobTaskId(job1Id), MlTasks.JOB_TASK_NAME,
+                new OpenJobAction.JobParams(job1Id), allocationId++, new Assignment(node1Id, "test assignment")));
+        tasks.add(new PersistentTasksCustomMetaData.PersistentTask<>(MlTasks.jobTaskId(job2Id), MlTasks.JOB_TASK_NAME,
+                new OpenJobAction.JobParams(job2Id), allocationId++, new Assignment(node1Id, "test assignment")));
+
+        Map<String, Long> jobMemory = new HashMap<>();
+        jobMemory.put(job1Id, 102L);
+        jobMemory.put(job2Id, 44L);
+
+        Map<String, Long> memoryByNode = TransportOpenJobAction.nodeMemoryUsage(tasks, jobMemory);
+        assertThat(memoryByNode.keySet(), hasSize(1));
+        assertThat(memoryByNode.get(node1Id), equalTo(Long.valueOf(146L)));
+
+        tasks.add(new PersistentTasksCustomMetaData.PersistentTask<>(MlTasks.jobTaskId(job3Id), MlTasks.JOB_TASK_NAME,
+                new OpenJobAction.JobParams(job3Id), allocationId++, new Assignment(node2Id, "test assignment")));
+
+        jobMemory.put(job3Id, 12L);
+        memoryByNode = TransportOpenJobAction.nodeMemoryUsage(tasks, jobMemory);
+        assertThat(memoryByNode.keySet(), hasSize(2));
+        assertThat(memoryByNode.get(node1Id), equalTo(Long.valueOf(146L)));
+        assertThat(memoryByNode.get(node2Id), equalTo(Long.valueOf(12L)));
+    }
+
     public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetaData.Builder builder) {
-        builder.addTask(MlTasks.jobTaskId(jobId), OpenJobAction.TASK_NAME, new OpenJobAction.JobParams(jobId),
+        builder.addTask(MlTasks.jobTaskId(jobId), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams(jobId),
                 new Assignment(nodeId, "test assignment"));
         if (jobState != null) {
             builder.updateTaskState(MlTasks.jobTaskId(jobId), new JobTaskState(jobState, builder.getLastAllocationId()));

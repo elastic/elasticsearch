@@ -29,7 +29,7 @@ import java.util.TreeSet;
 
 public class JobUpdate implements Writeable, ToXContentObject {
     public static final ParseField DETECTORS = new ParseField("detectors");
-    public static final ParseField CLEAR_JOB_FINISH_TIME = new ParseField("clearJobFinishTime");
+    public static final ParseField CLEAR_JOB_FINISH_TIME = new ParseField("clear_job_finish_time");
 
     // For internal updates
     static final ConstructingObjectParser<Builder, Void> INTERNAL_PARSER = new ConstructingObjectParser<>(
@@ -85,7 +85,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
                       @Nullable Long renormalizationWindowDays, @Nullable Long resultsRetentionDays,
                       @Nullable Long modelSnapshotRetentionDays, @Nullable List<String> categorisationFilters,
                       @Nullable Map<String, Object> customSettings, @Nullable String modelSnapshotId,
-                      @Nullable Long establishedModelMemory, @Nullable Version jobVersion, boolean clearJobFinishTime) {
+                      @Nullable Long establishedModelMemory, @Nullable Version jobVersion, @Nullable Boolean clearJobFinishTime) {
         this.jobId = jobId;
         this.groups = groups;
         this.description = description;
@@ -142,11 +142,10 @@ public class JobUpdate implements Writeable, ToXContentObject {
             jobVersion = null;
         }
         if (in.getVersion().onOrAfter(Version.CURRENT)) {
-            clearJobFinishTime = in.readBoolean();
+            clearJobFinishTime = in.readOptionalBoolean();
         } else {
-            clearJobFinishTime = false;
+            clearJobFinishTime = null;
         }
-
     }
 
     @Override
@@ -185,7 +184,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
             }
         }
         if (out.getVersion().onOrAfter(Version.CURRENT)) {
-            out.writeBoolean(clearJobFinishTime);
+            out.writeOptionalBoolean(clearJobFinishTime);
         }
     }
 
@@ -303,7 +302,9 @@ public class JobUpdate implements Writeable, ToXContentObject {
         if (jobVersion != null) {
             builder.field(Job.JOB_VERSION.getPreferredName(), jobVersion);
         }
-        builder.field(CLEAR_JOB_FINISH_TIME.getPreferredName(), clearJobFinishTime);
+        if (clearJobFinishTime != null) {
+            builder.field(CLEAR_JOB_FINISH_TIME.getPreferredName(), clearJobFinishTime);
+        }
         builder.endObject();
         return builder;
     }
@@ -433,7 +434,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
             builder.setJobVersion(jobVersion);
         }
 
-        if (clearJobFinishTime) {
+        if (clearJobFinishTime != null && clearJobFinishTime) {
             builder.setFinishedTime(null);
         }
 
@@ -457,7 +458,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 && (modelSnapshotId == null || Objects.equals(modelSnapshotId, job.getModelSnapshotId()))
                 && (establishedModelMemory == null || Objects.equals(establishedModelMemory, job.getEstablishedModelMemory()))
                 && (jobVersion == null || Objects.equals(jobVersion, job.getJobVersion()))
-                && (clearJobFinishTime == false || job.getFinishedTime() != null);
+                && (clearJobFinishTime == false || job.getFinishedTime() == null);
     }
 
     boolean updatesDetectors(Job job) {
@@ -623,7 +624,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         private String modelSnapshotId;
         private Long establishedModelMemory;
         private Version jobVersion;
-        private Boolean clearJobFinishTime = Boolean.FALSE;
+        private Boolean clearJobFinishTime;
 
         public Builder(String jobId) {
             this.jobId = jobId;

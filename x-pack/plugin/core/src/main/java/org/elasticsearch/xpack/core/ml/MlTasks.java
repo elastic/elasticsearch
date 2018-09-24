@@ -8,12 +8,10 @@ package org.elasticsearch.xpack.core.ml;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;

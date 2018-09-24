@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.UnaryProcessorDefinition;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -40,7 +40,7 @@ public abstract class MathFunction extends UnaryScalarFunction {
     }
 
     @Override
-    protected String formatScript(String template) {
+    public String formatScript(String template) {
         return super.formatScript(format(Locale.ROOT, "Math.%s(%s)", mathFunction(), template));
     }
 
@@ -64,9 +64,8 @@ public abstract class MathFunction extends UnaryScalarFunction {
     }
 
     @Override
-    protected final ProcessorDefinition makeProcessorDefinition() {
-        return new UnaryProcessorDefinition(location(), this,
-            ProcessorDefinitions.toProcessorDefinition(field()), new MathProcessor(operation()));
+    protected final Pipe makePipe() {
+        return new UnaryPipe(location(), this, Expressions.pipe(field()), new MathProcessor(operation()));
     }
 
     protected abstract MathOperation operation();

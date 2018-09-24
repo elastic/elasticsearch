@@ -34,7 +34,7 @@ public class Random extends MathFunction {
     }
 
     @Override
-    protected String formatScript(String template) {
+    public String formatScript(String template) {
         //TODO: Painless script uses Random since Randomness is not whitelisted
         return super.formatScript(
                 format(Locale.ROOT, "%s != null ? new Random((long) %s).nextDouble() : Math.random()", template, template));

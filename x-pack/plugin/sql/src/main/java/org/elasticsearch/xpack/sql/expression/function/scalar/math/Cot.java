@@ -34,7 +34,8 @@ public class Cot extends MathFunction {
     }
 
     @Override
-    protected String formatScript(String template) {
+    public String formatScript(String template) {
+        // FIXME: needs to be null aware
         return super.formatScript(format(Locale.ROOT, "1.0 / Math.tan(%s)", template));
     }
 

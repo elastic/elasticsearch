@@ -24,11 +24,11 @@ public class NamedDateTimeProcessor extends BaseDateTimeProcessor {
         // for the moment we'll use no specific Locale, but we might consider introducing a Locale parameter, just like the timeZone one
         DAY_NAME((Long millis, String tzId) -> {
             ZonedDateTime time = ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(tzId));
-            return time.format(DateTimeFormatter.ofPattern(DayName.DAY_NAME_FORMAT, Locale.ROOT));
+            return time.format(DateTimeFormatter.ofPattern(DAY_NAME_FORMAT, Locale.ROOT));
         }),
         MONTH_NAME((Long millis, String tzId) -> {
             ZonedDateTime time = ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(tzId));
-            return time.format(DateTimeFormatter.ofPattern(MonthName.MONTH_NAME_FORMAT, Locale.ROOT));
+            return time.format(DateTimeFormatter.ofPattern(MONTH_NAME_FORMAT, Locale.ROOT));
         });
 
         private final BiFunction<Long,String,String> apply;
@@ -43,6 +43,8 @@ public class NamedDateTimeProcessor extends BaseDateTimeProcessor {
     }
     
     public static final String NAME = "ndt";
+    private static final String MONTH_NAME_FORMAT = "MMMM";
+    private static final String DAY_NAME_FORMAT = "EEEE";
     
     private final NameExtractor extractor;
 

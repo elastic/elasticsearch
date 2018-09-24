@@ -437,17 +437,17 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         long now = (System.currentTimeMillis()/1000)*1000;
-        long oneDayAgo = now - 86400;
+        long thePast = now - 60000;
         int i = 0;
-        long dayAgoCopy = oneDayAgo;
-        while(dayAgoCopy < now) {
+        long pastCopy = thePast;
+        while(pastCopy < now) {
             IndexRequest doc = new IndexRequest();
             doc.index(indexName);
             doc.type("doc");
             doc.id("id" + i);
-            doc.source("{\"total\":" +randomInt(1000) + ",\"timestamp\":"+ dayAgoCopy +"}", XContentType.JSON);
+            doc.source("{\"total\":" +randomInt(1000) + ",\"timestamp\":"+ pastCopy +"}", XContentType.JSON);
             bulk.add(doc);
-            dayAgoCopy += 1000;
+            pastCopy += 1000;
             i++;
         }
         highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
@@ -469,9 +469,9 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
 
         StartDatafeedRequest startDatafeedRequest = new StartDatafeedRequest(datafeedId);
-        startDatafeedRequest.setStart(String.valueOf(oneDayAgo));
+        startDatafeedRequest.setStart(String.valueOf(thePast));
         // Should only process two documents
-        startDatafeedRequest.setEnd(String.valueOf(oneDayAgo + 2000));
+        startDatafeedRequest.setEnd(String.valueOf(thePast + 2000));
         StartDatafeedResponse response = execute(startDatafeedRequest,
             machineLearningClient::startDatafeed,
             machineLearningClient::startDatafeedAsync);

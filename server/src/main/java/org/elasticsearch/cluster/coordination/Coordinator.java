@@ -122,6 +122,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     PublishWithJoinResponse handlePublishRequest(PublishRequest publishRequest) {
+        // overwrite local node
+        publishRequest = new PublishRequest(ClusterState.builder(publishRequest.getAcceptedState()).nodes(
+            DiscoveryNodes.builder(publishRequest.getAcceptedState().nodes()).localNodeId(getLocalNode().getId()).build()).build());
+
         synchronized (mutex) {
             final DiscoveryNode sourceNode = publishRequest.getAcceptedState().nodes().getMasterNode();
             logger.trace("handlePublishRequest: handling [{}] from [{}]", publishRequest, sourceNode);

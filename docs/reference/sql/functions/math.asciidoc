@@ -270,6 +270,7 @@ Returns the value of `numeric_exp` to the power of `integer_exp`.
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[mathInlinePowerPositive]
 --------------------------------------------------
+
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[mathInlinePowerNegative]
@@ -300,6 +301,7 @@ of `numeric_exp`.
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[mathRoundWithPositiveParameter]
 --------------------------------------------------
+
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[mathRoundWithNegativeParameter]
@@ -379,6 +381,7 @@ of `numeric_exp`.
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[mathTruncateWithPositiveParameter]
 --------------------------------------------------
+
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[mathTruncateWithNegativeParameter]

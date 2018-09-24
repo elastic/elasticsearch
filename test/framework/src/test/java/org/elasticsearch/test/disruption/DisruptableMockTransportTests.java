@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
@@ -33,6 +34,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
@@ -192,6 +194,11 @@ public class DisruptableMockTransportTests extends ESTestCase {
     private TransportResponseHandler<TransportResponse> responseHandlerShouldNotBeCalled() {
         return new TransportResponseHandler<TransportResponse>() {
             @Override
+            public TransportResponse read(StreamInput in) {
+                throw new AssertionError("should not be called");
+            }
+
+            @Override
             public void handleResponse(TransportResponse response) {
                 throw new AssertionError("should not be called");
             }
@@ -211,6 +218,11 @@ public class DisruptableMockTransportTests extends ESTestCase {
     private TransportResponseHandler<TransportResponse> responseHandlerShouldBeCalledNormally(Runnable onCalled) {
         return new TransportResponseHandler<TransportResponse>() {
             @Override
+            public TransportResponse read(StreamInput in) {
+                return Empty.INSTANCE;
+            }
+
+            @Override
             public void handleResponse(TransportResponse response) {
                 onCalled.run();
             }
@@ -229,6 +241,11 @@ public class DisruptableMockTransportTests extends ESTestCase {
 
     private TransportResponseHandler<TransportResponse> responseHandlerShouldBeCalledExceptionally(Consumer<TransportException> onCalled) {
         return new TransportResponseHandler<TransportResponse>() {
+            @Override
+            public TransportResponse read(StreamInput in) {
+                throw new AssertionError("should not be called");
+            }
+
             @Override
             public void handleResponse(TransportResponse response) {
                 throw new AssertionError("should not be called");

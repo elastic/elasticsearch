@@ -8,18 +8,23 @@ package org.elasticsearch.xpack.core.ml;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 public final class MlTasks {
 
-    public static final String JOB_TASK_PREFIX = "job-";
-    public static final String DATAFEED_TASK_PREFIX = "datafeed-";
+    public static final String JOB_TASK_NAME = "xpack/ml/job";
+    public static final String DATAFEED_TASK_NAME = "xpack/ml/datafeed";
+
+    private static final String JOB_TASK_ID_PREFIX = "job-";
+    private static final String DATAFEED_TASK_ID_PREFIX = "datafeed-";
 
     private MlTasks() {
     }
@@ -29,7 +34,7 @@ public final class MlTasks {
      * A datafeed id can be used as a job id, because they are stored separately in cluster state.
      */
     public static String jobTaskId(String jobId) {
-        return JOB_TASK_PREFIX + jobId;
+        return JOB_TASK_ID_PREFIX + jobId;
     }
 
     /**
@@ -37,7 +42,7 @@ public final class MlTasks {
      * A job id can be used as a datafeed id, because they are stored separately in cluster state.
      */
     public static String datafeedTaskId(String datafeedId) {
-        return DATAFEED_TASK_PREFIX + datafeedId;
+        return DATAFEED_TASK_ID_PREFIX + datafeedId;
     }
 
     @Nullable
@@ -76,15 +81,31 @@ public final class MlTasks {
     }
 
     /**
-     * The job Ids of anomaly detector job tasks
-     * @param tasks Active tasks
+     * The job Ids of anomaly detector job tasks.
+     * All anomaly detector jobs are returned regardless of the status of the
+     * task (OPEN, CLOSED, FAILED etc).
+     *
+     * @param tasks Persistent tasks
      * @return The job Ids of anomaly detector job tasks
      */
     public static Set<String> openJobIds(PersistentTasksCustomMetaData tasks) {
-        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> activeTasks = tasks.tasks();
-
-        return activeTasks.stream().filter(t -> t.getId().startsWith(JOB_TASK_PREFIX))
-                .map(t -> t.getId().substring(JOB_TASK_PREFIX.length()))
+        return tasks.findTasks(JOB_TASK_NAME, task -> true)
+                .stream()
+                .map(t -> t.getId().substring(JOB_TASK_ID_PREFIX.length()))
                 .collect(Collectors.toSet());
+    }
+
+    /**
+     * Read the active anomaly detector job tasks.
+     * Active tasks are not {@code JobState.CLOSED} or {@code JobState.FAILED}.
+     *
+     * @param tasks Persistent tasks
+     * @return The job tasks excluding closed and failed jobs
+     */
+    public static List<PersistentTasksCustomMetaData.PersistentTask<?>> activeJobTasks(PersistentTasksCustomMetaData tasks) {
+        return tasks.findTasks(JOB_TASK_NAME, task -> true)
+                .stream()
+                .filter(task -> ((JobTaskState) task.getState()).getState().isAnyOf(JobState.CLOSED, JobState.FAILED) == false)
+                .collect(Collectors.toList());
     }
 }

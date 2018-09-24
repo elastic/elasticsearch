@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -43,7 +44,6 @@ public class StartDatafeedAction
 
     public static final StartDatafeedAction INSTANCE = new StartDatafeedAction();
     public static final String NAME = "cluster:admin/xpack/ml/datafeed/start";
-    public static final String TASK_NAME = "xpack/ml/datafeed";
 
     private StartDatafeedAction() {
         super(NAME);
@@ -147,7 +147,7 @@ public class StartDatafeedAction
 
     public static class DatafeedParams implements XPackPlugin.XPackPersistentTaskParams {
 
-        public static ObjectParser<DatafeedParams, Void> PARSER = new ObjectParser<>(TASK_NAME, DatafeedParams::new);
+        public static ObjectParser<DatafeedParams, Void> PARSER = new ObjectParser<>(MlTasks.DATAFEED_TASK_NAME, DatafeedParams::new);
 
         static {
             PARSER.declareString((params, datafeedId) -> params.datafeedId = datafeedId, DatafeedConfig.ID);
@@ -235,7 +235,7 @@ public class StartDatafeedAction
 
         @Override
         public String getWriteableName() {
-            return TASK_NAME;
+            return MlTasks.DATAFEED_TASK_NAME;
         }
 
         @Override

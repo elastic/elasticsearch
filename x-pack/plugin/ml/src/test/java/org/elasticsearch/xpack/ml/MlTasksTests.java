@@ -24,7 +24,7 @@ public class MlTasksTests extends ESTestCase {
         // A missing task is a closed job
         assertEquals(JobState.CLOSED, MlTasks.getJobState("foo", tasksBuilder.build()));
         // A task with no status is opening
-        tasksBuilder.addTask(MlTasks.jobTaskId("foo"), OpenJobAction.TASK_NAME, new OpenJobAction.JobParams("foo"),
+        tasksBuilder.addTask(MlTasks.jobTaskId("foo"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("foo"),
                 new PersistentTasksCustomMetaData.Assignment("bar", "test assignment"));
         assertEquals(JobState.OPENING, MlTasks.getJobState("foo", tasksBuilder.build()));
 
@@ -37,7 +37,7 @@ public class MlTasksTests extends ESTestCase {
         // A missing task is a stopped datafeed
         assertEquals(DatafeedState.STOPPED, MlTasks.getDatafeedState("foo", tasksBuilder.build()));
 
-        tasksBuilder.addTask(MlTasks.datafeedTaskId("foo"), StartDatafeedAction.TASK_NAME,
+        tasksBuilder.addTask(MlTasks.datafeedTaskId("foo"), MlTasks.DATAFEED_TASK_NAME,
                 new StartDatafeedAction.DatafeedParams("foo", 0L),
                 new PersistentTasksCustomMetaData.Assignment("bar", "test assignment"));
         assertEquals(DatafeedState.STOPPED, MlTasks.getDatafeedState("foo", tasksBuilder.build()));
@@ -50,7 +50,7 @@ public class MlTasksTests extends ESTestCase {
         assertNull(MlTasks.getJobTask("foo", null));
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
-        tasksBuilder.addTask(MlTasks.jobTaskId("foo"), OpenJobAction.TASK_NAME, new OpenJobAction.JobParams("foo"),
+        tasksBuilder.addTask(MlTasks.jobTaskId("foo"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("foo"),
                 new PersistentTasksCustomMetaData.Assignment("bar", "test assignment"));
 
         assertNotNull(MlTasks.getJobTask("foo", tasksBuilder.build()));
@@ -61,7 +61,7 @@ public class MlTasksTests extends ESTestCase {
         assertNull(MlTasks.getDatafeedTask("foo", null));
 
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
-        tasksBuilder.addTask(MlTasks.datafeedTaskId("foo"), StartDatafeedAction.TASK_NAME,
+        tasksBuilder.addTask(MlTasks.datafeedTaskId("foo"), MlTasks.DATAFEED_TASK_NAME,
                 new StartDatafeedAction.DatafeedParams("foo", 0L),
                 new PersistentTasksCustomMetaData.Assignment("bar", "test assignment"));
 
@@ -73,11 +73,11 @@ public class MlTasksTests extends ESTestCase {
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         assertThat(MlTasks.openJobIds(tasksBuilder.build()), empty());
 
-        tasksBuilder.addTask(MlTasks.jobTaskId("foo-1"), OpenJobAction.TASK_NAME, new OpenJobAction.JobParams("foo-1"),
+        tasksBuilder.addTask(MlTasks.jobTaskId("foo-1"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("foo-1"),
                 new PersistentTasksCustomMetaData.Assignment("node-1", "test assignment"));
-        tasksBuilder.addTask(MlTasks.jobTaskId("bar"), OpenJobAction.TASK_NAME, new OpenJobAction.JobParams("bar"),
+        tasksBuilder.addTask(MlTasks.jobTaskId("bar"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("bar"),
                 new PersistentTasksCustomMetaData.Assignment("node-1", "test assignment"));
-        tasksBuilder.addTask(MlTasks.datafeedTaskId("df"), StartDatafeedAction.TASK_NAME,
+        tasksBuilder.addTask(MlTasks.datafeedTaskId("df"), MlTasks.DATAFEED_TASK_NAME,
                 new StartDatafeedAction.DatafeedParams("df", 0L),
                 new PersistentTasksCustomMetaData.Assignment("node-1", "test assignment"));
 

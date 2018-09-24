@@ -18,6 +18,7 @@ Multi-document APIs::
 * <<java-rest-high-document-reindex>>
 * <<java-rest-high-document-update-by-query>>
 * <<java-rest-high-document-delete-by-query>>
+* <<java-rest-high-document-reindex-rethrottle>>
 
 include::document/index.asciidoc[]
 include::document/get.asciidoc[]
@@ -29,6 +30,7 @@ include::document/multi-get.asciidoc[]
 include::document/reindex.asciidoc[]
 include::document/update-by-query.asciidoc[]
 include::document/delete-by-query.asciidoc[]
+include::document/reindex-rethrottle.asciidoc[]
 
 == Search APIs
 
@@ -223,6 +225,8 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<java-rest-high-x-pack-ml-put-datafeed>>
 * <<java-rest-high-x-pack-ml-get-datafeed>>
 * <<java-rest-high-x-pack-ml-delete-datafeed>>
+* <<java-rest-high-x-pack-ml-start-datafeed>>
+* <<java-rest-high-x-pack-ml-stop-datafeed>>
 * <<java-rest-high-x-pack-ml-forecast-job>>
 * <<java-rest-high-x-pack-ml-delete-forecast>>
 * <<java-rest-high-x-pack-ml-get-buckets>>
@@ -245,6 +249,8 @@ include::ml/flush-job.asciidoc[]
 include::ml/put-datafeed.asciidoc[]
 include::ml/get-datafeed.asciidoc[]
 include::ml/delete-datafeed.asciidoc[]
+include::ml/start-datafeed.asciidoc[]
+include::ml/stop-datafeed.asciidoc[]
 include::ml/get-job-stats.asciidoc[]
 include::ml/forecast-job.asciidoc[]
 include::ml/delete-forecast.asciidoc[]

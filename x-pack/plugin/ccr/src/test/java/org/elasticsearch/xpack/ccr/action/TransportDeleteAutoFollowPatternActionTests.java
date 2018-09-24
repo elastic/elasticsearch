@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction.Req
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,30 +26,33 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
 
     public void testInnerDelete() {
         Map<String, List<String>> existingAlreadyFollowedIndexUUIDS = new HashMap<>();
+        Map<String, Map<String, String>> existingHeaders = new HashMap<>();
         Map<String, AutoFollowMetadata.AutoFollowPattern> existingAutoFollowPatterns = new HashMap<>();
         {
             List<String> existingPatterns = new ArrayList<>();
             existingPatterns.add("transactions-*");
             existingAutoFollowPatterns.put("eu_cluster",
-                new AutoFollowMetadata.AutoFollowPattern(existingPatterns, null, null, null, null, null, null, null, null, null));
+                new AutoFollowMetadata.AutoFollowPattern(existingPatterns, null, null, null, null, null, null, null, null));
 
             List<String> existingUUIDS = new ArrayList<>();
             existingUUIDS.add("_val");
             existingAlreadyFollowedIndexUUIDS.put("eu_cluster", existingUUIDS);
+            existingHeaders.put("eu_cluster", Collections.singletonMap("key", "val"));
         }
         {
             List<String> existingPatterns = new ArrayList<>();
             existingPatterns.add("logs-*");
             existingAutoFollowPatterns.put("asia_cluster",
-                new AutoFollowMetadata.AutoFollowPattern(existingPatterns, null, null, null, null, null, null, null, null, null));
+                new AutoFollowMetadata.AutoFollowPattern(existingPatterns, null, null, null, null, null, null, null, null));
 
             List<String> existingUUIDS = new ArrayList<>();
             existingUUIDS.add("_val");
             existingAlreadyFollowedIndexUUIDS.put("asia_cluster", existingUUIDS);
+            existingHeaders.put("asia_cluster", Collections.singletonMap("key", "val"));
         }
         ClusterState clusterState = ClusterState.builder(new ClusterName("us_cluster"))
             .metaData(MetaData.builder().putCustom(AutoFollowMetadata.TYPE,
-                new AutoFollowMetadata(existingAutoFollowPatterns, existingAlreadyFollowedIndexUUIDS)))
+                new AutoFollowMetadata(existingAutoFollowPatterns, existingAlreadyFollowedIndexUUIDS, existingHeaders)))
             .build();
 
         Request request = new Request();
@@ -60,20 +64,24 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
         assertThat(result.getPatterns().get("asia_cluster"), notNullValue());
         assertThat(result.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
         assertThat(result.getFollowedLeaderIndexUUIDs().get("asia_cluster"), notNullValue());
+        assertThat(result.getHeaders().size(), equalTo(1));
+        assertThat(result.getHeaders().get("asia_cluster"), notNullValue());
     }
 
     public void testInnerDeleteDoesNotExist() {
         Map<String, List<String>> existingAlreadyFollowedIndexUUIDS = new HashMap<>();
         Map<String, AutoFollowMetadata.AutoFollowPattern> existingAutoFollowPatterns = new HashMap<>();
+        Map<String, Map<String, String>> existingHeaders = new HashMap<>();
         {
             List<String> existingPatterns = new ArrayList<>();
             existingPatterns.add("transactions-*");
             existingAutoFollowPatterns.put("eu_cluster",
-                new AutoFollowMetadata.AutoFollowPattern(existingPatterns, null, null, null, null, null, null, null, null, null));
+                new AutoFollowMetadata.AutoFollowPattern(existingPatterns, null, null, null, null, null, null, null, null));
+            existingHeaders.put("key", Collections.singletonMap("key", "val"));
         }
         ClusterState clusterState = ClusterState.builder(new ClusterName("us_cluster"))
             .metaData(MetaData.builder().putCustom(AutoFollowMetadata.TYPE,
-                new AutoFollowMetadata(existingAutoFollowPatterns, existingAlreadyFollowedIndexUUIDS)))
+                new AutoFollowMetadata(existingAutoFollowPatterns, existingAlreadyFollowedIndexUUIDS, existingHeaders)))
             .build();
 
         Request request = new Request();

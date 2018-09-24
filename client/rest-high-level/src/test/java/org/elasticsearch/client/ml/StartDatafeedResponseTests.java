@@ -16,22 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.client.ml;
 
-package org.elasticsearch.index.analysis;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
-import java.util.Map;
+import java.io.IOException;
 
-/**
- * Marks a {@link TokenFilterFactory} that refers to other filter factories.
- *
- * The analysis registry will call {@link #setReferences(Map)} with a map of all
- * available TokenFilterFactories after all factories have been registered
- */
-public interface ReferringFilterFactory {
+public class StartDatafeedResponseTests extends AbstractXContentTestCase<StartDatafeedResponse> {
 
-    /**
-     * Called with a map of all registered filter factories
-     */
-    void setReferences(Map<String, TokenFilterFactory> factories);
+    @Override
+    protected StartDatafeedResponse createTestInstance() {
+        return new StartDatafeedResponse(randomBoolean());
+    }
 
+    @Override
+    protected StartDatafeedResponse doParseInstance(XContentParser parser) throws IOException {
+        return StartDatafeedResponse.fromXContent(parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
 }

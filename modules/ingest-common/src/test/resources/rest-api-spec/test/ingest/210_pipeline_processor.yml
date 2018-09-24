@@ -110,4 +110,4 @@ teardown:
       pipeline: "outer"
       body: {}
 - match: { error.root_cause.0.type: "exception" }
-- match: { error.root_cause.0.reason: "java.lang.IllegalArgumentException: java.lang.IllegalStateException: Recursive invocation of pipeline [inner] detected." }
+- match: { error.root_cause.0.reason: "java.lang.IllegalArgumentException: java.lang.IllegalStateException: Cycle detected for pipeline: inner" }

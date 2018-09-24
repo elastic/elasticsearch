@@ -473,7 +473,8 @@ final class RequestConverters {
         Params params = new Params(request)
             .withRefresh(reindexRequest.isRefresh())
             .withTimeout(reindexRequest.getTimeout())
-            .withWaitForActiveShards(reindexRequest.getWaitForActiveShards());
+            .withWaitForActiveShards(reindexRequest.getWaitForActiveShards())
+            .withRequestsPerSecond(reindexRequest.getRequestsPerSecond());
 
         if (reindexRequest.getScrollTime() != null) {
             params.putParam("scroll", reindexRequest.getScrollTime());
@@ -492,6 +493,7 @@ final class RequestConverters {
             .withRefresh(updateByQueryRequest.isRefresh())
             .withTimeout(updateByQueryRequest.getTimeout())
             .withWaitForActiveShards(updateByQueryRequest.getWaitForActiveShards())
+            .withRequestsPerSecond(updateByQueryRequest.getRequestsPerSecond())
             .withIndicesOptions(updateByQueryRequest.indicesOptions());
         if (updateByQueryRequest.isAbortOnVersionConflict() == false) {
             params.putParam("conflicts", "proceed");
@@ -518,6 +520,7 @@ final class RequestConverters {
             .withRefresh(deleteByQueryRequest.isRefresh())
             .withTimeout(deleteByQueryRequest.getTimeout())
             .withWaitForActiveShards(deleteByQueryRequest.getWaitForActiveShards())
+            .withRequestsPerSecond(deleteByQueryRequest.getRequestsPerSecond())
             .withIndicesOptions(deleteByQueryRequest.indicesOptions());
         if (deleteByQueryRequest.isAbortOnVersionConflict() == false) {
             params.putParam("conflicts", "proceed");
@@ -532,6 +535,17 @@ final class RequestConverters {
             params.putParam("size", Integer.toString(deleteByQueryRequest.getSize()));
         }
         request.setEntity(createEntity(deleteByQueryRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request rethrottle(RethrottleRequest rethrottleRequest) throws IOException {
+        String endpoint = new EndpointBuilder().addPathPart("_reindex").addPathPart(rethrottleRequest.getTaskId().toString())
+                .addPathPart("_rethrottle").build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        Params params = new Params(request)
+                .withRequestsPerSecond(rethrottleRequest.getRequestsPerSecond());
+        // we set "group_by" to "none" because this is the response format we can parse back
+        params.putParam("group_by", "none");
         return request;
     }
 
@@ -821,6 +835,16 @@ final class RequestConverters {
             return this;
         }
 
+        Params withRequestsPerSecond(float requestsPerSecond) {
+            // the default in AbstractBulkByScrollRequest is Float.POSITIVE_INFINITY,
+            // but we don't want to add that to the URL parameters, instead we use -1
+            if (Float.isFinite(requestsPerSecond)) {
+                return putParam(RethrottleRequest.REQUEST_PER_SECOND_PARAMETER, Float.toString(requestsPerSecond));
+            } else {
+                return putParam(RethrottleRequest.REQUEST_PER_SECOND_PARAMETER, "-1");
+            }
+        }
+
         Params withRetryOnConflict(int retryOnConflict) {
             if (retryOnConflict > 0) {
                 return putParam("retry_on_conflict", String.valueOf(retryOnConflict));
@@ -1065,7 +1089,7 @@ final class RequestConverters {
         private static String encodePart(String pathPart) {
             try {
                 //encode each part (e.g. index, type and id) separately before merging them into the path
-                //we prepend "/" to the path part to make this pate absolute, otherwise there can be issues with
+                //we prepend "/" to the path part to make this path absolute, otherwise there can be issues with
                 //paths that start with `-` or contain `:`
                 URI uri = new URI(null, null, null, -1, "/" + pathPart, null, null);
                 //manually encode any slash that each part may contain

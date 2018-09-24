@@ -23,7 +23,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.List;
 
-public class PainlessBinding {
+public class PainlessClassBinding {
 
     public final Constructor<?> javaConstructor;
     public final Method javaMethod;
@@ -31,7 +31,7 @@ public class PainlessBinding {
     public final Class<?> returnType;
     public final List<Class<?>> typeParameters;
 
-    PainlessBinding(Constructor<?> javaConstructor, Method javaMethod, Class<?> returnType, List<Class<?>> typeParameters) {
+    PainlessClassBinding(Constructor<?> javaConstructor, Method javaMethod, Class<?> returnType, List<Class<?>> typeParameters) {
         this.javaConstructor = javaConstructor;
         this.javaMethod = javaMethod;
 

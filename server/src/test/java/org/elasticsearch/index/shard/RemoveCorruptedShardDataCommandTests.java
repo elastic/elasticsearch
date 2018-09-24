@@ -178,9 +178,9 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             } else {
                 assertThat(e.getMessage(), containsString("aborted by user"));
             }
+        } finally {
+            logger.info("--> output:\n{}", t.getOutput());
         }
-
-        logger.info("--> output:\n{}", t.getOutput());
 
         if (corruptSegments == false) {
 
@@ -399,7 +399,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
     private void writeIndexState() throws IOException {
         // create _state of IndexMetaData
-        try(NodeEnvironment nodeEnvironment = new NodeEnvironment(environment.settings(), environment, nId -> {})) {
+        try(NodeEnvironment nodeEnvironment = new NodeEnvironment(environment.settings(), environment)) {
             final Path[] paths = nodeEnvironment.indexPaths(indexMetaData.getIndex());
             IndexMetaData.FORMAT.write(indexMetaData, paths);
             logger.info("--> index metadata persisted to {} ", Arrays.toString(paths));

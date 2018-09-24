@@ -78,7 +78,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 import static java.util.Collections.unmodifiableSet;
 
@@ -234,18 +233,14 @@ public final class NodeEnvironment  implements Closeable {
     /**
      * Setup the environment.
      * @param settings settings from elasticsearch.yml
-     * @param nodeIdConsumer called as soon as the node id is available to the
-     *      node name in log messages if it wasn't loaded from
-     *      elasticsearch.yml
      */
-    public NodeEnvironment(Settings settings, Environment environment, Consumer<String> nodeIdConsumer) throws IOException {
+    public NodeEnvironment(Settings settings, Environment environment) throws IOException {
         if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {
             nodePaths = null;
             sharedDataPath = null;
             locks = null;
             nodeLockId = -1;
             nodeMetaData = new NodeMetaData(generateNodeId(settings));
-            nodeIdConsumer.accept(nodeMetaData.nodeId());
             return;
         }
         boolean success = false;
@@ -295,7 +290,6 @@ public final class NodeEnvironment  implements Closeable {
             this.nodePaths = nodeLock.nodePaths;
             this.nodeLockId = nodeLock.nodeId;
             this.nodeMetaData = loadOrCreateNodeMetaData(settings, logger, nodePaths);
-            nodeIdConsumer.accept(nodeMetaData.nodeId());
 
             if (logger.isDebugEnabled()) {
                 logger.debug("using node location [{}], local_lock_id [{}]", nodePaths, nodeLockId);
@@ -494,7 +488,7 @@ public final class NodeEnvironment  implements Closeable {
     private static boolean assertPathsDoNotExist(final Path[] paths) {
         Set<Path> existingPaths = new HashSet<>();
         for (Path path : paths) {
-            if (FileSystemUtils.exists(paths)) {
+            if (FileSystemUtils.exists(path)) {
                 existingPaths.add(path);
             }
         }

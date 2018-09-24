@@ -925,6 +925,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexShard.updateGlobalCheckpointOnReplica(globalCheckpointOnReplica, "test");
 
         final long globalCheckpoint = randomLongBetween(SequenceNumbers.UNASSIGNED_SEQ_NO, indexShard.getLocalCheckpoint());
+        final long currentMaxSeqNoOfUpdates = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
         final long maxSeqNoOfUpdatesOrDeletes = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, maxSeqNo);
         final Set<String> docsBeforeRollback = getShardDocUIDs(indexShard);
         final CountDownLatch latch = new CountDownLatch(1);
@@ -947,6 +948,9 @@ public class IndexShardTests extends IndexShardTestCase {
                 ThreadPool.Names.SAME, "");
 
         latch.await();
+        assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(Collections.max(
+            Arrays.asList(maxSeqNoOfUpdatesOrDeletes, globalCheckpoint, globalCheckpointOnReplica))
+        ));
 
         final ShardRouting newRouting = indexShard.routingEntry().moveActiveReplicaToPrimary();
         final CountDownLatch resyncLatch = new CountDownLatch(1);
@@ -962,7 +966,9 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(indexShard.getLocalCheckpoint(), equalTo(maxSeqNo));
         assertThat(indexShard.seqNoStats().getMaxSeqNo(), equalTo(maxSeqNo));
         assertThat(getShardDocUIDs(indexShard), equalTo(docsBeforeRollback));
-        assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(Math.max(globalCheckpoint, maxSeqNoOfUpdatesOrDeletes)));
+        assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(Collections.max(
+            Arrays.asList(currentMaxSeqNoOfUpdates, maxSeqNoOfUpdatesOrDeletes, globalCheckpoint, globalCheckpointOnReplica))
+        ));
         closeShard(indexShard, false);
     }
 

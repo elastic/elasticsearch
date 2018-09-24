@@ -564,7 +564,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 transportService.getThreadPool().schedule(publishTimeout, Names.GENERIC, new Runnable() {
                     @Override
                     public void run() {
-                        publication.onTimeout();
+                        synchronized (mutex) {
+                            publication.onTimeout();
+                        }
                     }
 
                     @Override

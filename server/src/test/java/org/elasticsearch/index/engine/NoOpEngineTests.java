@@ -21,6 +21,8 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -33,9 +35,11 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
+import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
@@ -55,9 +59,6 @@ public class NoOpEngineTests extends EngineTestCase {
         engine.close();
         final NoOpEngine engine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir));
         expectThrows(UnsupportedOperationException.class, () -> engine.syncFlush(null, null));
-        expectThrows(UnsupportedOperationException.class, () -> engine.get(null, null));
-        expectThrows(UnsupportedOperationException.class, () -> engine.acquireSearcher(null, null));
-        expectThrows(UnsupportedOperationException.class, () -> engine.getReferenceManager(null));
         expectThrows(UnsupportedOperationException.class, () -> engine.ensureTranslogSynced(null));
         assertThat(engine.refreshNeeded(), equalTo(false));
         assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
@@ -88,12 +89,7 @@ public class NoOpEngineTests extends EngineTestCase {
             tracker.updateLocalCheckpoint(allocationId.getId(), i);
         }
 
-        engine.flush(true, true);
-        engine.getTranslog().getDeletionPolicy().setRetentionSizeInBytes(-1);
-        engine.getTranslog().getDeletionPolicy().setRetentionAgeInMillis(-1);
-        engine.getTranslog().getDeletionPolicy().setMinTranslogGenerationForRecovery(
-            engine.getTranslog().getGeneration().translogFileGeneration);
-        engine.flush(true, true);
+        flushAndTrimTranslog(engine);
 
         long localCheckpoint = engine.getLocalCheckpoint();
         long maxSeqNo = engine.getSeqNoStats(100L).getMaxSeqNo();
@@ -124,10 +120,9 @@ public class NoOpEngineTests extends EngineTestCase {
                     if (rarely()) {
                         engine.flush();
                     }
-                    globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpoint()));
+                    globalCheckpoint.set(engine.getLocalCheckpoint());
                 }
-                engine.syncTranslog();
-                engine.flushAndClose();
+                flushAndTrimTranslog(engine);
             }
 
             final Path newTranslogDir = createTempDir();
@@ -142,24 +137,85 @@ public class NoOpEngineTests extends EngineTestCase {
     }
 
     public void testNoopEngineWithNonZeroTranslogOperations() throws IOException {
-        final int numDocs = scaledRandomIntBetween(10, 100);
-
+        IOUtils.close(engine, store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        for (int i = 0; i < numDocs; i++) {
-            ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
-            engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, Engine.Operation.Origin.REPLICA,
-                System.nanoTime(), -1, false));
-            if (rarely()) {
-                engine.flush();
-            }
-            globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpoint()));
-        }
-        engine.syncTranslog();
-        engine.flushAndClose();
-        engine.close();
+        try (Store store = createStore()) {
+            final MergePolicy mergePolicy = NoMergePolicy.INSTANCE;
+            EngineConfig config = config(defaultSettings, store, createTempDir(), mergePolicy, null, null, globalCheckpoint::get);
+            int numDocs = scaledRandomIntBetween(10, 100);
+            try (InternalEngine engine = createEngine(config)) {
+                for (int i = 0; i < numDocs; i++) {
+                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
+                    engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, Engine.Operation.Origin.REPLICA,
+                        System.nanoTime(), -1, false));
+                    if (rarely()) {
+                        engine.flush();
+                    }
+                    globalCheckpoint.set(engine.getLocalCheckpoint());
+                }
+                engine.syncTranslog();
+                engine.flushAndClose();
+                engine.close();
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir)));
-        assertThat(e.getMessage(), is("Expected 0 translog operations but there were " + numDocs));
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new NoOpEngine(engine.engineConfig));
+                assertThat(e.getMessage(), is("Expected 0 translog operations but there were " + numDocs));
+            }
+        }
+    }
+
+    public void testNoOpEngineDocStats() throws Exception {
+        IOUtils.close(engine, store);
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (Store store = createStore()) {
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+            final int numDocs = scaledRandomIntBetween(10, 3000);
+            int deletions = 0;
+            try (InternalEngine engine = createEngine(config)) {
+                for (int i = 0; i < numDocs; i++) {
+                    engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+                    if (rarely()) {
+                        engine.flush();
+                    }
+                    globalCheckpoint.set(engine.getLocalCheckpoint());
+                }
+
+                for (int i = 0; i < numDocs; i++) {
+                    if (randomBoolean()) {
+                        String delId = Integer.toString(i);
+                        Engine.DeleteResult result = engine.delete(new Engine.Delete("test", delId, newUid(delId), primaryTerm.get()));
+                        assertTrue(result.isFound());
+                        globalCheckpoint.set(engine.getLocalCheckpoint());
+                        deletions += 1;
+                    }
+                }
+                engine.waitForOpsToComplete(numDocs + deletions - 1);
+                flushAndTrimTranslog(engine);
+                engine.close();
+            }
+
+            final DocsStats expectedDocStats;
+            try (InternalEngine engine = createEngine(config)) {
+                expectedDocStats = engine.docStats();
+            }
+
+            try (NoOpEngine noOpEngine = new NoOpEngine(config)) {
+                assertEquals(expectedDocStats.getCount(), noOpEngine.docStats().getCount());
+                assertEquals(expectedDocStats.getDeleted(), noOpEngine.docStats().getDeleted());
+                assertEquals(expectedDocStats.getTotalSizeInBytes(), noOpEngine.docStats().getTotalSizeInBytes());
+                assertEquals(expectedDocStats.getAverageSizeInBytes(), noOpEngine.docStats().getAverageSizeInBytes());
+            } catch (AssertionError e) {
+                logger.error(config.getMergePolicy());
+                throw e;
+            }
+        }
+    }
+
+    private void flushAndTrimTranslog(final InternalEngine engine) {
+        engine.flush(true, true);
+        final TranslogDeletionPolicy deletionPolicy = engine.getTranslog().getDeletionPolicy();
+        deletionPolicy.setRetentionSizeInBytes(-1);
+        deletionPolicy.setRetentionAgeInMillis(-1);
+        deletionPolicy.setMinTranslogGenerationForRecovery(engine.getTranslog().getGeneration().translogFileGeneration);
+        engine.flush(true, true);
     }
 }

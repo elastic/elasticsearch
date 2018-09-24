@@ -19,15 +19,17 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -36,7 +38,6 @@ import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
@@ -53,6 +54,8 @@ import java.util.stream.Stream;
  */
 final class NoOpEngine extends ReadOnlyEngine {
 
+    private final DocsStats docsStats;
+
     NoOpEngine(EngineConfig engineConfig) {
         super(engineConfig, null, null, true, directoryReader -> directoryReader);
         boolean success = false;
@@ -67,6 +70,7 @@ final class NoOpEngine extends ReadOnlyEngine {
                     throw new IllegalArgumentException("Expected 0 translog operations but there were " + nbOperations);
                 }
             }
+            this.docsStats = docsStats(getLastCommittedSegmentInfos());
             success = true;
         } catch (IOException | TranslogCorruptedException e) {
             throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -79,7 +83,8 @@ final class NoOpEngine extends ReadOnlyEngine {
 
     @Override
     protected DirectoryReader open(final Directory directory) throws IOException {
-        List<IndexCommit> indexCommits = DirectoryReader.listCommits(directory);
+        final List<IndexCommit> indexCommits = DirectoryReader.listCommits(directory);
+        assert indexCommits.size() == 1 : "expected only one commit point";
         IndexCommit indexCommit = indexCommits.get(indexCommits.size() - 1);
         return new DirectoryReader(directory, new LeafReader[0]) {
             @Override
@@ -144,19 +149,22 @@ final class NoOpEngine extends ReadOnlyEngine {
         return commitUserData.get(Translog.TRANSLOG_UUID_KEY);
     }
 
-    @Override
-    public GetResult get(Get get, BiFunction<String, SearcherScope, Searcher> searcherFactory) throws EngineException {
-        throw new UnsupportedOperationException("Gets are not supported on a noOp engine");
-    }
-
-    @Override
-    public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
-        throw new UnsupportedOperationException("Searching is not supported on a noOp engine");
-    }
-
-    @Override
-    protected ReferenceManager<IndexSearcher> getReferenceManager(SearcherScope scope) {
-        throw new UnsupportedOperationException("Creating a reference manager for an index searcher is not supported on a noOp engine");
+    private DocsStats docsStats(final SegmentInfos lastCommittedSegmentInfos) {
+        long numDocs = 0;
+        long numDeletedDocs = 0;
+        long sizeInBytes = 0;
+        if (lastCommittedSegmentInfos != null) {
+            for (SegmentCommitInfo segmentCommitInfo : lastCommittedSegmentInfos) {
+                numDocs += segmentCommitInfo.info.maxDoc() - segmentCommitInfo.getDelCount() - segmentCommitInfo.getSoftDelCount();
+                numDeletedDocs += segmentCommitInfo.getDelCount() + segmentCommitInfo.getSoftDelCount();
+                try {
+                    sizeInBytes += segmentCommitInfo.sizeInBytes();
+                } catch (IOException e) {
+                    logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", segmentCommitInfo.info.name), e);
+                }
+            }
+        }
+        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
     }
 
     @Override
@@ -169,5 +177,10 @@ final class NoOpEngine extends ReadOnlyEngine {
     public boolean refreshNeeded() {
         // We never need to refresh a noOp engine so always return false
         return false;
+    }
+
+    @Override
+    public DocsStats docStats() {
+        return this.docsStats;
     }
 }

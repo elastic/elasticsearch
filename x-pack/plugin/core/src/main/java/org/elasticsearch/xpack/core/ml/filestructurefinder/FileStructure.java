@@ -680,12 +680,16 @@ public class FileStructure implements ToXContentObject, Writeable {
                     throw new IllegalStateException("enum value [" + format + "] missing from switch.");
             }
 
-            if ((timestampField == null) != (jodaTimestampFormats == null || jodaTimestampFormats.isEmpty())) {
+            boolean isTimestampFieldSpecified = (timestampField != null);
+            boolean isJodaTimestampFormatsSpecified = (jodaTimestampFormats != null && jodaTimestampFormats.isEmpty() == false);
+            boolean isJavaTimestampFormatsSpecified = (javaTimestampFormats != null && javaTimestampFormats.isEmpty() == false);
+
+            if (isTimestampFieldSpecified != isJodaTimestampFormatsSpecified) {
                 throw new IllegalArgumentException(
                     "Timestamp field and Joda timestamp formats must both be specified or neither be specified.");
             }
 
-            if ((timestampField == null) != (javaTimestampFormats == null || javaTimestampFormats.isEmpty())) {
+            if (isTimestampFieldSpecified != isJavaTimestampFormatsSpecified) {
                 throw new IllegalArgumentException(
                     "Timestamp field and Java timestamp formats must both be specified or neither be specified.");
             }

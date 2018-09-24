@@ -1268,7 +1268,8 @@ If the request does not encounter errors, you receive the following result:
     `timestamp_field` query parameter.
 <8> `joda_timestamp_formats` are used to tell Logstash and Ingest pipeline how
     to parse timestamps.
-<9> In future Ingest pipeline will switch to use `java_timestamp_formats`.
+<9> `java_timestamp_formats` are the Java time formats recognized in the time
+    fields.  In future Ingest pipeline will switch to use this format.
 <10> The timestamp format in this sample doesn't specify a timezone, so to
      accurately convert them to UTC timestamps to store in Elasticsearch it's
      necessary to supply the timezone they relate to. `need_client_timezone`

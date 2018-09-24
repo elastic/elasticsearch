@@ -502,6 +502,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  * the reverted operations on this shard by replaying the translog to avoid losing acknowledged writes.
                                  */
                                 final Engine engine = getEngine();
+                                if (getMaxSeqNoOfUpdatesOrDeletes() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                                    // If the old primary was on an old version that did not replicate the msu,
+                                    // we need to bootstrap it manually from its local history.
+                                    assert indexSettings.getIndexVersionCreated().before(Version.V_7_0_0_alpha1);
+                                    engine.advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats().getMaxSeqNo());
+                                }
                                 engine.restoreLocalHistoryFromTranslog((resettingEngine, snapshot) ->
                                     runTranslogRecovery(resettingEngine, snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {}));
                                 /* Rolling the translog generation is not strictly needed here (as we will never have collisions between
@@ -511,12 +517,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  */
                                 engine.rollTranslogGeneration();
                                 engine.fillSeqNoGaps(newPrimaryTerm);
-                                if (getMaxSeqNoOfUpdatesOrDeletes() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                                    // If the old primary was on an old version, this promoting primary (was replica before)
-                                    // does not have max_seq_no_of_updates. We need to bootstrap it manually from its local history.
-                                    assert indexSettings.getIndexVersionCreated().before(Version.V_7_0_0_alpha1);
-                                    engine.advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats().getMaxSeqNo());
-                                }
                                 replicationTracker.updateLocalCheckpoint(currentRouting.allocationId().getId(), getLocalCheckpoint());
                                 primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
                                     @Override
@@ -1956,8 +1956,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
             if (getMaxSeqNoOfUpdatesOrDeletes() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                // If the old primary was on an old version, this promoting primary (was replica before)
-                // does not have max_seq_no_of_updates. We need to bootstrap it manually from its local history.
+                // If the old primary was on an old version that did not replicate the msu,
+                // we need to bootstrap it manually from its local history.
                 assert indexSettings.getIndexVersionCreated().before(Version.V_7_0_0_alpha1);
                 getEngine().advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats().getMaxSeqNo());
             }
@@ -2722,7 +2722,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     void resetEngineToGlobalCheckpoint() throws IOException {
         assert getActiveOperationsCount() == 0 : "Ongoing writes [" + getActiveOperations() + "]";
         sync(); // persist the global checkpoint to disk
-        final SeqNoStats seqNoStats = seqNoStats();
+        final long globalCheckpoint = getGlobalCheckpoint();
         final Engine newEngine;
         synchronized (mutex) {
             verifyNotClosed();
@@ -2731,12 +2731,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             newEngine = createNewEngine(newEngineConfig());
             active.set(true);
         }
-        newEngine.advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats.getMaxSeqNo());
+        newEngine.advanceMaxSeqNoOfUpdatesOrDeletes(globalCheckpoint);
         final Engine.TranslogRecoveryRunner translogRunner = (engine, snapshot) -> runTranslogRecovery(
             engine, snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {
                 // TODO: add a dedicate recovery stats for the reset translog
             });
-        newEngine.recoverFromTranslog(translogRunner, seqNoStats.getGlobalCheckpoint());
+        newEngine.recoverFromTranslog(translogRunner, globalCheckpoint);
     }
 
     /**

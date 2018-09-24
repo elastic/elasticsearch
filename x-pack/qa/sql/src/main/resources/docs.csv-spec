@@ -1134,11 +1134,11 @@ SELECT YEAR(CAST('2018-05-19T11:23:45Z' AS TIMESTAMP)) AS year;
 
 mathInlineAbs
 // tag::abs
-SELECT ABS(-123.5), ABS(0.1), ABS(55);
+SELECT ABS(-123.5), ABS(55);
 
-  ABS(-123.5)  |   ABS(0.1)    |    ABS(55)
----------------+---------------+---------------
-123.5          |0.1            |55
+  ABS(-123.5)  |    ABS(55)
+---------------+---------------
+123.5          |55
 // end::abs
 ;
 
@@ -1154,11 +1154,11 @@ SELECT ACOS(COS(PI())), PI();
 
 mathInlineAsin
 // tag::mathInlineAsin
-SELECT ROUND(DEGREES(ASIN(0.7071067811865475))) AS "ASIN(0.707)", SIN(RADIANS(45)) AS "SIN(45)";
+SELECT ROUND(DEGREES(ASIN(0.7071067811865475))) AS "ASIN(0.707)", ROUND(SIN(RADIANS(45)), 3) AS "SIN(45)";
 
-  ASIN(0.707)  |     SIN(45)
----------------+------------------
-45.0           |0.7071067811865475
+  ASIN(0.707)  |    SIN(45)
+---------------+---------------
+45.0           |0.707
 // end::mathInlineAsin
 ;
 
@@ -1214,9 +1214,9 @@ COS(RADIANS(180))|pythagorean_identity
 
 mathInlineCosh
 // tag::mathInlineCosh
-SELECT COSH(5), (POWER(E(), 5) + POWER(E(), -5)) / 2 AS "(e^x + e^-x)/2";
+SELECT COSH(5), (POWER(E(), 5) + POWER(E(), -5)) / 2 AS "(e^5 + e^-5)/2";
 
-     COSH(5)     | (e^x + e^-x)/2
+     COSH(5)     | (e^5 + e^-5)/2
 -----------------+-----------------
 74.20994852478785|74.20994852478783
 // end::mathInlineCosh
@@ -1314,21 +1314,21 @@ SELECT PI();
 
 mathInlinePowerPositive
 // tag::mathInlinePowerPositive
-SELECT POWER(E(), LOG(23));
+SELECT POWER(3, 2), POWER(3, 3);
 
- POWER(E,LOG(23))
-------------------
-22.999999999999996
+  POWER(3,2)   |  POWER(3,3)
+---------------+---------------
+9.0            |27.0
 // end::mathInlinePowerPositive
 ;
 
 mathInlinePowerNegative
 // tag::mathInlinePowerNegative
-SELECT POWER(5, -1), POWER(E(), -LOG(5));
+SELECT POWER(5, -1), POWER(5, -2);
 
-  POWER(5,-1)  | POWER(E,-LOG(5))
----------------+-------------------
-0.2            |0.20000000000000004
+  POWER(5,-1)  |  POWER(5,-2)
+---------------+---------------
+0.2            |0.04
 // end::mathInlinePowerNegative
 ;
 
@@ -1384,9 +1384,9 @@ SIN(RADIANS(90))|pythagorean_identity
 
 mathInlineSinh
 // tag::mathInlineSinh
-SELECT SINH(5), (POWER(E(), 5) - POWER(E(), -5)) / 2 AS "(e^x - e^-x)/2";
+SELECT SINH(5), (POWER(E(), 5) - POWER(E(), -5)) / 2 AS "(e^5 - e^-5)/2";
 
-     SINH(5)     | (e^x - e^-x)/2
+     SINH(5)     | (e^5 - e^-5)/2
 -----------------+-----------------
 74.20321057778875|74.20321057778874
 // end::mathInlineSinh

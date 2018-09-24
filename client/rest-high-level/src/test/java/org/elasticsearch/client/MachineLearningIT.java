@@ -426,7 +426,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertTrue(response.isAcknowledged());
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/33966")
     public void testStartDatafeed() throws Exception {
         String jobId = "test-start-datafeed";
         String indexName = "start_data_1";
@@ -437,8 +436,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        long now = System.currentTimeMillis();
-        long oneDayAgo = now - 86400000;
+        long now = (System.currentTimeMillis()/1000)*1000;
+        long oneDayAgo = now - 86400;
         int i = 0;
         long dayAgoCopy = oneDayAgo;
         while(dayAgoCopy < now) {
@@ -448,7 +447,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             doc.id("id" + i);
             doc.source("{\"total\":" +randomInt(1000) + ",\"timestamp\":"+ dayAgoCopy +"}", XContentType.JSON);
             bulk.add(doc);
-            dayAgoCopy += 1000000;
+            dayAgoCopy += 1000;
             i++;
         }
         highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
@@ -472,7 +471,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         StartDatafeedRequest startDatafeedRequest = new StartDatafeedRequest(datafeedId);
         startDatafeedRequest.setStart(String.valueOf(oneDayAgo));
         // Should only process two documents
-        startDatafeedRequest.setEnd(String.valueOf(oneDayAgo + 2000000));
+        startDatafeedRequest.setEnd(String.valueOf(oneDayAgo + 2000));
         StartDatafeedResponse response = execute(startDatafeedRequest,
             machineLearningClient::startDatafeed,
             machineLearningClient::startDatafeedAsync);
@@ -701,7 +700,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setDetectorDescription(randomAlphaOfLength(10))
             .build();
         AnalysisConfig.Builder configBuilder = new AnalysisConfig.Builder(Arrays.asList(detector));
-        configBuilder.setBucketSpan(new TimeValue(randomIntBetween(1, 10), TimeUnit.SECONDS));
+        //should not be random, see:https://github.com/elastic/ml-cpp/issues/208
+        configBuilder.setBucketSpan(new TimeValue(5, TimeUnit.SECONDS));
         builder.setAnalysisConfig(configBuilder);
 
         DataDescription.Builder dataDescription = new DataDescription.Builder();

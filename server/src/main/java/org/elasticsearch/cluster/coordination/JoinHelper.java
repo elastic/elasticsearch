@@ -27,9 +27,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
@@ -40,9 +42,11 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -55,6 +59,8 @@ public class JoinHelper extends AbstractComponent {
     private final MasterService masterService;
     private final TransportService transportService;
     private final JoinTaskExecutor joinTaskExecutor;
+
+    final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = ConcurrentCollections.newConcurrentSet();
 
     public JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService,
                       TransportService transportService, LongSupplier currentTermSupplier,
@@ -114,32 +120,41 @@ public class JoinHelper extends AbstractComponent {
             StartJoinRequest::new,
             (request, channel, task) -> {
                 final DiscoveryNode destination = request.getSourceNode();
-                final JoinRequest joinRequest
-                    = new JoinRequest(transportService.getLocalNode(), Optional.of(joinLeaderInTerm.apply(request)));
-                logger.debug("attempting to join {} with {}", destination, joinRequest);
-                this.transportService.sendRequest(destination, JOIN_ACTION_NAME, joinRequest, new TransportResponseHandler<Empty>() {
-                    @Override
-                    public Empty read(StreamInput in) {
-                        return Empty.INSTANCE;
-                    }
-
-                    @Override
-                    public void handleResponse(Empty response) {
-                        logger.debug("successfully joined {} with {}", destination, joinRequest);
-                    }
-
-                    @Override
-                    public void handleException(TransportException exp) {
-                        logger.debug(() -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest), exp);
-                    }
-
-                    @Override
-                    public String executor() {
-                        return Names.SAME;
-                    }
-                });
+                sendJoinRequest(destination, Optional.of(joinLeaderInTerm.apply(request)));
                 channel.sendResponse(Empty.INSTANCE);
             });
+    }
+
+    public void sendJoinRequest(DiscoveryNode destination, Optional<Join> optionalJoin) {
+        final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), optionalJoin);
+        if (pendingOutgoingJoins.add(Tuple.tuple(destination, joinRequest))) {
+            logger.debug("attempting to join {} with {}", destination, joinRequest);
+            transportService.sendRequest(destination, JOIN_ACTION_NAME, joinRequest, new TransportResponseHandler<Empty>() {
+                @Override
+                public Empty read(StreamInput in) {
+                    return Empty.INSTANCE;
+                }
+
+                @Override
+                public void handleResponse(Empty response) {
+                    pendingOutgoingJoins.remove(destination);
+                    logger.debug("successfully joined {} with {}", destination, joinRequest);
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    pendingOutgoingJoins.remove(destination);
+                    logger.info(() -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest), exp);
+                }
+
+                @Override
+                public String executor() {
+                    return Names.SAME;
+                }
+            });
+        } else {
+            logger.debug("already attempting to join {} with request {}, not sending request", destination, joinRequest);
+        }
     }
 
     public void sendStartJoinRequest(final StartJoinRequest startJoinRequest, final DiscoveryNode destination) {
@@ -251,7 +266,7 @@ public class JoinHelper extends AbstractComponent {
             assert closed == false : "CandidateJoinAccumulator closed";
             closed = true;
             if (newMode == Mode.LEADER) {
-                final Map<JoinTaskExecutor.Task, ClusterStateTaskListener> pendingAsTasks = new HashMap<>();
+                final Map<JoinTaskExecutor.Task, ClusterStateTaskListener> pendingAsTasks = new LinkedHashMap<>();
                 joinRequestAccumulator.forEach((key, value) -> {
                     final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(key, "elect leader");
                     pendingAsTasks.put(task, new JoinTaskListener(task, value));

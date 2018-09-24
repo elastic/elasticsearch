@@ -86,6 +86,18 @@ public class CoordinatorTests extends ESTestCase {
         }
     }
 
+    public void testNodesJoinAfterStableCluster() {
+        final Cluster cluster = new Cluster(randomIntBetween(1, 5));
+        cluster.stabilise();
+
+        final long currentTerm = cluster.getAnyLeader().coordinator.getCurrentTerm();
+        cluster.addNodes(randomIntBetween(1, 2));
+        cluster.stabilise();
+
+        final long newTerm = cluster.getAnyLeader().coordinator.getCurrentTerm();
+        assertEquals(currentTerm, newTerm);
+    }
+
     private static String nodeIdFromIndex(int nodeIndex) {
         return "node" + nodeIndex;
     }
@@ -111,6 +123,16 @@ public class CoordinatorTests extends ESTestCase {
             clusterNodes = new ArrayList<>(initialNodeCount);
             for (int i = 0; i < initialNodeCount; i++) {
                 final ClusterNode clusterNode = new ClusterNode(i);
+                clusterNodes.add(clusterNode);
+            }
+        }
+
+        void addNodes(int newNodesCount) {
+            logger.info("--> adding {} nodes", newNodesCount);
+
+            final int nodeSizeAtStart = clusterNodes.size();
+            for (int i = 0; i < newNodesCount; i++) {
+                final ClusterNode clusterNode = new ClusterNode(nodeSizeAtStart + i);
                 clusterNodes.add(clusterNode);
             }
         }

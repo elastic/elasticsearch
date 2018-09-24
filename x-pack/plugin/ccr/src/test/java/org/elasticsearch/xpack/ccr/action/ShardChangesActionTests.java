@@ -49,7 +49,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
                 .build();
         final IndexService indexService = createIndex("index", settings);
 
-        final int numWrites = randomIntBetween(2, 4096);
+        final int numWrites = randomIntBetween(10, 4096);
         for (int i = 0; i < numWrites; i++) {
             client().prepareIndex("index", "doc", Integer.toString(i)).setSource("{}", XContentType.JSON).get();
         }
@@ -97,6 +97,17 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
             indexShard.getGlobalCheckpoint(), 0, 10, "different-history-uuid", Long.MAX_VALUE));
         assertThat(e.getMessage(), equalTo("unexpected history uuid, expected [different-history-uuid], actual [" +
                 indexShard.getHistoryUUID() + "]"));
+
+        // invalid range
+        {
+            final long fromSeqNo = randomLongBetween(Long.MIN_VALUE, -1);
+            final int batchSize = randomIntBetween(0, Integer.MAX_VALUE);
+            final IllegalArgumentException invalidRangeError = expectThrows(IllegalArgumentException.class,
+                () -> ShardChangesAction.getOperations(indexShard, indexShard.getGlobalCheckpoint(),
+                    fromSeqNo, batchSize, indexShard.getHistoryUUID(), Long.MAX_VALUE));
+            assertThat(invalidRangeError.getMessage(),
+                equalTo("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + (fromSeqNo + batchSize - 1) + "]"));
+        }
     }
 
     public void testGetOperationsWhenShardNotStarted() throws Exception {

@@ -47,7 +47,9 @@ public class GetRollupCapsRequest implements Validatable, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.field(ID, indexPattern);
+        builder.endObject();
         return builder;
     }
 

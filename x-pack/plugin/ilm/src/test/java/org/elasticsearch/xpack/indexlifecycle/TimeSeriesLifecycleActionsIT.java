@@ -10,6 +10,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -119,6 +120,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Map<String, Object> settings = getOnlyIndexSettings(index);
             assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), not("true"));
         });
+        indexDocument();
     }
 
     public void testReadOnly() throws Exception {
@@ -167,6 +169,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(numSegments.get(), equalTo(1));
             assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
         });
+        expectThrows(ResponseException.class, this::indexDocument);
     }
 
     public void testShrinkAction() throws Exception {
@@ -186,6 +189,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(settings.get(IndexMetaData.SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
             assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
         });
+        expectThrows(ResponseException.class, this::indexDocument);
     }
 
     private void createNewSingletonPolicy(String phaseName, LifecycleAction action) throws IOException {
@@ -238,5 +242,12 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String action = indexResponse.get("action");
         String step = indexResponse.get("step");
         return new StepKey(phase, action, step);
+    }
+
+    private void indexDocument() throws IOException {
+        Request indexRequest = new Request("POST", index + "/_doc");
+        indexRequest.setEntity(new StringEntity("{\"a\": \"test\"}", ContentType.APPLICATION_JSON));
+        Response response = client().performRequest(indexRequest);
+        logger.info(response.getStatusLine());
     }
 }

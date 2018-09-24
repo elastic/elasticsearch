@@ -127,7 +127,8 @@ public class JoinHelper extends AbstractComponent {
 
     public void sendJoinRequest(DiscoveryNode destination, Optional<Join> optionalJoin) {
         final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), optionalJoin);
-        if (pendingOutgoingJoins.add(Tuple.tuple(destination, joinRequest))) {
+        final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
+        if (pendingOutgoingJoins.add(dedupKey)) {
             logger.debug("attempting to join {} with {}", destination, joinRequest);
             transportService.sendRequest(destination, JOIN_ACTION_NAME, joinRequest, new TransportResponseHandler<Empty>() {
                 @Override
@@ -137,13 +138,13 @@ public class JoinHelper extends AbstractComponent {
 
                 @Override
                 public void handleResponse(Empty response) {
-                    pendingOutgoingJoins.remove(destination);
+                    pendingOutgoingJoins.remove(dedupKey);
                     logger.debug("successfully joined {} with {}", destination, joinRequest);
                 }
 
                 @Override
                 public void handleException(TransportException exp) {
-                    pendingOutgoingJoins.remove(destination);
+                    pendingOutgoingJoins.remove(dedupKey);
                     logger.info(() -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest), exp);
                 }
 

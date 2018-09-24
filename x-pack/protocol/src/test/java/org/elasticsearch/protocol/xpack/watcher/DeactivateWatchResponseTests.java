@@ -1,6 +1,5 @@
 package org.elasticsearch.protocol.xpack.watcher;
 
-import org.elasticsearch.protocol.xpack.watcher.DeactivateWatchResponse;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
@@ -12,7 +11,8 @@ public class DeactivateWatchResponseTests extends AbstractXContentTestCase<Deact
         String id = randomAlphaOfLength(10);
         long version = randomLongBetween(1, 10);
         // TODO: Randomized Status
-        return new DeactivateWatchResponse(id, version, null);
+        String status = randomAlphaOfLength(10);
+        return new DeactivateWatchResponse(id, version, status);
     }
 
     @Override

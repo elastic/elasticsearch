@@ -7,12 +7,15 @@ package org.elasticsearch.protocol.xpack.watcher;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class DeactivateWatchResponse extends ActionResponse implements ToXContentObject {
 
@@ -39,15 +42,25 @@ public class DeactivateWatchResponse extends ActionResponse implements ToXConten
 
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        DeactivateWatchResponse that = (DeactivateWatchResponse) o;
+        return version == that.version &&
+            Objects.equals(id, that.id) &&
+            Objects.equals(status, that.status);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, version, status);
+    }
+
     public DeactivateWatchResponse(String id, long version, String status) {
         this.id = id;
         this.version = version;
         this.status = status;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return null;
     }
 
     public String getId() {
@@ -72,5 +85,30 @@ public class DeactivateWatchResponse extends ActionResponse implements ToXConten
 
     private void setStatus(String status) {
         this.status = status;
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        id = in.readString();
+        version = in.readVLong();
+        status = in.readString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(id);
+        out.writeVLong(version);
+        out.writeString(status);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.startObject()
+            .field("_id", id)
+            .field("_version", version)
+            .field("status", status)
+            .endObject();
     }
 }

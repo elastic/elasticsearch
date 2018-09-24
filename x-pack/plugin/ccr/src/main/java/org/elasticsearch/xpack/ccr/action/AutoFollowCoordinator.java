@@ -368,18 +368,19 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                                                                                       Index indexToFollow) {
             return currentState -> {
                 AutoFollowMetadata currentAutoFollowMetadata = currentState.metaData().custom(AutoFollowMetadata.TYPE);
-
-                Map<String, List<String>> newFollowedIndexUUIDS =
-                    new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
-                newFollowedIndexUUIDS.get(clusterAlias).add(indexToFollow.getUUID());
-
-                ClusterState.Builder newState = ClusterState.builder(currentState);
-                AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(currentAutoFollowMetadata.getPatterns(),
+                Map<String, List<String>> newFollowedIndexUUIDS = new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
+                newFollowedIndexUUIDS.compute(clusterAlias, (key, existingUUIDs) -> {
+                    assert existingUUIDs != null;
+                    List<String> newUUIDs = new ArrayList<>(existingUUIDs);
+                    newUUIDs.add(indexToFollow.getUUID());
+                    return Collections.unmodifiableList(newUUIDs);
+                });
+                final AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(currentAutoFollowMetadata.getPatterns(),
                     newFollowedIndexUUIDS, currentAutoFollowMetadata.getHeaders());
-                newState.metaData(MetaData.builder(currentState.getMetaData())
-                    .putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata)
-                    .build());
-                return newState.build();
+                return ClusterState.builder(currentState)
+                    .metaData(MetaData.builder(currentState.getMetaData())
+                        .putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata).build())
+                    .build();
             };
         }
 

@@ -77,7 +77,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         shardId = ShardId.readShardId(in);
         operations = Translog.readOperations(in, "recovery");
         totalTranslogOps = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
             maxSeenAutoIdTimestampOnPrimary = in.readZLong();
         } else {
             maxSeenAutoIdTimestampOnPrimary = IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
@@ -91,7 +91,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         shardId.writeTo(out);
         Translog.writeOperations(out, operations);
         out.writeVInt(totalTranslogOps);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
             out.writeZLong(maxSeenAutoIdTimestampOnPrimary);
         }
     }

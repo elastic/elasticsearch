@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.protocol;
 
-import java.sql.JDBCType;
+import java.sql.SQLType;
 import java.util.Objects;
 
 public class ColumnInfo {
@@ -15,9 +15,9 @@ public class ColumnInfo {
     public final String label;
     public final String name;
     public final int displaySize;
-    public final JDBCType type;
+    public final SQLType type;
 
-    public ColumnInfo(String name, JDBCType type, String table, String catalog, String schema, String label, int displaySize) {
+    public ColumnInfo(String name, SQLType type, String table, String catalog, String schema, String label, int displaySize) {
         if (name == null) {
             throw new IllegalArgumentException("[name] must not be null");
         }

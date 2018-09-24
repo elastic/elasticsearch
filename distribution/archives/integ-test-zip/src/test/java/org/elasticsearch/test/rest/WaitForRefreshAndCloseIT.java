@@ -69,8 +69,8 @@ public class WaitForRefreshAndCloseIT extends ESRestTestCase {
     }
 
     public void testIndexAndThenClose() throws Exception {
-        Requet request = new Request("PUT", docPath());
-        request.setJsonEntity("{\"test\":\"test\"}")
+        Request request = new Request("PUT", docPath());
+        request.setJsonEntity("{\"test\":\"test\"}");
         closeWhileListenerEngaged(start(request));
     }
 
@@ -87,7 +87,7 @@ public class WaitForRefreshAndCloseIT extends ESRestTestCase {
         Request request = new Request("PUT", docPath());
         request.setJsonEntity("{\"test\":\"test\"}");
         client().performRequest(request);
-        closeWhileListenerEngaged(start(new Request("DELETE", docPath()));
+        closeWhileListenerEngaged(start(new Request("DELETE", docPath())));
     }
 
     private void closeWhileListenerEngaged(ActionFuture<String> future) throws Exception {

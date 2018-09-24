@@ -14,6 +14,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterMergePolicy;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -21,6 +22,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.RandomIndexWriter;
@@ -41,6 +43,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class SourceOnlySnapshotTests extends ESTestCase {
@@ -92,7 +95,9 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                     try (DirectoryReader snapReader = snapshoter.wrapReader(DirectoryReader.open(targetDir));
                          DirectoryReader wrappedReader = snapshoter.wrapReader(DirectoryReader.open(snapshot))) {
                          DirectoryReader reader = modifyDeletedDocs
-                             ? new SoftDeletesDirectoryReaderWrapper(wrappedReader, softDeletesField) : wrappedReader;
+                             ? new SoftDeletesDirectoryReaderWrapper(wrappedReader, softDeletesField) :
+                             new DropFullDeletedSegmentsReader(wrappedReader);
+                         logger.warn(snapReader + " " + reader);
                         assertEquals(snapReader.maxDoc(), reader.maxDoc());
                         assertEquals(snapReader.numDocs(), reader.numDocs());
                         for (int i = 0; i < snapReader.maxDoc(); i++) {
@@ -296,4 +301,39 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             writer.close();
         }
     }
+
+    static class DropFullDeletedSegmentsReader extends FilterDirectoryReader {
+        public DropFullDeletedSegmentsReader(DirectoryReader in) throws IOException {
+            super(in, new SubReaderWrapper() {
+                @Override
+                protected LeafReader[] wrap(List<? extends LeafReader> readers) {
+                    List<LeafReader> wrapped = new ArrayList<>(readers.size());
+                    for (LeafReader reader : readers) {
+                        LeafReader wrap = wrap(reader);
+                        assert wrap != null;
+                        if (wrap.numDocs() != 0) {
+                            wrapped.add(wrap);
+                        }
+                    }
+                    return wrapped.toArray(new LeafReader[0]);
+                }
+
+                @Override
+                public LeafReader wrap(LeafReader reader) {
+                    return reader;
+                }
+            });
+        }
+
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            return new DropFullDeletedSegmentsReader(in);
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
+        }
+    }
+
 }

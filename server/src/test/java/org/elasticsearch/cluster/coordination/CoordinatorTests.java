@@ -185,6 +185,8 @@ public class CoordinatorTests extends ESTestCase {
                     Optional.of(clusterNode.coordinator.getLastAcceptedState().getVersion()), isPresentAndEqualToLeaderVersion);
                 assertThat(nodeId + " is at the same committed version as the leader",
                     clusterNode.coordinator.getLastCommittedState().map(ClusterState::getVersion), isPresentAndEqualToLeaderVersion);
+                assertThat(clusterNode.coordinator.getLastCommittedState().map(ClusterState::getNodes).map(dn -> dn.nodeExists(nodeId)),
+                    equalTo(Optional.of(true)));
             }
         }
 

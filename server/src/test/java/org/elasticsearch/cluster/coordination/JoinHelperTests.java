@@ -87,7 +87,7 @@ public class JoinHelperTests extends ESTestCase {
         assertEquals(node1, capturedRequest1a.node);
 
         // check that sending another join to node2 works if the optionalJoin is different
-        Optional<Join> optionalJoin2a = randomBoolean() ? Optional.empty() :
+        Optional<Join> optionalJoin2a = optionalJoin2.isPresent() && randomBoolean() ? Optional.empty() :
             Optional.of(new Join(localNode, node2, randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()));
         joinHelper.sendJoinRequest(node2, optionalJoin2a);
         CapturedRequest[] capturedRequests2a = capturingTransport.getCapturedRequestsAndClear();

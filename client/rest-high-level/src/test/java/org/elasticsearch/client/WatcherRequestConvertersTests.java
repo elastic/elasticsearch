@@ -21,6 +21,7 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.watcher.ActivateWatchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
@@ -73,6 +74,16 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         Request request = WatcherRequestConverters.deleteWatch(deleteWatchRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
+        assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testActivateWatch() {
+        String watchId = randomAlphaOfLength(10);
+        ActivateWatchRequest activateWatchRequest = new ActivateWatchRequest(watchId);
+
+        Request request = WatcherRequestConverters.activateWatch(activateWatchRequest);
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/watcher/watch/" + watchId + "/_activate", request.getEndpoint());
         assertThat(request.getEntity(), nullValue());
     }
 }

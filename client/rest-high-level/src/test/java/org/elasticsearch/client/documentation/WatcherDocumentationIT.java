@@ -23,6 +23,9 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.watcher.ActivateWatchRequest;
+import org.elasticsearch.client.watcher.ActivateWatchResponse;
+import org.elasticsearch.client.watcher.WatchStatus;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -132,4 +135,59 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testActivateWatch() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            BytesReference watch = new BytesArray("{ \n" +
+                "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n" +
+                "  \"input\": { \"simple\": { \"foo\" : \"bar\" } },\n" +
+                "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n" +
+                "}");
+            PutWatchRequest request = new PutWatchRequest("my_watch_id", watch, XContentType.JSON);
+            request.setActive(false); // <1>
+            PutWatchResponse response = client.watcher().putWatch(request, RequestOptions.DEFAULT);
+        }
+
+        {
+            //tag::activate-watch-execute
+            ActivateWatchRequest request = new ActivateWatchRequest("my_watch_id");
+            ActivateWatchResponse response = client.watcher().activateWatch(request, RequestOptions.DEFAULT);
+            //end::activate-watch-execute
+
+            //tag::activate-watch-response
+            WatchStatus watchStatus = response.getStatus(); // <1>
+            //end::activate-watch-response
+
+            assertTrue(watchStatus.state().isActive());
+        }
+
+        {
+            ActivateWatchRequest request = new ActivateWatchRequest("my_watch_id");
+            //tag::activate-watch-execute-listener
+            ActionListener<ActivateWatchResponse> listener = new ActionListener<ActivateWatchResponse>() {
+                @Override
+                public void onResponse(ActivateWatchResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::activate-watch-execute-listener
+
+            //Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            //tag::activate-watch-execute-async
+            client.watcher().activateWatchAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            //end::activate-watch-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+        }
+    }
 }

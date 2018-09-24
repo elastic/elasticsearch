@@ -72,7 +72,7 @@ killed by firewalls or load balancers inbetween.
       "attachments" : {
         "my_image.png" : { <1>
           "http" : { <2>
-            "content_type" : "image.png",
+            "content_type" : "image/png",
             "request" : {
               "url": "http://example.org/foo/my-image.png" <3>
             }

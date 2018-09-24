@@ -35,9 +35,9 @@ import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetric
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class PercentilesBucketPipelineAggregationBuilder
         extends BucketMetricsPipelineAggregationBuilder<PercentilesBucketPipelineAggregationBuilder> {
@@ -95,8 +95,8 @@ public class PercentilesBucketPipelineAggregationBuilder
     }
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, List<AggregationBuilder> aggFactories,
-            List<PipelineAggregationBuilder> pipelineAggregatorFactories) {
+    public void doValidate(AggregatorFactory<?> parent, Set<AggregationBuilder> aggFactories,
+            Set<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         super.doValidate(parent, aggFactories, pipelineAggregatorFactories);
 
         for (Double p : percents) {

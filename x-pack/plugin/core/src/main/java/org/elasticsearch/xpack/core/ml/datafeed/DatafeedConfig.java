@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -549,7 +550,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 throw ExceptionsHelper.badRequestException(
                         Messages.getMessage(Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS));
             }
-            List<AggregationBuilder> aggregatorFactories = aggregations.getAggregatorFactories();
+            Set<AggregationBuilder> aggregatorFactories = aggregations.getAggregatorFactories();
             if (aggregatorFactories.isEmpty()) {
                 throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM);
             }
@@ -560,7 +561,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             checkHistogramIntervalIsPositive(histogramAggregation);
         }
 
-        private static void checkNoMoreHistogramAggregations(List<AggregationBuilder> aggregations) {
+        private static void checkNoMoreHistogramAggregations(Set<AggregationBuilder> aggregations) {
             for (AggregationBuilder agg : aggregations) {
                 if (ExtractorUtils.isHistogram(agg)) {
                     throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_MAX_ONE_DATE_HISTOGRAM);

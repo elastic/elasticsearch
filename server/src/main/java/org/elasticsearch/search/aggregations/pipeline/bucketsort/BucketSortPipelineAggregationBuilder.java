@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
@@ -145,8 +146,8 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
     }
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, List<AggregationBuilder> aggFactories,
-                           List<PipelineAggregationBuilder> pipelineAggregatoractories) {
+    public void doValidate(AggregatorFactory<?> parent, Set<AggregationBuilder> aggFactories,
+                           Set<PipelineAggregationBuilder> pipelineAggregatoractories) {
         if (sorts.isEmpty() && size == null && from == 0) {
             throw new IllegalStateException("[" + name + "] is configured to perform nothing. Please set either of "
                     + Arrays.asList(SearchSourceBuilder.SORT_FIELD.getPreferredName(), SIZE.getPreferredName(), FROM.getPreferredName())

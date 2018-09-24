@@ -44,6 +44,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -236,8 +237,8 @@ public class AggregatorFactories {
 
     public static class Builder implements Writeable, ToXContentObject {
         private final Set<String> names = new HashSet<>();
-        private final List<AggregationBuilder> aggregationBuilders = new ArrayList<>();
-        private final List<PipelineAggregationBuilder> pipelineAggregatorBuilders = new ArrayList<>();
+        private final Set<AggregationBuilder> aggregationBuilders = new HashSet<>();
+        private final Set<PipelineAggregationBuilder> pipelineAggregatorBuilders = new HashSet<>();
         private boolean skipResolveOrder;
 
         /**
@@ -321,29 +322,32 @@ public class AggregatorFactories {
                         parent);
             }
             AggregatorFactory<?>[] aggFactories = new AggregatorFactory<?>[aggregationBuilders.size()];
-            for (int i = 0; i < aggregationBuilders.size(); i++) {
-                aggFactories[i] = aggregationBuilders.get(i).build(context, parent);
+
+            int i = 0;
+            for (AggregationBuilder agg : aggregationBuilders) {
+                aggFactories[i] = agg.build(context, parent);
+                ++i;
             }
             return new AggregatorFactories(aggFactories, orderedpipelineAggregators);
         }
 
         private List<PipelineAggregationBuilder> resolvePipelineAggregatorOrder(
-                List<PipelineAggregationBuilder> pipelineAggregatorBuilders, List<AggregationBuilder> aggBuilders,
+                Set<PipelineAggregationBuilder> pipelineAggregatorBuilders2, Set<AggregationBuilder> aggregationBuilders2,
                 AggregatorFactory<?> parent) {
             Map<String, PipelineAggregationBuilder> pipelineAggregatorBuildersMap = new HashMap<>();
-            for (PipelineAggregationBuilder builder : pipelineAggregatorBuilders) {
+            for (PipelineAggregationBuilder builder : pipelineAggregatorBuilders2) {
                 pipelineAggregatorBuildersMap.put(builder.getName(), builder);
             }
             Map<String, AggregationBuilder> aggBuildersMap = new HashMap<>();
-            for (AggregationBuilder aggBuilder : aggBuilders) {
+            for (AggregationBuilder aggBuilder : aggregationBuilders2) {
                 aggBuildersMap.put(aggBuilder.name, aggBuilder);
             }
             List<PipelineAggregationBuilder> orderedPipelineAggregatorrs = new LinkedList<>();
-            List<PipelineAggregationBuilder> unmarkedBuilders = new ArrayList<>(pipelineAggregatorBuilders);
+            List<PipelineAggregationBuilder> unmarkedBuilders = new ArrayList<>(pipelineAggregatorBuilders2);
             Set<PipelineAggregationBuilder> temporarilyMarked = new HashSet<>();
             while (!unmarkedBuilders.isEmpty()) {
                 PipelineAggregationBuilder builder = unmarkedBuilders.get(0);
-                builder.validate(parent, aggBuilders, pipelineAggregatorBuilders);
+                builder.validate(parent, aggregationBuilders2, pipelineAggregatorBuilders2);
                 resolvePipelineAggregatorOrder(aggBuildersMap, pipelineAggregatorBuildersMap, orderedPipelineAggregatorrs, unmarkedBuilders,
                         temporarilyMarked, builder);
             }
@@ -374,7 +378,7 @@ public class AggregatorFactories {
                             } else {
                                 // Check the non-pipeline sub-aggregator
                                 // factories
-                                List<AggregationBuilder> subBuilders = aggBuilder.factoriesBuilder.aggregationBuilders;
+                                Set<AggregationBuilder> subBuilders = aggBuilder.factoriesBuilder.aggregationBuilders;
                                 boolean foundSubBuilder = false;
                                 for (AggregationBuilder subBuilder : subBuilders) {
                                     if (aggName.equals(subBuilder.name)) {
@@ -385,7 +389,7 @@ public class AggregatorFactories {
                                 }
                                 // Check the pipeline sub-aggregator factories
                                 if (!foundSubBuilder && (i == bucketsPathElements.size() - 1)) {
-                                    List<PipelineAggregationBuilder> subPipelineBuilders = aggBuilder.factoriesBuilder.pipelineAggregatorBuilders;
+                                    Set<PipelineAggregationBuilder> subPipelineBuilders = aggBuilder.factoriesBuilder.pipelineAggregatorBuilders;
                                     for (PipelineAggregationBuilder subFactory : subPipelineBuilders) {
                                         if (aggName.equals(subFactory.getName())) {
                                             foundSubBuilder = true;
@@ -416,12 +420,12 @@ public class AggregatorFactories {
             }
         }
 
-        public List<AggregationBuilder> getAggregatorFactories() {
-            return Collections.unmodifiableList(aggregationBuilders);
+        public Set<AggregationBuilder> getAggregatorFactories() {
+            return Collections.unmodifiableSet(aggregationBuilders);
         }
 
-        public List<PipelineAggregationBuilder> getPipelineAggregatorFactories() {
-            return Collections.unmodifiableList(pipelineAggregatorBuilders);
+        public Set<PipelineAggregationBuilder> getPipelineAggregatorFactories() {
+            return Collections.unmodifiableSet(pipelineAggregatorBuilders);
         }
 
         public int count() {
@@ -452,9 +456,7 @@ public class AggregatorFactories {
 
         @Override
         public int hashCode() {
-            // implementation of an order independent hash: take hash of every element and XOR it
-            return aggregationBuilders.stream().mapToInt(Object::hashCode).reduce(0, (left, right) -> left ^ right)
-                    ^ pipelineAggregatorBuilders.stream().mapToInt(Object::hashCode).reduce(0, (left, right) -> left ^ right);
+            return Objects.hash(aggregationBuilders, pipelineAggregatorBuilders);
         }
 
         @Override
@@ -465,13 +467,9 @@ public class AggregatorFactories {
                 return false;
             Builder other = (Builder) obj;
 
-            // compare aggregations independent of their order
-            if (aggregationBuilders.size() != other.aggregationBuilders.size()
-                    || pipelineAggregatorBuilders.size() != other.pipelineAggregatorBuilders.size())
+            if (!Objects.equals(aggregationBuilders, other.aggregationBuilders))
                 return false;
-            if (!aggregationBuilders.containsAll(other.aggregationBuilders))
-                return false;
-            if (!pipelineAggregatorBuilders.containsAll(other.pipelineAggregatorBuilders))
+            if (!Objects.equals(pipelineAggregatorBuilders, other.pipelineAggregatorBuilders))
                 return false;
             return true;
         }

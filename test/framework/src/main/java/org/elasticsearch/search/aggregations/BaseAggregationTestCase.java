@@ -82,7 +82,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         AggregatorFactories.Builder parsed = AggregatorFactories.parseAggregators(parser);
         assertThat(parsed.getAggregatorFactories(), hasSize(1));
         assertThat(parsed.getPipelineAggregatorFactories(), hasSize(0));
-        AggregationBuilder newAgg = parsed.getAggregatorFactories().get(0);
+        AggregationBuilder newAgg = parsed.getAggregatorFactories().iterator().next();
         assertNull(parser.nextToken());
         assertNotNull(newAgg);
         return newAgg;

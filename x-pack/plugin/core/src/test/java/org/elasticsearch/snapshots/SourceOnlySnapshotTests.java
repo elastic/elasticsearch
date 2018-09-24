@@ -303,7 +303,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
     }
 
     static class DropFullDeletedSegmentsReader extends FilterDirectoryReader {
-        public DropFullDeletedSegmentsReader(DirectoryReader in) throws IOException {
+        DropFullDeletedSegmentsReader(DirectoryReader in) throws IOException {
             super(in, new SubReaderWrapper() {
                 @Override
                 protected LeafReader[] wrap(List<? extends LeafReader> readers) {

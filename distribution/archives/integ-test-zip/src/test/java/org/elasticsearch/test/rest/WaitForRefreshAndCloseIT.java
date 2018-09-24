@@ -103,7 +103,7 @@ public class WaitForRefreshAndCloseIT extends ESRestTestCase {
             Map<?, ?> theIndex = (Map<?, ?>) indices.get(indexName());
             Map<?, ?> total = (Map<?, ?>) theIndex.get("total");
             Map<?, ?> refresh = (Map<?, ?>) total.get("refresh");
-            int listeners = (int) refresh.get("listeners");
+            int listeners = (Integer) refresh.get("listeners");
             assertEquals(1, listeners);
         });
 

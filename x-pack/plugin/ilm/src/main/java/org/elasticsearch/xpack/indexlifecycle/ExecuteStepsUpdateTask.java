@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
+import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 
 import java.io.IOException;
 import java.util.function.LongSupplier;
@@ -28,15 +29,18 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
     private final Index index;
     private final Step startStep;
     private final PolicyStepsRegistry policyStepsRegistry;
+    private final IndexLifecycleRunner lifecycleRunner;
     private LongSupplier nowSupplier;
+    private Step.StepKey nextStepKey;
 
     public ExecuteStepsUpdateTask(String policy, Index index, Step startStep, PolicyStepsRegistry policyStepsRegistry,
-            LongSupplier nowSupplier) {
+                                  IndexLifecycleRunner lifecycleRunner, LongSupplier nowSupplier) {
         this.policy = policy;
         this.index = index;
         this.startStep = startStep;
         this.policyStepsRegistry = policyStepsRegistry;
         this.nowSupplier = nowSupplier;
+        this.lifecycleRunner = lifecycleRunner;
     }
 
     String getPolicy() {
@@ -88,6 +92,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                     if (currentStep.getNextStepKey() == null) {
                         return currentState;
                     }
+                    nextStepKey = currentStep.getNextStepKey();
                     currentState = IndexLifecycleRunner.moveClusterStateToNextStep(index, currentState, currentStep.getKey(),
                             currentStep.getNextStepKey(), nowSupplier);
                 } else {
@@ -104,6 +109,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                         if (currentStep.getNextStepKey() == null) {
                             return currentState;
                         }
+                        nextStepKey = currentStep.getNextStepKey();
                         currentState = IndexLifecycleRunner.moveClusterStateToNextStep(index, currentState, currentStep.getKey(),
                                 currentStep.getNextStepKey(), nowSupplier);
                     } else {
@@ -127,6 +133,19 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
             // not the same as when we submitted the update task. In
             // either case we don't want to do anything now
             return currentState;
+        }
+    }
+
+    @Override
+    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+        if (oldState.equals(newState) == false) {
+            IndexMetaData indexMetaData = newState.metaData().index(index);
+            if (nextStepKey != null && nextStepKey != TerminalPolicyStep.KEY && indexMetaData != null) {
+                // After the cluster state has been processed and we have moved
+                // to a new step, we need to conditionally execute the step iff
+                // it is an `AsyncAction` so that it is executed exactly once.
+                lifecycleRunner.maybeRunAsyncAction(newState, indexMetaData, policy, nextStepKey);
+            }
         }
     }
 

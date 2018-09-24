@@ -89,6 +89,26 @@ public class IndexLifecycleService extends AbstractComponent
     public void onMaster() {
         this.isMaster = true;
         maybeScheduleJob();
+
+        ClusterState clusterState = clusterService.state();
+        IndexLifecycleMetadata currentMetadata = clusterState.metaData().custom(IndexLifecycleMetadata.TYPE);
+        if (currentMetadata != null) {
+            OperationMode currentMode = currentMetadata.getOperationMode();
+            if (OperationMode.STOPPED.equals(currentMode) || OperationMode.STOPPING.equals(currentMode)) {
+                return;
+            }
+
+            // If we just became master, we need to kick off any async actions that
+            // may have not been run due to master rollover
+            for (ObjectCursor<IndexMetaData> cursor : clusterState.metaData().indices().values()) {
+                IndexMetaData idxMeta = cursor.value;
+                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
+                if (Strings.isNullOrEmpty(policyName) == false) {
+                    StepKey stepKey = IndexLifecycleRunner.getCurrentStepKey(LifecycleExecutionState.fromIndexMetadata(idxMeta));
+                    lifecycleRunner.maybeRunAsyncAction(clusterState, idxMeta, policyName, stepKey);
+                }
+            }
+        }
     }
 
     @Override
@@ -199,7 +219,11 @@ public class IndexLifecycleService extends AbstractComponent
                         + "]. stopping Index Lifecycle execution");
                     continue;
                 }
-                lifecycleRunner.runPolicy(policyName, idxMeta, clusterState, fromClusterStateChange);
+                if (fromClusterStateChange) {
+                    lifecycleRunner.runPolicyAfterStateChange(policyName, idxMeta);
+                } else {
+                    lifecycleRunner.runPeriodicStep(policyName, idxMeta);
+                }
                 safeToStop = false; // proven false!
             }
         }

@@ -154,7 +154,10 @@ public class AuthorizationService extends AbstractComponent {
                 auditTrail.accessGranted(authentication, action, request, new String[] { SystemUser.ROLE_NAME });
                 return;
             }
-            throw denial(authentication, action, request, new String[] { SystemUser.ROLE_NAME });
+            auditTrail.accessDenied(authentication, action, request, new String[] { SystemUser.ROLE_NAME });
+            ElasticsearchSecurityException e = denialException(authentication, action);
+            assert false : e.getMessage();
+            throw e;
         }
 
         // get the roles of the authenticated user, which may be different than the effective
@@ -568,9 +571,11 @@ public class AuthorizationService extends AbstractComponent {
         }
         // check for run as
         if (authentication.getUser().isRunAs()) {
+            logger.debug("action [{}] is unauthorized for user [{}]", action, authUser.principal(), authentication.getUser().principal());
             return authorizationError("action [{}] is unauthorized for user [{}] run as [{}]", action, authUser.principal(),
                     authentication.getUser().principal());
         }
+        logger.debug("action [{}] is unauthorized for user [{}]", action, authUser.principal());
         return authorizationError("action [{}] is unauthorized for user [{}]", action, authUser.principal());
     }
 

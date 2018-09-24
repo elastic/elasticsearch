@@ -133,7 +133,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         super.setUp();
         threadPool = new TestThreadPool(getClass().getName(), threadPoolSettings());
         primaryTerm = randomIntBetween(1, 100); // use random but fixed term for creating shards
-        failOnShardFailures.set(true);
+        failOnShardFailures();
     }
 
     @Override
@@ -152,6 +152,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
      */
     protected void allowShardFailures() {
         failOnShardFailures.set(false);
+    }
+
+    protected void failOnShardFailures() {
+        failOnShardFailures.set(true);
     }
 
     public Settings threadPoolSettings() {
@@ -233,7 +237,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             .settings(indexSettings)
             .primaryTerm(0, primaryTerm)
             .putMapping("_doc", "{ \"properties\": {} }");
-        return newShard(shardRouting, metaData.build(), engineFactory, listeners);
+        return newShard(shardRouting, metaData.build(), null, engineFactory, () -> {}, listeners);
     }
 
     /**
@@ -278,7 +282,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
             primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
         return newShard(shardRouting, indexMetaData, searcherWrapper, new InternalEngineFactory(), globalCheckpointSyncer);
     }
-
 
     /**
      * creates a new initializing shard. The shard will will be put in its proper path under the

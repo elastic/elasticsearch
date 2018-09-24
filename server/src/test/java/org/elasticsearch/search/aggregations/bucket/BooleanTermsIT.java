@@ -66,7 +66,8 @@ public class BooleanTermsIT extends ESIntegTestCase {
                     multiValue = new boolean[] {true};
                     break;
                 case 3:
-                    numMultiFalses++; numMultiTrues++;
+                    numMultiFalses++;
+                    numMultiTrues++;
                     multiValue = new boolean[] {false, true};
                     break;
                 default:

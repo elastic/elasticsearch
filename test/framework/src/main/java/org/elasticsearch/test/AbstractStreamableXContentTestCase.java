@@ -42,7 +42,7 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
     /**
      * Parses to a new instance using the provided {@link XContentParser}
      */
-    protected abstract T doParseInstance(XContentParser parser) throws IOException;;
+    protected abstract T doParseInstance(XContentParser parser) throws IOException;
 
     /**
      * Indicates whether the parser supports unknown fields or not. In case it does, such behaviour will be tested by

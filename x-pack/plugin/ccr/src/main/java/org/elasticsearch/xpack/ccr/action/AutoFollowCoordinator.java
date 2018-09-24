@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.client.Client;
@@ -114,7 +115,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                     if (entry.getValue() != null) {
                         numberOfFailedIndicesAutoFollowed++;
                         recentAutoFollowErrors.put(result.clusterAlias + ":" + entry.getKey().getName(),
-                            new ElasticsearchException(entry.getValue()));
+                            ExceptionsHelper.convertToElastic(entry.getValue()));
                         LOGGER.warn(new ParameterizedMessage("failure occurred while auto following index [{}] in leader cluster [{}]",
                             entry.getKey(), result.clusterAlias), entry.getValue());
                     } else {
@@ -253,7 +254,8 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                 final String clusterAlias = entry.getKey();
                 final AutoFollowPattern autoFollowPattern = entry.getValue();
 
-                getLeaderClusterState(autoFollowPattern.getHeaders(), clusterAlias, (leaderClusterState, e) -> {
+                Map<String, String> headers = autoFollowMetadata.getHeaders().get(clusterAlias);
+                getLeaderClusterState(headers, clusterAlias, (leaderClusterState, e) -> {
                     if (leaderClusterState != null) {
                         assert e == null;
                         final List<String> followedIndices = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get(clusterAlias);
@@ -263,7 +265,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                             finalise(slot, new AutoFollowResult(clusterAlias));
                         } else {
                             Consumer<AutoFollowResult> resultHandler = result -> finalise(slot, result);
-                            checkAutoFollowPattern(clusterAlias, autoFollowPattern, leaderIndicesToFollow, resultHandler);
+                            checkAutoFollowPattern(clusterAlias, autoFollowPattern, leaderIndicesToFollow, headers, resultHandler);
                         }
                     } else {
                         finalise(slot, new AutoFollowResult(clusterAlias, e));
@@ -273,15 +275,18 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
             }
         }
 
-        private void checkAutoFollowPattern(String clusterAlias, AutoFollowPattern autoFollowPattern,
-                                            List<Index> leaderIndicesToFollow, Consumer<AutoFollowResult> resultHandler) {
+        private void checkAutoFollowPattern(String clusterAlias,
+                                            AutoFollowPattern autoFollowPattern,
+                                            List<Index> leaderIndicesToFollow,
+                                            Map<String, String> headers,
+                                            Consumer<AutoFollowResult> resultHandler) {
 
             final CountDown leaderIndicesCountDown = new CountDown(leaderIndicesToFollow.size());
             final AtomicArray<Tuple<Index, Exception>> results = new AtomicArray<>(leaderIndicesToFollow.size());
             for (int i = 0; i < leaderIndicesToFollow.size(); i++) {
                 final Index indexToFollow = leaderIndicesToFollow.get(i);
                 final int slot = i;
-                followLeaderIndex(clusterAlias, indexToFollow, autoFollowPattern, error -> {
+                followLeaderIndex(clusterAlias, indexToFollow, autoFollowPattern, headers, error -> {
                     results.set(slot, new Tuple<>(indexToFollow, error));
                     if (leaderIndicesCountDown.countDown()) {
                         resultHandler.accept(new AutoFollowResult(clusterAlias, results.asList()));
@@ -290,8 +295,11 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
             }
         }
 
-        private void followLeaderIndex(String clusterAlias, Index indexToFollow,
-                                       AutoFollowPattern pattern, Consumer<Exception> onResult) {
+        private void followLeaderIndex(String clusterAlias,
+                                       Index indexToFollow,
+                                       AutoFollowPattern pattern,
+                                       Map<String,String> headers,
+                                       Consumer<Exception> onResult) {
             final String leaderIndexName = indexToFollow.getName();
             final String followIndexName = getFollowerIndexName(pattern, leaderIndexName);
 
@@ -318,7 +326,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                 // The coordinator always runs on the elected master node, so we can update cluster state here:
                 updateAutoFollowMetadata(function, onResult);
             };
-            createAndFollow(pattern.getHeaders(), request, successHandler, onResult);
+            createAndFollow(headers, request, successHandler, onResult);
         }
 
         private void finalise(int slot, AutoFollowResult result) {
@@ -356,7 +364,8 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
             }
         }
 
-        static Function<ClusterState, ClusterState> recordLeaderIndexAsFollowFunction(String clusterAlias, Index indexToFollow) {
+        static Function<ClusterState, ClusterState> recordLeaderIndexAsFollowFunction(String clusterAlias,
+                                                                                      Index indexToFollow) {
             return currentState -> {
                 AutoFollowMetadata currentAutoFollowMetadata = currentState.metaData().custom(AutoFollowMetadata.TYPE);
 
@@ -365,8 +374,8 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                 newFollowedIndexUUIDS.get(clusterAlias).add(indexToFollow.getUUID());
 
                 ClusterState.Builder newState = ClusterState.builder(currentState);
-                AutoFollowMetadata newAutoFollowMetadata =
-                    new AutoFollowMetadata(currentAutoFollowMetadata.getPatterns(), newFollowedIndexUUIDS);
+                AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(currentAutoFollowMetadata.getPatterns(),
+                    newFollowedIndexUUIDS, currentAutoFollowMetadata.getHeaders());
                 newState.metaData(MetaData.builder(currentState.getMetaData())
                     .putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata)
                     .build());

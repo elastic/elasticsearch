@@ -688,7 +688,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             "indices.get_upgrade",
             "indices.put_alias",
             "mtermvectors",
-            "reindex_rethrottle",
             "render_search_template",
             "scripts_painless_execute",
             "tasks.get",

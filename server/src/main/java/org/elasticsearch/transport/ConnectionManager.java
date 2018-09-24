@@ -19,13 +19,13 @@
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
@@ -53,10 +53,10 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * the connection when the connection manager is closed.
  */
 public class ConnectionManager implements Closeable {
+    private static final Logger logger = LogManager.getLogger(ConnectionManager.class);
 
     private final ConcurrentMap<DiscoveryNode, Transport.Connection> connectedNodes = ConcurrentCollections.newConcurrentMap();
     private final KeyedLock<String> connectionLock = new KeyedLock<>();
-    private final Logger logger;
     private final Transport transport;
     private final ThreadPool threadPool;
     private final TimeValue pingSchedule;
@@ -71,7 +71,6 @@ public class ConnectionManager implements Closeable {
     }
 
     public ConnectionManager(Settings settings, Transport transport, ThreadPool threadPool, ConnectionProfile defaultProfile) {
-        this.logger = Loggers.getLogger(getClass(), settings);
         this.transport = transport;
         this.threadPool = threadPool;
         this.pingSchedule = TcpTransport.PING_SCHEDULE.get(settings);

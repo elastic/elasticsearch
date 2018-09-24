@@ -270,27 +270,22 @@ public class CoordinatorTests extends ESTestCase {
             }
 
             void submitValue(final long value) {
-                onNode(localNode, new Runnable() {
-                        @Override
-                        public void run() {
-                            masterService.submitStateUpdateTask("new value [" + value + "]", new ClusterStateUpdateTask() {
-                                @Override
-                                public ClusterState execute(ClusterState currentState) {
-                                    return setValue(currentState, value);
-                                }
-
-                                @Override
-                                public void onFailure(String source, Exception e) {
-                                    logger.debug(() -> new ParameterizedMessage("failed to publish: [{}]", source), e);
-                                }
-                            });
-                        }
+                onNode(localNode, () -> masterService.submitStateUpdateTask("new value [" + value + "]", new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return setValue(currentState, value);
+                    }
 
                     @Override
-                    public String toString() {
-                        return "submitStateUpdateTask: new value [" + value + "]";
+                    public void onFailure(String source, Exception e) {
+                        logger.debug(() -> new ParameterizedMessage("failed to publish: [{}]", source), e);
                     }
-                }).run();
+                })).run();
+            }
+
+            @Override
+            public String toString() {
+                return localNode.toString();
             }
         }
 

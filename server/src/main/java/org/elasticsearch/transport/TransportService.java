@@ -1221,7 +1221,17 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                 if (ThreadPool.Names.SAME.equals(executor)) {
                     processException(handler, rtx);
                 } else {
-                    threadPool.executor(handler.executor()).execute(() -> processException(handler, rtx));
+                    threadPool.executor(handler.executor()).execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            processException(handler, rtx);
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "delivery of exception response to [" + action + "][" + requestId + "]: " + exception;
+                        }
+                    });
                 }
             }
         }

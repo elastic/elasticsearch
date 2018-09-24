@@ -167,11 +167,15 @@ public class CoordinationState extends AbstractComponent {
         logger.debug("handleStartJoin: leaving term [{}] due to {}", getCurrentTerm(), startJoinRequest);
 
         if (joinVotes.isEmpty() == false) {
+            final String reason;
             if (electionWon == false) {
-                logger.debug("handleStartJoin: failed election, discarding {}", joinVotes);
-            } else if (startJoinRequest.getSourceNode().equals(localNode) == false) {
-                logger.debug("handleStartJoin: standing down as leader, discarding {}", joinVotes);
+                reason = "failed election";
+            } else if (startJoinRequest.getSourceNode().equals(localNode)) {
+                reason = "bumping term";
+            } else {
+                reason = "standing down as leader";
             }
+            logger.debug("handleStartJoin: discarding {}: {}", joinVotes, reason);
         }
 
         persistedState.setCurrentTerm(startJoinRequest.getTerm());
@@ -240,6 +244,7 @@ public class CoordinationState extends AbstractComponent {
             join.getSourceNode(), electionWon, lastAcceptedTerm, getLastAcceptedVersion());
 
         if (electionWon && prevElectionWon == false) {
+            logger.debug("handleJoin: election won in term [{}] with {}", getCurrentTerm(), joinVotes);
             lastPublishedVersion = getLastAcceptedVersion();
         }
         return added;

@@ -488,7 +488,7 @@ public final class NodeEnvironment  implements Closeable {
     private static boolean assertPathsDoNotExist(final Path[] paths) {
         Set<Path> existingPaths = new HashSet<>();
         for (Path path : paths) {
-            if (FileSystemUtils.exists(paths)) {
+            if (FileSystemUtils.exists(path)) {
                 existingPaths.add(path);
             }
         }

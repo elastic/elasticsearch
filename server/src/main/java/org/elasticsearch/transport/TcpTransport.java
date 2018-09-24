@@ -1492,7 +1492,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    protected Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout)
+    public Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout)
         throws IOException, InterruptedException {
         numHandshakes.inc();
         final long requestId = responseHandlers.newRequestId();

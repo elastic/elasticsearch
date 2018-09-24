@@ -822,8 +822,6 @@ public class InternalEngine extends Engine {
                     assert indexResult.getResultType() == Result.Type.FAILURE : indexResult.getResultType();
                 } else if (plan.indexIntoLucene || plan.addStaleOpToLucene) {
                     indexResult = indexIntoLucene(index, plan);
-                    assert (index.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO || indexResult.isCreated() || indexResult.getFailure() != null)
-                        || indexResult.getSeqNo() <= getMaxSeqNoOfUpdatesOrDeletes() : indexResult.getSeqNo() + " > " + getMaxSeqNoOfUpdatesOrDeletes();
                 } else {
                     indexResult = new IndexResult(
                             plan.versionForIndexing, getPrimaryTerm(), plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
@@ -908,7 +906,6 @@ public class InternalEngine extends Engine {
                 }
             }
         }
-        assert assertMaxSeqNoOfUpdatesIsPropagated(index, plan);
         return plan;
     }
 
@@ -980,6 +977,7 @@ public class InternalEngine extends Engine {
             if (plan.addStaleOpToLucene) {
                 addStaleDocs(index.docs(), indexWriter);
             } else if (plan.useLuceneUpdateDocument) {
+                assert assertMaxSeqNoOfUpdatesIsAdvanced(index.uid(), plan.seqNoForIndexing, true, true);
                 updateDocs(index.uid(), index.docs(), indexWriter);
             } else {
                 // document does not exists, we can optimize for create, but double check if assertions are running
@@ -1171,7 +1169,6 @@ public class InternalEngine extends Engine {
                 deleteResult = plan.earlyResultOnPreflightError.get();
             } else if (plan.deleteFromLucene || plan.addStaleOpToLucene) {
                 deleteResult = deleteInLucene(delete, plan);
-                assert deleteResult.getSeqNo() <= getMaxSeqNoOfUpdatesOrDeletes() : deleteResult.getSeqNo() + " > " + getMaxSeqNoOfUpdatesOrDeletes();
             } else {
                 deleteResult = new DeleteResult(
                         plan.versionOfDeletion, getPrimaryTerm(), plan.seqNoOfDeletion, plan.currentlyDeleted == false);
@@ -1218,7 +1215,6 @@ public class InternalEngine extends Engine {
 
     protected final DeletionStrategy planDeletionAsNonPrimary(Delete delete) throws IOException {
         assertNonPrimaryOrigin(delete);
-        assert assertMaxSeqNoOfUpdatesIsPropagated(delete);
         maxSeqNoOfNonAppendOnlyOperations.updateAndGet(curr -> Math.max(delete.seqNo(), curr));
         assert maxSeqNoOfNonAppendOnlyOperations.get() >= delete.seqNo() : "max_seqno of non-append-only was not updated;" +
             "max_seqno non-append-only [" + maxSeqNoOfNonAppendOnlyOperations.get() + "], seqno of delete [" + delete.seqNo() + "]";
@@ -1281,8 +1277,8 @@ public class InternalEngine extends Engine {
         return plan;
     }
 
-    private DeleteResult deleteInLucene(Delete delete, DeletionStrategy plan)
-        throws IOException {
+    private DeleteResult deleteInLucene(Delete delete, DeletionStrategy plan) throws IOException {
+        assert assertMaxSeqNoOfUpdatesIsAdvanced(delete.uid(), plan.seqNoOfDeletion, false, false);
         try {
             if (softDeleteEnabled) {
                 final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.type(), delete.id());
@@ -2562,25 +2558,27 @@ public class InternalEngine extends Engine {
         assert maxUnsafeAutoIdTimestamp.get() <= maxSeenAutoIdTimestamp.get();
     }
 
-    private boolean assertMaxSeqNoOfUpdatesIsPropagated(Delete delete) {
+    private boolean assertMaxSeqNoOfUpdatesIsAdvanced(Term id, long seqNo, boolean allowDeleted, boolean relaxIfGapInSeqNo) {
         final long maxSeqNoOfUpdates = getMaxSeqNoOfUpdatesOrDeletes();
-        final Version indexVersion = config().getIndexSettings().getIndexVersionCreated();
-        assert delete.seqNo() <= maxSeqNoOfUpdates ||
-            (maxSeqNoOfUpdates == SequenceNumbers.UNASSIGNED_SEQ_NO && indexVersion.before(Version.V_7_0_0_alpha1)) :
-            "id=" + delete.id() + " seq_no=" + delete.seqNo() + " max_seq_no_of_updates=" + maxSeqNoOfUpdates + " index_version=" + indexVersion;
-        return true;
-    }
-
-    private boolean assertMaxSeqNoOfUpdatesIsPropagated(Index index, IndexingStrategy plan) {
-        final long maxSeqNoOfUpdates = getMaxSeqNoOfUpdatesOrDeletes();
-        final Version indexVersion = config().getIndexSettings().getIndexVersionCreated();
-        assert plan.useLuceneUpdateDocument == false
-            || index.seqNo() <= maxSeqNoOfUpdates // msu must be propagated
-            || getLocalCheckpoint() < maxSeqNoOfUpdates // or gap in the sequence number
-            || (maxSeqNoOfUpdates == SequenceNumbers.UNASSIGNED_SEQ_NO && indexVersion.before(Version.V_7_0_0_alpha1))
-               // we treat a deleted doc in the tombstone as a valid doc then use updateDocument to overwrite
-            || (versionMap.getUnderLock(index.uid().bytes()) != null && versionMap.getUnderLock(index.uid().bytes()).isDelete()) :
-            "id=" + index.id() + " seq_no=" + index.seqNo() + " max_seq_no_of_updates=" + maxSeqNoOfUpdates + " index_version=" + indexVersion;
+        // If the primary is on an old version which does not replicate msu, we need to relax this assertion for that.
+        if (maxSeqNoOfUpdates == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_7_0_0_alpha1);
+            return true;
+        }
+        // We treat a delete on the tombstones on replicas as a regular document, then use updateDocument (not addDocument).
+        if (allowDeleted) {
+            final VersionValue versionValue = versionMap.getVersionForAssert(id.bytes());
+            if (versionValue != null && versionValue.isDelete()) {
+                return true;
+            }
+        }
+        // Operations can be processed on a replica in a different order than on the primary. If the order on the primary is index-1,
+        // delete-2, index-3, and the order on a replica is index-1, index-3, delete-2, then the msu of index-3 on the replica is 2
+        // even though it is an update (overwrites index-1). We should relax this assertion if there is a pending gap in the seq_no.
+        if (relaxIfGapInSeqNo && getLocalCheckpoint() < maxSeqNoOfUpdates) {
+            return true;
+        }
+        assert seqNo <= maxSeqNoOfUpdates : "id=" + id + " seq_no=" + seqNo + " msu=" + maxSeqNoOfUpdates;
         return true;
     }
 

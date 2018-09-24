@@ -18,7 +18,7 @@ import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorB
 
 public class AggFilter extends PipelineAgg {
 
-    private static final String BUCKET_SELECTOR_ID_PREFIX = "aggrFilter";
+    private static final String BUCKET_SELECTOR_ID_PREFIX = "having";
 
     private final ScriptTemplate scriptTemplate;
     private final Map<String, String> aggPaths;

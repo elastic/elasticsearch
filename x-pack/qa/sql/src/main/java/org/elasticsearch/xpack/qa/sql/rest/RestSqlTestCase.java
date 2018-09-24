@@ -479,7 +479,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         String aggFilterKey = null;
         for (Map.Entry<String, Object> entry : aggregations2.entrySet()) {
             String key = entry.getKey();
-            if (key.startsWith("aggrFilter")) {
+            if (key.startsWith("having")) {
                 aggFilterKey = key;
             } else {
                 aggKeys.add(Integer.valueOf(key));
@@ -493,14 +493,14 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             }
         }
         Collections.sort(aggKeys);
-        assertEquals("aggrFilter" + aggKeys.get(1), aggFilterKey);
+        assertEquals("having" + aggKeys.get(1), aggFilterKey);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> aggrFilter = (Map<String, Object>) aggregations2.get(aggFilterKey);
-        assertEquals(1, aggrFilter.size());
+        Map<String, Object> having = (Map<String, Object>) aggregations2.get(aggFilterKey);
+        assertEquals(1, having.size());
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> bucketSelector = (Map<String, Object>) aggrFilter.get("bucket_selector");
+        Map<String, Object> bucketSelector = (Map<String, Object>) having.get("bucket_selector");
         assertEquals(3, bucketSelector.size());
         assertEquals("skip", bucketSelector.get("gap_policy"));
 

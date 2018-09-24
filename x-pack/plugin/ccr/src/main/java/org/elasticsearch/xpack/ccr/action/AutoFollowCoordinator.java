@@ -47,7 +47,6 @@ import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * A component that runs only on the elected master node and follows leader indices automatically
@@ -368,17 +367,14 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
         static Function<ClusterState, ClusterState> recordLeaderIndexAsFollowFunction(String clusterAlias,
                                                                                       Index indexToFollow) {
             return currentState -> {
-                final AutoFollowMetadata currentAutoFollowMetadata = currentState.metaData().custom(AutoFollowMetadata.TYPE);
-                final Map<String, List<String>> newFollowedIndexUUIDS = currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs()
-                    .entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> {
-                        if (e.getKey().equals(clusterAlias)) {
-                            final ArrayList<String> newIndexUUIDs = new ArrayList<>(e.getValue());
-                            newIndexUUIDs.add(indexToFollow.getUUID());
-                            return Collections.unmodifiableList(newIndexUUIDs);
-                        } else {
-                            return e.getValue();
-                        }
-                    }));
+                AutoFollowMetadata currentAutoFollowMetadata = currentState.metaData().custom(AutoFollowMetadata.TYPE);
+                Map<String, List<String>> newFollowedIndexUUIDS = new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
+                newFollowedIndexUUIDS.compute(clusterAlias, (key, existingUUIDs) -> {
+                    assert existingUUIDs != null;
+                    List<String> newUUIDs = new ArrayList<>(existingUUIDs);
+                    newUUIDs.add(indexToFollow.getUUID());
+                    return Collections.unmodifiableList(newUUIDs);
+                });
                 final AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(currentAutoFollowMetadata.getPatterns(),
                     newFollowedIndexUUIDS, currentAutoFollowMetadata.getHeaders());
                 return ClusterState.builder(currentState)

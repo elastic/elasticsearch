@@ -23,23 +23,23 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A binding represents a method call that stores state. Each binding class must have exactly one
- * public constructor and one public method excluding those inherited directly from {@link Object}.
- * The canonical type name parameters provided must match those of the constructor and method combined.
- * The constructor for a binding class will be called when the binding method is called for the first
- * time at which point state may be stored for the arguments passed into the constructor. The method
- * for a binding class will be called each time the binding method is called and may use the previously
- * stored state.
+ * A class binding represents a method call that stores state. Each class binding's Java class must
+ * have exactly one public constructor and one public method excluding those inherited directly
+ * from {@link Object}. The canonical type name parameters provided must match those of the
+ * constructor and method combined. The constructor for a class binding's Java class will be called
+ * when the binding method is called for the first time at which point state may be stored for the
+ * arguments passed into the constructor. The method for a binding class will be called each time
+ * the binding method is called and may use the previously stored state.
  */
-public class WhitelistBinding {
+public class WhitelistClassBinding {
 
     /** Information about where this constructor was whitelisted from. */
     public final String origin;
 
-    /** The Java class name this binding represents. */
+    /** The Java class name this class binding targets. */
     public final String targetJavaClassName;
 
-    /** The method name for this binding. */
+    /** The method name for this class binding. */
     public final String methodName;
 
     /**
@@ -54,7 +54,7 @@ public class WhitelistBinding {
     public final List<String> canonicalTypeNameParameters;
 
     /** Standard constructor. All values must be not {@code null}. */
-    public WhitelistBinding(String origin, String targetJavaClassName,
+    public WhitelistClassBinding(String origin, String targetJavaClassName,
             String methodName, String returnCanonicalTypeName, List<String> canonicalTypeNameParameters) {
 
         this.origin = Objects.requireNonNull(origin);

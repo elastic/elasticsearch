@@ -135,7 +135,7 @@ public class IndexModuleTests extends ESTestCase {
         bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService);
         scriptService = new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap());
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        nodeEnvironment = new NodeEnvironment(settings, environment, nodeId -> {});
+        nodeEnvironment = new NodeEnvironment(settings, environment);
         mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
     }
 

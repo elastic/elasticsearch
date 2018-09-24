@@ -68,7 +68,10 @@ class ScriptedMetricAggregator extends MetricsAggregator {
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
         final ScriptedMetricAggContexts.MapScript leafMapScript = mapScript.newInstance(ctx);
+        final int numDocs = ctx.reader().numDocs();
         return new LeafBucketCollectorBase(sub, leafMapScript) {
+            private long docCount = 0;
+
             @Override
             public void setScorer(Scorable scorer) throws IOException {
                 leafMapScript.setScorer(scorer);
@@ -80,7 +83,11 @@ class ScriptedMetricAggregator extends MetricsAggregator {
 
                 leafMapScript.setDocument(doc);
                 leafMapScript.execute();
-                CollectionUtils.ensureNoSelfReferences(aggState, "Scripted metric aggs map script");
+                docCount++;
+
+                if (docCount == numDocs) {
+                    CollectionUtils.ensureNoSelfReferences(aggState, "Scripted metric aggs map script");
+                }
             }
         };
     }

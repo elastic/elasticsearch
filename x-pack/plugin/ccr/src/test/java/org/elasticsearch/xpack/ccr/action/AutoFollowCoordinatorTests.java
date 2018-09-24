@@ -85,7 +85,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             void getLeaderClusterState(Map<String, String> headers,
                                        String leaderClusterAlias,
                                        BiConsumer<ClusterState, Exception> handler) {
-                assertThat(headers, sameInstance(autoFollowHeaders.get("remote")));
+                assertThat(headers, equalTo(autoFollowHeaders.get("remote")));
                 handler.accept(leaderState, null);
             }
 
@@ -94,7 +94,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                                  FollowIndexAction.Request followRequest,
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
-                assertThat(headers, sameInstance(autoFollowHeaders.get("remote")));
+                assertThat(headers, equalTo(autoFollowHeaders.get("remote")));
                 assertThat(followRequest.getLeaderIndex(), equalTo("remote:logs-20190101"));
                 assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
                 successHandler.run();

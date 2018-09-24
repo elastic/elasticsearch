@@ -159,19 +159,6 @@ And now we are ready to start our node and single cluster:
 --------------------------------------------------
 
 [float]
-=== Installation with Homebrew
-
-On macOS, Elasticsearch can also be installed via https://brew.sh[Homebrew]:
-
-["source","sh"]
---------------------------------------------------
-brew install elasticsearch
---------------------------------------------------
-
-If installation succeeds, Homebrew will finish by saying that you can start Elasticsearch by entering
-`elasticsearch`. Do that now. The expected response is described below, under <<successfully-running-node>>.
-
-[float]
 === Installation example with MSI Windows Installer
 
 For Windows users, we recommend using the {ref}/windows.html[MSI Installer package]. The package contains a graphical user interface (GUI) that guides you through the installation process.

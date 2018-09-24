@@ -26,10 +26,8 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 import java.util.Map;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.qa.sql.jdbc.DataLoader.createString;
 import static org.elasticsearch.xpack.qa.sql.jdbc.DataLoader.readFromJarUrl;
 
@@ -118,8 +116,10 @@ public class GeoDataLoader {
     }
 
     private static void loadData(RestClient client, String index, String bulk) throws IOException {
-        Response response = client.performRequest("POST", "/" + index + "/doc/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk, ContentType.APPLICATION_JSON));
+        Request request = new Request("POST", "/" + index + "/doc/_bulk");
+        request.addParameter("refresh", "true");
+        request.setJsonEntity(bulk);
+        Response response = client.performRequest(request);
 
         if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
             throw new RuntimeException("Cannot load data " + response.getStatusLine());
@@ -135,8 +135,9 @@ public class GeoDataLoader {
 
 
     public static void makeFilteredAlias(RestClient client, String aliasName, String index, String filter) throws Exception {
-        client.performRequest("POST", "/" + index + "/_alias/" + aliasName, Collections.emptyMap(),
-                new StringEntity("{\"filter\" : { " + filter + " } }", ContentType.APPLICATION_JSON));
+        Request request = new Request("POST", "/" + index + "/_alias/" + aliasName);
+        request.setJsonEntity("{\"filter\" : { " + filter + " } }");
+        client.performRequest(request);
     }
 
     private static String readResource(String location) throws IOException {

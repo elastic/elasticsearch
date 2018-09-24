@@ -74,6 +74,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -501,19 +502,18 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             };
 
             // Start job task
-            ActionListener<Boolean> assignedMemoryListener = ActionListener.wrap(
-                    response -> persistentTasksService.sendStartRequest(MlTasks.jobTaskId(jobParams.getJobId()),
-                            MlTasks.JOB_TASK_NAME, jobParams, waitForJobToStart),
+            ActionListener<Map<String, Long>> assignedMemoryListener = ActionListener.wrap(
+                    response -> {
+                        jobParams.setNodeAssignedJobMemory(response);
+                        persistentTasksService.sendStartRequest(MlTasks.jobTaskId(jobParams.getJobId()),
+                                MlTasks.JOB_TASK_NAME, jobParams, waitForJobToStart);
+                    },
                     listener::onFailure
             );
 
             // Get the memory used by the open jobs
             ActionListener<PutJobAction.Response> jobUpateListener = ActionListener.wrap(
-                    response -> {
-                        collectOpenJobsAssignedMemory(state, ActionListener.wrap(
-                                assignedMemory -> assignedMemoryListener.onResponse(Boolean.TRUE),
-                                listener::onFailure));
-                    },
+                    response -> collectOpenJobsAssignedMemory(state, assignedMemoryListener),
                     listener::onFailure
             );
 
@@ -708,9 +708,17 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                                        ActionListener<Map<String, Long>> listener) {
 
         PersistentTasksCustomMetaData persistentTasksCustomMetaData = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        if (persistentTasksCustomMetaData == null) {
+            listener.onResponse(Collections.emptyMap());
+            return;
+        }
 
         // Get the ml job tasks excluding CLOSED or FAILED jobs as they don't consume native memory
         List<PersistentTasksCustomMetaData.PersistentTask<?>> assignedTasks = MlTasks.activeJobTasks(persistentTasksCustomMetaData);
+        if (assignedTasks.isEmpty()) {
+            listener.onResponse(Collections.emptyMap());
+            return;
+        }
 
         List<String> openJobIds = assignedTasks.stream()
                 .map(task -> ((OpenJobAction.JobParams) task.getParams()).getJobId())

@@ -112,7 +112,8 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         } else {
             topDocs = new TopDocs(new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), scoreDocs);
         }
-        TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(topDocs, maxScore);
+        // Lucene's TopDocs initializes the maxScore to Float.NaN, if there is no maxScore
+        TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(topDocs, maxScore == Float.MIN_VALUE ? Float.NaN : maxScore);
 
         return new InternalTopHits(name, from, requestedSize, topDocsAndMaxScore, searchHits, pipelineAggregators, metaData);
     }

@@ -11,13 +11,13 @@
   - do:
       ccr.get_auto_follow_pattern:
         leader_cluster_alias: _local_
-  - match: { 0.leader_index_patterns: ['logs-*'] }
-  - match: { 0.max_concurrent_read_batches: 2 }
+  - match: { _local_.leader_index_patterns: ['logs-*'] }
+  - match: { _local_.max_concurrent_read_batches: 2 }
 
   - do:
       ccr.get_auto_follow_pattern: {}
-  - match: { 0.leader_index_patterns: ['logs-*'] }
-  - match: { 0.max_concurrent_read_batches: 2 }
+  - match: { _local_.leader_index_patterns: ['logs-*'] }
+  - match: { _local_.max_concurrent_read_batches: 2 }
 
   - do:
       ccr.delete_auto_follow_pattern:

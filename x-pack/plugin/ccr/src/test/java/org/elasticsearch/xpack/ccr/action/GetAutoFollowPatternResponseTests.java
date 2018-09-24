@@ -7,12 +7,12 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
+import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 public class GetAutoFollowPatternResponseTests extends AbstractStreamableTestCase<GetAutoFollowPatternAction.Response> {
 
@@ -24,9 +24,9 @@ public class GetAutoFollowPatternResponseTests extends AbstractStreamableTestCas
     @Override
     protected GetAutoFollowPatternAction.Response createTestInstance() {
         int numPatterns = randomIntBetween(1, 8);
-        List<AutoFollowMetadata.AutoFollowPattern> patterns = new ArrayList<>(numPatterns);
+        Map<String, AutoFollowPattern> patterns = new HashMap<>(numPatterns);
         for (int i = 0; i < numPatterns; i++) {
-            AutoFollowMetadata.AutoFollowPattern autoFollowPattern = new AutoFollowMetadata.AutoFollowPattern(
+            AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
                 Collections.singletonList(randomAlphaOfLength(4)),
                 randomAlphaOfLength(4),
                 randomIntBetween(0, Integer.MAX_VALUE),
@@ -36,7 +36,7 @@ public class GetAutoFollowPatternResponseTests extends AbstractStreamableTestCas
                 randomIntBetween(0, Integer.MAX_VALUE),
                 TimeValue.timeValueMillis(500),
                 TimeValue.timeValueMillis(500));
-            patterns.add(autoFollowPattern);
+            patterns.put(randomAlphaOfLength(4), autoFollowPattern);
         }
         return new GetAutoFollowPatternAction.Response(patterns);
     }

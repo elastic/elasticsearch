@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class GetAutoFollowPatternAction extends Action<GetAutoFollowPatternAction.Response> {
@@ -81,40 +82,40 @@ public class GetAutoFollowPatternAction extends Action<GetAutoFollowPatternActio
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private List<AutoFollowPattern> autoFollowPatterns;
+        private Map<String, AutoFollowPattern> autoFollowPatterns;
 
-        public Response(List<AutoFollowPattern> autoFollowPatterns) {
+        public Response(Map<String, AutoFollowPattern> autoFollowPatterns) {
             this.autoFollowPatterns = autoFollowPatterns;
         }
 
         public Response() {
         }
 
-        public List<AutoFollowPattern> getAutoFollowPatterns() {
+        public Map<String, AutoFollowPattern> getAutoFollowPatterns() {
             return autoFollowPatterns;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            autoFollowPatterns = in.readList(AutoFollowPattern::new);
+            autoFollowPatterns = in.readMap(StreamInput::readString, AutoFollowPattern::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeList(autoFollowPatterns);
+            out.writeMap(autoFollowPatterns, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startArray();
-            for (AutoFollowPattern autoFollowPattern : autoFollowPatterns) {
-                builder.startObject();
-                autoFollowPattern.toXContent(builder, params);
+            builder.startObject();
+            for (Map.Entry<String, AutoFollowPattern> entry : autoFollowPatterns.entrySet()) {
+                builder.startObject(entry.getKey());
+                entry.getValue().toXContent(builder, params);
                 builder.endObject();
             }
-            builder.endArray();
+            builder.endObject();
             return builder;
         }
 

@@ -337,7 +337,13 @@ class ClusterFormationTasks {
         if (node.nodeVersion.major >= 7) {
             esConfig['indices.breaker.total.use_real_memory'] = false
         }
-        esConfig.putAll(node.config.settings)
+        for (Map.Entry<String, Object> setting : node.config.settings) {
+            if (setting.value == null) {
+                esConfig.remove(setting.key)
+            } else {
+                esConfig.put(setting.key, setting.value)
+            }
+        }
 
         Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
         writeConfig.doFirst {

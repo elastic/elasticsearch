@@ -70,9 +70,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             request.indices(), idx -> indexNameExpressionResolver.hasIndexOrAlias(idx, clusterState));
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         final String[] concreteIndices;
-        if (remoteClusterIndices.isEmpty() == false && localIndices.indices().length == 0) {
-            // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote
-            // indices
+        if (localIndices == null) {
+            // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote indices
             concreteIndices = Strings.EMPTY_ARRAY;
         } else {
             concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, localIndices);

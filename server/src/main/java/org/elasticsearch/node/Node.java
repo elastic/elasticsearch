@@ -73,6 +73,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -151,6 +152,7 @@ import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import javax.net.ssl.SNIHostName;
+
 import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
@@ -184,8 +186,6 @@ import static java.util.stream.Collectors.toList;
  * in order to use a {@link Client} to perform actions/operations against the cluster.
  */
 public class Node implements Closeable {
-
-
     public static final Setting<Boolean> WRITE_PORTS_FILE_SETTING =
         Setting.boolSetting("node.portsfile", false, Property.NodeScope);
     public static final Setting<Boolean> NODE_DATA_SETTING = Setting.boolSetting("node.data", true, Property.NodeScope);
@@ -229,17 +229,6 @@ public class Node implements Closeable {
         }
     }, Setting.Property.NodeScope);
 
-    /**
-     * Adds a default node name to the given setting, if it doesn't already exist
-     * @return the given setting if node name is already set, or a new copy with a default node name set.
-     */
-    public static final Settings addNodeNameIfNeeded(Settings settings, final String nodeId) {
-        if (NODE_NAME_SETTING.exists(settings)) {
-            return settings;
-        }
-        return Settings.builder().put(settings).put(NODE_NAME_SETTING.getKey(), nodeId.substring(0, 7)).build();
-    }
-
     private static final String CLIENT_TYPE = "node";
 
     private final Lifecycle lifecycle = new Lifecycle();
@@ -259,15 +248,6 @@ public class Node implements Closeable {
     private final Collection<LifecycleComponent> pluginLifecycleComponents;
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
-
-    /**
-     * Constructs a node with the given settings.
-     *
-     * @param preparedSettings Base settings to configure the node with
-     */
-    public Node(Settings preparedSettings) {
-        this(InternalSettingsPreparer.prepareEnvironment(preparedSettings));
-    }
 
     public Node(Environment environment) {
         this(environment, Collections.emptyList(), true);
@@ -291,23 +271,10 @@ public class Node implements Closeable {
             Settings tmpSettings = Settings.builder().put(environment.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
 
-            // create the node environment as soon as possible, to recover the node id and enable logging
-            try {
-                nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
-                resourcesToClose.add(nodeEnvironment);
-            } catch (IOException ex) {
-                throw new IllegalStateException("Failed to create node environment", ex);
-            }
-            final boolean hadPredefinedNodeName = NODE_NAME_SETTING.exists(tmpSettings);
-            final String nodeId = nodeEnvironment.nodeId();
-            tmpSettings = addNodeNameIfNeeded(tmpSettings, nodeId);
-            // this must be captured after the node name is possibly added to the settings
-            final String nodeName = NODE_NAME_SETTING.get(tmpSettings);
-            if (hadPredefinedNodeName == false) {
-                logger.info("node name derived from node ID [{}]; set [{}] to override", nodeId, NODE_NAME_SETTING.getKey());
-            } else {
-                logger.info("node name [{}], node ID [{}]", nodeName, nodeId);
-            }
+            nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
+            resourcesToClose.add(nodeEnvironment);
+            logger.info("node name [{}], node ID [{}]",
+                    NODE_NAME_SETTING.get(tmpSettings), nodeEnvironment.nodeId());
 
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
@@ -361,7 +328,15 @@ public class Node implements Closeable {
             AnalysisModule analysisModule = new AnalysisModule(this.environment, pluginsService.filterPlugins(AnalysisPlugin.class));
             // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
             // so we might be late here already
-            final SettingsModule settingsModule = new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter);
+
+            final Set<SettingUpgrader<?>> settingsUpgraders = pluginsService.filterPlugins(Plugin.class)
+                    .stream()
+                    .map(Plugin::getSettingUpgraders)
+                    .flatMap(List::stream)
+                    .collect(Collectors.toSet());
+
+            final SettingsModule settingsModule =
+                    new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter, settingsUpgraders);
             scriptModule.registerClusterSettingsListeners(settingsModule.getClusterSettings());
             resourcesToClose.add(resourceWatcherService);
             final NetworkService networkService = new NetworkService(

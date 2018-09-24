@@ -218,7 +218,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
     }
 
     public void testCorsEnabledWithoutAllowOrigins() throws IOException {
-        // Set up a HTTP transport with only the CORS enabled setting
+        // Set up an HTTP transport with only the CORS enabled setting
         Settings settings = Settings.builder()
             .put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true)
             .build();
@@ -233,7 +233,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
 
     public void testCorsEnabledWithAllowOrigins() throws IOException {
         final String originValue = "remote-host";
-        // create a http transport with CORS enabled and allow origin configured
+        // create an HTTP transport with CORS enabled and allow origin configured
         Settings settings = Settings.builder()
             .put(SETTING_CORS_ENABLED.getKey(), true)
             .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), originValue)
@@ -252,7 +252,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
     public void testCorsAllowOriginWithSameHost() throws IOException {
         String originValue = "remote-host";
         String host = "remote-host";
-        // create a http transport with CORS enabled
+        // create an HTTP transport with CORS enabled
         Settings settings = Settings.builder()
             .put(SETTING_CORS_ENABLED.getKey(), true)
             .build();

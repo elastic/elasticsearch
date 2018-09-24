@@ -183,6 +183,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         JDBCType jdbcType;
         int displaySize;
         if (in.readBoolean()) {
+            // FIXME: this needs changing to allow custom types
             jdbcType = JDBCType.valueOf(in.readVInt());
             displaySize = in.readVInt();
         } else {
@@ -207,8 +208,12 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SqlQueryResponse that = (SqlQueryResponse) o;
         return Objects.equals(cursor, that.cursor) &&
                 Objects.equals(columns, that.columns) &&

@@ -344,7 +344,8 @@ public final class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void restoreLocalCheckpointFromTranslog() {
+    public int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) {
+        return 0;
     }
 
     @Override
@@ -372,5 +373,15 @@ public final class ReadOnlyEngine extends Engine {
     @Override
     public DocsStats docStats() {
         return docsStats;
+    }
+
+    @Override
+    public void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {
+
+    }
+
+    @Override
+    public void initializeMaxSeqNoOfUpdatesOrDeletes() {
+        advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats.getMaxSeqNo());
     }
 }

@@ -365,49 +365,49 @@ If the request does not encounter errors, you receive the following result:
     "page_count" : {
       "count" : 24,
       "cardinality" : 24,
-      "min_value" : 180.0,
-      "max_value" : 768.0,
+      "min_value" : 180,
+      "max_value" : 768,
       "mean_value" : 387.0833333333333,
       "median_value" : 329.5,
       "top_hits" : [
         {
-          "value" : 180.0,
+          "value" : 180,
           "count" : 1
         },
         {
-          "value" : 208.0,
+          "value" : 208,
           "count" : 1
         },
         {
-          "value" : 224.0,
+          "value" : 224,
           "count" : 1
         },
         {
-          "value" : 227.0,
+          "value" : 227,
           "count" : 1
         },
         {
-          "value" : 268.0,
+          "value" : 268,
           "count" : 1
         },
         {
-          "value" : 271.0,
+          "value" : 271,
           "count" : 1
         },
         {
-          "value" : 275.0,
+          "value" : 275,
           "count" : 1
         },
         {
-          "value" : 288.0,
+          "value" : 288,
           "count" : 1
         },
         {
-          "value" : 304.0,
+          "value" : 304,
           "count" : 1
         },
         {
-          "value" : 311.0,
+          "value" : 311,
           "count" : 1
         }
       ]
@@ -610,49 +610,49 @@ If the request does not encounter errors, you receive the following result:
     "DOLocationID" : {
       "count" : 19998,
       "cardinality" : 240,
-      "min_value" : 1.0,
-      "max_value" : 265.0,
+      "min_value" : 1,
+      "max_value" : 265,
       "mean_value" : 150.26532653265312,
-      "median_value" : 148.0,
+      "median_value" : 148,
       "top_hits" : [
         {
-          "value" : 79.0,
+          "value" : 79,
           "count" : 760
         },
         {
-          "value" : 48.0,
+          "value" : 48,
           "count" : 683
         },
         {
-          "value" : 68.0,
+          "value" : 68,
           "count" : 529
         },
         {
-          "value" : 170.0,
+          "value" : 170,
           "count" : 506
         },
         {
-          "value" : 107.0,
+          "value" : 107,
           "count" : 468
         },
         {
-          "value" : 249.0,
+          "value" : 249,
           "count" : 457
         },
         {
-          "value" : 230.0,
+          "value" : 230,
           "count" : 441
         },
         {
-          "value" : 186.0,
+          "value" : 186,
           "count" : 432
         },
         {
-          "value" : 141.0,
+          "value" : 141,
           "count" : 409
         },
         {
-          "value" : 263.0,
+          "value" : 263,
           "count" : 386
         }
       ]
@@ -660,49 +660,49 @@ If the request does not encounter errors, you receive the following result:
     "PULocationID" : {
       "count" : 19998,
       "cardinality" : 154,
-      "min_value" : 1.0,
-      "max_value" : 265.0,
+      "min_value" : 1,
+      "max_value" : 265,
       "mean_value" : 153.4042404240424,
-      "median_value" : 148.0,
+      "median_value" : 148,
       "top_hits" : [
         {
-          "value" : 79.0,
+          "value" : 79,
           "count" : 1067
         },
         {
-          "value" : 230.0,
+          "value" : 230,
           "count" : 949
         },
         {
-          "value" : 148.0,
+          "value" : 148,
           "count" : 940
         },
         {
-          "value" : 132.0,
+          "value" : 132,
           "count" : 897
         },
         {
-          "value" : 48.0,
+          "value" : 48,
           "count" : 853
         },
         {
-          "value" : 161.0,
+          "value" : 161,
           "count" : 820
         },
         {
-          "value" : 234.0,
+          "value" : 234,
           "count" : 750
         },
         {
-          "value" : 249.0,
+          "value" : 249,
           "count" : 722
         },
         {
-          "value" : 164.0,
+          "value" : 164,
           "count" : 663
         },
         {
-          "value" : 114.0,
+          "value" : 114,
           "count" : 646
         }
       ]
@@ -710,29 +710,29 @@ If the request does not encounter errors, you receive the following result:
     "RatecodeID" : {
       "count" : 19998,
       "cardinality" : 5,
-      "min_value" : 1.0,
-      "max_value" : 5.0,
+      "min_value" : 1,
+      "max_value" : 5,
       "mean_value" : 1.0656565656565653,
-      "median_value" : 1.0,
+      "median_value" : 1,
       "top_hits" : [
         {
-          "value" : 1.0,
+          "value" : 1,
           "count" : 19311
         },
         {
-          "value" : 2.0,
+          "value" : 2,
           "count" : 468
         },
         {
-          "value" : 5.0,
+          "value" : 5,
           "count" : 195
         },
         {
-          "value" : 4.0,
+          "value" : 4,
           "count" : 17
         },
         {
-          "value" : 3.0,
+          "value" : 3,
           "count" : 7
         }
       ]
@@ -740,17 +740,17 @@ If the request does not encounter errors, you receive the following result:
     "VendorID" : {
       "count" : 19998,
       "cardinality" : 2,
-      "min_value" : 1.0,
-      "max_value" : 2.0,
+      "min_value" : 1,
+      "max_value" : 2,
       "mean_value" : 1.59005900590059,
-      "median_value" : 2.0,
+      "median_value" : 2,
       "top_hits" : [
         {
-          "value" : 2.0,
+          "value" : 2,
           "count" : 11800
         },
         {
-          "value" : 1.0,
+          "value" : 1,
           "count" : 8198
         }
       ]
@@ -768,7 +768,7 @@ If the request does not encounter errors, you receive the following result:
           "count" : 19281
         },
         {
-          "value" : 0.0,
+          "value" : 0,
           "count" : 698
         },
         {
@@ -780,13 +780,13 @@ If the request does not encounter errors, you receive the following result:
     "fare_amount" : {
       "count" : 19998,
       "cardinality" : 208,
-      "min_value" : -100.0,
-      "max_value" : 300.0,
+      "min_value" : -100,
+      "max_value" : 300,
       "mean_value" : 13.937719771977209,
       "median_value" : 9.5,
       "top_hits" : [
         {
-          "value" : 6.0,
+          "value" : 6,
           "count" : 1004
         },
         {
@@ -798,11 +798,11 @@ If the request does not encounter errors, you receive the following result:
           "count" : 909
         },
         {
-          "value" : 7.0,
+          "value" : 7,
           "count" : 903
         },
         {
-          "value" : 5.0,
+          "value" : 5,
           "count" : 889
         },
         {
@@ -818,11 +818,11 @@ If the request does not encounter errors, you receive the following result:
           "count" : 790
         },
         {
-          "value" : 8.0,
+          "value" : 8,
           "count" : 789
         },
         {
-          "value" : 9.0,
+          "value" : 9,
           "count" : 711
         }
       ]
@@ -844,7 +844,7 @@ If the request does not encounter errors, you receive the following result:
           "count" : 22
         },
         {
-          "value" : 0.0,
+          "value" : 0,
           "count" : 12
         }
       ]
@@ -862,7 +862,7 @@ If the request does not encounter errors, you receive the following result:
           "count" : 19868
         },
         {
-          "value" : 0.0,
+          "value" : 0,
           "count" : 109
         },
         {
@@ -874,37 +874,37 @@ If the request does not encounter errors, you receive the following result:
     "passenger_count" : {
       "count" : 19998,
       "cardinality" : 7,
-      "min_value" : 0.0,
-      "max_value" : 6.0,
+      "min_value" : 0,
+      "max_value" : 6,
       "mean_value" : 1.6201620162016201,
-      "median_value" : 1.0,
+      "median_value" : 1,
       "top_hits" : [
         {
-          "value" : 1.0,
+          "value" : 1,
           "count" : 14219
         },
         {
-          "value" : 2.0,
+          "value" : 2,
           "count" : 2886
         },
         {
-          "value" : 5.0,
+          "value" : 5,
           "count" : 1047
         },
         {
-          "value" : 3.0,
+          "value" : 3,
           "count" : 804
         },
         {
-          "value" : 6.0,
+          "value" : 6,
           "count" : 523
         },
         {
-          "value" : 4.0,
+          "value" : 4,
           "count" : 406
         },
         {
-          "value" : 0.0,
+          "value" : 0,
           "count" : 113
         }
       ]
@@ -912,25 +912,25 @@ If the request does not encounter errors, you receive the following result:
     "payment_type" : {
       "count" : 19998,
       "cardinality" : 4,
-      "min_value" : 1.0,
-      "max_value" : 4.0,
+      "min_value" : 1,
+      "max_value" : 4,
       "mean_value" : 1.315631563156316,
-      "median_value" : 1.0,
+      "median_value" : 1,
       "top_hits" : [
         {
-          "value" : 1.0,
+          "value" : 1,
           "count" : 13936
         },
         {
-          "value" : 2.0,
+          "value" : 2,
           "count" : 5857
         },
         {
-          "value" : 3.0,
+          "value" : 3,
           "count" : 160
         },
         {
-          "value" : 4.0,
+          "value" : 4,
           "count" : 45
         }
       ]
@@ -952,25 +952,25 @@ If the request does not encounter errors, you receive the following result:
     "tip_amount" : {
       "count" : 19998,
       "cardinality" : 717,
-      "min_value" : 0.0,
-      "max_value" : 128.0,
+      "min_value" : 0,
+      "max_value" : 128,
       "mean_value" : 2.010959095909593,
       "median_value" : 1.45,
       "top_hits" : [
         {
-          "value" : 0.0,
+          "value" : 0,
           "count" : 6917
         },
         {
-          "value" : 1.0,
+          "value" : 1,
           "count" : 1178
         },
         {
-          "value" : 2.0,
+          "value" : 2,
           "count" : 624
         },
         {
-          "value" : 3.0,
+          "value" : 3,
           "count" : 248
         },
         {
@@ -1002,13 +1002,13 @@ If the request does not encounter errors, you receive the following result:
     "tolls_amount" : {
       "count" : 19998,
       "cardinality" : 26,
-      "min_value" : 0.0,
-      "max_value" : 35.0,
+      "min_value" : 0,
+      "max_value" : 35,
       "mean_value" : 0.2729697969796978,
-      "median_value" : 0.0,
+      "median_value" : 0,
       "top_hits" : [
         {
-          "value" : 0.0,
+          "value" : 0,
           "count" : 19107
         },
         {
@@ -1040,7 +1040,7 @@ If the request does not encounter errors, you receive the following result:
           "count" : 4
         },
         {
-          "value" : 2.0,
+          "value" : 2,
           "count" : 2
         },
         {
@@ -1194,7 +1194,7 @@ If the request does not encounter errors, you receive the following result:
     "trip_distance" : {
       "count" : 19998,
       "cardinality" : 1687,
-      "min_value" : 0.0,
+      "min_value" : 0,
       "max_value" : 64.63,
       "mean_value" : 3.6521062106210715,
       "median_value" : 2.16,
@@ -1220,7 +1220,7 @@ If the request does not encounter errors, you receive the following result:
           "count" : 303
         },
         {
-          "value" : 1.0,
+          "value" : 1,
           "count" : 296
         },
         {

@@ -17,15 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.common;
+package org.elasticsearch.ingest;
 
 import java.util.Map;
-import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.ConfigurationUtils;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.Pipeline;
-import org.elasticsearch.ingest.Processor;
 
 public class PipelineProcessor extends AbstractProcessor {
 
@@ -48,6 +42,10 @@ public class PipelineProcessor extends AbstractProcessor {
             throw new IllegalStateException("Pipeline processor configured for non-existent pipeline [" + pipelineName + ']');
         }
         return ingestDocument.executePipeline(pipeline);
+    }
+
+    Pipeline getPipeline(){
+        return ingestService.getPipeline(pipelineName);
     }
 
     @Override

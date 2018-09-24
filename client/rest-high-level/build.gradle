@@ -83,6 +83,7 @@ integTestRunner {
 }
 
 integTestCluster {
+  systemProperty 'es.scripting.update.ctx_in_params', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   setupCommand 'setupDummyUser',

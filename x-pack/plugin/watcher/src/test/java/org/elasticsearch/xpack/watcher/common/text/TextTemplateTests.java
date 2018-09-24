@@ -32,6 +32,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class TextTemplateTests extends ESTestCase {
@@ -47,7 +48,7 @@ public class TextTemplateTests extends ESTestCase {
     }
 
     public void testRender() throws Exception {
-        String templateText = "_template";
+        String templateText = "{{_template}}";
         Map<String, Object> params = singletonMap("param_key", "param_val");
         Map<String, Object> model = singletonMap("model_key", "model_val");
         Map<String, Object> merged = new HashMap<>(params);
@@ -72,7 +73,7 @@ public class TextTemplateTests extends ESTestCase {
     }
 
     public void testRenderOverridingModel() throws Exception {
-        String templateText = "_template";
+        String templateText = "{{_template}}";
         Map<String, Object> params = singletonMap("key", "param_val");
         Map<String, Object> model = singletonMap("key", "model_val");
         ScriptType type = randomFrom(ScriptType.values());
@@ -94,7 +95,7 @@ public class TextTemplateTests extends ESTestCase {
     }
 
     public void testRenderDefaults() throws Exception {
-        String templateText = "_template";
+        String templateText = "{{_template}}";
         Map<String, Object> model = singletonMap("key", "model_val");
 
         TemplateScript.Factory compiledTemplate = templateParams ->
@@ -111,6 +112,13 @@ public class TextTemplateTests extends ESTestCase {
 
         TextTemplate template = new TextTemplate(templateText);
         assertThat(engine.render(template, model), is("rendered_text"));
+    }
+
+    public void testDontInvokeScriptServiceOnNonMustacheText() {
+        String input = rarely() ? "}}{{" : "this is my text";
+        String output = engine.render(new TextTemplate(input), Collections.emptyMap());
+        assertThat(input, is(output));
+        verifyZeroInteractions(service);
     }
 
     public void testParser() throws Exception {

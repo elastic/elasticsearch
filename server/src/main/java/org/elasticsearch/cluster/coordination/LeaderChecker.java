@@ -167,6 +167,12 @@ public class LeaderChecker extends AbstractComponent {
                 TransportRequestOptions.builder().withTimeout(leaderCheckTimeout).withType(Type.PING).build(),
 
                 new TransportResponseHandler<TransportResponse.Empty>() {
+
+                    @Override
+                    public Empty read(StreamInput in) {
+                        return Empty.INSTANCE;
+                    }
+
                     @Override
                     public void handleResponse(Empty response) {
                         if (isClosed.get()) {

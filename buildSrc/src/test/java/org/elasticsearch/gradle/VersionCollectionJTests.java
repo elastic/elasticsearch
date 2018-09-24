@@ -1,0 +1,239 @@
+package org.elasticsearch.gradle;
+
+import org.elasticsearch.gradle.test.GradleUnitTestCase;
+import org.junit.Test;
+
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+public class VersionCollectionJTests extends GradleUnitTestCase {
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testExceptionOnEmpty() {
+        new VersionCollectionJ(Arrays.asList("foo", "bar"), Version.fromString("7.0.0"));
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testExceptionOnNonCurrent() {
+        new VersionCollectionJ(Arrays.asList(formatVersionToLine("6.5.0")), Version.fromString("7.0.0"));
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testExceptionOnTooManyMajors() {
+        new VersionCollectionJ(
+            Arrays.asList(
+                formatVersionToLine("5.6.12"),
+                formatVersionToLine("6.5.0"),
+                formatVersionToLine("7.0.0")
+            ),
+            Version.fromString("7.0.0")
+        );
+    }
+
+    private static final Map<String, List<String>> sampleVersions = new HashMap<>();
+    static {
+        // unreleased major and two unreleased minors ( minor in feature freeze )
+        sampleVersions.put("8.0.0", Arrays.asList(
+            "7_1_1", "7_2_0", "7_3_0",  "8.0.0"
+        ));
+        sampleVersions.put("7.0.0-alpha1", Arrays.asList(
+            "6_0_0_alpha1", "6_0_0_alpha2", "6_0_0_beta1", "6_0_0_beta2", "6_0_0_rc1", "6_0_0_rc2",
+            "6_0_0", "6_0_1", "6_1_0", "6_1_1", "6_1_2", "6_1_3", "6_1_4",
+            "6_2_0", "6_2_1", "6_2_2", "6_2_3", "6_2_4",
+            "6_3_0", "6_3_1", "6_3_2",
+            "6_4_0", "6_4_1", "6_4_2",
+            "6_5_0", "7_0_0_alpha1"
+        ));
+        sampleVersions.put("6.5.0", Arrays.asList(
+            "5_0_0_alpha1", "5_0_0_alpha2", "5_0_0_alpha3", "5_0_0_alpha4", "5_0_0_alpha5", "5_0_0_beta1", "5_0_0_rc1",
+            "5_0_0", "5_0_1", "5_0_2", "5_1_1", "5_1_2", "5_2_0", "5_2_1", "5_2_2", "5_3_0", "5_3_1", "5_3_2", "5_3_3",
+            "5_4_0", "5_4_1", "5_4_2", "5_4_3", "5_5_0", "5_5_1", "5_5_2", "5_5_3", "5_6_0", "5_6_1", "5_6_2", "5_6_3",
+            "5_6_4", "5_6_5", "5_6_6", "5_6_7", "5_6_8", "5_6_9", "5_6_10", "5_6_11", "5_6_12", "5_6_13",
+            "6_0_0_alpha1", "6_0_0_alpha2", "6_0_0_beta1", "6_0_0_beta2", "6_0_0_rc1", "6_0_0_rc2", "6_0_0", "6_0_1",
+            "6_1_0", "6_1_1", "6_1_2", "6_1_3", "6_1_4", "6_2_0", "6_2_1", "6_2_2", "6_2_3", "6_2_4", "6_3_0", "6_3_1",
+            "6_3_2", "6_4_0", "6_4_1", "6_4_2", "6_5_0"
+        ));
+        sampleVersions.put("6.6.0", Arrays.asList(
+            "5_0_0_alpha1", "5_0_0_alpha2", "5_0_0_alpha3", "5_0_0_alpha4", "5_0_0_alpha5", "5_0_0_beta1", "5_0_0_rc1",
+            "5_0_0", "5_0_1", "5_0_2", "5_1_1", "5_1_2", "5_2_0", "5_2_1", "5_2_2", "5_3_0", "5_3_1", "5_3_2", "5_3_3",
+            "5_4_0", "5_4_1", "5_4_2", "5_4_3", "5_5_0", "5_5_1", "5_5_2", "5_5_3", "5_6_0", "5_6_1", "5_6_2", "5_6_3",
+            "5_6_4", "5_6_5", "5_6_6", "5_6_7", "5_6_8", "5_6_9", "5_6_10", "5_6_11", "5_6_12", "5_6_13",
+            "6_0_0_alpha1", "6_0_0_alpha2", "6_0_0_beta1", "6_0_0_beta2", "6_0_0_rc1", "6_0_0_rc2", "6_0_0", "6_0_1",
+            "6_1_0", "6_1_1", "6_1_2", "6_1_3", "6_1_4", "6_2_0", "6_2_1", "6_2_2", "6_2_3", "6_2_4", "6_3_0", "6_3_1",
+            "6_3_2", "6_4_0", "6_4_1", "6_4_2", "6_5_0", "6_6_0"
+        ));
+        sampleVersions.put("6.4.2", Arrays.asList(
+            "5_0_0_alpha1", "5_0_0_alpha2", "5_0_0_alpha3", "5_0_0_alpha4", "5_0_0_alpha5", "5_0_0_beta1", "5_0_0_rc1",
+            "5_0_0", "5_0_1", "5_0_2", "5_1_1", "5_1_2", "5_2_0", "5_2_1", "5_2_2", "5_3_0",
+            "5_3_1", "5_3_2", "5_3_3", "5_4_0", "5_4_1", "5_4_2", "5_4_3", "5_5_0", "5_5_1", "5_5_2", "5_5_3",
+            "5_6_0", "5_6_1", "5_6_2", "5_6_3", "5_6_4", "5_6_5", "5_6_6", "5_6_7", "5_6_8", "5_6_9", "5_6_10",
+            "5_6_11", "5_6_12", "5_6_13",
+            "6_0_0_alpha1", "6_0_0_alpha2", "6_0_0_beta1", "6_0_0_beta2", "6_0_0_rc1", "6_0_0_rc2",
+            "6_0_0", "6_0_1", "6_1_0", "6_1_1", "6_1_2", "6_1_3", "6_1_4", "6_2_0", "6_2_1", "6_2_2", "6_2_3",
+            "6_2_4", "6_3_0", "6_3_1", "6_3_2", "6_4_0", "6_4_1", "6_4_2"
+        ));
+    }
+
+    private String formatVersionToLine(final String version) {
+        return " public static final Version V_" + version.replaceAll("\\.", "_") + " ";
+    }
+
+    private void assertVersionsEqual(List<String> expected, SortedSet<Version> actual) {
+        assertEquals(
+            expected.stream()
+                .map(versionString -> Version.fromString(versionString))
+                .collect(Collectors.toCollection(TreeSet::new)),
+            actual
+        );
+    }
+
+    private VersionCollectionJ getVersionCollection(String currentVersion) {
+        return new VersionCollectionJ(
+            sampleVersions.get(currentVersion).stream()
+                .map(version -> formatVersionToLine(version))
+                .collect(Collectors.toList()),
+            Version.fromString(currentVersion)
+        );
+    }
+
+    public void testWireCompatible() {
+        assertVersionsEqual(
+            Arrays.asList(
+                "6.5.0-SNAPSHOT"
+            ),
+            getVersionCollection("7.0.0-alpha1").getWireCompatible()
+        );
+        assertVersionsEqual(
+            Arrays.asList(
+                "5.6.0", "5.6.1", "5.6.2", "5.6.3", "5.6.4", "5.6.5", "5.6.6", "5.6.7", "5.6.8", "5.6.9", "5.6.10",
+                "5.6.11", "5.6.12", "5.6.13-SNAPSHOT",
+                "6.0.0", "6.0.1", "6.1.0", "6.1.1", "6.1.2", "6.1.3", "6.1.4",
+                "6.2.0", "6.2.1", "6.2.2", "6.2.3", "6.2.4",
+                "6.3.0", "6.3.1", "6.3.2", "6.4.0", "6.4.1", "6.4.2-SNAPSHOT"
+            ),
+            getVersionCollection("6.5.0").getWireCompatible()
+        );
+
+        assertVersionsEqual(Arrays.asList(
+            "5.6.0", "5.6.1", "5.6.2", "5.6.3", "5.6.4", "5.6.5", "5.6.6", "5.6.7", "5.6.8", "5.6.9", "5.6.10",
+            "5.6.11", "5.6.12", "5.6.13-SNAPSHOT", "6.0.0", "6.0.1", "6.1.0", "6.1.1", "6.1.2", "6.1.3", "6.1.4",
+            "6.2.0", "6.2.1", "6.2.2", "6.2.3", "6.2.4", "6.3.0", "6.3.1", "6.3.2", "6.4.0", "6.4.1"
+        ), getVersionCollection("6.4.2").getWireCompatible());
+
+        assertVersionsEqual(
+            Arrays.asList(
+                "5.6.0", "5.6.1", "5.6.2", "5.6.3", "5.6.4", "5.6.5", "5.6.6", "5.6.7", "5.6.8", "5.6.9", "5.6.10",
+                "5.6.11", "5.6.12", "5.6.13-SNAPSHOT",
+                "6.0.0", "6.0.1", "6.1.0", "6.1.1", "6.1.2", "6.1.3", "6.1.4",
+                "6.2.0", "6.2.1", "6.2.2", "6.2.3", "6.2.4",
+                "6.3.0", "6.3.1", "6.3.2", "6.4.0", "6.4.1", "6.4.2-SNAPSHOT", "6.5.0-SNAPSHOT"
+            ),
+            getVersionCollection("6.6.0").getWireCompatible()
+        );
+
+        assertVersionsEqual(
+            Arrays.asList(
+                "7.3.0"
+            ),
+            getVersionCollection("8.0.0").getWireCompatible()
+        );
+    }
+
+    public void testIndexCompatible() {
+        assertVersionsEqual(
+            Arrays.asList(
+                "6.0.0", "6.0.1", "6.1.0", "6.1.1", "6.1.2", "6.1.3", "6.1.4",
+                "6.2.0", "6.2.1", "6.2.2", "6.2.3", "6.2.4", "6.3.0", "6.3.1",
+                "6.3.2", "6.4.0", "6.4.1", "6.4.2-SNAPSHOT", "6.5.0-SNAPSHOT"
+            ),
+            getVersionCollection("7.0.0-alpha1").getIndexCompatible()
+        );
+
+        assertVersionsEqual(
+            Arrays.asList(
+                "5.0.0", "5.0.1", "5.0.2", "5.1.1", "5.1.2", "5.2.0", "5.2.1", "5.2.2", "5.3.0", "5.3.1", "5.3.2", "5.3.3",
+                "5.4.0", "5.4.1", "5.4.2", "5.4.3", "5.5.0", "5.5.1", "5.5.2", "5.5.3", "5.6.0", "5.6.1", "5.6.2", "5.6.3",
+                "5.6.4", "5.6.5", "5.6.6", "5.6.7", "5.6.8", "5.6.9", "5.6.10", "5.6.11", "5.6.12", "5.6.13-SNAPSHOT",
+                "6.0.0", "6.0.1", "6.1.0", "6.1.1", "6.1.2", "6.1.3", "6.1.4", "6.2.0", "6.2.1", "6.2.2", "6.2.3", "6.2.4",
+                "6.3.0", "6.3.1", "6.3.2", "6.4.0", "6.4.1", "6.4.2-SNAPSHOT"
+            ),
+            getVersionCollection("6.5.0").getIndexCompatible()
+        );
+
+        assertVersionsEqual(
+            Arrays.asList(
+                "5.0.0", "5.0.1", "5.0.2", "5.1.1", "5.1.2", "5.2.0", "5.2.1", "5.2.2", "5.3.0", "5.3.1", "5.3.2", "5.3.3",
+                "5.4.0", "5.4.1", "5.4.2", "5.4.3", "5.5.0", "5.5.1", "5.5.2", "5.5.3", "5.6.0", "5.6.1", "5.6.2", "5.6.3",
+                "5.6.4", "5.6.5", "5.6.6", "5.6.7", "5.6.8", "5.6.9", "5.6.10", "5.6.11", "5.6.12", "5.6.13-SNAPSHOT",
+                "6.0.0", "6.0.1", "6.1.0", "6.1.1", "6.1.2", "6.1.3", "6.1.4", "6.2.0", "6.2.1", "6.2.2", "6.2.3", "6.2.4",
+                "6.3.0", "6.3.1", "6.3.2", "6.4.0", "6.4.1"
+            ),
+            getVersionCollection("6.4.2").getIndexCompatible()
+        );
+
+        assertVersionsEqual(
+            Arrays.asList(
+                "5.0.0", "5.0.1", "5.0.2", "5.1.1", "5.1.2", "5.2.0", "5.2.1", "5.2.2", "5.3.0", "5.3.1", "5.3.2", "5.3.3",
+                "5.4.0", "5.4.1", "5.4.2", "5.4.3", "5.5.0", "5.5.1", "5.5.2", "5.5.3", "5.6.0", "5.6.1", "5.6.2", "5.6.3",
+                "5.6.4", "5.6.5", "5.6.6", "5.6.7", "5.6.8", "5.6.9", "5.6.10", "5.6.11", "5.6.12", "5.6.13-SNAPSHOT",
+                "6.0.0", "6.0.1", "6.1.0", "6.1.1", "6.1.2", "6.1.3", "6.1.4", "6.2.0", "6.2.1", "6.2.2", "6.2.3", "6.2.4",
+                "6.3.0", "6.3.1", "6.3.2", "6.4.0", "6.4.1", "6.4.2-SNAPSHOT", "6.5.0-SNAPSHOT"
+            ),
+            getVersionCollection("6.6.0").getIndexCompatible()
+        );
+
+        assertVersionsEqual(
+            Arrays.asList(
+                "7.1.1", "7.2.0", "7.3.0"
+            ),
+            getVersionCollection("8.0.0").getIndexCompatible()
+        );
+    }
+
+    public void testGetUnreleased() {
+        assertVersionsEqual(
+            Arrays.asList("6.4.2", "6.5.0", "7.0.0-alpha1"),
+            getVersionCollection("7.0.0-alpha1").getUnreleased()
+        );
+        assertVersionsEqual(
+            Arrays.asList("5.6.13", "6.4.2", "6.5.0"),
+            getVersionCollection("6.5.0").getUnreleased()
+        );
+        assertVersionsEqual(
+            Arrays.asList("5.6.13", "6.4.2"),
+            getVersionCollection("6.4.2").getUnreleased()
+        );
+        assertVersionsEqual(
+            Arrays.asList("5.6.13", "6.4.2", "6.5.0", "6.6.0"),
+            getVersionCollection("6.6.0").getUnreleased()
+        );
+        assertVersionsEqual(
+            Arrays.asList("7.2.0", "7.3.0", "8.0.0"),
+            getVersionCollection("8.0.0").getUnreleased()
+        );
+    }
+
+}

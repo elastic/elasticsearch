@@ -21,6 +21,10 @@ public final class Version implements Comparable<Version> {
     private static final Pattern pattern =
             Pattern.compile("(\\d)+\\.(\\d+)\\.(\\d+)(-alpha\\d+|-beta\\d+|-rc\\d+)?(-SNAPSHOT)?");
 
+    public Version(int major, int minor, int revision) {
+        this(major, minor, revision, "", false);
+    }
+
     public Version(int major, int minor, int revision, String suffix, boolean snapshot) {
         Objects.requireNonNull(major, "major version can't be null");
         Objects.requireNonNull(minor, "minor version can't be null");
@@ -175,5 +179,9 @@ public final class Version implements Comparable<Version> {
     @Override
     public int compareTo(Version other) {
         return Integer.compare(getId(), other.getId());
+    }
+
+    public Version numbersOnly() {
+        return new Version(getMajor(), getMinor(), getRevision());
     }
 }

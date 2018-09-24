@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Custom metadata that contains auto follow patterns and what leader indices an auto follow pattern has already followed.
@@ -80,16 +81,10 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
                               Map<String, List<String>> followedLeaderIndexUUIDs,
                               Map<String, Map<String, String>> headers) {
         this.patterns = Collections.unmodifiableMap(patterns);
-        final Map<String, List<String>> mutableIndexUUIDs = new HashMap<>(followedLeaderIndexUUIDs.size());
-        for (Map.Entry<String, List<String>> entry : followedLeaderIndexUUIDs.entrySet()) {
-            mutableIndexUUIDs.put(entry.getKey(), Collections.unmodifiableList(entry.getValue()));
-        }
-        this.followedLeaderIndexUUIDs = Collections.unmodifiableMap(mutableIndexUUIDs);
-        final Map<String, Map<String, String>> mutableHeaders = new HashMap<>(headers.size());
-        for (Map.Entry<String, Map<String, String>> entry : headers.entrySet()) {
-            mutableHeaders.put(entry.getKey(), Collections.unmodifiableMap(entry.getValue()));
-        }
-        this.headers = Collections.unmodifiableMap(mutableHeaders);
+        this.followedLeaderIndexUUIDs = Collections.unmodifiableMap(followedLeaderIndexUUIDs.entrySet().stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> Collections.unmodifiableList(e.getValue()))));
+        this.headers = Collections.unmodifiableMap(headers.entrySet().stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> Collections.unmodifiableMap(e.getValue()))));
     }
 
     public AutoFollowMetadata(StreamInput in) throws IOException {

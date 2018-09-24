@@ -47,6 +47,7 @@ import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * A component that runs only on the elected master node and follows leader indices automatically
@@ -367,18 +368,17 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
         static Function<ClusterState, ClusterState> recordLeaderIndexAsFollowFunction(String clusterAlias,
                                                                                       Index indexToFollow) {
             return currentState -> {
-                AutoFollowMetadata currentAutoFollowMetadata = currentState.metaData().custom(AutoFollowMetadata.TYPE);
-                final Map<String, List<String>> newFollowedIndexUUIDS =
-                    new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs().size());
-                for (Map.Entry<String, List<String>> entry : currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs().entrySet()) {
-                    if (entry.getKey().equals(clusterAlias)) {
-                        final ArrayList<String> newIndexUUIDs = new ArrayList<>(entry.getValue());
-                        newIndexUUIDs.add(indexToFollow.getUUID());
-                        newFollowedIndexUUIDS.put(entry.getKey(), Collections.unmodifiableList(newIndexUUIDs));
-                    } else {
-                        newFollowedIndexUUIDS.put(entry.getKey(), entry.getValue());
-                    }
-                }
+                final AutoFollowMetadata currentAutoFollowMetadata = currentState.metaData().custom(AutoFollowMetadata.TYPE);
+                final Map<String, List<String>> newFollowedIndexUUIDS = currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs()
+                    .entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> {
+                        if (e.getKey().equals(clusterAlias)) {
+                            final ArrayList<String> newIndexUUIDs = new ArrayList<>(e.getValue());
+                            newIndexUUIDs.add(indexToFollow.getUUID());
+                            return Collections.unmodifiableList(newIndexUUIDs);
+                        } else {
+                            return e.getValue();
+                        }
+                    }));
                 final AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(currentAutoFollowMetadata.getPatterns(),
                     newFollowedIndexUUIDS, currentAutoFollowMetadata.getHeaders());
                 return ClusterState.builder(currentState)

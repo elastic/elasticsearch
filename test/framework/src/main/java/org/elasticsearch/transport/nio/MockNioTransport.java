@@ -277,8 +277,9 @@ public class MockNioTransport extends TcpTransport {
 
         @Override
         public void setSoLinger(int value) throws IOException {
-            if (isOpen()) {
-                getRawChannel().setOption(StandardSocketOptions.SO_LINGER, value);
+            SocketChannel rawChannel = getRawChannel();
+            if (rawChannel.isConnected()) {
+                rawChannel.setOption(StandardSocketOptions.SO_LINGER, value);
             }
         }
 

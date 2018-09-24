@@ -1,0 +1,83 @@
+[[java-rest-high-x-pack-ml-get-calendars]]
+=== Get Calendars API
+Retrieves one or more calendar objects.
+It accepts a `GetCalendarsRequest` and responds
+with a `GetCalendarsResponse` object.
+
+[[java-rest-high-x-pack-ml-get-calendars-request]]
+==== Get Calendars Request
+
+By default a `GetCalendarsRequest` with no calendar Id set will return all
+calendars. Using the literal `_all` also returns all calendars.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-calendars-request]
+--------------------------------------------------
+<1> Constructing a new request for all calendars
+
+
+==== Optional Arguments
+The following arguments are optional:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-calendars-id]
+--------------------------------------------------
+<1> Construct a request for the single calendar `holidays`
+
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-calendars-page]
+--------------------------------------------------
+<1> The page parameters `from` and `size`. `from` specifies the number of calendars to skip.
+`size` specifies the maximum number of calendars to get. Defaults to `0` and `100` respectively.
+
+[[java-rest-high-x-pack-ml-get-calendars-execution]]
+==== Execution
+The request can be executed through the `MachineLearningClient` contained
+in the `RestHighLevelClient` object, accessed via the `machineLearningClient()` method.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-calendars-execution]
+--------------------------------------------------
+
+[[java-rest-high-x-pack-ml-get-calendars-execution-async]]
+==== Asynchronous Execution
+
+The request can also be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-calendars-execute-async]
+--------------------------------------------------
+<1> The `GetCalendarsRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back with the `onResponse` method
+if the execution is successful or the `onFailure` method if the execution
+failed.
+
+A typical listener for `GetCalendarsResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-calendars-listener]
+--------------------------------------------------
+<1> `onResponse` is called back when the action is completed successfully
+<2> `onFailure` is called back when some unexpected error occurs
+
+[[java-rest-high-x-pack-ml-get-calendars-response]]
+==== Get calendars Response
+
+The returned `GetCalendarsResponse` contains the requested calendars:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-calendars-response]
+--------------------------------------------------
+<1> The count of calendars that were matched
+<2> The calendars retrieved

@@ -27,6 +27,7 @@ import org.mockito.stubbing.Answer;
 
 import java.util.Collections;
 
+import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
@@ -82,16 +83,17 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
 
     public void testPerformAction() throws Exception {
         String lifecycleName = randomAlphaOfLength(5);
-        long creationDate = randomNonNegativeLong();
         ShrinkStep step = createRandomInstance();
+        LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+        lifecycleState.setPhase(step.getKey().getPhase());
+        lifecycleState.setAction(step.getKey().getAction());
+        lifecycleState.setStep(step.getKey().getName());
+        lifecycleState.setIndexCreationDate(randomNonNegativeLong());
         IndexMetaData sourceIndexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
             .settings(settings(Version.CURRENT)
-                .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, creationDate)
                 .put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
-                .put(LifecycleSettings.LIFECYCLE_PHASE, step.getKey().getPhase())
-                .put(LifecycleSettings.LIFECYCLE_ACTION, step.getKey().getAction())
-                .put(LifecycleSettings.LIFECYCLE_STEP, ShrunkenIndexCheckStep.NAME)
             )
+            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
             .putAlias(AliasMetaData.builder("my_alias"))
             .build();
@@ -114,11 +116,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
                 assertThat(request.getTargetIndexRequest().settings(), equalTo(Settings.builder()
                     .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, step.getNumberOfShards())
                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetaData.getNumberOfReplicas())
-                    .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, creationDate)
                     .put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
-                    .put(LifecycleSettings.LIFECYCLE_PHASE, step.getKey().getPhase())
-                    .put(LifecycleSettings.LIFECYCLE_ACTION, step.getKey().getAction())
-                    .put(LifecycleSettings.LIFECYCLE_STEP, ShrunkenIndexCheckStep.NAME)
                     .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", (String) null)
                     .build()));
                 assertThat(request.getTargetIndexRequest().settings()
@@ -151,7 +149,10 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
     }
 
     public void testPerformActionNotComplete() throws Exception {
+        LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+        lifecycleState.setIndexCreationDate(randomNonNegativeLong());
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ShrinkStep step = createRandomInstance();
 
@@ -194,7 +195,10 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
     }
 
     public void testPerformActionFailure() throws Exception {
+        LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+        lifecycleState.setIndexCreationDate(randomNonNegativeLong());
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         Exception exception = new RuntimeException();
         ShrinkStep step = createRandomInstance();

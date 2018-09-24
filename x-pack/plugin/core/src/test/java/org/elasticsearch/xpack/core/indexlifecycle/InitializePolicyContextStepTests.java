@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
+import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InitializePolicyContextStepTests extends AbstractStepTestCase<InitializePolicyContextStep> {
@@ -69,8 +70,11 @@ public class InitializePolicyContextStepTests extends AbstractStepTestCase<Initi
 
     public void testDoNothing() {
         long creationDate = randomNonNegativeLong();
+        LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+        lifecycleState.setIndexCreationDate(creationDate);
         IndexMetaData indexMetadata = IndexMetaData.builder(randomAlphaOfLength(5))
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, creationDate))
+            .settings(settings(Version.CURRENT))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .creationDate(creationDate)
             .numberOfShards(1).numberOfReplicas(0).build();
         MetaData metaData = MetaData.builder()
@@ -85,7 +89,6 @@ public class InitializePolicyContextStepTests extends AbstractStepTestCase<Initi
     }
 
     private long getIndexLifecycleDate(Index index, ClusterState clusterState) {
-        return clusterState.metaData().index(index).getSettings()
-            .getAsLong(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, -1L);
+        return LifecycleExecutionState.fromIndexMetadata(clusterState.getMetaData().index(index)).getLifecycleDate();
     }
 }

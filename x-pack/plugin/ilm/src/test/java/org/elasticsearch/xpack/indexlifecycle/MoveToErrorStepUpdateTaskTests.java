@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
@@ -31,7 +32,9 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
@@ -70,21 +73,20 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
 
         MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause, () -> now);
         ClusterState newState = task.execute(clusterState);
-        StepKey actualKey = IndexLifecycleRunner.getCurrentStepKey(newState.metaData().index(index).getSettings());
+        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetaData().index(index));
+        StepKey actualKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
         assertThat(actualKey, equalTo(new StepKey(currentStepKey.getPhase(), currentStepKey.getAction(), ErrorStep.NAME)));
-        assertThat(LifecycleSettings.LIFECYCLE_FAILED_STEP_SETTING.get(newState.metaData().index(index).getSettings()),
-                equalTo(currentStepKey.getName()));
-        assertThat(LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(-1L));
-        assertThat(LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(-1L));
-        assertThat(LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
+        assertThat(lifecycleState.getFailedStep(), equalTo(currentStepKey.getName()));
+        assertThat(lifecycleState.getPhaseTime(), nullValue());
+        assertThat(lifecycleState.getActionTime(), nullValue());
+        assertThat(lifecycleState.getStepTime(), equalTo(now));
 
         XContentBuilder causeXContentBuilder = JsonXContent.contentBuilder();
         causeXContentBuilder.startObject();
         ElasticsearchException.generateThrowableXContent(causeXContentBuilder, ToXContent.EMPTY_PARAMS, cause);
         causeXContentBuilder.endObject();
         String expectedCauseValue = BytesReference.bytes(causeXContentBuilder).utf8ToString();
-        assertThat(LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(newState.metaData().index(index).getSettings()),
-                equalTo(expectedCauseValue));
+        assertThat(lifecycleState.getStepInfo(), equalTo(expectedCauseValue));
     }
 
     public void testExecuteNoopDifferentStep() throws IOException {
@@ -133,11 +135,15 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
 
     }
     private void setStateToKey(StepKey stepKey) {
+        LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder(
+            LifecycleExecutionState.fromIndexMetadata(clusterState.metaData().index(index)));
+        lifecycleState.setPhase(stepKey.getPhase());
+        lifecycleState.setAction(stepKey.getAction());
+        lifecycleState.setStep(stepKey.getName());
+
         clusterState = ClusterState.builder(clusterState)
-            .metaData(MetaData.builder(clusterState.metaData())
-                .updateSettings(Settings.builder()
-                    .put(LifecycleSettings.LIFECYCLE_PHASE, stepKey.getPhase())
-                    .put(LifecycleSettings.LIFECYCLE_ACTION, stepKey.getAction())
-                    .put(LifecycleSettings.LIFECYCLE_STEP, stepKey.getName()).build(), index.getName())).build();
+            .metaData(MetaData.builder(clusterState.getMetaData())
+                .put(IndexMetaData.builder(clusterState.getMetaData().index(index))
+                    .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap()))).build();
     }
 }

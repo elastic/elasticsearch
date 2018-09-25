@@ -77,7 +77,7 @@ public class LeaderChecker extends AbstractComponent {
     private final TransportService transportService;
     private final Runnable onLeaderFailure;
 
-    private volatile DiscoveryNodes lastPublishedDiscoveryNodes;
+    private volatile DiscoveryNodes discoveryNodes;
 
     public LeaderChecker(final Settings settings, final TransportService transportService, final Runnable onLeaderFailure) {
         super(settings);
@@ -111,19 +111,24 @@ public class LeaderChecker extends AbstractComponent {
      * isLocalNodeElectedMaster() should reflect whether this node is a leader, and nodeExists()
      * should indicate whether nodes are known publication targets or not.
      */
-    public void setLastPublishedDiscoveryNodes(DiscoveryNodes discoveryNodes) {
-        logger.trace("updating last-published nodes: {}", discoveryNodes);
-        lastPublishedDiscoveryNodes = discoveryNodes;
+    public void setCurrentNodes(DiscoveryNodes discoveryNodes) {
+        logger.trace("setCurrentNodes: {}", discoveryNodes);
+        this.discoveryNodes = discoveryNodes;
+    }
+
+    // For assertions
+    boolean currentNodeIsMaster() {
+        return discoveryNodes.isLocalNodeElectedMaster();
     }
 
     private void handleLeaderCheck(LeaderCheckRequest request, TransportChannel transportChannel, Task task) throws IOException {
-        final DiscoveryNodes lastPublishedDiscoveryNodes = this.lastPublishedDiscoveryNodes;
-        assert lastPublishedDiscoveryNodes != null;
+        final DiscoveryNodes discoveryNodes = this.discoveryNodes;
+        assert discoveryNodes != null;
 
-        if (lastPublishedDiscoveryNodes.isLocalNodeElectedMaster() == false) {
+        if (discoveryNodes.isLocalNodeElectedMaster() == false) {
             logger.debug("non-master handling {}", request);
             transportChannel.sendResponse(new CoordinationStateRejectedException("non-leader rejecting leader check"));
-        } else if (lastPublishedDiscoveryNodes.nodeExists(request.getSender()) == false) {
+        } else if (discoveryNodes.nodeExists(request.getSender()) == false) {
             logger.debug("leader check from unknown node: {}", request);
             transportChannel.sendResponse(new CoordinationStateRejectedException("leader check from unknown node"));
         } else {

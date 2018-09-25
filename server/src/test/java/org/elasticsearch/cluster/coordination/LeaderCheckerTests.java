@@ -294,7 +294,7 @@ public class LeaderCheckerTests extends ESTestCase {
             = DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()).build();
 
         {
-            leaderChecker.setLastPublishedDiscoveryNodes(discoveryNodes);
+            leaderChecker.setCurrentNodes(discoveryNodes);
 
             final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
@@ -307,7 +307,7 @@ public class LeaderCheckerTests extends ESTestCase {
         }
 
         {
-            leaderChecker.setLastPublishedDiscoveryNodes(DiscoveryNodes.builder(discoveryNodes).add(otherNode).build());
+            leaderChecker.setCurrentNodes(DiscoveryNodes.builder(discoveryNodes).add(otherNode).build());
 
             final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
@@ -318,7 +318,7 @@ public class LeaderCheckerTests extends ESTestCase {
         }
 
         {
-            leaderChecker.setLastPublishedDiscoveryNodes(DiscoveryNodes.builder(discoveryNodes).add(otherNode).masterNodeId(null).build());
+            leaderChecker.setCurrentNodes(DiscoveryNodes.builder(discoveryNodes).add(otherNode).masterNodeId(null).build());
 
             final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);

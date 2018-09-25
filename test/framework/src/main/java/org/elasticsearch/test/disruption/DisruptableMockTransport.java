@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.util.Optional;
 
 import static org.elasticsearch.test.ESTestCase.copyWriteable;
+import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 
 public abstract class DisruptableMockTransport extends MockTransport {
     private final Logger logger;
@@ -94,7 +95,12 @@ public abstract class DisruptableMockTransport extends MockTransport {
             public void run() {
                 switch (getConnectionStatus(getLocalNode(), destination)) {
                     case BLACK_HOLE:
-                        logger.trace("dropping {}", requestDescription);
+                        if (action.equals(HANDSHAKE_ACTION_NAME)) {
+                            // handshakes always have a timeout, and are sent in a blocking fashion, so we must respond with an exception.
+                            sendFromTo(destination, getLocalNode(), action, returnConnectException);
+                        } else {
+                            logger.trace("dropping {}", requestDescription);
+                        }
                         break;
 
                     case DISCONNECTED:

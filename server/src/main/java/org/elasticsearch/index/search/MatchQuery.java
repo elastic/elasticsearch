@@ -44,6 +44,7 @@ import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
+import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -57,11 +58,14 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 
 import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
 import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 
-public class    MatchQuery {
+public class MatchQuery {
 
     public enum Type implements Writeable {
         /**
@@ -502,6 +506,82 @@ public class    MatchQuery {
                 query.add(((TermQuery) clause.getQuery()).getTerm());
             }
             return query;
+        }
+
+        /**
+         * Overrides {@link QueryBuilder#analyzeGraphPhrase(TokenStream, String, int)} to add
+         * a limit (see {@link BooleanQuery#getMaxClauseCount()}) to the number of {@link SpanQuery}
+         * that this method can create.
+         *
+         * TODO Remove when https://issues.apache.org/jira/browse/LUCENE-8479 is fixed.
+         */
+        @Override
+        protected SpanQuery analyzeGraphPhrase(TokenStream source, String field, int phraseSlop) throws IOException {
+            source.reset();
+            GraphTokenStreamFiniteStrings graph = new GraphTokenStreamFiniteStrings(source);
+            List<SpanQuery> clauses = new ArrayList<>();
+            int[] articulationPoints = graph.articulationPoints();
+            int lastState = 0;
+            int maxBooleanClause = BooleanQuery.getMaxClauseCount();
+            for (int i = 0; i <= articulationPoints.length; i++) {
+                int start = lastState;
+                int end = -1;
+                if (i < articulationPoints.length) {
+                    end = articulationPoints[i];
+                }
+                lastState = end;
+                final SpanQuery queryPos;
+                if (graph.hasSidePath(start)) {
+                    List<SpanQuery> queries = new ArrayList<>();
+                    Iterator<TokenStream> it = graph.getFiniteStrings(start, end);
+                    while (it.hasNext()) {
+                        TokenStream ts = it.next();
+                        SpanQuery q = createSpanQuery(ts, field);
+                        if (q != null) {
+                            if (queries.size() >= maxBooleanClause) {
+                                throw new BooleanQuery.TooManyClauses();
+                            }
+                            queries.add(q);
+                        }
+                    }
+                    if (queries.size() > 0) {
+                        queryPos = new SpanOrQuery(queries.toArray(new SpanQuery[0]));
+                    } else {
+                        queryPos = null;
+                    }
+                } else {
+                    Term[] terms = graph.getTerms(field, start);
+                    assert terms.length > 0;
+                    if (terms.length >= maxBooleanClause) {
+                        throw new BooleanQuery.TooManyClauses();
+                    }
+                    if (terms.length == 1) {
+                        queryPos = new SpanTermQuery(terms[0]);
+                    } else {
+                        SpanTermQuery[] orClauses = new SpanTermQuery[terms.length];
+                        for (int idx = 0; idx < terms.length; idx++) {
+                            orClauses[idx] = new SpanTermQuery(terms[idx]);
+                        }
+
+                        queryPos = new SpanOrQuery(orClauses);
+                    }
+                }
+
+                if (queryPos != null) {
+                    if (clauses.size() >= maxBooleanClause) {
+                        throw new BooleanQuery.TooManyClauses();
+                    }
+                    clauses.add(queryPos);
+                }
+            }
+
+            if (clauses.isEmpty()) {
+                return null;
+            } else if (clauses.size() == 1) {
+                return clauses.get(0);
+            } else {
+                return new SpanNearQuery(clauses.toArray(new SpanQuery[0]), phraseSlop, true);
+            }
         }
     }
 

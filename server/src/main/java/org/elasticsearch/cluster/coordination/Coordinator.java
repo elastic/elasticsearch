@@ -18,11 +18,13 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
 import org.elasticsearch.cluster.coordination.JoinHelper.InitialJoinAccumulator;
@@ -31,6 +33,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.lease.Releasable;
@@ -44,7 +47,9 @@ import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
 import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.UnicastConfiguredHostsResolver;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.zen.ZenDiscovery.NodeRemovalClusterStateTaskExecutor;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
@@ -64,7 +69,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             TimeValue.timeValueMillis(30000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
 
     private final TransportService transportService;
+    private final MasterService masterService;
     private final JoinHelper joinHelper;
+    private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
     private final Supplier<CoordinationState.PersistedState> persistedStateSupplier;
     // TODO: the following two fields are package-private as some tests require access to them
     // These tests can be rewritten to use public methods once Coordinator is more feature-complete
@@ -99,6 +106,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                        UnicastHostsProvider unicastHostsProvider, Random random) {
         super(settings);
         this.transportService = transportService;
+        this.masterService = masterService;
         this.joinHelper = new JoinHelper(settings, allocationService, masterService, transportService,
             this::getCurrentTerm, this::handleJoinRequest, this::joinLeaderInTerm);
         this.persistedStateSupplier = persistedStateSupplier;
@@ -114,8 +122,27 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.publicationHandler = new PublicationTransportHandler(transportService, this::handlePublishRequest, this::handleApplyCommit);
         this.leaderChecker = new LeaderChecker(settings, transportService, getOnLeaderFailure());
         this.followersChecker = new FollowersChecker(settings, transportService, this::onFollowerCheckRequest, this::onFollowerFailure);
-
+        this.nodeRemovalExecutor = getNodeRemovalExecutor(settings, allocationService, logger);
         masterService.setClusterStateSupplier(this::getStateForMasterService);
+    }
+
+    private static NodeRemovalClusterStateTaskExecutor getNodeRemovalExecutor(Settings settings, AllocationService allocationService, Logger logger) {
+        return new NodeRemovalClusterStateTaskExecutor(allocationService, new ElectMasterService(settings) {
+
+            @Override
+            public boolean hasEnoughMasterNodes(Iterable<DiscoveryNode> nodes) {
+                return true;
+            }
+
+            @Override
+            public void logMinimumMasterNodesWarningIfNecessary(ClusterState oldState, ClusterState newState) {
+                // ignore
+            }
+
+        },
+            s -> {
+                throw new AssertionError("not implemented");
+            }, logger);
     }
 
     private Runnable getOnLeaderFailure() {
@@ -135,7 +162,15 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     private void onFollowerFailure(DiscoveryNode discoveryNode) {
-
+        synchronized (mutex) {
+            if (mode == Mode.LEADER) {
+                masterService.submitStateUpdateTask("node-left",
+                    new NodeRemovalClusterStateTaskExecutor.Task(discoveryNode, "node left"),
+                    ClusterStateTaskConfig.build(Priority.IMMEDIATE),
+                    nodeRemovalExecutor,
+                    nodeRemovalExecutor);
+            }
+        }
     }
 
     private void onFollowerCheckRequest(FollowerCheckRequest followerCheckRequest) {

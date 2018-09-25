@@ -63,6 +63,9 @@ import static org.elasticsearch.cluster.coordination.CoordinationStateTests.setV
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.value;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.FOLLOWER;
+import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
+import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
+import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
@@ -128,8 +131,12 @@ public class CoordinatorTests extends ESTestCase {
         originalLeader.partition();
 
         cluster.stabilise(Cluster.DEFAULT_STABILISATION_TIME
+            // first wait for all the followers to notice the leader has gone
             + (LEADER_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).millis() + LEADER_CHECK_TIMEOUT_SETTING.get(Settings.EMPTY).millis())
-            * LEADER_CHECK_RETRY_COUNT_SETTING.get(Settings.EMPTY));
+            * LEADER_CHECK_RETRY_COUNT_SETTING.get(Settings.EMPTY)
+            // then wait for the new leader to notice that the old leader is unresponsive
+            + (FOLLOWER_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).millis() + FOLLOWER_CHECK_TIMEOUT_SETTING.get(Settings.EMPTY).millis())
+            * FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(Settings.EMPTY));
         assertThat(cluster.getAnyLeader().getId(), not(equalTo(originalLeader.getId())));
     }
 

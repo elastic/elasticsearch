@@ -22,3 +22,9 @@ were moved to a single `org.elasticsearch.search.aggregations.metrics` package.
 
 The variants of `Retry.withBackoff` that included `Settings` have been removed
 because `Settings` is no longer needed.
+
+==== DeleteRequest, DeleteResponse
+// Modify this statement once all document APIs have been migrated
+`DeleteRequest` and `DeleteResponse` moved to the `org.elasticsearch.client` package
+and do not reference types anymore. Under the hood, the high-level REST client
+uses the new <<removal-of-types,typeless APIs>>.

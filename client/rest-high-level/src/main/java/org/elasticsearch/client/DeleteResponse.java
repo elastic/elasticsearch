@@ -30,6 +30,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * An object representing a response to the deletion of a document.
@@ -38,7 +39,18 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 public final class DeleteResponse {
 
     static final ConstructingObjectParser<DeleteResponse, Void> PARSER = new ConstructingObjectParser<>("delete_response",
-            a -> new DeleteResponse((String) a[0], (String) a[1], (Result) a[2], (ShardInfo) a[3], (Long) a[4], (Long) a[5], (Long) a[6]));
+            a -> {
+                String index = (String) a[0];
+                String id = (String) a[1];
+                Result result = (Result) a[2];
+                ShardInfo shardInfo = (ShardInfo) a[3];
+                long version = (Long) a[4];
+                long seqNo = a[5] == null ? SequenceNumbers.UNASSIGNED_SEQ_NO : (Long) a[5];
+                long primaryTerm = a[6] == null ? 0 : (Long) a[6];
+                boolean forcedRefresh = a[7] == null ? false : ((Boolean) a[7]);
+                return new DeleteResponse(index, id, result, shardInfo, version, seqNo, primaryTerm, forcedRefresh);
+            });
+
     static {
         PARSER.declareString(constructorArg(), new ParseField("_index"));
         PARSER.declareString(constructorArg(), new ParseField("_id"));
@@ -54,8 +66,9 @@ public final class DeleteResponse {
         }, new ParseField("result"), ValueType.STRING);
         PARSER.declareObject(constructorArg(), ShardInfo.PARSER, new ParseField(ShardInfo.SHARDS_FIELD));
         PARSER.declareLong(constructorArg(), new ParseField("_version"));
-        PARSER.declareLong(constructorArg(), new ParseField("_primary_term"));
-        PARSER.declareLong(constructorArg(), new ParseField("_seq_no"));
+        PARSER.declareLong(optionalConstructorArg(), new ParseField("_seq_no"));
+        PARSER.declareLong(optionalConstructorArg(), new ParseField("_primary_term"));
+        PARSER.declareBoolean(optionalConstructorArg(), new ParseField("forced_refresh"));
     }
 
     private final String index, id;
@@ -64,16 +77,18 @@ public final class DeleteResponse {
     private final long primaryTerm;
     private final long seqNo;
     private final ShardInfo shardInfo;
+    private final boolean forcedRefresh;
 
     private DeleteResponse(String index, String id, Result result, ShardInfo shardInfo,
-            long version, long primaryTerm, long seqNo) {
+            long version, long seqNo, long primaryTerm, boolean forcedRefresh) {
         this.index = Objects.requireNonNull(index, "_index may not be null");
         this.id = Objects.requireNonNull(id, "_id may not be null");
         this.result = Objects.requireNonNull(result, "_result may not be null");
         this.shardInfo = Objects.requireNonNull(shardInfo, "_shards may not be null");
         this.version = version;
-        this.primaryTerm = primaryTerm;
         this.seqNo = seqNo;
+        this.primaryTerm = primaryTerm;
+        this.forcedRefresh = forcedRefresh;
     }
 
     /**
@@ -113,7 +128,7 @@ public final class DeleteResponse {
     }
 
     /**
-     * Return the primary term of the deleted document.
+     * Return the primary term of the deleted document, or {@code 0} if the document didn't exist.
      */
     public long getPrimaryTerm() {
         return primaryTerm;
@@ -124,5 +139,12 @@ public final class DeleteResponse {
      */
     public ShardInfo getShardInfo() {
         return shardInfo;
+    }
+
+    /**
+     * Return whether a refresh has been performed.
+     */
+    public boolean isForcedRefresh() {
+        return forcedRefresh;
     }
 }

@@ -55,6 +55,7 @@ public class ShrinkStep extends AsyncActionStep {
 
         String shrunkenIndexName = shrunkIndexPrefix + indexMetaData.getIndex().getName();
         ResizeRequest resizeRequest = new ResizeRequest(shrunkenIndexName, indexMetaData.getIndex().getName());
+        resizeRequest.setCopySettings(true);
         indexMetaData.getAliases().values().spliterator().forEachRemaining(aliasMetaDataObjectCursor -> {
             resizeRequest.getTargetIndexRequest().alias(new Alias(aliasMetaDataObjectCursor.value.alias()));
         });

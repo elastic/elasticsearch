@@ -18,9 +18,11 @@
  */
 package org.elasticsearch.index.engine;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.IndexSearcher;
@@ -103,7 +105,7 @@ public class ReadOnlyEngine extends Engine {
                 this.indexCommit = reader.getIndexCommit();
                 this.searcherManager = new SearcherManager(reader,
                     new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService()));
-                this.docsStats = docsStats(reader);
+                this.docsStats = docsStats(lastCommittedSegmentInfos);
                 this.indexWriterLock = indexWriterLock;
                 success = true;
             } finally {
@@ -131,6 +133,24 @@ public class ReadOnlyEngine extends Engine {
                 closedLatch.countDown();
             }
         }
+    }
+
+    protected DocsStats docsStats(final SegmentInfos lastCommittedSegmentInfos) {
+        long numDocs = 0;
+        long numDeletedDocs = 0;
+        long sizeInBytes = 0;
+        if (lastCommittedSegmentInfos != null) {
+            for (SegmentCommitInfo segmentCommitInfo : lastCommittedSegmentInfos) {
+                numDocs += segmentCommitInfo.info.maxDoc() - segmentCommitInfo.getDelCount() - segmentCommitInfo.getSoftDelCount();
+                numDeletedDocs += segmentCommitInfo.getDelCount() + segmentCommitInfo.getSoftDelCount();
+                try {
+                    sizeInBytes += segmentCommitInfo.sizeInBytes();
+                } catch (IOException e) {
+                    logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", segmentCommitInfo.info.name), e);
+                }
+            }
+        }
+        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
     }
 
     public static SeqNoStats buildSeqNoStats(SegmentInfos infos) {

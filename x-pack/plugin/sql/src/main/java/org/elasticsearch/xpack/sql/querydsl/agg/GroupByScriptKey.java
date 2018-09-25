@@ -41,7 +41,7 @@ public class GroupByScriptKey extends GroupByKey {
 
         if (script.outputType().isInteger) {
             builder.valueType(ValueType.LONG);
-        } else if (script().outputType().isRational) {
+        } else if (script.outputType().isRational) {
             builder.valueType(ValueType.DOUBLE);
         } else if (script.outputType().isString()) {
             builder.valueType(ValueType.STRING);

@@ -97,7 +97,7 @@ public class CapturingTransport implements Transport {
                                                             @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
         StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ConnectionManager(settings, this, threadPool),
             settings, this, threadPool);
-        connectionManager.setDefaultNodeConnectedBehavior((cm, discoveryNode) -> nodeConnected(discoveryNode));
+        connectionManager.setDefaultNodeConnectedBehavior((cm, discoveryNode) -> true);
         connectionManager.setDefaultConnectBehavior((cm, discoveryNode) -> openConnection(discoveryNode, null));
         return new TransportService(settings, this, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders,
             connectionManager);
@@ -251,10 +251,6 @@ public class CapturingTransport implements Transport {
     protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
         requests.put(requestId, Tuple.tuple(node, action));
         capturedRequests.add(new CapturedRequest(node, requestId, action, request));
-    }
-
-    protected boolean nodeConnected(DiscoveryNode discoveryNode) {
-        return true;
     }
 
     @Override

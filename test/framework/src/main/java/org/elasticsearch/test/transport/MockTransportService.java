@@ -234,13 +234,6 @@ public final class MockTransportService extends TransportService {
     /**
      * Adds a rule that will cause matching operations to throw ConnectTransportExceptions
      */
-    public void addFailToSendNoConnectRule(TransportAddress transportAddress, final String... blockedActions) {
-        addFailToSendNoConnectRule(transportAddress, new HashSet<>(Arrays.asList(blockedActions)));
-    }
-
-    /**
-     * Adds a rule that will cause matching operations to throw ConnectTransportExceptions
-     */
     public void addFailToSendNoConnectRule(TransportService transportService, final Set<String> blockedActions) {
         for (TransportAddress transportAddress : extractTransportAddresses(transportService)) {
             addFailToSendNoConnectRule(transportAddress, blockedActions);
@@ -409,16 +402,6 @@ public final class MockTransportService extends TransportService {
     }
 
     /**
-     * Adds a send behavior that is the default send behavior.
-     *
-     * @return {@code true} if no default send behavior was registered
-     */
-    public boolean addSendBehavior(StubbableTransport.SendRequestBehavior behavior) {
-        return transport().setDefaultSendBehavior(behavior);
-    }
-
-
-    /**
      * Adds a new connect behavior that is used for creating connections with the given delegate service.
      *
      * @return {@code true} if no other send behavior was registered for any of the addresses bound by delegate service.
@@ -441,19 +424,6 @@ public final class MockTransportService extends TransportService {
     }
 
     /**
-     * Adds a new get connection behavior that is used for communication with the given delegate service.
-     *
-     * @return {@code true} if no other get connection behavior was registered for any of the addresses bound by delegate service.
-     */
-    public boolean addGetConnectionBehavior(TransportService transportService, StubbableConnectionManager.GetConnectionBehavior behavior) {
-        boolean noRegistered = true;
-        for (TransportAddress transportAddress : extractTransportAddresses(transportService)) {
-            noRegistered &= addGetConnectionBehavior(transportAddress, behavior);
-        }
-        return noRegistered;
-    }
-
-    /**
      * Adds a get connection behavior that is used for communication with the given delegate address.
      *
      * @return {@code true} if no other get connection behavior was registered for this address before.
@@ -469,19 +439,6 @@ public final class MockTransportService extends TransportService {
      */
     public boolean addGetConnectionBehavior(StubbableConnectionManager.GetConnectionBehavior behavior) {
         return connectionManager().setDefaultConnectBehavior(behavior);
-    }
-
-    /**
-     * Adds a node connected behavior that is used for the given delegate service.
-     *
-     * @return {@code true} if no other node connected behavior was registered for any of the addresses bound by delegate service.
-     */
-    public boolean addNodeConnectedBehavior(TransportService transportService, StubbableConnectionManager.NodeConnectedBehavior behavior) {
-        boolean noRegistered = true;
-        for (TransportAddress transportAddress : extractTransportAddresses(transportService)) {
-            noRegistered &= addNodeConnectedBehavior(transportAddress, behavior);
-        }
-        return noRegistered;
     }
 
     /**
@@ -531,10 +488,6 @@ public final class MockTransportService extends TransportService {
 
     public void addTracer(Tracer tracer) {
         activeTracers.add(tracer);
-    }
-
-    public boolean removeTracer(Tracer tracer) {
-        return activeTracers.remove(tracer);
     }
 
     public void clearTracers() {

@@ -231,9 +231,10 @@ public abstract class RemoteClusterAware extends AbstractComponent {
                 List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusterNames, remoteClusterName);
                 if (clusters.isEmpty() == false) {
                     if (indexExists.test(index)) {
-                        // we use : as a separator for remote clusters. might conflict if there is an index that is actually named
-                        // remote_cluster_alias:index_name - for this case we fail the request. the user can easily change the cluster alias
-                        // if that happens
+                        //We use ":" as a separator for remote clusters. There may be a conflict if there is an index that is named
+                        //remote_cluster_alias:index_name - for this case we fail the request. The user can easily change the cluster alias
+                        //if that happens. Note that indices and aliases can be created with ":" in their names names up to 6.last, which
+                        //means such names need to be supported until 7.last. It will be possible to remove this check from 8.0 on.
                         throw new IllegalArgumentException("Can not filter indices; index " + index +
                                 " exists but there is also a remote cluster named: " + remoteClusterName);
                     }
@@ -242,6 +243,9 @@ public abstract class RemoteClusterAware extends AbstractComponent {
                         perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<>()).add(indexName);
                     }
                 } else {
+                    //Indices and aliases can be created with ":" in their names up to 6.last (although deprecated), and still be
+                    //around in 7.x. That's why we need to be lenient here and treat the index as local although it contains ":".
+                    //It will be possible to remove such leniency and assume that no local indices contain ":" only from 8.0 on.
                     perClusterIndices.computeIfAbsent(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, k -> new ArrayList<>()).add(index);
                 }
             } else {

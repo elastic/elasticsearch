@@ -13,12 +13,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.metrics.InternalAvg;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -37,8 +36,6 @@ import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappi
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Map<String, Object>, FeatureIndexBuilderJobStats> {
-    private static final String PIVOT_INDEX = "pivot-reviews";
-    private static final String SOURCE_INDEX = "anonreviews";
 
     private static final Logger logger = Logger.getLogger(FeatureIndexBuilderIndexer.class.getName());
     private FeatureIndexBuilderJob job;
@@ -71,21 +68,23 @@ public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Ma
      * TODO: replace with proper implementation
      */
     private List<IndexRequest> processBuckets(CompositeAggregation agg) {
+        String destinationFieldName = job.getConfig().getSourceConfig().getSourceBuilder().name();
+        String aggName = job.getConfig().getAggregationConfig().getAggregatorFactories().get(0).getName();
+
         return agg.getBuckets().stream().map(b -> {
-            InternalAvg avgAgg = b.getAggregations().get("avg_rating");
+            NumericMetricsAggregation.SingleValue aggResult = b.getAggregations().get(aggName);
             XContentBuilder builder;
             try {
                 builder = jsonBuilder();
-
                 builder.startObject();
-                builder.field("reviewerId", b.getKey().get("reviewerId"));
-                builder.field("avg_rating", avgAgg.getValue());
+                builder.field(destinationFieldName, b.getKey().get(destinationFieldName));
+                builder.field(aggName, aggResult.value());
                 builder.endObject();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
 
-            String indexName = PIVOT_INDEX + "_" + job.getConfig().getId();
+            String indexName = job.getConfig().getDestinationIndex();
             IndexRequest request = new IndexRequest(indexName, DOC_TYPE).source(builder);
             return request;
         }).collect(Collectors.toList());
@@ -93,33 +92,26 @@ public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Ma
 
     @Override
     protected SearchRequest buildSearchRequest() {
-
         final Map<String, Object> position = getPosition();
-        SearchRequest request = buildFeatureQuery(position);
-        return request;
-    }
 
-    /*
-     * Mocked demo case
-     * 
-     * TODO: everything below will be replaced with proper implementation read from job configuration 
-     */
-    private static SearchRequest buildFeatureQuery(Map<String, Object> after) {
         QueryBuilder queryBuilder = new MatchAllQueryBuilder();
-        SearchRequest searchRequest = new SearchRequest(SOURCE_INDEX);
+        SearchRequest searchRequest = new SearchRequest(job.getConfig().getIndexPattern());
 
         List<CompositeValuesSourceBuilder<?>> sources = new ArrayList<>();
-        sources.add(new TermsValuesSourceBuilder("reviewerId").field("reviewerId"));
+
+        sources.add(job.getConfig().getSourceConfig().getSourceBuilder());
 
         CompositeAggregationBuilder compositeAggregation = new CompositeAggregationBuilder("feature", sources);
         compositeAggregation.size(1000);
 
-        if (after != null) {
-            compositeAggregation.aggregateAfter(after);
+        if (position != null) {
+            compositeAggregation.aggregateAfter(position);
         }
 
-        compositeAggregation.subAggregation(AggregationBuilders.avg("avg_rating").field("rating"));
-        compositeAggregation.subAggregation(AggregationBuilders.cardinality("dc_vendors").field("vendorId"));
+        for (AggregationBuilder agg : job.getConfig().getAggregationConfig().getAggregatorFactories()) {
+            compositeAggregation.subAggregation(agg);
+        }
+
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.aggregation(compositeAggregation);
         sourceBuilder.size(0);

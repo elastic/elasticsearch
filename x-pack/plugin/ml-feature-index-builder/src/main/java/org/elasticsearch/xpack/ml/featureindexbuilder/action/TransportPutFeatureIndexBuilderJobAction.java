@@ -37,9 +37,6 @@ import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappi
 public class TransportPutFeatureIndexBuilderJobAction
         extends TransportMasterNodeAction<PutFeatureIndexBuilderJobAction.Request, PutFeatureIndexBuilderJobAction.Response> {
 
-    // TODO: hack, to be replaced
-    private static final String PIVOT_INDEX = "pivot-reviews";
-
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
@@ -76,7 +73,7 @@ public class TransportPutFeatureIndexBuilderJobAction
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
         FeatureIndexBuilderJob job = createFeatureIndexBuilderJob(request.getConfig(), threadPool);
-        createIndex(client, job.getConfig().getId());
+        createIndex(client, job.getConfig().getDestinationIndex());
         startPersistentTask(job, listener, persistentTasksService);
     }
 
@@ -105,9 +102,8 @@ public class TransportPutFeatureIndexBuilderJobAction
      *
      * TODO: everything below will be replaced with proper implementation read from job configuration 
      */
-    private static void createIndex(Client client, String suffix) {
+    private static void createIndex(Client client, String indexName) {
 
-        String indexName = PIVOT_INDEX + "_" + suffix;
         CreateIndexRequest request = new CreateIndexRequest(indexName);
 
         request.settings(Settings.builder() // <1>

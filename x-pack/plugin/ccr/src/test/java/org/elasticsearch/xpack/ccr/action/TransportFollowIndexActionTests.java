@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData.State;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
@@ -27,8 +28,9 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.ccr.action.TransportFollowIndexAction.validate;
-import static org.elasticsearch.xpack.ccr.action.TransportFollowIndexAction.validateClusterAlias;
+import static org.elasticsearch.xpack.ccr.action.TransportFollowIndexAction.splitClusterAliasAndIndexName;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TransportFollowIndexActionTests extends ESTestCase {
 
@@ -231,11 +233,17 @@ public class TransportFollowIndexActionTests extends ESTestCase {
         return builder.build();
     }
 
-    public void testValidateClusterAlias() {
-        validateClusterAlias(Collections.singleton("leader_cluster"), "my_index");
-        validateClusterAlias(Collections.singleton("leader_cluster"), "leader_cluster:my_index");
+    public void testSplitClusterAliasAndIndexName() {
+        Tuple<String, String> result = splitClusterAliasAndIndexName(Collections.singleton("leader_cluster"), "my_index");
+        assertThat(result.v1(), nullValue());
+        assertThat(result.v2(), equalTo("my_index"));
+
+        result = splitClusterAliasAndIndexName(Collections.singleton("leader_cluster"), "leader_cluster:my_index");
+        assertThat(result.v1(), equalTo("leader_cluster"));
+        assertThat(result.v2(), equalTo("my_index"));
+
         Exception e = expectThrows(IllegalArgumentException.class,
-            () -> validateClusterAlias(Collections.singleton("leader_cluster"), "another_cluster:my_index"));
+            () -> splitClusterAliasAndIndexName(Collections.singleton("leader_cluster"), "another_cluster:my_index"));
         assertThat(e.getMessage(), equalTo("unknown cluster alias [another_cluster]"));
     }
 

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -34,7 +35,6 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
@@ -46,7 +46,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -101,17 +100,13 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
-        final String[] indices = new String[]{request.getLeaderIndex()};
-        validateClusterAlias(remoteClusterService.getRemoteClusterNames(), request.getLeaderIndex());
-        final Map<String, List<String>> remoteClusterIndices = remoteClusterService.groupClusterIndices(indices, s -> false);
-        if (remoteClusterIndices.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+        final Tuple<String, String> remoteClusterAndIndex =
+            splitClusterAliasAndIndexName(remoteClusterService.getRemoteClusterNames(), request.getLeaderIndex());
+        if (remoteClusterAndIndex.v1() == null) {
             followLocalIndex(request, listener);
         } else {
-            assert remoteClusterIndices.size() == 1;
-            final Map.Entry<String, List<String>> entry = remoteClusterIndices.entrySet().iterator().next();
-            assert entry.getValue().size() == 1;
-            final String clusterAlias = entry.getKey();
-            final String leaderIndex = entry.getValue().get(0);
+            final String clusterAlias = remoteClusterAndIndex.v1();
+            final String leaderIndex = remoteClusterAndIndex.v2();
             followRemoteIndex(request, clusterAlias, leaderIndex, listener);
         }
     }
@@ -298,14 +293,17 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
         followerMapperService.merge(leaderIndex, MapperService.MergeReason.MAPPING_RECOVERY);
     }
 
-    static void validateClusterAlias(Set<String> remoteClusterNames, String leaderIndex) {
-        int indexOf = leaderIndex.indexOf(':');
+    static Tuple<String, String> splitClusterAliasAndIndexName(Set<String> remoteClusterNames, String leaderIndexExpression) {
+        int indexOf = leaderIndexExpression.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
         if (indexOf != -1) {
-            String clusterAlias = leaderIndex.substring(0, indexOf);
+            String clusterAlias = leaderIndexExpression.substring(0, indexOf);
             if (remoteClusterNames.contains(clusterAlias) == false) {
                 throw new IllegalArgumentException("unknown cluster alias [" + clusterAlias + "]");
             }
+            String indexName = leaderIndexExpression.substring(indexOf + 1);
+            return new Tuple<>(clusterAlias, indexName);
         }
+        return new Tuple<>(null, leaderIndexExpression);
     }
 
     private static ShardFollowTask createShardFollowTask(

@@ -14,10 +14,15 @@ import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 import javax.net.ssl.X509ExtendedTrustManager;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
 import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -55,8 +60,8 @@ class StoreTrustConfig extends TrustConfig {
     @Override
     X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
         try {
-            return CertParsingUtils.trustManager(trustStorePath, trustStoreType, trustStorePassword.getChars(),
-                    trustStoreAlgorithm, environment);
+            KeyStore trustStore = getStore(environment, trustStorePath, trustStoreType, trustStorePassword);
+            return CertParsingUtils.trustManager(trustStore, trustStoreAlgorithm);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
         }

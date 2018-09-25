@@ -212,12 +212,11 @@ public final class SSLConfiguration {
 
     private static TrustConfig createCertChainTrustConfig(Settings settings, KeyConfig keyConfig, SSLConfiguration global) {
         String trustStorePath = SETTINGS_PARSER.truststorePath.get(settings).orElse(null);
-
+        String trustStoreType = getKeyStoreType(SETTINGS_PARSER.truststoreType, settings, trustStorePath);
         List<String> caPaths = getListOrNull(SETTINGS_PARSER.caPaths, settings);
         if (trustStorePath != null && caPaths != null) {
             throw new IllegalArgumentException("you cannot specify a truststore and ca files");
         }
-
         VerificationMode verificationMode = SETTINGS_PARSER.verificationMode.get(settings).orElseGet(() -> {
             if (global != null) {
                 return global.verificationMode();
@@ -228,16 +227,15 @@ public final class SSLConfiguration {
             return TrustAllConfig.INSTANCE;
         } else if (caPaths != null) {
             return new PEMTrustConfig(caPaths);
-        } else if (trustStorePath != null) {
+        } else if (trustStorePath != null || trustStoreType.equalsIgnoreCase("pkcs11")) {
             SecureString trustStorePassword = SETTINGS_PARSER.truststorePassword.get(settings);
             String trustStoreAlgorithm = SETTINGS_PARSER.truststoreAlgorithm.get(settings);
-            String trustStoreType = getKeyStoreType(SETTINGS_PARSER.truststoreType, settings, trustStorePath);
             return new StoreTrustConfig(trustStorePath, trustStoreType, trustStorePassword, trustStoreAlgorithm);
         } else if (global == null && System.getProperty("javax.net.ssl.trustStore") != null
             && System.getProperty("javax.net.ssl.trustStore").equals("NONE") == false) {
             try (SecureString truststorePassword = new SecureString(System.getProperty("javax.net.ssl.trustStorePassword", ""))) {
                 return new StoreTrustConfig(System.getProperty("javax.net.ssl.trustStore"), KeyStore.getDefaultType(), truststorePassword,
-                        System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()));
+                    System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()));
             }
         } else if (global != null && keyConfig == global.keyConfig()) {
             return global.trustConfig();

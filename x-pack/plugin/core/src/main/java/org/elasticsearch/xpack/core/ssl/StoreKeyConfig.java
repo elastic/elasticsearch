@@ -58,7 +58,7 @@ class StoreKeyConfig extends KeyConfig {
      */
     StoreKeyConfig(String keyStorePath, String keyStoreType, SecureString keyStorePassword, SecureString keyPassword,
                    String keyStoreAlgorithm, String trustStoreAlgorithm) {
-        this.keyStorePath = Objects.requireNonNull(keyStorePath, "keystore path must be specified");
+        this.keyStorePath = keyStorePath;
         this.keyStoreType = Objects.requireNonNull(keyStoreType, "keystore type must be specified");
         // since we support reloading the keystore, we must store the passphrase in memory for the life of the node, so we
         // clone the password and never close it during our uses below
@@ -71,7 +71,7 @@ class StoreKeyConfig extends KeyConfig {
     @Override
     X509ExtendedKeyManager createKeyManager(@Nullable Environment environment) {
         try {
-            KeyStore ks = getKeyStore(environment);
+            KeyStore ks = getStore(environment, keyStorePath, keyStoreType, keyStorePassword);
             checkKeyStore(ks);
             return CertParsingUtils.keyManager(ks, keyPassword.getChars(), keyStoreAlgorithm);
         } catch (IOException | CertificateException | NoSuchAlgorithmException | UnrecoverableKeyException | KeyStoreException e) {
@@ -82,8 +82,9 @@ class StoreKeyConfig extends KeyConfig {
     @Override
     X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
         try {
-            return CertParsingUtils.trustManager(keyStorePath, keyStoreType, keyStorePassword.getChars(), trustStoreAlgorithm, environment);
-        } catch (Exception e) {
+            KeyStore ks = getStore(environment, keyStorePath, keyStoreType, keyStorePassword);
+            return CertParsingUtils.trustManager(ks, trustStoreAlgorithm);
+        } catch (IOException | CertificateException | NoSuchAlgorithmException | KeyStoreException e) {
             throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
         }
     }
@@ -112,13 +113,16 @@ class StoreKeyConfig extends KeyConfig {
 
     @Override
     List<Path> filesToMonitor(@Nullable Environment environment) {
+        if (keyStorePath == null) {
+            return Collections.emptyList();
+        }
         return Collections.singletonList(CertParsingUtils.resolvePath(keyStorePath, environment));
     }
 
     @Override
     List<PrivateKey> privateKeys(@Nullable Environment environment) {
         try {
-            KeyStore keyStore = getKeyStore(environment);
+            KeyStore keyStore = getStore(environment, keyStorePath, keyStoreType, keyStorePassword);
             List<PrivateKey> privateKeys = new ArrayList<>();
             for (Enumeration<String> e = keyStore.aliases(); e.hasMoreElements(); ) {
                 final String alias = e.nextElement();
@@ -132,15 +136,6 @@ class StoreKeyConfig extends KeyConfig {
             return privateKeys;
         } catch (Exception e) {
             throw new ElasticsearchException("failed to list keys", e);
-        }
-    }
-
-    private KeyStore getKeyStore(@Nullable Environment environment)
-                                throws KeyStoreException, CertificateException, NoSuchAlgorithmException, IOException {
-        try (InputStream in = Files.newInputStream(CertParsingUtils.resolvePath(keyStorePath, environment))) {
-            KeyStore ks = KeyStore.getInstance(keyStoreType);
-            ks.load(in, keyStorePassword.getChars());
-            return ks;
         }
     }
 

@@ -23,7 +23,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
-import org.elasticsearch.xpack.core.ccr.action.FollowAction;
+import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
@@ -67,14 +67,14 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
 
     public void testThatCreateAndFollowingIndexIsUnavailableWithNonCompliantLicense() throws InterruptedException {
         final ResumeFollowAction.Request followRequest = getFollowRequest();
-        final FollowAction.Request createAndFollowRequest = new FollowAction.Request(followRequest);
+        final PutFollowAction.Request createAndFollowRequest = new PutFollowAction.Request(followRequest);
         final CountDownLatch latch = new CountDownLatch(1);
         client().execute(
-                FollowAction.INSTANCE,
+                PutFollowAction.INSTANCE,
                 createAndFollowRequest,
-                new ActionListener<FollowAction.Response>() {
+                new ActionListener<PutFollowAction.Response>() {
                     @Override
-                    public void onResponse(final FollowAction.Response response) {
+                    public void onResponse(final PutFollowAction.Response response) {
                         latch.countDown();
                         fail();
                     }

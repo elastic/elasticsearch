@@ -13,7 +13,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.xpack.core.ccr.action.AutoFollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
-import org.elasticsearch.xpack.core.ccr.action.FollowAction;
+import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
@@ -30,15 +30,15 @@ public class CcrClient {
         this.client = Objects.requireNonNull(client, "client");
     }
 
-    public void follow(
-            final FollowAction.Request request,
-            final ActionListener<FollowAction.Response> listener) {
-        client.execute(FollowAction.INSTANCE, request, listener);
+    public void putFollow(
+            final PutFollowAction.Request request,
+            final ActionListener<PutFollowAction.Response> listener) {
+        client.execute(PutFollowAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<FollowAction.Response> follow(final FollowAction.Request request) {
-        final PlainActionFuture<FollowAction.Response> listener = PlainActionFuture.newFuture();
-        client.execute(FollowAction.INSTANCE, request, listener);
+    public ActionFuture<PutFollowAction.Response> putFollow(final PutFollowAction.Request request) {
+        final PlainActionFuture<PutFollowAction.Response> listener = PlainActionFuture.newFuture();
+        client.execute(PutFollowAction.INSTANCE, request, listener);
         return listener;
     }
 

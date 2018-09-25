@@ -20,12 +20,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public final class FollowAction extends Action<FollowAction.Response> {
+public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
-    public static final FollowAction INSTANCE = new FollowAction();
-    public static final String NAME = "indices:admin/xpack/ccr/follow";
+    public static final PutFollowAction INSTANCE = new PutFollowAction();
+    public static final String NAME = "indices:admin/xpack/ccr/put_follow";
 
-    private FollowAction() {
+    private PutFollowAction() {
         super(NAME);
     }
 

@@ -14,19 +14,19 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.core.ccr.action.FollowAction.INSTANCE;
-import static org.elasticsearch.xpack.core.ccr.action.FollowAction.Request;
+import static org.elasticsearch.xpack.core.ccr.action.PutFollowAction.INSTANCE;
+import static org.elasticsearch.xpack.core.ccr.action.PutFollowAction.Request;
 
-public class RestFollowAction extends BaseRestHandler {
+public class RestPutFollowAction extends BaseRestHandler {
 
-    public RestFollowAction(Settings settings, RestController controller) {
+    public RestPutFollowAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.PUT, "/{index}/_ccr/follow", this);
     }
 
     @Override
     public String getName() {
-        return "ccr_follow_action";
+        return "ccr_put_follow_action";
     }
 
     @Override

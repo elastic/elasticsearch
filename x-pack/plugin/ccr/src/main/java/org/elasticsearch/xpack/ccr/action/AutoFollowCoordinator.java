@@ -33,7 +33,7 @@ import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
-import org.elasticsearch.xpack.core.ccr.action.FollowAction;
+import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.util.ArrayList;
@@ -187,9 +187,9 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
                 Client followerClient = CcrLicenseChecker.wrapClient(client, headers);
-                FollowAction.Request request = new FollowAction.Request(followRequest);
+                PutFollowAction.Request request = new PutFollowAction.Request(followRequest);
                 followerClient.execute(
-                    FollowAction.INSTANCE,
+                    PutFollowAction.INSTANCE,
                     request,
                     ActionListener.wrap(r -> successHandler.run(), failureHandler)
                 );

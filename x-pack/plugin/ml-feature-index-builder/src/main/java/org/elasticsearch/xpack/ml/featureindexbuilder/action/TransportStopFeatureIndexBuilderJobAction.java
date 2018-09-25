@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.featureindexbuilder.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -57,9 +58,9 @@ public class TransportStopFeatureIndexBuilderJobAction extends
             List<FailedNodeException> failedNodeExceptions) {
 
         if (taskOperationFailures.isEmpty() == false) {
-            throw org.elasticsearch.ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
+            throw ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
         } else if (failedNodeExceptions.isEmpty() == false) {
-            throw org.elasticsearch.ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
+            throw ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
         }
 
         // Either the job doesn't exist (the user didn't create it yet) or was deleted

@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSou
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -49,15 +50,16 @@ public class SourceConfig implements Writeable, ToXContentObject {
 
     SourceConfig(final StreamInput in) throws IOException {
         int num = in.readVInt();
-        this.sources = new ArrayList<>(num);
+        List<CompositeValuesSourceBuilder<?>> sources = new ArrayList<>(num);
         for (int i = 0; i < num; i++) {
             CompositeValuesSourceBuilder<?> builder = CompositeValuesSourceParserHelper.readFrom(in);
             getSources().add(builder);
         }
+        this.sources = Collections.unmodifiableList(sources);
     }
 
     public SourceConfig(List<CompositeValuesSourceBuilder<?>> sources) {
-        this.sources = sources;
+        this.sources = Collections.unmodifiableList(sources);
     }
 
     @Override

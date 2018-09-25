@@ -33,7 +33,7 @@ public class AggregationConfig implements Writeable, ToXContentObject {
     }
 
     AggregationConfig(final StreamInput in) throws IOException {
-        aggregatorFactoryBuilder = in.readOptionalWriteable(AggregatorFactories.Builder::new);
+        aggregatorFactoryBuilder = new AggregatorFactories.Builder(in);
     }
 
     @Override
@@ -43,7 +43,7 @@ public class AggregationConfig implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(aggregatorFactoryBuilder);
+        aggregatorFactoryBuilder.writeTo(out);
     }
 
     public List<AggregationBuilder> getAggregatorFactories() {

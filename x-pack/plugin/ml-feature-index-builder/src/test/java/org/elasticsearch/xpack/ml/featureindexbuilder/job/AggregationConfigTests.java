@@ -20,10 +20,10 @@ import static org.hamcrest.Matchers.equalTo;
 @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/33942")
 public class AggregationConfigTests extends AbstractSerializingFeatureIndexBuilderTestCase<AggregationConfig> {
 
-    public static AggregationConfig randonAggregationConfig() {
+    public static AggregationConfig randomAggregationConfig() {
         AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
 
-        for (int i = 1; i < randomIntBetween(1, 20); ++i) {
+        for (int i = 0; i < randomIntBetween(1, 20); ++i) {
             builder.addAggregator(getRandomSupportedAggregation());
         }
 
@@ -39,7 +39,7 @@ public class AggregationConfigTests extends AbstractSerializingFeatureIndexBuild
 
     @Override
     protected AggregationConfig createTestInstance() {
-        return randonAggregationConfig();
+        return randomAggregationConfig();
     }
 
     @Override

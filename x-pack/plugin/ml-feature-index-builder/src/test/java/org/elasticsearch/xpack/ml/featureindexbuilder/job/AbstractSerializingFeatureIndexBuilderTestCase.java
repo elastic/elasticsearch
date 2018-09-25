@@ -28,9 +28,7 @@ public abstract class AbstractSerializingFeatureIndexBuilderTestCase<T extends T
     private NamedXContentRegistry namedXContentRegistry;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
-
+    public void registerAggregationNamedObjects() throws Exception {
         // register aggregations as NamedWriteable
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());

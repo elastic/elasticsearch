@@ -14,19 +14,19 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.core.ccr.action.UnfollowIndexAction.INSTANCE;
-import static org.elasticsearch.xpack.core.ccr.action.UnfollowIndexAction.Request;
+import static org.elasticsearch.xpack.core.ccr.action.PauseFollowAction.INSTANCE;
+import static org.elasticsearch.xpack.core.ccr.action.PauseFollowAction.Request;
 
-public class RestUnfollowIndexAction extends BaseRestHandler {
+public class RestPauseFollowAction extends BaseRestHandler {
 
-    public RestUnfollowIndexAction(Settings settings, RestController controller) {
+    public RestPauseFollowAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST, "/{index}/_ccr/unfollow", this);
+        controller.registerHandler(RestRequest.Method.POST, "/{index}/_ccr/pause_follow", this);
     }
 
     @Override
     public String getName() {
-        return "ccr_unfollow_index_action";
+        return "ccr_pause_follow_action";
     }
 
     @Override

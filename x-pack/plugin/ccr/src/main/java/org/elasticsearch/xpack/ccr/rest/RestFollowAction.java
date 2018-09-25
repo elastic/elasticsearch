@@ -14,24 +14,24 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.core.ccr.action.CreateAndFollowIndexAction.INSTANCE;
-import static org.elasticsearch.xpack.core.ccr.action.CreateAndFollowIndexAction.Request;
+import static org.elasticsearch.xpack.core.ccr.action.FollowAction.INSTANCE;
+import static org.elasticsearch.xpack.core.ccr.action.FollowAction.Request;
 
-public class RestCreateAndFollowIndexAction extends BaseRestHandler {
+public class RestFollowAction extends BaseRestHandler {
 
-    public RestCreateAndFollowIndexAction(Settings settings, RestController controller) {
+    public RestFollowAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST, "/{index}/_ccr/create_and_follow", this);
+        controller.registerHandler(RestRequest.Method.PUT, "/{index}/_ccr/follow", this);
     }
 
     @Override
     public String getName() {
-        return "ccr_create_and_follow_index_action";
+        return "ccr_follow_action";
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        Request request = new Request(RestFollowIndexAction.createRequest(restRequest));
+        Request request = new Request(RestResumeFollowAction.createRequest(restRequest));
         return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

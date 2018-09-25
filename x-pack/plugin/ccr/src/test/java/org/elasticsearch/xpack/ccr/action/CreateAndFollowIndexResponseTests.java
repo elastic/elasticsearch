@@ -6,17 +6,17 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.core.ccr.action.CreateAndFollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowAction;
 
-public class CreateAndFollowIndexResponseTests extends AbstractStreamableTestCase<CreateAndFollowIndexAction.Response> {
+public class CreateAndFollowIndexResponseTests extends AbstractStreamableTestCase<FollowAction.Response> {
 
     @Override
-    protected CreateAndFollowIndexAction.Response createBlankInstance() {
-        return new CreateAndFollowIndexAction.Response();
+    protected FollowAction.Response createBlankInstance() {
+        return new FollowAction.Response();
     }
 
     @Override
-    protected CreateAndFollowIndexAction.Response createTestInstance() {
-        return new CreateAndFollowIndexAction.Response(randomBoolean(), randomBoolean(), randomBoolean());
+    protected FollowAction.Response createTestInstance() {
+        return new FollowAction.Response(randomBoolean(), randomBoolean(), randomBoolean());
     }
 }

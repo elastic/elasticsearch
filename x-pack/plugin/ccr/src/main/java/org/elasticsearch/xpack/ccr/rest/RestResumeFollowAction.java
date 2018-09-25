@@ -15,19 +15,19 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.core.ccr.action.FollowIndexAction.INSTANCE;
-import static org.elasticsearch.xpack.core.ccr.action.FollowIndexAction.Request;
+import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.INSTANCE;
+import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request;
 
-public class RestFollowIndexAction extends BaseRestHandler {
+public class RestResumeFollowAction extends BaseRestHandler {
 
-    public RestFollowIndexAction(Settings settings, RestController controller) {
+    public RestResumeFollowAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST, "/{index}/_ccr/follow", this);
+        controller.registerHandler(RestRequest.Method.POST, "/{index}/_ccr/resume_follow", this);
     }
 
     @Override
     public String getName() {
-        return "ccr_follow_index_action";
+        return "ccr_resume_follow_action";
     }
 
     @Override

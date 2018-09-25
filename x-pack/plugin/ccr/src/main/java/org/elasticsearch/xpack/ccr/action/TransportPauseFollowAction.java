@@ -19,24 +19,24 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ccr.action.UnfollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-public class TransportUnfollowIndexAction extends HandledTransportAction<UnfollowIndexAction.Request, AcknowledgedResponse> {
+public class TransportPauseFollowAction extends HandledTransportAction<PauseFollowAction.Request, AcknowledgedResponse> {
 
     private final Client client;
     private final PersistentTasksService persistentTasksService;
 
     @Inject
-    public TransportUnfollowIndexAction(
+    public TransportPauseFollowAction(
             final Settings settings,
             final TransportService transportService,
             final ActionFilters actionFilters,
             final Client client,
             final PersistentTasksService persistentTasksService) {
-        super(settings, UnfollowIndexAction.NAME, transportService, actionFilters, UnfollowIndexAction.Request::new);
+        super(settings, PauseFollowAction.NAME, transportService, actionFilters, PauseFollowAction.Request::new);
         this.client = client;
         this.persistentTasksService = persistentTasksService;
     }
@@ -44,7 +44,7 @@ public class TransportUnfollowIndexAction extends HandledTransportAction<Unfollo
     @Override
     protected void doExecute(
             final Task task,
-            final UnfollowIndexAction.Request request,
+            final PauseFollowAction.Request request,
             final ActionListener<AcknowledgedResponse> listener) {
 
         client.admin().cluster().state(new ClusterStateRequest(), ActionListener.wrap(r -> {

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.common.time;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.joda.time.DateTimeZone;
 
 import java.time.DateTimeException;
@@ -1587,7 +1587,7 @@ public class DateFormatters {
         return DateTimeZone.forID(zoneId.getId());
     }
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(DateFormatters.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(DateFormatters.class));
     // pkg private for tests
     static final Map<String, String> DEPRECATED_SHORT_TIMEZONES;
     static {
@@ -1595,7 +1595,7 @@ public class DateFormatters {
         tzs.put("EST", "-05:00"); // eastern time without daylight savings
         tzs.put("HST", "-10:00");
         tzs.put("MST", "-07:00");
-        tzs.put("ROC", "+08:00");
+        tzs.put("ROC", "Asia/Taipei");
         tzs.put("Eire", "Europe/London");
         DEPRECATED_SHORT_TIMEZONES = Collections.unmodifiableMap(tzs);
     }

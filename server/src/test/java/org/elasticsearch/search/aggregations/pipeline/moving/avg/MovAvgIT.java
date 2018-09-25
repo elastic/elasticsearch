@@ -978,6 +978,7 @@ public class MovAvgIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/34046")
     public void testBadModelParams() {
         expectThrows(SearchPhaseExecutionException.class, () -> client()
                     .prepareSearch("idx").setTypes("type")

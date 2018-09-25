@@ -67,7 +67,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -541,53 +540,6 @@ public class ShardChangesIT extends ESIntegTestCase {
             () -> client().admin().indices().updateSettings(updateSettingsRequest).actionGet());
         assertThat(e.getMessage(), equalTo("can not update internal setting [index.xpack.ccr.following_index]; " +
             "this setting is managed via a dedicated API"));
-    }
-
-    public void testTransferMaxSeqNoOfUpdates() throws Exception {
-        int numberOfReplicas = between(0, 2);
-        internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + 1);
-        String leaderIndexSettings = getIndexSettings(1, numberOfReplicas,
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
-        assertAcked(client().admin().indices().prepareCreate("leader-index").setSource(leaderIndexSettings, XContentType.JSON).get());
-        FollowIndexAction.Request followRequest = createFollowRequest("leader-index", "follower-index");
-        CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
-        client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
-        ensureGreen("leader-index", "follower-index");
-        int numDocs = between(1, 100);
-        for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("leader-index", "doc", Integer.toString(i)).setSource("{}", XContentType.JSON).get();
-        }
-        atLeastDocsIndexed("follower-index", between(1, numDocs));
-        for (String node : internalCluster().nodesInclude("follower-index")) {
-            IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-            IndexShard shard = indicesService.getShardOrNull(new ShardId(resolveIndex("follower-index"), 1));
-            if (shard != null) {
-                assertThat(shard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(-1L));
-            }
-        }
-        AtomicLong maxSeqNoOfUpdates = new AtomicLong(-1L);
-        for (int i = 0; i < numDocs; i++) {
-            long seqNo = numDocs + i;
-            if (randomBoolean()) {
-                client().prepareIndex("leader-index", "doc", Integer.toString(i)).setSource("{}", XContentType.JSON).get();
-                maxSeqNoOfUpdates.set(seqNo);
-            } else if (randomBoolean()) {
-                client().prepareDelete("leader-index", "doc", Integer.toString(i)).get();
-                maxSeqNoOfUpdates.set(seqNo);
-            }
-        }
-        logger.info("--> waiting for max_seq_no_of_updates to be replicated");
-        assertBusy(() -> {
-            for (String node : internalCluster().nodesInclude("follower-index")) {
-                IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-                IndexShard shard = indicesService.getShardOrNull(new ShardId(resolveIndex("follower-index"), 1));
-                if (shard != null) {
-                    assertThat(shard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNoOfUpdates.get()));
-                }
-            }
-        });
-        assertMaxSeqNoOfUpdatesIsTransferred(resolveIndex("leader-index"), resolveIndex("follower-index"), 1);
-        unfollowIndex("follower-index");
     }
 
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {

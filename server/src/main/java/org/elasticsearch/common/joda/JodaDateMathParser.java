@@ -51,7 +51,7 @@ public class JodaDateMathParser implements DateMathParser {
     // use of `now`.
     @Override
     public long parse(String text, LongSupplier now, boolean roundUp, ZoneId tz) {
-        final DateTimeZone timeZone = tz == null ? null : DateFormatters.zoneIdToTimeZone(tz);
+        final DateTimeZone timeZone = tz == null ? null : DateFormatters.zoneIdToDateTimeZone(tz);
         long time;
         String mathString;
         if (text.startsWith("now")) {

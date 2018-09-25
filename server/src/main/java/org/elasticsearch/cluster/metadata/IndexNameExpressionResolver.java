@@ -926,7 +926,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                                 FormatDateTimeFormatter formatter = new FormatDateTimeFormatter(dateFormatterPattern, parser, Locale.ROOT);
                                 DateMathParser dateMathParser = formatter.toDateMathParser();
                                 long millis = dateMathParser.parse(mathExpression, context::getStartTime, false,
-                                    DateFormatters.timeZoneToZoneId(timeZone));
+                                    DateFormatters.dateTimeZoneToZoneId(timeZone));
 
                                 String time = formatter.printer().print(millis);
                                 beforePlaceHolderSb.append(time);

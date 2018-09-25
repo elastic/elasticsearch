@@ -20,6 +20,8 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.joda.time.DateTimeZone;
 
 import java.time.DateTimeException;
@@ -38,7 +40,10 @@ import java.time.temporal.IsoFields;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjusters;
 import java.time.temporal.WeekFields;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 import static java.time.temporal.ChronoField.DAY_OF_MONTH;
 import static java.time.temporal.ChronoField.DAY_OF_WEEK;
@@ -1571,7 +1576,7 @@ public class DateFormatters {
         return result;
     }
 
-    public static DateTimeZone zoneIdToTimeZone(ZoneId zoneId) {
+    public static DateTimeZone zoneIdToDateTimeZone(ZoneId zoneId) {
         if (zoneId == null) {
             return null;
         }
@@ -1582,9 +1587,29 @@ public class DateFormatters {
         return DateTimeZone.forID(zoneId.getId());
     }
 
-    public static ZoneId timeZoneToZoneId(DateTimeZone timeZone) {
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(DateFormatters.class));
+    // pkg private for tests
+    static final Map<String, String> DEPRECATED_SHORT_TIMEZONES;
+    static {
+        Map<String, String> tzs = new HashMap<>();
+        tzs.put("EST", "-05:00"); // eastern time without daylight savings
+        tzs.put("HST", "-10:00");
+        tzs.put("MST", "-07:00");
+        tzs.put("ROC", "+08:00");
+        tzs.put("Eire", "Europe/London");
+        DEPRECATED_SHORT_TIMEZONES = Collections.unmodifiableMap(tzs);
+    }
+
+    public static ZoneId dateTimeZoneToZoneId(DateTimeZone timeZone) {
         if (timeZone == null) {
             return null;
+        }
+
+        String deprecatedId = DEPRECATED_SHORT_TIMEZONES.get(timeZone.getID());
+        if (deprecatedId != null) {
+            DEPRECATION_LOGGER.deprecatedAndMaybeLog("timezone",
+                "Use of short timezone id " + timeZone.getID() + " is deprecated. Use " + deprecatedId + " instead");
+            return ZoneId.of(deprecatedId);
         }
         return ZoneId.of(timeZone.getID());
     }

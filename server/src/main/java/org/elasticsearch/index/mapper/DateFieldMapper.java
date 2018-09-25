@@ -310,7 +310,7 @@ public class DateFieldMapper extends FieldMapper {
             } else {
                 strValue = value.toString();
             }
-            return dateParser.parse(strValue, context::nowInMillis, roundUp, DateFormatters.timeZoneToZoneId(zone));
+            return dateParser.parse(strValue, context::nowInMillis, roundUp, DateFormatters.dateTimeZoneToZoneId(zone));
         }
 
         @Override

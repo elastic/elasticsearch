@@ -20,13 +20,16 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.test.ESTestCase;
+import org.joda.time.DateTimeZone;
 
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class DateFormattersTests extends ESTestCase {
@@ -74,5 +77,20 @@ public class DateFormattersTests extends ESTestCase {
         String millisAsString = String.valueOf(millis);
         TemporalAccessor accessor = formatter.parse(millisAsString);
         assertThat(millisAsString, is(formatter.format(accessor)));
+    }
+
+    public void testTimezoneIds() {
+        assertNull(DateFormatters.dateTimeZoneToZoneId(null));
+        assertNull(DateFormatters.zoneIdToDateTimeZone(null));
+        for (String jodaId : DateTimeZone.getAvailableIDs()) {
+            DateTimeZone jodaTz = DateTimeZone.forID(jodaId);
+            ZoneId zoneId = DateFormatters.dateTimeZoneToZoneId(jodaTz); // does not throw
+            assertThat(jodaId, zoneId.getRules().getOffset(Instant.EPOCH).getTotalSeconds() * 1000, equalTo(jodaTz.getOffset(0)));
+            if (DateFormatters.DEPRECATED_SHORT_TIMEZONES.containsKey(jodaId)) {
+                assertWarnings("Use of short timezone id " + jodaId + " is deprecated. Use " + zoneId.getId() + " instead");
+            }
+            // roundtrip does not throw either
+            assertNotNull(DateFormatters.zoneIdToDateTimeZone(zoneId));
+        }
     }
 }

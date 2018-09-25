@@ -590,7 +590,7 @@ public class RangeFieldMapper extends FieldMapper {
                                     boolean includeUpper, ShapeRelation relation, @Nullable DateTimeZone timeZone,
                                     @Nullable DateMathParser parser, QueryShardContext context) {
                     DateTimeZone zone = (timeZone == null) ? DateTimeZone.UTC : timeZone;
-                    ZoneId zoneId = DateFormatters.timeZoneToZoneId(zone);
+                    ZoneId zoneId = DateFormatters.dateTimeZoneToZoneId(zone);
                 DateMathParser dateMathParser = (parser == null) ?
                     DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser() : parser;
                 Long low = lowerTerm == null ? Long.MIN_VALUE :

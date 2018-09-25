@@ -214,7 +214,7 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public long parseLong(String value, boolean roundUp, LongSupplier now) {
-            return parser.parse(value, now, roundUp, DateFormatters.timeZoneToZoneId(timeZone));
+            return parser.parse(value, now, roundUp, DateFormatters.dateTimeZoneToZoneId(timeZone));
         }
 
         @Override

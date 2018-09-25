@@ -80,7 +80,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -1430,8 +1429,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_5_0)) {
             // as of 5.5.0, the engine stores the maxUnsafeAutoIdTimestamp in the commit point.
             // This should have baked into the commit by the primary we recover from, regardless of the index age.
-            assert userData.containsKey(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) :
-                "opening index which was created post 5.5.0 but " + InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID
+            assert userData.containsKey(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) :
+                "opening index which was created post 5.5.0 but " + Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID
                     + " is not found in commit";
         }
         return true;

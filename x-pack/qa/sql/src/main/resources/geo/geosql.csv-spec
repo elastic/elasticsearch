@@ -3,7 +3,7 @@
 //
 
 showTables
-SHOW TABLES 'geo';
+SHOW TABLES "geo";
 
  name:s        | type:s
 geo       |BASE TABLE

@@ -3,7 +3,7 @@
 //
 
 showTables
-SHOW TABLES 'ogc';
+SHOW TABLES "ogc";
 
  name:s        | type:s
 ogc       |BASE TABLE

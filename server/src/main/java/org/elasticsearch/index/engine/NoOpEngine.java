@@ -48,9 +48,9 @@ import java.util.stream.Stream;
  * Directory so that the last commit's user data can be read for the historyUUID
  * and last committed segment info.
  */
-final class NoOpEngine extends ReadOnlyEngine {
+public final class NoOpEngine extends ReadOnlyEngine {
 
-    NoOpEngine(EngineConfig engineConfig) {
+    public NoOpEngine(EngineConfig engineConfig) {
         super(engineConfig, null, null, true, directoryReader -> directoryReader);
         boolean success = false;
         try {

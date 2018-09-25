@@ -1105,6 +1105,9 @@ public class TransportReplicationActionTests extends ESTestCase {
     }
 
     static class TestResponse extends ReplicationResponse {
+        TestResponse() {
+            setShardInfo(new ShardInfo());
+        }
     }
 
     private class TestAction extends TransportReplicationAction<Request, Request, TestResponse> {

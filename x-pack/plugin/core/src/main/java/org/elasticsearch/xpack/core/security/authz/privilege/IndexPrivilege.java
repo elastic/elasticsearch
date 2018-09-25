@@ -55,7 +55,7 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton VIEW_METADATA_AUTOMATON = patterns(GetAliasesAction.NAME, AliasesExistAction.NAME,
             GetIndexAction.NAME, IndicesExistsAction.NAME, GetFieldMappingsAction.NAME + "*", GetMappingsAction.NAME,
             ClusterSearchShardsAction.NAME, TypesExistsAction.NAME, ValidateQueryAction.NAME + "*", GetSettingsAction.NAME);
-    private static final Automaton CREATE_FOLLOW_INDEX_AUTOMATON = patterns("indices:admin/xpack/ccr/create_and_follow_index");
+    private static final Automaton CREATE_FOLLOW_INDEX_AUTOMATON = patterns("indices:admin/xpack/ccr/follow");
 
     public static final IndexPrivilege NONE =                new IndexPrivilege("none",             Automatons.EMPTY);
     public static final IndexPrivilege ALL =                 new IndexPrivilege("all",              ALL_AUTOMATON);

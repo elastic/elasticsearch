@@ -21,6 +21,7 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.watcher.DeactivateWatchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
@@ -63,6 +64,15 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         request.getEntity().writeTo(bos);
         assertThat(bos.toString("UTF-8"), is(body));
+    }
+
+    public void testDeactivateWatch() {
+        String watchId = randomAlphaOfLength(10);
+        DeactivateWatchRequest deactivateWatchRequest = new DeactivateWatchRequest(watchId);
+        Request request = WatcherRequestConverters.deactivateWatch(deactivateWatchRequest);
+
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/watcher/watch/" + watchId + "/_deactivate", request.getEndpoint());
     }
 
     public void testDeleteWatch() {

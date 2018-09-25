@@ -3,7 +3,16 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.protocol.xpack.watcher;
+package org.elasticsearch.client.watcher;
 
 public class DeactivateWatchRequest {
+    private final String watchId;
+
+    public DeactivateWatchRequest(String watchId) {
+        this.watchId = watchId;
+    }
+
+    public String getWatchId() {
+        return watchId;
+    }
 }

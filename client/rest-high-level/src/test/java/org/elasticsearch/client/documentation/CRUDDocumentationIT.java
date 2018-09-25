@@ -30,8 +30,6 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
@@ -42,16 +40,18 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.DeleteRequest;
+import org.elasticsearch.client.DeleteResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.RethrottleRequest;
+import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -550,7 +550,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            IndexRequest indexRequest = new IndexRequest("posts", "doc", "1").source("field", "value");
+            IndexRequest indexRequest = new IndexRequest("posts", "_doc", "1").source("field", "value");
             IndexResponse indexResponse = client.index(indexRequest, RequestOptions.DEFAULT);
             assertSame(RestStatus.CREATED, indexResponse.status());
         }
@@ -559,8 +559,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::delete-request
             DeleteRequest request = new DeleteRequest(
                     "posts",    // <1>
-                    "doc",     // <2>
-                    "1");      // <3>
+                    "1");      // <2>
             // end::delete-request
 
             // tag::delete-execute
@@ -570,15 +569,13 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::delete-response
             String index = deleteResponse.getIndex();
-            String type = deleteResponse.getType();
             String id = deleteResponse.getId();
-            long version = deleteResponse.getVersion();
-            ReplicationResponse.ShardInfo shardInfo = deleteResponse.getShardInfo();
-            if (shardInfo.getTotal() != shardInfo.getSuccessful()) {
+            long version = deleteResponse.getVersion(); 
+            if (deleteResponse.getShardInfo().getTotal() != deleteResponse.getShardInfo().getSuccessful()) {
                 // <1>
             }
-            if (shardInfo.getFailed() > 0) {
-                for (ReplicationResponse.ShardInfo.Failure failure : shardInfo.getFailures()) {
+            if (deleteResponse.getShardInfo().getFailed() > 0) {
+                for (ReplicationResponse.ShardInfo.Failure failure : deleteResponse.getShardInfo().getFailures()) {
                     String reason = failure.reason(); // <2>
                 }
             }
@@ -586,29 +583,28 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            DeleteRequest request = new DeleteRequest("posts", "doc", "1");
+            DeleteRequest request = new DeleteRequest("posts", "1");
             // tag::delete-request-routing
-            request.routing("routing"); // <1>
+            request.setRouting("routing"); // <1>
             // end::delete-request-routing
             // tag::delete-request-timeout
-            request.timeout(TimeValue.timeValueMinutes(2)); // <1>
-            request.timeout("2m"); // <2>
+            request.setTimeout(TimeValue.timeValueMinutes(2)); // <1>
+            request.setTimeout("2m"); // <2>
             // end::delete-request-timeout
             // tag::delete-request-refresh
-            request.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL); // <1>
-            request.setRefreshPolicy("wait_for");                            // <2>
+            request.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL); // <1>
             // end::delete-request-refresh
             // tag::delete-request-version
-            request.version(2); // <1>
+            request.setVersion(2); // <1>
             // end::delete-request-version
             // tag::delete-request-version-type
-            request.versionType(VersionType.EXTERNAL); // <1>
+            request.setVersionType(VersionType.EXTERNAL); // <1>
             // end::delete-request-version-type
         }
 
         {
             // tag::delete-notfound
-            DeleteRequest request = new DeleteRequest("posts", "doc", "does_not_exist");
+            DeleteRequest request = new DeleteRequest("posts", "does_not_exist");
             DeleteResponse deleteResponse = client.delete(request, RequestOptions.DEFAULT);
             if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
                 // <1>
@@ -617,13 +613,13 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            IndexResponse indexResponse = client.index(new IndexRequest("posts", "doc", "1").source("field", "value")
+            IndexResponse indexResponse = client.index(new IndexRequest("posts", "_doc", "1").source("field", "value")
                     , RequestOptions.DEFAULT);
             assertSame(RestStatus.CREATED, indexResponse.status());
 
             // tag::delete-conflict
             try {
-                DeleteRequest request = new DeleteRequest("posts", "doc", "1").version(2);
+                DeleteRequest request = new DeleteRequest("posts", "1").setVersion(2);
                 DeleteResponse deleteResponse = client.delete(request, RequestOptions.DEFAULT);
             } catch (ElasticsearchException exception) {
                 if (exception.status() == RestStatus.CONFLICT) {
@@ -633,11 +629,11 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::delete-conflict
         }
         {
-            IndexResponse indexResponse = client.index(new IndexRequest("posts", "doc", "async").source("field", "value"),
+            IndexResponse indexResponse = client.index(new IndexRequest("posts", "_doc", "async").source("field", "value"),
                     RequestOptions.DEFAULT);
             assertSame(RestStatus.CREATED, indexResponse.status());
 
-            DeleteRequest request = new DeleteRequest("posts", "doc", "async");
+            DeleteRequest request = new DeleteRequest("posts", "async");
 
             // tag::delete-execute-listener
             ActionListener<DeleteResponse> listener = new ActionListener<DeleteResponse>() {
@@ -686,7 +682,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::bulk-request-with-mixed-operations
             BulkRequest request = new BulkRequest();
-            request.add(new DeleteRequest("posts", "doc", "3")); // <1>
+            request.add(new org.elasticsearch.action.delete.DeleteRequest("posts", "doc", "3")); // <1>
             request.add(new UpdateRequest("posts", "doc", "2") // <2>
                     .doc(XContentType.JSON,"other", "test"));
             request.add(new IndexRequest("posts", "doc", "4")  // <3>
@@ -708,7 +704,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                     UpdateResponse updateResponse = (UpdateResponse) itemResponse;
 
                 } else if (bulkItemResponse.getOpType() == DocWriteRequest.OpType.DELETE) { // <5>
-                    DeleteResponse deleteResponse = (DeleteResponse) itemResponse;
+                    org.elasticsearch.action.delete.DeleteResponse deleteResponse =
+                            (org.elasticsearch.action.delete.DeleteResponse) itemResponse;
                 }
             }
             // end::bulk-response
@@ -1515,7 +1512,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         source.put("baz", "val3");
         client.index(new IndexRequest("index", "type", "example_id")
             .source(source)
-            .setRefreshPolicy(RefreshPolicy.IMMEDIATE), RequestOptions.DEFAULT);
+            .setRefreshPolicy(org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE), RequestOptions.DEFAULT);
 
         {
             // tag::multi-get-request

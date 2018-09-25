@@ -35,7 +35,6 @@ import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptReque
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -94,16 +93,17 @@ final class RequestConverters {
     }
 
     static Request delete(DeleteRequest deleteRequest) {
-        String endpoint = endpoint(deleteRequest.index(), deleteRequest.type(), deleteRequest.id());
+        String endpoint = endpoint(deleteRequest.getIndex(), "_doc", deleteRequest.getId());
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
 
         Params parameters = new Params(request);
-        parameters.withRouting(deleteRequest.routing());
-        parameters.withTimeout(deleteRequest.timeout());
-        parameters.withVersion(deleteRequest.version());
-        parameters.withVersionType(deleteRequest.versionType());
+        parameters.withDisabledTypes();
+        parameters.withRouting(deleteRequest.getRouting());
+        parameters.withTimeout(deleteRequest.getTimeout());
+        parameters.withVersion(deleteRequest.getVersion());
+        parameters.withVersionType(deleteRequest.getVersionType());
         parameters.withRefreshPolicy(deleteRequest.getRefreshPolicy());
-        parameters.withWaitForActiveShards(deleteRequest.waitForActiveShards());
+        parameters.withWaitForActiveShards(deleteRequest.getWaitForActiveShards());
         return request;
     }
 
@@ -922,6 +922,10 @@ final class RequestConverters {
                 return putParam("wait_for_events", waitForEvents.name().toLowerCase(Locale.ROOT));
             }
             return this;
+        }
+
+        Params withDisabledTypes() {
+            return putParam("include_type_name", "false");
         }
     }
 

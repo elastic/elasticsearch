@@ -32,8 +32,6 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
@@ -89,24 +87,22 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             // Testing deletion
             String docId = "id";
             highLevelClient().index(
-                    new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar")), RequestOptions.DEFAULT);
-            DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId);
+                    new IndexRequest("index", "_doc", docId).source(Collections.singletonMap("foo", "bar")), RequestOptions.DEFAULT);
+            DeleteRequest deleteRequest = new DeleteRequest("index", docId);
             if (randomBoolean()) {
-                deleteRequest.version(1L);
+                deleteRequest.setVersion(1L);
             }
             DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
             assertEquals("index", deleteResponse.getIndex());
-            assertEquals("type", deleteResponse.getType());
             assertEquals(docId, deleteResponse.getId());
             assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         }
         {
             // Testing non existing document
             String docId = "does_not_exist";
-            DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId);
+            DeleteRequest deleteRequest = new DeleteRequest("index", docId);
             DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
             assertEquals("index", deleteResponse.getIndex());
-            assertEquals("type", deleteResponse.getType());
             assertEquals(docId, deleteResponse.getId());
             assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());
         }
@@ -114,12 +110,12 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             // Testing version conflict
             String docId = "version_conflict";
             highLevelClient().index(
-                    new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar")), RequestOptions.DEFAULT);
-            DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).version(2);
+                    new IndexRequest("index", "_doc", docId).source(Collections.singletonMap("foo", "bar")), RequestOptions.DEFAULT);
+            DeleteRequest deleteRequest = new DeleteRequest("index", docId).setVersion(2);
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
                 () -> execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync));
             assertEquals(RestStatus.CONFLICT, exception.status());
-            assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[type][" + docId + "]: " +
+            assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[_doc][" + docId + "]: " +
                 "version conflict, current version [1] is different than the one provided [2]]", exception.getMessage());
             assertEquals("index", exception.getMetadata("es.index").get(0));
         }
@@ -127,12 +123,11 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             // Testing version type
             String docId = "version_type";
             highLevelClient().index(
-                    new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar"))
+                    new IndexRequest("index", "_doc", docId).source(Collections.singletonMap("foo", "bar"))
                 .versionType(VersionType.EXTERNAL).version(12), RequestOptions.DEFAULT);
-            DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).versionType(VersionType.EXTERNAL).version(13);
+            DeleteRequest deleteRequest = new DeleteRequest("index", docId).setVersionType(VersionType.EXTERNAL).setVersion(13);
             DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
             assertEquals("index", deleteResponse.getIndex());
-            assertEquals("type", deleteResponse.getType());
             assertEquals(docId, deleteResponse.getId());
             assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         }
@@ -140,26 +135,25 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             // Testing version type with a wrong version
             String docId = "wrong_version";
             highLevelClient().index(
-                    new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar"))
+                    new IndexRequest("index", "_doc", docId).source(Collections.singletonMap("foo", "bar"))
                 .versionType(VersionType.EXTERNAL).version(12), RequestOptions.DEFAULT);
             ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
-                DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).versionType(VersionType.EXTERNAL).version(10);
+                DeleteRequest deleteRequest = new DeleteRequest("index", docId).setVersionType(VersionType.EXTERNAL).setVersion(10);
                 execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
             });
             assertEquals(RestStatus.CONFLICT, exception.status());
-            assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[type][" +
+            assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[_doc][" +
                 docId + "]: version conflict, current version [12] is higher or equal to the one provided [10]]", exception.getMessage());
             assertEquals("index", exception.getMetadata("es.index").get(0));
         }
         {
             // Testing routing
             String docId = "routing";
-            highLevelClient().index(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar")).routing("foo"),
+            highLevelClient().index(new IndexRequest("index", "_doc", docId).source(Collections.singletonMap("foo", "bar")).routing("foo"),
                     RequestOptions.DEFAULT);
-            DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).routing("foo");
+            DeleteRequest deleteRequest = new DeleteRequest("index", docId).setRouting("foo");
             DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
             assertEquals("index", deleteResponse.getIndex());
-            assertEquals("type", deleteResponse.getType());
             assertEquals(docId, deleteResponse.getId());
             assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         }
@@ -603,7 +597,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                             highLevelClient().index(
                                     new IndexRequest("index", "test", id).source("field", -1), RequestOptions.DEFAULT).status());
                 }
-                DeleteRequest deleteRequest = new DeleteRequest("index", "test", id);
+                org.elasticsearch.action.delete.DeleteRequest deleteRequest = new org.elasticsearch.action.delete.DeleteRequest(
+                        "index", "test", id);
                 bulkRequest.add(deleteRequest);
 
             } else {
@@ -930,7 +925,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                                 highLevelClient().index(
                                         new IndexRequest("index", "test", id).source("field", -1), RequestOptions.DEFAULT).status());
                     }
-                    DeleteRequest deleteRequest = new DeleteRequest("index", "test", id);
+                    org.elasticsearch.action.delete.DeleteRequest deleteRequest = new org.elasticsearch.action.delete.DeleteRequest(
+                            "index", "test", id);
                     processor.add(deleteRequest);
 
                 } else {

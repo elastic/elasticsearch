@@ -35,7 +35,6 @@ import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
-import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -55,6 +54,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
+import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -112,6 +112,7 @@ import java.util.Map;
 import java.util.StringJoiner;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
@@ -198,27 +199,27 @@ public class RequestConvertersTests extends ESTestCase {
 
     public void testDelete() {
         String index = randomAlphaOfLengthBetween(3, 10);
-        String type = randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
-        DeleteRequest deleteRequest = new DeleteRequest(index, type, id);
+        DeleteRequest deleteRequest = new DeleteRequest(index, id);
 
         Map<String, String> expectedParams = new HashMap<>();
+        expectedParams.put("include_type_name", "false");
 
-        setRandomTimeout(deleteRequest::timeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
+        setRandomTimeout(deleteRequest::setTimeout, null, expectedParams);
         setRandomRefreshPolicy(deleteRequest::setRefreshPolicy, expectedParams);
-        setRandomVersion(deleteRequest, expectedParams);
-        setRandomVersionType(deleteRequest::versionType, expectedParams);
+        setRandomVersion(deleteRequest::setVersion, expectedParams);
+        setRandomVersionType(deleteRequest::setVersionType, expectedParams);
 
         if (frequently()) {
             if (randomBoolean()) {
                 String routing = randomAlphaOfLengthBetween(3, 10);
-                deleteRequest.routing(routing);
+                deleteRequest.setRouting(routing);
                 expectedParams.put("routing", routing);
             }
         }
 
         Request request = RequestConverters.delete(deleteRequest);
-        assertEquals("/" + index + "/" + type + "/" + id, request.getEndpoint());
+        assertEquals("/" + index + "/_doc/" + id, request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertNull(request.getEntity());
@@ -513,14 +514,14 @@ public class RequestConvertersTests extends ESTestCase {
         }
 
         setRandomTimeout(indexRequest::timeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
-        setRandomRefreshPolicy(indexRequest::setRefreshPolicy, expectedParams);
+        setRandomLegacyRefreshPolicy(indexRequest::setRefreshPolicy, expectedParams);
 
         // There is some logic around _create endpoint and version/version type
         if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
             indexRequest.version(randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED));
             expectedParams.put("version", Long.toString(Versions.MATCH_DELETED));
         } else {
-            setRandomVersion(indexRequest, expectedParams);
+            setRandomVersion(indexRequest::version, expectedParams);
             setRandomVersionType(indexRequest::versionType, expectedParams);
         }
 
@@ -615,7 +616,7 @@ public class RequestConvertersTests extends ESTestCase {
             }
         }
         setRandomWaitForActiveShards(updateRequest::waitForActiveShards, expectedParams);
-        setRandomVersion(updateRequest, expectedParams);
+        setRandomVersion(updateRequest::version, expectedParams);
         setRandomVersionType(updateRequest::versionType, expectedParams);
         if (randomBoolean()) {
             int retryOnConflict = randomIntBetween(0, 5);
@@ -683,7 +684,7 @@ public class RequestConvertersTests extends ESTestCase {
             expectedParams.put("timeout", BulkShardRequest.DEFAULT_TIMEOUT.getStringRep());
         }
 
-        setRandomRefreshPolicy(bulkRequest::setRefreshPolicy, expectedParams);
+        setRandomLegacyRefreshPolicy(bulkRequest::setRefreshPolicy, expectedParams);
 
         XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
 
@@ -716,7 +717,7 @@ public class RequestConvertersTests extends ESTestCase {
                     randomizeFetchSourceContextParams(updateRequest::fetchSource, new HashMap<>());
                 }
             } else if (opType == DocWriteRequest.OpType.DELETE) {
-                docWriteRequest = new DeleteRequest(index, type, id);
+                docWriteRequest = new org.elasticsearch.action.delete.DeleteRequest(index, type, id);
             } else {
                 throw new UnsupportedOperationException("optype [" + opType + "] not supported");
             }
@@ -784,9 +785,9 @@ public class RequestConvertersTests extends ESTestCase {
     public void testBulkWithDifferentContentTypes() throws IOException {
         {
             BulkRequest bulkRequest = new BulkRequest();
-            bulkRequest.add(new DeleteRequest("index", "type", "0"));
+            bulkRequest.add(new org.elasticsearch.action.delete.DeleteRequest("index", "type", "0"));
             bulkRequest.add(new UpdateRequest("index", "type", "1").script(mockScript("test")));
-            bulkRequest.add(new DeleteRequest("index", "type", "2"));
+            bulkRequest.add(new org.elasticsearch.action.delete.DeleteRequest("index", "type", "2"));
 
             Request request = RequestConverters.bulk(bulkRequest);
             assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
@@ -794,9 +795,9 @@ public class RequestConvertersTests extends ESTestCase {
         {
             XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
             BulkRequest bulkRequest = new BulkRequest();
-            bulkRequest.add(new DeleteRequest("index", "type", "0"));
+            bulkRequest.add(new org.elasticsearch.action.delete.DeleteRequest("index", "type", "0"));
             bulkRequest.add(new IndexRequest("index", "type", "0").source(singletonMap("field", "value"), xContentType));
-            bulkRequest.add(new DeleteRequest("index", "type", "2"));
+            bulkRequest.add(new org.elasticsearch.action.delete.DeleteRequest("index", "type", "2"));
 
             Request request = RequestConverters.bulk(bulkRequest);
             assertEquals(xContentType.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
@@ -837,10 +838,10 @@ public class RequestConvertersTests extends ESTestCase {
         {
             XContentType xContentType = randomFrom(XContentType.CBOR, XContentType.YAML);
             BulkRequest bulkRequest = new BulkRequest();
-            bulkRequest.add(new DeleteRequest("index", "type", "0"));
+            bulkRequest.add(new org.elasticsearch.action.delete.DeleteRequest("index", "type", "0"));
             bulkRequest.add(new IndexRequest("index", "type", "1").source(singletonMap("field", "value"), XContentType.JSON));
-            bulkRequest.add(new DeleteRequest("index", "type", "2"));
-            bulkRequest.add(new DeleteRequest("index", "type", "3"));
+            bulkRequest.add(new org.elasticsearch.action.delete.DeleteRequest("index", "type", "2"));
+            bulkRequest.add(new org.elasticsearch.action.delete.DeleteRequest("index", "type", "3"));
             bulkRequest.add(new IndexRequest("index", "type", "4").source(singletonMap("field", "value"), XContentType.JSON));
             bulkRequest.add(new IndexRequest("index", "type", "1").source(singletonMap("field", "value"), xContentType));
             IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> RequestConverters.bulk(bulkRequest));
@@ -1567,7 +1568,7 @@ public class RequestConvertersTests extends ESTestCase {
             String timeout = randomTimeValue();
             setter.accept(timeout);
             expectedParams.put("timeout", timeout);
-        } else {
+        } else if (defaultTimeout != null) {
             expectedParams.put("timeout", defaultTimeout.getStringRep());
         }
     }
@@ -1604,7 +1605,11 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    private static void setRandomRefreshPolicy(Consumer<WriteRequest.RefreshPolicy> setter, Map<String, String> expectedParams) {
+    /**
+     * @deprecated Use {@link RefreshPolicy} rather than {@link WriteRequest.RefreshPolicy}.
+     */
+    @Deprecated
+    private static void setRandomLegacyRefreshPolicy(Consumer<WriteRequest.RefreshPolicy> setter, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
             setter.accept(refreshPolicy);
@@ -1614,10 +1619,20 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    private static void setRandomVersion(DocWriteRequest<?> request, Map<String, String> expectedParams) {
+    private static void setRandomRefreshPolicy(Consumer<RefreshPolicy> setter, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+            setter.accept(refreshPolicy);
+            if (refreshPolicy != RefreshPolicy.NONE) {
+                expectedParams.put("refresh", refreshPolicy.getValue());
+            }
+        }
+    }
+
+    private static void setRandomVersion(LongConsumer setter, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             long version = randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED, Versions.NOT_FOUND, randomNonNegativeLong());
-            request.version(version);
+            setter.accept(version);
             if (version != Versions.MATCH_ANY) {
                 expectedParams.put("version", Long.toString(version));
             }

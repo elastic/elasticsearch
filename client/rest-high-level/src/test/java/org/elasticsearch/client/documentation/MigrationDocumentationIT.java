@@ -20,11 +20,12 @@
 package org.elasticsearch.client.documentation;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.client.DeleteRequest;
+import org.elasticsearch.client.DeleteResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -82,7 +83,7 @@ public class MigrationDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             //tag::migration-request-ctor
-            IndexRequest request = new IndexRequest("index", "doc", "id"); // <1>
+            IndexRequest request = new IndexRequest("index", "_doc", "id"); // <1>
             request.source("{\"field\":\"value\"}", XContentType.JSON);
             //end::migration-request-ctor
 
@@ -93,7 +94,7 @@ public class MigrationDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             //tag::migration-request-async-execution
-            DeleteRequest request = new DeleteRequest("index", "doc", "id"); // <1>
+            DeleteRequest request = new DeleteRequest("index", "id"); // <1>
             client.deleteAsync(request, RequestOptions.DEFAULT, new ActionListener<DeleteResponse>() { // <2>
                 @Override
                 public void onResponse(DeleteResponse deleteResponse) {
@@ -106,14 +107,14 @@ public class MigrationDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
             });
             //end::migration-request-async-execution
-            assertBusy(() -> assertFalse(client.exists(new GetRequest("index", "doc", "id"), RequestOptions.DEFAULT)));
+            assertBusy(() -> assertFalse(client.exists(new GetRequest("index", "_doc", "id"), RequestOptions.DEFAULT)));
         }
         {
             //tag::migration-request-sync-execution
-            DeleteRequest request = new DeleteRequest("index", "doc", "id");
+            DeleteRequest request = new DeleteRequest("index", "id");
             DeleteResponse response = client.delete(request, RequestOptions.DEFAULT); // <1>
             //end::migration-request-sync-execution
-            assertEquals(RestStatus.NOT_FOUND, response.status());
+            assertEquals(Result.NOT_FOUND, response.getResult());
         }
     }
 }

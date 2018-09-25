@@ -10,6 +10,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.PutFeatureIndexBuilderJobAction.Request;
 import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobConfig;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobConfigTests;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -40,7 +41,7 @@ public class PutFeatureIndexBuilderJobActionRequestTests extends AbstractStreama
 
     @Override
     protected Request createTestInstance() {
-        FeatureIndexBuilderJobConfig config = new FeatureIndexBuilderJobConfig(randomAlphaOfLengthBetween(1,10));
+        FeatureIndexBuilderJobConfig config = FeatureIndexBuilderJobConfigTests.randomFeatureIndexBuilderJobConfig();
         return new Request(config);
     }
 

@@ -19,7 +19,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
@@ -70,8 +69,8 @@ public class CcrStatsAction extends Action<CcrStatsAction.StatsResponses> {
             final Map<String, Map<Integer, StatsResponse>> taskResponsesByIndex = new TreeMap<>();
             for (final StatsResponse statsResponse : statsResponse) {
                 taskResponsesByIndex.computeIfAbsent(
-                        statsResponse.followerShardId().getIndexName(),
-                        k -> new TreeMap<>()).put(statsResponse.followerShardId().getId(), statsResponse);
+                        statsResponse.status().followerIndex(),
+                        k -> new TreeMap<>()).put(statsResponse.status().getShardId(), statsResponse);
             }
             builder.startObject();
             {
@@ -150,31 +149,22 @@ public class CcrStatsAction extends Action<CcrStatsAction.StatsResponses> {
 
     public static class StatsResponse implements Writeable {
 
-        private final ShardId followerShardId;
-
-        public ShardId followerShardId() {
-            return followerShardId;
-        }
-
         private final ShardFollowNodeTaskStatus status;
 
         public ShardFollowNodeTaskStatus status() {
             return status;
         }
 
-        public StatsResponse(final ShardId followerShardId, final ShardFollowNodeTaskStatus status) {
-            this.followerShardId = followerShardId;
+        public StatsResponse(final ShardFollowNodeTaskStatus status) {
             this.status = status;
         }
 
         public StatsResponse(final StreamInput in) throws IOException {
-            this.followerShardId = ShardId.readShardId(in);
             this.status = new ShardFollowNodeTaskStatus(in);
         }
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
-            followerShardId.writeTo(out);
             status.writeTo(out);
         }
 

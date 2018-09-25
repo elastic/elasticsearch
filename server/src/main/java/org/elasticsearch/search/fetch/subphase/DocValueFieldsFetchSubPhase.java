@@ -115,7 +115,7 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                         subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
                         data = indexFieldData.load(subReaderContext);
                         if (format == null) {
-                            scriptValues = data.getScriptValues();
+                            scriptValues = data.getLegacyFieldValues();
                         } else if (indexFieldData instanceof IndexNumericFieldData) {
                             if (((IndexNumericFieldData) indexFieldData).getNumericType().isFloatingPoint()) {
                                 doubleValues = ((AtomicNumericFieldData) data).getDoubleValues();

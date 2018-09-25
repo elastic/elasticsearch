@@ -36,6 +36,8 @@ indices and return results in tabular format.
     SQL and print tabular results.
 <<sql-jdbc,JDBC>>::
     A JDBC driver for {es}.
+<<sql-client-apps,Client Applications>>::
+    Documentation for configuring various SQL/BI tools with {es-sql}.
 <<sql-spec,SQL Language>>::
     Overview of the {es-sql} language, such as supported data types, commands and 
     syntax.

@@ -25,9 +25,9 @@ import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.CreateAndFollowIndexAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
-import org.elasticsearch.xpack.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
+import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -143,8 +143,8 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
                     new AutoFollowPattern(Collections.singletonList("logs-*"), null, null, null, null, null, null, null, null);
                 AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(
                     Collections.singletonMap("test_alias", autoFollowPattern),
-                    Collections.emptyMap()
-                );
+                    Collections.emptyMap(),
+                    Collections.emptyMap());
 
                 ClusterState.Builder newState = ClusterState.builder(currentState);
                 newState.metaData(MetaData.builder(currentState.getMetaData())
@@ -192,16 +192,12 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
     }
 
     private FollowIndexAction.Request getFollowRequest() {
-        return new FollowIndexAction.Request(
-                "leader",
-                "follower",
-                FollowIndexAction.DEFAULT_MAX_BATCH_OPERATION_COUNT,
-                FollowIndexAction.DEFAULT_MAX_CONCURRENT_READ_BATCHES,
-                FollowIndexAction.DEFAULT_MAX_BATCH_SIZE_IN_BYTES,
-                FollowIndexAction.DEFAULT_MAX_CONCURRENT_WRITE_BATCHES,
-                FollowIndexAction.DEFAULT_MAX_WRITE_BUFFER_SIZE,
-                TimeValue.timeValueMillis(10),
-                TimeValue.timeValueMillis(10));
+        FollowIndexAction.Request request = new FollowIndexAction.Request();
+        request.setLeaderIndex("leader");
+        request.setFollowerIndex("follower");
+        request.setMaxRetryDelay(TimeValue.timeValueMillis(10));
+        request.setPollTimeout(TimeValue.timeValueMillis(10));
+        return request;
     }
 
 }

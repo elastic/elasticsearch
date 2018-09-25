@@ -106,7 +106,7 @@ public class TransportCcrStatsAction extends TransportTasksAction<
             final CcrStatsAction.StatsRequest request,
             final ShardFollowNodeTask task,
             final ActionListener<CcrStatsAction.StatsResponse> listener) {
-        listener.onResponse(new CcrStatsAction.StatsResponse(task.getFollowShardId(), task.getStatus()));
+        listener.onResponse(new CcrStatsAction.StatsResponse(task.getStatus()));
     }
 
 }

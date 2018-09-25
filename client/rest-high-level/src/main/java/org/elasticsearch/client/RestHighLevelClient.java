@@ -1482,5 +1482,4 @@ public class RestHighLevelClient implements Closeable {
         }
         return entries;
     }
-
 }

@@ -224,7 +224,6 @@ public class CertParsingUtils {
                     trustStoreAlgorithm);
         }
         return null;
-
     }
 
     /**

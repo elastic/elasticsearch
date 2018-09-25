@@ -67,7 +67,7 @@ abstract class TrustConfig {
 
     /**
      * Loads and returns the appropriate {@link KeyStore} for the given configuration. The KeyStore can be backed by a file
-     * in any format that the Security Provider might support, or a cryptographic sopftware or hardware token in the case
+     * in any format that the Security Provider might support, or a cryptographic software or hardware token in the case
      * of a PKCS#11 Provider.
      *
      * @param environment   the environment to resolve files against or null in the case of running in a transport client

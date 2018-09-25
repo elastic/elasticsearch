@@ -107,7 +107,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
             Exception e = expectThrows(ResponseException.class,
                 () -> follow("leader_cluster:" + unallowedIndex, unallowedIndex));
             assertThat(e.getMessage(),
-                containsString("action [indices:admin/xpack/ccr/follow] is unauthorized for user [test_ccr]"));
+                containsString("action [indices:admin/xpack/ccr/put_follow] is unauthorized for user [test_ccr]"));
             // Verify that the follow index has not been created and no node tasks are running
             assertThat(indexExists(adminClient(), unallowedIndex), is(false));
             assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));

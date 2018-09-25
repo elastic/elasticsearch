@@ -17,8 +17,9 @@ public class FeatureIndexBuilderJobConfigTests extends AbstractSerializingFeatur
     private String jobId;
 
     public static FeatureIndexBuilderJobConfig randomFeatureIndexBuilderJobConfig() {
+        // AggregationConfig disabled, see: https://github.com/elastic/elasticsearch/pull/33942
         return new FeatureIndexBuilderJobConfig(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-                randomAlphaOfLengthBetween(1, 10), null, AggregationConfigTests.randonAggregationConfig());
+                randomAlphaOfLengthBetween(1, 10), null, null /* AggregationConfigTests.randonAggregationConfig() */);
     }
 
     @Before

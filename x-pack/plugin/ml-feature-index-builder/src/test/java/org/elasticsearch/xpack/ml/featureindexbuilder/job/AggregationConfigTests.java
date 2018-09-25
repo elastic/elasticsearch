@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.ml.featureindexbuilder.job;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -13,6 +14,10 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.equalTo;
+
+// broken upstream
+@AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/33942")
 public class AggregationConfigTests extends AbstractSerializingFeatureIndexBuilderTestCase<AggregationConfig> {
 
     public static AggregationConfig randonAggregationConfig() {
@@ -27,8 +32,8 @@ public class AggregationConfigTests extends AbstractSerializingFeatureIndexBuild
 
     @Override
     protected AggregationConfig doParseInstance(XContentParser parser) throws IOException {
-        //parser.nextToken();
-
+        // parseAggregators expects to be already inside the xcontent object
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
         return AggregationConfig.fromXContent(parser);
     }
 

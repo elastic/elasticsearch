@@ -1,27 +1,36 @@
-package org.elasticsearch.protocol.xpack.watcher;
+package org.elasticsearch.client.watcher;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class DeactivateWatchResponseTests extends AbstractXContentTestCase<DeactivateWatchResponse> {
-    @Override
-    protected DeactivateWatchResponse createTestInstance() {
-        String id = randomAlphaOfLength(10);
-        long version = randomLongBetween(1, 10);
-        // TODO: Randomized Status
-        String status = randomAlphaOfLength(10);
-        return new DeactivateWatchResponse(id, version, status);
+public class DeactivateWatchResponseTests extends ESTestCase {
+
+    public void testBasicParsing() throws IOException {
+        XContentType contentType = randomFrom(XContentType.values());
+        int version = randomInt();
+        ExecutionState executionState = randomFrom(ExecutionState.values());
+        XContentBuilder builder = XContentFactory.contentBuilder(contentType).startObject()
+            .startObject("status")
+            .field("version", version)
+            .field("execution_state", executionState)
+            .endObject()
+            .endObject();
+        BytesReference bytes = BytesReference.bytes(builder);
+        DeactivateWatchResponse response = parse(contentType, bytes);
+        WatchStatus status = response.getStatus();
+        assertNotNull(status);
+        assertEquals(version, status.version());
+        assertEquals(executionState, status.getExecutionState());
     }
 
-    @Override
-    protected DeactivateWatchResponse doParseInstance(XContentParser parser) throws IOException {
+    private DeactivateWatchResponse parse(XContentType contentType, BytesReference bytes) throws IOException {
+        XContentParser parser = XContentFactory.xContent(contentType)
+            .createParser(NamedXContentRegistry.EMPTY, null, bytes.streamInput());
+        parser.nextToken();
         return DeactivateWatchResponse.fromXContent(parser);
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
     }
 }

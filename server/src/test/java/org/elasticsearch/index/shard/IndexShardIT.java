@@ -816,30 +816,31 @@ public class IndexShardIT extends ESSingleNodeTestCase {
      */
     public void testNoOpEngineFactoryTakesPrecedence() throws IOException {
         final String indexName = "closed-index";
-        final Index index = new Index(indexName, UUIDs.randomBase64UUID());
-        final Settings.Builder builder = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID());
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        ensureGreen();
 
-        final IndexMetaData indexMetaData = new IndexMetaData.Builder(index.getName())
-            .settings(builder.build())
-            .state(IndexMetaData.State.CLOSE)
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
+        client().admin().indices().prepareClose(indexName).get();
 
-        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        final IndexService indexService = indicesService.createIndex(indexMetaData, Collections.emptyList());
+        final ClusterState clusterState = clusterService.state();
 
-        final ShardId shardId = new ShardId(index, 0);
+        IndexMetaData indexMetaData = clusterState.metaData().index(indexName);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+
+        final ShardId shardId = new ShardId(indexMetaData.getIndex(), 0);
         final DiscoveryNode node = clusterService.localNode();
         final ShardRouting routing =
             newShardRouting(shardId, node.getId(), true, ShardRoutingState.INITIALIZING, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
 
-        final IndexShard indexShard = indexService.createShard(routing, id -> {});
-        indexShard.markAsRecovering("store", new RecoveryState(indexShard.routingEntry(), node, null));
-        indexShard.recoverFromStore();
-        assertThat(indexShard.getEngine(), instanceOf(NoOpEngine.class));
+        final IndexService indexService = indicesService.createIndex(indexMetaData, Collections.emptyList());
+        try {
+            final IndexShard indexShard = indexService.createShard(routing, id -> {
+            });
+            indexShard.markAsRecovering("store", new RecoveryState(indexShard.routingEntry(), node, null));
+            indexShard.recoverFromStore();
+            assertThat(indexShard.getEngine(), instanceOf(NoOpEngine.class));
+        } finally {
+            indexService.close("test terminated", true);
+        }
     }
 }

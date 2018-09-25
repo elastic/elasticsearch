@@ -20,7 +20,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
@@ -70,13 +69,8 @@ public class JsonFieldTypeTests extends FieldTypeTestCase {
     public void testExistsQuery() {
         JsonFieldType ft = createDefaultFieldType();
         ft.setName("field");
-        ft.setOmitNorms(true);
 
         Query expected = new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field")));
-        assertEquals(expected, ft.existsQuery(null));
-
-        ft.setOmitNorms(false);
-        expected = new NormsFieldExistsQuery("field");
         assertEquals(expected, ft.existsQuery(null));
     }
 

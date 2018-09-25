@@ -186,34 +186,6 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testEnableNorms() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties")
-                .startObject("field")
-                    .field("type", "json")
-                    .field("norms", true)
-                .endObject()
-            .endObject()
-        .endObject().endObject());
-
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-            .startObject("field")
-                .field("key", "value")
-            .endObject()
-        .endObject());
-        ParsedDocument parsedDoc = mapper.parse(SourceToParse.source("test", "type", "1", doc, XContentType.JSON));
-
-        IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertFalse(fields[0].fieldType().omitNorms());
-
-        IndexableField[] fieldNamesFields = parsedDoc.rootDoc().getFields(FieldNamesFieldMapper.NAME);
-        assertEquals(0, fieldNamesFields.length);
-    }
-
     public void testNullField() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startObject("type")

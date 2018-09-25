@@ -24,7 +24,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
@@ -153,9 +152,6 @@ public final class JsonFieldMapper extends FieldMapper {
                 if (propName.equals("ignore_above")) {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
                     iterator.remove();
-                } else if (propName.equals("norms")) {
-                    TypeParsers.parseNorms(builder, name, propNode);
-                    iterator.remove();
                 } else if (propName.equals("null_value")) {
                     if (propNode == null) {
                         throw new MapperParsingException("Property [null_value] cannot be null.");
@@ -219,11 +215,7 @@ public final class JsonFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(QueryShardContext context) {
-            if (omitNorms()) {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            } else {
-                return new NormsFieldExistsQuery(name());
-            }
+            return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
         }
 
         @Override
@@ -294,9 +286,7 @@ public final class JsonFieldMapper extends FieldMapper {
 
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
             fields.addAll(fieldParser.parse(context.parser()));
-            if (fieldType.omitNorms()) {
-                createFieldNamesField(context, fields);
-            }
+            createFieldNamesField(context, fields);
         } else {
             context.parser().skipChildren();
         }

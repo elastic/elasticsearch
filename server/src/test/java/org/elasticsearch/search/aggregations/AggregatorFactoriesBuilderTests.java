@@ -78,14 +78,14 @@ public class AggregatorFactoriesBuilderTests extends AbstractSerializingTestCase
 
         // ensure that the unlikely does not happen: 2 aggs share the same name
         Set<String> names = new HashSet<>();
-        for (int i = 1; i < randomIntBetween(1, 20); ++i) {
+        for (int i = 0; i < randomIntBetween(1, 20); ++i) {
             AggregationBuilder aggBuilder = getRandomAggregation();
             if (names.add(aggBuilder.getName())) {
                 builder.addAggregator(aggBuilder);
             }
         }
 
-        for (int i = 1; i < randomIntBetween(0, 20); ++i) {
+        for (int i = 0; i < randomIntBetween(0, 20); ++i) {
             PipelineAggregationBuilder aggBuilder = getRandomPipelineAggregation();
             if (names.add(aggBuilder.getName())) {
                 builder.addPipelineAggregator(aggBuilder);

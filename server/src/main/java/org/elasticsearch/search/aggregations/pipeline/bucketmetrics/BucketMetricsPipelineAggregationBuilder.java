@@ -32,10 +32,10 @@ import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 
 public abstract class BucketMetricsPipelineAggregationBuilder<AF extends BucketMetricsPipelineAggregationBuilder<AF>>
         extends AbstractPipelineAggregationBuilder<AF> {
@@ -109,8 +109,8 @@ public abstract class BucketMetricsPipelineAggregationBuilder<AF extends BucketM
     protected abstract PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException;
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, Set<AggregationBuilder> aggBuilders,
-            Set<PipelineAggregationBuilder> pipelineAggregatorFactories) {
+    public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggBuilders,
+            Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         if (bucketsPaths.length != 1) {
             throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                     + " must contain a single entry for aggregation [" + name + "]");

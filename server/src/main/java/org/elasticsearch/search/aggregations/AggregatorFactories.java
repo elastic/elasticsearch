@@ -38,6 +38,7 @@ import org.elasticsearch.search.profile.aggregation.ProfilingAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -237,8 +238,8 @@ public class AggregatorFactories {
 
     public static class Builder implements Writeable, ToXContentObject {
         private final Set<String> names = new HashSet<>();
-        private final Set<AggregationBuilder> aggregationBuilders = new HashSet<>();
-        private final Set<PipelineAggregationBuilder> pipelineAggregatorBuilders = new HashSet<>();
+        private final Collection<AggregationBuilder> aggregationBuilders = new HashSet<>();
+        private final Collection<PipelineAggregationBuilder> pipelineAggregatorBuilders = new HashSet<>();
         private boolean skipResolveOrder;
 
         /**
@@ -332,22 +333,22 @@ public class AggregatorFactories {
         }
 
         private List<PipelineAggregationBuilder> resolvePipelineAggregatorOrder(
-                Set<PipelineAggregationBuilder> pipelineAggregatorBuilders2, Set<AggregationBuilder> aggregationBuilders2,
+                Collection<PipelineAggregationBuilder> pipelineAggregatorBuilders, Collection<AggregationBuilder> aggregationBuilders,
                 AggregatorFactory<?> parent) {
             Map<String, PipelineAggregationBuilder> pipelineAggregatorBuildersMap = new HashMap<>();
-            for (PipelineAggregationBuilder builder : pipelineAggregatorBuilders2) {
+            for (PipelineAggregationBuilder builder : pipelineAggregatorBuilders) {
                 pipelineAggregatorBuildersMap.put(builder.getName(), builder);
             }
             Map<String, AggregationBuilder> aggBuildersMap = new HashMap<>();
-            for (AggregationBuilder aggBuilder : aggregationBuilders2) {
+            for (AggregationBuilder aggBuilder : aggregationBuilders) {
                 aggBuildersMap.put(aggBuilder.name, aggBuilder);
             }
             List<PipelineAggregationBuilder> orderedPipelineAggregatorrs = new LinkedList<>();
-            List<PipelineAggregationBuilder> unmarkedBuilders = new ArrayList<>(pipelineAggregatorBuilders2);
-            Set<PipelineAggregationBuilder> temporarilyMarked = new HashSet<>();
+            List<PipelineAggregationBuilder> unmarkedBuilders = new ArrayList<>(pipelineAggregatorBuilders);
+            Collection<PipelineAggregationBuilder> temporarilyMarked = new HashSet<>();
             while (!unmarkedBuilders.isEmpty()) {
                 PipelineAggregationBuilder builder = unmarkedBuilders.get(0);
-                builder.validate(parent, aggregationBuilders2, pipelineAggregatorBuilders2);
+                builder.validate(parent, aggregationBuilders, pipelineAggregatorBuilders);
                 resolvePipelineAggregatorOrder(aggBuildersMap, pipelineAggregatorBuildersMap, orderedPipelineAggregatorrs, unmarkedBuilders,
                         temporarilyMarked, builder);
             }
@@ -357,7 +358,7 @@ public class AggregatorFactories {
         private void resolvePipelineAggregatorOrder(Map<String, AggregationBuilder> aggBuildersMap,
                 Map<String, PipelineAggregationBuilder> pipelineAggregatorBuildersMap,
                 List<PipelineAggregationBuilder> orderedPipelineAggregators, List<PipelineAggregationBuilder> unmarkedBuilders,
-                Set<PipelineAggregationBuilder> temporarilyMarked, PipelineAggregationBuilder builder) {
+                Collection<PipelineAggregationBuilder> temporarilyMarked, PipelineAggregationBuilder builder) {
             if (temporarilyMarked.contains(builder)) {
                 throw new IllegalArgumentException("Cyclical dependency found with pipeline aggregator [" + builder.getName() + "]");
             } else if (unmarkedBuilders.contains(builder)) {
@@ -378,7 +379,7 @@ public class AggregatorFactories {
                             } else {
                                 // Check the non-pipeline sub-aggregator
                                 // factories
-                                Set<AggregationBuilder> subBuilders = aggBuilder.factoriesBuilder.aggregationBuilders;
+                                Collection<AggregationBuilder> subBuilders = aggBuilder.factoriesBuilder.aggregationBuilders;
                                 boolean foundSubBuilder = false;
                                 for (AggregationBuilder subBuilder : subBuilders) {
                                     if (aggName.equals(subBuilder.name)) {
@@ -389,7 +390,7 @@ public class AggregatorFactories {
                                 }
                                 // Check the pipeline sub-aggregator factories
                                 if (!foundSubBuilder && (i == bucketsPathElements.size() - 1)) {
-                                    Set<PipelineAggregationBuilder> subPipelineBuilders = aggBuilder.factoriesBuilder.pipelineAggregatorBuilders;
+                                    Collection<PipelineAggregationBuilder> subPipelineBuilders = aggBuilder.factoriesBuilder.pipelineAggregatorBuilders;
                                     for (PipelineAggregationBuilder subFactory : subPipelineBuilders) {
                                         if (aggName.equals(subFactory.getName())) {
                                             foundSubBuilder = true;
@@ -420,12 +421,12 @@ public class AggregatorFactories {
             }
         }
 
-        public Set<AggregationBuilder> getAggregatorFactories() {
-            return Collections.unmodifiableSet(aggregationBuilders);
+        public Collection<AggregationBuilder> getAggregatorFactories() {
+            return Collections.unmodifiableCollection(aggregationBuilders);
         }
 
-        public Set<PipelineAggregationBuilder> getPipelineAggregatorFactories() {
-            return Collections.unmodifiableSet(pipelineAggregatorBuilders);
+        public Collection<PipelineAggregationBuilder> getPipelineAggregatorFactories() {
+            return Collections.unmodifiableCollection(pipelineAggregatorBuilders);
         }
 
         public int count() {

@@ -25,8 +25,8 @@ import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * A factory that knows how to create an {@link PipelineAggregator} of a
@@ -68,8 +68,8 @@ public abstract class PipelineAggregationBuilder implements NamedWriteable, Base
      * Internal: Validates the state of this factory (makes sure the factory is properly
      * configured)
      */
-    protected abstract void validate(AggregatorFactory<?> parent, Set<AggregationBuilder> aggregationBuilders2,
-            Set<PipelineAggregationBuilder> pipelineAggregatorBuilders2);
+    protected abstract void validate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggregationBuilders,
+            Collection<PipelineAggregationBuilder> pipelineAggregatorBuilders);
 
     /**
      * Creates the pipeline aggregator

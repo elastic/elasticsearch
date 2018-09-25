@@ -28,8 +28,8 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
@@ -79,12 +79,12 @@ public abstract class AggregationBuilder
     public abstract AggregationBuilder subAggregation(PipelineAggregationBuilder aggregation);
 
     /** Return the configured set of subaggregations **/
-    public Set<AggregationBuilder> getSubAggregations() {
+    public Collection<AggregationBuilder> getSubAggregations() {
         return factoriesBuilder.getAggregatorFactories();
     }
 
     /** Return the configured set of pipeline aggregations **/
-    public Set<PipelineAggregationBuilder> getPipelineAggregations() {
+    public Collection<PipelineAggregationBuilder> getPipelineAggregations() {
         return factoriesBuilder.getPipelineAggregatorFactories();
     }
 

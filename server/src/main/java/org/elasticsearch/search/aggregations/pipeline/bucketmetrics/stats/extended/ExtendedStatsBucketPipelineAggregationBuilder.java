@@ -29,9 +29,9 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregationBuilder;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 public class ExtendedStatsBucketPipelineAggregationBuilder
         extends BucketMetricsPipelineAggregationBuilder<ExtendedStatsBucketPipelineAggregationBuilder> {
@@ -82,8 +82,8 @@ public class ExtendedStatsBucketPipelineAggregationBuilder
     }
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, Set<AggregationBuilder> aggBuilders,
-            Set<PipelineAggregationBuilder> pipelineAggregatorFactories) {
+    public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggBuilders,
+            Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         super.doValidate(parent, aggBuilders, pipelineAggregatorFactories);
 
         if (sigma < 0.0 ) {

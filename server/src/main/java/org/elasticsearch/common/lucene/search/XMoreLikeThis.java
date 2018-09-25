@@ -1036,7 +1036,7 @@ public final class XMoreLikeThis {
             this.score = score;
         }
 
-        public void update(String word, String topField, float score) {
+        void update(String word, String topField, float score) {
             this.word = word;
             this.topField = topField;
             this.score = score;

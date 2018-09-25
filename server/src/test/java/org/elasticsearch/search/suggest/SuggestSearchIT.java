@@ -974,7 +974,6 @@ public class SuggestSearchIT extends ESIntegTestCase {
         suggest.size(1);
         searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", "title", suggest);
         assertSuggestion(searchSuggest, 0, 0, "title", "united states house of representatives elections in washington 2006");
-        // assertThat(total, lessThan(1000L)); // Takes many seconds without fix - just for debugging
     }
 
     public void testSuggestWithFieldAlias() throws Exception {

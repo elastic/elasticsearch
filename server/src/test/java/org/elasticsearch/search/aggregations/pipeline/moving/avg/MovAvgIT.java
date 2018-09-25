@@ -979,9 +979,7 @@ public class MovAvgIT extends ESIntegTestCase {
     }
 
     public void testBadModelParams() {
-        try {
-            @SuppressWarnings("unused")
-            SearchResponse response = client()
+        expectThrows(SearchPhaseExecutionException.class, () -> client()
                     .prepareSearch("idx").setTypes("type")
                     .addAggregation(
                             histogram("histo").field(INTERVAL_FIELD).interval(interval)
@@ -991,11 +989,7 @@ public class MovAvgIT extends ESIntegTestCase {
                                             .window(10)
                                             .modelBuilder(randomModelBuilder(100))
                                             .gapPolicy(gapPolicy))
-                    ).execute().actionGet();
-        } catch (SearchPhaseExecutionException e) {
-            // All good
-        }
-
+                    ).execute().actionGet());
     }
 
     public void testHoltWintersMinimization() {

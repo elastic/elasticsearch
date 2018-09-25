@@ -309,10 +309,8 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
                         token = context.parser().nextToken();
                         double lat = context.parser().doubleValue();
                         token = context.parser().nextToken();
-                        @SuppressWarnings("unused")
-                        Double alt = Double.NaN;
                         if (token == XContentParser.Token.VALUE_NUMBER) {
-                            alt = GeoPoint.assertZValue(ignoreZValue.value(), context.parser().doubleValue());
+                            GeoPoint.assertZValue(ignoreZValue.value(), context.parser().doubleValue());
                         } else if (token != XContentParser.Token.END_ARRAY) {
                             throw new ElasticsearchParseException("[{}] field type does not accept > 3 dimensions", CONTENT_TYPE);
                         }

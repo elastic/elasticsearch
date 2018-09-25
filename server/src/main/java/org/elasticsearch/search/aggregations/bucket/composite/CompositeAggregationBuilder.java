@@ -144,6 +144,13 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         return this;
     }
 
+    /**
+     * @return the number of composite buckets. Defaults to {@code 10}.
+     */
+    public int size() {
+        return size;
+    }
+
     @Override
     protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent,
                                            AggregatorFactories.Builder subfactoriesBuilder) throws IOException {

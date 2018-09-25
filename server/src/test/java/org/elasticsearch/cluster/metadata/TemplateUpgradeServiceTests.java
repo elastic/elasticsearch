@@ -27,14 +27,12 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -55,7 +53,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -296,51 +293,6 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             assertThat(removedListener.getAndSet((ActionListener) args[1]), nullValue());
             return null;
         }).when(mockIndicesAdminClient).deleteTemplate(any(DeleteIndexTemplateRequest.class), any(ActionListener.class));
-
-        new TemplateUpgradeService(Settings.EMPTY, mockClient, clusterService, threadPool,
-            Arrays.asList(
-                templates -> {
-                    assertNull(templates.put("added_test_template", IndexTemplateMetaData.builder("added_test_template")
-                        .patterns(Collections.singletonList("*")).build()));
-                    return templates;
-                },
-                templates -> {
-                    assertNotNull(templates.remove("removed_test_template"));
-                    return templates;
-                },
-                templates -> {
-                    assertNotNull(templates.put("changed_test_template", IndexTemplateMetaData.builder("changed_test_template")
-                        .patterns(Collections.singletonList("*")).order(10).build()));
-                    return templates;
-                }
-                )) {
-
-            @Override
-            void tryFinishUpgrade(AtomicBoolean anyUpgradeFailed) {
-                super.tryFinishUpgrade(anyUpgradeFailed);
-                finishInvocation.release();
-            }
-
-            @Override
-            void upgradeTemplates(Map<String, BytesReference> changes, Set<String> deletions) {
-                super.upgradeTemplates(changes, deletions);
-                updateInvocation.release();
-            }
-
-            @Override
-            Optional<Tuple<Map<String, BytesReference>, Set<String>>>
-                    calculateTemplateChanges(ImmutableOpenMap<String, IndexTemplateMetaData> templates) {
-                final Optional<Tuple<Map<String, BytesReference>, Set<String>>> ans = super.calculateTemplateChanges(templates);
-                calculateInvocation.release();
-                return ans;
-            }
-
-            @Override
-            public void clusterChanged(ClusterChangedEvent event) {
-                super.clusterChanged(event);
-                changedInvocation.release();
-            }
-        };
 
         ClusterState prevState = ClusterState.EMPTY_STATE;
         ClusterState state = ClusterState.builder(prevState).nodes(DiscoveryNodes.builder()

@@ -436,8 +436,9 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         Token token = parser.currentToken();
         Map<String, CompletionInputMetaData> inputMap = new HashMap<>(1);
 
-        // ignore null values
-        if (token == Token.VALUE_NULL) {
+        if (context.externalValueSet()) {
+            inputMap = (Map<String, CompletionInputMetaData>) context.externalValue();
+        } else if (token == Token.VALUE_NULL) { // ignore null values
             return;
         } else if (token == Token.START_ARRAY) {
             while ((token = parser.nextToken()) != Token.END_ARRAY) {
@@ -471,12 +472,32 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                 context.doc().add(new SuggestField(fieldType().name(), input, metaData.weight));
             }
         }
+
         List<IndexableField> fields = new ArrayList<>(1);
         createFieldNamesField(context, fields);
         for (IndexableField field : fields) {
             context.doc().add(field);
         }
-        multiFields.parse(this, context);
+
+        for (Map.Entry<String, CompletionInputMetaData> entry : inputMap.entrySet()) {
+            ParseContext externalValueContext = context.createExternalValueContext(singleElementMap(entry));
+            multiFields.parse(this, externalValueContext);
+        }
+    }
+
+    /**
+     * In order to support convention used by other Field Mappers, toString has to return a value that can be parsed
+     */
+    private Map<String, CompletionInputMetaData> singleElementMap(Map.Entry<String, CompletionInputMetaData> entry) {
+        Map<String, CompletionInputMetaData> map = new HashMap<String, CompletionInputMetaData>(1) {
+            @Override
+            public String toString() {
+                return entry.getKey();
+            }
+        };
+
+        map.put(entry.getKey(), entry.getValue());
+        return map;
     }
 
     /**

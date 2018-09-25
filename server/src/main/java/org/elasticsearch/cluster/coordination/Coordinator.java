@@ -502,6 +502,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                     : "onPossibleCompletion: term or version mismatch when publishing [" + this
                                     + "]: current version is now [" + coordinationState.get().getLastAcceptedVersion()
                                     + "] in term [" + coordinationState.get().getLastAcceptedTerm() + "]";
+                                assert committed;
 
                                 // TODO: send to applier
                                 ackListener.onNodeAck(getLocalNode(), null);
@@ -511,7 +512,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                             @Override
                             public void onFailure(Exception e) {
                                 assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-                                assert committed == false;
                                 if (publishRequest.getAcceptedState().term() == coordinationState.get().getCurrentTerm() &&
                                     publishRequest.getAcceptedState().version() == coordinationState.get().getLastPublishedVersion()) {
                                     becomeCandidate("Publication.onCompletion(false)");

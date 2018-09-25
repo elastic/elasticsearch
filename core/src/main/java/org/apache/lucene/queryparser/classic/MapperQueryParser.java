@@ -39,9 +39,12 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
+import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.AllFieldMapper;
@@ -58,9 +61,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Collections;
+
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 
@@ -828,6 +833,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
      * Checks if graph analysis should be enabled for the field depending
      * on the provided {@link Analyzer}
      */
+    @Override
     protected Query createFieldQuery(Analyzer analyzer, BooleanClause.Occur operator, String field,
                                      String queryText, boolean quoted, int phraseSlop) {
         assert operator == BooleanClause.Occur.SHOULD || operator == BooleanClause.Occur.MUST;
@@ -847,6 +853,100 @@ public class MapperQueryParser extends AnalyzingQueryParser {
             return query;
         } catch (IOException e) {
             throw new RuntimeException("Error analyzing query text", e);
+        }
+    }
+
+    /**
+     * See {@link MapperQueryParser#analyzeGraphPhraseWithLimit}
+     */
+    @Override
+    protected SpanQuery analyzeGraphPhrase(TokenStream source, String field, int phraseSlop) throws IOException {
+        return analyzeGraphPhraseWithLimit(source, field, phraseSlop, this::createSpanQuery);
+    }
+
+    /** A BiFuntion that can throw an IOException */
+    @FunctionalInterface
+    public interface CheckedBiFunction<T, U, R> {
+
+        /**
+         * Applies this function to the given arguments.
+         *
+         * @param t the first function argument
+         * @param u the second function argument
+         * @return the function result
+         */
+        R apply(T t, U u) throws IOException;
+    }
+
+    /**
+     * Overrides {@link QueryBuilder#analyzeGraphPhrase(TokenStream, String, int)} to add
+     * a limit (see {@link BooleanQuery#getMaxClauseCount()}) to the number of {@link SpanQuery}
+     * that this method can create.
+     *
+     * TODO Remove when https://issues.apache.org/jira/browse/LUCENE-8479 is fixed.
+     */
+    public static SpanQuery analyzeGraphPhraseWithLimit(TokenStream source, String field, int phraseSlop,
+                                                            CheckedBiFunction<TokenStream, String, SpanQuery> spanQueryFunc) throws IOException {
+        GraphTokenStreamFiniteStrings graph = new GraphTokenStreamFiniteStrings(source);
+        List<SpanQuery> clauses = new ArrayList<>();
+        int[] articulationPoints = graph.articulationPoints();
+        int lastState = 0;
+        int maxBooleanClause = BooleanQuery.getMaxClauseCount();
+        for (int i = 0; i <= articulationPoints.length; i++) {
+            int start = lastState;
+            int end = -1;
+            if (i < articulationPoints.length) {
+                end = articulationPoints[i];
+            }
+            lastState = end;
+            final SpanQuery queryPos;
+            if (graph.hasSidePath(start)) {
+                List<SpanQuery> queries = new ArrayList<>();
+                Iterator<TokenStream> it = graph.getFiniteStrings(start, end);
+                while (it.hasNext()) {
+                    TokenStream ts = it.next();
+                    SpanQuery q = spanQueryFunc.apply(ts, field);
+                    if (q != null) {
+                        if (queries.size() >= maxBooleanClause) {
+                            throw new BooleanQuery.TooManyClauses();
+                        }
+                        queries.add(q);
+                    }
+                }
+                if (queries.size() > 0) {
+                    queryPos = new SpanOrQuery(queries.toArray(new SpanQuery[0]));
+                } else {
+                    queryPos = null;
+                }
+            } else {
+                Term[] terms = graph.getTerms(field, start);
+                assert terms.length > 0;
+                if (terms.length >= maxBooleanClause) {
+                    throw new BooleanQuery.TooManyClauses();
+                }
+                if (terms.length == 1) {
+                    queryPos = new SpanTermQuery(terms[0]);
+                } else {
+                    SpanTermQuery[] orClauses = new SpanTermQuery[terms.length];
+                    for (int idx = 0; idx < terms.length; idx++) {
+                        orClauses[idx] = new SpanTermQuery(terms[idx]);
+                    }
+                    queryPos = new SpanOrQuery(orClauses);
+                }
+            }
+            if (queryPos != null) {
+                if (clauses.size() >= maxBooleanClause) {
+                    throw new BooleanQuery.TooManyClauses();
+                }
+                clauses.add(queryPos);
+            }
+        }
+        if (clauses.isEmpty()) {
+            return null;
+        } else if (clauses.size() == 1) {
+            return clauses.get(0);
+        } else {
+            return new SpanNearQuery(clauses.toArray(new SpanQuery[0]), phraseSlop, true);
         }
     }
 }

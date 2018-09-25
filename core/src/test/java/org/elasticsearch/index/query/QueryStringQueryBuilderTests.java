@@ -19,7 +19,13 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.CannedBinaryTokenStream;
 import org.apache.lucene.analysis.MockSynonymAnalyzer;
+import org.apache.lucene.analysis.MockTokenizer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
@@ -43,6 +49,7 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
@@ -60,6 +67,7 @@ import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -1037,5 +1045,96 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             expectThrows(IllegalArgumentException.class, () -> builder.toQuery(createShardContext()));
         assertEquals(exc.getMessage(),
             "it is disallowed to disable [split_on_whitespace] if [auto_generate_phrase_queries] is activated");
+    }
+
+    public void testGraphPhraseMaxBooleanClause() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        try (TokenStream source = new MockGraphAnalyzer(createGiantGraph(40))
+            .createComponents("").getTokenStream()) {
+            expectThrows(BooleanQuery.TooManyClauses.class,
+                () -> MapperQueryParser.analyzeGraphPhraseWithLimit(source, "", 0, QueryStringQueryBuilderTests::createSpanQuery));
+        }
+
+        try (TokenStream source = new MockGraphAnalyzer(createGiantGraphMultiTerms())
+            .createComponents("").getTokenStream()) {
+            expectThrows(BooleanQuery.TooManyClauses.class,
+                () -> MapperQueryParser.analyzeGraphPhraseWithLimit(source, "", 0, QueryStringQueryBuilderTests::createSpanQuery));
+        }
+    }
+
+    private static SpanQuery createSpanQuery(TokenStream in, String field) throws IOException {
+        TermToBytesRefAttribute termAtt = in.getAttribute(TermToBytesRefAttribute.class);
+        if (termAtt == null) {
+            return null;
+        }
+
+        List<SpanTermQuery> terms = new ArrayList<>();
+        while (in.incrementToken()) {
+            terms.add(new SpanTermQuery(new Term(field, termAtt.getBytesRef())));
+        }
+
+        if (terms.isEmpty()) {
+            return null;
+        } else if (terms.size() == 1) {
+            return terms.get(0);
+        } else {
+            return new SpanNearQuery(terms.toArray(new SpanTermQuery[0]), 0, true);
+        }
+    }
+
+    private static class MockGraphAnalyzer extends Analyzer {
+        final CannedBinaryTokenStream.BinaryToken[] tokens;
+        private MockGraphAnalyzer(CannedBinaryTokenStream.BinaryToken[] tokens ) {
+            this.tokens = tokens;
+        }
+        @Override
+        protected Analyzer.TokenStreamComponents createComponents(String fieldName) {
+            Tokenizer tokenizer = new MockTokenizer(MockTokenizer.SIMPLE, true);
+            return new TokenStreamComponents(tokenizer) {
+                @Override
+                public TokenStream getTokenStream() {
+                    return new CannedBinaryTokenStream(tokens);
+                }
+                @Override
+                protected void setReader(final Reader reader) {
+                }
+            };
+        }
+    }
+    /**
+     * Creates a graph token stream with 2 side paths at each position.
+     **/
+    private static CannedBinaryTokenStream.BinaryToken[] createGiantGraph(int numPos) {
+        List<CannedBinaryTokenStream.BinaryToken> tokens = new ArrayList<>();
+        BytesRef term1 = new BytesRef("foo");
+        BytesRef term2 = new BytesRef("bar");
+        for (int i = 0; i < numPos;) {
+            if (i % 2 == 0) {
+                tokens.add(new CannedBinaryTokenStream.BinaryToken(term2, 1, 1));
+                tokens.add(new CannedBinaryTokenStream.BinaryToken(term1, 0, 2));
+                i += 2;
+            } else {
+                tokens.add(new CannedBinaryTokenStream.BinaryToken(term2, 1, 1));
+                i++;
+            }
+        }
+        return tokens.toArray(new CannedBinaryTokenStream.BinaryToken[0]);
+    }
+    /**
+     * Creates a graph token stream with {@link BooleanQuery#getMaxClauseCount()}
+     * expansions at the last position.
+     **/
+    private static CannedBinaryTokenStream.BinaryToken[] createGiantGraphMultiTerms() {
+        List<CannedBinaryTokenStream.BinaryToken> tokens = new ArrayList<>();
+        BytesRef term1 = new BytesRef("foo");
+        BytesRef term2 = new BytesRef("bar");
+        tokens.add(new CannedBinaryTokenStream.BinaryToken(term2, 1, 1));
+        tokens.add(new CannedBinaryTokenStream.BinaryToken(term1, 0, 2));
+        tokens.add(new CannedBinaryTokenStream.BinaryToken(term2, 1, 1));
+        tokens.add(new CannedBinaryTokenStream.BinaryToken(term2, 1, 1));
+        for (int i = 0; i < BooleanQuery.getMaxClauseCount(); i++) {
+            tokens.add(new CannedBinaryTokenStream.BinaryToken(term1, 0, 1));
+        }
+        return tokens.toArray(new CannedBinaryTokenStream.BinaryToken[0]);
     }
 }

@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
+import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -347,6 +348,14 @@ public class MatchQuery {
             } catch (IOException e) {
                 throw new RuntimeException("Error analyzing query text", e);
             }
+        }
+
+        /**
+         * See {@link MapperQueryParser#analyzeGraphPhraseWithLimit}
+         */
+        @Override
+        protected SpanQuery analyzeGraphPhrase(TokenStream source, String field, int phraseSlop) throws IOException {
+            return MapperQueryParser.analyzeGraphPhraseWithLimit(source, field, phraseSlop, this::createSpanQuery);
         }
 
         public Query createPhrasePrefixQuery(String field, String queryText, int phraseSlop, int maxExpansions) {

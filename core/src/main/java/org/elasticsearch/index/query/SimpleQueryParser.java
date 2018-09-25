@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -31,6 +32,7 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -173,6 +175,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
      * Checks if graph analysis should be enabled for the field depending
      * on the provided {@link Analyzer}
      */
+    @Override
     protected Query createFieldQuery(Analyzer analyzer, BooleanClause.Occur operator, String field,
                                      String queryText, boolean quoted, int phraseSlop) {
         assert operator == BooleanClause.Occur.SHOULD || operator == BooleanClause.Occur.MUST;
@@ -193,6 +196,14 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
         } catch (IOException e) {
             throw new RuntimeException("Error analyzing query text", e);
         }
+    }
+
+    /**
+     * See {@link MapperQueryParser#analyzeGraphPhraseWithLimit}
+     */
+    @Override
+    protected SpanQuery analyzeGraphPhrase(TokenStream source, String field, int phraseSlop) throws IOException {
+        return MapperQueryParser.analyzeGraphPhraseWithLimit(source, field, phraseSlop, this::createSpanQuery);
     }
 
     private static Query wrapWithBoost(Query query, float boost) {

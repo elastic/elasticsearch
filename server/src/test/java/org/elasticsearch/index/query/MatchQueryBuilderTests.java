@@ -19,6 +19,11 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.CannedBinaryTokenStream;
+import org.apache.lucene.analysis.MockTokenizer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -30,22 +35,29 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MatchQuery.Type;
 import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
+import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.io.Reader;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -391,5 +403,42 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
         assertThat(query.toString(),
             containsString("field:[string_no_pos] was indexed without position data; cannot run PhraseQuery"));
+    }
+
+    public void testMaxBooleanClause() {
+        MatchQuery query = new MatchQuery(createShardContext());
+        query.setAnalyzer(new MockGraphAnalyzer());
+        expectThrows(BooleanQuery.TooManyClauses.class, () -> query.parse(Type.PHRASE, STRING_FIELD_NAME, ""));
+    }
+
+    private static class MockGraphAnalyzer extends Analyzer {
+        @Override
+        protected TokenStreamComponents createComponents(String fieldName) {
+            Tokenizer tokenizer = new MockTokenizer(MockTokenizer.SIMPLE, true);
+            int size = 40;
+            CannedBinaryTokenStream.BinaryToken[] tokens = new CannedBinaryTokenStream.BinaryToken[size];
+            BytesRef term1 = new BytesRef("foo");
+            BytesRef term2 = new BytesRef("bar");
+            for (int i = 0; i < size; ) {
+                if (i % 2 == 0) {
+                    tokens[i] = new CannedBinaryTokenStream.BinaryToken(term2, 1, 1);
+                    tokens[i + 1] = new CannedBinaryTokenStream.BinaryToken(term1, 0, 2);
+                    i += 2;
+                } else {
+                    tokens[i] = new CannedBinaryTokenStream.BinaryToken(term2, 1, 1);
+                    i++;
+                }
+            }
+            return new TokenStreamComponents(tokenizer) {
+                @Override
+                public TokenStream getTokenStream() {
+                    return new CannedBinaryTokenStream(tokens);
+                }
+
+                @Override
+                protected void setReader(final Reader reader) {
+                }
+            };
+        }
     }
 }

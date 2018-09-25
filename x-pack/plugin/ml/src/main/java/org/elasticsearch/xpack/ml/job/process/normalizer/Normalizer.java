@@ -194,7 +194,7 @@ public class Normalizer {
      * <ul>
      * <li>the change  would result in a change of colour in the UI
      * (e.g. severity would be changed from WARNING to MINOR)</li>
-     * <li>the change is at least 3</li>
+     * <li>the change is at least 1.5</li>
      * <li>the change in values is greater than 67% of the higher of the two values.</li>
      * </ul>
      * These values have been chosen through a process of experimentation, in particular it was desired to reduce
@@ -209,7 +209,7 @@ public class Normalizer {
         if ((int) (oldVal / 25.0) != (int) (newVal / 25.0)) {
             return true;
         }
-        if (Math.abs(oldVal - newVal) >= 3.0) {
+        if (Math.abs(oldVal - newVal) >= 1.5) {
             return true;
         }
         if (oldVal > newVal) {

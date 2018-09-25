@@ -21,7 +21,6 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.English;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;

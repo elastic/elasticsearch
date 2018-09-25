@@ -327,6 +327,17 @@ public class CoordinatorTests extends ESTestCase {
                             deterministicTaskQueue.scheduleNow(onNode(destination, doDelivery));
                         }
                     }
+
+                    @Override
+                    protected void onBlackholedDuringSend(long requestId, String action, DiscoveryNode destination) {
+                        logger.trace("dropping {}", getRequestDescription(requestId, action, destination));
+                        if (action.equals(HANDSHAKE_ACTION_NAME)) {
+                            // handshakes always have a timeout, and are sent in a blocking fashion, so we must respond with an exception.
+                            sendFromTo(destination, getLocalNode(), action, getDisconnectException(requestId, action, destination));
+                        } else {
+                            super.onBlackholedDuringSend(requestId, action, destination);
+                        }
+                    }
                 };
 
                 masterService = new FakeThreadPoolMasterService("test",

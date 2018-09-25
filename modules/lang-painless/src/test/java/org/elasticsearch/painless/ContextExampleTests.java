@@ -391,7 +391,7 @@ public class ContextExampleTests extends ScriptTestCase {
     */
 
     public void testReindexScript() {
-        Map<String, Object> _source = new HashMap();
+        Map<String, Object> _source = new HashMap<>();
         _source.put("number", 10);
         _source.put("row", 1);
         _source.put("sold", true);

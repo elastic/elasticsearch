@@ -29,13 +29,13 @@ dependencies {
     compile "org.elasticsearch:elasticsearch-nio:${version}"
 
     // network stack
-    compile "io.netty:netty-buffer:4.1.28.Final"
-    compile "io.netty:netty-codec:4.1.28.Final"
-    compile "io.netty:netty-codec-http:4.1.28.Final"
-    compile "io.netty:netty-common:4.1.28.Final"
-    compile "io.netty:netty-handler:4.1.28.Final"
-    compile "io.netty:netty-resolver:4.1.28.Final"
-    compile "io.netty:netty-transport:4.1.28.Final"
+    compile "io.netty:netty-buffer:4.1.29.Final"
+    compile "io.netty:netty-codec:4.1.29.Final"
+    compile "io.netty:netty-codec-http:4.1.29.Final"
+    compile "io.netty:netty-common:4.1.29.Final"
+    compile "io.netty:netty-handler:4.1.29.Final"
+    compile "io.netty:netty-resolver:4.1.29.Final"
+    compile "io.netty:netty-transport:4.1.29.Final"
 }
 
 dependencyLicenses {

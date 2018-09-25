@@ -93,7 +93,8 @@ public class DateFormattersTests extends ESTestCase {
             DateTimeZone jodaTz = DateTimeZone.forID(jodaId);
             ZoneId zoneId = DateFormatters.dateTimeZoneToZoneId(jodaTz); // does not throw
             long now = 0;
-            assertThat(jodaId, zoneId.getRules().getOffset(Instant.ofEpochMilli(now)).getTotalSeconds() * 1000, equalTo(jodaTz.getOffset(now)));
+            assertThat(jodaId, zoneId.getRules().getOffset(Instant.ofEpochMilli(now)).getTotalSeconds() * 1000,
+                       equalTo(jodaTz.getOffset(now)));
             if (DateFormatters.DEPRECATED_SHORT_TIMEZONES.containsKey(jodaTz.getID())) {
                 assertWarnings("Use of short timezone id " + jodaId + " is deprecated. Use " + zoneId.getId() + " instead");
             }

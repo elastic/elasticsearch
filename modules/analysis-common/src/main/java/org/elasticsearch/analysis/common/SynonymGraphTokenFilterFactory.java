@@ -35,7 +35,7 @@ import java.util.function.Function;
 
 public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
 
-    public SynonymGraphTokenFilterFactory(IndexSettings indexSettings, Environment env,
+    SynonymGraphTokenFilterFactory(IndexSettings indexSettings, Environment env,
                                      String name, Settings settings) {
         super(indexSettings, env, name, settings);
     }

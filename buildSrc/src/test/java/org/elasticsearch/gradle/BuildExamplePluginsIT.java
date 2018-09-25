@@ -117,7 +117,7 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
         // Add a repositories section to be able to resolve dependencies
         String luceneSnapshotRepo = "";
         String luceneSnapshotRevision = System.getProperty("test.lucene-snapshot-revision");
-        if (luceneSnapshotRepo != null) {
+        if (luceneSnapshotRevision != null) {
             luceneSnapshotRepo =  "  maven {\n" +
                 "    url \"http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/" + luceneSnapshotRevision + "\"\n" +
                 "  }\n";

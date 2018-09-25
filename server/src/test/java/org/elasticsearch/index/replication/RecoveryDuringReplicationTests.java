@@ -405,6 +405,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 assertThat(task.getResyncedOperations(), greaterThanOrEqualTo(extraDocs));
             }
             shards.assertAllEqual(initialDocs + extraDocs);
+            for (IndexShard replica : shards.getReplicas()) {
+                assertThat(replica.getMaxSeqNoOfUpdatesOrDeletes(),
+                    greaterThanOrEqualTo(shards.getPrimary().getMaxSeqNoOfUpdatesOrDeletes()));
+            }
 
             // check translog on replica is trimmed
             int translogOperations = 0;
@@ -490,9 +494,9 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 }) {
                     @Override
                     public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
-                                                        long maxSeenAutoIdTimestampOnPrimary) throws IOException {
+                                                        long maxSeenAutoIdTimestamp, long maxSeqNoOfUpdates) throws IOException {
                         opsSent.set(true);
-                        return super.indexTranslogOperations(operations, totalTranslogOps, maxSeenAutoIdTimestampOnPrimary);
+                        return super.indexTranslogOperations(operations, totalTranslogOps, maxSeenAutoIdTimestamp, maxSeqNoOfUpdates);
                     }
                 };
             });
@@ -560,7 +564,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     (indexShard, node) -> new RecoveryTarget(indexShard, node, recoveryListener, l -> {}) {
                         @Override
                         public long indexTranslogOperations(final List<Translog.Operation> operations, final int totalTranslogOps,
-                                                            final long maxAutoIdTimestamp)
+                                                            final long maxAutoIdTimestamp, long maxSeqNoOfUpdates)
                              throws IOException {
                             // index a doc which is not part of the snapshot, but also does not complete on replica
                             replicaEngineFactory.latchIndexers(1);
@@ -588,7 +592,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                             } catch (InterruptedException e) {
                                 throw new AssertionError(e);
                             }
-                            return super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp);
+                            return super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdates);
                         }
                     });
             pendingDocActiveWithExtraDocIndexed.await();
@@ -718,11 +722,11 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
         @Override
         public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
-                                            long maxAutoIdTimestamp) throws IOException {
+                                            long maxAutoIdTimestamp, long maxSeqNoOfUpdates) throws IOException {
             if (hasBlocked() == false) {
                 blockIfNeeded(RecoveryState.Stage.TRANSLOG);
             }
-            return super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp);
+            return super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdates);
         }
 
         @Override

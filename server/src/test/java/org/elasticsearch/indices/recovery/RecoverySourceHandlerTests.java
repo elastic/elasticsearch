@@ -207,11 +207,12 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 public Translog.Operation next() throws IOException {
                     return operations.get(counter++);
                 }
-            }, randomNonNegativeLong());
+            }, randomNonNegativeLong(), randomNonNegativeLong());
         final int expectedOps = (int) (endingSeqNo - startingSeqNo + 1);
         assertThat(result.totalOperations, equalTo(expectedOps));
         final ArgumentCaptor<List> shippedOpsCaptor = ArgumentCaptor.forClass(List.class);
-        verify(recoveryTarget).indexTranslogOperations(shippedOpsCaptor.capture(), ArgumentCaptor.forClass(Integer.class).capture(), ArgumentCaptor.forClass(Long.class).capture());
+        verify(recoveryTarget).indexTranslogOperations(shippedOpsCaptor.capture(), ArgumentCaptor.forClass(Integer.class).capture(),
+            ArgumentCaptor.forClass(Long.class).capture(), ArgumentCaptor.forClass(Long.class).capture());
         List<Translog.Operation> shippedOps = new ArrayList<>();
         for (List list: shippedOpsCaptor.getAllValues()) {
             shippedOps.addAll(list);
@@ -249,7 +250,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                             } while (op != null && opsToSkip.contains(op));
                             return op;
                         }
-                    }, randomNonNegativeLong()));
+                    }, randomNonNegativeLong(), randomNonNegativeLong()));
         }
     }
 
@@ -421,7 +422,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
             @Override
             long phase2(long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, Translog.Snapshot snapshot,
-                        long maxSeenAutoIdTimestamp) {
+                        long maxSeenAutoIdTimestamp, long maxSeqNoOfUpdatesOrDeletes) {
                 phase2Called.set(true);
                 return SequenceNumbers.UNASSIGNED_SEQ_NO;
             }

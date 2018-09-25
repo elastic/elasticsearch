@@ -127,6 +127,7 @@ public class FollowingEngineTests extends ESTestCase {
                 final VersionType versionType =
                         randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE, VersionType.FORCE);
                 final List<Engine.Operation> ops = EngineTestCase.generateSingleDocHistory(true, versionType, 2, 2, 20, "id");
+                ops.stream().mapToLong(op -> op.seqNo()).max().ifPresent(followingEngine::advanceMaxSeqNoOfUpdatesOrDeletes);
                 EngineTestCase.assertOpsOnReplica(ops, followingEngine, true, logger);
             }
         }
@@ -160,6 +161,7 @@ public class FollowingEngineTests extends ESTestCase {
                 seqNo,
                 Engine.Operation.Origin.PRIMARY,
                 (followingEngine, delete) -> {
+                    followingEngine.advanceMaxSeqNoOfUpdatesOrDeletes(randomLongBetween(seqNo, Long.MAX_VALUE));
                     final Engine.DeleteResult result = followingEngine.delete(delete);
                     assertThat(result.getSeqNo(), equalTo(seqNo));
                 });

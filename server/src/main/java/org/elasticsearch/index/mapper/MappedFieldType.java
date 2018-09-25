@@ -30,10 +30,13 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
@@ -343,6 +346,15 @@ public abstract class MappedFieldType extends FieldType {
 
     public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         throw new QueryShardException(context, "Can only use prefix queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
+    }
+
+    public Query wildcardQuery(String value, QueryShardContext context) {
+        Query termQuery = termQuery(value, context);
+        if (termQuery instanceof MatchNoDocsQuery || termQuery instanceof MatchAllDocsQuery) {
+            return termQuery;
+        }
+        Term term = MappedFieldType.extractTerm(termQuery);
+        return new WildcardQuery(term);
     }
 
     public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {

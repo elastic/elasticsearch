@@ -102,7 +102,7 @@ public final class TransportCreateAndFollowIndexAction
             return;
         }
         final String[] indices = new String[]{request.getFollowRequest().getLeaderIndex()};
-        final Map<String, List<String>> remoteClusterIndices = remoteClusterService.groupClusterIndices(indices, s -> false);
+        final Map<String, List<String>> remoteClusterIndices = remoteClusterService.groupClusterIndices(indices, s -> false, false, false);
         if (remoteClusterIndices.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
             createFollowerIndexAndFollowLocalIndex(request, state, listener);
         } else {

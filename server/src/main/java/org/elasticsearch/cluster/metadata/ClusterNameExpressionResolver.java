@@ -45,17 +45,26 @@ public final class ClusterNameExpressionResolver extends AbstractComponent {
      * Resolves the provided cluster expression to matching cluster names. This method only
      * supports exact or wildcard matches.
      *
-     * @param remoteClusters    the aliases for remote clusters
-     * @param clusterExpression the expressions that can be resolved to cluster names.
+     * @param remoteClusters            the aliases for remote clusters
+     * @param clusterExpression         the expressions that can be resolved to cluster names.
+     * @param expandExpressions         Whether expressions with wildcards are expanded
+     * @param ignoreNoneExistingAliases Whether none existing aliases are ignored
      * @return the resolved cluster aliases.
      */
-    public List<String> resolveClusterNames(Set<String> remoteClusters, String clusterExpression) {
+    public List<String> resolveClusterNames(Set<String> remoteClusters,
+                                            String clusterExpression,
+                                            boolean expandExpressions,
+                                            boolean ignoreNoneExistingAliases) {
         if (remoteClusters.contains(clusterExpression)) {
             return Collections.singletonList(clusterExpression);
-        } else if (Regex.isSimpleMatchPattern(clusterExpression)) {
+        } else if (expandExpressions && Regex.isSimpleMatchPattern(clusterExpression)) {
             return wildcardResolver.resolve(remoteClusters, clusterExpression);
         } else {
-            return Collections.emptyList();
+            if (ignoreNoneExistingAliases) {
+                return Collections.emptyList();
+            } else {
+                throw new IllegalArgumentException("unknown cluster expression [" + clusterExpression + "]");
+            }
         }
     }
 

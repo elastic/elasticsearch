@@ -178,7 +178,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertFalse(service.isRemoteClusterRegistered("foo"));
                     Map<String, List<String>> perClusterIndices = service.groupClusterIndices(new String[]{"foo:bar", "cluster_1:bar",
                         "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo", "cluster*:baz", "*:boo", "no*match:boo"},
-                        i -> false);
+                        i -> false, true, true);
                     List<String> localIndices = perClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
                     assertNotNull(localIndices);
                     assertEquals(Arrays.asList("foo:bar", "foo", "no*match:boo"), localIndices);
@@ -188,7 +188,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
                     IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
                         service.groupClusterIndices(new String[]{"foo:bar", "cluster_1:bar",
-                            "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo"}, "cluster_1:bar"::equals));
+                            "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo"}, "cluster_1:bar"::equals, true, true));
 
                     assertEquals("Can not filter indices; index cluster_1:bar exists but there is also a remote cluster named:" +
                             " cluster_1", iae.getMessage());
@@ -235,7 +235,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     {
                         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
                             service.groupClusterIndices(new String[]{"foo:bar", "cluster_1:bar",
-                                "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo"}, "cluster_1:bar"::equals));
+                                "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo"}, "cluster_1:bar"::equals, true, true));
                         assertEquals("Can not filter indices; index cluster_1:bar exists but there is also a remote cluster named:" +
                             " cluster_1", iae.getMessage());
                     }

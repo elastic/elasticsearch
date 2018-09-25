@@ -152,6 +152,10 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
             verifyDocuments(adminClient(), allowedIndex, 5);
         });
         assertThat(indexExists(adminClient(), disallowedIndex), is(false));
+        assertBusy(() -> {
+            verifyCcrMonitoring(allowedIndex, allowedIndex);
+            verifyAutoFollowMonitoring();
+        });
 
         // Cleanup by deleting auto follow pattern and unfollowing:
         request = new Request("DELETE", "/_ccr/auto_follow/leader_cluster");
@@ -307,6 +311,32 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
 
         assertThat(numberOfOperationsReceived, greaterThanOrEqualTo(1));
         assertThat(numberOfOperationsIndexed, greaterThanOrEqualTo(1));
+    }
+
+    private static void verifyAutoFollowMonitoring() throws IOException {
+        Request request = new Request("GET", "/.monitoring-*/_search");
+        request.setJsonEntity("{\"query\": {\"term\": {\"type\": \"ccr_auto_follow_stats\"}}}");
+        Map<String, ?> response;
+        try {
+            response = toMap(adminClient().performRequest(request));
+        } catch (ResponseException e) {
+            throw new AssertionError("error while searching", e);
+        }
+
+        int numberOfSuccessfulFollowIndices = 0;
+
+        List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", response);
+        assertThat(hits.size(), greaterThanOrEqualTo(1));
+
+        for (int i = 0; i < hits.size(); i++) {
+            Map<?, ?> hit = (Map<?, ?>) hits.get(i);
+
+            int foundNumberOfOperationsReceived =
+                (int) XContentMapValues.extractValue("_source.ccr_auto_follow_stats.number_of_successful_follow_indices", hit);
+            numberOfSuccessfulFollowIndices = Math.max(numberOfSuccessfulFollowIndices, foundNumberOfOperationsReceived);
+        }
+
+        assertThat(numberOfSuccessfulFollowIndices, greaterThanOrEqualTo(1));
     }
 
 }

@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.xpack.core.ccr.action.AutoFollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.CreateAndFollowIndexAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
@@ -60,6 +61,17 @@ public class CcrClient {
     public ActionFuture<CcrStatsAction.StatsResponses> stats(final CcrStatsAction.StatsRequest request) {
         final PlainActionFuture<CcrStatsAction.StatsResponses> listener = PlainActionFuture.newFuture();
         client.execute(CcrStatsAction.INSTANCE, request, listener);
+        return listener;
+    }
+
+    public void autoFollowStats(final AutoFollowStatsAction.Request request,
+                                final ActionListener<AutoFollowStatsAction.Response> listener) {
+        client.execute(AutoFollowStatsAction.INSTANCE, request, listener);
+    }
+
+    public ActionFuture<AutoFollowStatsAction.Response> autoFollowStats(final AutoFollowStatsAction.Request request) {
+        final PlainActionFuture<AutoFollowStatsAction.Response> listener = PlainActionFuture.newFuture();
+        autoFollowStats(request, listener);
         return listener;
     }
 

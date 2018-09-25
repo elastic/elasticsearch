@@ -176,7 +176,7 @@ public class DeleteRequest implements Validatable {
 
     /**
      * How many shards should be active.
-     * @see {@link DeleteRequest#setWaitForActiveShards(ActiveShardCount)}.
+     * @see DeleteRequest#setWaitForActiveShards(ActiveShardCount)
      */
     public ActiveShardCount getWaitForActiveShards() {
         return waitForActiveShards;

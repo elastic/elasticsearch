@@ -38,6 +38,6 @@ public class JsonFileStructureFinderTests extends FileStructureTestCase {
         assertNull(structure.getShouldTrimFields());
         assertNull(structure.getGrokPattern());
         assertEquals("timestamp", structure.getTimestampField());
-        assertEquals(Collections.singletonList("UNIX_MS"), structure.getTimestampFormats());
+        assertEquals(Collections.singletonList("UNIX_MS"), structure.getJodaTimestampFormats());
     }
 }

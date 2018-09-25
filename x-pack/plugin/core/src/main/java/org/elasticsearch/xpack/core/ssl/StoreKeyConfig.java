@@ -49,7 +49,7 @@ class StoreKeyConfig extends KeyConfig {
 
     /**
      * Creates a new configuration that can be used to load key and trust material from a {@link KeyStore}
-     * @param keyStorePath the path to the keystore file
+     * @param keyStorePath the path to the keystore file or null when keyStoreType is pkcs11
      * @param keyStoreType the type of the keystore file
      * @param keyStorePassword the password for the keystore
      * @param keyPassword the password for the private key in the keystore

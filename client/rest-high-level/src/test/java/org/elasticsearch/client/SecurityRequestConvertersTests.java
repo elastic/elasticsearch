@@ -19,8 +19,10 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.ChangePasswordRequest;
@@ -154,5 +156,17 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertEquals("/_xpack/security/user/_password", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(changePasswordRequest, request.getEntity());
+    }
+
+    public void testDeleteRole() {
+        final String name = randomAlphaOfLengthBetween(1, 12);
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, String> expectedParams = getExpectedParamsFromRefreshPolicy(refreshPolicy);
+        DeleteRoleRequest deleteRoleRequest = new DeleteRoleRequest(name, refreshPolicy);
+        Request request = SecurityRequestConverters.deleteRole(deleteRoleRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/role/" + name, request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertNull(request.getEntity());
     }
 }

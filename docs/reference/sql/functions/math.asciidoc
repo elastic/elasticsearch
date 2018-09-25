@@ -37,13 +37,19 @@ Same as `CEIL`
 
 https://en.wikipedia.org/wiki/E_%28mathematical_constant%29[Euler's number], returns `2.7182818284590452354`
 
+* https://en.wikipedia.org/wiki/Exponential_function[e^x^] (`EXP`)
 
-* https://en.wikipedia.org/wiki/Rounding#Round_half_up[Round] (`ROUND`)
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/math.sql-spec[exp]
+--------------------------------------------------
 
-// TODO make the example in the tests presentable
+* https://docs.oracle.com/javase/8/docs/api/java/lang/Math.html#expm1-double-[e^x^ - 1] (`EXPM1`)
 
-NOTE: This rounds "half up" meaning that `ROUND(-1.5)` results in `-1`.
-
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/math.sql-spec[expm1]
+--------------------------------------------------
 
 * https://en.wikipedia.org/wiki/Floor_and_ceiling_functions[Floor] (`FLOOR`)
 
@@ -63,6 +69,36 @@ include-tagged::{sql-specs}/math.sql-spec[log]
 include-tagged::{sql-specs}/math.sql-spec[log10]
 --------------------------------------------------
 
+* `ROUND`
+
+.Synopsis:
+[source, sql]
+----
+ROUND(numeric_exp<1>[, integer_exp<2>])
+----
+*Input*:
+
+ <1> numeric expression
+ <2> integer expression; optional
+
+*Output*: numeric 
+
+.Description:
+Returns `numeric_exp` rounded to `integer_exp` places right of the decimal point. If `integer_exp` is negative,
+`numeric_exp` is rounded to |`integer_exp`| places to the left of the decimal point. If `integer_exp` is omitted,
+the function will perform as if `integer_exp` would be 0. The returned numeric data type is the same as the data type 
+of `numeric_exp`.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[mathRoundWithPositiveParameter]
+--------------------------------------------------
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[mathRoundWithNegativeParameter]
+--------------------------------------------------
+
 * https://en.wikipedia.org/wiki/Square_root[Square root] (`SQRT`)
 
 ["source","sql",subs="attributes,callouts,macros"]
@@ -70,18 +106,34 @@ include-tagged::{sql-specs}/math.sql-spec[log10]
 include-tagged::{sql-specs}/math.sql-spec[sqrt]
 --------------------------------------------------
 
-* https://en.wikipedia.org/wiki/Exponential_function[e^x^] (`EXP`)
+* `TRUNCATE`
+
+.Synopsis:
+[source, sql]
+----
+TRUNCATE(numeric_exp<1>[, integer_exp<2>])
+----
+*Input*:
+
+ <1> numeric expression
+ <2> integer expression; optional
+
+*Output*: numeric 
+
+.Description:
+Returns `numeric_exp` truncated to `integer_exp` places right of the decimal point. If `integer_exp` is negative,
+`numeric_exp` is truncated to |`integer_exp`| places to the left of the decimal point.  If `integer_exp` is omitted,
+the function will perform as if `integer_exp` would be 0. The returned numeric data type is the same as the data type 
+of `numeric_exp`.
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/math.sql-spec[exp]
+include-tagged::{sql-specs}/docs.csv-spec[mathTruncateWithPositiveParameter]
 --------------------------------------------------
-
-* https://docs.oracle.com/javase/8/docs/api/java/lang/Math.html#expm1-double-[e^x^ - 1] (`EXPM1`)
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/math.sql-spec[expm1]
+include-tagged::{sql-specs}/docs.csv-spec[mathTruncateWithNegativeParameter]
 --------------------------------------------------
 
 ==== Trigonometric

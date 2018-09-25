@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.indexing.IterationResult;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -68,7 +67,8 @@ public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Ma
      * TODO: replace with proper implementation
      */
     private List<IndexRequest> processBuckets(CompositeAggregation agg) {
-        String destinationFieldName = job.getConfig().getSourceConfig().getSourceBuilder().name();
+        // for now only 1 source supported
+        String destinationFieldName = job.getConfig().getSourceConfig().getSources().get(0).name();
         String aggName = job.getConfig().getAggregationConfig().getAggregatorFactories().get(0).getName();
 
         return agg.getBuckets().stream().map(b -> {
@@ -97,9 +97,7 @@ public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Ma
         QueryBuilder queryBuilder = new MatchAllQueryBuilder();
         SearchRequest searchRequest = new SearchRequest(job.getConfig().getIndexPattern());
 
-        List<CompositeValuesSourceBuilder<?>> sources = new ArrayList<>();
-
-        sources.add(job.getConfig().getSourceConfig().getSourceBuilder());
+        List<CompositeValuesSourceBuilder<?>> sources = job.getConfig().getSourceConfig().getSources();
 
         CompositeAggregationBuilder compositeAggregation = new CompositeAggregationBuilder("feature", sources);
         compositeAggregation.size(1000);

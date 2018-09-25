@@ -38,12 +38,6 @@ public class AggregationConfig implements Writeable, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        /*for (AggregationBuilder subAgg : getAggregatorFactories()) {
-            subAgg.toXContent(builder, params);
-        }
-        return builder;
-        */
-
         return aggregatorFactoryBuilder.toXContent(builder, params);
     }
 

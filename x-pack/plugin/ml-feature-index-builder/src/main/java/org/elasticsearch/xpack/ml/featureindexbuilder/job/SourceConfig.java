@@ -34,7 +34,7 @@ public class SourceConfig implements Writeable, ToXContentObject {
 
     private static final String NAME = "feature_index_builder_source";
 
-    private List<CompositeValuesSourceBuilder<?>> sources;
+    private final List<CompositeValuesSourceBuilder<?>> sources;
 
     private static final ConstructingObjectParser<SourceConfig, String> PARSER = new ConstructingObjectParser<>(NAME, false, (args) -> {
         @SuppressWarnings("unchecked")
@@ -52,7 +52,7 @@ public class SourceConfig implements Writeable, ToXContentObject {
         this.sources = new ArrayList<>(num);
         for (int i = 0; i < num; i++) {
             CompositeValuesSourceBuilder<?> builder = CompositeValuesSourceParserHelper.readFrom(in);
-            sources.add(builder);
+            getSources().add(builder);
         }
     }
 
@@ -64,7 +64,7 @@ public class SourceConfig implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startArray(CompositeAggregationBuilder.SOURCES_FIELD_NAME.getPreferredName());
-        for (CompositeValuesSourceBuilder<?> source : sources) {
+        for (CompositeValuesSourceBuilder<?> source : getSources()) {
             CompositeValuesSourceParserHelper.toXContent(source, builder, params);
         }
         builder.endArray();
@@ -74,15 +74,15 @@ public class SourceConfig implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(sources.size());
-        for (CompositeValuesSourceBuilder<?> builder : sources) {
+        out.writeVInt(getSources().size());
+        for (CompositeValuesSourceBuilder<?> builder : getSources()) {
             CompositeValuesSourceParserHelper.writeTo(builder, out);
         }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sources);
+        return Objects.hash(getSources());
     }
 
     @Override
@@ -97,15 +97,14 @@ public class SourceConfig implements Writeable, ToXContentObject {
 
         final SourceConfig that = (SourceConfig) other;
 
-        return Objects.equals(this.sources, that.sources);
+        return Objects.equals(this.getSources(), that.getSources());
     }
 
     public static SourceConfig fromXContent(final XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    // to be fixed
-    public CompositeValuesSourceBuilder<?> getSourceBuilder() {
-        return sources.get(0);
+    public List<CompositeValuesSourceBuilder<?>> getSources() {
+        return sources;
     }
 }

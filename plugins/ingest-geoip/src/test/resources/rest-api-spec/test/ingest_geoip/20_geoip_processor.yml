@@ -33,8 +33,8 @@
   - length: { _source.geoip: 6 }
   - match: { _source.geoip.city_name: "Minneapolis" }
   - match: { _source.geoip.country_iso_code: "US" }
-  - match: { _source.geoip.location.lon: -93.2166 }
-  - match: { _source.geoip.location.lat: 44.9759 }
+  - match: { _source.geoip.location.lon: -93.2323 }
+  - match: { _source.geoip.location.lat: 44.9733 }
   - match: { _source.geoip.region_iso_code: "US-MN" }
   - match: { _source.geoip.region_name: "Minnesota" }
   - match: { _source.geoip.continent_name: "North America" }
@@ -80,8 +80,8 @@
   - match: { _source.geoip.city_name: "Minneapolis" }
   - match: { _source.geoip.country_iso_code: "US" }
   - match: { _source.geoip.ip: "128.101.101.101" }
-  - match: { _source.geoip.location.lon: -93.2166 }
-  - match: { _source.geoip.location.lat: 44.9759 }
+  - match: { _source.geoip.location.lon: -93.2323 }
+  - match: { _source.geoip.location.lat: 44.9733 }
   - match: { _source.geoip.timezone: "America/Chicago" }
   - match: { _source.geoip.country_name: "United States" }
   - match: { _source.geoip.region_iso_code: "US-MN" }
@@ -193,8 +193,8 @@
   - length: { _source.geoip: 6 }
   - match: { _source.geoip.city_name: "Minneapolis" }
   - match: { _source.geoip.country_iso_code: "US" }
-  - match: { _source.geoip.location.lon: -93.2166 }
-  - match: { _source.geoip.location.lat: 44.9759 }
+  - match: { _source.geoip.location.lon: -93.2323 }
+  - match: { _source.geoip.location.lat: 44.9733 }
   - match: { _source.geoip.region_iso_code: "US-MN" }
   - match: { _source.geoip.region_name: "Minnesota" }
   - match: { _source.geoip.continent_name: "North America" }
@@ -224,15 +224,15 @@
         type: test
         id: 1
         pipeline: "my_pipeline"
-        body: {field1: "82.170.213.79"}
+        body: {field1: "82.171.64.0"}
 
   - do:
       get:
         index: test
         type: test
         id: 1
-  - match: { _source.field1: "82.170.213.79" }
+  - match: { _source.field1: "82.171.64.0" }
   - length: { _source.geoip: 3 }
-  - match: { _source.geoip.ip: "82.170.213.79" }
-  - match: { _source.geoip.asn: 5615 }
+  - match: { _source.geoip.ip: "82.171.64.0" }
+  - match: { _source.geoip.asn: 1136 }
   - match: { _source.geoip.organization_name: "KPN B.V." }

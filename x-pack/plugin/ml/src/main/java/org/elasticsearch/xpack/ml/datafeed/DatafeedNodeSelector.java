@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -92,7 +93,7 @@ public class DatafeedNodeSelector {
         List<String> indices = datafeed.getIndices();
         for (String index : indices) {
 
-            if (MlRemoteLicenseChecker.isRemoteIndex(index)) {
+            if (RemoteClusterLicenseChecker.isRemoteIndex(index)) {
                 // We cannot verify remote indices
                 continue;
             }

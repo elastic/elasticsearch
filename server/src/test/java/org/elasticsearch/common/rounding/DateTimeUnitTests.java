@@ -66,10 +66,11 @@ public class DateTimeUnitTests extends ESTestCase {
         assertEquals(SECOND_OF_MINUTE, DateTimeUnit.resolve((byte) 8));
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/33749")
     public void testConversion() {
         long millis = randomLongBetween(0, Instant.now().toEpochMilli());
         DateTimeZone zone = randomDateTimeZone();
-        ZoneId zoneId = ZoneId.of(zone.getID());
+        ZoneId zoneId = zone.toTimeZone().toZoneId();
 
         int offsetSeconds = zoneId.getRules().getOffset(Instant.ofEpochMilli(millis)).getTotalSeconds();
         long parsedMillisJavaTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), zoneId)

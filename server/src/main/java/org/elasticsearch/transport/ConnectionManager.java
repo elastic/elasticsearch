@@ -19,13 +19,13 @@
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
@@ -38,12 +38,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -53,15 +53,16 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * the connection when the connection manager is closed.
  */
 public class ConnectionManager implements Closeable {
+    private static final Logger logger = LogManager.getLogger(ConnectionManager.class);
 
     private final ConcurrentMap<DiscoveryNode, Transport.Connection> connectedNodes = ConcurrentCollections.newConcurrentMap();
     private final KeyedLock<String> connectionLock = new KeyedLock<>();
-    private final Logger logger;
     private final Transport transport;
     private final ThreadPool threadPool;
     private final TimeValue pingSchedule;
     private final ConnectionProfile defaultProfile;
     private final Lifecycle lifecycle = new Lifecycle();
+    private final AtomicBoolean closed = new AtomicBoolean(false);
     private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
     private final DelegatingNodeConnectionListener connectionListener = new DelegatingNodeConnectionListener();
 
@@ -70,7 +71,6 @@ public class ConnectionManager implements Closeable {
     }
 
     public ConnectionManager(Settings settings, Transport transport, ThreadPool threadPool, ConnectionProfile defaultProfile) {
-        this.logger = Loggers.getLogger(getClass(), settings);
         this.transport = transport;
         this.threadPool = threadPool;
         this.pingSchedule = TcpTransport.PING_SCHEDULE.get(settings);
@@ -83,7 +83,7 @@ public class ConnectionManager implements Closeable {
     }
 
     public void addListener(TransportConnectionListener listener) {
-        this.connectionListener.listeners.add(listener);
+        this.connectionListener.listeners.addIfAbsent(listener);
     }
 
     public void removeListener(TransportConnectionListener listener) {
@@ -91,7 +91,8 @@ public class ConnectionManager implements Closeable {
     }
 
     public Transport.Connection openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
-        return transport.openConnection(node, ConnectionProfile.resolveConnectionProfile(connectionProfile, defaultProfile));
+        ConnectionProfile resolvedProfile = ConnectionProfile.resolveConnectionProfile(connectionProfile, defaultProfile);
+        return internalOpenConnection(node, resolvedProfile);
     }
 
     /**
@@ -115,7 +116,7 @@ public class ConnectionManager implements Closeable {
                 }
                 boolean success = false;
                 try {
-                    connection = transport.openConnection(node, resolvedProfile);
+                    connection = internalOpenConnection(node, resolvedProfile);
                     connectionValidator.accept(connection, resolvedProfile);
                     // we acquire a connection lock, so no way there is an existing connection
                     connectedNodes.put(node, connection);
@@ -185,46 +186,64 @@ public class ConnectionManager implements Closeable {
         }
     }
 
-    public int connectedNodeCount() {
+    /**
+     * Returns the number of nodes this manager is connected to.
+     */
+    public int size() {
         return connectedNodes.size();
     }
 
     @Override
     public void close() {
-        lifecycle.moveToStopped();
-        CountDownLatch latch = new CountDownLatch(1);
+        if (closed.compareAndSet(false, true)) {
+            lifecycle.moveToStopped();
+            CountDownLatch latch = new CountDownLatch(1);
 
-        // TODO: Consider moving all read/write lock (in Transport and this class) to the TransportService
-        threadPool.generic().execute(() -> {
-            closeLock.writeLock().lock();
-            try {
-                // we are holding a write lock so nobody modifies the connectedNodes / openConnections map - it's safe to first close
-                // all instances and then clear them maps
-                Iterator<Map.Entry<DiscoveryNode, Transport.Connection>> iterator = connectedNodes.entrySet().iterator();
-                while (iterator.hasNext()) {
-                    Map.Entry<DiscoveryNode, Transport.Connection> next = iterator.next();
-                    try {
-                        IOUtils.closeWhileHandlingException(next.getValue());
-                    } finally {
-                        iterator.remove();
+            // TODO: Consider moving all read/write lock (in Transport and this class) to the TransportService
+            threadPool.generic().execute(() -> {
+                closeLock.writeLock().lock();
+                try {
+                    // we are holding a write lock so nobody modifies the connectedNodes / openConnections map - it's safe to first close
+                    // all instances and then clear them maps
+                    Iterator<Map.Entry<DiscoveryNode, Transport.Connection>> iterator = connectedNodes.entrySet().iterator();
+                    while (iterator.hasNext()) {
+                        Map.Entry<DiscoveryNode, Transport.Connection> next = iterator.next();
+                        try {
+                            IOUtils.closeWhileHandlingException(next.getValue());
+                        } finally {
+                            iterator.remove();
+                        }
                     }
+                } finally {
+                    closeLock.writeLock().unlock();
+                    latch.countDown();
+                }
+            });
+
+            try {
+                try {
+                    latch.await(30, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    // ignore
                 }
             } finally {
-                closeLock.writeLock().unlock();
-                latch.countDown();
+                lifecycle.moveToClosed();
             }
-        });
-
-        try {
-            try {
-                latch.await(30, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                // ignore
-            }
-        } finally {
-            lifecycle.moveToClosed();
         }
+    }
+
+    private Transport.Connection internalOpenConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
+        Transport.Connection connection = transport.openConnection(node, connectionProfile);
+        try {
+            connectionListener.onConnectionOpened(connection);
+        } finally {
+            connection.addCloseListener(ActionListener.wrap(() -> connectionListener.onConnectionClosed(connection)));
+        }
+        if (connection.isClosed()) {
+            throw new ConnectTransportException(node, "a channel closed while connecting");
+        }
+        return connection;
     }
 
     private void ensureOpen() {
@@ -274,7 +293,7 @@ public class ConnectionManager implements Closeable {
 
     private static final class DelegatingNodeConnectionListener implements TransportConnectionListener {
 
-        private final List<TransportConnectionListener> listeners = new CopyOnWriteArrayList<>();
+        private final CopyOnWriteArrayList<TransportConnectionListener> listeners = new CopyOnWriteArrayList<>();
 
         @Override
         public void onNodeDisconnected(DiscoveryNode key) {
@@ -289,9 +308,23 @@ public class ConnectionManager implements Closeable {
                 listener.onNodeConnected(node);
             }
         }
+
+        @Override
+        public void onConnectionOpened(Transport.Connection connection) {
+            for (TransportConnectionListener listener : listeners) {
+                listener.onConnectionOpened(connection);
+            }
+        }
+
+        @Override
+        public void onConnectionClosed(Transport.Connection connection) {
+            for (TransportConnectionListener listener : listeners) {
+                listener.onConnectionClosed(connection);
+            }
+        }
     }
 
-    static ConnectionProfile buildDefaultConnectionProfile(Settings settings) {
+    public static ConnectionProfile buildDefaultConnectionProfile(Settings settings) {
         int connectionsPerNodeRecovery = TransportService.CONNECTIONS_PER_NODE_RECOVERY.get(settings);
         int connectionsPerNodeBulk = TransportService.CONNECTIONS_PER_NODE_BULK.get(settings);
         int connectionsPerNodeReg = TransportService.CONNECTIONS_PER_NODE_REG.get(settings);

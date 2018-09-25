@@ -56,18 +56,9 @@ public interface Transport extends LifecycleComponent {
      */
     RequestHandlerRegistry getRequestHandler(String action);
 
-    /**
-     * Adds a new event listener
-     * @param listener the listener to add
-     */
-    void addConnectionListener(TransportConnectionListener listener);
+    void addMessageListener(TransportMessageListener listener);
 
-    /**
-     * Removes an event listener
-     * @param listener the listener to remove
-     * @return <code>true</code> iff the listener was removed otherwise <code>false</code>
-     */
-    boolean removeConnectionListener(TransportConnectionListener listener);
+    boolean removeMessageListener(TransportMessageListener listener);
 
     /**
      * The address the transport is bound on.
@@ -254,7 +245,7 @@ public interface Transport extends LifecycleComponent {
          * sent request (before any processing or deserialization was done). Returns the appropriate response handler or null if not
          * found.
          */
-        public TransportResponseHandler onResponseReceived(final long requestId, TransportConnectionListener listener) {
+        public TransportResponseHandler onResponseReceived(final long requestId, TransportMessageListener listener) {
             ResponseContext context = handlers.remove(requestId);
             listener.onResponseReceived(requestId, context);
             if (context == null) {

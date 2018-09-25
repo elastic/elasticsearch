@@ -532,6 +532,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterMatchQueryOptions(SqlBaseParser.MatchQueryOptionsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitMatchQueryOptions(SqlBaseParser.MatchQueryOptionsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterPredicated(SqlBaseParser.PredicatedContext ctx) { }
   /**
    * {@inheritDoc}
@@ -551,6 +563,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitPredicate(SqlBaseParser.PredicateContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterLikePattern(SqlBaseParser.LikePatternContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitLikePattern(SqlBaseParser.LikePatternContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -695,18 +719,6 @@ class SqlBaseBaseListener implements SqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitSubqueryExpression(SqlBaseParser.SubqueryExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterColumnReference(SqlBaseParser.ColumnReferenceContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitColumnReference(SqlBaseParser.ColumnReferenceContext ctx) { }
   /**
    * {@inheritDoc}
    *

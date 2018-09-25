@@ -34,6 +34,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -52,6 +53,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -171,7 +173,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         return service;
     }
 
-    private MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings) {
+    protected MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings) {
         return buildService(name, version, clusterSettings, Settings.EMPTY, true, true);
     }
 
@@ -766,6 +768,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testNotifyOnShutdown() throws Exception {
         final CountDownLatch latch2 = new CountDownLatch(1);
+        final CountDownLatch latch3 = new CountDownLatch(1);
         try {
             serviceA.registerRequestHandler("internal:foobar", StringMessageRequest::new, ThreadPool.Names.GENERIC,
                 (request, channel, task) -> {
@@ -775,6 +778,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         serviceB.stop();
                     } catch (Exception e) {
                         fail(e.getMessage());
+                    } finally {
+                        latch3.countDown();
                     }
                 });
             TransportFuture<TransportResponse.Empty> foobar = serviceB.submitRequest(nodeA, "internal:foobar",
@@ -786,6 +791,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             } catch (TransportException ex) {
 
             }
+            latch3.await();
         } finally {
             serviceB.close(); // make sure we are fully closed here otherwise we might run into assertions down the road
             serviceA.disconnectFromNode(nodeB);
@@ -2642,14 +2648,21 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testChannelCloseWhileConnecting() {
         try (MockTransportService service = build(Settings.builder().put("name", "close").build(), version0, null, true)) {
-            service.transport.addConnectionListener(new TransportConnectionListener() {
+            AtomicBoolean connectionClosedListenerCalled = new AtomicBoolean(false);
+            service.addConnectionListener(new TransportConnectionListener() {
                 @Override
                 public void onConnectionOpened(final Transport.Connection connection) {
+                    closeConnectionChannel(connection);
                     try {
-                        closeConnectionChannel(service.getOriginalTransport(), connection);
-                    } catch (final IOException e) {
+                        assertBusy(() -> assertTrue(connection.isClosed()));
+                    } catch (Exception e) {
                         throw new AssertionError(e);
                     }
+                }
+
+                @Override
+                public void onConnectionClosed(Transport.Connection connection) {
+                    connectionClosedListenerCalled.set(true);
                 }
             });
             final ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
@@ -2662,13 +2675,18 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             final ConnectTransportException e =
                     expectThrows(ConnectTransportException.class, () -> service.openConnection(nodeA, builder.build()));
             assertThat(e, hasToString(containsString(("a channel closed while connecting"))));
+            assertTrue(connectionClosedListenerCalled.get());
         }
     }
 
-    protected abstract void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException;
+    private void closeConnectionChannel(Transport.Connection connection) {
+        StubbableTransport.WrappedConnection wrappedConnection = (StubbableTransport.WrappedConnection) connection;
+        TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) wrappedConnection.getConnection();
+        CloseableChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
+    }
 
     @SuppressForbidden(reason = "need local ephemeral port")
-    private InetSocketAddress getLocalEphemeral() throws UnknownHostException {
+    protected InetSocketAddress getLocalEphemeral() throws UnknownHostException {
         return new InetSocketAddress(InetAddress.getLocalHost(), 0);
     }
 }

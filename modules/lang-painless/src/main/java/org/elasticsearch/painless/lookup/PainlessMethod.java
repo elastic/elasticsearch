@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.List;
 
 public class PainlessMethod {
+
     public final Method javaMethod;
     public final Class<?> targetClass;
     public final Class<?> returnType;

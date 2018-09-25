@@ -53,6 +53,11 @@ import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
+import java.lang.Thread.State;
+import java.lang.management.LockInfo;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MonitorInfo;
+import java.lang.management.ThreadInfo;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -67,6 +72,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.threadpool.ThreadPool.Names.WRITE;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -119,8 +125,10 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
             // REST is the realistic way that these operations happen, so it's the most realistic way to integration test it too
             // Use Monitoring Bulk API to index 3 documents
-            //final Response bulkResponse = getRestClient().performRequest("POST", "/_xpack/monitoring/_bulk",
-            //                                                             parameters, createBulkEntity());
+            //final Request bulkRequest = new Request("POST", "/_xpack/monitoring/_bulk");
+            //<<add all parameters>
+            //bulkRequest.setJsonEntity(createBulkEntity());
+            //final Response bulkResponse = getRestClient().performRequest(request);
 
             final MonitoringBulkResponse bulkResponse =
                     new MonitoringBulkRequestBuilder(client())
@@ -337,7 +345,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
         final Map<String, Object> clusterStats = (Map<String, Object>) source.get("cluster_stats");
         assertThat(clusterStats, notNullValue());
-        assertThat(clusterStats.size(), equalTo(4));
+        assertThat(clusterStats.size(), equalTo(5));
 
         final Map<String, Object> stackStats = (Map<String, Object>) source.get("stack_stats");
         assertThat(stackStats, notNullValue());
@@ -347,7 +355,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         assertThat(apm, notNullValue());
         assertThat(apm.size(), equalTo(1));
         assertThat(apm.remove("found"), is(apmIndicesExist));
-        assertThat(apm.isEmpty(), is(true));
+        assertThat(apm.keySet(), empty());
 
         final Map<String, Object> xpackStats = (Map<String, Object>) stackStats.get("xpack");
         assertThat(xpackStats, notNullValue());
@@ -359,14 +367,14 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
         final Map<String, Object> clusterState = (Map<String, Object>) source.get("cluster_state");
         assertThat(clusterState, notNullValue());
-        assertThat(clusterState.size(), equalTo(6));
         assertThat(clusterState.remove("nodes_hash"), notNullValue());
         assertThat(clusterState.remove("status"), notNullValue());
         assertThat(clusterState.remove("version"), notNullValue());
         assertThat(clusterState.remove("state_uuid"), notNullValue());
+        assertThat(clusterState.remove("cluster_uuid"), notNullValue());
         assertThat(clusterState.remove("master_node"), notNullValue());
         assertThat(clusterState.remove("nodes"), notNullValue());
-        assertThat(clusterState.isEmpty(), is(true));
+        assertThat(clusterState.keySet(), empty());
     }
 
     /**
@@ -409,14 +417,11 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
         // particular field values checked in the index stats tests
         final Map<String, Object> indexStats = (Map<String, Object>) source.get(IndexStatsMonitoringDoc.TYPE);
-        assertEquals(8, indexStats.size());
+        assertEquals(7, indexStats.size());
         assertThat((String) indexStats.get("index"), not(isEmptyOrNullString()));
         assertThat((String) indexStats.get("uuid"), not(isEmptyOrNullString()));
         assertThat(indexStats.get("created"), notNullValue());
         assertThat((String) indexStats.get("status"), not(isEmptyOrNullString()));
-        assertThat(indexStats.get("version"), notNullValue());
-        final Map<String, Object> version = (Map<String, Object>) indexStats.get("version");
-        assertEquals(2, version.size());
         assertThat(indexStats.get("shards"), notNullValue());
         final Map<String, Object> shards = (Map<String, Object>) indexStats.get("shards");
         assertEquals(11, shards.size());
@@ -449,6 +454,11 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
             // load average is unavailable on macOS for 5m and 15m (but we get 1m), but it's also possible on Linux too
             if ("node_stats.os.cpu.load_average.5m".equals(filter) || "node_stats.os.cpu.load_average.15m".equals(filter)) {
+                return;
+            }
+
+            // bulk is not a thread pool in the current version but we allow it to support mixed version clusters
+            if (filter.startsWith("node_stats.thread_pool.bulk")) {
                 return;
             }
 
@@ -496,12 +506,74 @@ public class MonitoringIT extends ESSingleNodeTestCase {
      */
     private void whenExportersAreReady(final CheckedRunnable<Exception> runnable) throws Exception {
         try {
-            enableMonitoring();
+            try {
+                enableMonitoring();
+            } catch (AssertionError e) {
+                // Added to debug https://github.com/elastic/elasticsearch/issues/29880
+                // Remove when fixed
+                StringBuilder b = new StringBuilder();
+                b.append("\n==== jstack at monitoring enablement failure time ====\n");
+                for (ThreadInfo ti : ManagementFactory.getThreadMXBean().dumpAllThreads(true, true)) {
+                  append(b, ti);
+                }
+                b.append("^^==============================================\n");
+                logger.info(b.toString());
+                throw e;
+            }
             runnable.run();
         } finally {
             disableMonitoring();
         }
     }
+
+    // borrowed from randomized-testing
+    private static void append(StringBuilder b, ThreadInfo ti) {
+        b.append('"').append(ti.getThreadName()).append('"');
+        b.append(" ID=").append(ti.getThreadId());
+
+        final State threadState = ti.getThreadState();
+        b.append(" ").append(threadState);
+        if (ti.getLockName() != null) {
+          b.append(" on ").append(ti.getLockName());
+        }
+        
+        if (ti.getLockOwnerName() != null) {
+          b.append(" owned by \"").append(ti.getLockOwnerName())
+           .append("\" ID=").append(ti.getLockOwnerId());
+        }
+        
+        b.append(ti.isSuspended() ? " (suspended)" : "");
+        b.append(ti.isInNative() ? " (in native code)" : "");
+        b.append("\n");
+        
+        final StackTraceElement[] stack = ti.getStackTrace();
+        final LockInfo lockInfo = ti.getLockInfo();
+        final MonitorInfo [] monitorInfos = ti.getLockedMonitors();
+        for (int i = 0; i < stack.length; i++) {
+          b.append("\tat ").append(stack[i]).append("\n");
+          if (i == 0 && lockInfo != null) {
+            b.append("\t- ")
+             .append(threadState)
+             .append(lockInfo)
+             .append("\n");
+          }
+          
+          for (MonitorInfo mi : monitorInfos) {
+            if (mi.getLockedStackDepth() == i) {
+              b.append("\t- locked ").append(mi).append("\n");
+            }
+          }
+        }
+
+        LockInfo [] lockInfos = ti.getLockedSynchronizers();
+        if (lockInfos.length > 0) {
+          b.append("\tLocked synchronizers:\n");
+          for (LockInfo li : ti.getLockedSynchronizers()) {
+            b.append("\t- ").append(li).append("\n");
+          }
+        }
+        b.append("\n");
+      }
 
     /**
      * Enable the monitoring service and the Local exporter, waiting for some monitoring documents

@@ -110,9 +110,9 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
+    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long maxSeenAutoIdTimestampOnPrimary) {
         final RecoveryTranslogOperationsRequest translogOperationsRequest =
-                new RecoveryTranslogOperationsRequest(recoveryId, shardId, operations, totalTranslogOps);
+                new RecoveryTranslogOperationsRequest(recoveryId, shardId, operations, totalTranslogOps, maxSeenAutoIdTimestampOnPrimary);
         final TransportFuture<RecoveryTranslogOperationsResponse> future = transportService.submitRequest(
                 targetNode,
                 PeerRecoveryTargetService.Actions.TRANSLOG_OPS,

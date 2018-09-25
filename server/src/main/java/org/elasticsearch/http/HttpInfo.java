@@ -41,7 +41,7 @@ public class HttpInfo implements Writeable, ToXContentFragment {
 
     /** Whether to add hostname to publish host field when serializing. */
     private static final boolean CNAME_IN_PUBLISH_HOST =
-        parseBoolean(System.getProperty("es.http.cname_in_publish_address"), false);
+        parseBoolean(System.getProperty("es.http.cname_in_publish_address"), true);
 
     private final BoundTransportAddress address;
     private final long maxContentLength;

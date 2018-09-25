@@ -19,8 +19,8 @@
 
 package org.elasticsearch.unconfigured_node_name;
 
-import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.common.logging.NodeNameInLogsIntegTestCase;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.io.BufferedReader;
@@ -30,11 +30,16 @@ import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 
+import static org.hamcrest.Matchers.not;
+
 public class NodeNameInLogsIT extends NodeNameInLogsIntegTestCase {
     @Override
-    protected BufferedReader openReader(Path logFile) throws IOException {
-        assumeTrue("We log a line without the node name if we can't install the seccomp filters",
-                BootstrapInfo.isSystemCallFilterInstalled());
+    protected Matcher<String> nodeNameMatcher() {
+        return not("");
+    }
+
+    @Override
+    protected BufferedReader openReader(Path logFile) {
         return AccessController.doPrivileged((PrivilegedAction<BufferedReader>) () -> {
             try {
                 return Files.newBufferedReader(logFile, StandardCharsets.UTF_8);
@@ -42,12 +47,5 @@ public class NodeNameInLogsIT extends NodeNameInLogsIntegTestCase {
                 throw new RuntimeException(e);
             }
         });
-    }
-
-    public void testDummy() {
-        /* Dummy test case so that when we run this test on a platform that
-         * does not support our syscall filters and we skip the test above
-         * we don't fail the entire test run because we skipped all the tests.
-         */
     }
 }

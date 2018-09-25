@@ -279,6 +279,7 @@ The Java High Level REST Client supports the following Rollup APIs:
 * <<java-rest-high-x-pack-rollup-put-job>>
 
 include::rollup/put_job.asciidoc[]
+include::rollup/delete_job.asciidoc[]
 
 == Security APIs
 

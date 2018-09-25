@@ -20,6 +20,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.rollup.DeleteRollupJobRequest;
+import org.elasticsearch.client.rollup.DeleteRollupJobResponse;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobResponse;
 
@@ -71,6 +73,22 @@ public class RollupClient {
             RollupRequestConverters::putJob,
             options,
             PutRollupJobResponse::fromXContent,
+            listener, Collections.emptySet());
+    }
+
+    /**
+     * Asynchronously delete a rollup job from the cluster
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/rollup-delete-job.html">
+     *     The docs</a> for details.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void deleteRollupJobAsync(DeleteRollupJobRequest request, RequestOptions options, ActionListener<DeleteRollupJobResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            RollupRequestConverters::deleteJob,
+            options,
+            DeleteRollupJobResponse::fromXContent,
             listener, Collections.emptySet());
     }
 }

@@ -1,0 +1,57 @@
+[[java-rest-high-x-pack-rollup-delete-job]]
+=== Delete Rollup Job API
+
+The Delete Rollup Job API can be used to create a new Rollup job
+in the cluster. The API accepts a `PutRollupJobRequest` object
+as a request and returns a `PutRollupJobResponse`.
+
+[[java-rest-high-x-pack-rollup-delete-rollup-job-request]]
+==== Delete Rollup Job Request
+
+A `DeleteRollupJobRequest` requires the following argument:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-delete-rollup-job-request]
+--------------------------------------------------
+
+
+[[java-rest-high-x-pack-rollup-delete-rollup-job-execution]]
+==== Asynchronous Execution
+
+This request can be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-delete-rollup-job-execute-async]
+--------------------------------------------------
+<1> The `DeleteRollupJobRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `DeleteRollupJobResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-delete-rollup-job-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
+
+[[java-rest-high-x-pack-rollup-delete-rollup-job-response]]
+==== Response
+
+The returned `DeleteRollupJobResponse` indicates if the new Rollup job
+has been successfully created:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-delete-rollup-job-execute-listener]
+--------------------------------------------------
+<1> `acknowledged` is a boolean indicating whether the delete command was received
+

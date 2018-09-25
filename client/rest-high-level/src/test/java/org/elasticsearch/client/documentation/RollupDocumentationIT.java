@@ -29,6 +29,8 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.rollup.DeleteRollupJobRequest;
+import org.elasticsearch.client.rollup.DeleteRollupJobResponse;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobResponse;
 import org.elasticsearch.client.rollup.job.config.DateHistogramGroupConfig;
@@ -159,5 +161,39 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
+    }
+
+    public void testDeleteRollupJob() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        String id = "job_2";
+        // tag::x-pack-rollup-delete-rollup-job-request
+        DeleteRollupJobRequest request = new DeleteRollupJobRequest(id);
+        // end::x-pack-rollup-delete-rollup-job-request
+
+        // tag::x-pack-rollup-delete-rollup-job-execute-listener
+        ActionListener<DeleteRollupJobResponse> listener = new ActionListener<DeleteRollupJobResponse>() {
+            @Override
+            public void onResponse(DeleteRollupJobResponse response) {
+                boolean acknowledged = response.isAcknowledged(); // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::x-pack-rollup-delete-rollup-job-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::x-pack-rollup-delete-rollup-job-execute-async
+        client.rollup().deleteRollupJobAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::x-pack-rollup-delete-rollup-job-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
     }
 }

@@ -316,12 +316,20 @@ public class FollowersCheckerTests extends ESTestCase {
     }
 
     public void testFollowerCheckRequestEqualsHashCodeSerialization() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(new FollowerCheckRequest(randomNonNegativeLong()),
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(new FollowerCheckRequest(randomNonNegativeLong(),
+                new DiscoveryNode(randomAlphaOfLength(10), buildNewFakeTransportAddress(), Version.CURRENT)),
             rq -> copyWriteable(rq, writableRegistry(), FollowerCheckRequest::new),
-            rq -> new FollowerCheckRequest(randomNonNegativeLong()));
+            rq -> {
+                if (randomBoolean()) {
+                    return new FollowerCheckRequest(rq.getTerm(), new DiscoveryNode(randomAlphaOfLength(10), buildNewFakeTransportAddress(), Version.CURRENT));
+                } else {
+                    return new FollowerCheckRequest(randomNonNegativeLong(), rq.getSender());
+                }
+            });
     }
 
     public void testResponder() {
+        final DiscoveryNode leader = new DiscoveryNode("leader", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode follower = new DiscoveryNode("follower", buildNewFakeTransportAddress(), Version.CURRENT);
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), follower.getName()).build();
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings);
@@ -358,7 +366,7 @@ public class FollowersCheckerTests extends ESTestCase {
             followersChecker.updateFastResponseState(term, Mode.FOLLOWER);
 
             final ExpectsSuccess expectsSuccess = new ExpectsSuccess();
-            transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(term), expectsSuccess);
+            transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(term, leader), expectsSuccess);
             deterministicTaskQueue.runAllTasks(random());
             assertTrue(expectsSuccess.succeeded());
             assertFalse(calledCoordinator.get());
@@ -371,24 +379,24 @@ public class FollowersCheckerTests extends ESTestCase {
             followersChecker.updateFastResponseState(followerTerm, Mode.FOLLOWER);
 
             final AtomicReference<TransportException> receivedException = new AtomicReference<>();
-            transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(leaderTerm),
+            transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(leaderTerm, leader),
                 new TransportResponseHandler<TransportResponse.Empty>() {
-                @Override
-                public void handleResponse(TransportResponse.Empty response) {
-                    fail("unexpected success");
-                }
+                    @Override
+                    public void handleResponse(TransportResponse.Empty response) {
+                        fail("unexpected success");
+                    }
 
-                @Override
-                public void handleException(TransportException exp) {
-                    assertThat(exp, not(nullValue()));
-                    assertTrue(receivedException.compareAndSet(null, exp));
-                }
+                    @Override
+                    public void handleException(TransportException exp) {
+                        assertThat(exp, not(nullValue()));
+                        assertTrue(receivedException.compareAndSet(null, exp));
+                    }
 
-                @Override
-                public String executor() {
-                    return Names.SAME;
-                }
-            });
+                    @Override
+                    public String executor() {
+                        return Names.SAME;
+                    }
+                });
             deterministicTaskQueue.runAllTasks(random());
             assertFalse(calledCoordinator.get());
             assertThat(receivedException.get(), not(nullValue()));
@@ -401,7 +409,8 @@ public class FollowersCheckerTests extends ESTestCase {
             followersChecker.updateFastResponseState(followerTerm, Mode.FOLLOWER);
 
             final ExpectsSuccess expectsSuccess = new ExpectsSuccess();
-            transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(leaderTerm), expectsSuccess);
+            transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME,
+                new FollowerCheckRequest(leaderTerm, leader), expectsSuccess);
             deterministicTaskQueue.runAllTasks(random());
             assertTrue(expectsSuccess.succeeded());
             assertTrue(calledCoordinator.get());
@@ -414,7 +423,7 @@ public class FollowersCheckerTests extends ESTestCase {
             followersChecker.updateFastResponseState(term, randomFrom(Mode.LEADER, Mode.CANDIDATE));
 
             final ExpectsSuccess expectsSuccess = new ExpectsSuccess();
-            transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(term), expectsSuccess);
+            transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(term, leader), expectsSuccess);
             deterministicTaskQueue.runAllTasks(random());
             assertTrue(expectsSuccess.succeeded());
             assertTrue(calledCoordinator.get());
@@ -429,7 +438,7 @@ public class FollowersCheckerTests extends ESTestCase {
             coordinatorException.set(new ElasticsearchException(exceptionMessage));
 
             final AtomicReference<TransportException> receivedException = new AtomicReference<>();
-            transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(term),
+            transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(term, leader),
                 new TransportResponseHandler<TransportResponse.Empty>() {
                     @Override
                     public void handleResponse(TransportResponse.Empty response) {

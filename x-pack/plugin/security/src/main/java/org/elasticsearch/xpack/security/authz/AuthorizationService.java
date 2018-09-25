@@ -571,7 +571,8 @@ public class AuthorizationService extends AbstractComponent {
         }
         // check for run as
         if (authentication.getUser().isRunAs()) {
-            logger.debug("action [{}] is unauthorized for user [{}] run as [{}]", action, authUser.principal(), authentication.getUser().principal());
+            logger.debug("action [{}] is unauthorized for user [{}] run as [{}]", action, authUser.principal(),
+                    authentication.getUser().principal());
             return authorizationError("action [{}] is unauthorized for user [{}] run as [{}]", action, authUser.principal(),
                     authentication.getUser().principal());
         }

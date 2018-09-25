@@ -196,27 +196,6 @@ public class DeleteRequest implements Validatable {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(index, id, routing, version, versionType, timeout, refreshPolicy, waitForActiveShards);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        DeleteRequest that = (DeleteRequest) obj;
-        return Objects.equals(index, that.index) &&
-                Objects.equals(id, that.id) &&
-                Objects.equals(routing, that.routing) &&
-                version == that.version &&
-                versionType == that.versionType &&
-                Objects.equals(timeout, that.timeout) &&
-                refreshPolicy == that.refreshPolicy &&
-                Objects.equals(waitForActiveShards, that.waitForActiveShards);
-    }
-
-    @Override
     public String toString() {
         return "delete {[" + index + "][" + id + "]}";
     }

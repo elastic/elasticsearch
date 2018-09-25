@@ -51,7 +51,6 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastExpressionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastTemplateContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ColumnReferenceContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ComparisonContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DateEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DecimalLiteralContext;
@@ -140,11 +139,6 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     public Expression visitStar(StarContext ctx) {
         return new UnresolvedStar(source(ctx), ctx.qualifiedName() != null ?
                 new UnresolvedAttribute(source(ctx.qualifiedName()), visitQualifiedName(ctx.qualifiedName())) : null);
-    }
-
-    @Override
-    public Object visitColumnReference(ColumnReferenceContext ctx) {
-        return new UnresolvedAttribute(source(ctx), visitIdentifier(ctx.identifier()));
     }
 
     @Override

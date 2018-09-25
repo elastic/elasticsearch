@@ -70,15 +70,6 @@ public class TimeseriesLifecycleType implements LifecycleType {
         List<Phase> orderedPhases = new ArrayList<>(VALID_PHASES.size());
         for (String phaseName : VALID_PHASES) {
             Phase phase = phases.get(phaseName);
-            if ("warm".equals(phaseName)) {
-                if (phase == null) {
-                    phase = EMPTY_WARM_PHASE;
-                } else if (phase.getActions().containsKey(ReadOnlyAction.NAME) == false){
-                    Map<String, LifecycleAction> actionMap = new HashMap<>(phase.getActions());
-                    actionMap.put(ReadOnlyAction.NAME, ReadOnlyAction.INSTANCE);
-                    phase = new Phase(phase.getName(), phase.getMinimumAge(), actionMap);
-                }
-            }
             if (phase != null) {
                 orderedPhases.add(phase);
             }

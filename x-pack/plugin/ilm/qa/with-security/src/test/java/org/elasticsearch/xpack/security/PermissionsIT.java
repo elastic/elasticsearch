@@ -111,10 +111,10 @@ public class PermissionsIT extends ESRestTestCase {
                 Map<String, Object> indexExplain = (Map<String, Object>) ((Map<String, Object>) mapResponse.get("indices")).get("not-ilm");
                 assertThat(indexExplain.get("managed"), equalTo(true));
                 assertThat(indexExplain.get("step"), equalTo("ERROR"));
-                assertThat(indexExplain.get("failed_step"), equalTo("readonly"));
+                assertThat(indexExplain.get("failed_step"), equalTo("delete"));
                 Map<String, String> stepInfo = (Map<String, String>) indexExplain.get("step_info");
                 assertThat(stepInfo.get("type"), equalTo("security_exception"));
-                assertThat(stepInfo.get("reason"), equalTo("action [indices:admin/settings/update] is unauthorized for user [test_ilm]"));
+                assertThat(stepInfo.get("reason"), equalTo("action [indices:admin/delete] is unauthorized for user [test_ilm]"));
             }
         });
     }

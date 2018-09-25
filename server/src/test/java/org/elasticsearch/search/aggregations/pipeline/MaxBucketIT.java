@@ -493,12 +493,12 @@ public class MaxBucketIT extends ESIntegTestCase {
      * This bug manifests as the max_bucket agg ("peak") being added to the response twice, because
      * the pipeline agg is run twice.  This makes invalid JSON and breaks conversion to maps.
      * The bug was caused by an UnmappedTerms being the chosen as the first reduction target.  UnmappedTerms
-     * delegate reduction to the first non-unmapped agg, which would reduce and run pipeline aggs.  But then
+     * delegated reduction to the first non-unmapped agg, which would reduce and run pipeline aggs.  But then
      * execution returns to the UnmappedTerms and _it_ runs pipelines as well, doubling up on the values.
      *
      * Applies to any pipeline agg, not just max.
      */
-    public void testFieldGetsWrittenOutTwice() throws Exception {
+    public void testFieldIsntWrittenOutTwice() throws Exception {
         // you need to add an additional index with no fields in order to trigger this (or potentially a shard)
         // so that there is an UnmappedTerms in the list to reduce.
         createIndex("foo_1");

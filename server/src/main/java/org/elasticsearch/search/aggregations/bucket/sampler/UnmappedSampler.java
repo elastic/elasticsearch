@@ -50,7 +50,7 @@ public class UnmappedSampler extends InternalSampler {
 
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        return this;
+        return new UnmappedSampler(name, pipelineAggregators(), metaData);
     }
 
     @Override

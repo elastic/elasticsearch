@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ccr.index.engine;
 
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -17,6 +18,8 @@ import java.io.IOException;
  * An engine implementation for following shards.
  */
 public final class FollowingEngine extends InternalEngine {
+
+    private final CounterMetric numOfOptimizedIndexing = new CounterMetric();
 
     /**
      * Construct a new following engine with the specified engine configuration.
@@ -51,7 +54,45 @@ public final class FollowingEngine extends InternalEngine {
     @Override
     protected InternalEngine.IndexingStrategy indexingStrategyForOperation(final Index index) throws IOException {
         preFlight(index);
-        return planIndexingAsNonPrimary(index);
+        /*
+         * A NOTE ABOUT OPTIMIZATION USING SEQUENCE NUMBERS:
+         *
+         * 1. Indexing operations are processed concurrently in an engine. However, operations of the same docID are processed
+         *    one by one under the docID lock.
+         *
+         * 2. An engine itself can resolve correctly if an operation is delivered multiple times. However, if an operation is
+         *    optimized and delivered multiple, it will be appended into Lucene more than once. We void this issue by never
+         *    optimizing an operation if it was processed in the engine (using LocalCheckpointTracker).
+         *
+         * 3. When replicating operations to replicas or followers, we also carry the max seq_no_of_updates_or_deletes on the
+         *    leader to followers. This transfer guarantees the MUS on a follower when operation O is processed at least the
+         *    MUS on the leader when it was executed.
+         *
+         * 4. The following proves that docID(O) does not exist on a follower when operation O is applied if MSU(O) <= LCP < seqno(O):
+         *
+         *    4.1) If such operation O' with docID(O’) = docID(O), and LCP < seqno(O’), then MSU(O) >= MSU(O') because O' was
+         *         delivered to the follower before O. MUS(0') on the leader is at least seqno(O) or seqno(0') and both > LCP.
+         *         This contradicts the assumption [MSU(O) <= LCP].
+         *
+         *    4.2) MSU(O) < seqno(O) then docID(O) does not exist when O is applied on a leader. This means docID(O) does not exist
+         *         after we apply every operation with docID = docID(O) and seqno < seqno(O). On the follower, we have applied every
+         *         operation with seqno <= LCP, and there is no such O' with docID(O’) = docID(O) and LCP < seqno(O’)[4.1].
+         *         These mean the follower has applied every operation with docID = docID(O) and seqno < seqno(O).
+         *         Thus docID(O) does not exist on the follower.
+         */
+        final long maxSeqNoOfUpdatesOrDeletes = getMaxSeqNoOfUpdatesOrDeletes();
+        assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is not initialized";
+        if (containsOperation(index)) {
+            return IndexingStrategy.processButSkipLucene(false, index.seqNo(), index.version());
+
+        } else if (maxSeqNoOfUpdatesOrDeletes <= getLocalCheckpoint()) {
+            assert maxSeqNoOfUpdatesOrDeletes < index.seqNo() : "seq_no[" + index.seqNo() + "] <= msu[" + maxSeqNoOfUpdatesOrDeletes + "]";
+            numOfOptimizedIndexing.inc();
+            return InternalEngine.IndexingStrategy.optimizedAppendOnly(index.seqNo(), index.version());
+
+        } else {
+            return planIndexingAsNonPrimary(index);
+        }
     }
 
     @Override
@@ -85,4 +126,11 @@ public final class FollowingEngine extends InternalEngine {
         return true;
     }
 
+    /**
+     * Returns the number of indexing operations that have been optimized (bypass version lookup) using sequence numbers in this engine.
+     * This metric is not persisted, and started from 0 when the engine is opened.
+     */
+    public long getNumberOfOptimizedIndexing() {
+        return numOfOptimizedIndexing.count();
+    }
 }

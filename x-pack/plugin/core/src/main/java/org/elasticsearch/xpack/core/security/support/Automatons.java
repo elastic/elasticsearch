@@ -19,9 +19,7 @@ import org.elasticsearch.common.util.set.Sets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 
@@ -34,7 +32,7 @@ import static org.elasticsearch.common.Strings.collectionToDelimitedString;
 
 public final class Automatons {
 
-    public static final Setting<Integer> MAX_DETERMINIZED_STATES_SETTING =
+    static final Setting<Integer> MAX_DETERMINIZED_STATES_SETTING =
         Setting.intSetting("xpack.security.automata.max_determinized_states", 100000, DEFAULT_MAX_DETERMINIZED_STATES,
             Setting.Property.NodeScope);
 
@@ -50,7 +48,7 @@ public final class Automatons {
 
     // these values are not final since we allow them to be set at runtime
     private static int maxDeterminizedStates = 100000;
-    private static Cache<Set<String>, Automaton> cache = buildCache(Settings.EMPTY);
+    private static Cache<Object, Automaton> cache = buildCache(Settings.EMPTY);
 
     static final char WILDCARD_STRING = '*';     // String equality with support for wildcards
     static final char WILDCARD_CHAR = '?';       // Char equality with support for wildcards
@@ -73,15 +71,11 @@ public final class Automatons {
         if (patterns.isEmpty()) {
             return EMPTY;
         }
-        // Special handling for single-item lists, because of the shared cache
-        if (patterns.size() == 1) {
-            return pattern(patterns.iterator().next());
-        }
         if (cache == null) {
             return buildAutomaton(patterns);
         } else {
             try {
-                return cache.computeIfAbsent(Sets.newHashSet(patterns), Automatons::buildAutomaton);
+                return cache.computeIfAbsent(Sets.newHashSet(patterns), ignore -> buildAutomaton(patterns));
             } catch (ExecutionException e) {
                 return handleCacheException(e);
             }
@@ -105,7 +99,7 @@ public final class Automatons {
             return buildAutomaton(pattern);
         } else {
             try {
-                return cache.computeIfAbsent(Collections.singleton(pattern), ignore -> buildAutomaton(pattern));
+                return cache.computeIfAbsent(pattern, ignore -> buildAutomaton(pattern));
             } catch (ExecutionException e) {
                 return handleCacheException(e);
             }
@@ -196,11 +190,11 @@ public final class Automatons {
         cache = buildCache(settings);
     }
 
-    private static Cache<Set<String>, Automaton> buildCache(Settings settings) {
+    private static Cache<Object, Automaton> buildCache(Settings settings) {
         if (CACHE_ENABLED.get(settings) == false) {
             return null;
         }
-        return CacheBuilder.<Set<String>, Automaton>builder()
+        return CacheBuilder.<Object, Automaton>builder()
             .setExpireAfterAccess(CACHE_TTL.get(settings))
             .setMaximumWeight(CACHE_SIZE.get(settings))
             .build();

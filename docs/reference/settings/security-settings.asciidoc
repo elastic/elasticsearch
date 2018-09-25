@@ -176,6 +176,11 @@ cache at any given time. Defaults to 100,000.
 in-memory cached user credentials. For possible values, see <<cache-hash-algo>>. 
 Defaults to `ssha256`.
 
+`authentication.enabled`:: If set to `false`, disables authentication support in
+this realm, so that it only supports user lookups.
+(See the {xpack-ref}/run-as-privilege.html[run as] and
+{stack-ov}/realm-chains.html#authorization_realms[authorization realms] features).
+Defaults to `true`.
 
 [[ref-users-settings]]
 
@@ -199,6 +204,12 @@ Defaults to 100,000.
 `cache.hash_algo`::
 (Expert Setting) The hashing algorithm that is used for the in-memory cached
 user credentials. See <<cache-hash-algo>>. Defaults to `ssha256`.
+
+`authentication.enabled`:: If set to `false`, disables authentication support in
+this realm, so that it only supports user lookups.
+(See the {xpack-ref}/run-as-privilege.html[run as] and
+{stack-ov}/realm-chains.html#authorization_realms[authorization realms] features).
+Defaults to `true`.
 
 [[ref-ldap-settings]]
 [float]
@@ -460,6 +471,12 @@ Defaults to `100000`.
 (Expert Setting) Specifies the hashing algorithm that is used for the
 in-memory cached user credentials. See <<cache-hash-algo>>. Defaults to `ssha256`.
 
+`authentication.enabled`:: If set to `false`, disables authentication support in
+this realm, so that it only supports user lookups.
+(See the {xpack-ref}/run-as-privilege.html[run as] and
+{stack-ov}/realm-chains.html#authorization_realms[authorization realms] features).
+Defaults to `true`.
+
 [[ref-ad-settings]]
 [float]
 ===== Active Directory realm settings
@@ -698,6 +715,12 @@ Defaults to `100000`.
 `cache.hash_algo`::
 (Expert Setting) Specifies the hashing algorithm that is used for
 the in-memory cached user credentials. See <<cache-hash-algo>>. Defaults to `ssha256`.
+
+`authentication.enabled`:: If set to `false`, disables authentication support in
+this realm, so that it only supports user lookups.
+(See the {xpack-ref}/run-as-privilege.html[run as] and
+{stack-ov}/realm-chains.html#authorization_realms[authorization realms] features).
+Defaults to `true`.
 
 `follow_referrals`::
 If set to `true` {security} follows referrals returned by the LDAP server. 

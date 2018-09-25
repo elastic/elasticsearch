@@ -102,6 +102,7 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
             return;
         }
         final String[] indices = new String[]{request.getLeaderIndex()};
+        validateClusterAlias(remoteClusterService.getRemoteClusterNames(), request.getLeaderIndex());
         final Map<String, List<String>> remoteClusterIndices = remoteClusterService.groupClusterIndices(indices, s -> false);
         if (remoteClusterIndices.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
             followLocalIndex(request, listener);
@@ -295,6 +296,16 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
         // Validates if the current follower mapping is mergable with the leader mapping.
         // This also validates for example whether specific mapper plugins have been installed
         followerMapperService.merge(leaderIndex, MapperService.MergeReason.MAPPING_RECOVERY);
+    }
+
+    static void validateClusterAlias(Set<String> remoteClusterNames, String leaderIndex) {
+        int indexOf = leaderIndex.indexOf(':');
+        if (indexOf != -1) {
+            String clusterAlias = leaderIndex.substring(0, indexOf);
+            if (remoteClusterNames.contains(clusterAlias) == false) {
+                throw new IllegalArgumentException("unknown cluster alias [" + clusterAlias + "]");
+            }
+        }
     }
 
     private static ShardFollowTask createShardFollowTask(

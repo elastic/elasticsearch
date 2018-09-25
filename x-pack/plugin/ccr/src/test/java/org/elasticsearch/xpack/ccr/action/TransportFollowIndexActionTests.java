@@ -20,12 +20,14 @@ import org.elasticsearch.xpack.ccr.ShardChangesIT;
 import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.ccr.action.TransportFollowIndexAction.validate;
+import static org.elasticsearch.xpack.ccr.action.TransportFollowIndexAction.validateClusterAlias;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransportFollowIndexActionTests extends ESTestCase {
@@ -227,6 +229,14 @@ public class TransportFollowIndexActionTests extends ESTestCase {
         }
 
         return builder.build();
+    }
+
+    public void testValidateClusterAlias() {
+        validateClusterAlias(Collections.singleton("leader_cluster"), "my_index");
+        validateClusterAlias(Collections.singleton("leader_cluster"), "leader_cluster:my_index");
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> validateClusterAlias(Collections.singleton("leader_cluster"), "another_cluster:my_index"));
+        assertThat(e.getMessage(), equalTo("unknown cluster alias [another_cluster]"));
     }
 
 }

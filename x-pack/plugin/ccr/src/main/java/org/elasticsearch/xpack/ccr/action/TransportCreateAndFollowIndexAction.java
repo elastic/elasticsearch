@@ -46,6 +46,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.xpack.ccr.action.TransportFollowIndexAction.validateClusterAlias;
+
 public final class TransportCreateAndFollowIndexAction
         extends TransportMasterNodeAction<CreateAndFollowIndexAction.Request, CreateAndFollowIndexAction.Response> {
 
@@ -102,6 +104,7 @@ public final class TransportCreateAndFollowIndexAction
             return;
         }
         final String[] indices = new String[]{request.getFollowRequest().getLeaderIndex()};
+        validateClusterAlias(remoteClusterService.getRemoteClusterNames(), request.getFollowRequest().getLeaderIndex());
         final Map<String, List<String>> remoteClusterIndices = remoteClusterService.groupClusterIndices(indices, s -> false);
         if (remoteClusterIndices.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
             createFollowerIndexAndFollowLocalIndex(request, state, listener);

@@ -30,7 +30,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -44,28 +43,18 @@ import static org.hamcrest.Matchers.instanceOf;
 public class WaitForRefreshAndCloseIT extends ESRestTestCase {
     @Before
     public void setupIndex() throws IOException {
-        try {
-            client().performRequest(new Request("DELETE", indexName()));
-        } catch (ResponseException e) {
-            // If we get an error, it should be because the index doesn't exist
-            assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
-        }
-        Request request = new Request("PUT", indexName());
+        Request request = new Request("PUT", "/test");
         request.setJsonEntity("{\"settings\":{\"refresh_interval\":-1}}");
         client().performRequest(request);
     }
 
     @After
     public void cleanupIndex() throws IOException {
-        client().performRequest(new Request("DELETE", indexName()));
-    }
-
-    private String indexName() {
-        return getTestName().toLowerCase(Locale.ROOT);
+        client().performRequest(new Request("DELETE", "/test"));
     }
 
     private String docPath() {
-        return indexName() + "/test/1";
+        return "test/_doc/1";
     }
 
     public void testIndexAndThenClose() throws Exception {
@@ -95,12 +84,12 @@ public class WaitForRefreshAndCloseIT extends ESRestTestCase {
         assertBusy(() -> {
             Map<String, Object> stats;
             try {
-                stats = entityAsMap(client().performRequest(new Request("GET", indexName() + "/_stats/refresh")));
+                stats = entityAsMap(client().performRequest(new Request("GET", "/test/_stats/refresh")));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
             Map<?, ?> indices = (Map<?, ?>) stats.get("indices");
-            Map<?, ?> theIndex = (Map<?, ?>) indices.get(indexName());
+            Map<?, ?> theIndex = (Map<?, ?>) indices.get("test");
             Map<?, ?> total = (Map<?, ?>) theIndex.get("total");
             Map<?, ?> refresh = (Map<?, ?>) total.get("refresh");
             int listeners = (Integer) refresh.get("listeners");
@@ -108,7 +97,7 @@ public class WaitForRefreshAndCloseIT extends ESRestTestCase {
         });
 
         // Close the index. That should flush the listener.
-        client().performRequest(new Request("POST", indexName() + "/_close"));
+        client().performRequest(new Request("POST", "/test/_close"));
 
         /*
          * The request may fail, but we really, really, really want to make

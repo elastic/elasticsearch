@@ -47,6 +47,7 @@ import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -114,10 +115,6 @@ public class CoordinatorTests extends ESTestCase {
         logger.info("--> disconnecting leader {}", originalLeader);
         originalLeader.disconnect();
 
-        synchronized (originalLeader.coordinator.mutex) {
-            originalLeader.coordinator.becomeCandidate("simulated failure detection"); // TODO remove once follower checker is integrated
-        }
-
         cluster.stabilise();
         assertThat(cluster.getAnyLeader().getId(), not(equalTo(originalLeader.getId())));
     }
@@ -130,14 +127,23 @@ public class CoordinatorTests extends ESTestCase {
         logger.info("--> partitioning leader {}", originalLeader);
         originalLeader.partition();
 
-        synchronized (originalLeader.coordinator.mutex) {
-            originalLeader.coordinator.becomeCandidate("simulated failure detection"); // TODO remove once follower checker is integrated
-        }
-
         cluster.stabilise(Cluster.DEFAULT_STABILISATION_TIME
             + (LEADER_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).millis() + LEADER_CHECK_TIMEOUT_SETTING.get(Settings.EMPTY).millis())
             * LEADER_CHECK_RETRY_COUNT_SETTING.get(Settings.EMPTY));
         assertThat(cluster.getAnyLeader().getId(), not(equalTo(originalLeader.getId())));
+    }
+
+    public void testFollowerDisconnectionDetectedQuickly() {
+        final Cluster cluster = new Cluster(randomIntBetween(3, 5));
+        cluster.stabilise();
+
+        final ClusterNode leader = cluster.getAnyLeader();
+        final ClusterNode follower = cluster.getAnyNodeExcept(leader);
+        logger.info("--> disconnecting follower {}", follower);
+        follower.disconnect();
+
+        cluster.stabilise();
+        assertThat(cluster.getAnyLeader().getId(), equalTo(leader.getId()));
     }
 
     private static String nodeIdFromIndex(int nodeIndex) {
@@ -203,13 +209,21 @@ public class CoordinatorTests extends ESTestCase {
                 }
 
                 if (deterministicTaskQueue.hasDeferredTasks() == false) {
-                    break; // TODO when fault detection is enabled this should be removed, as there should _always_ be deferred tasks
+                    // A 1-node cluster has no need for fault detection etc so will eventually run out of things to do.
+                    assert clusterNodes.size() == 1 : clusterNodes.size();
+                    break;
                 }
 
                 deterministicTaskQueue.advanceTime();
             }
 
             assertUniqueLeaderAndExpectedModes();
+        }
+
+        private boolean isConnectedPair(ClusterNode n1, ClusterNode n2) {
+            return n1 == n2 ||
+                (getConnectionStatus(n1.getLocalNode(), n2.getLocalNode()) == ConnectionStatus.CONNECTED
+                    && getConnectionStatus(n2.getLocalNode(), n1.getLocalNode()) == ConnectionStatus.CONNECTED);
         }
 
         private void assertUniqueLeaderAndExpectedModes() {
@@ -221,6 +235,7 @@ public class CoordinatorTests extends ESTestCase {
             assertThat(leader.coordinator.getLastCommittedState().map(ClusterState::getVersion), isPresentAndEqualToLeaderVersion);
             assertThat(leader.coordinator.getLastCommittedState().map(ClusterState::getNodes).map(dn -> dn.nodeExists(leader.getId())),
                 equalTo(Optional.of(true)));
+
 
             for (final ClusterNode clusterNode : clusterNodes) {
                 if (clusterNode == leader) {
@@ -245,8 +260,9 @@ public class CoordinatorTests extends ESTestCase {
                 }
             }
 
+            int connectedNodeCount = Math.toIntExact(clusterNodes.stream().filter(n -> isConnectedPair(leader, n)).count());
             assertThat(leader.coordinator.getLastCommittedState().map(ClusterState::getNodes).map(DiscoveryNodes::getSize),
-                equalTo(Optional.of(clusterNodes.size())));
+                equalTo(Optional.of(connectedNodeCount)));
         }
 
         ClusterNode getAnyLeader() {
@@ -265,6 +281,14 @@ public class CoordinatorTests extends ESTestCase {
                 connectionStatus = ConnectionStatus.CONNECTED;
             }
             return connectionStatus;
+        }
+
+        ClusterNode getAnyNodeExcept(ClusterNode... clusterNodes) {
+            Set<String> forbiddenIds = Arrays.stream(clusterNodes).map(ClusterNode::getId).collect(Collectors.toSet());
+            List<ClusterNode> acceptableNodes
+                = this.clusterNodes.stream().filter(n -> forbiddenIds.contains(n.getId()) == false).collect(Collectors.toList());
+            assert acceptableNodes.isEmpty() == false;
+            return randomFrom(acceptableNodes);
         }
 
         class ClusterNode extends AbstractComponent {

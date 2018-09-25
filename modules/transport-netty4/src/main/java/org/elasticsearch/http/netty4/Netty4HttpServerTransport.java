@@ -250,9 +250,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 } else {
                     builder = Netty4CorsConfigBuilder.forPattern(p);
                 }
-            }
-            catch (PatternSyntaxException e) {
-                throw new SettingsException("Bad regex in " + SETTING_CORS_ALLOW_ORIGIN.getKey() + ": " + origin, e);
+            } catch (PatternSyntaxException e) {
+                throw new SettingsException("Bad regex in [" + SETTING_CORS_ALLOW_ORIGIN.getKey() + "]: [" + origin + "]", e);
             }
         }
         if (SETTING_CORS_ALLOW_CREDENTIALS.get(settings)) {

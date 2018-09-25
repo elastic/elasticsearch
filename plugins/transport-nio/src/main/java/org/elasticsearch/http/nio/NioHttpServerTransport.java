@@ -185,9 +185,8 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
                 } else {
                     builder = NioCorsConfigBuilder.forPattern(p);
                 }
-            }
-            catch (PatternSyntaxException e) {
-                throw new SettingsException("Bad regex in " + SETTING_CORS_ALLOW_ORIGIN.getKey() + ": " + origin, e);
+            } catch (PatternSyntaxException e) {
+                throw new SettingsException("Bad regex in [" + SETTING_CORS_ALLOW_ORIGIN.getKey() + "]: [" + origin + "]", e);
             }
         }
         if (SETTING_CORS_ALLOW_CREDENTIALS.get(settings)) {

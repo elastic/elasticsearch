@@ -157,7 +157,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
             .build();
         SettingsException e = expectThrows(SettingsException.class, () -> Netty4HttpServerTransport.buildCorsConfig(settings));
-        assertThat(e.getMessage(), containsString("Bad regex in http.cors.allow-origin: /[*/"));
+        assertThat(e.getMessage(), containsString("Bad regex in [http.cors.allow-origin]: [/[*/]"));
         assertThat(e.getCause(), instanceOf(PatternSyntaxException.class));
     }
 

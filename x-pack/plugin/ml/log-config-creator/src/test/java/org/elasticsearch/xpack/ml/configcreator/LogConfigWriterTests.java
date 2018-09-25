@@ -348,7 +348,7 @@ public class LogConfigWriterTests extends LogConfigCreatorTestCase {
                 containsString("encoding: '" + charset.toLowerCase(Locale.ROOT) + "'"));
         }
         assertThat(logConfigWriter.getFilebeatToLogstashConfig(),
-            containsString("multiline.pattern: '^\\[\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}'\n"));
+            containsString("multiline.pattern: '^\\[\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2},\\d{3}'\n"));
         assertThat(logConfigWriter.getFilebeatToLogstashConfig(), containsString(logstashHost));
         assertThat(logConfigWriter.getLogstashFromFilebeatConfig(),
             containsString("match => { \"message\" => \"\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} \\]" +
@@ -364,7 +364,11 @@ public class LogConfigWriterTests extends LogConfigCreatorTestCase {
             containsString("match => { \"message\" => \"\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} \\]" +
                 "\\[.*\" }\n"));
         assertThat(logConfigWriter.getLogstashFromFileConfig(), containsString("match => [ \"timestamp\", \"ISO8601\" ]\n"));
-        assertThat(logConfigWriter.getLogstashFromFileConfig(), not(containsString("timezone =>")));
+        if (timezone == null) {
+            assertThat(logConfigWriter.getLogstashFromFileConfig(), not(containsString("timezone =>")));
+        } else {
+            assertThat(logConfigWriter.getLogstashFromFileConfig(), containsString("timezone => \"" + timezone + "\"\n"));
+        }
         assertThat(logConfigWriter.getLogstashFromFileConfig(), containsString(elasticsearchHost));
         if (charset.equals(StandardCharsets.UTF_8.name())) {
             assertThat(logConfigWriter.getFilebeatToIngestPipelineConfig(), not(containsString("encoding:")));
@@ -373,7 +377,7 @@ public class LogConfigWriterTests extends LogConfigCreatorTestCase {
                 containsString("encoding: '" + charset.toLowerCase(Locale.ROOT) + "'"));
         }
         assertThat(logConfigWriter.getFilebeatToIngestPipelineConfig(),
-            containsString("multiline.pattern: '^\\[\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}'\n"));
+            containsString("multiline.pattern: '^\\[\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2},\\d{3}'\n"));
         assertThat(logConfigWriter.getFilebeatToIngestPipelineConfig(), containsString(elasticsearchHost));
         assertThat(logConfigWriter.getIngestPipelineFromFilebeatConfig(),
             containsString("\"patterns\": [ \"\\\\[%{TIMESTAMP_ISO8601:timestamp}\\\\]\\\\[%{LOGLEVEL:loglevel} \\\\]" +

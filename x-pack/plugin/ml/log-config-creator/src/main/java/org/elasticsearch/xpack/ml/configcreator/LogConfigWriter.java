@@ -570,14 +570,14 @@ public final class LogConfigWriter {
         String logstashFromFileDateFilter = "";
         String ingestPipelineDateProcessor = "";
         if (structure.getTimestampField() != null) {
-            logstashFromFilebeatDateFilter = makeLogstashDateFilter(structure.getTimestampField(), structure.getTimestampFormats(),
+            logstashFromFilebeatDateFilter = makeLogstashDateFilter(structure.getTimestampField(), structure.getJodaTimestampFormats(),
                 structure.needClientTimezone(), true);
-            logstashFromFileDateFilter = makeLogstashDateFilter(structure.getTimestampField(), structure.getTimestampFormats(),
+            logstashFromFileDateFilter = makeLogstashDateFilter(structure.getTimestampField(), structure.getJodaTimestampFormats(),
                 structure.needClientTimezone(), false);
             String jsonEscapedField = structure.getTimestampField().replaceAll("([\\\\\"])", "\\\\$1").replace("\t", "\\t");
             ingestPipelineDateProcessor = String.format(Locale.ROOT, JSON_INGEST_PIPELINE_DATE_PROCESSOR_TEMPLATE, jsonEscapedField,
                 makeIngestPipelineTimezoneSetting(structure.needClientTimezone()),
-                structure.getTimestampFormats().stream().collect(Collectors.joining("\", \"", "\"", "\"")));
+                structure.getJodaTimestampFormats().stream().collect(Collectors.joining("\", \"", "\"", "\"")));
         }
 
         String filebeatInputOptions = makeFilebeatInputOptions(null, null, structure.getCharset());
@@ -603,9 +603,9 @@ public final class LogConfigWriter {
         String logstashFromFileDateFilter = "";
         if (structure.getTimestampField() != null) {
             String timeFieldPath = "[" + topLevelTag + "][" + structure.getTimestampField() + "]";
-            logstashFromFilebeatDateFilter = makeLogstashDateFilter(timeFieldPath, structure.getTimestampFormats(),
+            logstashFromFilebeatDateFilter = makeLogstashDateFilter(timeFieldPath, structure.getJodaTimestampFormats(),
                 structure.needClientTimezone(), true);
-            logstashFromFileDateFilter = makeLogstashDateFilter(timeFieldPath, structure.getTimestampFormats(),
+            logstashFromFileDateFilter = makeLogstashDateFilter(timeFieldPath, structure.getJodaTimestampFormats(),
                 structure.needClientTimezone(), false);
         }
 
@@ -626,9 +626,9 @@ public final class LogConfigWriter {
         String logstashFromFilebeatDateFilter = "";
         String logstashFromFileDateFilter = "";
         if (structure.getTimestampField() != null) {
-            logstashFromFilebeatDateFilter = makeLogstashDateFilter(structure.getTimestampField(), structure.getTimestampFormats(),
+            logstashFromFilebeatDateFilter = makeLogstashDateFilter(structure.getTimestampField(), structure.getJodaTimestampFormats(),
                 structure.needClientTimezone(), true);
-            logstashFromFileDateFilter = makeLogstashDateFilter(structure.getTimestampField(), structure.getTimestampFormats(),
+            logstashFromFileDateFilter = makeLogstashDateFilter(structure.getTimestampField(), structure.getJodaTimestampFormats(),
                 structure.needClientTimezone(), false);
         }
 
@@ -660,7 +660,7 @@ public final class LogConfigWriter {
         String grokPattern = structure.getGrokPattern();
         String grokQuote = bestLogstashQuoteFor(grokPattern);
         String interimTimestampField = structure.getTimestampField();
-        String dateFormatsStr = structure.getTimestampFormats().stream().collect(Collectors.joining("\", \"", "\"", "\""));
+        String dateFormatsStr = structure.getJodaTimestampFormats().stream().collect(Collectors.joining("\", \"", "\"", "\""));
 
         String filebeatInputOptions = makeFilebeatInputOptions(structure.getMultilineStartPattern(), null, structure.getCharset());
         filebeatToLogstashConfig = String.format(Locale.ROOT, TEXT_FILEBEAT_TO_LOGSTASH_TEMPLATE, filebeatInputOptions,

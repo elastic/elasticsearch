@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
@@ -124,8 +123,6 @@ public class SSLDriverTests extends ESTestCase {
     }
 
     public void testHandshakeFailureBecauseProtocolMismatch() throws Exception {
-        // See https://github.com/elastic/elasticsearch/issues/33751
-        assumeTrue("test fails on JDK 11 >= ea28 currently", JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0);
         SSLContext sslContext = getSSLContext();
         SSLEngine clientEngine = sslContext.createSSLEngine();
         SSLEngine serverEngine = sslContext.createSSLEngine();
@@ -138,7 +135,7 @@ public class SSLDriverTests extends ESTestCase {
 
         SSLException sslException = expectThrows(SSLException.class, () -> handshake(clientDriver, serverDriver));
         String oldExpected = "Client requested protocol TLSv1.1 not enabled or not supported";
-        String jdk11Expected = "Received fatal alert: protocol_version";
+        String jdk11Expected = "The client supported protocol versions [TLSv1.1] are not accepted by server preferences [TLS12]";
         boolean expectedMessage = oldExpected.equals(sslException.getMessage()) || jdk11Expected.equals(sslException.getMessage());
         assertTrue("Unexpected exception message: " + sslException.getMessage(), expectedMessage);
 
@@ -176,7 +173,6 @@ public class SSLDriverTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32144")
     public void testCloseDuringHandshake() throws Exception {
         SSLContext sslContext = getSSLContext();
         SSLDriver clientDriver = getDriver(sslContext.createSSLEngine(), true);

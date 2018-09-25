@@ -347,7 +347,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
             roles.add(DiscoveryNode.Role.DATA);
             roles.add(DiscoveryNode.Role.MASTER);
             roles.add(DiscoveryNode.Role.INGEST);
-            nodesBuilder.add(new DiscoveryNode(randomAlphaOfLength(i+1),
+            nodesBuilder.add(new DiscoveryNode("ml-feature-set-given-ml-node-" + i,
                 new TransportAddress(TransportAddress.META_ADDRESS, 9100 + i),
                 attrs,
                 roles,
@@ -359,7 +359,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
             roles.add(DiscoveryNode.Role.DATA);
             roles.add(DiscoveryNode.Role.MASTER);
             roles.add(DiscoveryNode.Role.INGEST);
-            nodesBuilder.add(new DiscoveryNode(randomAlphaOfLength(i+1),
+            nodesBuilder.add(new DiscoveryNode("ml-feature-set-given-non-ml-node-" + i,
                 new TransportAddress(TransportAddress.META_ADDRESS, 9300 + i),
                 attrs,
                 roles,

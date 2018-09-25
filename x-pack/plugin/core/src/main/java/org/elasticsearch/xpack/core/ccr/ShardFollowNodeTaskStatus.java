@@ -381,7 +381,10 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         out.writeMap(
                 fetchExceptions,
                 StreamOutput::writeVLong,
-                (stream, value) -> { stream.writeVInt(value.v1()); stream.writeException(value.v2()); });
+                (stream, value) -> {
+                    stream.writeVInt(value.v1());
+                    stream.writeException(value.v2());
+                });
         out.writeZLong(timeSinceLastFetchMillis);
     }
 
@@ -526,6 +529,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         return status.fetchExceptions().values().stream().map(t -> t.v2().getMessage()).collect(Collectors.toList());
     }
 
+    @Override
     public String toString() {
         return Strings.toString(this);
     }

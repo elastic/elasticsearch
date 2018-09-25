@@ -40,6 +40,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -263,7 +264,7 @@ public class JoinHelper extends AbstractComponent {
             assert closed == false : "CandidateJoinAccumulator closed";
             closed = true;
             if (newMode == Mode.LEADER) {
-                final Map<JoinTaskExecutor.Task, ClusterStateTaskListener> pendingAsTasks = new HashMap<>();
+                final Map<JoinTaskExecutor.Task, ClusterStateTaskListener> pendingAsTasks = new LinkedHashMap<>();
                 joinRequestAccumulator.forEach((key, value) -> {
                     final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(key, "elect leader");
                     pendingAsTasks.put(task, new JoinTaskListener(task, value));

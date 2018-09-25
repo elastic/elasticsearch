@@ -257,6 +257,11 @@ public class FollowersChecker extends AbstractComponent {
                 TransportRequestOptions.builder().withTimeout(followerCheckTimeout).withType(Type.PING).build(),
                 new TransportResponseHandler<Empty>() {
                     @Override
+                    public Empty read(StreamInput in) {
+                        return Empty.INSTANCE;
+                    }
+
+                    @Override
                     public void handleResponse(Empty response) {
                         if (running() == false) {
                             logger.trace("{} no longer running", FollowerChecker.this);

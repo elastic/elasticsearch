@@ -1086,6 +1086,19 @@ public abstract class TransportReplicationAction<
             return globalCheckpoint;
         }
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ReplicaResponse that = (ReplicaResponse) o;
+            return localCheckpoint == that.localCheckpoint &&
+                globalCheckpoint == that.globalCheckpoint;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(localCheckpoint, globalCheckpoint);
+        }
     }
 
     /**

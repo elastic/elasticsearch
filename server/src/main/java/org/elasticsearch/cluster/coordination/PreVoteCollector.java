@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -33,6 +34,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
@@ -127,6 +129,11 @@ public class PreVoteCollector extends AbstractComponent {
             logger.debug("{} requesting pre-votes from {}", this, broadcastNodes);
             broadcastNodes.forEach(n -> transportService.sendRequest(n, REQUEST_PRE_VOTE_ACTION_NAME, preVoteRequest,
                 new TransportResponseHandler<PreVoteResponse>() {
+                    @Override
+                    public PreVoteResponse read(StreamInput in) throws IOException {
+                        return new PreVoteResponse(in);
+                    }
+
                     @Override
                     public void handleResponse(PreVoteResponse response) {
                         handlePreVoteResponse(response, n);

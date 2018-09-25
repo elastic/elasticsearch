@@ -70,6 +70,10 @@ public abstract class Publication extends AbstractComponent {
     }
 
     public void onTimeout() {
+        if (isCompleted) {
+            return;
+        }
+
         assert timedOut == false;
         timedOut = true;
         if (applyCommitRequest.isPresent() == false) {

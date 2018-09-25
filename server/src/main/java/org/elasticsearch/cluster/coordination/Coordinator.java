@@ -123,6 +123,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     PublishWithJoinResponse handlePublishRequest(PublishRequest publishRequest) {
+        assert publishRequest.getAcceptedState().nodes().getLocalNode().equals(getLocalNode()) :
+            publishRequest.getAcceptedState().nodes().getLocalNode() + " != " + getLocalNode();
+
         synchronized (mutex) {
             final DiscoveryNode sourceNode = publishRequest.getAcceptedState().nodes().getMasterNode();
             logger.trace("handlePublishRequest: handling [{}] from [{}]", publishRequest, sourceNode);
@@ -564,7 +567,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 transportService.getThreadPool().schedule(publishTimeout, Names.GENERIC, new Runnable() {
                     @Override
                     public void run() {
-                        publication.onTimeout();
+                        synchronized (mutex) {
+                            publication.onTimeout();
+                        }
                     }
 
                     @Override

@@ -1008,6 +1008,38 @@
               "type": "long"
             }
           }
+        },
+        "ccr_auto_follow_stats" : {
+          "properties": {
+            "number_of_failed_follow_indices": {
+              "type": "long"
+            },
+            "number_of_failed_remote_cluster_state_requests": {
+              "type": "long"
+            },
+            "number_of_successful_follow_indices": {
+              "type": "long"
+            },
+            "recent_auto_follow_errors": {
+              "type": "nested",
+              "properties": {
+                "leader_index": {
+                  "type": "keyword"
+                },
+                "auto_follow_exception": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "keyword"
+                    },
+                    "reason": {
+                      "type": "text"
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     }

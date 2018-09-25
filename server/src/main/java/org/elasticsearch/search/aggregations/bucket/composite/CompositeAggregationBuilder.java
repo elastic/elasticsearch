@@ -193,11 +193,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         builder.field(SIZE_FIELD_NAME.getPreferredName(), size);
         builder.startArray(SOURCES_FIELD_NAME.getPreferredName());
         for (CompositeValuesSourceBuilder<?> source: sources) {
-            builder.startObject();
-            builder.startObject(source.name());
-            source.toXContent(builder, params);
-            builder.endObject();
-            builder.endObject();
+            CompositeValuesSourceParserHelper.toXContent(source, builder, params);
         }
         builder.endArray();
         if (after != null) {

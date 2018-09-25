@@ -288,7 +288,6 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
     }
 
     // simulate handling of sending shard failure during an isolation
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33704")
     public void testSendingShardFailure() throws Exception {
         List<String> nodes = startCluster(3, 2);
         String masterNode = internalCluster().getMasterName();

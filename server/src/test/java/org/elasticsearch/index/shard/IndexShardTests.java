@@ -895,23 +895,17 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(replicaShard, primaryShard);
     }
 
-    public void testRestoreLocalCheckpointTrackerFromTranslogOnPromotion() throws IOException, InterruptedException {
+    public void testRestoreLocalHistoryFromTranslogOnPromotion() throws IOException, InterruptedException {
         final IndexShard indexShard = newStartedShard(false);
         final int operations = 1024 - scaledRandomIntBetween(0, 1024);
         indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED));
 
         final long maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
-        final long globalCheckpointOnReplica = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        randomIntBetween(
-                Math.toIntExact(SequenceNumbers.UNASSIGNED_SEQ_NO),
-                Math.toIntExact(indexShard.getLocalCheckpoint()));
+        final long globalCheckpointOnReplica = randomLongBetween(SequenceNumbers.UNASSIGNED_SEQ_NO, indexShard.getLocalCheckpoint());
         indexShard.updateGlobalCheckpointOnReplica(globalCheckpointOnReplica, "test");
 
-        final int globalCheckpoint =
-                randomIntBetween(
-                        Math.toIntExact(SequenceNumbers.UNASSIGNED_SEQ_NO),
-                        Math.toIntExact(indexShard.getLocalCheckpoint()));
-
+        final long globalCheckpoint = randomLongBetween(SequenceNumbers.UNASSIGNED_SEQ_NO, indexShard.getLocalCheckpoint());
+        final Set<String> docsBeforeRollback = getShardDocUIDs(indexShard);
         final CountDownLatch latch = new CountDownLatch(1);
         indexShard.acquireReplicaOperationPermit(
                 indexShard.getPendingPrimaryTerm() + 1,
@@ -945,6 +939,8 @@ public class IndexShardTests extends IndexShardTestCase {
         resyncLatch.await();
         assertThat(indexShard.getLocalCheckpoint(), equalTo(maxSeqNo));
         assertThat(indexShard.seqNoStats().getMaxSeqNo(), equalTo(maxSeqNo));
+        assertThat(getShardDocUIDs(indexShard), equalTo(docsBeforeRollback));
+        assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNo));
         closeShard(indexShard, false);
     }
 
@@ -1700,6 +1696,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(newShard.getLocalCheckpoint(), equalTo(totalOps - 1L));
         assertThat(newShard.getReplicationTracker().getTrackedLocalCheckpointForShard(newShard.routingEntry().allocationId().getId())
                 .getLocalCheckpoint(), equalTo(totalOps - 1L));
+        assertThat(newShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(totalOps - 1L));
         assertDocCount(newShard, totalOps);
         assertThat(newShard.getHistoryUUID(), equalTo(historyUUID));
         closeShards(newShard);
@@ -2195,8 +2192,9 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
             }) {
                 @Override
-                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException {
-                    final long localCheckpoint = super.indexTranslogOperations(operations, totalTranslogOps);
+                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
+                                                    long maxSeenAutoIdTimestamp) throws IOException {
+                    final long localCheckpoint = super.indexTranslogOperations(operations, totalTranslogOps, maxSeenAutoIdTimestamp);
                     assertFalse(replica.isSyncNeeded());
                     return localCheckpoint;
                 }
@@ -2302,8 +2300,9 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
             }) {
                 @Override
-                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException {
-                    final long localCheckpoint = super.indexTranslogOperations(operations, totalTranslogOps);
+                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
+                                                    long maxAutoIdTimestamp) throws IOException {
+                    final long localCheckpoint = super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp);
                     // Shard should now be active since we did recover:
                     assertTrue(replica.isActive());
                     return localCheckpoint;
@@ -2349,8 +2348,9 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
 
                 @Override
-                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException {
-                    final long localCheckpoint = super.indexTranslogOperations(operations, totalTranslogOps);
+                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
+                                                    long maxAutoIdTimestamp) throws IOException {
+                    final long localCheckpoint = super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp);
                     assertListenerCalled.accept(replica);
                     return localCheckpoint;
                 }

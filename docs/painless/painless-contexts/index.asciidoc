@@ -1,10 +1,10 @@
 include::painless-ingest-processor-context.asciidoc[]
 
+include::painless-reindex-context.asciidoc[]
+
 include::painless-update-context.asciidoc[]
 
 include::painless-update-by-query-context.asciidoc[]
-
-include::painless-reindex-context.asciidoc[]
 
 include::painless-sort-context.asciidoc[]
 

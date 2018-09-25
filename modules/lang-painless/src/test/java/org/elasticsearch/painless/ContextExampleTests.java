@@ -19,6 +19,9 @@
 
 package org.elasticsearch.painless;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * These tests run the Painless scripts used in the context docs against
  * slightly modified data designed around unit tests rather than a fully-
@@ -26,7 +29,9 @@ package org.elasticsearch.painless;
  */
 public class ContextExampleTests extends ScriptTestCase {
 
-    // **** Docs Generator Code ****
+// *** SETUP ***
+
+    // Docs Generator Code:
 
     /*
 
@@ -204,7 +209,7 @@ public class ContextExampleTests extends ScriptTestCase {
 
     */
 
-    // **** Initial Mappings ****
+    // Initial Mappings:
 
     /*
 
@@ -231,6 +236,8 @@ public class ContextExampleTests extends ScriptTestCase {
 
     */
 
+// *** EXAMPLE: INGEST ***
+
     // Create Ingest to Modify Dates:
 
     /*
@@ -252,54 +259,56 @@ public class ContextExampleTests extends ScriptTestCase {
 
     public void testIngestProcessorScript() {
         assertEquals(1535785200000L,
-            exec("String[] split(String s, char d) {" +
-                "    int count = 0;" +
-                "    for (char c : s.toCharArray()) {" +
-                "        if (c == d) {" +
-                "            ++count;" +
-                "        }" +
-                "    }" +
-                "    if (count == 0) {" +
-                "        return new String[] {s};" +
-                "    }" +
-                "    String[] r = new String[count + 1];" +
-                "    int i0 = 0, i1 = 0;" +
-                "    count = 0;" +
-                "    for (char c : s.toCharArray()) {" +
-                "        if (c == d) {" +
-                "            r[count++] = s.substring(i0, i1);" +
-                "            i0 = i1 + 1;" +
-                "        }" +
-                "        ++i1;" +
-                "    }" +
-                "    r[count] = s.substring(i0, i1);" +
-                "    return r;" +
-                "}" +
-                "def x = ['date': '2018-9-1', 'time': '3:00 PM'];" +
-                "String[] dateSplit = split(x.date, (char)'-');" +
-                "String year = dateSplit[0].trim();" +
-                "String month = dateSplit[1].trim();" +
-                "if (month.length() == 1) {" +
-                "    month = '0' + month;" +
-                "}" +
-                "String day = dateSplit[2].trim();" +
-                "if (day.length() == 1) {" +
-                "    day = '0' + day;" +
-                "}" +
-                "boolean pm = x.time.substring(x.time.length() - 2).equals('PM');" +
-                "String[] timeSplit = split(x.time.substring(0, x.time.length() - 2), (char)':');" +
-                "int hours = Integer.parseInt(timeSplit[0].trim());" +
-                "String minutes = timeSplit[1].trim();" +
-                "if (pm) {" +
-                "    hours += 12;" +
-                "}" +
-                "String dts = year + '-' + month + '-' + day + " +
-                "'T' + (hours < 10 ? '0' + hours : '' + hours) + ':' + minutes + ':00+08:00';" +
-                "ZonedDateTime dt = ZonedDateTime.parse(dts, DateTimeFormatter.ISO_OFFSET_DATE_TIME);" +
-                "return dt.getLong(ChronoField.INSTANT_SECONDS) * 1000L"
-            )
+                exec("String[] split(String s, char d) {" +
+                     "    int count = 0;" +
+                     "    for (char c : s.toCharArray()) {" +
+                     "        if (c == d) {" +
+                     "            ++count;" +
+                     "        }" +
+                     "    }" +
+                     "    if (count == 0) {" +
+                     "        return new String[] {s};" +
+                     "    }" +
+                     "    String[] r = new String[count + 1];" +
+                     "    int i0 = 0, i1 = 0;" +
+                     "    count = 0;" +
+                     "    for (char c : s.toCharArray()) {" +
+                     "        if (c == d) {" +
+                     "            r[count++] = s.substring(i0, i1);" +
+                     "            i0 = i1 + 1;" +
+                     "        }" +
+                     "        ++i1;" +
+                     "    }" +
+                     "    r[count] = s.substring(i0, i1);" +
+                     "    return r;" +
+                     "}" +
+                     "def x = ['date': '2018-9-1', 'time': '3:00 PM'];" +
+                     "String[] dateSplit = split(x.date, (char)'-');" +
+                     "String year = dateSplit[0].trim();" +
+                     "String month = dateSplit[1].trim();" +
+                     "if (month.length() == 1) {" +
+                     "    month = '0' + month;" +
+                     "}" +
+                     "String day = dateSplit[2].trim();" +
+                     "if (day.length() == 1) {" +
+                     "    day = '0' + day;" +
+                     "}" +
+                     "boolean pm = x.time.substring(x.time.length() - 2).equals('PM');" +
+                     "String[] timeSplit = split(x.time.substring(0, x.time.length() - 2), (char)':');" +
+                     "int hours = Integer.parseInt(timeSplit[0].trim());" +
+                     "String minutes = timeSplit[1].trim();" +
+                     "if (pm) {" +
+                     "    hours += 12;" +
+                     "}" +
+                     "String dts = year + '-' + month + '-' + day + " +
+                     "'T' + (hours < 10 ? '0' + hours : '' + hours) + ':' + minutes + ':00+08:00';" +
+                     "ZonedDateTime dt = ZonedDateTime.parse(dts, DateTimeFormatter.ISO_OFFSET_DATE_TIME);" +
+                     "return dt.getLong(ChronoField.INSTANT_SECONDS) * 1000L"
+                )
         );
     }
+
+// *** UPLOAD ***
 
     // Post Generated Data:
 
@@ -308,4 +317,125 @@ public class ContextExampleTests extends ScriptTestCase {
     curl -XPOST localhost:9200/seats/seat/_bulk?pipeline=seats -H "Content-Type: application/x-ndjson" --data-binary "@/home/jdconrad/test/seats.json"
 
     */
+
+// *** EXAMPLE: REINDEX ***
+
+    // Create Mappings for Reindex:
+
+    /*
+
+    curl -X PUT "localhost:9200/afternoon" -H 'Content-Type: application/json' -d'
+    {
+      "mappings": {
+        "seat": {
+          "properties": {
+            "theatre":       { "type": "keyword" },
+            "play":          { "type": "text"    },
+            "actors":        { "type": "text"    },
+            "row":           { "type": "integer" },
+            "number":        { "type": "integer" },
+            "cost":          { "type": "double"  },
+            "sold":          { "type": "boolean" },
+            "sold_datetime": { "type": "date"    },
+            "datetime":      { "type": "date"    }
+          }
+        }
+      }
+    }
+    '
+
+    */
+
+    /*
+
+    curl -X PUT "localhost:9200/evening" -H 'Content-Type: application/json' -d'
+    {
+      "mappings": {
+        "seat": {
+          "properties": {
+            "theatre":       { "type": "keyword" },
+            "play":          { "type": "text"    },
+            "actors":        { "type": "text"    },
+            "row":           { "type": "integer" },
+            "number":        { "type": "integer" },
+            "cost":          { "type": "double"  },
+            "sold":          { "type": "boolean" },
+            "sold_datetime": { "type": "date"    },
+            "datetime":      { "type": "date"    }
+          }
+        }
+      }
+    }
+    '
+
+    */
+
+    // Use the reindex script to create afternoon and evening indexes
+
+    /*
+
+    curl -X POST "localhost:9200/_reindex" -H 'Content-Type: application/json' -d'
+    {
+        "source": {
+            "index": "seats"
+        },
+        "dest": {
+            "index": "afternoon"
+        },
+        "script": {
+            "source": "void setSold(Map _source) { if ((_source[\"number\"] + _source[\"row\"] % 4) % 3 == 0 || _source[\"number\"] % 5 == 0) { _source[\"sold\"] = true; _source[\"sold_datetime\"] = _source[\"datetime\"] - 86400000 * (1 + _source[\"number\"] % 14); } } void removeExtraneous(Map _source) { _source.remove(\"date\"); _source.remove(\"time\"); } setSold(ctx[\"_source\"]); removeExtraneous(ctx[\"_source\"]); Instant instant = Instant.ofEpochMilli(ctx[\"_source\"][\"datetime\"]); ZonedDateTime dt = instant.atZone(ZoneId.of(\"GMT+8\")); if (dt.getHour() > 16) { ctx[\"_index\"] = \"evening\"; }"
+        }
+    }
+    '
+
+    */
+
+    public void testReindexScript() {
+        Map<String, Object> _source = new HashMap();
+        _source.put("number", 10);
+        _source.put("row", 1);
+        _source.put("sold", true);
+        _source.put("datetime", 1522573200000L);
+        _source.put("sold_datetime", 1521622800000L);
+        Map<String, Object> ctx = new HashMap<>();
+        ctx.put("_source", _source);
+        ctx.put("_index", "evening");
+
+        assertEquals(ctx, exec(
+                "void setSold(Map _source) {" +
+                "    if ((_source[\"number\"] + _source[\"row\"] % 4) % 3 == 0 || _source[\"number\"] % 5 == 0) {" +
+                "        _source[\"sold\"] = true;" +
+                "        _source[\"sold_datetime\"] = _source[\"datetime\"] - 86400000 * (1 + _source[\"number\"] % 14);" +
+                "    }" +
+                "}" +
+                "" +
+                "void removeExtraneous(Map _source) {" +
+                "    _source.remove(\"date\");" +
+                "    _source.remove(\"time\");" +
+                "}" +
+                "" +
+                "Map _source = new HashMap();" +
+                "_source[\"number\"] = 10;" +
+                "_source[\"row\"] = 1;" +
+                "_source[\"sold\"] = false;" +
+                "_source[\"datetime\"] = 1522573200000L;" +
+                "_source[\"date\"] = \"2018-08-17\";" +
+                "_source[\"time\"] = \"12:30PM\";" +
+                "Map rtn = new HashMap();" +
+                "rtn[\"_source\"] = _source;" +
+                "" +
+                "setSold(rtn[\"_source\"]);" +
+                "removeExtraneous(rtn[\"_source\"]);" +
+                "" +
+                "Instant instant = Instant.ofEpochMilli(rtn[\"_source\"][\"datetime\"]);" +
+                "ZonedDateTime dt = instant.atZone(ZoneId.of(\"GMT+8\"));" +
+                "" +
+                "if (dt.getHour() > 16) {" +
+                "    rtn[\"_index\"] = \"evening\";" +
+                "}" +
+                "" +
+                "return rtn;"
+            )
+        );
+    }
 }

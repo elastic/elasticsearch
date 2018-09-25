@@ -66,3 +66,183 @@ reindexed into a target index.
 *API*
 
 The standard <<painless-api-reference, Painless API>> is available.
+
+*Example*
+
+To run this example, first follow the steps in
+<<painless-context-examples, context examples>>.
+
+The example reindex script accomplishes the following:
+
+* Separates the `seats` index into two different new indexes - `afternoon` and
+  `evening` based on when a play begins.
+* Removes the `date` and `time` fields that are extraneous since the
+  <<painless-ingest-processor-context, ingest example>> added a single combined
+  `datetime` field.
+* Adds a `sold_datetime` field to each document that is filled in with the
+  current date and time of when a seat is sold.
+* Sets the `sold` field to true along with a value for the `sold_datetime` field
+  for a specific subset of seats for use in future examples.
+
+[source,Painless]
+----
+void setSold(Map _source) {                                         <1>
+    if ((_source["number"] + _source["row"] % 4) % 3 == 0 ||        <2>
+            _source["number"] % 5 == 0) {
+        _source["sold"] = true;                                     <3>
+        _source["sold_datetime"] = _source["datetime"] -            <4>
+                86400000 * (1 + _source["number"] % 14);
+    }
+}
+
+void removeExtraneous(Map _source) {                                <5>
+    _source.remove("date");                                         <6>
+    _source.remove("time");                                         <7>
+}
+
+setSold(ctx["_source"]);                                            <8>
+removeExtraneous(ctx["_source"]);                                   <9>
+
+Instant instant = Instant.ofEpochMilli(ctx["_source"]["datetime"]); <10>
+ZonedDateTime dt = instant.atZone(ZoneId.of("GMT+8"));              <11>
+
+if (dt.getHour() > 16) {                                            <12>
+    ctx["_index"] = "evening";                                      <13>
+}
+----
+<1> Creates a `setSold` <<painless-functions, function>> to set a seat to sold
+    if it meets certain criteria for use in future examples.
+    Note::
+    * The changes to the `Map` type value `_source` passed in to the function
+      are reflected throughout the script since it's a
+      <<reference-types, reference type>> value.
+<2> Does a simple calculation to determine if the seat is sold based on
+    arbitrary criteria to create a set of sold seats for use in future examples.
+<3> Sets the field `sold` to the boolean value `true`.
+<4> Sets the field `sold_datetime` to a value between `1` to `15` days prior to
+    the play's date and time.
+    Note::
+        The <<precedence-operator, precedence operator>> is used to guarantee
+        the number of days in the equation is evaluated prior to subtracting
+        the number of seconds from the play's date and time.
+<5> Creates a `removeExtraneous` function to remove redundant fields from the
+    document.
+    Note::
+    * The changes to the `Map` type value `_source` passed in to the function
+      are reflected throughout the script since it's a reference type value.
+<6> Removes the `date` field from the document using the API non-static method
+    `remove`.
+<7> Removes the `time` field from the document using the API non-static method
+    `remove`.
+<8> Uses the `setSold` function to check if a seat is sold and update the
+    appropriate fields if so.
+    Note::
+    * The use of the `ctx["_source"]` reindex context
+      <<painless-variables, variable>> to retrieve the `Map` reference type
+      value containing the document's fields.
+<9> Uses the `removeExtraneous` function to remove redundant fields from the
+    document.
+    Note::
+    * The use of the `ctx["_source"]` reindex context variable to retrieve the
+      `Map` reference type value containing the document's fields.
+<10> Creates an `Instant` reference type variable `instant` and uses the API
+     static method `ofEpochMilli` to convert the `datetime` field from a
+     <<primitive-types, `long`>> type value into an `Instant` reference type
+     value.
+    Note::
+    * The use of the `ctx["_source"]` reindex context variable to retrieve the
+      `Map` reference type value containing the document's fields.
+<11> Creates a `ZonedDateTime` reference type variable `dt` and uses the API
+     static method `atZone` to convert the `Instant` reference type value into a
+     `DateTime` reference type value. The time zone is specified using the
+     API static method `of` on the reference type `ZoneId`.
+<12> Checks to see if the hour is past `4:00PM GMT+8 (PST)`.
+<13> Changes from the default `afternoon` index (specified as part of the
+     upcoming curl request) to the `evening` index using the ctx["_index"]
+     reindex context variable.
+
+Submit the following requests:
+
+. Create {ref}/mapping.html[mappings] for the `afternoon` index:
++
+[source,js]
+----
+PUT /afternoon
+{
+  "mappings": {
+    "seat": {
+      "properties": {
+        "theatre":       { "type": "keyword" },
+        "play":          { "type": "text"    },
+        "actors":        { "type": "text"    },
+        "row":           { "type": "integer" },
+        "number":        { "type": "integer" },
+        "cost":          { "type": "double"  },
+        "sold":          { "type": "boolean" },
+        "sold_datetime": { "type": "date"    },
+        "datetime":      { "type": "date"    }
+      }
+    }
+  }
+}
+----
++
+// CONSOLE
+
+. Create {ref}/mapping.html[mappings] for the `evening` index:
++
+[source,js]
+----
+PUT /afternoon
+{
+  "mappings": {
+    "seat": {
+      "properties": {
+        "theatre":       { "type": "keyword" },
+        "play":          { "type": "text"    },
+        "actors":        { "type": "text"    },
+        "row":           { "type": "integer" },
+        "number":        { "type": "integer" },
+        "cost":          { "type": "double"  },
+        "sold":          { "type": "boolean" },
+        "sold_datetime": { "type": "date"    },
+        "datetime":      { "type": "date"    }
+      }
+    }
+  }
+}
+----
++
+// CONSOLE
+
+. Submit the reindex request.
++
+[source,js]
+----
+POST reindex
+{
+    "source": {
+        "index": "seats"
+    },
+    "dest": {
+        "index": "afternoon"
+    },
+    "script": {
+        "source": "void setSold(Map _source) { if ((_source[\"number\"] + _source[\"row\"] % 4) % 3 == 0 || _source[\"number\"] % 5 == 0) { _source[\"sold\"] = true; _source[\"sold_datetime\"] = _source[\"datetime\"] - 86400000 * (1 + _source[\"number\"] % 14); } } void removeExtraneous(Map _source) { _source.remove(\"date\"); _source.remove(\"time\"); } setSold(ctx[\"_source\"]); removeExtraneous(ctx[\"_source\"]); Instant instant = Instant.ofEpochMilli(ctx[\"_source\"][\"datetime\"]); ZonedDateTime dt = instant.atZone(ZoneId.of(\"GMT+8\")); if (dt.getHour() > 16) { ctx[\"_index\"] = \"evening\"; }"
+    }
+}
+----
++
+// CONSOLE
+
+. The reindex request may take some time to complete even after a successful
+  response is received. Submit the following request to check the number of
+  documents in each index. The `afternoon` index has 18312 documents, and the
+  `evening` index has 17892 documents.
++
+[source,js]
+----
+GET /_cat/indices?v
+----
++
+// CONSOLE

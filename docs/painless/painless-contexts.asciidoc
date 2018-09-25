@@ -16,12 +16,12 @@ specialized code may define new ways to use a Painless script.
                                     | Elasticsearch Documentation
 | Ingest processor                  | <<painless-ingest-processor-context, Painless Documentation>>
                                     | {ref}/script-processor.html[Elasticsearch Documentation]
+| Reindex                           | <<painless-reindex-context, Painless Documentation>>
+                                    | {ref}/docs-reindex.html[Elasticsearch Documentation]
 | Update                            | <<painless-update-context, Painless Documentation>>
                                     | {ref}/docs-update.html[Elasticsearch Documentation]
 | Update by query                   | <<painless-update-by-query-context, Painless Documentation>>
                                     | {ref}/docs-update-by-query.html[Elasticsearch Documentation]
-| Reindex                           | <<painless-reindex-context, Painless Documentation>>
-                                    | {ref}/docs-reindex.html[Elasticsearch Documentation]
 | Sort                              | <<painless-sort-context, Painless Documentation>>
                                     | {ref}/search-request-sort.html[Elasticsearch Documentation]
 | Similarity                        | <<painless-similarity-context, Painless Documentation>>

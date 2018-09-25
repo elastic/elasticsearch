@@ -53,6 +53,7 @@ import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -402,28 +403,21 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
     public void testMaxBooleanClause() {
         MatchQuery query = new MatchQuery(createShardContext());
-        query.setAnalyzer(new MockGraphAnalyzer());
+        query.setAnalyzer(new MockGraphAnalyzer(createGiantGraph(40)));
+        expectThrows(BooleanQuery.TooManyClauses.class, () -> query.parse(Type.PHRASE, STRING_FIELD_NAME, ""));
+        query.setAnalyzer(new MockGraphAnalyzer(createGiantGraphMultiTerms()));
         expectThrows(BooleanQuery.TooManyClauses.class, () -> query.parse(Type.PHRASE, STRING_FIELD_NAME, ""));
     }
 
     private static class MockGraphAnalyzer extends Analyzer {
+        final CannedBinaryTokenStream.BinaryToken[] tokens;
+
+        private MockGraphAnalyzer(CannedBinaryTokenStream.BinaryToken[] tokens ) {
+            this.tokens = tokens;
+        }
         @Override
         protected TokenStreamComponents createComponents(String fieldName) {
             Tokenizer tokenizer = new MockTokenizer(MockTokenizer.SIMPLE, true);
-            int size = 40;
-            CannedBinaryTokenStream.BinaryToken[] tokens = new CannedBinaryTokenStream.BinaryToken[size];
-            BytesRef term1 = new BytesRef("foo");
-            BytesRef term2 = new BytesRef("bar");
-            for (int i = 0; i < size; ) {
-                if (i % 2 == 0) {
-                    tokens[i] = new CannedBinaryTokenStream.BinaryToken(term2, 1, 1);
-                    tokens[i + 1] = new CannedBinaryTokenStream.BinaryToken(term1, 0, 2);
-                    i += 2;
-                } else {
-                    tokens[i] = new CannedBinaryTokenStream.BinaryToken(term2, 1, 1);
-                    i++;
-                }
-            }
             return new TokenStreamComponents(tokenizer) {
                 @Override
                 public TokenStream getTokenStream() {
@@ -435,5 +429,43 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 }
             };
         }
+    }
+
+    /**
+     * Creates a graph token stream with 2 side paths at each position.
+     **/
+    private static CannedBinaryTokenStream.BinaryToken[] createGiantGraph(int numPos) {
+        List<CannedBinaryTokenStream.BinaryToken> tokens = new ArrayList<>();
+        BytesRef term1 = new BytesRef("foo");
+        BytesRef term2 = new BytesRef("bar");
+        for (int i = 0; i < numPos;) {
+            if (i % 2 == 0) {
+                tokens.add(new CannedBinaryTokenStream.BinaryToken(term2, 1, 1));
+                tokens.add(new CannedBinaryTokenStream.BinaryToken(term1, 0, 2));
+                i += 2;
+            } else {
+                tokens.add(new CannedBinaryTokenStream.BinaryToken(term2, 1, 1));
+                i++;
+            }
+        }
+        return tokens.toArray(new CannedBinaryTokenStream.BinaryToken[0]);
+    }
+
+    /**
+     * Creates a graph token stream with {@link BooleanQuery#getMaxClauseCount()}
+     * expansions at the last position.
+     **/
+    private static CannedBinaryTokenStream.BinaryToken[] createGiantGraphMultiTerms() {
+        List<CannedBinaryTokenStream.BinaryToken> tokens = new ArrayList<>();
+        BytesRef term1 = new BytesRef("foo");
+        BytesRef term2 = new BytesRef("bar");
+        tokens.add(new CannedBinaryTokenStream.BinaryToken(term2, 1, 1));
+        tokens.add(new CannedBinaryTokenStream.BinaryToken(term1, 0, 2));
+        tokens.add(new CannedBinaryTokenStream.BinaryToken(term2, 1, 1));
+        tokens.add(new CannedBinaryTokenStream.BinaryToken(term2, 1, 1));
+        for (int i = 0; i < BooleanQuery.getMaxClauseCount(); i++) {
+            tokens.add(new CannedBinaryTokenStream.BinaryToken(term1, 0, 1));
+        }
+        return tokens.toArray(new CannedBinaryTokenStream.BinaryToken[0]);
     }
 }

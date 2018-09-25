@@ -522,6 +522,7 @@ public class MatchQuery {
             List<SpanQuery> clauses = new ArrayList<>();
             int[] articulationPoints = graph.articulationPoints();
             int lastState = 0;
+            int maxBooleanClause = BooleanQuery.getMaxClauseCount();
             for (int i = 0; i <= articulationPoints.length; i++) {
                 int start = lastState;
                 int end = -1;
@@ -537,7 +538,7 @@ public class MatchQuery {
                         TokenStream ts = it.next();
                         SpanQuery q = createSpanQuery(ts, field);
                         if (q != null) {
-                            if (queries.size() >= BooleanQuery.getMaxClauseCount()) {
+                            if (queries.size() >= maxBooleanClause) {
                                 throw new BooleanQuery.TooManyClauses();
                             }
                             queries.add(q);
@@ -551,7 +552,7 @@ public class MatchQuery {
                 } else {
                     Term[] terms = graph.getTerms(field, start);
                     assert terms.length > 0;
-                    if (terms.length >= BooleanQuery.getMaxClauseCount()) {
+                    if (terms.length >= maxBooleanClause) {
                         throw new BooleanQuery.TooManyClauses();
                     }
                     if (terms.length == 1) {
@@ -567,7 +568,7 @@ public class MatchQuery {
                 }
 
                 if (queryPos != null) {
-                    if (clauses.size() >= BooleanQuery.getMaxClauseCount()) {
+                    if (clauses.size() >= maxBooleanClause) {
                         throw new BooleanQuery.TooManyClauses();
                     }
                     clauses.add(queryPos);

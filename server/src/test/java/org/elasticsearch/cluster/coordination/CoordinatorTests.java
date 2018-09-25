@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.coordination.CoordinationStateTests.InMemoryPer
 import org.elasticsearch.cluster.coordination.CoordinatorTests.Cluster.ClusterNode;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
@@ -88,6 +89,18 @@ public class CoordinatorTests extends ESTestCase {
         }
     }
 
+    public void testNodesJoinAfterStableCluster() {
+        final Cluster cluster = new Cluster(randomIntBetween(1, 5));
+        cluster.stabilise();
+
+        final long currentTerm = cluster.getAnyLeader().coordinator.getCurrentTerm();
+        cluster.addNodes(randomIntBetween(1, 2));
+        cluster.stabilise();
+
+        final long newTerm = cluster.getAnyLeader().coordinator.getCurrentTerm();
+        assertEquals(currentTerm, newTerm);
+    }
+
     private static String nodeIdFromIndex(int nodeIndex) {
         return "node" + nodeIndex;
     }
@@ -114,6 +127,16 @@ public class CoordinatorTests extends ESTestCase {
             clusterNodes = new ArrayList<>(initialNodeCount);
             for (int i = 0; i < initialNodeCount; i++) {
                 final ClusterNode clusterNode = new ClusterNode(i);
+                clusterNodes.add(clusterNode);
+            }
+        }
+
+        void addNodes(int newNodesCount) {
+            logger.info("--> adding {} nodes", newNodesCount);
+
+            final int nodeSizeAtStart = clusterNodes.size();
+            for (int i = 0; i < newNodesCount; i++) {
+                final ClusterNode clusterNode = new ClusterNode(nodeSizeAtStart + i);
                 clusterNodes.add(clusterNode);
             }
         }
@@ -150,6 +173,8 @@ public class CoordinatorTests extends ESTestCase {
                 = equalTo(Optional.of(leader.coordinator.getLastAcceptedState().getVersion()));
 
             assertThat(leader.coordinator.getLastCommittedState().map(ClusterState::getVersion), isPresentAndEqualToLeaderVersion);
+            assertThat(leader.coordinator.getLastCommittedState().map(ClusterState::getNodes).map(dn -> dn.nodeExists(leader.getId())),
+                equalTo(Optional.of(true)));
 
             for (final ClusterNode clusterNode : clusterNodes) {
                 if (clusterNode == leader) {
@@ -166,7 +191,12 @@ public class CoordinatorTests extends ESTestCase {
                     Optional.of(clusterNode.coordinator.getLastAcceptedState().getVersion()), isPresentAndEqualToLeaderVersion);
                 assertThat(nodeId + " is at the same committed version as the leader",
                     clusterNode.coordinator.getLastCommittedState().map(ClusterState::getVersion), isPresentAndEqualToLeaderVersion);
+                assertThat(clusterNode.coordinator.getLastCommittedState().map(ClusterState::getNodes).map(dn -> dn.nodeExists(nodeId)),
+                    equalTo(Optional.of(true)));
             }
+
+            assertThat(leader.coordinator.getLastCommittedState().map(ClusterState::getNodes).map(DiscoveryNodes::getSize),
+                equalTo(Optional.of(clusterNodes.size())));
         }
 
         ClusterNode getAnyLeader() {

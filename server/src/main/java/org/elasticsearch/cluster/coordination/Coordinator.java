@@ -624,7 +624,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         @Override
         protected void onActiveMasterFound(DiscoveryNode masterNode, long term) {
-            // TODO
+            synchronized (mutex) {
+                ensureTermAtLeast(masterNode, term);
+                joinHelper.sendJoinRequest(masterNode, joinWithDestination(lastJoin, masterNode, term));
+            }
         }
 
         @Override

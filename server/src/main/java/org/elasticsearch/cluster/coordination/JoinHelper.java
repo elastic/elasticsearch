@@ -27,9 +27,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
@@ -44,6 +46,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -56,6 +59,8 @@ public class JoinHelper extends AbstractComponent {
     private final MasterService masterService;
     private final TransportService transportService;
     private final JoinTaskExecutor joinTaskExecutor;
+
+    final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = ConcurrentCollections.newConcurrentSet();
 
     public JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService,
                       TransportService transportService, LongSupplier currentTermSupplier,
@@ -115,32 +120,42 @@ public class JoinHelper extends AbstractComponent {
             StartJoinRequest::new,
             (request, channel, task) -> {
                 final DiscoveryNode destination = request.getSourceNode();
-                final JoinRequest joinRequest
-                    = new JoinRequest(transportService.getLocalNode(), Optional.of(joinLeaderInTerm.apply(request)));
-                logger.debug("attempting to join {} with {}", destination, joinRequest);
-                this.transportService.sendRequest(destination, JOIN_ACTION_NAME, joinRequest, new TransportResponseHandler<Empty>() {
-                    @Override
-                    public Empty read(StreamInput in) {
-                        return Empty.INSTANCE;
-                    }
-
-                    @Override
-                    public void handleResponse(Empty response) {
-                        logger.debug("successfully joined {} with {}", destination, joinRequest);
-                    }
-
-                    @Override
-                    public void handleException(TransportException exp) {
-                        logger.debug(() -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest), exp);
-                    }
-
-                    @Override
-                    public String executor() {
-                        return Names.SAME;
-                    }
-                });
+                sendJoinRequest(destination, Optional.of(joinLeaderInTerm.apply(request)));
                 channel.sendResponse(Empty.INSTANCE);
             });
+    }
+
+    public void sendJoinRequest(DiscoveryNode destination, Optional<Join> optionalJoin) {
+        final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), optionalJoin);
+        final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
+        if (pendingOutgoingJoins.add(dedupKey)) {
+            logger.debug("attempting to join {} with {}", destination, joinRequest);
+            transportService.sendRequest(destination, JOIN_ACTION_NAME, joinRequest, new TransportResponseHandler<Empty>() {
+                @Override
+                public Empty read(StreamInput in) {
+                    return Empty.INSTANCE;
+                }
+
+                @Override
+                public void handleResponse(Empty response) {
+                    pendingOutgoingJoins.remove(dedupKey);
+                    logger.debug("successfully joined {} with {}", destination, joinRequest);
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    pendingOutgoingJoins.remove(dedupKey);
+                    logger.info(() -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest), exp);
+                }
+
+                @Override
+                public String executor() {
+                    return Names.SAME;
+                }
+            });
+        } else {
+            logger.debug("already attempting to join {} with request {}, not sending request", destination, joinRequest);
+        }
     }
 
     public void sendStartJoinRequest(final StartJoinRequest startJoinRequest, final DiscoveryNode destination) {

@@ -146,11 +146,4 @@ final class NoOpEngine extends ReadOnlyEngine {
     public boolean ensureTranslogSynced(Stream<Translog.Location> locations) {
         throw new UnsupportedOperationException("Translog synchronization should never be needed");
     }
-
-    // Override the refreshNeeded method so that we don't attempt to acquire a searcher checking if we need to refresh
-    @Override
-    public boolean refreshNeeded() {
-        // We never need to refresh a noOp engine so always return false
-        return false;
-    }
 }

@@ -970,7 +970,7 @@ public abstract class Engine implements Closeable {
      */
     public abstract List<Segment> segments(boolean verbose);
 
-    public boolean refreshNeeded() {
+    public final boolean refreshNeeded() {
         if (store.tryIncRef()) {
             /*
               we need to inc the store here since we acquire a searcher and that might keep a file open on the

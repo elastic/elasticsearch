@@ -306,7 +306,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
                     // its an array of other possible values
                     if (token == XContentParser.Token.VALUE_NUMBER) {
                         double lon = context.parser().doubleValue();
-                        token = context.parser().nextToken();
+                        context.parser().nextToken();
                         double lat = context.parser().doubleValue();
                         token = context.parser().nextToken();
                         if (token == XContentParser.Token.VALUE_NUMBER) {

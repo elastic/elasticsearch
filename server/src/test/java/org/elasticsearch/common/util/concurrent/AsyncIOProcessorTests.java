@@ -39,6 +39,7 @@ public class AsyncIOProcessorTests extends ESTestCase {
             protected void write(List<Tuple<Object, Consumer<Exception>>> candidates) throws IOException {
                 if (blockInternal) {
                     synchronized (this) {
+                        // TODO: check why we need a loop, can't we just use received.addAndGet(candidates.size())
                         for (int i = 0; i < candidates.size(); i++) {
                             received.incrementAndGet();
                         }

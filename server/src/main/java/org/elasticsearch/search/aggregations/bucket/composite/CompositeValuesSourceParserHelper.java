@@ -25,7 +25,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
@@ -33,7 +35,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
-class CompositeValuesSourceParserHelper {
+public class CompositeValuesSourceParserHelper {
     static <VB extends CompositeValuesSourceBuilder<VB>, T> void declareValuesSourceFields(AbstractObjectParser<VB, T> objectParser,
                                                                                            ValueType targetValueType) {
         objectParser.declareField(VB::field, XContentParser::text,
@@ -59,7 +61,7 @@ class CompositeValuesSourceParserHelper {
         objectParser.declareField(VB::order,  XContentParser::text, new ParseField("order"), ObjectParser.ValueType.STRING);
     }
 
-    static void writeTo(CompositeValuesSourceBuilder<?> builder, StreamOutput out) throws IOException {
+    public static void writeTo(CompositeValuesSourceBuilder<?> builder, StreamOutput out) throws IOException {
         final byte code;
         if (builder.getClass() == TermsValuesSourceBuilder.class) {
             code = 0;
@@ -74,7 +76,7 @@ class CompositeValuesSourceParserHelper {
         builder.writeTo(out);
     }
 
-    static CompositeValuesSourceBuilder<?> readFrom(StreamInput in) throws IOException {
+    public static CompositeValuesSourceBuilder<?> readFrom(StreamInput in) throws IOException {
         int code = in.readByte();
         switch(code) {
             case 0:
@@ -88,7 +90,7 @@ class CompositeValuesSourceParserHelper {
         }
     }
 
-    static CompositeValuesSourceBuilder<?> fromXContent(XContentParser parser) throws IOException {
+    public static CompositeValuesSourceBuilder<?> fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
         token = parser.nextToken();
@@ -117,6 +119,16 @@ class CompositeValuesSourceParserHelper {
         }
         parser.nextToken();
         parser.nextToken();
+        return builder;
+    }
+
+    public static XContentBuilder toXContent(CompositeValuesSourceBuilder<?> source, XContentBuilder builder, Params params)
+            throws IOException {
+        builder.startObject();
+        builder.startObject(source.name());
+        source.toXContent(builder, params);
+        builder.endObject();
+        builder.endObject();
         return builder;
     }
 }

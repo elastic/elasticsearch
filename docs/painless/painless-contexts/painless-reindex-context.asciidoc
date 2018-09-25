@@ -193,7 +193,7 @@ PUT /afternoon
 +
 [source,js]
 ----
-PUT /afternoon
+PUT /evening
 {
   "mappings": {
     "seat": {
@@ -215,11 +215,11 @@ PUT /afternoon
 +
 // CONSOLE
 
-. Submit the reindex request.
+. Submit the reindex request:
 +
 [source,js]
 ----
-POST reindex
+POST /_reindex
 {
     "source": {
         "index": "seats"
@@ -234,11 +234,12 @@ POST reindex
 ----
 +
 // CONSOLE
+// TEST[skip: requires setup from other pages]
 
 . The reindex request may take some time to complete even after a successful
-  response is received. Submit the following request to check the number of
-  documents in each index. The `afternoon` index has 18312 documents, and the
-  `evening` index has 17892 documents.
+  response is received. The `afternoon` index has 18312 documents, and the
+  `evening` index has 17892 documents. Submit the following request to check the
+  number of documents in each index:
 +
 [source,js]
 ----

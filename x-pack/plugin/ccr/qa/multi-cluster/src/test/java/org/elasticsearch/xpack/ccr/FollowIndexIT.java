@@ -118,10 +118,17 @@ public class FollowIndexIT extends ESRestTestCase {
         }
 
         assertBusy(() -> {
+            Request statsRequest = new Request("GET", "/_ccr/auto_follow/stats");
+            Map<String, ?> response = toMap(client().performRequest(statsRequest));
+            assertThat(response.get("number_of_successful_follow_indices"), equalTo(1));
+
             ensureYellow("logs-20190101");
             verifyDocuments("logs-20190101", 5);
         });
-        assertBusy(() -> verifyCcrMonitoring("logs-20190101", "logs-20190101"));
+        assertBusy(() -> {
+            verifyCcrMonitoring("logs-20190101", "logs-20190101");
+            verifyAutoFollowMonitoring();
+        });
     }
 
     private static void index(RestClient client, String index, String id, Object... fields) throws IOException {
@@ -207,6 +214,32 @@ public class FollowIndexIT extends ESRestTestCase {
 
         assertThat(numberOfOperationsReceived, greaterThanOrEqualTo(1));
         assertThat(numberOfOperationsIndexed, greaterThanOrEqualTo(1));
+    }
+
+    private static void verifyAutoFollowMonitoring() throws IOException {
+        Request request = new Request("GET", "/.monitoring-*/_search");
+        request.setJsonEntity("{\"query\": {\"term\": {\"type\": \"ccr_auto_follow_stats\"}}}");
+        Map<String, ?> response;
+        try {
+            response = toMap(client().performRequest(request));
+        } catch (ResponseException e) {
+            throw new AssertionError("error while searching", e);
+        }
+
+        int numberOfSuccessfulFollowIndices = 0;
+
+        List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", response);
+        assertThat(hits.size(), greaterThanOrEqualTo(1));
+
+        for (int i = 0; i < hits.size(); i++) {
+            Map<?, ?> hit = (Map<?, ?>) hits.get(i);
+
+            int foundNumberOfOperationsReceived =
+                (int) XContentMapValues.extractValue("_source.ccr_auto_follow_stats.number_of_successful_follow_indices", hit);
+            numberOfSuccessfulFollowIndices = Math.max(numberOfSuccessfulFollowIndices, foundNumberOfOperationsReceived);
+        }
+
+        assertThat(numberOfSuccessfulFollowIndices, greaterThanOrEqualTo(1));
     }
 
     private static Map<String, Object> toMap(Response response) throws IOException {

@@ -103,6 +103,8 @@ public class TransportBulkShardOperationsAction
             }
             return operationWithPrimaryTerm;
         }).collect(Collectors.toList());
+        // TODO: Replace this artificial value by the actual max_seq_no_updates from the leader
+        targetOperations.stream().mapToLong(Translog.Operation::seqNo).max().ifPresent(primary::advanceMaxSeqNoOfUpdatesOrDeletes);
         final Translog.Location location = applyTranslogOperations(targetOperations, primary, Engine.Operation.Origin.PRIMARY);
         final BulkShardOperationsRequest replicaRequest = new BulkShardOperationsRequest(shardId, targetOperations);
         return new CcrWritePrimaryResult(replicaRequest, location, primary, logger);

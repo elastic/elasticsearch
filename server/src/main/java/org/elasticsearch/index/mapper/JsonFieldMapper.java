@@ -125,8 +125,7 @@ public final class JsonFieldMapper extends FieldMapper {
         }
 
         public Builder copyTo(CopyTo copyTo) {
-            throw new UnsupportedOperationException("[copy_to] is not currently supported for ["
-                + CONTENT_TYPE + "] fields.");
+            throw new UnsupportedOperationException("[copy_to] is not supported for [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override

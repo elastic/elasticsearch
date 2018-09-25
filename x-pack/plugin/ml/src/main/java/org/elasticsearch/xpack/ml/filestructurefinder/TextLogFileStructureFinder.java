@@ -112,7 +112,8 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
 
         FileStructure structure = structureBuilder
             .setTimestampField(interimTimestampField)
-            .setTimestampFormats(bestTimestamp.v1().dateFormats)
+            .setJodaTimestampFormats(bestTimestamp.v1().jodaTimestampFormats)
+            .setJavaTimestampFormats(bestTimestamp.v1().javaTimestampFormats)
             .setNeedClientTimezone(bestTimestamp.v1().hasTimezoneDependentParsing())
             .setGrokPattern(grokPattern)
             .setMappings(mappings)
@@ -147,8 +148,8 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
         for (String sampleLine : sampleLines) {
             TimestampMatch match = TimestampFormatFinder.findFirstMatch(sampleLine, overrides.getTimestampFormat());
             if (match != null) {
-                TimestampMatch pureMatch = new TimestampMatch(match.candidateIndex, "", match.dateFormats, match.simplePattern,
-                    match.grokPatternName, "");
+                TimestampMatch pureMatch = new TimestampMatch(match.candidateIndex, "", match.jodaTimestampFormats,
+                    match.javaTimestampFormats, match.simplePattern, match.grokPatternName, "");
                 timestampMatches.compute(pureMatch, (k, v) -> {
                     if (v == null) {
                         return new Tuple<>(weightForMatch(match.preface), new HashSet<>(Collections.singletonList(match.preface)));

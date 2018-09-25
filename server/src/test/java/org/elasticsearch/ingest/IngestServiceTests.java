@@ -813,9 +813,27 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     public void testExecuteWithDrop() {
-        IngestService ingestService = createWithProcessors(Collections.singletonMap("drop", new DropProcessor.Factory()));
+        Map<String, Processor.Factory> factories = new HashMap<>();
+        factories.put("drop", new DropProcessor.Factory());
+        factories.put("mock", (processorFactories, tag, config) -> new Processor() {
+            @Override
+            public IngestDocument execute(final IngestDocument ingestDocument) {
+                throw new AssertionError("Document should have been dropped but reached this processor");
+            }
+
+            @Override
+            public String getType() {
+                return null;
+            }
+
+            @Override
+            public String getTag() {
+                return null;
+            }
+        });
+        IngestService ingestService = createWithProcessors(factories);
         PutPipelineRequest putRequest = new PutPipelineRequest("_id",
-            new BytesArray("{\"processors\": [{\"drop\" : {}}]}"), XContentType.JSON);
+            new BytesArray("{\"processors\": [{\"drop\" : {}}, {\"mock\" : {}}]}"), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);

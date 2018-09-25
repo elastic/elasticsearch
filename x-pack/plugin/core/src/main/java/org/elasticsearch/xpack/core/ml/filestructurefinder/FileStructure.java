@@ -694,7 +694,7 @@ public class FileStructure implements ToXContentObject, Writeable {
                     "Timestamp field and Java timestamp formats must both be specified or neither be specified.");
             }
 
-            if (needClientTimezone && timestampField == null) {
+            if (needClientTimezone && isTimestampFieldSpecified == false) {
                 throw new IllegalArgumentException("Client timezone cannot be needed if there is no timestamp field.");
             }
 

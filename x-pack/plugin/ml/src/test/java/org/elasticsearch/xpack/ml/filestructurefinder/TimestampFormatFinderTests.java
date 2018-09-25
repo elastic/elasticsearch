@@ -267,8 +267,9 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
 
     private void validateJodaTimestampFormats(List<String> jodaTimestampFormats, String text, long expectedEpochMs) {
 
-        // All the test times are for Tue May 15 2018 16:14:56 UTC, which is 17:14:56 in London
-        org.joda.time.DateTimeZone zone = org.joda.time.DateTimeZone.forID("Europe/London");
+        // All the test times are for Tue May 15 2018 16:14:56 UTC, which is 17:14:56 in London.
+        // This is the timezone that will be used for any text representations that don't include it.
+        org.joda.time.DateTimeZone defaultZone = org.joda.time.DateTimeZone.forID("Europe/London");
         org.joda.time.DateTime parsed;
         for (int i = 0; i < jodaTimestampFormats.size(); ++i) {
             try {
@@ -276,11 +277,11 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
                 switch (timestampFormat) {
                     case "ISO8601":
                         parsed = org.joda.time.format.ISODateTimeFormat.dateTimeParser()
-                            .withZone(zone).withDefaultYear(2018).parseDateTime(text);
+                            .withZone(defaultZone).withDefaultYear(2018).parseDateTime(text);
                         break;
                     default:
                         org.joda.time.format.DateTimeFormatter parser =
-                            org.joda.time.format.DateTimeFormat.forPattern(timestampFormat).withZone(zone).withLocale(Locale.ENGLISH);
+                            org.joda.time.format.DateTimeFormat.forPattern(timestampFormat).withZone(defaultZone).withLocale(Locale.ROOT);
                         parsed = parser.withDefaultYear(2018).parseDateTime(text);
                         break;
                 }
@@ -302,24 +303,39 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
 
     private void validateJavaTimestampFormats(List<String> javaTimestampFormats, String text, long expectedEpochMs) {
 
-        // All the test times are for Tue May 15 2018 16:14:56 UTC, which is 17:14:56 in London
-        java.time.ZoneId zone = java.time.ZoneId.of("Europe/London");
+        // All the test times are for Tue May 15 2018 16:14:56 UTC, which is 17:14:56 in London.
+        // This is the timezone that will be used for any text representations that don't include it.
+        java.time.ZoneId defaultZone = java.time.ZoneId.of("Europe/London");
         java.time.temporal.TemporalAccessor parsed;
         for (int i = 0; i < javaTimestampFormats.size(); ++i) {
             try {
                 String timestampFormat = javaTimestampFormats.get(i);
                 switch (timestampFormat) {
                     case "ISO8601":
-                        parsed = DateFormatters.forPattern("strict_date_optional_time_nanos").withZone(zone).parse(text);
+                        parsed = DateFormatters.forPattern("strict_date_optional_time_nanos").withZone(defaultZone).parse(text);
                         break;
                     default:
                         java.time.format.DateTimeFormatter parser = new java.time.format.DateTimeFormatterBuilder()
                             .appendPattern(timestampFormat).parseDefaulting(java.time.temporal.ChronoField.YEAR_OF_ERA, 2018)
-                            .toFormatter(Locale.ENGLISH);
-                        parsed = parser.withZone(zone).parse(text);
+                            .toFormatter(Locale.ROOT);
+                        // This next line parses the textual date without any default timezone, so if
+                        // the text doesn't contain the timezone then the resulting temporal accessor
+                        // will be incomplete (i.e. impossible to convert to an Instant).  You would
+                        // hope that it would be possible to specify a timezone to be used only in this
+                        // case, and in Java 9 and 10 it is, by adding withZone(zone) before the
+                        // parse(text) call.  However, with Java 8 this overrides any timezone parsed
+                        // from the text.  The solution is to parse twice, once without a default
+                        // timezone and then again with a default timezone if the first parse didn't
+                        // find one in the text.
+                        parsed = parser.parse(text);
+                        if (parsed.query(java.time.temporal.TemporalQueries.zone()) == null) {
+                            // TODO: when Java 8 is no longer supported remove the two
+                            // lines and comment above and the closing brace below
+                            parsed = parser.withZone(defaultZone).parse(text);
+                        }
                         break;
                 }
-                long actualEpochMs = java.time.ZonedDateTime.from(parsed).toInstant().toEpochMilli();
+                long actualEpochMs = java.time.Instant.from(parsed).toEpochMilli();
                 if (expectedEpochMs == actualEpochMs) {
                     break;
                 }

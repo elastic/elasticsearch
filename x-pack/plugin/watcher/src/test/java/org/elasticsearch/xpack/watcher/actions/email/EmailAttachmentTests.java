@@ -170,7 +170,7 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
         emailAttachments.toXContent(tmpBuilder, ToXContent.EMPTY_PARAMS);
         tmpBuilder.endObject();
 
-        EmailTemplate.Builder emailBuilder = EmailTemplate.builder().from("_from").to("_to").subject("Subject");
+        EmailTemplate.Builder emailBuilder = EmailTemplate.builder().from("from@example.org").to("to@example.org").subject("Subject");
         WatchSourceBuilder watchSourceBuilder = watchBuilder()
                 .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                 .input(noneInput())

@@ -18,18 +18,21 @@
  */
 package org.elasticsearch.gradle;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
-public class VersionCollectionJ {
+public class VersionCollection {
 
     private final Pattern LINE_PATTERN = Pattern.compile(
         "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)? .*"
@@ -37,15 +40,39 @@ public class VersionCollectionJ {
     private final SortedSet<Version> versions = new TreeSet<>();
     private Version currentVersion;
 
-    protected VersionCollectionJ(List<String> versionLines, Version currentVersionProperty) {
+    public class UnreleasedVersionDescription {
+        private final Version version;
+        private final Integer index;
+        private final String branch;
+
+        public UnreleasedVersionDescription(Integer index, Version version, String branch) {
+            this.version = version;
+            this.index = index;
+            this.branch = branch;
+        }
+
+        public Version getVersion() {
+            return version;
+        }
+
+        public Integer getIndex() {
+            return index;
+        }
+
+        public String getBranch() {
+            return branch;
+        }
+    }
+
+    protected VersionCollection(List<String> versionLines, Version currentVersionProperty) {
         versionLines.stream()
             .map(LINE_PATTERN::matcher)
             .filter(Matcher::matches)
-            .map(match ->  new Version(
+            .map(match -> new Version(
                 Integer.parseInt(match.group(1)),
                 Integer.parseInt(match.group(2)),
                 Integer.parseInt(match.group(3)),
-                (match.group(4) == null ?  "" : match.group(4)).replace('_', '-'),
+                (match.group(4) == null ? "" : match.group(4)).replace('_', '-'),
                 false
             ))
             .filter(((Predicate<? super Version>) Version::isSnapshot).negate())
@@ -69,7 +96,7 @@ public class VersionCollectionJ {
         }
 
         SortedSet<Version> versionsMoreThanTowMajorsAgo = versions
-            .headSet(new Version(currentVersion.getMajor() - 1, 0,0, "", false));
+            .headSet(new Version(currentVersion.getMajor() - 1, 0, 0, "", false));
         if (versionsMoreThanTowMajorsAgo.isEmpty() == false) {
             throw new IllegalStateException(
                 "Found unexpected parsed versions, more than two majors ago: " + versionsMoreThanTowMajorsAgo
@@ -80,7 +107,7 @@ public class VersionCollectionJ {
             .map(Version::getMajor)
             .distinct()
             .collect(Collectors.toList());
-        if (distinctMajors.size() !=  2) {
+        if (distinctMajors.size() != 2) {
             throw new IllegalStateException("Expected to have exactly 2 parsed major bout found: " + distinctMajors);
         }
 
@@ -92,6 +119,40 @@ public class VersionCollectionJ {
                 )
             );
         });
+    }
+
+    public void forEachUnreleased(Consumer<UnreleasedVersionDescription> consumer) {
+        List<Version> unreleasedVersionsList = new ArrayList<>(getUnreleased());
+        IntStream.range(0, unreleasedVersionsList.size())
+            .filter(index -> unreleasedVersionsList.get(index).equals(currentVersion) == false)
+            .forEach(index ->
+            consumer.accept(new UnreleasedVersionDescription(
+                index,
+                unreleasedVersionsList.get(index),
+                getBranchFor(unreleasedVersionsList.get(index))
+            ))
+        );
+    }
+
+    protected String getBranchFor(Version unreleasedVersion) {
+        SortedSet<Version> unreleased = getUnreleased();
+        if (unreleased.contains(unreleasedVersion)) {
+            if (unreleasedVersion.getMinor() == 0 && unreleasedVersion.getRevision() == 0) {
+                return "master";
+            }
+            if (unreleasedVersion.getRevision() != 0) {
+                return unreleasedVersion.getMajor() + "." + unreleasedVersion.getMinor();
+            }
+            Optional<Version> nextUnreleased = getVersionAfter(unreleased, unreleasedVersion);
+            if (nextUnreleased.isPresent() && nextUnreleased.get().getMajor() == unreleasedVersion.getMajor()) {
+                return unreleasedVersion.getMajor() + "." + unreleasedVersion.getMinor();
+            }
+            return unreleasedVersion.getMajor() + ".x";
+        } else {
+            throw new IllegalStateException(
+                "Can't get branch of released version: " + unreleasedVersion + " unreleased versions are: " + unreleased
+            );
+        }
     }
 
     public SortedSet<Version> getUnreleased() {
@@ -106,9 +167,13 @@ public class VersionCollectionJ {
             unreleased.add(greatestPreviousMinor);
             Version greatestMinorBehindByTwo = getLatestBugfixBeforeMinor(greatestPreviousMinor);
             if (greatestPreviousMinor.getRevision() == 0) {
-                unreleased.add(greatestMinorBehindByTwo);
+                // So we have x.y.0 and x.(y-1).0 with nothing in-between. This happens when x.y.0 is feature freeze.
+                // We'll add x.y.1 as soon as x.y.0 releases so this is correct.
                 unreleased.add(greatestMinorBehindByTwo);
             }
+        }
+        if (unreleased.size() > 4) {
+            throw new IllegalStateException("Expected no more than 4 unreleased version but found: " + unreleased);
         }
         return unreleased;
     }
@@ -121,7 +186,7 @@ public class VersionCollectionJ {
         return getVersionBefore(new Version(version.getMajor(), version.getMinor(), 0));
     }
 
-    public VersionCollectionJ(List<String> versionLines) {
+    public VersionCollection(List<String> versionLines) {
         this(versionLines, VersionProperties.getElasticsearch());
     }
 
@@ -142,21 +207,33 @@ public class VersionCollectionJ {
         );
     }
 
-    private Version getVersionBefore(Version e) {
-        return versions
-                .headSet(e).last();
+    public SortedSet<Version> getSnapshotsIndexCompatible() {
+        SortedSet<Version> unreleasedIndexCompatible = new TreeSet<>(getIndexCompatible());
+        unreleasedIndexCompatible.retainAll(getUnreleased());
+        return Collections.unmodifiableSortedSet(unreleasedIndexCompatible);
     }
 
-    private Version getVersionAfter(Version version) {
+    public SortedSet<Version> getSnapshotsWireCompatible() {
+        SortedSet<Version> unreleasedWireCompatible = new TreeSet<>(getWireCompatible());
+        unreleasedWireCompatible.retainAll(getUnreleased());
+        return Collections.unmodifiableSortedSet(unreleasedWireCompatible);
+    }
+
+    private Version getVersionBefore(Version e) {
+        return versions
+            .headSet(e).last();
+    }
+
+    private Optional<Version> getVersionAfter(SortedSet<Version> versions, Version version) {
         Iterator<Version> iterator = versions
             .tailSet(version).iterator();
         if (iterator.hasNext()) {
             iterator.next();
             if (iterator.hasNext()) {
-                return iterator.next();
+                return Optional.of(iterator.next());
             }
         }
-        throw new NoSuchElementException(version.toString());
+        return Optional.empty();
     }
 
 }

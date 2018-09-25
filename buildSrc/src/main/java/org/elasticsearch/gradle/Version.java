@@ -140,10 +140,7 @@ public final class Version implements Comparable<Version> {
         Version version = (Version) o;
         return major == version.major &&
                 minor == version.minor &&
-                revision == version.revision &&
-                id == version.id &&
-                snapshot == version.snapshot &&
-                Objects.equals(suffix, version.suffix);
+                revision == version.revision;
     }
 
     @Override

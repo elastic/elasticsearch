@@ -150,7 +150,8 @@ task verifyVersions {
      * Versions not marked as released don't get the same testing and we want
      * to make sure that we flip all unreleased versions to released as soon
      * as possible after release. */
-    Set<Version> actualVersions = new TreeSet<>(bwcVersions.indexCompatible.findAll { false == it.snapshot })
+    Set<Version> actualVersions = new TreeSet<>(bwcVersions.indexCompatible)
+    actualVersions.removeAll(bwcVersions.getUnreleased())
 
     // Finally, compare!
     if (knownVersions.equals(actualVersions) == false) {
@@ -247,20 +248,17 @@ subprojects {
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
     "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
   ]
-
-  bwcVersions.snapshotProjectNames.each { snapshotName ->
-    Version snapshot = bwcVersions.getSnapshotForProject(snapshotName)
-    if (snapshot != null ) {
-      String snapshotProject = ":distribution:bwc:${snapshotName}"
-      project(snapshotProject).ext.bwcVersion = snapshot
-      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${snapshot}"] = snapshotProject
-      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${snapshot}"] = snapshotProject
-      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${snapshot}"] = snapshotProject
-      if (snapshot.onOrAfter('6.3.0')) {
-        ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch-oss:${snapshot}"] = snapshotProject
-        ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch-oss:${snapshot}"] = snapshotProject
-        ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch-oss:${snapshot}"] = snapshotProject
-      }
+  // substitute unreleased versiopns with projects that check out and build locally
+  bwcVersions.forEachUnreleased { VersionCollection.UnreleasedVersionDescription unreleasedVersion ->
+    Version snapshot = unreleasedVersion.version
+    String snapshotProject = ":distribution:bwc:build-unreleased-version-${unreleasedVersion.index}"
+    ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${snapshot}"] = snapshotProject
+    ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${snapshot}"] = snapshotProject
+    ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${snapshot}"] = snapshotProject
+    if (snapshot.onOrAfter('6.3.0')) {
+      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch-oss:${snapshot}"] = snapshotProject
+      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch-oss:${snapshot}"] = snapshotProject
+      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch-oss:${snapshot}"] = snapshotProject
     }
   }
 

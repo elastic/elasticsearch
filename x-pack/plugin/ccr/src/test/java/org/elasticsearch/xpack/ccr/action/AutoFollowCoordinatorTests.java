@@ -352,9 +352,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .numberOfReplicas(0));
 
         AutoFollowPattern autoFollowPattern =
-            new AutoFollowPattern(Collections.singletonList("metrics-*"), null, null, null, null, null, null, null, null, null);
-        imdBuilder.putCustom(AutoFollowMetadata.TYPE,
-            new AutoFollowMetadata(Collections.singletonMap("remote", autoFollowPattern), Collections.emptyMap()));
+            new AutoFollowPattern(Collections.singletonList("metrics-*"), null, null, null, null, null, null, null, null);
+        imdBuilder.putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(Collections.singletonMap("remote", autoFollowPattern),
+            Collections.emptyMap(), Collections.emptyMap()));
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("name"))
             .metaData(imdBuilder)

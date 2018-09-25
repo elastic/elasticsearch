@@ -886,7 +886,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
      * TODO Remove when https://issues.apache.org/jira/browse/LUCENE-8479 is fixed.
      */
     public static SpanQuery analyzeGraphPhraseWithLimit(TokenStream source, String field, int phraseSlop,
-                                                            CheckedBiFunction<TokenStream, String, SpanQuery> spanQueryFunc) throws IOException {
+                                        CheckedBiFunction<TokenStream, String, SpanQuery> spanQueryFunc) throws IOException {
         GraphTokenStreamFiniteStrings graph = new GraphTokenStreamFiniteStrings(source);
         List<SpanQuery> clauses = new ArrayList<>();
         int[] articulationPoints = graph.articulationPoints();

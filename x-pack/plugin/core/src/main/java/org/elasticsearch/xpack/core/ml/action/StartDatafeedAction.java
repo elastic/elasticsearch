@@ -147,7 +147,7 @@ public class StartDatafeedAction
 
     public static class DatafeedParams implements XPackPlugin.XPackPersistentTaskParams {
 
-        public static ObjectParser<DatafeedParams, Void> PARSER = new ObjectParser<>(TASK_NAME, DatafeedParams::new);
+        public static ObjectParser<DatafeedParams, Void> PARSER = new ObjectParser<>(TASK_NAME, true, DatafeedParams::new);
 
         static {
             PARSER.declareString((params, datafeedId) -> params.datafeedId = datafeedId, DatafeedConfig.ID);

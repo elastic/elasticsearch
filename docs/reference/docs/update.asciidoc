@@ -124,7 +124,7 @@ the doc if the `tags` field contain `green`, otherwise it does nothing
 POST test/_doc/1/_update
 {
     "script" : {
-        "source": "if (ctx._source.tags.contains(params.tag)) { ctx.op = 'delete' } else { ctx.op = 'none' }",
+        "source": "if (ctx._source.tags.contains(params.tag)) { ctx.op = 'delete' } else { ctx.op = 'noop' }",
         "lang": "painless",
         "params" : {
             "tag" : "green"

@@ -130,9 +130,9 @@ public class CoordinatorTests extends ESTestCase {
         logger.info("--> partitioning leader {}", originalLeader);
         originalLeader.partition();
 
-        cluster.stabilise(Cluster.DEFAULT_STABILISATION_TIME
+        cluster.stabilise(
             // first wait for all the followers to notice the leader has gone
-            + (LEADER_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).millis() + LEADER_CHECK_TIMEOUT_SETTING.get(Settings.EMPTY).millis())
+            (LEADER_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).millis() + LEADER_CHECK_TIMEOUT_SETTING.get(Settings.EMPTY).millis())
             * LEADER_CHECK_RETRY_COUNT_SETTING.get(Settings.EMPTY)
             // then wait for the new leader to notice that the old leader is unresponsive
             + (FOLLOWER_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).millis() + FOLLOWER_CHECK_TIMEOUT_SETTING.get(Settings.EMPTY).millis())
@@ -150,6 +150,22 @@ public class CoordinatorTests extends ESTestCase {
         follower.disconnect();
 
         cluster.stabilise();
+        assertThat(cluster.getAnyLeader().getId(), equalTo(leader.getId()));
+    }
+
+    public void testUnresponsiveFollowerDetectedEventually() {
+        final Cluster cluster = new Cluster(randomIntBetween(3, 5));
+        cluster.stabilise();
+
+        final ClusterNode leader = cluster.getAnyLeader();
+        final ClusterNode follower = cluster.getAnyNodeExcept(leader);
+        logger.info("--> partitioning follower {}", follower);
+        follower.partition();
+
+        cluster.stabilise(
+            // wait for the new leader to notice that the follower is unresponsive
+            (FOLLOWER_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).millis() + FOLLOWER_CHECK_TIMEOUT_SETTING.get(Settings.EMPTY).millis())
+            * FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(Settings.EMPTY));
         assertThat(cluster.getAnyLeader().getId(), equalTo(leader.getId()));
     }
 
@@ -222,6 +238,10 @@ public class CoordinatorTests extends ESTestCase {
                 }
 
                 deterministicTaskQueue.advanceTime();
+            }
+
+            for (ClusterNode clusterNode : clusterNodes) {
+                assert clusterNode.coordinator.publicationInProgress() == false;
             }
 
             assertUniqueLeaderAndExpectedModes();

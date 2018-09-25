@@ -398,6 +398,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         return transportService.getLocalNode();
     }
 
+    boolean publicationInProgress() {
+        synchronized (mutex) {
+            return currentPublication.isPresent();
+        }
+    }
+
     @Override
     protected void doStart() {
         CoordinationState.PersistedState persistedState = persistedStateSupplier.get();

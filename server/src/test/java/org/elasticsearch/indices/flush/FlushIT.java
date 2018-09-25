@@ -47,6 +47,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -240,7 +241,7 @@ public class FlushIT extends ESIntegTestCase {
     private void indexDoc(Engine engine, String id) throws IOException {
         final ParsedDocument doc = InternalEngineTests.createParsedDoc(id, null);
         final Engine.IndexResult indexResult = engine.index(new Engine.Index(new Term("_id", Uid.encodeId(doc.id())), doc,
-            engine.getLocalCheckpoint() + 1, 1L, 1L, null, Engine.Operation.Origin.REPLICA, randomLong(), -1L, false));
+            engine.getLocalCheckpoint() + 1, 1L, 1L, VersionType.EXTERNAL, Engine.Operation.Origin.REPLICA, randomLong(), -1L, false));
         assertThat(indexResult.getFailure(), nullValue());
     }
 

@@ -28,7 +28,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.sql.JDBCType;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -413,6 +415,109 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
 
         assertNotNull(matchQuery);
         assertEquals("foo", matchQuery.get("query"));
+    }
+
+    public void testTranslateQueryWithGroupByAndHaving() throws IOException {
+        index("{\"salary\":100}",
+            "{\"age\":20}");
+
+        Map<String, Object> response = runSql("",
+            new StringEntity("{\"query\":\"SELECT avg(salary) FROM test GROUP BY abs(age) HAVING avg(salary) > 50 LIMIT 10\"}",
+                ContentType.APPLICATION_JSON), "/translate/"
+        );
+
+        assertEquals(response.get("size"), 0);
+        assertEquals(false, response.get("_source"));
+        assertEquals("_none_", response.get("stored_fields"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> aggregations = (Map<String, Object>) response.get("aggregations");
+        assertEquals(1, aggregations.size());
+        assertNotNull(aggregations);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> groupby = (Map<String, Object>) aggregations.get("groupby");
+        assertEquals(2, groupby.size());
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> composite = (Map<String, Object>) groupby.get("composite");
+        assertEquals(2, composite.size());
+        assertEquals(10, composite.get("size"));
+
+        @SuppressWarnings("unchecked")
+        List<Object> sources = (List<Object>) composite.get("sources");
+        assertEquals(1, sources.size());
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> sourcesListMap =
+            (Map<String, Object>) ((Map<String, Object>) sources.get(0)).values().iterator().next();
+        assertEquals(1, sourcesListMap.size());
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> terms = (Map<String, Object>) sourcesListMap.get("terms");
+        assertEquals(4, terms.size());
+        assertEquals("long", terms.get("value_type"));
+        assertEquals(true, terms.get("missing_bucket"));
+        assertEquals("asc", terms.get("order"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> termsScript = (Map<String, Object>) terms.get("script");
+        assertEquals(3, termsScript.size());
+        assertEquals("Math.abs(doc[params.v0].value)", termsScript.get("source"));
+        assertEquals("painless", termsScript.get("lang"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> termsScriptParams = (Map<String, Object>) termsScript.get("params");
+        assertEquals(1, termsScriptParams.size());
+        assertEquals("age", termsScriptParams.get("v0"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> aggregations2 = (Map<String, Object>) groupby.get("aggregations");
+        assertEquals(3, aggregations2.size());
+
+        List<Integer> aggKeys = new ArrayList<>(2);
+        String aggFilterKey = null;
+        for (Map.Entry<String, Object> entry : aggregations2.entrySet()) {
+            String key = entry.getKey();
+            if (key.startsWith("having")) {
+                aggFilterKey = key;
+            } else {
+                aggKeys.add(Integer.valueOf(key));
+                @SuppressWarnings("unchecked")
+                Map<String, Object> aggr = (Map<String, Object>) entry.getValue();
+                assertEquals(1, aggr.size());
+                @SuppressWarnings("unchecked")
+                Map<String, Object> avg = (Map<String, Object>) aggr.get("avg");
+                assertEquals(1, avg.size());
+                assertEquals("salary", avg.get("field"));
+            }
+        }
+        Collections.sort(aggKeys);
+        assertEquals("having" + aggKeys.get(1), aggFilterKey);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> having = (Map<String, Object>) aggregations2.get(aggFilterKey);
+        assertEquals(1, having.size());
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> bucketSelector = (Map<String, Object>) having.get("bucket_selector");
+        assertEquals(3, bucketSelector.size());
+        assertEquals("skip", bucketSelector.get("gap_policy"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> bucketsPath = (Map<String, Object>) bucketSelector.get("buckets_path");
+        assertEquals(1, bucketsPath.size());
+        assertEquals(aggKeys.get(1).toString(), bucketsPath.get("a0"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> filterScript = (Map<String, Object>) bucketSelector.get("script");
+        assertEquals(3, filterScript.size());
+        assertEquals("params.a0 > params.v0", filterScript.get("source"));
+        assertEquals("painless", filterScript.get("lang"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> filterScriptParams = (Map<String, Object>) filterScript.get("params");
+        assertEquals(1, filterScriptParams.size());
+        assertEquals(50, filterScriptParams.get("v0"));
     }
 
     public void testBasicQueryText() throws IOException {

@@ -31,8 +31,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
-import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
+import org.elasticsearch.xpack.watcher.transform.script.WatcherTransformScript;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
@@ -85,7 +85,7 @@ public class ScriptConditionTests extends ESTestCase {
 
         ScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts);
         scriptService = new ScriptService(Settings.EMPTY, Collections.singletonMap(engine.getType(), engine),
-            Collections.singletonMap(Watcher.SCRIPT_EXECUTABLE_CONTEXT.name, Watcher.SCRIPT_EXECUTABLE_CONTEXT));
+            Collections.singletonMap(WatcherTransformScript.CONTEXT.name, WatcherTransformScript.CONTEXT));
 
         ClusterState.Builder clusterState = new ClusterState.Builder(new ClusterName("_name"));
         clusterState.metaData(MetaData.builder().putCustom(ScriptMetaData.TYPE, new ScriptMetaData.Builder(null).build()));

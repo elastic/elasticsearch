@@ -22,7 +22,13 @@ public final class Variables {
     public static final String METADATA = "metadata";
     public static final String VARS = "vars";
 
-    public static Map<String, Object> createCtxModel(WatchExecutionContext ctx, Payload payload) {
+    public static Map<String, Object> createCtxParamsMap(WatchExecutionContext ctx, Payload payload) {
+        Map<String, Object> model = new HashMap<>();
+        model.put(CTX, createCtx(ctx, payload));
+        return model;
+    }
+
+    public static Map<String, Object> createCtx(WatchExecutionContext ctx, Payload payload) {
         Map<String, Object> ctxModel = new HashMap<>();
         ctxModel.put(ID, ctx.id().value());
         ctxModel.put(WATCH_ID, ctx.id().watchId());
@@ -33,10 +39,6 @@ public final class Variables {
         }
         ctxModel.put(METADATA, ctx.watch().metadata());
         ctxModel.put(VARS, ctx.vars());
-        Map<String, Object> model = new HashMap<>();
-        model.put(CTX, ctxModel);
-        return model;
+        return ctxModel;
     }
-
-
 }

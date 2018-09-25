@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.transform.script;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptException;
@@ -49,21 +48,21 @@ public class ScriptTransformTests extends ESTestCase {
         ScriptType type = randomFrom(ScriptType.values());
         Map<String, Object> params = Collections.emptyMap();
         Script script = new Script(type, type == ScriptType.STORED ? null : "_lang", "_script", params);
-        ExecutableScript.Factory factory = mock(ExecutableScript.Factory.class);
-        when(service.compile(script, Watcher.SCRIPT_EXECUTABLE_CONTEXT)).thenReturn(factory);
+        WatcherTransformScript.Factory factory = mock(WatcherTransformScript.Factory.class);
+        when(service.compile(script, WatcherTransformScript.CONTEXT)).thenReturn(factory);
         ExecutableScriptTransform transform = new ExecutableScriptTransform(new ScriptTransform(script), logger, service);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", Payload.EMPTY);
 
         Payload payload = new Payload.Simple("key", "value");
 
-        Map<String, Object> model = Variables.createCtxModel(ctx, payload);
+        Map<String, Object> model = Variables.createCtxParamsMap(ctx, payload);
 
         Map<String, Object> transformed = singletonMap("key", "value");
 
-        ExecutableScript executable = mock(ExecutableScript.class);
-        when(executable.run()).thenReturn(transformed);
-        when(factory.newInstance(model)).thenReturn(executable);
+        WatcherTransformScript executable = mock(WatcherTransformScript.class);
+        when(executable.execute()).thenReturn(transformed);
+        when(factory.newInstance(model, ctx, payload)).thenReturn(executable);
 
         Transform.Result result = transform.execute(ctx, payload);
         assertThat(result, notNullValue());
@@ -77,19 +76,19 @@ public class ScriptTransformTests extends ESTestCase {
         ScriptType type = randomFrom(ScriptType.values());
         Map<String, Object> params = Collections.emptyMap();
         Script script = new Script(type, type == ScriptType.STORED ? null : "_lang", "_script", params);
-        ExecutableScript.Factory factory = mock(ExecutableScript.Factory.class);
-        when(service.compile(script, Watcher.SCRIPT_EXECUTABLE_CONTEXT)).thenReturn(factory);
+        WatcherTransformScript.Factory factory = mock(WatcherTransformScript.Factory.class);
+        when(service.compile(script, WatcherTransformScript.CONTEXT)).thenReturn(factory);
         ExecutableScriptTransform transform = new ExecutableScriptTransform(new ScriptTransform(script), logger, service);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", Payload.EMPTY);
 
         Payload payload = new Payload.Simple("key", "value");
 
-        Map<String, Object> model = Variables.createCtxModel(ctx, payload);
+        Map<String, Object> model = Variables.createCtxParamsMap(ctx, payload);
 
-        ExecutableScript executable = mock(ExecutableScript.class);
-        when(executable.run()).thenThrow(new RuntimeException("_error"));
-        when(factory.newInstance(model)).thenReturn(executable);
+        WatcherTransformScript executable = mock(WatcherTransformScript.class);
+        when(executable.execute()).thenThrow(new RuntimeException("_error"));
+        when(factory.newInstance(model, ctx, payload)).thenReturn(executable);
 
         Transform.Result result = transform.execute(ctx, payload);
         assertThat(result, notNullValue());
@@ -103,20 +102,20 @@ public class ScriptTransformTests extends ESTestCase {
         ScriptType type = randomFrom(ScriptType.values());
         Map<String, Object> params = Collections.emptyMap();
         Script script = new Script(type, type == ScriptType.STORED ? null : "_lang", "_script", params);
-        ExecutableScript.Factory factory = mock(ExecutableScript.Factory.class);
-        when(service.compile(script, Watcher.SCRIPT_EXECUTABLE_CONTEXT)).thenReturn(factory);
+        WatcherTransformScript.Factory factory = mock(WatcherTransformScript.Factory.class);
+        when(service.compile(script, WatcherTransformScript.CONTEXT)).thenReturn(factory);
         ExecutableScriptTransform transform = new ExecutableScriptTransform(new ScriptTransform(script), logger, service);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", Payload.EMPTY);
 
         Payload payload = new Payload.Simple("key", "value");
 
-        Map<String, Object> model = Variables.createCtxModel(ctx, payload);
+        Map<String, Object> model = Variables.createCtxParamsMap(ctx, payload);
 
-        ExecutableScript executable = mock(ExecutableScript.class);
+        WatcherTransformScript executable = mock(WatcherTransformScript.class);
         Object value = randomFrom("value", 1, new String[] { "value" }, Collections.singletonList("value"), singleton("value"));
-        when(executable.run()).thenReturn(value);
-        when(factory.newInstance(model)).thenReturn(executable);
+        when(executable.execute()).thenReturn(value);
+        when(factory.newInstance(model, ctx, payload)).thenReturn(executable);
 
         Transform.Result result = transform.execute(ctx, payload);
         assertThat(result, notNullValue());
@@ -158,7 +157,7 @@ public class ScriptTransformTests extends ESTestCase {
         String errorMessage = "expected error message";
         ScriptException scriptException = new ScriptException(errorMessage, new RuntimeException("foo"),
                 Collections.emptyList(), "whatever", "whatever");
-        when(scriptService.compile(anyObject(), eq(Watcher.SCRIPT_EXECUTABLE_CONTEXT))).thenThrow(scriptException);
+        when(scriptService.compile(anyObject(), eq(WatcherTransformScript.CONTEXT))).thenThrow(scriptException);
 
         ScriptTransformFactory transformFactory = new ScriptTransformFactory(Settings.builder().build(), scriptService);
 
@@ -205,7 +204,7 @@ public class ScriptTransformTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
         Map<String, ScriptContext> contexts = new HashMap<>(ScriptModule.CORE_CONTEXTS);
-        contexts.put(Watcher.SCRIPT_EXECUTABLE_CONTEXT.name, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
+        contexts.put(WatcherTransformScript.CONTEXT.name, WatcherTransformScript.CONTEXT);
         contexts.put(Watcher.SCRIPT_TEMPLATE_CONTEXT.name, Watcher.SCRIPT_TEMPLATE_CONTEXT);
         return new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap());
     }

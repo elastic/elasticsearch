@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.transform.script.ExecutableScriptTransform;
 import org.elasticsearch.xpack.watcher.transform.script.ScriptTransform;
 import org.elasticsearch.xpack.watcher.transform.script.ScriptTransformFactory;
+import org.elasticsearch.xpack.watcher.transform.script.WatcherTransformScript;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -51,7 +52,7 @@ public class TransformInputTests extends ESTestCase {
         Map<String, ScriptContext<?>> contexts = new HashMap<>();
         contexts.put(Watcher.SCRIPT_TEMPLATE_CONTEXT.name, Watcher.SCRIPT_TEMPLATE_CONTEXT);
         contexts.put(Watcher.SCRIPT_SEARCH_CONTEXT.name, Watcher.SCRIPT_SEARCH_CONTEXT);
-        contexts.put(Watcher.SCRIPT_EXECUTABLE_CONTEXT.name, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
+        contexts.put(WatcherTransformScript.CONTEXT.name, WatcherTransformScript.CONTEXT);
         scriptService = new ScriptService(Settings.EMPTY, engines, contexts);
     }
 

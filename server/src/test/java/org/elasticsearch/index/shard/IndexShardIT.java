@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedRunnable;
@@ -59,6 +58,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -102,6 +102,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -636,7 +637,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     private static ShardRouting getInitializingShardRouting(ShardRouting existingShardRouting) {
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(existingShardRouting.shardId(),
+        ShardRouting shardRouting = newShardRouting(existingShardRouting.shardId(),
             existingShardRouting.currentNodeId(), null, existingShardRouting.primary(), ShardRoutingState.INITIALIZING,
             existingShardRouting.allocationId());
         shardRouting = shardRouting.updateUnassigned(new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, "fake recovery"),
@@ -809,4 +810,36 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertTrue(notified.get());
     }
 
+    /**
+     * Test that the {@link org.elasticsearch.index.engine.NoOpEngine} takes precedence over other
+     * engine factories if the index is closed.
+     */
+    public void testNoOpEngineFactoryTakesPrecedence() throws IOException {
+        final String indexName = "closed-index";
+        final Index index = new Index(indexName, UUIDs.randomBase64UUID());
+        final Settings.Builder builder = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID());
+
+        final IndexMetaData indexMetaData = new IndexMetaData.Builder(index.getName())
+            .settings(builder.build())
+            .state(IndexMetaData.State.CLOSE)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final IndexService indexService = indicesService.createIndex(indexMetaData, Collections.emptyList());
+
+        final ShardId shardId = new ShardId(index, 0);
+        final DiscoveryNode node = clusterService.localNode();
+        final ShardRouting routing =
+            newShardRouting(shardId, node.getId(), true, ShardRoutingState.INITIALIZING, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
+
+        final IndexShard indexShard = indexService.createShard(routing, id -> {});
+        indexShard.markAsRecovering("store", new RecoveryState(indexShard.routingEntry(), node, null));
+        indexShard.recoverFromStore();
+        assertThat(indexShard.getEngine(), instanceOf(NoOpEngine.class));
+    }
 }

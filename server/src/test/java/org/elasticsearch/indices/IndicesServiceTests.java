@@ -49,7 +49,6 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
-import org.elasticsearch.index.engine.NoOpEngineFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -542,35 +541,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             } else {
                 assertThat(indexService.getEngineFactory(), instanceOf(InternalEngineFactory.class));
             }
-        }
-    }
-
-    /**
-     * Test that the {@link org.elasticsearch.index.engine.NoOpEngineFactory} takes precedence over other
-     * engine factories if the index is closed.
-     */
-    public void testNoOpEngineFactoryTakesPrecedence() throws IOException {
-        final IndicesService indicesService = getIndicesService();
-
-        final Boolean[] values = new Boolean[] { true, false, null };
-        for (final Boolean value : values) {
-            final String indexName = "foo-" + value;
-            final Index index = new Index(indexName, UUIDs.randomBase64UUID());
-            final Settings.Builder builder = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID());
-            if (value != null) {
-                builder.put(FooEnginePlugin.FOO_INDEX_SETTING.getKey(), value);
-            }
-
-            final IndexMetaData indexMetaData = new IndexMetaData.Builder(index.getName())
-                .settings(builder.build())
-                .state(IndexMetaData.State.CLOSE)
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .build();
-            final IndexService indexService = indicesService.createIndex(indexMetaData, Collections.emptyList());
-            assertThat(indexService.getEngineFactory(), instanceOf(NoOpEngineFactory.class));
         }
     }
 

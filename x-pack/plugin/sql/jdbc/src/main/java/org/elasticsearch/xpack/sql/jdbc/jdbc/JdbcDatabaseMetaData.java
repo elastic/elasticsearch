@@ -19,6 +19,7 @@ import java.sql.ResultSet;
 import java.sql.RowIdLifetime;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLType;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -1124,11 +1125,11 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
             Object obj = cols[i];
             if (obj instanceof String) {
                 String name = obj.toString();
-                JDBCType type = JDBCType.VARCHAR;
+                SQLType type = JDBCType.VARCHAR;
                 if (i + 1 < cols.length) {
                     // check if the next item it's a type
-                    if (cols[i + 1] instanceof JDBCType) {
-                        type = (JDBCType) cols[i + 1];
+                    if (cols[i + 1] instanceof SQLType) {
+                        type = (SQLType) cols[i + 1];
                         i++;
                     }
                     // it's not, use the default and move on

@@ -178,9 +178,9 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             } else {
                 assertThat(e.getMessage(), containsString("aborted by user"));
             }
+        } finally {
+            logger.info("--> output:\n{}", t.getOutput());
         }
-
-        logger.info("--> output:\n{}", t.getOutput());
 
         if (corruptSegments == false) {
 

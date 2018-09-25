@@ -135,7 +135,7 @@ public class ReadOnlyEngine extends Engine {
         }
     }
 
-    protected DocsStats docsStats(final SegmentInfos lastCommittedSegmentInfos) {
+    private DocsStats docsStats(final SegmentInfos lastCommittedSegmentInfos) {
         long numDocs = 0;
         long numDeletedDocs = 0;
         long sizeInBytes = 0;
@@ -146,7 +146,7 @@ public class ReadOnlyEngine extends Engine {
                 try {
                     sizeInBytes += segmentCommitInfo.sizeInBytes();
                 } catch (IOException e) {
-                    logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", segmentCommitInfo.info.name), e);
+                    throw new UncheckedIOException("Failed to get size for [" + segmentCommitInfo.info.name + "]", e);
                 }
             }
         }

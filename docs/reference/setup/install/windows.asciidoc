@@ -69,7 +69,7 @@ name, node name and roles to be set, in addition to memory and network settings:
 [[msi-installer-configuration]]
 image::images/msi_installer/msi_installer_configuration.png[]
 
-A list of common plugins that can be downloaded and installed as part of the installation, with the option to configure a HTTPS proxy through which to download these plugins.
+A list of common plugins that can be downloaded and installed as part of the installation, with the option to configure an HTTPS proxy through which to download these plugins.
 
 TIP: Ensure the installation machine has access to the internet and that any corporate firewalls in place are configured to allow downloads from `artifacts.elastic.co`:
 

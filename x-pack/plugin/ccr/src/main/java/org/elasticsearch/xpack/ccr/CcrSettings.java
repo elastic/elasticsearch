@@ -27,7 +27,7 @@ public final class CcrSettings {
      * Index setting for a following index.
      */
     public static final Setting<Boolean> CCR_FOLLOWING_INDEX_SETTING =
-            Setting.boolSetting("index.xpack.ccr.following_index", false, Setting.Property.IndexScope);
+            Setting.boolSetting("index.xpack.ccr.following_index", false, Property.IndexScope, Property.InternalIndex);
 
     /**
      * Setting for controlling the interval in between polling leader clusters to check whether there are indices to follow

@@ -389,10 +389,27 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
-        ActionListener<Void> listener = ActionListener.wrap(x -> latch.countDown(), x -> {
-            exceptionAtomicReference.set(x);
-            latch.countDown();
-        });
+        ActionListener<Void> listener = ActionListener.wrap(
+            x -> latch.countDown(),
+            x -> {
+                /*
+                 * This can occur on a thread submitted to the thread pool while we are closing the
+                 * remote cluster connection at the end of the test.
+                 */
+                if (x instanceof CancellableThreads.ExecutionCancelledException) {
+                    try {
+                        // we should already be shutting down
+                        assertEquals(0L, latch.getCount());
+                    } finally {
+                        // ensure we count down the latch on failure as well to not prevent failing tests from ending
+                        latch.countDown();
+                    }
+                    return;
+                }
+                exceptionAtomicReference.set(x);
+                latch.countDown();
+            }
+        );
         connection.updateSeedNodes(proxyAddress, seedNodes, listener);
         latch.await();
         if (exceptionAtomicReference.get() != null) {

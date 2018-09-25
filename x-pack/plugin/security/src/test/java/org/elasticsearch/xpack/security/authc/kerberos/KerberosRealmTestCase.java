@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.kerberos;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -30,6 +31,10 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
@@ -71,7 +76,7 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
         resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
         dir = createTempDir();
         globalSettings = Settings.builder().put("path.home", dir).build();
-        settings = KerberosTestCase.buildKerberosRealmSettings(KerberosTestCase.writeKeyTab(dir.resolve("key.keytab"), "asa").toString(),
+        settings = buildKerberosRealmSettings(writeKeyTab(dir.resolve("key.keytab"), "asa").toString(),
                 100, "10m", true, randomBoolean());
         licenseState = mock(XPackLicenseState.class);
         when(licenseState.isAuthorizationRealmAllowed()).thenReturn(true);
@@ -155,6 +160,7 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
         if (withInstance) {
             principalName.append("/").append(randomAlphaOfLength(5));
         }
+        principalName.append("@");
         principalName.append(randomAlphaOfLength(5).toUpperCase(Locale.ROOT));
         return principalName.toString();
     }
@@ -176,5 +182,63 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
             }
         }
         return principalName;
+    }
+
+    /**
+     * Extracts and returns realm part from the principal name.
+     * @param principalName user principal name
+     * @return realm name if found else returns {@code null}
+     */
+    protected String realmName(final String principalName) {
+        String[] values = principalName.split("@");
+        if (values.length > 1) {
+            return values[1];
+        }
+        return null;
+    }
+
+    /**
+     * Write content to provided keytab file.
+     *
+     * @param keytabPath {@link Path} to keytab file.
+     * @param content Content for keytab
+     * @return key tab path
+     * @throws IOException if I/O error occurs while writing keytab file
+     */
+    public static Path writeKeyTab(final Path keytabPath, final String content) throws IOException {
+        try (BufferedWriter bufferedWriter = Files.newBufferedWriter(keytabPath, StandardCharsets.US_ASCII)) {
+            bufferedWriter.write(Strings.isNullOrEmpty(content) ? "test-content" : content);
+        }
+        return keytabPath;
+    }
+
+    /**
+     * Build kerberos realm settings with default config and given keytab
+     *
+     * @param keytabPath key tab file path
+     * @return {@link Settings} for kerberos realm
+     */
+    public static Settings buildKerberosRealmSettings(final String keytabPath) {
+        return buildKerberosRealmSettings(keytabPath, 100, "10m", true, false);
+    }
+
+    /**
+     * Build kerberos realm settings
+     *
+     * @param keytabPath key tab file path
+     * @param maxUsersInCache max users to be maintained in cache
+     * @param cacheTTL time to live for cached entries
+     * @param enableDebugging for krb5 logs
+     * @param removeRealmName {@code true} if we want to remove realm name from the username of form 'user@REALM'
+     * @return {@link Settings} for kerberos realm
+     */
+    public static Settings buildKerberosRealmSettings(final String keytabPath, final int maxUsersInCache, final String cacheTTL,
+            final boolean enableDebugging, final boolean removeRealmName) {
+        final Settings.Builder builder = Settings.builder().put(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.getKey(), keytabPath)
+                .put(KerberosRealmSettings.CACHE_MAX_USERS_SETTING.getKey(), maxUsersInCache)
+                .put(KerberosRealmSettings.CACHE_TTL_SETTING.getKey(), cacheTTL)
+                .put(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.getKey(), enableDebugging)
+                .put(KerberosRealmSettings.SETTING_REMOVE_REALM_NAME.getKey(), removeRealmName);
+        return builder.build();
     }
 }

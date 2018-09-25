@@ -38,23 +38,23 @@ public final class PainlessLookup {
     private final Map<Class<?>, PainlessClass> classesToPainlessClasses;
 
     private final Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods;
-    private final Map<String, PainlessBinding> painlessMethodKeysToPainlessBindings;
+    private final Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings;
 
     PainlessLookup(Map<String, Class<?>> canonicalClassNamesToClasses, Map<Class<?>, PainlessClass> classesToPainlessClasses,
             Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods,
-            Map<String, PainlessBinding> painlessMethodKeysToPainlessBindings) {
+            Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings) {
 
         Objects.requireNonNull(canonicalClassNamesToClasses);
         Objects.requireNonNull(classesToPainlessClasses);
 
         Objects.requireNonNull(painlessMethodKeysToImportedPainlessMethods);
-        Objects.requireNonNull(painlessMethodKeysToPainlessBindings);
+        Objects.requireNonNull(painlessMethodKeysToPainlessClassBindings);
 
         this.canonicalClassNamesToClasses = Collections.unmodifiableMap(canonicalClassNamesToClasses);
         this.classesToPainlessClasses = Collections.unmodifiableMap(classesToPainlessClasses);
 
         this.painlessMethodKeysToImportedPainlessMethods = Collections.unmodifiableMap(painlessMethodKeysToImportedPainlessMethods);
-        this.painlessMethodKeysToPainlessBindings = Collections.unmodifiableMap(painlessMethodKeysToPainlessBindings);
+        this.painlessMethodKeysToPainlessClassBindings = Collections.unmodifiableMap(painlessMethodKeysToPainlessClassBindings);
     }
 
     public boolean isValidCanonicalClassName(String canonicalClassName) {
@@ -182,12 +182,12 @@ public final class PainlessLookup {
         return painlessMethodKeysToImportedPainlessMethods.get(painlessMethodKey);
     }
 
-    public PainlessBinding lookupPainlessBinding(String methodName, int arity) {
+    public PainlessClassBinding lookupPainlessClassBinding(String methodName, int arity) {
         Objects.requireNonNull(methodName);
 
         String painlessMethodKey = buildPainlessMethodKey(methodName, arity);
 
-        return painlessMethodKeysToPainlessBindings.get(painlessMethodKey);
+        return painlessMethodKeysToPainlessClassBindings.get(painlessMethodKey);
     }
 
     public PainlessMethod lookupFunctionalInterfacePainlessMethod(Class<?> targetClass) {

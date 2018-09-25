@@ -62,8 +62,7 @@ public class TermVectorsResponseTests extends AbstractXContentTestCase<TermVecto
                 tvList.add(randomTermVector(hasFieldStatistics, hasTermStatistics, hasScores, hasOffsets, hasPositions, hasPayloads));
             }
         }
-        TermVectorsResponse tvresponse = new TermVectorsResponse(index, type, id, version, found, tookInMillis);
-        tvresponse.setTermVectorsList(tvList);
+        TermVectorsResponse tvresponse = new TermVectorsResponse(index, type, id, version, found, tookInMillis, tvList);
         return tvresponse;
     }
 
@@ -73,51 +72,60 @@ public class TermVectorsResponseTests extends AbstractXContentTestCase<TermVecto
     }
 
     private TermVectorsResponse.TermVector randomTermVector(boolean hasFieldStatistics, boolean hasTermStatistics, boolean hasScores,
-                                                            boolean hasOffsets, boolean hasPositions, boolean hasPayloads) {
-        TermVectorsResponse.TermVector tv = new TermVectorsResponse.TermVector();
-        tv.setFieldName("field" + randomAlphaOfLength(2));
+            boolean hasOffsets, boolean hasPositions, boolean hasPayloads) {
+        TermVectorsResponse.TermVector.FieldStatistics fs = null;
         if (hasFieldStatistics) {
             long sumDocFreq = randomNonNegativeLong();
             int docCount = randomInt(1000);
             long sumTotalTermFreq = randomNonNegativeLong();
-            TermVectorsResponse.TermVector.FieldStatistics fs =
-                new TermVectorsResponse.TermVector.FieldStatistics(sumDocFreq, docCount, sumTotalTermFreq);
-            tv.setFieldStatistics(fs);
+            fs = new TermVectorsResponse.TermVector.FieldStatistics(sumDocFreq, docCount, sumTotalTermFreq);
         }
+
         int termsCount = randomIntBetween(1, 5);
         List<TermVectorsResponse.TermVector.Term> terms = new ArrayList<>(termsCount);
         for (int i = 0; i < termsCount; i++) {
             terms.add(randomTerm(hasTermStatistics, hasScores, hasOffsets, hasPositions, hasPayloads));
         }
-        tv.setTerms(terms);
+
+        TermVectorsResponse.TermVector tv = new TermVectorsResponse.TermVector("field" + randomAlphaOfLength(2), fs, terms);
         return tv;
     }
 
     private TermVectorsResponse.TermVector.Term randomTerm(boolean hasTermStatistics, boolean hasScores,
-                                                           boolean hasOffsets, boolean hasPositions, boolean hasPayloads) {
-        TermVectorsResponse.TermVector.Term term = new TermVectorsResponse.TermVector.Term();
-        term.setTerm("term" + randomAlphaOfLength(2));
-        term.setTermFreq(randomInt(10000));
+            boolean hasOffsets, boolean hasPositions, boolean hasPayloads) {
+
+        String termTxt = "term" + randomAlphaOfLength(2);
+        int termFreq =  randomInt(10000);
+        Integer docFreq = null;
+        Long totalTermFreq = null;
+        Float score = null;
+        List<TermVectorsResponse.TermVector.Token> tokens = null;
         if (hasTermStatistics) {
-            term.setDocFreq(randomInt(1000));
-            term.setTotalTermFreq(randomNonNegativeLong());
+            docFreq = randomInt(1000);
+            totalTermFreq = randomNonNegativeLong();
         }
-        if (hasScores) term.setScore(randomFloat());
+        if (hasScores) score = randomFloat();
         if (hasOffsets || hasPositions || hasPayloads ){
             int tokensCount = randomIntBetween(1, 5);
-            List<TermVectorsResponse.TermVector.Token> tokens = new ArrayList<>(tokensCount);
+            tokens = new ArrayList<>(tokensCount);
             for (int i = 0; i < tokensCount; i++) {
-                TermVectorsResponse.TermVector.Token token = new TermVectorsResponse.TermVector.Token();
+                Integer startOffset = null;
+                Integer endOffset = null;
+                Integer position = null;
+                String payload = null;
                 if (hasOffsets) {
-                    token.setStartOffset(randomInt(1000));
-                    token.setEndOffset(randomInt(2000));
+                    startOffset = randomInt(1000);
+                    endOffset = randomInt(2000);
                 }
-                if (hasPositions) token.setPosition(randomInt(100));
-                if (hasPayloads) token.setPayload("payload" + randomAlphaOfLength(2));
+                if (hasPositions) position = randomInt(100);
+                if (hasPayloads) payload = "payload" + randomAlphaOfLength(2);
+                TermVectorsResponse.TermVector.Token token =
+                    new TermVectorsResponse.TermVector.Token(startOffset, endOffset, position, payload);
                 tokens.add(token);
             }
-            term.setTokens(tokens);
         }
+        TermVectorsResponse.TermVector.Term term =
+            new TermVectorsResponse.TermVector.Term(termTxt, termFreq, docFreq, totalTermFreq, score, tokens);
         return term;
     }
 

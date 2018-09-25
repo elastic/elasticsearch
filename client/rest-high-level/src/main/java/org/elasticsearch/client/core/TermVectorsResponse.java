@@ -20,12 +20,12 @@
 package org.elasticsearch.client.core;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -42,20 +42,25 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
     private final long docVersion;
     private final boolean found;
     private final long tookInMillis;
-    private List<TermVector> termVectorList = null;
+    private final List<TermVector> termVectorList;
 
-    public TermVectorsResponse(String index, String type, String id, long version, boolean found, long tookInMillis) {
+    public TermVectorsResponse(
+        String index, String type, String id, long version, boolean found, long tookInMillis, List<TermVector> termVectorList) {
         this.index = index;
         this.type = type;
         this.id = id;
         this.docVersion = version;
         this.found = found;
         this.tookInMillis = tookInMillis;
+        if (termVectorList != null) {
+            Collections.sort(termVectorList, Comparator.comparing(TermVector::getFieldName));
+        }
+        this.termVectorList = termVectorList;
     }
 
     private static ConstructingObjectParser<TermVectorsResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "term_vectors", true, args  ->
-        new TermVectorsResponse((String) args[0], (String) args[1], (String) args[2], (long) args[3], (boolean) args[4], (long) args[5]));
+        "term_vectors", true, args  -> new TermVectorsResponse((String) args[0], (String) args[1],
+        (String) args[2], (long) args[3], (boolean) args[4], (long) args[5], (List<TermVector>) args[6]));
 
     static {
         PARSER.declareString(constructorArg(), new ParseField("_index"));
@@ -64,8 +69,8 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         PARSER.declareLong(constructorArg(), new ParseField("_version"));
         PARSER.declareBoolean(constructorArg(), new ParseField("found"));
         PARSER.declareLong(constructorArg(), new ParseField("took"));
-        PARSER.declareNamedObjects(TermVectorsResponse::setTermVectorsList, (p, c, fieldName) -> TermVector.fromXContent(p, fieldName),
-            new ParseField("term_vectors"));
+        PARSER.declareNamedObjects(optionalConstructorArg(),
+            (p, c, fieldName) -> TermVector.fromXContent(p, fieldName), new ParseField("term_vectors"));
     }
 
     public static TermVectorsResponse fromXContent(XContentParser parser) {
@@ -135,13 +140,6 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         }
     }
 
-    public void setTermVectorsList(List<TermVector> termVectorList) {
-        this.termVectorList = termVectorList;
-        if (termVectorList != null) {
-            Collections.sort(this.termVectorList, Comparator.comparing(TermVector::getFieldName));
-        }
-    }
-
     public String getIndex() {
         return index;
     }
@@ -184,70 +182,46 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
 
     public static final class TermVector {
 
-        private static ObjectParser<TermVector, Void> TVPARSER =
-            new ObjectParser<>(TermVector.class.getSimpleName(), true, TermVector::new);
-        private static ConstructingObjectParser<FieldStatistics, Void> FSPARSER = new ConstructingObjectParser<>(
-            "field_statistics", true, args  -> new FieldStatistics((long) args[0], (int) args[1], (long) args[2]));
-        private static ObjectParser<Term, Void> TERMPARSER = new ObjectParser<>(Term.class.getSimpleName(), true, Term::new);
-        private static ObjectParser<Token, Void> TOKENPARSER = new ObjectParser<>(Token.class.getSimpleName(), true, Token::new);
+        private static ConstructingObjectParser<TermVector, String> TVPARSER = new ConstructingObjectParser<>(
+            "term_vector", true, (args, ctxFieldName)  -> new TermVector( ctxFieldName, (FieldStatistics) args[0], (List<Term>) args[2]));
+
         static {
-            TVPARSER.declareObject(TermVector::setFieldStatistics, FSPARSER, new ParseField("field_statistics"));
-            TVPARSER.declareNamedObjects(TermVector::setTerms, (p, c, term) -> Term.fromXContent(p, term), new ParseField("terms"));
-
-            FSPARSER.declareLong(constructorArg(), new ParseField("sum_doc_freq"));
-            FSPARSER.declareInt(constructorArg(), new ParseField("doc_count"));
-            FSPARSER.declareLong(constructorArg(), new ParseField("sum_ttf"));
-
-            TERMPARSER.declareInt(Term::setTermFreq, new ParseField("term_freq"));
-            TERMPARSER.declareInt(Term::setDocFreq, new ParseField("doc_freq"));
-            TERMPARSER.declareLong(Term::setTotalTermFreq, new ParseField("ttf"));
-            TERMPARSER.declareFloat(Term::setScore, new ParseField("score"));
-            TERMPARSER.declareObjectArray(Term::setTokens, (p,c) -> Token.fromXContent(p), new ParseField("tokens"));
-
-            TOKENPARSER.declareInt(Token::setPosition, new ParseField("position"));
-            TOKENPARSER.declareInt(Token::setStartOffset, new ParseField("start_offset"));
-            TOKENPARSER.declareInt(Token::setEndOffset, new ParseField("end_offset"));
-            TOKENPARSER.declareString(Token::setPayload, new ParseField("payload"));
+            TVPARSER.declareObject(optionalConstructorArg(),
+                (p,c) -> FieldStatistics.fromXContent(p), new ParseField("field_statistics"));
+            TVPARSER.declareNamedObjects(optionalConstructorArg(), (p, c, term) -> Term.fromXContent(p, term), new ParseField("terms"));
         }
 
-        private String fieldName;
-        private FieldStatistics fieldStatistics = null;
-        private List<Term> terms = null;
+        private final String fieldName;
+        @Nullable
+        private final FieldStatistics fieldStatistics;
+        @Nullable
+        private final List<Term> terms;
 
-        public TermVector() {}
+        public TermVector(String fieldName, FieldStatistics fieldStatistics, List<Term> terms) {
+            this.fieldName = fieldName;
+            this.fieldStatistics = fieldStatistics;
+            if (terms != null) {
+                Collections.sort(terms, Comparator.comparing(Term::getTerm));
+            }
+            this.terms = terms;
+        }
 
         public static TermVector fromXContent(XContentParser parser, String fieldName) {
-            TermVector tv = TVPARSER.apply(parser, null);
-            tv.setFieldName(fieldName);
-            return tv;
+            return TVPARSER.apply(parser, null);
         }
 
         public String getFieldName() {
             return fieldName;
         }
 
-        public void setFieldName(String fieldName) {
-            this.fieldName = fieldName;
-        }
-
         public List<Term> getTerms() {
             return terms;
-        }
-
-        public void setTerms(List<Term> terms) {
-            this.terms = terms;
-            if (terms != null) {
-                Collections.sort(this.terms, Comparator.comparing(Term::getTerm));
-            }
         }
 
         public FieldStatistics getFieldStatistics() {
             return fieldStatistics;
         }
 
-        public void setFieldStatistics(FieldStatistics fieldStatistics) {
-            this.fieldStatistics = fieldStatistics;
-        }
 
         @Override
         public boolean equals(Object obj) {
@@ -265,6 +239,15 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         }
 
         public static final class FieldStatistics {
+
+            private static ConstructingObjectParser<FieldStatistics, Void> FSPARSER = new ConstructingObjectParser<>(
+                "field_statistics", true, args  -> new FieldStatistics((long) args[0], (int) args[1], (long) args[2]));
+
+            static {
+                FSPARSER.declareLong(constructorArg(), new ParseField("sum_doc_freq"));
+                FSPARSER.declareInt(constructorArg(), new ParseField("doc_count"));
+                FSPARSER.declareLong(constructorArg(), new ParseField("sum_ttf"));
+            }
             private final long sumDocFreq;
             private final int docCount;
             private final long sumTotalTermFreq;
@@ -274,6 +257,11 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
                 this.docCount = docCount;
                 this.sumTotalTermFreq = sumTotalTermFreq;
             }
+
+            public static FieldStatistics fromXContent(XContentParser parser) {
+                return FSPARSER.apply(parser, null);
+            }
+
             public int getDocCount() {
                 return docCount;
             }
@@ -299,68 +287,66 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
             }
         }
 
-        public static final class Term {
-            private String term;
-            private int termFreq = -1;
-            private int docFreq = -1;
-            private long totalTermFreq = -1;
-            private float score = -1f;
-            private List<Token> tokens = null;
 
-            public Term() {};
+        public static final class Term {
+
+            private static ConstructingObjectParser<Term, String> TERMPARSER = new ConstructingObjectParser<>(
+                "token", true, (args, ctxTerm)  -> new Term( ctxTerm, (int) args[0],
+                (Integer) args[1], (Long) args[2], (Float) args[3], (List<Token>) args[4]));
+            static {
+                TERMPARSER.declareInt(constructorArg(), new ParseField("term_freq"));
+                TERMPARSER.declareInt(optionalConstructorArg(), new ParseField("doc_freq"));
+                TERMPARSER.declareLong(optionalConstructorArg(), new ParseField("ttf"));
+                TERMPARSER.declareFloat(optionalConstructorArg(), new ParseField("score"));
+                TERMPARSER.declareObjectArray(optionalConstructorArg(), (p,c) -> Token.fromXContent(p), new ParseField("tokens"));
+            }
+
+            private final String term;
+            private final int termFreq;
+            @Nullable
+            private final Integer docFreq;
+            @Nullable
+            private final Long totalTermFreq;
+            @Nullable
+            private final Float score;
+            @Nullable
+            private final List<Token> tokens;
+
+            public Term(String term, int termFreq, Integer docFreq, Long totalTermFreq, Float score, List<Token> tokens) {
+                this.term = term;
+                this.termFreq = termFreq;
+                this.docFreq = docFreq;
+                this.totalTermFreq = totalTermFreq;
+                this.score = score;
+                if (tokens != null) {
+                    Collections.sort(tokens,
+                        Comparator.comparing(Token::getPosition).thenComparing(Token::getStartOffset).thenComparing(Token::getEndOffset));
+                }
+                this.tokens = tokens;
+            }
 
             public static Term fromXContent(XContentParser parser, String term) {
-                Term t = TERMPARSER.apply(parser, null);
-                t.setTerm(term);
-                return t;
+                return TERMPARSER.apply(parser, term);
             }
 
             public String getTerm() {
                 return term;
             }
 
-            public void setTerm(String term) {
-                this.term = term;
-            }
-
-            public void setTermFreq(int termFreq) {
-                this.termFreq = termFreq;
-            }
-
             public int getTermFreq() {
                 return termFreq;
             }
 
-            public void setDocFreq(int docFreq) {
-                this.docFreq = docFreq;
-            }
-
-            public int getDocFreq() {
+            public Integer getDocFreq() {
                 return docFreq;
             }
 
-            public void setTotalTermFreq(long totalTermFreq) {
-                this.totalTermFreq = totalTermFreq;
-            }
-
-            public long getTotalTermFreq( ){
+            public Long getTotalTermFreq( ){
                 return totalTermFreq;
             }
 
-            public void setScore(float score) {
-                this.score = score;
-            }
-
-            public float getScore(){
+            public Float getScore(){
                 return score;
-            }
-
-            public void setTokens(List<Token> tokens) {
-                this.tokens = tokens;
-                if (tokens != null) {
-                    Collections.sort(this.tokens,
-                        Comparator.comparing(Token::getPosition).thenComparing(Token::getStartOffset).thenComparing(Token::getEndOffset));
-                }
             }
 
             public List<Token> getTokens() {
@@ -374,9 +360,9 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
                 Term other = (Term) obj;
                 return term.equals(other.term)
                     && termFreq == other.termFreq
-                    && docFreq == other.docFreq
-                    && totalTermFreq == other.totalTermFreq
-                    && (Float.compare(score, other.score) == 0)
+                    && Objects.equals(docFreq, other.docFreq)
+                    && Objects.equals(totalTermFreq, other.totalTermFreq)
+                    && Objects.equals(score, other.score)
                     && Objects.equals(tokens, other.tokens);
             }
 
@@ -386,49 +372,54 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
             }
         }
 
-        public static final class Token {
-            private int position = -1;
-            private int startOffset = -1;
-            private int endOffset = -1;
-            private String payload = null;
 
-            public Token() {};
+        public static final class Token {
+
+            private static ConstructingObjectParser<Token, Void> TOKENPARSER = new ConstructingObjectParser<>(
+                "token", true, args  -> new Token((Integer) args[0], (Integer) args[1],
+                (Integer) args[2], (String) args[3]));
+            static {
+                TOKENPARSER.declareInt(optionalConstructorArg(), new ParseField("start_offset"));
+                TOKENPARSER.declareInt(optionalConstructorArg(), new ParseField("end_offset"));
+                TOKENPARSER.declareInt(optionalConstructorArg(), new ParseField("position"));
+                TOKENPARSER.declareString(optionalConstructorArg(), new ParseField("payload"));
+            }
+
+            @Nullable
+            private final Integer startOffset;
+            @Nullable
+            private final Integer endOffset;
+            @Nullable
+            private final Integer position;
+            @Nullable
+            private final String payload;
+
+
+            public Token(Integer startOffset, Integer endOffset, Integer position,  String payload) {
+                this.startOffset = startOffset;
+                this.endOffset = endOffset;
+                this.position = position;
+                this.payload = payload;
+            }
 
             public static Token fromXContent(XContentParser parser) {
-                Token t = TOKENPARSER.apply(parser, null);
-                return t;
+                return TOKENPARSER.apply(parser, null);
             }
 
-            public int getPosition() {
-                return position;
-            }
-
-            public void setPosition(int position) {
-                this.position = position;
-            }
-
-            public int getStartOffset() {
+            public Integer getStartOffset() {
                 return startOffset;
             }
 
-            public void setStartOffset(int startOffset) {
-                this.startOffset = startOffset;
-            }
-
-            public int getEndOffset() {
+            public Integer getEndOffset() {
                 return endOffset;
             }
 
-            public void setEndOffset(int endOffset) {
-                this.endOffset = endOffset;
+            public Integer getPosition() {
+                return position;
             }
 
             public String getPayload() {
                 return payload;
-            }
-
-            public void setPayload(String payload) {
-                this.payload = payload;
             }
 
             @Override
@@ -436,9 +427,9 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
                 if (this == obj) return true;
                 if (!(obj instanceof Token)) return false;
                 Token other = (Token) obj;
-                return startOffset == other.startOffset
-                    && endOffset == other.endOffset
-                    && position == other.position
+                return Objects.equals(startOffset, other.startOffset)
+                    && Objects.equals(endOffset,other.endOffset)
+                    && Objects.equals(position, other.position)
                     && Objects.equals(payload, other.payload);
             }
 
@@ -448,5 +439,5 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
             }
 
         }
-        }
+    }
 }

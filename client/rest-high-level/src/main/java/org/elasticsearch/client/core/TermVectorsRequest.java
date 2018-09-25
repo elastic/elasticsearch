@@ -214,13 +214,11 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
 
         if (filterSettings != null) {
             builder.startObject("filter");
-            if (filterSettings.containsKey("max_num_terms")) builder.field("max_num_terms", filterSettings.get("max_num_terms"));
-            if (filterSettings.containsKey("min_term_freq")) builder.field("min_term_freq", filterSettings.get("min_term_freq"));
-            if (filterSettings.containsKey("max_term_freq")) builder.field("max_term_freq", filterSettings.get("max_term_freq"));
-            if (filterSettings.containsKey("min_doc_freq")) builder.field("min_doc_freq", filterSettings.get("min_doc_freq"));
-            if (filterSettings.containsKey("max_doc_freq")) builder.field("max_doc_freq", filterSettings.get("max_doc_freq"));
-            if (filterSettings.containsKey("min_word_length")) builder.field("min_word_length", filterSettings.get("min_word_length"));
-            if (filterSettings.containsKey("max_word_length")) builder.field("max_word_length", filterSettings.get("max_word_length"));
+            String[] filterSettingNames =
+                {"max_num_terms", "min_term_freq", "max_term_freq", "min_doc_freq", "max_doc_freq", "min_word_length", "max_word_length"};
+            for (String settingName : filterSettingNames) {
+                if (filterSettings.containsKey(settingName)) builder.field(settingName, filterSettings.get(settingName));
+            }
             builder.endObject();
         }
         builder.endObject();

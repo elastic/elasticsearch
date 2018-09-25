@@ -1232,21 +1232,12 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         tvRequest.setFields("field");
         TermVectorsResponse tvResponse = execute(tvRequest, highLevelClient()::termvectors, highLevelClient()::termvectorsAsync);
 
-        TermVectorsResponse.TermVector.Token expectedToken = new TermVectorsResponse.TermVector.Token();
-        expectedToken.setStartOffset(0);
-        expectedToken.setEndOffset(6);
-        expectedToken.setPosition(0);
+        TermVectorsResponse.TermVector.Token expectedToken = new TermVectorsResponse.TermVector.Token(0, 6, 0, null);
+        TermVectorsResponse.TermVector.Term expectedTerm = new TermVectorsResponse.TermVector.Term(
+            "value1", 1, null, null, null, Collections.singletonList(expectedToken));
 
-        TermVectorsResponse.TermVector.Term expectedTerm = new TermVectorsResponse.TermVector.Term();
-        expectedTerm.setTerm("value1");
-        expectedTerm.setTermFreq(1);
-        expectedTerm.setTokens(Collections.singletonList(expectedToken));
-
-        TermVectorsResponse.TermVector expectedTV = new TermVectorsResponse.TermVector();
-        expectedTV.setFieldName("field");
-        expectedTV.setTerms(Collections.singletonList(expectedTerm));
         TermVectorsResponse.TermVector.FieldStatistics expectedFieldStats = new TermVectorsResponse.TermVector.FieldStatistics(2, 2, 2);
-        expectedTV.setFieldStatistics(expectedFieldStats);
+        TermVectorsResponse.TermVector expectedTV = new TermVectorsResponse.TermVector("field", expectedFieldStats, Collections.singletonList(expectedTerm));
         List<TermVectorsResponse.TermVector> expectedTVlist = Collections.singletonList(expectedTV);
 
         assertThat(tvResponse.getIndex(), equalTo("index1"));
@@ -1262,22 +1253,13 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         docBuilder.startObject().field("field", "valuex").endObject();
         tvRequest.setDoc(docBuilder);
         TermVectorsResponse tvResponse = execute(tvRequest, highLevelClient()::termvectors, highLevelClient()::termvectorsAsync);
+        TermVectorsResponse.TermVector.Token expectedToken = new TermVectorsResponse.TermVector.Token(0, 6, 0, null);
 
-        TermVectorsResponse.TermVector.Token expectedToken = new TermVectorsResponse.TermVector.Token();
-        expectedToken.setStartOffset(0);
-        expectedToken.setEndOffset(6);
-        expectedToken.setPosition(0);
+        TermVectorsResponse.TermVector.Term expectedTerm = new TermVectorsResponse.TermVector.Term(
+            "valuex", 1, null, null, null, Collections.singletonList(expectedToken));
 
-        TermVectorsResponse.TermVector.Term expectedTerm = new TermVectorsResponse.TermVector.Term();
-        expectedTerm.setTerm("valuex");
-        expectedTerm.setTermFreq(1);
-        expectedTerm.setTokens(Collections.singletonList(expectedToken));
-
-        TermVectorsResponse.TermVector expectedTV = new TermVectorsResponse.TermVector();
-        expectedTV.setFieldName("field");
-        expectedTV.setTerms(Collections.singletonList(expectedTerm));
         TermVectorsResponse.TermVector.FieldStatistics expectedFieldStats = new TermVectorsResponse.TermVector.FieldStatistics(2, 2, 2);
-        expectedTV.setFieldStatistics(expectedFieldStats);
+        TermVectorsResponse.TermVector expectedTV = new TermVectorsResponse.TermVector("field", expectedFieldStats, Collections.singletonList(expectedTerm));
         List<TermVectorsResponse.TermVector> expectedTVlist = Collections.singletonList(expectedTV);
 
         assertThat(tvResponse.getIndex(), equalTo("index1"));

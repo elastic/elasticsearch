@@ -207,6 +207,18 @@ public class FollowersChecker extends AbstractComponent {
             '}';
     }
 
+    // For assertions
+    FastResponseState getFastResponseState() {
+        return fastResponseState;
+    }
+
+    // For assertions
+    boolean isActive() {
+        synchronized (mutex) {
+            return followerCheckers.isEmpty() == false || faultyNodes.isEmpty() == false;
+        }
+    }
+
     static class FastResponseState {
         final long term;
         final Mode mode;

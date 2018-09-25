@@ -82,6 +82,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     public static final String CLIENT_RETRY_TIMEOUT = "client.retry.timeout";
     public static final String CLIENT_SOCKET_TIMEOUT = "client.socket.timeout";
     public static final String CLIENT_PATH_PREFIX = "client.path.prefix";
+    public static final String STRICT_DEPRECATION_MODE = "strict.deprecation.mode";
 
     /**
      * Convert the entity from a {@link Response} into a map of maps.
@@ -497,6 +498,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
         if (settings.hasValue(CLIENT_PATH_PREFIX)) {
             builder.setPathPrefix(settings.get(CLIENT_PATH_PREFIX));
+        }
+        if (settings.hasValue(STRICT_DEPRECATION_MODE)) {
+            builder.setStrictDeprecationMode(Boolean.parseBoolean(settings.get(STRICT_DEPRECATION_MODE)));
         }
     }
 

@@ -112,15 +112,15 @@ public class RestClient implements Closeable {
     private volatile NodeTuple<List<Node>> nodeTuple;
     private final boolean strictDeprecationMode;
 
-    RestClient(CloseableHttpAsyncClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders,
-               List<Node> nodes, String pathPrefix, FailureListener failureListener, NodeSelector nodeSelector) {
+    RestClient(CloseableHttpAsyncClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders, List<Node> nodes, String pathPrefix,
+            FailureListener failureListener, NodeSelector nodeSelector, boolean strictDeprecationMode) {
         this.client = client;
         this.maxRetryTimeoutMillis = maxRetryTimeoutMillis;
         this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
         this.failureListener = failureListener;
         this.pathPrefix = pathPrefix;
         this.nodeSelector = nodeSelector;
-        this.strictDeprecationMode = System.getProperty("es.deprecation.mode.strict", "off").equals("on");
+        this.strictDeprecationMode = strictDeprecationMode;
         setNodes(nodes);
     }
 

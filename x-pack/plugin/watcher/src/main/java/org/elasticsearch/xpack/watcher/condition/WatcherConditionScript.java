@@ -32,7 +32,7 @@ public abstract class WatcherConditionScript {
     }
 
     private final Map<String, Object> params;
-    // TODO: ctx should have its members extracted into execute parameters, but it needs to be a member bwc access in params
+    // TODO: ctx should have its members extracted into execute parameters, but it needs to be a member for bwc access in params
     private final Map<String, Object> ctx;
 
     public WatcherConditionScript(Map<String, Object> params, WatchExecutionContext watcherContext) {

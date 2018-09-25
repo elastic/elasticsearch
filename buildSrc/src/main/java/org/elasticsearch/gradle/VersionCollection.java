@@ -26,15 +26,18 @@ import java.util.Optional;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+/**
+ * Parse the Java source file containing the versions declarations and use the known rules to figure out which are all
+ * the version the current one is wire and index compatible with.
+ * On top of this, figure out which of these are unreleased and provide the branch they can be built from.
+ */
 public class VersionCollection {
 
-    private final Pattern LINE_PATTERN = Pattern.compile(
+    private static final Pattern LINE_PATTERN = Pattern.compile(
         "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)? .*"
     );
     private final SortedSet<Version> versions = new TreeSet<>();
@@ -64,6 +67,10 @@ public class VersionCollection {
         }
     }
 
+    public VersionCollection(List<String> versionLines) {
+        this(versionLines, VersionProperties.getElasticsearch());
+    }
+
     protected VersionCollection(List<String> versionLines, Version currentVersionProperty) {
         versionLines.stream()
             .map(LINE_PATTERN::matcher)
@@ -75,8 +82,7 @@ public class VersionCollection {
                 (match.group(4) == null ? "" : match.group(4)).replace('_', '-'),
                 false
             ))
-            .filter(((Predicate<? super Version>) Version::isSnapshot).negate())
-            .filter(version -> version.getSuffix().isEmpty() || version.numbersOnly().equals(currentVersionProperty.numbersOnly()))
+            .filter(version -> version.getSuffix().isEmpty() || version.equals(currentVersionProperty))
             .forEach(version -> {
                 if (versions.add(version) == false) {
                     throw new IllegalStateException("Found duplicate while parsing all versions: " + version);
@@ -86,6 +92,22 @@ public class VersionCollection {
             throw new IllegalArgumentException("Could not parse any versions");
         }
 
+        assertCurrentVersionMatchesParsed(currentVersionProperty);
+
+        assertNoOlderThanTwoMajors();
+    }
+
+    private void assertNoOlderThanTwoMajors() {
+        SortedSet<Version> versionsMoreThanTowMajorsAgo = versions
+            .headSet(new Version(currentVersion.getMajor() - 1, 0, 0, "", false));
+        if (versionsMoreThanTowMajorsAgo.isEmpty() == false) {
+            throw new IllegalStateException(
+                "Found unexpected parsed versions, more than two majors ago: " + versionsMoreThanTowMajorsAgo
+            );
+        }
+    }
+
+    private void assertCurrentVersionMatchesParsed(Version currentVersionProperty) {
         currentVersion = versions.last();
         if (currentVersionProperty.equals(currentVersion) == false) {
             throw new IllegalStateException(
@@ -94,31 +116,6 @@ public class VersionCollection {
                     currentVersionProperty
             );
         }
-
-        SortedSet<Version> versionsMoreThanTowMajorsAgo = versions
-            .headSet(new Version(currentVersion.getMajor() - 1, 0, 0, "", false));
-        if (versionsMoreThanTowMajorsAgo.isEmpty() == false) {
-            throw new IllegalStateException(
-                "Found unexpected parsed versions, more than two majors ago: " + versionsMoreThanTowMajorsAgo
-            );
-        }
-
-        List<Integer> distinctMajors = versions.stream()
-            .map(Version::getMajor)
-            .distinct()
-            .collect(Collectors.toList());
-        if (distinctMajors.size() != 2) {
-            throw new IllegalStateException("Expected to have exactly 2 parsed major bout found: " + distinctMajors);
-        }
-
-        getUnreleased().forEach(version -> {
-            versions.remove(version);
-            versions.add(
-                new Version(
-                    version.getMajor(), version.getMinor(), version.getRevision(), version.getSuffix(), true
-                )
-            );
-        });
     }
 
     public void forEachUnreleased(Consumer<UnreleasedVersionDescription> consumer) {
@@ -172,22 +169,7 @@ public class VersionCollection {
                 unreleased.add(greatestMinorBehindByTwo);
             }
         }
-        if (unreleased.size() > 4) {
-            throw new IllegalStateException("Expected no more than 4 unreleased version but found: " + unreleased);
-        }
         return unreleased;
-    }
-
-    private Version getLatestBugfixBeforeMajor(Version version) {
-        return getVersionBefore(new Version(version.getMajor(), 0, 0));
-    }
-
-    private Version getLatestBugfixBeforeMinor(Version version) {
-        return getVersionBefore(new Version(version.getMajor(), version.getMinor(), 0));
-    }
-
-    public VersionCollection(List<String> versionLines) {
-        this(versionLines, VersionProperties.getElasticsearch());
     }
 
     public SortedSet<Version> getIndexCompatible() {
@@ -207,16 +189,24 @@ public class VersionCollection {
         );
     }
 
-    public SortedSet<Version> getSnapshotsIndexCompatible() {
+    public SortedSet<Version> getUnreleasedIndexCompatible() {
         SortedSet<Version> unreleasedIndexCompatible = new TreeSet<>(getIndexCompatible());
         unreleasedIndexCompatible.retainAll(getUnreleased());
         return Collections.unmodifiableSortedSet(unreleasedIndexCompatible);
     }
 
-    public SortedSet<Version> getSnapshotsWireCompatible() {
+    public SortedSet<Version> getUnreleasedWireCompatible() {
         SortedSet<Version> unreleasedWireCompatible = new TreeSet<>(getWireCompatible());
         unreleasedWireCompatible.retainAll(getUnreleased());
         return Collections.unmodifiableSortedSet(unreleasedWireCompatible);
+    }
+
+    private Version getLatestBugfixBeforeMajor(Version version) {
+        return getVersionBefore(new Version(version.getMajor(), 0, 0));
+    }
+
+    private Version getLatestBugfixBeforeMinor(Version version) {
+        return getVersionBefore(new Version(version.getMajor(), version.getMinor(), 0));
     }
 
     private Version getVersionBefore(Version e) {

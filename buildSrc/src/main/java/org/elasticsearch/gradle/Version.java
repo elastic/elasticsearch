@@ -178,7 +178,4 @@ public final class Version implements Comparable<Version> {
         return Integer.compare(getId(), other.getId());
     }
 
-    public Version numbersOnly() {
-        return new Version(getMajor(), getMinor(), getRevision());
-    }
 }

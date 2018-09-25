@@ -134,26 +134,40 @@ setup:
 ---
 "docvalue_fields":
   - skip:
-      version: " - 6.3.99"
-      reason: format option was added in 6.4
+      version: " - 6.4.0"
+      reason: format option was added in 6.4 and the deprecation message changed in 6.4.1
       features: warnings
   - do:
       warnings:
-        - 'Doc-value field [count] is not using a format. The output will change in 7.0 when doc value fields get formatted based on mappings by default. It is recommended to pass [format=use_field_mapping] with the doc value field in order to opt in for the future behaviour and ease the migration to 7.0.'
+        - 'There are doc-value fields which are not using a format. The output will change in 7.0 when doc value fields get formatted based on mappings by default. It is recommended to pass [format=use_field_mapping] with a doc value field in order to opt in for the future behaviour and ease the migration to 7.0: [count]'
       search:
         body:
           docvalue_fields: [ "count" ]
   - match: { hits.hits.0.fields.count: [1] }
 
 ---
-"docvalue_fields as url param":
+"multiple docvalue_fields":
   - skip:
-      version: " - 6.3.99"
-      reason: format option was added in 6.4
+      version: " - 6.4.0"
+      reason: format option was added in 6.4 and the deprecation message changed in 6.4.1
       features: warnings
   - do:
       warnings:
-        - 'Doc-value field [count] is not using a format. The output will change in 7.0 when doc value fields get formatted based on mappings by default. It is recommended to pass [format=use_field_mapping] with the doc value field in order to opt in for the future behaviour and ease the migration to 7.0.'
+        - 'There are doc-value fields which are not using a format. The output will change in 7.0 when doc value fields get formatted based on mappings by default. It is recommended to pass [format=use_field_mapping] with a doc value field in order to opt in for the future behaviour and ease the migration to 7.0: [count, include.field1.keyword]'
+      search:
+        body:
+          docvalue_fields: [ "count", "include.field1.keyword" ]
+  - match: { hits.hits.0.fields.count: [1] }
+
+---
+"docvalue_fields as url param":
+  - skip:
+      version: " - 6.4.0"
+      reason: format option was added in 6.4 and the deprecation message changed in 6.4.1
+      features: warnings
+  - do:
+      warnings:
+        - 'There are doc-value fields which are not using a format. The output will change in 7.0 when doc value fields get formatted based on mappings by default. It is recommended to pass [format=use_field_mapping] with a doc value field in order to opt in for the future behaviour and ease the migration to 7.0: [count]'
       search:
         docvalue_fields: [ "count" ]
   - match: { hits.hits.0.fields.count: [1] }

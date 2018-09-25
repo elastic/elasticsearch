@@ -19,13 +19,11 @@
 
 package org.elasticsearch.painless;
 
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -66,20 +64,12 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
         Map<String, Object> params = new HashMap<>();
         Map<String, Object> state = new HashMap<>();
 
-        Scorer scorer = new Scorer(null) {
+        Scorable scorer = new Scorable() {
             @Override
             public int docID() { return 0; }
 
             @Override
             public float score() { return 0.5f; }
-
-            @Override
-            public DocIdSetIterator iterator() { return null; }
-
-            @Override
-            public float getMaxScore(int upTo) throws IOException {
-                return 0.5f;
-            }
         };
 
         ScriptedMetricAggContexts.MapScript.LeafFactory leafFactory = factory.newFactory(params, state, null);

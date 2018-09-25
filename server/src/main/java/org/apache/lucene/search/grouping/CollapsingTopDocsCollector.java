@@ -19,9 +19,9 @@
 package org.apache.lucene.search.grouping;
 
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
@@ -44,7 +44,7 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
     protected final String collapseField;
 
     protected final Sort sort;
-    protected Scorer scorer;
+    protected Scorable scorer;
 
     private int totalHitCount;
 
@@ -102,7 +102,7 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
     }
 
     @Override
-    public void setScorer(Scorer scorer) throws IOException {
+    public void setScorer(Scorable scorer) throws IOException {
         super.setScorer(scorer);
         this.scorer = scorer;
     }

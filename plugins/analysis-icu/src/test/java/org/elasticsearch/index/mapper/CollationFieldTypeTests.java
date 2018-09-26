@@ -126,7 +126,7 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
         ft.setName("field");
         ft.setIndexOptions(IndexOptions.DOCS);
         expectThrows(UnsupportedOperationException.class,
-            () -> ft.wildcardQuery("foo*", null));
+            () -> ft.wildcardQuery("foo*", null, null));
     }
 
     public void testRangeQuery() {

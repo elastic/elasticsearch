@@ -229,4 +229,28 @@ public class AllocationDeciders extends AllocationDecider {
         }
         return ret;
     }
+    
+    @Override
+    public Decision canMoveAway(ShardRouting shardRouting, RoutingAllocation allocation) {
+        Decision.Multi ret = new Decision.Multi();
+        for (AllocationDecider decider : allocations) {
+            Decision decision = decider.canMoveAway(shardRouting, allocation);
+            // short track if a NO/THROTTLE is returned.
+            if (decision.type() != Decision.Type.YES) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Shard [{}] can not be moved away due to [{}]", shardRouting, decider.getClass().getSimpleName());
+                }
+                if (!allocation.debugDecision()) {
+                    return decision;
+                } else {
+                    ret.add(decision);
+                }
+            } else if (decision != Decision.ALWAYS
+                           && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
+                ret.add(decision);
+            }
+        }
+        return ret;
+    }
+
 }

@@ -645,6 +645,14 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             // offloading the shards.
             for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(); it.hasNext(); ) {
                 ShardRouting shardRouting = it.next();
+                // Verify if the shard is allowed to move if outgoing recovery on the node hosting the primary shard
+                // is not being throttled.
+                Decision canMoveAwayDecision = allocation.deciders().canMoveAway(shardRouting, allocation);
+                if (canMoveAwayDecision.type() != Decision.Type.YES) {
+                    if (logger.isDebugEnabled())
+                        logger.debug("Cannot move away shard [{}] Skipping this shard", shardRouting);
+                    continue;
+                }
                 final MoveDecision moveDecision = decideMove(shardRouting);
                 if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
                     final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());

@@ -125,4 +125,11 @@ public abstract class AllocationDecider extends AbstractComponent {
             return decision;
         }
     }
+    /**
+     * Returns a {@link Decision} whether the given shard can be moved away from the current node
+     * {@link RoutingAllocation}. The default is {@link Decision#ALWAYS}.
+     */
+    public Decision canMoveAway(ShardRouting shardRouting, RoutingAllocation allocation) {
+        return Decision.ALWAYS;
+    }
 }

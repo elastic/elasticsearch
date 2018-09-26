@@ -14,8 +14,8 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -130,7 +131,7 @@ public final class TransportCreateAndFollowIndexAction
         Consumer<String[]> handler = historyUUIDs -> {
             createFollowerIndex(leaderIndexMetadata, historyUUIDs, request, listener);
         };
-        ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, leaderIndexMetadata, listener::onFailure, handler);
+        ccrLicenseChecker.fetchHistoryUUIDs(client, leaderIndexMetadata, listener::onFailure, handler);
     }
 
     private void createFollowerIndexAndFollowRemoteIndex(
@@ -157,23 +158,9 @@ public final class TransportCreateAndFollowIndexAction
             return;
         }
 
-        ActionListener<Boolean> handler = ActionListener.wrap(
-                result -> {
-                    if (result) {
-                        initiateFollowing(request, listener);
-                    } else {
-                        listener.onResponse(new CreateAndFollowIndexAction.Response(true, false, false));
-                    }
-                },
-                listener::onFailure);
         // Can't use create index api here, because then index templates can alter the mappings / settings.
         // And index templates could introduce settings / mappings that are incompatible with the leader index.
-        clusterService.submitStateUpdateTask("follow_index_action", new AckedClusterStateUpdateTask<Boolean>(request, handler) {
-
-            @Override
-            protected Boolean newResponse(final boolean acknowledged) {
-                return acknowledged;
-            }
+        clusterService.submitStateUpdateTask("create_follow_index", new ClusterStateUpdateTask() {
 
             @Override
             public ClusterState execute(final ClusterState currentState) throws Exception {
@@ -224,19 +211,51 @@ public final class TransportCreateAndFollowIndexAction
 
                 return updatedState;
             }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                IndexMetaData followerIndexMeta = newState.metaData().index(request.getFollowRequest().getFollowerIndex());
+                initiateFollowing(request, followerIndexMeta, listener);
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                listener.onFailure(e);
+            }
         });
     }
 
     private void initiateFollowing(
             final CreateAndFollowIndexAction.Request request,
+            final IndexMetaData followerIndexMeta,
             final ActionListener<CreateAndFollowIndexAction.Response> listener) {
         activeShardsObserver.waitForActiveShards(new String[]{request.getFollowRequest().getFollowerIndex()},
                 ActiveShardCount.DEFAULT, request.timeout(), result -> {
                     if (result) {
-                        client.execute(FollowIndexAction.INSTANCE, request.getFollowRequest(), ActionListener.wrap(
-                                r -> listener.onResponse(new CreateAndFollowIndexAction.Response(true, true, r.isAcknowledged())),
-                                listener::onFailure
-                        ));
+                        ccrLicenseChecker.fetchHistoryUUIDs(client, followerIndexMeta, listener::onFailure, historyUUIDs -> {
+                            clusterService.submitStateUpdateTask("", new ClusterStateUpdateTask() {
+                                @Override
+                                public ClusterState execute(ClusterState currentState) throws Exception {
+                                    return recordFollowerShardHistoryUUIDs(currentState, followerIndexMeta.getIndex(), historyUUIDs);
+                                }
+
+                                @Override
+                                public void onFailure(String source, Exception e) {
+                                    listener.onFailure(e);
+                                }
+
+                                @Override
+                                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                                    client.execute(FollowIndexAction.INSTANCE, request.getFollowRequest(), ActionListener.wrap(
+                                        r -> listener.onResponse(new CreateAndFollowIndexAction.Response(true, true, r.isAcknowledged())),
+                                        e -> {
+                                            logger.error("Failed to initiate the shard following", e);
+                                            listener.onResponse(new CreateAndFollowIndexAction.Response(true, true, false));
+                                        }
+                                    ));
+                                }
+                            });
+                        });
                     } else {
                         listener.onResponse(new CreateAndFollowIndexAction.Response(true, false, false));
                     }
@@ -246,6 +265,23 @@ public final class TransportCreateAndFollowIndexAction
     @Override
     protected ClusterBlockException checkBlock(final CreateAndFollowIndexAction.Request request, final ClusterState state) {
         return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.getFollowRequest().getFollowerIndex());
+    }
+
+    private static ClusterState recordFollowerShardHistoryUUIDs(ClusterState current,
+                                                                Index followerIndex,
+                                                                String[] historyUUIDs) {
+
+        IndexMetaData currentFollowerIndexMetaData = current.metaData().index(followerIndex);
+        IndexMetaData.Builder followIndexMetaDataBuilder = IndexMetaData.builder(currentFollowerIndexMetaData);
+        Map<String, String> ccrCustom = new HashMap<>(currentFollowerIndexMetaData.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY));
+        ccrCustom.put(Ccr.CCR_CUSTOM_METADATA_FOLLOWER_INDEX_SHARD_HISTORY_UUIDS, String.join(",", historyUUIDs));
+        followIndexMetaDataBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, ccrCustom);
+
+        return ClusterState.builder(current)
+            .metaData(MetaData.builder(current.metaData())
+                .put(followIndexMetaDataBuilder)
+                .build())
+            .build();
     }
 
 }

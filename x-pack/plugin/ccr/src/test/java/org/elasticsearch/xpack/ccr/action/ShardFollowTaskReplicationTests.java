@@ -131,7 +131,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         }
     }
 
-    public void testChangeHistoryUUID() throws Exception {
+    public void testChangeLeaderHistoryUUID() throws Exception {
         try (ReplicationGroup leaderGroup = createGroup(0);
              ReplicationGroup followerGroup = createFollowGroup(0)) {
             leaderGroup.startAll();
@@ -159,6 +159,46 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             leaderGroup.getPrimary().store().bootstrapNewHistory();
             recoverShardFromStore(leaderGroup.getPrimary());
             String newHistoryUUID = leaderGroup.getPrimary().getHistoryUUID();
+
+            // force the global checkpoint on the leader to advance
+            leaderGroup.appendDocs(64);
+
+            assertBusy(() -> {
+                assertThat(shardFollowTask.isStopped(), is(true));
+                assertThat(shardFollowTask.getFailure().getMessage(), equalTo("unexpected history uuid, expected [" + oldHistoryUUID +
+                    "], actual [" + newHistoryUUID + "]"));
+            });
+        }
+    }
+
+    public void testChangeFollowerHistoryUUID() throws Exception {
+        try (ReplicationGroup leaderGroup = createGroup(0);
+             ReplicationGroup followerGroup = createFollowGroup(0)) {
+            leaderGroup.startAll();
+            int docCount = leaderGroup.appendDocs(randomInt(64));
+            leaderGroup.assertAllEqual(docCount);
+            followerGroup.startAll();
+            ShardFollowNodeTask shardFollowTask = createShardFollowTask(leaderGroup, followerGroup);
+            final SeqNoStats leaderSeqNoStats = leaderGroup.getPrimary().seqNoStats();
+            final SeqNoStats followerSeqNoStats = followerGroup.getPrimary().seqNoStats();
+            shardFollowTask.start(
+                leaderSeqNoStats.getGlobalCheckpoint(),
+                leaderSeqNoStats.getMaxSeqNo(),
+                followerSeqNoStats.getGlobalCheckpoint(),
+                followerSeqNoStats.getMaxSeqNo());
+            leaderGroup.syncGlobalCheckpoint();
+            leaderGroup.assertAllEqual(docCount);
+            Set<String> indexedDocIds = getShardDocUIDs(leaderGroup.getPrimary());
+            assertBusy(() -> {
+                assertThat(followerGroup.getPrimary().getGlobalCheckpoint(), equalTo(leaderGroup.getPrimary().getGlobalCheckpoint()));
+                followerGroup.assertAllEqual(indexedDocIds.size());
+            });
+
+            String oldHistoryUUID = followerGroup.getPrimary().getHistoryUUID();
+            followerGroup.reinitPrimaryShard();
+            followerGroup.getPrimary().store().bootstrapNewHistory();
+            recoverShardFromStore(followerGroup.getPrimary());
+            String newHistoryUUID = followerGroup.getPrimary().getHistoryUUID();
 
             // force the global checkpoint on the leader to advance
             leaderGroup.appendDocs(64);
@@ -212,6 +252,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueMillis(10),
             leaderGroup.getPrimary().getHistoryUUID(),
+            followerGroup.getPrimary().getHistoryUUID(),
             Collections.emptyMap()
         );
 
@@ -244,8 +285,10 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     final Consumer<BulkShardOperationsResponse> handler,
                     final Consumer<Exception> errorHandler) {
                 Runnable task = () -> {
-                    BulkShardOperationsRequest request = new BulkShardOperationsRequest(
-                        params.getFollowShardId(), operations, maxSeqNoOfUpdates);
+                    String expectedHistoryUUID = params.getRecordedFollowerIndexHistoryUUID();
+                    BulkShardOperationsRequest request =
+                        new BulkShardOperationsRequest(
+                        params.getFollowShardId(), expectedHistoryUUID, operations, maxSeqNoOfUpdates);
                     ActionListener<BulkShardOperationsResponse> listener = ActionListener.wrap(handler::accept, errorHandler);
                     new CCRAction(request, listener, followerGroup).execute();
                 };
@@ -334,8 +377,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         @Override
         protected PrimaryResult performOnPrimary(IndexShard primary, BulkShardOperationsRequest request) throws Exception {
             TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> result =
-                TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(), request.getOperations(),
-                    request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger);
+                TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(), request.getExpectedHistoryUUID(),
+                    request.getOperations(), request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger);
             return new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful);
         }
 

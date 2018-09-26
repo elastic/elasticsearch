@@ -16,17 +16,26 @@ import java.util.List;
 
 public final class BulkShardOperationsRequest extends ReplicatedWriteRequest<BulkShardOperationsRequest> {
 
+    private String expectedHistoryUUID;
     private List<Translog.Operation> operations;
     private long maxSeqNoOfUpdatesOrDeletes;
 
     public BulkShardOperationsRequest() {
     }
 
-    public BulkShardOperationsRequest(ShardId shardId, List<Translog.Operation> operations, long maxSeqNoOfUpdatesOrDeletes) {
+    public BulkShardOperationsRequest(final ShardId shardId,
+                                      final String expectedHistoryUUID,
+                                      final List<Translog.Operation> operations,
+                                      long maxSeqNoOfUpdatesOrDeletes) {
         super(shardId);
         setRefreshPolicy(RefreshPolicy.NONE);
+        this.expectedHistoryUUID = expectedHistoryUUID;
         this.operations = operations;
         this.maxSeqNoOfUpdatesOrDeletes = maxSeqNoOfUpdatesOrDeletes;
+    }
+
+    public String getExpectedHistoryUUID() {
+        return expectedHistoryUUID;
     }
 
     public List<Translog.Operation> getOperations() {
@@ -40,6 +49,7 @@ public final class BulkShardOperationsRequest extends ReplicatedWriteRequest<Bul
     @Override
     public void readFrom(final StreamInput in) throws IOException {
         super.readFrom(in);
+        expectedHistoryUUID = in.readString();
         maxSeqNoOfUpdatesOrDeletes = in.readZLong();
         operations = in.readList(Translog.Operation::readOperation);
     }
@@ -47,6 +57,7 @@ public final class BulkShardOperationsRequest extends ReplicatedWriteRequest<Bul
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeString(expectedHistoryUUID);
         out.writeZLong(maxSeqNoOfUpdatesOrDeletes);
         out.writeVInt(operations.size());
         for (Translog.Operation operation : operations) {
@@ -57,7 +68,8 @@ public final class BulkShardOperationsRequest extends ReplicatedWriteRequest<Bul
     @Override
     public String toString() {
         return "BulkShardOperationsRequest{" +
-                "operations=" + operations.size()+
+                "expectedHistoryUUID=" + expectedHistoryUUID +
+                ", operations=" + operations.size() +
                 ", maxSeqNoUpdates=" + maxSeqNoOfUpdatesOrDeletes +
                 ", shardId=" + shardId +
                 ", timeout=" + timeout +

@@ -85,7 +85,8 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             10240,
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueMillis(10),
-            "uuid",
+            "uuid1",
+            "uuid2",
             Collections.emptyMap()
         );
 

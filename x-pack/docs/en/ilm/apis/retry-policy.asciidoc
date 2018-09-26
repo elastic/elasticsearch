@@ -6,8 +6,7 @@
 <titleabbrev>Retry Policy Execution</titleabbrev>
 ++++
 
-This API will re-run a policy that has errored out. It will start the policy
-back to the step where the error occurred.
+Retry executing the policy for an index which has errored.
 
 ==== Request
 
@@ -15,8 +14,8 @@ back to the step where the error occurred.
 
 ==== Description
 
-This action assigns a policy to an index. It is effectively the same as setting an index's
-`index.lifecycle.name` setting.
+This API will re-run a policy is currently in the ERROR step. It will set the
+policy back to the step where the error occurred and attempt to re-execute it.
 
 ==== Path Parameters
 
@@ -39,7 +38,7 @@ This action assigns a policy to an index. It is effectively the same as setting 
 
 ==== Examples
 
-The following example assigns a policy `my_policy` to an index `my_index`.
+The following example retries the policy for index `my_index`.
 
 //////////////////////////
 
@@ -76,7 +75,7 @@ PUT my_index
 
 [source,js]
 --------------------------------------------------
-PUT my_index/_ilm/my_policy
+PUT my_index/_ilm/retry
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

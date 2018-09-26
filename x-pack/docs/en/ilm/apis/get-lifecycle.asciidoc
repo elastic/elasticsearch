@@ -40,7 +40,7 @@ all the policies defined will be returned.
 
 ==== Examples
 
-The following example creates a new policy named `my_policy`:
+The following example retrieves the policy named `my_policy`:
 
 //////////////////////////
 
@@ -110,4 +110,4 @@ If the request does not encounter errors, you receive the following result:
 }
 --------------------------------------------------
 // CONSOLE
-// TESTRESPONSE[s/././]
+// TESTRESPONSE

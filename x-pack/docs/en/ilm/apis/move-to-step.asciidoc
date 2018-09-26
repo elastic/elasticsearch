@@ -14,11 +14,13 @@ Moves a managed index into a specific execution step its policy
 
 ==== Description
 
-This is an advanced API that may lead to unintended data loss. When used,
+WARNING: This is an expert API that may lead to unintended data loss. When used,
 an index's policy will begin executing at the specified step. It will execute
 the step specified even if it has already executed it. Since this is a, potentionally,
 dangerous action, specifying both the current step and next step to move to is
 required in the body of the request.
+
+This API changes the current step for the specified index to the step supplied in the body of the request
 
 ==== Path Parameters
 
@@ -41,7 +43,8 @@ required in the body of the request.
 
 ==== Examples
 
-The following example creates a new policy named `my_policy`:
+The following example moves the index `my_index` from the initial step to the
+forcemerge step:
 
 //////////////////////////
 
@@ -110,3 +113,7 @@ If the request does not encounter errors, you receive the following result:
 --------------------------------------------------
 // CONSOLE
 // TESTRESPONSE
+
+NOTE: An error will be returned if the index is now longer executing the step
+specified in `current_step`. This is so the index is not moved from an
+unexpected step into the `next_step`.

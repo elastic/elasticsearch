@@ -18,6 +18,9 @@ This API creates a new Lifecycle Policy, or updates an existing one with the sam
 identifier. Each call will replace the existing policy and increment the `version`
 associated with the policy.
 
+NOTE: The `version` is only for informational purposes. Only the latest version
+of the policy is stored.
+
 ==== Path Parameters
 
 `policy` (required)::
@@ -75,4 +78,5 @@ If the request does not encounter errors, you receive the following result:
   "acknowledged": true
 }
 ----
-// NOTCONSOLE
+// CONSOLE
+// TESTRESPONSE

@@ -82,6 +82,55 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         return randomTimeseriesLifecyclePolicy(lifecycleName);
     }
 
+    /**
+     * The same as {@link #randomTimeseriesLifecyclePolicy(String)} but ensures
+     * that the resulting policy has all valid phases and all valid actions.
+     */
+    public static LifecyclePolicy randomTimeseriesLifecyclePolicyWithAllPhases(@Nullable String lifecycleName) {
+        List<String> phaseNames = TimeseriesLifecycleType.VALID_PHASES;
+        Map<String, Phase> phases = new HashMap<>(phaseNames.size());
+        Function<String, Set<String>> validActions = (phase) ->  {
+            switch (phase) {
+                case "hot":
+                    return TimeseriesLifecycleType.VALID_HOT_ACTIONS;
+                case "warm":
+                    return TimeseriesLifecycleType.VALID_WARM_ACTIONS;
+                case "cold":
+                    return TimeseriesLifecycleType.VALID_COLD_ACTIONS;
+                case "delete":
+                    return TimeseriesLifecycleType.VALID_DELETE_ACTIONS;
+                default:
+                    throw new IllegalArgumentException("invalid phase [" + phase + "]");
+            }};
+        Function<String, LifecycleAction> randomAction = (action) ->  {
+            switch (action) {
+                case AllocateAction.NAME:
+                    return AllocateActionTests.randomInstance();
+                case DeleteAction.NAME:
+                    return new DeleteAction();
+                case ForceMergeAction.NAME:
+                    return ForceMergeActionTests.randomInstance();
+                case ReadOnlyAction.NAME:
+                    return new ReadOnlyAction();
+                case RolloverAction.NAME:
+                    return RolloverActionTests.randomInstance();
+                case ShrinkAction.NAME:
+                    return ShrinkActionTests.randomInstance();
+                default:
+                    throw new IllegalArgumentException("invalid action [" + action + "]");
+            }};
+        for (String phase : phaseNames) {
+            TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
+            Map<String, LifecycleAction> actions = new HashMap<>();
+            Set<String> actionNames = validActions.apply(phase);
+            for (String action : actionNames) {
+                actions.put(action, randomAction.apply(action));
+            }
+            phases.put(phase, new Phase(phase, after, actions));
+        }
+        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases);
+    }
+
     public static LifecyclePolicy randomTimeseriesLifecyclePolicy(@Nullable String lifecycleName) {
         List<String> phaseNames = randomSubsetOf(TimeseriesLifecycleType.VALID_PHASES);
         Map<String, Phase> phases = new HashMap<>(phaseNames.size());

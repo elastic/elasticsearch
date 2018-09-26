@@ -21,10 +21,8 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -41,10 +39,15 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
 
     private static final ParseField PATTERNS_FIELD = new ParseField("patterns");
     private static final ParseField FOLLOWED_LEADER_INDICES_FIELD = new ParseField("followed_leader_indices");
+    private static final ParseField HEADERS = new ParseField("headers");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<AutoFollowMetadata, Void> PARSER = new ConstructingObjectParser<>("auto_follow",
-        args -> new AutoFollowMetadata((Map<String, AutoFollowPattern>) args[0], (Map<String, List<String>>) args[1]));
+        args -> new AutoFollowMetadata(
+            (Map<String, AutoFollowPattern>) args[0],
+            (Map<String, List<String>>) args[1],
+            (Map<String, Map<String, String>>) args[2]
+        ));
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
@@ -61,20 +64,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             }
             return patterns;
         }, PATTERNS_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
-            Map<String, List<String>> alreadyFollowedIndexUUIDS = new HashMap<>();
-            String fieldName = null;
-            for (XContentParser.Token token = p.nextToken(); token != XContentParser.Token.END_OBJECT; token = p.nextToken()) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    fieldName = p.currentName();
-                } else if (token == XContentParser.Token.START_ARRAY) {
-                    alreadyFollowedIndexUUIDS.put(fieldName, Arrays.asList(XContentUtils.readStringArray(p, false)));
-                } else {
-                    throw new ElasticsearchParseException("unexpected token [" + token + "]");
-                }
-            }
-            return alreadyFollowedIndexUUIDS;
-        }, FOLLOWED_LEADER_INDICES_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.map(), FOLLOWED_LEADER_INDICES_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.map(), HEADERS);
     }
 
     public static AutoFollowMetadata fromXContent(XContentParser parser) throws IOException {
@@ -83,15 +74,21 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
 
     private final Map<String, AutoFollowPattern> patterns;
     private final Map<String, List<String>> followedLeaderIndexUUIDs;
+    private final Map<String, Map<String, String>> headers;
 
-    public AutoFollowMetadata(Map<String, AutoFollowPattern> patterns, Map<String, List<String>> followedLeaderIndexUUIDs) {
+    public AutoFollowMetadata(Map<String, AutoFollowPattern> patterns,
+                              Map<String, List<String>> followedLeaderIndexUUIDs,
+                              Map<String, Map<String, String>> headers) {
         this.patterns = patterns;
         this.followedLeaderIndexUUIDs = followedLeaderIndexUUIDs;
+        this.headers = Collections.unmodifiableMap(headers);
     }
 
     public AutoFollowMetadata(StreamInput in) throws IOException {
         patterns = in.readMap(StreamInput::readString, AutoFollowPattern::new);
         followedLeaderIndexUUIDs = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
+        headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString,
+            valIn -> Collections.unmodifiableMap(valIn.readMap(StreamInput::readString, StreamInput::readString))));
     }
 
     public Map<String, AutoFollowPattern> getPatterns() {
@@ -102,11 +99,14 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         return followedLeaderIndexUUIDs;
     }
 
+    public Map<String, Map<String, String>> getHeaders() {
+        return headers;
+    }
+
     @Override
     public EnumSet<MetaData.XContentContext> context() {
-        // TODO: When a snapshot is restored do we want to restore this?
-        // (Otherwise we would start following indices automatically immediately)
-        return MetaData.ALL_CONTEXTS;
+        // No XContentContext.API, because the headers should not be serialized as part of clusters state api
+        return EnumSet.of(MetaData.XContentContext.SNAPSHOT, MetaData.XContentContext.GATEWAY);
     }
 
     @Override
@@ -123,6 +123,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(patterns, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
         out.writeMapOfLists(followedLeaderIndexUUIDs, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(headers, StreamOutput::writeString,
+            (valOut, header) -> valOut.writeMap(header, StreamOutput::writeString, StreamOutput::writeString));
     }
 
     @Override
@@ -137,6 +139,11 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
 
         builder.startObject(FOLLOWED_LEADER_INDICES_FIELD.getPreferredName());
         for (Map.Entry<String, List<String>> entry : followedLeaderIndexUUIDs.entrySet()) {
+            builder.field(entry.getKey(), entry.getValue());
+        }
+        builder.endObject();
+        builder.startObject(HEADERS.getPreferredName());
+        for (Map.Entry<String, Map<String, String>> entry : headers.entrySet()) {
             builder.field(entry.getKey(), entry.getValue());
         }
         builder.endObject();
@@ -171,15 +178,13 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         public static final ParseField MAX_CONCURRENT_WRITE_BATCHES = new ParseField("max_concurrent_write_batches");
         public static final ParseField MAX_WRITE_BUFFER_SIZE = new ParseField("max_write_buffer_size");
         public static final ParseField MAX_RETRY_DELAY = new ParseField("max_retry_delay");
-        public static final ParseField IDLE_SHARD_RETRY_DELAY = new ParseField("idle_shard_retry_delay");
-        private static final ParseField HEADERS = new ParseField("headers");
+        public static final ParseField POLL_TIMEOUT = new ParseField("poll_timeout");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<AutoFollowPattern, Void> PARSER =
             new ConstructingObjectParser<>("auto_follow_pattern",
                 args -> new AutoFollowPattern((List<String>) args[0], (String) args[1], (Integer) args[2], (Integer) args[3],
-                    (Long) args[4], (Integer) args[5], (Integer) args[6], (TimeValue) args[7], (TimeValue) args[8],
-                    (Map<String, String>) args[9]));
+                    (Long) args[4], (Integer) args[5], (Integer) args[6], (TimeValue) args[7], (TimeValue) args[8]));
 
         static {
             PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), LEADER_PATTERNS_FIELD);
@@ -193,9 +198,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
                 (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_RETRY_DELAY.getPreferredName()),
                 MAX_RETRY_DELAY, ObjectParser.ValueType.STRING);
             PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> TimeValue.parseTimeValue(p.text(), IDLE_SHARD_RETRY_DELAY.getPreferredName()),
-                IDLE_SHARD_RETRY_DELAY, ObjectParser.ValueType.STRING);
-            PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), HEADERS);
+                (p, c) -> TimeValue.parseTimeValue(p.text(), POLL_TIMEOUT.getPreferredName()),
+                POLL_TIMEOUT, ObjectParser.ValueType.STRING);
         }
 
         private final List<String> leaderIndexPatterns;
@@ -206,8 +210,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         private final Integer maxConcurrentWriteBatches;
         private final Integer maxWriteBufferSize;
         private final TimeValue maxRetryDelay;
-        private final TimeValue idleShardRetryDelay;
-        private final Map<String, String> headers;
+        private final TimeValue pollTimeout;
 
         public AutoFollowPattern(List<String> leaderIndexPatterns,
                                  String followIndexPattern,
@@ -217,8 +220,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
                                  Integer maxConcurrentWriteBatches,
                                  Integer maxWriteBufferSize,
                                  TimeValue maxRetryDelay,
-                                 TimeValue idleShardRetryDelay,
-                                 Map<String, String> headers) {
+                                 TimeValue pollTimeout) {
             this.leaderIndexPatterns = leaderIndexPatterns;
             this.followIndexPattern = followIndexPattern;
             this.maxBatchOperationCount = maxBatchOperationCount;
@@ -227,11 +229,10 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             this.maxConcurrentWriteBatches = maxConcurrentWriteBatches;
             this.maxWriteBufferSize = maxWriteBufferSize;
             this.maxRetryDelay = maxRetryDelay;
-            this.idleShardRetryDelay = idleShardRetryDelay;
-            this.headers = headers != null ? Collections.unmodifiableMap(headers) : Collections.emptyMap();
+            this.pollTimeout = pollTimeout;
         }
 
-        AutoFollowPattern(StreamInput in) throws IOException {
+        public AutoFollowPattern(StreamInput in) throws IOException {
             leaderIndexPatterns = in.readList(StreamInput::readString);
             followIndexPattern = in.readOptionalString();
             maxBatchOperationCount = in.readOptionalVInt();
@@ -240,8 +241,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             maxConcurrentWriteBatches = in.readOptionalVInt();
             maxWriteBufferSize = in.readOptionalVInt();
             maxRetryDelay = in.readOptionalTimeValue();
-            idleShardRetryDelay = in.readOptionalTimeValue();
-            this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
+            pollTimeout = in.readOptionalTimeValue();
         }
 
         public boolean match(String indexName) {
@@ -284,12 +284,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             return maxRetryDelay;
         }
 
-        public TimeValue getIdleShardRetryDelay() {
-            return idleShardRetryDelay;
-        }
-
-        public Map<String, String> getHeaders() {
-            return headers;
+        public TimeValue getPollTimeout() {
+            return pollTimeout;
         }
 
         @Override
@@ -302,8 +298,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             out.writeOptionalVInt(maxConcurrentWriteBatches);
             out.writeOptionalVInt(maxWriteBufferSize);
             out.writeOptionalTimeValue(maxRetryDelay);
-            out.writeOptionalTimeValue(idleShardRetryDelay);
-            out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeOptionalTimeValue(pollTimeout);
         }
 
         @Override
@@ -330,10 +325,9 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             if (maxRetryDelay != null) {
                 builder.field(MAX_RETRY_DELAY.getPreferredName(), maxRetryDelay);
             }
-            if (idleShardRetryDelay != null) {
-                builder.field(IDLE_SHARD_RETRY_DELAY.getPreferredName(), idleShardRetryDelay);
+            if (pollTimeout != null) {
+                builder.field(POLL_TIMEOUT.getPreferredName(), pollTimeout);
             }
-            builder.field(HEADERS.getPreferredName(), headers);
             return builder;
         }
 
@@ -355,8 +349,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
                 Objects.equals(maxConcurrentWriteBatches, that.maxConcurrentWriteBatches) &&
                 Objects.equals(maxWriteBufferSize, that.maxWriteBufferSize) &&
                 Objects.equals(maxRetryDelay, that.maxRetryDelay) &&
-                Objects.equals(idleShardRetryDelay, that.idleShardRetryDelay) &&
-                Objects.equals(headers, that.headers);
+                Objects.equals(pollTimeout, that.pollTimeout);
         }
 
         @Override
@@ -370,8 +363,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
                 maxConcurrentWriteBatches,
                 maxWriteBufferSize,
                 maxRetryDelay,
-                idleShardRetryDelay,
-                headers
+                pollTimeout
             );
         }
     }

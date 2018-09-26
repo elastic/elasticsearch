@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 
@@ -56,8 +57,9 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
             return currentState;
         }
         Settings indexSettings = idxMeta.getSettings();
+        LifecycleExecutionState indexILMData = LifecycleExecutionState.fromIndexMetadata(idxMeta);
         if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
-            && currentStepKey.equals(IndexLifecycleRunner.getCurrentStepKey(indexSettings))) {
+            && currentStepKey.equals(IndexLifecycleRunner.getCurrentStepKey(indexILMData))) {
             return IndexLifecycleRunner.moveClusterStateToErrorStep(index, currentState, currentStepKey, cause, nowSupplier);
         } else {
             // either the policy has changed or the step is now

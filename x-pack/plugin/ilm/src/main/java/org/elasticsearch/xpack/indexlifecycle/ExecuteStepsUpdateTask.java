@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 
 import java.io.IOException;
@@ -70,8 +71,8 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
             // This index doesn't exist any more, there's nothing to execute currently
             return currentState;
         }
-        Step registeredCurrentStep = IndexLifecycleRunner.getCurrentStep(policyStepsRegistry, policy, index,
-            indexMetaData.getSettings());
+        Step registeredCurrentStep = IndexLifecycleRunner.getCurrentStep(policyStepsRegistry, policy, indexMetaData,
+            LifecycleExecutionState.fromIndexMetadata(indexMetaData));
         if (currentStep.equals(registeredCurrentStep)) {
             // We can do cluster state steps all together until we
             // either get to a step that isn't a cluster state step or a
@@ -118,7 +119,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                 if (currentStep.getKey().getPhase().equals(currentStep.getNextStepKey().getPhase()) == false) {
                     return currentState;
                 }
-                currentStep = policyStepsRegistry.getStep(index, currentStep.getNextStepKey());
+                currentStep = policyStepsRegistry.getStep(indexMetaData, currentStep.getNextStepKey());
             }
             return currentState;
         } else {

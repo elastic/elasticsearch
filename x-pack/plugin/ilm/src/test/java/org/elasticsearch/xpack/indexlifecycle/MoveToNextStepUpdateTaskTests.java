@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
@@ -28,6 +29,7 @@ import org.junit.Before;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MoveToNextStepUpdateTaskTests extends ESTestCase {
@@ -68,11 +70,12 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
 
         MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, nextStepKey, () -> now);
         ClusterState newState = task.execute(clusterState);
-        StepKey actualKey = IndexLifecycleRunner.getCurrentStepKey(newState.metaData().index(index).getSettings());
+        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetaData().index(index));
+        StepKey actualKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
         assertThat(actualKey, equalTo(nextStepKey));
-        assertThat(LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
-        assertThat(LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
-        assertThat(LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
+        assertThat(lifecycleState.getPhaseTime(), equalTo(now));
+        assertThat(lifecycleState.getActionTime(), equalTo(now));
+        assertThat(lifecycleState.getStepTime(), equalTo(now));
         task.clusterStateProcessed("source", clusterState, newState);
     }
 
@@ -107,11 +110,12 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         SetOnce<Boolean> changed = new SetOnce<>();
         MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, invalidNextStep, () -> now);
         ClusterState newState = task.execute(clusterState);
-        StepKey actualKey = IndexLifecycleRunner.getCurrentStepKey(newState.metaData().index(index).getSettings());
+        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetaData().index(index));
+        StepKey actualKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
         assertThat(actualKey, equalTo(invalidNextStep));
-        assertThat(LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
-        assertThat(LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
-        assertThat(LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
+        assertThat(lifecycleState.getPhaseTime(), equalTo(now));
+        assertThat(lifecycleState.getActionTime(), equalTo(now));
+        assertThat(lifecycleState.getStepTime(), equalTo(now));
         task.clusterStateProcessed("source", clusterState, newState);
     }
 
@@ -139,15 +143,18 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
 
     }
     private void setStateToKey(StepKey stepKey, long now) {
+        LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder(
+            LifecycleExecutionState.fromIndexMetadata(clusterState.metaData().index(index)));
+        lifecycleState.setPhase(stepKey.getPhase());
+        lifecycleState.setPhaseTime(now);
+        lifecycleState.setAction(stepKey.getAction());
+        lifecycleState.setActionTime(now);
+        lifecycleState.setStep(stepKey.getName());
+        lifecycleState.setStepTime(now);
+        lifecycleState.setPhaseDefinition("{\"actions\":{\"TEST_ACTION\":{}}}");
         clusterState = ClusterState.builder(clusterState)
-            .metaData(MetaData.builder(clusterState.metaData())
-                .updateSettings(Settings.builder()
-                    .put(LifecycleSettings.LIFECYCLE_PHASE_DEFINITION, "{\"actions\":{\"TEST_ACTION\":{}}}")
-                    .put(LifecycleSettings.LIFECYCLE_PHASE, stepKey.getPhase())
-                    .put(LifecycleSettings.LIFECYCLE_PHASE_TIME, now)
-                    .put(LifecycleSettings.LIFECYCLE_ACTION, stepKey.getAction())
-                    .put(LifecycleSettings.LIFECYCLE_ACTION_TIME, now)
-                    .put(LifecycleSettings.LIFECYCLE_STEP, stepKey.getName())
-                    .put(LifecycleSettings.LIFECYCLE_STEP_TIME, now).build(), index.getName())).build();
+            .metaData(MetaData.builder(clusterState.getMetaData())
+                .put(IndexMetaData.builder(clusterState.getMetaData().index(index))
+                    .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap()))).build();
     }
 }

@@ -161,7 +161,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
-     * Construct a HttpHost from the given host and port
+     * Construct an HttpHost from the given host and port
      */
     protected HttpHost buildHttpHost(String host, int port) {
         return new HttpHost(host, port, getProtocol());
@@ -643,7 +643,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith(".monitoring-")) {
             return true;
         }
-        if (name.startsWith(".watch-history-")) {
+        if (name.startsWith(".watch") || name.startsWith(".triggered_watches")) {
             return true;
         }
         if (name.startsWith(".ml-")) {

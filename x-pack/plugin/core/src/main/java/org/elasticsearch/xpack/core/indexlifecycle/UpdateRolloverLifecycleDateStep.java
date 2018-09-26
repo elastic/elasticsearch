@@ -10,8 +10,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+
+import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
     public static final String NAME = "update-rollover-lifecycle-date";
@@ -33,9 +34,15 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
         if (rolloverInfo == null) {
             throw new IllegalStateException("index [" + indexMetaData.getIndex().getName() + "] has not rolled over yet");
         }
-        Settings settings = Settings.builder().put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, rolloverInfo.getTime()).build();
+
+        LifecycleExecutionState.Builder newLifecycleState = LifecycleExecutionState
+            .builder(LifecycleExecutionState.fromIndexMetadata(indexMetaData));
+        newLifecycleState.setIndexCreationDate(rolloverInfo.getTime());
+
+        IndexMetaData.Builder newIndexMetadata = IndexMetaData.builder(indexMetaData);
+        newIndexMetadata.putCustom(ILM_CUSTOM_METADATA_KEY, newLifecycleState.build().asMap());
         return ClusterState.builder(currentState).metaData(MetaData.builder(currentState.metaData())
-                .updateSettings(settings, indexMetaData.getIndex().getName())).build();
+            .put(newIndexMetadata)).build();
     }
 
     @Override

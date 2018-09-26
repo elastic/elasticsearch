@@ -150,8 +150,17 @@ public class IndexFieldMapper extends MetadataFieldMapper {
                 + " vs. " + values);
         }
 
+        @Override
+        public Query wildcardQuery(String value, QueryShardContext context) {
+            if (isSameIndex(value, context.getFullyQualifiedIndex().getName())) {
+                return Queries.newMatchAllQuery();
+            } else {
+                return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.index().getName() + " vs. " + value);
+            }
+        }
+
         private boolean isSameIndex(Object value, String indexName) {
-            String pattern = value instanceof BytesRef ? pattern = ((BytesRef) value).utf8ToString() : value.toString();
+            String pattern = value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : value.toString();
             return Regex.simpleMatch(pattern, indexName);
         }
 

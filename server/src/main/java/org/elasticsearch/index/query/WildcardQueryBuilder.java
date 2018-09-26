@@ -20,8 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
@@ -185,20 +183,20 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         MappedFieldType fieldType = context.fieldMapper(fieldName);
-        Term term;
+
+        Query query;
         if (fieldType == null) {
-            term = new Term(fieldName, BytesRefs.toBytesRef(value));
+            Term term = new Term(fieldName, BytesRefs.toBytesRef(value));
+            query = new WildcardQuery(term);
         } else {
-            Query termQuery = fieldType.termQuery(value, context);
-            if (termQuery instanceof MatchNoDocsQuery || termQuery instanceof MatchAllDocsQuery) {
-                return termQuery;
-            }
-            term = MappedFieldType.extractTerm(termQuery);
+            query = fieldType.wildcardQuery(value, context);
         }
 
-        WildcardQuery query = new WildcardQuery(term);
-        MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
-        QueryParsers.setRewriteMethod(query, rewriteMethod);
+        if (query instanceof MultiTermQuery) {
+            MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(
+                rewrite, null, LoggingDeprecationHandler.INSTANCE);
+            QueryParsers.setRewriteMethod((MultiTermQuery) query, rewriteMethod);
+        }
         return query;
     }
 

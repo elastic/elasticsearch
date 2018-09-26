@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.transform.chain;
 
-import org.elasticsearch.common.logging.Loggers;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
@@ -20,7 +20,7 @@ public final class ChainTransformFactory extends TransformFactory<ChainTransform
     private final TransformRegistry registry;
 
     public ChainTransformFactory(TransformRegistry registry) {
-        super(Loggers.getLogger(ExecutableChainTransform.class));
+        super(LogManager.getLogger(ExecutableChainTransform.class));
         this.registry = registry;
     }
 

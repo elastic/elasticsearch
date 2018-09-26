@@ -82,4 +82,17 @@ public class MlTasksTests extends ESTestCase {
 
         assertThat(MlTasks.openJobIds(tasksBuilder.build()), containsInAnyOrder("foo-1", "bar"));
     }
+
+    public void testTaskExistsForJob() {
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        assertFalse(MlTasks.taskExistsForJob("job-1", tasksBuilder.build()));
+
+        tasksBuilder.addTask(MlTasks.jobTaskId("foo"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("foo"),
+                new PersistentTasksCustomMetaData.Assignment("node-1", "test assignment"));
+        tasksBuilder.addTask(MlTasks.jobTaskId("bar"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("bar"),
+                new PersistentTasksCustomMetaData.Assignment("node-1", "test assignment"));
+
+        assertFalse(MlTasks.taskExistsForJob("job-1", tasksBuilder.build()));
+        assertTrue(MlTasks.taskExistsForJob("foo", tasksBuilder.build()));
+    }
 }

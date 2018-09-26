@@ -65,8 +65,6 @@ import java.util.TreeMap;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -126,89 +124,12 @@ public class TransportOpenJobActionTests extends ESTestCase {
         Job.Builder jobBuilder = buildJobBuilder("job_id4");
         jobBuilder.setJobVersion(Version.CURRENT);
 
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id4", jobBuilder.build(), Collections.emptyMap(),
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id4", jobBuilder.build(),
                 cs.build(), 2, 10, 30, logger);
         assertEquals("", result.getExplanation());
         assertEquals("_node_id3", result.getExecutorNode());
     }
 
-    public void testSelectLeastLoadedMlNode_byMemory() {
-        Map<String, String> nodeAttr = new HashMap<>();
-        nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
-        nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "16000000000");
-        DiscoveryNodes nodes = DiscoveryNodes.builder()
-                .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                        nodeAttr, Collections.emptySet(), Version.CURRENT))
-                .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                        nodeAttr, Collections.emptySet(), Version.CURRENT))
-                .add(new DiscoveryNode("_node_name3", "_node_id3", new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
-                        nodeAttr, Collections.emptySet(), Version.CURRENT))
-                .build();
-
-        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
-        addJobTask("job_id1", "_node_id1", JobState.fromString("opened"), tasksBuilder);
-        addJobTask("job_id2", "_node_id2", JobState.fromString("opened"), tasksBuilder);
-        addJobTask("job_id3", "_node_id2", JobState.fromString("opened"), tasksBuilder);
-        addJobTask("job_id4", "_node_id3", JobState.fromString("opened"), tasksBuilder);
-        PersistentTasksCustomMetaData tasks = tasksBuilder.build();
-
-        ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
-        cs.nodes(nodes);
-        MetaData.Builder metaData = MetaData.builder();
-        metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
-        cs.metaData(metaData);
-
-        Map<String, Long> nodeAssignedMem = new HashMap<>();
-        nodeAssignedMem.put("_node_id1", 205L);
-        nodeAssignedMem.put("_node_id2", 204L);
-        nodeAssignedMem.put("_node_id3", 205L);
-
-        Job.Builder jobBuilder = buildJobBuilder("job_id4");
-        jobBuilder.setJobVersion(Version.CURRENT);
-
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id5", jobBuilder.build(), nodeAssignedMem, cs.build(),
-                2, 10, 30, logger);
-        assertEquals("", result.getExplanation());
-        assertEquals("_node_id2", result.getExecutorNode());
-    }
-
-    public void testSelectLeastLoadedMlNode_byMemoryWithFailedJobs() {
-        Map<String, String> nodeAttr = new HashMap<>();
-        nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
-        // this leaves just under 300MB per node available for ML jobs
-        nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
-        DiscoveryNodes nodes = DiscoveryNodes.builder()
-                .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                        nodeAttr, Collections.emptySet(), Version.CURRENT))
-                .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                        nodeAttr, Collections.emptySet(), Version.CURRENT))
-                .add(new DiscoveryNode("_node_name3", "_node_id3", new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
-                        nodeAttr, Collections.emptySet(), Version.CURRENT))
-                .build();
-
-        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
-        addJobTask("job_id1", "_node_id1", JobState.fromString("failed"), tasksBuilder);
-        addJobTask("job_id2", "_node_id2", JobState.fromString("failed"), tasksBuilder);
-        addJobTask("job_id3", "_node_id3", JobState.fromString("failed"), tasksBuilder);
-        PersistentTasksCustomMetaData tasks = tasksBuilder.build();
-
-        ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
-        MetaData.Builder metaData = MetaData.builder();
-        cs.nodes(nodes);
-        metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
-        cs.metaData(metaData);
-
-        Map<String, Long> nodeAssignedMem = new HashMap<>();
-        nodeAssignedMem.put("_node_id1", 0L);
-        nodeAssignedMem.put("_node_id2", 0L);
-        nodeAssignedMem.put("_node_id3", 0L);
-        Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id4", new ByteSizeValue(150, ByteSizeUnit.MB)).build(new Date());
-
-        // if the memory of the failed jobs is wrongly included in the calculation then this job will not be allocated
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id4", job, nodeAssignedMem, cs.build(), 2, 10, 30, logger);
-        assertEquals("", result.getExplanation());
-        assertNotNull(result.getExecutorNode());
-    }
 
     public void testSelectLeastLoadedMlNode_maxCapacity() {
         int numNodes = randomIntBetween(1, 10);
@@ -239,8 +160,8 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
         Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id0", new ByteSizeValue(150, ByteSizeUnit.MB)).build(new Date());
 
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id0", job, Collections.emptyMap(),
-                cs.build(), 2, maxRunningJobsPerNode, 30, logger);
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id0", job, cs.build(), 2,
+                maxRunningJobsPerNode, 30, logger);
         assertNull(result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because this node is full. Number of opened jobs [" + maxRunningJobsPerNode
                 + "], xpack.ml.max_open_jobs [" + maxRunningJobsPerNode + "]"));
@@ -266,8 +187,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
         Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id2", new ByteSizeValue(2, ByteSizeUnit.MB)).build(new Date());
 
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id2", job, Collections.emptyMap(),
-                cs.build(), 2, 10, 30, logger);
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id2", job, cs.build(), 2, 10, 30, logger);
         assertTrue(result.getExplanation().contains("because this node isn't a ml node"));
         assertNull(result.getExecutorNode());
     }
@@ -298,26 +218,20 @@ public class TransportOpenJobActionTests extends ESTestCase {
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         csBuilder.metaData(metaData);
 
-        Map<String, Long> nodeAssignedMem = new HashMap<>();
-        nodeAssignedMem.put("_node_id1", 204L);
-        nodeAssignedMem.put("_node_id2", 204L);
-        nodeAssignedMem.put("_node_id3", 102L);
-
         Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id6", new ByteSizeValue(2, ByteSizeUnit.MB)).build(new Date());
 
         ClusterState cs = csBuilder.build();
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id6", job, nodeAssignedMem, cs, 2, 10, 30, logger);
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id6", job, cs, 2, 10, 30, logger);
         assertEquals("_node_id3", result.getExecutorNode());
 
         tasksBuilder = PersistentTasksCustomMetaData.builder(tasks);
         addJobTask("job_id6", "_node_id3", null, tasksBuilder);
         tasks = tasksBuilder.build();
-        nodeAssignedMem.put("_node_id3", 204L);
 
         csBuilder = ClusterState.builder(cs);
         csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks));
         cs = csBuilder.build();
-        result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id7", job, nodeAssignedMem, cs, 2, 10, 30, logger);
+        result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id7", job, cs, 2, 10, 30, logger);
         assertNull("no node selected, because OPENING state", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
 
@@ -328,7 +242,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         csBuilder = ClusterState.builder(cs);
         csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks));
         cs = csBuilder.build();
-        result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id7", job, nodeAssignedMem, cs, 2, 10, 30, logger);
+        result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id7", job, cs, 2, 10, 30, logger);
         assertNull("no node selected, because stale task", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
 
@@ -339,7 +253,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         csBuilder = ClusterState.builder(cs);
         csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks));
         cs = csBuilder.build();
-        result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id7", job, nodeAssignedMem, cs, 2, 10, 30, logger);
+        result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id7", job, cs, 2, 10, 30, logger);
         assertNull("no node selected, because null state", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
     }
@@ -374,16 +288,10 @@ public class TransportOpenJobActionTests extends ESTestCase {
         csBuilder.metaData(metaData);
 
         ClusterState cs = csBuilder.build();
-
-        Map<String, Long> nodeAssignedMem = new HashMap<>();
-        nodeAssignedMem.put("_node_id1", 102L);
-        nodeAssignedMem.put("_node_id2", 204L);
-        nodeAssignedMem.put("_node_id3", 204L);
-
         Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id7", new ByteSizeValue(2, ByteSizeUnit.MB)).build(new Date());
 
         // Allocation won't be possible if the stale failed job is treated as opening
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id7", job, nodeAssignedMem, cs, 2, 10, 30, logger);
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id7", job, cs, 2, 10, 30, logger);
         assertEquals("_node_id1", result.getExecutorNode());
 
         tasksBuilder = PersistentTasksCustomMetaData.builder(tasks);
@@ -393,7 +301,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         csBuilder = ClusterState.builder(cs);
         csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks));
         cs = csBuilder.build();
-        result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id8", job, nodeAssignedMem, cs, 2, 10, 30, logger);
+        result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id8", job, cs, 2, 10, 30, logger);
         assertNull("no node selected, because OPENING state", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
     }
@@ -424,8 +332,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         cs.nodes(nodes);
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("incompatible_type_job", job, Collections.emptyMap(),
-                cs.build(), 2, 10, 30, logger);
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("incompatible_type_job", job, cs.build(), 2, 10, 30, logger);
         assertThat(result.getExplanation(), containsString("because this node does not support jobs of type [incompatible_type]"));
         assertNull(result.getExecutorNode());
     }
@@ -452,8 +359,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
         Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id7", new ByteSizeValue(2, ByteSizeUnit.MB)).build(new Date());
 
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("incompatible_type_job", job, Collections.emptyMap(),
-                cs.build(), 2, 10, 30, logger);
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("incompatible_type_job", job, cs.build(), 2, 10, 30, logger);
         assertThat(result.getExplanation(), containsString("because this node does not support machine learning jobs"));
         assertNull(result.getExecutorNode());
     }
@@ -479,8 +385,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         cs.metaData(metaData);
 
         Job job = jobWithRules("job_with_rules");
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_with_rules", job, Collections.emptyMap(), cs.build(),
-                2, 10, 30, logger);
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_with_rules", job, cs.build(), 2, 10, 30, logger);
         assertThat(result.getExplanation(), containsString(
                 "because jobs using custom_rules require a node of version [6.4.0] or higher"));
         assertNull(result.getExecutorNode());
@@ -507,8 +412,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         cs.metaData(metaData);
 
         Job job = jobWithRules("job_with_rules");
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_with_rules", job, Collections.emptyMap(), cs.build(),
-                2, 10, 30, logger);
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_with_rules", job, cs.build(), 2, 10, 30, logger);
         assertNotNull(result.getExecutorNode());
     }
 
@@ -664,39 +568,6 @@ public class TransportOpenJobActionTests extends ESTestCase {
         assertThat(OpenJobAction.JobTaskMatcher.match(jobTask2, "ml-1"), is(false));
         assertThat(OpenJobAction.JobTaskMatcher.match(jobTask1, "ml-2"), is(false));
         assertThat(OpenJobAction.JobTaskMatcher.match(jobTask2, "ml-2"), is(true));
-    }
-
-    public void testNodeMemoryUsage() {
-
-        String job1Id = "job1";
-        String job2Id = "job2";
-        String job3Id = "job3";
-        String node1Id = "node_1";
-        String node2Id = "node_2";
-
-        long allocationId = 1L;
-        List<PersistentTasksCustomMetaData.PersistentTask<?>> tasks = new ArrayList<>();
-        tasks.add(new PersistentTasksCustomMetaData.PersistentTask<>(MlTasks.jobTaskId(job1Id), MlTasks.JOB_TASK_NAME,
-                new OpenJobAction.JobParams(job1Id), allocationId++, new Assignment(node1Id, "test assignment")));
-        tasks.add(new PersistentTasksCustomMetaData.PersistentTask<>(MlTasks.jobTaskId(job2Id), MlTasks.JOB_TASK_NAME,
-                new OpenJobAction.JobParams(job2Id), allocationId++, new Assignment(node1Id, "test assignment")));
-
-        Map<String, Long> jobMemory = new HashMap<>();
-        jobMemory.put(job1Id, 102L);
-        jobMemory.put(job2Id, 44L);
-
-        Map<String, Long> memoryByNode = TransportOpenJobAction.nodeMemoryUsage(tasks, jobMemory);
-        assertThat(memoryByNode.keySet(), hasSize(1));
-        assertThat(memoryByNode.get(node1Id), equalTo(Long.valueOf(146L)));
-
-        tasks.add(new PersistentTasksCustomMetaData.PersistentTask<>(MlTasks.jobTaskId(job3Id), MlTasks.JOB_TASK_NAME,
-                new OpenJobAction.JobParams(job3Id), allocationId++, new Assignment(node2Id, "test assignment")));
-
-        jobMemory.put(job3Id, 12L);
-        memoryByNode = TransportOpenJobAction.nodeMemoryUsage(tasks, jobMemory);
-        assertThat(memoryByNode.keySet(), hasSize(2));
-        assertThat(memoryByNode.get(node1Id), equalTo(Long.valueOf(146L)));
-        assertThat(memoryByNode.get(node2Id), equalTo(Long.valueOf(12L)));
     }
 
     public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetaData.Builder builder) {

@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Objects;
 
 public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedResponse, OpenJobAction.RequestBuilder> {
@@ -139,11 +138,9 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
 
         /** TODO Remove in 7.0.0 */
         public static final ParseField IGNORE_DOWNTIME = new ParseField("ignore_downtime");
-        public static final ParseField ASSIGNED_JOBS_MEMORY = new ParseField("assigned_jobs_memory");
-
         public static final ParseField TIMEOUT = new ParseField("timeout");
-        public static ObjectParser<JobParams, Void> PARSER = new ObjectParser<>(MlTasks.JOB_TASK_NAME, JobParams::new);
 
+        public static ObjectParser<JobParams, Void> PARSER = new ObjectParser<>(MlTasks.JOB_TASK_NAME, JobParams::new);
         static {
             PARSER.declareString(JobParams::setJobId, Job.ID);
             PARSER.declareBoolean((p, v) -> {}, IGNORE_DOWNTIME);
@@ -168,7 +165,6 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
         // changes here should be reflected there too.
         private TimeValue timeout = MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT;
         private Job job;
-        private Map<String, Long> nodeAssignedJobMemory;
 
         JobParams() {
         }
@@ -186,9 +182,6 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
             timeout = TimeValue.timeValueMillis(in.readVLong());
             if (in.getVersion().onOrAfter(Version.CURRENT)) {
                 job = in.readOptionalWriteable(Job::new);
-                if (in.readBoolean()) {
-                    nodeAssignedJobMemory = in.readMap(StreamInput::readString, StreamInput::readLong);
-                }
             }
         }
 
@@ -217,15 +210,6 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
             this.job = job;
         }
 
-        @Nullable
-        public Map<String, Long> getNodeAssignedJobMemory() {
-            return nodeAssignedJobMemory;
-        }
-
-        public void setNodeAssignedJobMemory(Map<String, Long> nodeAssignedJobMemory) {
-            this.nodeAssignedJobMemory = nodeAssignedJobMemory;
-        }
-
         @Override
         public String getWriteableName() {
             return MlTasks.JOB_TASK_NAME;
@@ -241,11 +225,6 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
             out.writeVLong(timeout.millis());
             if (out.getVersion().onOrAfter(Version.CURRENT)) {
                 out.writeOptionalWriteable(job);
-                boolean writeMemMap = nodeAssignedJobMemory != null;
-                out.writeBoolean(writeMemMap);
-                if (writeMemMap) {
-                    out.writeMap(nodeAssignedJobMemory, StreamOutput::writeString, StreamOutput::writeLong);
-                }
             }
         }
 
@@ -255,13 +234,13 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
             builder.field(Job.ID.getPreferredName(), jobId);
             builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
             builder.endObject();
-            // The job and nodeAssignedJobMemory fields are streamed but not persisted
+            // The job field is streamed but not persisted
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, timeout, job, nodeAssignedJobMemory);
+            return Objects.hash(jobId, timeout, job);
         }
 
         @Override
@@ -275,8 +254,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
             OpenJobAction.JobParams other = (OpenJobAction.JobParams) obj;
             return Objects.equals(jobId, other.jobId) &&
                     Objects.equals(timeout, other.timeout) &&
-                    Objects.equals(job, other.job) &&
-                    Objects.equals(nodeAssignedJobMemory, other.nodeAssignedJobMemory);
+                    Objects.equals(job, other.job);
         }
 
         @Override

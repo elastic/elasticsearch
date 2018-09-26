@@ -9,10 +9,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction.Request;
-import org.elasticsearch.xpack.core.ml.job.config.JobTests;
-
-import java.util.HashMap;
-import java.util.Map;
 
 public class OpenJobActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 

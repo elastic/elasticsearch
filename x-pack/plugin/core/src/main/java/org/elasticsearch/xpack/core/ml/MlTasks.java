@@ -94,6 +94,16 @@ public final class MlTasks {
     }
 
     /**
+     * Is there an ml anomaly detector job task for the job {@code jobId}?
+     * @param jobId The job id
+     * @param tasks Persistent tasks
+     * @return
+     */
+    public static boolean taskExistsForJob(String jobId, PersistentTasksCustomMetaData tasks) {
+        return openJobIds(tasks).contains(jobId);
+    }
+
+    /**
      * Read the active anomaly detector job tasks.
      * Active tasks are not {@code JobState.CLOSED} or {@code JobState.FAILED}.
      *

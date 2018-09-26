@@ -558,14 +558,13 @@ public class ShardChangesIT extends ESIntegTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .build()));
-        ensureGreen("index1");
 
         final FollowIndexAction.Request followRequest = createFollowRequest("index1", "index2");
         final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
         client().prepareIndex("index1", "doc", "1").setSource("{}", XContentType.JSON).get();
-        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(1L)));
+        atLeastDocsIndexed("index2", 1L);
 
         client().admin().indices().close(new CloseIndexRequest("index1")).actionGet();
         assertBusy(() -> {
@@ -582,7 +581,7 @@ public class ShardChangesIT extends ESIntegTestCase {
 
         client().admin().indices().open(new OpenIndexRequest("index1")).actionGet();
         client().prepareIndex("index1", "doc", "2").setSource("{}", XContentType.JSON).get();
-        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(2L)));
+        atLeastDocsIndexed("index2", 2L);
 
         unfollowIndex("index2");
     }
@@ -594,14 +593,13 @@ public class ShardChangesIT extends ESIntegTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .build()));
-        ensureGreen("index1");
 
         final FollowIndexAction.Request followRequest = createFollowRequest("index1", "index2");
         final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
         client().prepareIndex("index1", "doc", "1").setSource("{}", XContentType.JSON).get();
-        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(1L)));
+        atLeastDocsIndexed("index2", 1L);
 
         client().admin().indices().close(new CloseIndexRequest("index2")).actionGet();
         client().prepareIndex("index1", "doc", "2").setSource("{}", XContentType.JSON).get();
@@ -613,7 +611,7 @@ public class ShardChangesIT extends ESIntegTestCase {
             assertThat(response.getStatsResponses().get(0).status().numberOfFailedBulkOperations(), greaterThanOrEqualTo(1L));
         });
         client().admin().indices().open(new OpenIndexRequest("index2")).actionGet();
-        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(2L)));
+        atLeastDocsIndexed("index2", 2L);
 
         unfollowIndex("index2");
     }
@@ -625,14 +623,13 @@ public class ShardChangesIT extends ESIntegTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .build()));
-        ensureGreen("index1");
 
         final FollowIndexAction.Request followRequest = createFollowRequest("index1", "index2");
         final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
         client().prepareIndex("index1", "doc", "1").setSource("{}", XContentType.JSON).get();
-        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(1L)));
+        atLeastDocsIndexed("index2", 1L);
 
         client().admin().indices().delete(new DeleteIndexRequest("index1")).actionGet();
         ensureNoCcrTasks();
@@ -645,14 +642,13 @@ public class ShardChangesIT extends ESIntegTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .build()));
-        ensureGreen("index1");
 
         final FollowIndexAction.Request followRequest = createFollowRequest("index1", "index2");
         final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
         client().prepareIndex("index1", "doc", "1").setSource("{}", XContentType.JSON).get();
-        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(1L)));
+        atLeastDocsIndexed("index2", 1L);
 
         client().admin().indices().delete(new DeleteIndexRequest("index2")).actionGet();
         client().prepareIndex("index1", "doc", "2").setSource("{}", XContentType.JSON).get();

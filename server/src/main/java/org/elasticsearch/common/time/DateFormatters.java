@@ -893,8 +893,7 @@ public class DateFormatters {
     /*
      * Returns a formatter for parsing the seconds since the epoch
      */
-    private static final DateFormatter EPOCH_SECOND = new JavaDateFormatter("epoch_second",
-        new DateTimeFormatterBuilder().appendValue(ChronoField.INSTANT_SECONDS).toFormatter(Locale.ROOT));
+    private static final DateFormatter EPOCH_SECOND = EpochSecondsDateFormatter.INSTANCE;
 
     /*
      * Parses the milliseconds since/before the epoch
@@ -1374,7 +1373,7 @@ public class DateFormatters {
             return YEAR_MONTH;
         } else if ("yearMonthDay".equals(input) || "year_month_day".equals(input)) {
             return YEAR_MONTH_DAY;
-        } else if ("epoch_second".equals(input)) {
+        } else if ("epoch_second".equals(input) || "epoch_seconds".equals(input)) {
             return EPOCH_SECOND;
         } else if ("epoch_millis".equals(input)) {
             return EPOCH_MILLIS;

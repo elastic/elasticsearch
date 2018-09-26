@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.document.DocumentStoredFieldVisitor;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
@@ -324,9 +323,9 @@ public class RefreshListenersTests extends ESTestCase {
                         try (Engine.GetResult getResult = engine.get(get, engine::acquireSearcher)) {
                             assertTrue("document not found", getResult.exists());
                             assertEquals(iteration, getResult.version());
-                            DocumentStoredFieldVisitor visitor = new DocumentStoredFieldVisitor();
-                            getResult.docIdAndVersion().reader.document(getResult.docIdAndVersion().docId, visitor);
-                            assertEquals(new String[] {testFieldValue}, visitor.getDocument().getValues("test"));
+                            org.apache.lucene.document.Document document =
+                                    getResult.docIdAndVersion().reader.document(getResult.docIdAndVersion().docId);
+                            assertEquals(new String[] {testFieldValue}, document.getValues("test"));
                         }
                     } catch (Exception t) {
                         throw new RuntimeException("failure on the [" + iteration + "] iteration of thread [" + threadId + "]", t);

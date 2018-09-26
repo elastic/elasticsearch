@@ -49,7 +49,6 @@ final class SecurityRequestConverters {
         return request;
     }
 
-
     static Request putUser(PutUserRequest putUserRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_xpack/security/user")

@@ -21,6 +21,7 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -38,7 +39,7 @@ public final class ChangePasswordRequest implements Validatable, Closeable, ToXC
     private final char[] password;
     private final RefreshPolicy refreshPolicy;
 
-    public ChangePasswordRequest(String username, char[] password, RefreshPolicy refreshPolicy) {
+    public ChangePasswordRequest(@Nullable String username, char[] password, RefreshPolicy refreshPolicy) {
         this.username = username;
         this.password = Objects.requireNonNull(password, "password is required");
         this.refreshPolicy = refreshPolicy == null ? RefreshPolicy.getDefault() : refreshPolicy;
@@ -67,8 +68,12 @@ public final class ChangePasswordRequest implements Validatable, Closeable, ToXC
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         byte[] charBytes = CharArrays.toUtf8Bytes(password);
-        builder.field("password").utf8Value(charBytes, 0, charBytes.length);
-
-        return builder.endObject();
+        try {
+            return builder.startObject()
+                .field("password").utf8Value(charBytes, 0, charBytes.length)
+                .endObject();
+        } finally {
+            Arrays.fill(charBytes, (byte) 0);
+        }
     }
 }

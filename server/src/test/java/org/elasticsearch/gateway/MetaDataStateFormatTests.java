@@ -59,7 +59,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -292,95 +291,97 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
     }
 
-    private DummyState writeAndReadStateSuccessfully(Format format, AtomicBoolean injectFailures, Path... paths) throws IOException {
-        injectFailures.set(false);
+    private DummyState writeAndReadStateSuccessfully(Format format, Path... paths) throws IOException {
+        format.setInjectFailure(false);
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(), randomDouble(), randomBoolean());
         format.write(state, paths);
         assertEquals(state, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths));
+        ensureOnlyOneStateFile(paths);
         return state;
     }
 
+    private static void ensureOnlyOneStateFile(Path[] paths) throws IOException {
+        for (Path path : paths) {
+            try (Directory dir = new SimpleFSDirectory(path.resolve(MetaDataStateFormat.STATE_DIR_NAME))) {
+                assertThat(dir.listAll().length, equalTo(1));
+            }
+        }
+    }
 
     public void testFailWriteAndReadPreviousState() throws IOException {
         Path path = createTempDir();
-        AtomicBoolean injectFailures = new AtomicBoolean();
-        Format format = new Format("foo-", injectFailures, "createOutput", "sync", "rename");
+        Format format = new Format("foo-",
+                Format.FAIL_CREATE_OUTPUT_FILE, Format.FAIL_WRITE_TO_OUTPUT_FILE, Format.FAIL_FSYNC_TMP_FILE, Format.FAIL_RENAME_TMP_FILE);
 
-        DummyState initialState = writeAndReadStateSuccessfully(format, injectFailures, path);
+        DummyState initialState = writeAndReadStateSuccessfully(format, path);
 
-        for (int i=0; i<randomIntBetween(1,5); i++) {
-            injectFailures.set(true);
+        for (int i = 0; i < randomIntBetween(1, 5); i++) {
+            format.setInjectFailure(true);
             DummyState newState = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(), randomDouble(), randomBoolean());
             expectThrows(IOException.class, () -> format.write(newState, path));
-            injectFailures.set(false);
+            format.setInjectFailure(false);
             assertEquals(initialState, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, path));
         }
 
-        writeAndReadStateSuccessfully(format, injectFailures, path);
+        writeAndReadStateSuccessfully(format, path);
     }
-
 
     public void testFailWriteAndReadAnyState() throws IOException {
         Path path = createTempDir();
-        AtomicBoolean injectFailures = new AtomicBoolean();
-        Format format = new Format("foo-", injectFailures, "syncMetaData");
+        Format format = new Format("foo-", Format.FAIL_FSYNC_STATE_DIRECTORY);
         Set<DummyState> possibleStates = new HashSet<>();
 
-        DummyState initialState = writeAndReadStateSuccessfully(format, injectFailures, path);
+        DummyState initialState = writeAndReadStateSuccessfully(format, path);
         possibleStates.add(initialState);
 
-        for (int i=0; i<randomIntBetween(1,5); i++) {
-            injectFailures.set(true);
+        for (int i = 0; i < randomIntBetween(1, 5); i++) {
+            format.setInjectFailure(true);
             DummyState newState = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(), randomDouble(), randomBoolean());
             possibleStates.add(newState);
             expectThrows(IOException.class, () -> format.write(newState, path));
-            injectFailures.set(false);
+            format.setInjectFailure(false);
             assertTrue(possibleStates.contains(format.loadLatestState(logger, NamedXContentRegistry.EMPTY, path)));
         }
 
-        writeAndReadStateSuccessfully(format, injectFailures, path);
+        writeAndReadStateSuccessfully(format, path);
     }
 
     public void testFailDeleteTmpStateFile() throws IOException {
         Path path = createTempDir();
-        AtomicBoolean injectFailures = new AtomicBoolean();
-        Format format = new Format("foo-", injectFailures, "deleteFile");
+        Format format = new Format("foo-", Format.FAIL_DELETE_TMP_FILE);
 
-        writeAndReadStateSuccessfully(format, injectFailures, path);
+        writeAndReadStateSuccessfully(format, path);
 
-        for (int i=0; i<randomIntBetween(1,5); i++) {
-            injectFailures.set(true);
+        for (int i = 0; i < randomIntBetween(1, 5); i++) {
+            format.setInjectFailure(true);
             DummyState newState = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(), randomDouble(), randomBoolean());
             expectThrows(IOException.class, () -> format.write(newState, path));
-            injectFailures.set(false);
+            format.setInjectFailure(false);
             assertEquals(newState, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, path));
         }
 
-        writeAndReadStateSuccessfully(format, injectFailures, path);
+        writeAndReadStateSuccessfully(format, path);
     }
 
     public void testFailCopyStateToExtraLocation() throws IOException {
-        Path paths[] = new Path[randomIntBetween(2,5)];
-        for (int i=0; i<paths.length; i++){
+        Path paths[] = new Path[randomIntBetween(2, 5)];
+        for (int i = 0; i < paths.length; i++) {
             paths[i] = createTempDir();
         }
+        Format format = new Format("foo-", Format.FAIL_OPEN_STATE_FILE_WHEN_COPYING);
 
-        AtomicBoolean injectFailures = new AtomicBoolean();
-        Format format = new Format("foo-", injectFailures, "openInput");
+        writeAndReadStateSuccessfully(format, paths);
 
-        writeAndReadStateSuccessfully(format, injectFailures, paths);
-
-        for (int i=0; i<randomIntBetween(1,5); i++) {
-            injectFailures.set(true);
+        for (int i = 0; i < randomIntBetween(1, 5); i++) {
+            format.setInjectFailure(true);
             DummyState newState = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(), randomDouble(), randomBoolean());
             expectThrows(IOException.class, () -> format.write(newState, paths));
-            injectFailures.set(false);
+            format.setInjectFailure(false);
             assertEquals(newState, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths));
         }
 
-        writeAndReadStateSuccessfully(format, injectFailures, paths);
+        writeAndReadStateSuccessfully(format, paths);
     }
-
 
     private static MetaDataStateFormat<MetaData> metaDataFormat() {
         return new MetaDataStateFormat<MetaData>(MetaData.GLOBAL_STATE_FILE_PREFIX) {
@@ -417,33 +418,35 @@ public class MetaDataStateFormatTests extends ESTestCase {
                 .settings(settings(Version.CURRENT).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10)).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5)));
     }
 
-
     private class Format extends MetaDataStateFormat<DummyState> {
-
-
-        private final AtomicBoolean injectFailure;
+        private boolean injectFailure;
         private final String[] failureMethods;
+
+        static final String FAIL_CREATE_OUTPUT_FILE = "createOutput";
+        static final String FAIL_WRITE_TO_OUTPUT_FILE = "writeBytes";
+        static final String FAIL_FSYNC_TMP_FILE = "sync";
+        static final String FAIL_RENAME_TMP_FILE = "rename";
+        static final String FAIL_FSYNC_STATE_DIRECTORY = "syncMetaData";
+        static final String FAIL_DELETE_TMP_FILE = "deleteFile";
+        static final String FAIL_OPEN_STATE_FILE_WHEN_COPYING = "openInput";
 
         /**
          * Constructs a MetaDataStateFormat object for storing/retrieving DummyState with no failure injection
          */
         Format(String prefix) {
             super(prefix);
-            this.injectFailure = new AtomicBoolean(false);
             this.failureMethods = new String[]{};
         }
 
         /**
          * Constructs a MetaDataStateFormat object for storing/retrieving DummyState
          *
-         * @param prefix - state file prefix
-         * @param injectFailure - whether to inject failures in Directory method calls, returned by MetaDataStateFormat.newDirectoryMethod
+         * @param prefix         - state file prefix
          * @param failureMethods - one of these method calls will fail on Directory object if injectFailure is set to true.
          *                       Method that will fail is randomly selected on each newDirectory method call.
          */
-        Format(String prefix, AtomicBoolean injectFailure, String... failureMethods) {
+        Format(String prefix, String... failureMethods) {
             super(prefix);
-            this.injectFailure = injectFailure;
             this.failureMethods = failureMethods;
         }
 
@@ -457,18 +460,22 @@ public class MetaDataStateFormatTests extends ESTestCase {
             return new DummyState().parse(parser);
         }
 
+        public void setInjectFailure(boolean injectFailure) {
+            this.injectFailure = injectFailure;
+        }
+
         @Override
         protected Directory newDirectory(Path dir) {
             MockDirectoryWrapper mock = newMockFSDirectory(dir);
-            if (injectFailure.get()) {
+            if (injectFailure) {
                 String failMethod = randomFrom(failureMethods);
                 MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
                     @Override
                     public void eval(MockDirectoryWrapper dir) throws IOException {
                         for (StackTraceElement e : Thread.currentThread().getStackTrace()) {
-                                if (failMethod.equals(e.getMethodName())) {
-                                    throw new MockDirectoryWrapper.FakeIOException();
-                                }
+                            if (failMethod.equals(e.getMethodName())) {
+                                throw new MockDirectoryWrapper.FakeIOException();
+                            }
                         }
                     }
                 };

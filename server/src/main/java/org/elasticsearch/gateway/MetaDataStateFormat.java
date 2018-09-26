@@ -80,18 +80,19 @@ public abstract class MetaDataStateFormat<T> {
     protected MetaDataStateFormat(String prefix) {
         this.prefix = prefix;
         this.stateFilePattern = Pattern.compile(Pattern.quote(prefix) + "(\\d+)(" + MetaDataStateFormat.STATE_FILE_EXTENSION + ")?");
-
     }
 
-    private static void deleteFileIgnoreNotFound(Directory directory, String fileName) throws IOException {
+    private static void deleteTempFile(Path stateLocation, Directory directory, String fileName) throws IOException {
         try {
             directory.deleteFile(fileName);
         } catch (FileNotFoundException | NoSuchFileException ignored) {
 
         }
+        logger.trace("cleaned up {}", stateLocation.resolve(fileName));
     }
 
-    private void writeStateToFirstLocation(final T state, Directory stateDir, String fileName, String tmpFileName) throws IOException {
+    private void writeStateToFirstLocation(final T state, Path stateLocation, Directory stateDir, String fileName, String tmpFileName)
+            throws IOException {
         try {
             try (IndexOutput out = stateDir.createOutput(tmpFileName, IOContext.DEFAULT)) {
                 CodecUtil.writeHeader(out, STATE_FILE_CODEC, STATE_FILE_VERSION);
@@ -116,11 +117,11 @@ public abstract class MetaDataStateFormat<T> {
             stateDir.sync(Collections.singleton(tmpFileName));
             stateDir.rename(tmpFileName, fileName);
             stateDir.syncMetaData();
+            logger.trace("written state to {}", stateLocation.resolve(fileName));
         } finally {
-            deleteFileIgnoreNotFound(stateDir, tmpFileName);
+            deleteTempFile(stateLocation, stateDir, tmpFileName);
         }
     }
-
 
     private void copyStateToExtraLocation(Directory srcStateDir, Path extraStateLocation, String fileName, String tmpFileName)
             throws IOException {
@@ -130,8 +131,9 @@ public abstract class MetaDataStateFormat<T> {
                 extraStateDir.sync(Collections.singleton(tmpFileName));
                 extraStateDir.rename(tmpFileName, fileName);
                 extraStateDir.syncMetaData();
+                logger.trace("copied state to {}", extraStateLocation.resolve(fileName));
             } finally {
-                deleteFileIgnoreNotFound(extraStateDir, tmpFileName);
+                deleteTempFile(extraStateLocation, extraStateDir, tmpFileName);
             }
         }
     }
@@ -162,13 +164,11 @@ public abstract class MetaDataStateFormat<T> {
         final String tmpFileName = fileName + ".tmp";
         final Path firstStateLocation = locations[0].resolve(STATE_DIR_NAME);
         try (Directory stateDir = newDirectory(firstStateLocation)) {
-            writeStateToFirstLocation(state, stateDir, fileName, tmpFileName);
-            logger.trace("written state to {}", firstStateLocation.resolve(fileName));
+            writeStateToFirstLocation(state, firstStateLocation, stateDir, fileName, tmpFileName);
 
-            for (Path extraLocation : locations) {
-                final Path extraStateLocation = extraLocation.resolve(STATE_DIR_NAME);
+            for (int i = 1; i < locations.length; i++) {
+                final Path extraStateLocation = locations[i].resolve(STATE_DIR_NAME);
                 copyStateToExtraLocation(stateDir, extraStateLocation, fileName, tmpFileName);
-                logger.trace("copied state to {}", extraStateLocation.resolve(fileName));
             }
         }
 
@@ -226,12 +226,12 @@ public abstract class MetaDataStateFormat<T> {
     }
 
     private void cleanupOldFiles(final String currentStateFile, Path[] locations) throws IOException {
-        for (Path location: locations){
+        for (Path location : locations) {
             Path stateLocation = location.resolve(STATE_DIR_NAME);
-            try (Directory stateDir = newDirectory(stateLocation)){
-                for (String file : stateDir.listAll()){
-                    if (file.startsWith(prefix) && file.equals(currentStateFile) == false){
-                        deleteFileIgnoreNotFound(stateDir, file);
+            try (Directory stateDir = newDirectory(stateLocation)) {
+                for (String file : stateDir.listAll()) {
+                    if (file.startsWith(prefix) && file.equals(currentStateFile) == false) {
+                        deleteTempFile(stateLocation, stateDir, file);
                         logger.trace("cleanupOldFiles: cleaned up {}", stateLocation.resolve(file));
                     }
                 }

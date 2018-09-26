@@ -34,10 +34,10 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RandomApproximationQuery;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
@@ -46,6 +46,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery.FilterScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery.ScoreMode;
 import org.elasticsearch.common.lucene.search.function.LeafScoreFunction;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
@@ -71,7 +72,6 @@ import java.util.concurrent.ExecutionException;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsEqual.equalTo;
-import static org.elasticsearch.common.lucene.search.function.FunctionScoreQuery.FilterScoreFunction;
 
 public class FunctionScoreTests extends ESTestCase {
 
@@ -709,13 +709,11 @@ public class FunctionScoreTests extends ESTestCase {
 
     public void testExplanationAndScoreEqualsEvenIfNoFunctionMatches() throws IOException {
         IndexSearcher localSearcher = newSearcher(reader);
-        ScoreMode scoreMode = randomFrom(new
-            ScoreMode[]{ScoreMode.SUM, ScoreMode.AVG, ScoreMode.FIRST, ScoreMode.MIN, ScoreMode.MAX, ScoreMode.MULTIPLY});
         CombineFunction combineFunction = randomFrom(new
             CombineFunction[]{CombineFunction.SUM, CombineFunction.AVG, CombineFunction.MIN, CombineFunction.MAX,
             CombineFunction.MULTIPLY, CombineFunction.REPLACE});
 
-        // check for document that has no macthing function
+        // check for document that has no matching function
         FunctionScoreQuery query = new FunctionScoreQuery(new TermQuery(new Term(FIELD, "out")),
             new FilterScoreFunction(new TermQuery(new Term("_uid", "2")), new WeightFactorFunction(10)),
             combineFunction, Float.NEGATIVE_INFINITY, Float.MAX_VALUE);

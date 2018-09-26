@@ -27,7 +27,8 @@
   - match: { has_byte_order_marker: false }
   - match: { format: json }
   - match: { timestamp_field: time }
-  - match: { timestamp_formats.0: UNIX }
+  - match: { joda_timestamp_formats.0: UNIX }
+  - match: { java_timestamp_formats.0: UNIX }
   - match: { need_client_timezone: false }
   - match: { mappings.airline.type: keyword }
   - match: { mappings.responsetime.type: double }
@@ -83,7 +84,8 @@
   - match: { has_byte_order_marker: false }
   - match: { format: json }
   - match: { timestamp_field: time }
-  - match: { timestamp_formats.0: UNIX }
+  - match: { joda_timestamp_formats.0: UNIX }
+  - match: { java_timestamp_formats.0: UNIX }
   - match: { need_client_timezone: false }
   - match: { mappings.airline.type: keyword }
   - match: { mappings.responsetime.type: double }

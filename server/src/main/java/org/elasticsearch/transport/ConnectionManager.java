@@ -324,7 +324,7 @@ public class ConnectionManager implements Closeable {
         }
     }
 
-    static ConnectionProfile buildDefaultConnectionProfile(Settings settings) {
+    public static ConnectionProfile buildDefaultConnectionProfile(Settings settings) {
         int connectionsPerNodeRecovery = TransportService.CONNECTIONS_PER_NODE_RECOVERY.get(settings);
         int connectionsPerNodeBulk = TransportService.CONNECTIONS_PER_NODE_BULK.get(settings);
         int connectionsPerNodeReg = TransportService.CONNECTIONS_PER_NODE_REG.get(settings);

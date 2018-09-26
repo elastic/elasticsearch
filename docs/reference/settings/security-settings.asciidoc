@@ -103,7 +103,7 @@ Defaults to `true`.
 
 `xpack.security.automata.cache.size`::
 The maximum number of items to retain in the automata cache.
-Defaults to `500`.
+Defaults to `10,000`.
 
 `xpack.security.automata.cache.ttl`::
 The length of time to retain in an item in the automata cache (based on most

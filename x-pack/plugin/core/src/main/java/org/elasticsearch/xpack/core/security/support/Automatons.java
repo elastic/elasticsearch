@@ -39,7 +39,7 @@ public final class Automatons {
     static final Setting<Boolean> CACHE_ENABLED =
         Setting.boolSetting("xpack.security.automata.cache.enabled", true, Setting.Property.NodeScope);
     static final Setting<Integer> CACHE_SIZE =
-        Setting.intSetting("xpack.security.automata.cache.size", 500, Setting.Property.NodeScope);
+        Setting.intSetting("xpack.security.automata.cache.size", 10_000, Setting.Property.NodeScope);
     static final Setting<TimeValue> CACHE_TTL =
         Setting.timeSetting("xpack.security.automata.cache.ttl", TimeValue.timeValueHours(48), Setting.Property.NodeScope);
 
@@ -77,7 +77,7 @@ public final class Automatons {
             try {
                 return cache.computeIfAbsent(Sets.newHashSet(patterns), ignore -> buildAutomaton(patterns));
             } catch (ExecutionException e) {
-                return handleCacheException(e);
+                throw unwrapCacheException(e);
             }
         }
     }
@@ -101,7 +101,7 @@ public final class Automatons {
             try {
                 return cache.computeIfAbsent(pattern, ignore -> buildAutomaton(pattern));
             } catch (ExecutionException e) {
-                return handleCacheException(e);
+                throw unwrapCacheException(e);
             }
         }
     }
@@ -122,12 +122,12 @@ public final class Automatons {
         }
     }
 
-    private static Automaton handleCacheException(ExecutionException e) {
+    private static RuntimeException unwrapCacheException(ExecutionException e) {
         final Throwable cause = e.getCause();
         if (cause instanceof RuntimeException) {
-            throw (RuntimeException) cause;
+            return (RuntimeException) cause;
         } else {
-            throw new RuntimeException(cause);
+            return new RuntimeException(cause);
         }
     }
 

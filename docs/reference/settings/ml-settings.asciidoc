@@ -1,11 +1,18 @@
 [role="xpack"]
 [[ml-settings]]
-=== Machine Learning Settings in Elasticsearch
+=== Machine learning settings in Elasticsearch
 ++++
-<titleabbrev>Machine Learning Settings</titleabbrev>
+<titleabbrev>Machine learning settings</titleabbrev>
 ++++
 
 You do not need to configure any settings to use {ml}. It is enabled by default.
+
+All of these settings can be added to the `elasticsearch.yml` configuration file. 
+The dynamic settings can also be updated across a cluster with the 
+<<cluster-update-settings,cluster update settings API>>.
+
+TIP: Dynamic settings take precedence over settings in the `elasticsearch.yml` 
+file.
 
 [float]
 [[general-ml-settings]]
@@ -37,11 +44,7 @@ IMPORTANT: If you want to use {ml} features in your cluster, you must have
 `xpack.ml.enabled` set to `true` on all master-eligible nodes. This is the
 default behavior.
 
-`xpack.ml.max_open_jobs`::
-The maximum number of jobs that can run on a node. Defaults to `20`.
-The maximum number of jobs is also constrained by memory usage, so fewer
-jobs than specified by this setting will run on a node if the estimated
-memory use of the jobs would be higher than allowed.
+`xpack.ml.max_anomaly_records`:: (<<cluster-update-settings,Dynamic>>) TBD
 
 `xpack.ml.max_machine_memory_percent`::
 The maximum percentage of the machine's memory that {ml} may use for running
@@ -56,6 +59,16 @@ this node. If you try to create a job with a `model_memory_limit` property value
 that is greater than this setting value, an error occurs. Existing jobs are not
 affected when you update this setting. For more information about the
 `model_memory_limit` property, see <<ml-apilimits>>.
+
+`xpack.ml.max_open_jobs`::
+The maximum number of jobs that can run on a node. Defaults to `20`.
+The maximum number of jobs is also constrained by memory usage, so fewer
+jobs than specified by this setting will run on a node if the estimated
+memory use of the jobs would be higher than allowed.
+
+`xpack.ml.max_percent_date_errors`:: (<<cluster-update-settings,Dynamic>>) TBD
+
+`xpack.ml.max_percent_out_of_order_errors`:: (<<cluster-update-settings,Dynamic>>) TBD
 
 `xpack.ml.node_concurrent_job_allocations`::
 The maximum number of jobs that can concurrently be in the `opening` state on

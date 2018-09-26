@@ -138,8 +138,10 @@ artifacts {
     testArtifacts testJar
 }
 
-sourceSets.main.resources {
-    srcDir 'src/main/config'
+processResources {
+    from('src/main/config') {
+        into 'config'
+    }
 }
 
 sourceSets.test.resources {

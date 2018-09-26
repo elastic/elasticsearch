@@ -459,6 +459,12 @@ public class SecurityTests extends ESTestCase {
         }
     }
 
+    /**
+     * Tests the default file comparison check. Note: this will fail when run in an IDE as the
+     * processing of resources isn't handled properly.
+     *
+     * TODO: can we add an assume for whether the test should run if it is an IDE context?
+     */
     public void testIsDefaultFileCheck() throws Exception {
         Path homeDir = createTempDir();
         Path configDir = homeDir.resolve("config");
@@ -470,7 +476,7 @@ public class SecurityTests extends ESTestCase {
 
         for (String defaultFileName : defaultFiles) {
             logger.info("testing default file: {}", defaultFileName);
-            Path defaultFile = getDataPath("/" + defaultFileName);
+            Path defaultFile = getDataPath("/config/" + defaultFileName);
             final List<String> defaultLines = Files.readAllLines(defaultFile);
             final Path defaultFileConfigPath = configDir.resolve(defaultFileName);
             Path resolvedPath = Security.resolveConfigFile(environment, defaultFileName);

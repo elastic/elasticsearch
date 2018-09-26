@@ -1192,7 +1192,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     static boolean isDefaultFile(String name, Path file) {
         InputStream in = null;
         try {
-            in = XPackPlugin.class.getResourceAsStream("/" + name);
+            in = XPackPlugin.class.getResourceAsStream("/config/" + name);
             if (in != null) {
                 try (InputStream fin = Files.newInputStream(file)) {
                     int inValue = in.read();

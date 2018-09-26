@@ -18,6 +18,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -60,13 +61,15 @@ public class TransportBulkShardOperationsAction
     @Override
     protected WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> shardOperationOnPrimary(
             final BulkShardOperationsRequest request, final IndexShard primary) throws Exception {
-        return shardOperationOnPrimary(request.shardId(), request.getOperations(), primary, logger);
+        return shardOperationOnPrimary(
+            request.shardId(), request.getOperations(), request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger);
     }
 
     // public for testing purposes only
     public static WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> shardOperationOnPrimary(
             final ShardId shardId,
             final List<Translog.Operation> sourceOperations,
+            final long maxSeqNoOfUpdatesOrDeletes,
             final IndexShard primary,
             final Logger logger) throws IOException {
         final List<Translog.Operation> targetOperations = sourceOperations.stream().map(operation -> {
@@ -103,16 +106,19 @@ public class TransportBulkShardOperationsAction
             }
             return operationWithPrimaryTerm;
         }).collect(Collectors.toList());
-        // TODO: Replace this artificial value by the actual max_seq_no_updates from the leader
-        targetOperations.stream().mapToLong(Translog.Operation::seqNo).max().ifPresent(primary::advanceMaxSeqNoOfUpdatesOrDeletes);
+        assert maxSeqNoOfUpdatesOrDeletes >= SequenceNumbers.NO_OPS_PERFORMED : "invalid msu [" + maxSeqNoOfUpdatesOrDeletes + "]";
+        primary.advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNoOfUpdatesOrDeletes);
         final Translog.Location location = applyTranslogOperations(targetOperations, primary, Engine.Operation.Origin.PRIMARY);
-        final BulkShardOperationsRequest replicaRequest = new BulkShardOperationsRequest(shardId, targetOperations);
+        final BulkShardOperationsRequest replicaRequest = new BulkShardOperationsRequest(
+            shardId, targetOperations, maxSeqNoOfUpdatesOrDeletes);
         return new CcrWritePrimaryResult(replicaRequest, location, primary, logger);
     }
 
     @Override
     protected WriteReplicaResult<BulkShardOperationsRequest> shardOperationOnReplica(
             final BulkShardOperationsRequest request, final IndexShard replica) throws Exception {
+        assert replica.getMaxSeqNoOfUpdatesOrDeletes() >= request.getMaxSeqNoOfUpdatesOrDeletes() :
+            "mus on replica [" + replica + "] < mus of request [" + request.getMaxSeqNoOfUpdatesOrDeletes() + "]";
         final Translog.Location location = applyTranslogOperations(request.getOperations(), replica, Engine.Operation.Origin.REPLICA);
         return new WriteReplicaResult<>(request, location, null, replica, logger);
     }

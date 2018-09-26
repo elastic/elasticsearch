@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.client;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.client.watcher.DeactivateWatchRequest;
+import org.elasticsearch.client.watcher.DeactivateWatchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -25,6 +28,7 @@ import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
+import org.elasticsearch.rest.RestStatus;
 
 import static org.hamcrest.Matchers.is;
 
@@ -47,6 +51,25 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
         BytesReference bytesReference = new BytesArray(json);
         PutWatchRequest putWatchRequest = new PutWatchRequest(watchId, bytesReference, XContentType.JSON);
         return highLevelClient().watcher().putWatch(putWatchRequest, RequestOptions.DEFAULT);
+    }
+
+    public void testDeactivateWatch() throws Exception {
+        // Deactivate a watch that exists
+        {
+            String watchId = randomAlphaOfLength(10);
+            createWatch(watchId);
+            DeactivateWatchResponse response = highLevelClient().watcher().deactivateWatch(
+                new DeactivateWatchRequest(watchId), RequestOptions.DEFAULT);
+            assertThat(response.getStatus().state().isActive(), is(false));
+        }
+        // Deactivate a watch that does not exist
+        {
+            String watchId = randomAlphaOfLength(10);
+            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+                () -> highLevelClient().watcher().deactivateWatch(new DeactivateWatchRequest(watchId), RequestOptions.DEFAULT));
+            assertEquals(RestStatus.NOT_FOUND, exception.status());
+
+        }
     }
 
     public void testDeleteWatch() throws Exception {

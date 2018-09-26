@@ -85,7 +85,7 @@ user API.
 . Set up roles and users to control access to {es}.
 For example, to grant _John Doe_ full access to all indices that match
 the pattern `events*` and enable him to create visualizations and dashboards
-for those indices in {kib}, you could create an `events_admin` role and
+for those indices in {kib}, you could create an `events_admin` role
 and assign the role to a new `johndoe` user.
 +
 --

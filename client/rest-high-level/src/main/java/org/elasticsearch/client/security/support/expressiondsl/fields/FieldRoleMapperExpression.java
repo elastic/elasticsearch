@@ -41,7 +41,6 @@ import java.util.Objects;
  * </pre>
  */
 public class FieldRoleMapperExpression implements RoleMapperExpression {
-    private final String NAME = "field";
 
     private final String field;
     private final List<Object> values;
@@ -87,7 +86,7 @@ public class FieldRoleMapperExpression implements RoleMapperExpression {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startObject(NAME);
+        builder.startObject("field");
         builder.startArray(this.field);
         for (Object value : values) {
             builder.value(value);

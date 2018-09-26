@@ -82,11 +82,11 @@ public final class RoleMapperExpressionParser {
 
         if (CompositeType.ANY.getParseField().match(field, parser.getDeprecationHandler())) {
             final AnyRoleMapperExpression.Builder builder = AnyRoleMapperExpression.builder();
-            parseExpressionArray(CompositeType.ANY.getParseField(), parser, false).forEach(builder::addExpression);
+            parseExpressionArray(CompositeType.ANY.getParseField(), parser).forEach(builder::addExpression);
             return builder.build();
         } else if (CompositeType.ALL.getParseField().match(field, parser.getDeprecationHandler())) {
             final AllRoleMapperExpression.Builder builder = AllRoleMapperExpression.builder();
-            parseExpressionArray(CompositeType.ALL.getParseField(), parser, true).forEach(builder::addExpression);
+            parseExpressionArray(CompositeType.ALL.getParseField(), parser).forEach(builder::addExpression);
             return builder.build();
         } else if (FIELD.match(field, parser.getDeprecationHandler())) {
             return parseFieldExpression(parser);
@@ -136,7 +136,7 @@ public final class RoleMapperExpressionParser {
         return parsedFieldName;
     }
 
-    private List<RoleMapperExpression> parseExpressionArray(ParseField field, XContentParser parser, boolean allowExcept)
+    private List<RoleMapperExpression> parseExpressionArray(ParseField field, XContentParser parser)
             throws IOException {
         parser.nextToken(); // parseArray requires that the parser is positioned
                             // at the START_ARRAY token

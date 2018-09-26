@@ -84,7 +84,9 @@ public class RollupClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void deleteRollupJobAsync(DeleteRollupJobRequest request, RequestOptions options, ActionListener<DeleteRollupJobResponse> listener) {
+    public void deleteRollupJobAsync(DeleteRollupJobRequest request,
+                                     RequestOptions options,
+                                     ActionListener<DeleteRollupJobResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request,
             RollupRequestConverters::deleteJob,
             options,

@@ -451,6 +451,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     || getStateForMasterService().term() != getCurrentTerm() :
                     getStateForMasterService();
                 assert leaderCheckScheduler == null : leaderCheckScheduler;
+
+                if (publicationInProgress() || getLastCommittedState().map(s -> s.term() == getCurrentTerm()).orElse(false)) {
+                    assert followersChecker.isActive();
+                }
             } else if (mode == Mode.FOLLOWER) {
                 assert coordinationState.get().electionWon() == false : getLocalNode() + " is FOLLOWER so electionWon() should be false";
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);

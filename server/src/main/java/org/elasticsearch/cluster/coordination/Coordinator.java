@@ -278,10 +278,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         closePrevotingAndElectionScheduler();
         preVoteCollector.update(getPreVoteResponse(), getLocalNode());
 
-        if (leaderCheckScheduler != null) {
-            leaderCheckScheduler.close();
-            leaderCheckScheduler = null;
-        }
+        assert leaderCheckScheduler == null : leaderCheckScheduler;
     }
 
     void becomeFollower(String method, DiscoveryNode leaderNode) {

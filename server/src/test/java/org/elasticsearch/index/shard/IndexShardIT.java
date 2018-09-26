@@ -60,6 +60,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -106,6 +107,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -668,7 +670,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     private static ShardRouting getInitializingShardRouting(ShardRouting existingShardRouting) {
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(existingShardRouting.shardId(),
+        ShardRouting shardRouting = newShardRouting(existingShardRouting.shardId(),
             existingShardRouting.currentNodeId(), null, existingShardRouting.primary(), ShardRoutingState.INITIALIZING,
             existingShardRouting.allocationId());
         shardRouting = shardRouting.updateUnassigned(new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, "fake recovery"),
@@ -903,6 +905,40 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             List<Translog.Operation> opsFromLucene = TestTranslog.drainSnapshot(luceneSnapshot, true);
             List<Translog.Operation> opsFromTranslog = TestTranslog.drainSnapshot(translogSnapshot, true);
             assertThat(opsFromLucene, equalTo(opsFromTranslog));
+        }
+    }
+
+    /**
+     * Test that the {@link org.elasticsearch.index.engine.NoOpEngine} takes precedence over other
+     * engine factories if the index is closed.
+     */
+    public void testNoOpEngineFactoryTakesPrecedence() throws IOException {
+        final String indexName = "closed-index";
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        ensureGreen();
+
+        client().admin().indices().prepareClose(indexName).get();
+
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final ClusterState clusterState = clusterService.state();
+
+        IndexMetaData indexMetaData = clusterState.metaData().index(indexName);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+
+        final ShardId shardId = new ShardId(indexMetaData.getIndex(), 0);
+        final DiscoveryNode node = clusterService.localNode();
+        final ShardRouting routing =
+            newShardRouting(shardId, node.getId(), true, ShardRoutingState.INITIALIZING, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
+
+        final IndexService indexService = indicesService.createIndex(indexMetaData, Collections.emptyList());
+        try {
+            final IndexShard indexShard = indexService.createShard(routing, id -> {
+            });
+            indexShard.markAsRecovering("store", new RecoveryState(indexShard.routingEntry(), node, null));
+            indexShard.recoverFromStore();
+            assertThat(indexShard.getEngine(), instanceOf(NoOpEngine.class));
+        } finally {
+            indexService.close("test terminated", true);
         }
     }
 }

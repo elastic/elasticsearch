@@ -85,6 +85,7 @@ import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
@@ -519,6 +520,12 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     private EngineFactory getEngineFactory(final IndexSettings idxSettings) {
+        final IndexMetaData indexMetaData = idxSettings.getIndexMetaData();
+        if (indexMetaData != null && indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+            // NoOpEngine takes precedence as long as the index is closed
+            return NoOpEngine::new;
+        }
+
         final List<Optional<EngineFactory>> engineFactories =
                 engineFactoryProviders
                         .stream()

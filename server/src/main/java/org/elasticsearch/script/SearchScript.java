@@ -149,6 +149,4 @@ public abstract class SearchScript implements ScorerAware, ExecutableScript {
     public static final ScriptContext<Factory> AGGS_CONTEXT = new ScriptContext<>("aggs", Factory.class);
     // Can return a double. (For ScriptSortType#NUMBER only, for ScriptSortType#STRING normal CONTEXT should be used)
     public static final ScriptContext<Factory> SCRIPT_SORT_CONTEXT = new ScriptContext<>("sort", Factory.class);
-    // Can return a long
-    public static final ScriptContext<Factory> TERMS_SET_QUERY_CONTEXT = new ScriptContext<>("terms_set", Factory.class);
 }

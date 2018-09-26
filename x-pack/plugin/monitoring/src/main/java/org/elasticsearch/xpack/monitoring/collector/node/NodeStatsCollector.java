@@ -27,7 +27,8 @@ import java.util.Objects;
 /**
  * Collector for nodes statistics.
  * <p>
- * This collector runs on every node and collects a {@link NodeStatsMonitoringDoc} document for each node of the cluster.
+ * This collector runs on every non-client node and collect
+ * a {@link NodeStatsMonitoringDoc} document for each node of the cluster.
  */
 public class NodeStatsCollector extends Collector {
 
@@ -66,7 +67,7 @@ public class NodeStatsCollector extends Collector {
     @Override
     protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node,
                                                   final long interval,
-                                                  final ClusterState clusterState) {
+                                                  final ClusterState clusterState) throws Exception {
         NodesStatsRequest request = new NodesStatsRequest("_local");
         request.indices(FLAGS);
         request.os(true);
@@ -74,11 +75,11 @@ public class NodeStatsCollector extends Collector {
         request.process(true);
         request.threadPool(true);
         request.fs(true);
-        request.shards(true);
 
         final NodesStatsResponse response = client.admin().cluster().nodesStats(request).actionGet(getCollectionTimeout());
 
-        // if there's a failure, then we failed to work with the _local node (guaranteed a single exception)
+        // if there's a failure, then we failed to work with the
+        // _local node (guaranteed a single exception)
         if (response.hasFailures()) {
             throw response.failures().get(0);
         }
@@ -86,10 +87,8 @@ public class NodeStatsCollector extends Collector {
         final String clusterUuid = clusterUuid(clusterState);
         final NodeStats nodeStats = response.getNodes().get(0);
 
-        return Collections.singletonList(
-            new NodeStatsMonitoringDoc(clusterUuid, nodeStats.getTimestamp(), interval, node,
-                                       node.getUUID(), clusterState.getNodes().isLocalNodeElectedMaster(), nodeStats,
-                                       BootstrapInfo.isMemoryLocked()));
+        return Collections.singletonList(new NodeStatsMonitoringDoc(clusterUuid, nodeStats.getTimestamp(), interval, node,
+                node.getUUID(), clusterState.getNodes().isLocalNodeElectedMaster(), nodeStats, BootstrapInfo.isMemoryLocked()));
     }
 
 }

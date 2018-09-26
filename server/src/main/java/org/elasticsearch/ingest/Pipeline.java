@@ -22,6 +22,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -47,13 +48,20 @@ public final class Pipeline {
     private final Integer version;
     private final CompoundProcessor compoundProcessor;
     private final IngestMetric metrics;
+    private final Clock clock;
 
     public Pipeline(String id, @Nullable String description, @Nullable Integer version, CompoundProcessor compoundProcessor) {
+        this(id, description, version, compoundProcessor, Clock.systemUTC());
+    }
+
+    //package private for testing
+    Pipeline(String id, @Nullable String description, @Nullable Integer version, CompoundProcessor compoundProcessor, Clock clock) {
         this.id = id;
         this.description = description;
         this.compoundProcessor = compoundProcessor;
         this.version = version;
         this.metrics = new IngestMetric();
+        this.clock = clock;
     }
 
     public static Pipeline create(String id, Map<String, Object> config,
@@ -82,7 +90,7 @@ public final class Pipeline {
      * Modifies the data of a document to be indexed based on the processor this pipeline holds
      */
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        long startTimeInNanos = System.nanoTime();
+        long startTimeInMillis = clock.millis();
         try {
             metrics.preIngest();
             return compoundProcessor.execute(ingestDocument);
@@ -90,7 +98,7 @@ public final class Pipeline {
             metrics.ingestFailed();
             throw e;
         } finally {
-            long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeInNanos);
+            long ingestTimeInMillis = clock.millis() - startTimeInMillis;
             metrics.postIngest(ingestTimeInMillis);
         }
     }

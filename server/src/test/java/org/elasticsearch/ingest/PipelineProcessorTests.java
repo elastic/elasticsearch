@@ -21,6 +21,11 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.test.ESTestCase;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -142,29 +147,32 @@ public class PipelineProcessorTests extends ESTestCase {
         pipeline2ProcessorConfig.put("pipeline", pipeline3Id);
         PipelineProcessor pipeline2Processor = factory.create(Collections.emptyMap(), null, pipeline2ProcessorConfig);
 
+        Clock clock = mock(Clock.class);
+        when(clock.millis()).thenReturn(0L).thenReturn(0L);
         Pipeline pipeline1 = new Pipeline(
-            pipeline1Id, null, null, new CompoundProcessor(pipeline1Processor)
+            pipeline1Id, null, null, new CompoundProcessor(pipeline1Processor), clock
         );
 
         String key1 = randomAlphaOfLength(10);
+        clock = mock(Clock.class);
+        when(clock.millis()).thenReturn(0L).thenReturn(3L);
         Pipeline pipeline2 = new Pipeline(
             pipeline2Id, null, null, new CompoundProcessor(true,
             Arrays.asList(
                 new TestProcessor(ingestDocument -> {
                     ingestDocument.setFieldValue(key1, randomInt());
-                    try {
-                        Thread.sleep(2); //force the stat time to be non-zero
-                    } catch (InterruptedException e) {
-                        //do nothing
-                    }
                 }),
                 pipeline2Processor),
-            Collections.emptyList())
+            Collections.emptyList()),
+            clock
         );
-
+        clock = mock(Clock.class);
+        when(clock.millis()).thenReturn(0L).thenReturn(2L);
         Pipeline pipeline3 = new Pipeline(
             pipeline3Id, null, null, new CompoundProcessor(
-            new TestProcessor(ingestDocument -> {  throw new RuntimeException("error");     }))
+            new TestProcessor(ingestDocument -> {
+                throw new RuntimeException("error");
+            })), clock
         );
         when(ingestService.getPipeline(pipeline1Id)).thenReturn(pipeline1);
         when(ingestService.getPipeline(pipeline2Id)).thenReturn(pipeline2);
@@ -190,8 +198,10 @@ public class PipelineProcessorTests extends ESTestCase {
         assertThat(pipeline2Stats.getIngestCount(), equalTo(1L));
         assertThat(pipeline3Stats.getIngestCount(), equalTo(1L));
 
-        //time - pipeline1 calls pipeline2, so the time it took pipeline 2 is counted against pipeline1 too.
-        assertTrue(pipeline1Stats.getIngestTimeInMillis() >=  pipeline2Stats.getIngestTimeInMillis());
+        //time
+        assertThat(pipeline1Stats.getIngestTimeInMillis(), equalTo(0L));
+        assertThat(pipeline2Stats.getIngestTimeInMillis(), equalTo(3L));
+        assertThat(pipeline3Stats.getIngestTimeInMillis(), equalTo(2L));
 
         //failure
         assertThat(pipeline1Stats.getIngestFailedCount(), equalTo(0L));

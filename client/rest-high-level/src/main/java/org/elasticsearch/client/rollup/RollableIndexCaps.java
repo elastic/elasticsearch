@@ -29,6 +29,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Represents the rollup capabilities of a non-rollup index.  E.g. what values/aggregations
@@ -51,14 +52,15 @@ public class RollableIndexCaps implements ToXContentFragment {
         return p;
     };
 
-    private String indexName;
-    private List<RollupJobCaps> jobCaps;
+    private final String indexName;
+    private final List<RollupJobCaps> jobCaps;
 
-    public RollableIndexCaps(String indexName, List<RollupJobCaps> caps) {
+    RollableIndexCaps(final String indexName, final List<RollupJobCaps> caps) {
         this.indexName = indexName;
-        this.jobCaps = Objects.requireNonNull(caps);
-        this.jobCaps.sort(Comparator.comparing(RollupJobCaps::getJobID));
-        this.jobCaps = Collections.unmodifiableList(jobCaps);
+        this.jobCaps = Collections.unmodifiableList(Objects.requireNonNull(caps)
+            .stream()
+            .sorted(Comparator.comparing(RollupJobCaps::getJobID))
+            .collect(Collectors.toList()));
     }
 
     public String getIndexName() {
@@ -72,7 +74,9 @@ public class RollableIndexCaps implements ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(indexName);
-        builder.field(ROLLUP_JOBS.getPreferredName(), jobCaps);
+        {
+            builder.field(ROLLUP_JOBS.getPreferredName(), jobCaps);
+        }
         builder.endObject();
         return builder;
     }
@@ -88,7 +92,6 @@ public class RollableIndexCaps implements ToXContentFragment {
         }
 
         RollableIndexCaps that = (RollableIndexCaps) other;
-
         return Objects.deepEquals(this.jobCaps, that.jobCaps)
             && Objects.equals(this.indexName, that.indexName);
     }

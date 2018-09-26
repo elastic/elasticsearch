@@ -30,10 +30,10 @@ import java.util.Objects;
 import java.util.Optional;
 
 public class GetRollupCapsRequest implements Validatable, ToXContentObject {
-    private String indexPattern;
     private static final String ID = "id";
+    private final String indexPattern;
 
-    public GetRollupCapsRequest(String indexPattern) {
+    public GetRollupCapsRequest(final String indexPattern) {
         if (Strings.isNullOrEmpty(indexPattern) || indexPattern.equals("*")) {
             this.indexPattern = MetaData.ALL;
         } else {
@@ -51,11 +51,6 @@ public class GetRollupCapsRequest implements Validatable, ToXContentObject {
         builder.field(ID, indexPattern);
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public Optional<ValidationException> validate() {
-        return Optional.empty();
     }
 
     @Override

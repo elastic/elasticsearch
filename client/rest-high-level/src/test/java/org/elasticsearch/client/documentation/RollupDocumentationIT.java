@@ -20,6 +20,8 @@ package org.elasticsearch.client.documentation;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -43,6 +45,7 @@ import org.elasticsearch.client.rollup.job.config.HistogramGroupConfig;
 import org.elasticsearch.client.rollup.job.config.MetricConfig;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfig;
 import org.elasticsearch.client.rollup.job.config.TermsGroupConfig;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
@@ -64,6 +67,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.isOneOf;
 
 public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
 
@@ -177,7 +181,6 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testGetRollupCaps() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
-
         DateHistogramGroupConfig dateHistogram =
             new DateHistogramGroupConfig("timestamp", DateHistogramInterval.HOUR, new DateHistogramInterval("7d"), "UTC"); // <1>
         TermsGroupConfig terms = new TermsGroupConfig("hostname", "datacenter");
@@ -204,6 +207,11 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         boolean acknowledged = response.isAcknowledged();
         //end::x-pack-rollup-get-rollup-caps-setup
         assertTrue(acknowledged);
+
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(config.getRollupIndex()).waitForYellowStatus();
+        ClusterHealthResponse healthResponse = client.cluster().health(healthRequest, RequestOptions.DEFAULT);
+        assertFalse(healthResponse.isTimedOut());
+        assertThat(healthResponse.getStatus(), isOneOf(ClusterHealthStatus.YELLOW, ClusterHealthStatus.GREEN));
 
         // Now that the job is created, we should have a rollup index with metadata.
         // We can test out the caps API now.

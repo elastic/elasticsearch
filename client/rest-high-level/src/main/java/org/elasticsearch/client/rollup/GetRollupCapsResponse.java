@@ -32,9 +32,9 @@ import java.util.Objects;
 
 public class GetRollupCapsResponse implements ToXContentObject {
 
-    private Map<String, RollableIndexCaps> jobs = Collections.emptyMap();
+    private final Map<String, RollableIndexCaps> jobs;
 
-    public GetRollupCapsResponse(Map<String, RollableIndexCaps> jobs) {
+    public GetRollupCapsResponse(final Map<String, RollableIndexCaps> jobs) {
         this.jobs = Collections.unmodifiableMap(Objects.requireNonNull(jobs));
     }
 
@@ -65,7 +65,7 @@ public class GetRollupCapsResponse implements ToXContentObject {
                 }
             }
         }
-        return new GetRollupCapsResponse(jobs);
+        return new GetRollupCapsResponse(Collections.unmodifiableMap(jobs));
     }
 
     @Override

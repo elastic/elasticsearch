@@ -9,6 +9,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -42,10 +43,10 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
     private static ParseField INDEX_PATTERN = new ParseField("index_pattern");
     private static ParseField FIELDS = new ParseField("fields");
 
-    private String jobID;
-    private String rollupIndex;
-    private String indexPattern;
-    private Map<String, RollupFieldCaps> fieldCapLookup = new HashMap<>();
+    private final String jobID;
+    private final String rollupIndex;
+    private final String indexPattern;
+    private final Map<String, RollupFieldCaps> fieldCapLookup;
 
     // TODO now that these rollup caps are being used more widely (e.g. search), perhaps we should
     // store the RollupJob and translate into FieldCaps on demand for json output.  Would make working with
@@ -98,14 +99,18 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(JOB_ID.getPreferredName(), jobID);
-        builder.field(ROLLUP_INDEX.getPreferredName(), rollupIndex);
-        builder.field(INDEX_PATTERN.getPreferredName(), indexPattern);
-        builder.startObject(FIELDS.getPreferredName());
-        for (Map.Entry<String, RollupFieldCaps> fieldCap : fieldCapLookup.entrySet()) {
-            builder.array(fieldCap.getKey(), fieldCap.getValue());
+        {
+            builder.field(JOB_ID.getPreferredName(), jobID);
+            builder.field(ROLLUP_INDEX.getPreferredName(), rollupIndex);
+            builder.field(INDEX_PATTERN.getPreferredName(), indexPattern);
+            builder.startObject(FIELDS.getPreferredName());
+            {
+                for (Map.Entry<String, RollupFieldCaps> fieldCap : fieldCapLookup.entrySet()) {
+                    builder.array(fieldCap.getKey(), fieldCap.getValue());
+                }
+            }
+            builder.endObject();
         }
-        builder.endObject();
         builder.endObject();
         return builder;
     }
@@ -129,7 +134,7 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobID, rollupIndex, fieldCapLookup);
+        return Objects.hash(jobID, rollupIndex, fieldCapLookup, indexPattern);
     }
 
     private static Map<String, RollupFieldCaps> createRollupFieldCaps(final RollupJobConfig rollupJobConfig) {
@@ -198,15 +203,16 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
                 e -> new RollupFieldCaps(e.getValue()))));
     }
 
-    public static class RollupFieldCaps implements Writeable, ToXContentObject {
-        private List<Map<String, Object>> aggs = new ArrayList<>();
+    public static class RollupFieldCaps implements Writeable, ToXContentFragment {
+        private final List<Map<String, Object>> aggs;
 
         RollupFieldCaps(StreamInput in) throws IOException {
             int size = in.readInt();
-            aggs = new ArrayList<>(size);
+            List<Map<String, Object>> inAggs = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                aggs.add(in.readMap());
+                inAggs.add(in.readMap());
             }
+            this.aggs = Collections.unmodifiableList(inAggs);
         }
 
         RollupFieldCaps(List<Map<String, Object>> aggs) {
@@ -244,7 +250,6 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
             }
 
             RollupFieldCaps that = (RollupFieldCaps) other;
-
             return Objects.equals(this.aggs, that.aggs);
         }
 

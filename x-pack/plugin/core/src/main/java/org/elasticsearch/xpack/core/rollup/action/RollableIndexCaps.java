@@ -9,7 +9,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Represents the rollup capabilities of a non-rollup index.  E.g. what values/aggregations
@@ -25,17 +26,18 @@ import java.util.Objects;
  *
  * The index name can either be a single index, or an index pattern (logstash-*)
  */
-public class RollableIndexCaps implements Writeable, ToXContentFragment {
+public class RollableIndexCaps implements Writeable, ToXContentObject {
     private static final ParseField ROLLUP_JOBS = new ParseField("rollup_jobs");
 
-    private String indexName;
-    private List<RollupJobCaps> jobCaps;
+    private final String indexName;
+    private final List<RollupJobCaps> jobCaps;
 
     public RollableIndexCaps(String indexName, List<RollupJobCaps> caps) {
         this.indexName = indexName;
-        this.jobCaps = Objects.requireNonNull(caps);
-        this.jobCaps.sort(Comparator.comparing(RollupJobCaps::getJobID));
-        this.jobCaps = Collections.unmodifiableList(jobCaps);
+        this.jobCaps = Collections.unmodifiableList(Objects.requireNonNull(caps)
+            .stream()
+            .sorted(Comparator.comparing(RollupJobCaps::getJobID))
+            .collect(Collectors.toList()));
     }
 
     public RollableIndexCaps(StreamInput in) throws IOException {
@@ -60,7 +62,9 @@ public class RollableIndexCaps implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(indexName);
-        builder.field(ROLLUP_JOBS.getPreferredName(), jobCaps);
+        {
+            builder.field(ROLLUP_JOBS.getPreferredName(), jobCaps);
+        }
         builder.endObject();
         return builder;
     }

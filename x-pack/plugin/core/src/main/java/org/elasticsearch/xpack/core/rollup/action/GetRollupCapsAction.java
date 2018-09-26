@@ -117,11 +117,11 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Response> {
         }
 
         public Response(Map<String, RollableIndexCaps> jobs) {
-            this.jobs = Objects.requireNonNull(jobs);
+            this.jobs = Collections.unmodifiableMap(Objects.requireNonNull(jobs));
         }
 
         Response(StreamInput in) throws IOException {
-            jobs = in.readMap(StreamInput::readString, RollableIndexCaps::new);
+            jobs = Collections.unmodifiableMap(in.readMap(StreamInput::readString, RollableIndexCaps::new));
         }
 
         public Map<String, RollableIndexCaps> getJobs() {
@@ -137,8 +137,10 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Response> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            for (Map.Entry<String, RollableIndexCaps> entry : jobs.entrySet()) {
-                entry.getValue().toXContent(builder, params);
+            {
+                for (Map.Entry<String, RollableIndexCaps> entry : jobs.entrySet()) {
+                    entry.getValue().toXContent(builder, params);
+                }
             }
             builder.endObject();
             return builder;

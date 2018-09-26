@@ -94,7 +94,7 @@ public class RollupClient {
     }
 
     /**
-     * Asynchronously put a rollup job into the cluster
+     * Asynchronously Get the Rollup Capabilities of a target (non-rollup) index or pattern
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/rollup-put-job.html">
      * the docs</a> for more.
      * @param request the request

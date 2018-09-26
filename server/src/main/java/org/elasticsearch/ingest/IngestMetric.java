@@ -22,34 +22,72 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 
+/**
+ * Metrics to measure ingest actions. This counts measure documents and timings for a given scope.
+ * The scope is determined by the calling code. For example you can use this class to count all documents across all pipeline,
+ * or you can use this class to count documents for a given pipeline or a specific processor.
+ * This class does not make assumptions about it's given scope.
+ */
 class IngestMetric {
 
-    private final MeanMetric ingestMetric = new MeanMetric();
+    /**
+     * The time it takes to complete the measured item.
+     */
+    private final MeanMetric ingestTime = new MeanMetric();
+    /**
+     * The current count of things being measure. Should mostly like ever be 0 or 1.
+     * Useful when aggregating multiple metrics to see how many things are in flight.
+     */
     private final CounterMetric ingestCurrent = new CounterMetric();
+    /**
+     * The ever increasing count of things being measured
+     */
     private final CounterMetric ingestCount = new CounterMetric();
+    /**
+     * The only increasing count of failures
+     */
     private final CounterMetric ingestFailed = new CounterMetric();
 
+    /**
+     * Call this prior to the ingest action.
+     */
     void preIngest() {
         ingestCurrent.inc();
     }
 
+    /**
+     * Call this after the performing the ingest action, even if the action failed.
+     * @param ingestTimeInMillis The time it took to perform the action.
+     */
     void postIngest(long ingestTimeInMillis) {
         ingestCurrent.dec();
-        ingestMetric.inc(ingestTimeInMillis);
+        ingestTime.inc(ingestTimeInMillis);
         ingestCount.inc();
     }
 
+    /**
+     * Call this if the ingest action failed.
+     */
     void ingestFailed() {
         ingestFailed.inc();
     }
 
-    void add(IngestMetric metrics){
+    /**
+     * Add two sets of metrics together. *Important* does NOT add the current count intentionally,
+     * since the current count value is ephemeral and requires a increase/decrease pairing.
+     *
+     * @param metrics The metric to add.
+     */
+    void add(IngestMetric metrics) {
         ingestCount.inc(metrics.ingestCount.count());
-        ingestMetric.inc(metrics.ingestMetric.sum());
+        ingestTime.inc(metrics.ingestTime.sum());
         ingestFailed.inc(metrics.ingestFailed.count());
     }
 
+    /**
+     * Creates a serializable representation for these metrics.
+     */
     IngestStats.Stats createStats() {
-        return new IngestStats.Stats(ingestCount.count(), ingestMetric.sum(), ingestCurrent.count(), ingestFailed.count());
+        return new IngestStats.Stats(ingestCount.count(), ingestTime.sum(), ingestCurrent.count(), ingestFailed.count());
     }
 }

@@ -100,21 +100,23 @@ public class Response {
         return response.getEntity();
     }
 
-    private static Pattern WARNING_HEADER_PATTERN = Pattern.compile(
+    private static final Pattern WARNING_HEADER_PATTERN = Pattern.compile(
             "299 " + // warn code
-                    "Elasticsearch-\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-(?:[a-f0-9]{7}|Unknown) " + // warn agent
-                    "\"((?:\t| |!|[\\x23-\\x5B]|[\\x5D-\\x7E]|[\\x80-\\xFF]|\\\\|\\\\\")*)\" " + // quoted warning value, captured
-                    // quoted RFC 1123 date format
-                    "\"" + // opening quote
-                    "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
-                    "\\d{2} " + // 2-digit day
-                    "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) " + // month
-                    "\\d{4} " + // 4-digit year
-                    "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
-                    "GMT" + // GMT
-                    "\""); // closing quote
+            "Elasticsearch-\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-(?:[a-f0-9]{7}|Unknown) " + // warn agent
+            "\"((?:\t| |!|[\\x23-\\x5B]|[\\x5D-\\x7E]|[\\x80-\\xFF]|\\\\|\\\\\")*)\" " + // quoted warning value, captured
+            // quoted RFC 1123 date format
+            "\"" + // opening quote
+            "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
+            "\\d{2} " + // 2-digit day
+            "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) " + // month
+            "\\d{4} " + // 4-digit year
+            "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
+            "GMT" + // GMT
+            "\""); // closing quote
 
-
+    /**
+     * Returns a list of all warning headers returned in the response.
+     */
     public List<String> getWarnings() {
         List<String> warnings = new ArrayList<>();
         for (Header header : response.getHeaders("Warning")) {
@@ -129,6 +131,10 @@ public class Response {
         return warnings;
     }
 
+    /**
+     * Returns true if there is at least one warning header returned in the
+     * response.
+     */
     public boolean hasWarnings() {
         Header[] warnings = response.getHeaders("Warning");
         return warnings != null && warnings.length > 0;

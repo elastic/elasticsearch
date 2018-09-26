@@ -1,19 +1,27 @@
 ---
 "Missing document with catch":
 
+  - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
   - do:
       catch:   missing
       get:
+        include_type_name: false
         index: test_1
-        type:  test
         id:    1
 
 ---
 "Missing document with ignore":
 
+  - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
   - do:
       get:
+        include_type_name: false
         index:  test_1
-        type:   test
         id:     1
         ignore: 404

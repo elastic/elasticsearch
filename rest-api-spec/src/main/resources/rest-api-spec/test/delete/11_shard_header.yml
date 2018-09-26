@@ -1,8 +1,13 @@
 ---
 "Delete check shard header":
 
+ - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
  - do:
       indices.create:
+        include_type_name: false
         index: foobar
         body:
           settings:
@@ -15,19 +20,19 @@
 
  - do:
       index:
+          include_type_name: false
           index:  foobar
-          type:   baz
           id:     1
           body:   { foo: bar }
 
  - do:
        delete:
+           include_type_name: false
            index:  foobar
-           type:   baz
            id:     1
 
  - match:   { _index:   foobar }
- - match:   { _type:    baz }
+ - is_false: "_type"
  - match:   { _id:      "1"}
  - match:   { _version: 2}
  - match:   { _shards.total: 1}

@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.IndexSearcher;
@@ -95,7 +96,7 @@ public final class ReadOnlyEngine extends Engine {
                 this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
                 this.translogStats = translogStats == null ? new TranslogStats(0, 0, 0, 0, 0) : translogStats;
                 this.seqNoStats = seqNoStats == null ? buildSeqNoStats(lastCommittedSegmentInfos) : seqNoStats;
-                reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), config.getShardId());
+                reader = ElasticsearchDirectoryReader.wrap(open(directory), config.getShardId());
                 if (config.getIndexSettings().isSoftDeleteEnabled()) {
                     reader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
                 }
@@ -103,7 +104,7 @@ public final class ReadOnlyEngine extends Engine {
                 this.indexCommit = reader.getIndexCommit();
                 this.searcherManager = new SearcherManager(reader,
                     new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService()));
-                this.docsStats = docsStats(reader);
+                this.docsStats = docsStats(lastCommittedSegmentInfos);
                 this.indexWriterLock = indexWriterLock;
                 success = true;
             } finally {
@@ -114,6 +115,28 @@ public final class ReadOnlyEngine extends Engine {
         } catch (IOException e) {
             throw new UncheckedIOException(e); // this is stupid
         }
+    }
+
+    protected DirectoryReader open(final Directory directory) throws IOException {
+        return DirectoryReader.open(directory);
+    }
+
+    private DocsStats docsStats(final SegmentInfos lastCommittedSegmentInfos) {
+        long numDocs = 0;
+        long numDeletedDocs = 0;
+        long sizeInBytes = 0;
+        if (lastCommittedSegmentInfos != null) {
+            for (SegmentCommitInfo segmentCommitInfo : lastCommittedSegmentInfos) {
+                numDocs += segmentCommitInfo.info.maxDoc() - segmentCommitInfo.getDelCount() - segmentCommitInfo.getSoftDelCount();
+                numDeletedDocs += segmentCommitInfo.getDelCount() + segmentCommitInfo.getSoftDelCount();
+                try {
+                    sizeInBytes += segmentCommitInfo.sizeInBytes();
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Failed to get size for [" + segmentCommitInfo.info.name + "]", e);
+                }
+            }
+        }
+        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
     }
 
     @Override

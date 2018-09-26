@@ -24,7 +24,7 @@ public final class SystemPrivilege extends Privilege {
             "indices:admin/template/put", // needed for the TemplateUpgradeService
             "indices:admin/template/delete", // needed for the TemplateUpgradeService
             "indices:admin/seq_no/global_checkpoint_sync*", // needed for global checkpoint syncs
-            "indices:admin/settings/update" // needed for DiskThreasholdMonitor.markIndicesReadOnly
+            "indices:admin/settings/update" // needed for DiskThresholdMonitor.markIndicesReadOnly
     ), Automatons.patterns("internal:transport/proxy/*"))); // no proxy actions for system user!
 
     private SystemPrivilege() {

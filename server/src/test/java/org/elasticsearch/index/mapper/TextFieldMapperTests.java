@@ -621,11 +621,6 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexPrefixIndexTypes() throws IOException {
-        QueryShardContext queryShardContext = indexService.newQueryShardContext(
-            randomInt(20), null, () -> {
-                throw new UnsupportedOperationException();
-            }, null);
-
         {
             String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")

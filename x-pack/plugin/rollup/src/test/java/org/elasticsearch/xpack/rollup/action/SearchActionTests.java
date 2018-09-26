@@ -81,6 +81,7 @@ public class SearchActionTests extends ESTestCase {
 
     private NamedWriteableRegistry namedWriteableRegistry;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -523,8 +524,7 @@ public class SearchActionTests extends ESTestCase {
     public void testNoIndicesToSeparate() {
         String[] indices = new String[]{};
         ImmutableOpenMap<String, IndexMetaData> meta = ImmutableOpenMap.<String, IndexMetaData>builder().build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> TransportRollupSearchAction.separateIndices(indices, meta));
+        expectThrows(IllegalArgumentException.class, () -> TransportRollupSearchAction.separateIndices(indices, meta));
     }
 
     public void testSeparateAll() {
@@ -774,6 +774,7 @@ public class SearchActionTests extends ESTestCase {
 
         MultiSearchResponse msearchResponse
                 = new MultiSearchResponse(new MultiSearchResponse.Item[]{unrolledResponse, rolledResponse}, 123);
+
         SearchResponse response = TransportRollupSearchAction.processResponses(separateIndices, msearchResponse,
                 mock(InternalAggregation.ReduceContext.class));
 

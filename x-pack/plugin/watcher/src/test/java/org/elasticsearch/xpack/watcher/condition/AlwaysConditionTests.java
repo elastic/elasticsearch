@@ -8,9 +8,11 @@ package org.elasticsearch.xpack.watcher.condition;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
+import org.elasticsearch.xpack.watcher.Watcher;
 
 import java.time.Clock;
 
@@ -53,7 +55,8 @@ public class AlwaysConditionTests extends ESTestCase {
         String type = randomFrom(ScriptCondition.TYPE, InternalAlwaysCondition.TYPE, CompareCondition.TYPE, ArrayCompareCondition.TYPE);
         switch (type) {
             case ScriptCondition.TYPE:
-                return new ScriptCondition(mockScript("_script"), scriptService);
+            Script mockScript = mockScript("_script");
+            return new ScriptCondition(mockScript, scriptService.compile(mockScript, Watcher.SCRIPT_EXECUTABLE_CONTEXT));
             case CompareCondition.TYPE:
                 return new CompareCondition("_path", randomFrom(CompareCondition.Op.values()), randomFrom(5, "3"),
                         Clock.systemUTC());

@@ -61,12 +61,12 @@ public class SourceGeneratorTests extends ESTestCase {
 
     public void testLimit() {
         QueryContainer container = new QueryContainer().withLimit(10).addGroups(singletonList(new GroupByColumnKey("1", "field")));
-        SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
+        int size = randomIntBetween(1, 10);
+        SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, size);
         Builder aggBuilder = sourceBuilder.aggregations();
         assertEquals(1, aggBuilder.count());
         CompositeAggregationBuilder composite = (CompositeAggregationBuilder) aggBuilder.getAggregatorFactories().get(0);
-        // TODO: cannot access size
-        //assertEquals(10, composite.size());
+        assertEquals(size, composite.size());
     }
 
     public void testSortNoneSpecified() {

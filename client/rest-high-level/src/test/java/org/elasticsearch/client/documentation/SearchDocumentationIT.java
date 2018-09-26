@@ -413,6 +413,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testSearchRequestHighlighting() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
@@ -831,6 +832,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+
+    @SuppressWarnings("unused")
     public void testMultiSearchTemplateWithInlineScript() throws Exception {
         indexSearchTestData();
         RestHighLevelClient client = highLevelClient();

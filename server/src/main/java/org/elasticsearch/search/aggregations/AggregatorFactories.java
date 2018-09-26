@@ -159,10 +159,9 @@ public class AggregatorFactories {
         }
     }
 
-    public static final AggregatorFactories EMPTY = new AggregatorFactories(null, new AggregatorFactory<?>[0],
+    public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorFactory<?>[0],
             new ArrayList<PipelineAggregationBuilder>());
 
-    private AggregatorFactory<?> parent;
     private AggregatorFactory<?>[] factories;
     private List<PipelineAggregationBuilder> pipelineAggregatorFactories;
 
@@ -170,9 +169,7 @@ public class AggregatorFactories {
         return new Builder();
     }
 
-    private AggregatorFactories(AggregatorFactory<?> parent, AggregatorFactory<?>[] factories,
-            List<PipelineAggregationBuilder> pipelineAggregators) {
-        this.parent = parent;
+    private AggregatorFactories(AggregatorFactory<?>[] factories, List<PipelineAggregationBuilder> pipelineAggregators) {
         this.factories = factories;
         this.pipelineAggregatorFactories = pipelineAggregators;
     }
@@ -328,7 +325,7 @@ public class AggregatorFactories {
             for (int i = 0; i < aggregationBuilders.size(); i++) {
                 aggFactories[i] = aggregationBuilders.get(i).build(context, parent);
             }
-            return new AggregatorFactories(parent, aggFactories, orderedpipelineAggregators);
+            return new AggregatorFactories(aggFactories, orderedpipelineAggregators);
         }
 
         private List<PipelineAggregationBuilder> resolvePipelineAggregatorOrder(

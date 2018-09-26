@@ -129,7 +129,6 @@ public abstract class MigrateToolTestCase extends LuceneTestCase {
 
     @BeforeClass
     public static void initializeSettings() throws UnknownHostException {
-        String port = System.getProperty("integ.http.port");
         clusterAddresses = System.getProperty(TESTS_CLUSTER);
         clusterHttpAddresses = System.getProperty(TESTS_HTTP_CLUSTER);
         if (clusterAddresses == null || clusterAddresses.isEmpty()) {

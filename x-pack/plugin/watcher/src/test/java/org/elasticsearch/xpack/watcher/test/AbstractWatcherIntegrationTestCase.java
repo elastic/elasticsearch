@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.test;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
@@ -181,7 +180,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     public void _setup() throws Exception {
         if (timeWarped()) {
             timeWarp = new TimeWarp(internalCluster().getInstances(ScheduleTriggerEngineMock.class),
-                    (ClockMock)getInstanceFromMaster(Clock.class), logger);
+                    (ClockMock)getInstanceFromMaster(Clock.class));
         }
 
         if (internalCluster().size() > 0) {
@@ -541,12 +540,10 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
         private final List<ScheduleTriggerEngineMock> schedulers;
         private final ClockMock clock;
-        private final Logger logger;
 
-        TimeWarp(Iterable<ScheduleTriggerEngineMock> schedulers, ClockMock clock, Logger logger) {
+        TimeWarp(Iterable<ScheduleTriggerEngineMock> schedulers, ClockMock clock) {
             this.schedulers = StreamSupport.stream(schedulers.spliterator(), false).collect(Collectors.toList());
             this.clock = clock;
-            this.logger = logger;
         }
 
         public void trigger(String jobName) {

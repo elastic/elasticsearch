@@ -364,10 +364,8 @@ public class StoreTests extends ESTestCase {
 
         }
 
-        final long luceneChecksum;
         try (IndexInput indexInput = dir.openInput("lucene_checksum.bin", IOContext.DEFAULT)) {
             assertEquals(luceneFileLength, indexInput.length());
-            luceneChecksum = CodecUtil.retrieveChecksum(indexInput);
         }
 
         dir.close();
@@ -663,7 +661,6 @@ public class StoreTests extends ESTestCase {
         if (randomBoolean()) {
             store.cleanupAndVerify("test", firstMeta);
             String[] strings = store.directory().listAll();
-            int numChecksums = 0;
             int numNotFound = 0;
             for (String file : strings) {
                 if (file.startsWith("extra")) {
@@ -679,7 +676,6 @@ public class StoreTests extends ESTestCase {
         } else {
             store.cleanupAndVerify("test", secondMeta);
             String[] strings = store.directory().listAll();
-            int numChecksums = 0;
             int numNotFound = 0;
             for (String file : strings) {
                 if (file.startsWith("extra")) {

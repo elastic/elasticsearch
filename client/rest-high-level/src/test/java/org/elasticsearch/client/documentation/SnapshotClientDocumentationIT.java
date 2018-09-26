@@ -577,6 +577,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         }
     }
 
+    @SuppressWarnings("unused")
     public void testSnapshotGetSnapshots() throws IOException {
         RestHighLevelClient client = highLevelClient();
 

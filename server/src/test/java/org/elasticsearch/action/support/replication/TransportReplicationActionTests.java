@@ -171,6 +171,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         action = new TestAction(Settings.EMPTY, "internal:testAction", transportService, clusterService, shardStateAction, threadPool);
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();
@@ -511,6 +512,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                     ActionListener<TransportReplicationAction.PrimaryResult<Request, TestResponse>> actionListener,
                     TransportReplicationAction<Request, Request, TestResponse>.PrimaryShardReference primaryShardReference) {
                 return new NoopReplicationOperation(request, actionListener) {
+                    @Override
                     public void execute() throws Exception {
                         assertPhase(task, "primary");
                         assertFalse(executed.getAndSet(true));
@@ -567,6 +569,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                     ActionListener<TransportReplicationAction.PrimaryResult<Request, TestResponse>> actionListener,
                     TransportReplicationAction<Request, Request, TestResponse>.PrimaryShardReference primaryShardReference) {
                 return new NoopReplicationOperation(request, actionListener) {
+                    @Override
                     public void execute() throws Exception {
                         assertPhase(task, "primary");
                         assertFalse(executed.getAndSet(true));
@@ -696,13 +699,6 @@ public class TransportReplicationActionTests extends ESTestCase {
             ((ActionListener<Releasable>)invocation.getArguments()[0]).onResponse(() -> {});
             return null;
         }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), anyObject());
-
-        AtomicBoolean closed = new AtomicBoolean();
-        Releasable releasable = () -> {
-            if (closed.compareAndSet(false, true) == false) {
-                fail("releasable is closed twice");
-            }
-        };
 
         TestAction action =
             new TestAction(Settings.EMPTY, "internal:testSeqNoIsSetOnPrimary", transportService, clusterService, shardStateAction,
@@ -1112,8 +1108,6 @@ public class TransportReplicationActionTests extends ESTestCase {
 
     private class TestAction extends TransportReplicationAction<Request, Request, TestResponse> {
 
-        private final boolean withDocumentFailureOnPrimary;
-        private final boolean withDocumentFailureOnReplica;
 
         TestAction(Settings settings, String actionName, TransportService transportService,
                    ClusterService clusterService, ShardStateAction shardStateAction,
@@ -1122,8 +1116,6 @@ public class TransportReplicationActionTests extends ESTestCase {
                 shardStateAction,
                 new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
                 Request::new, Request::new, ThreadPool.Names.SAME);
-            this.withDocumentFailureOnPrimary = false;
-            this.withDocumentFailureOnReplica = false;
         }
 
         TestAction(Settings settings, String actionName, TransportService transportService,
@@ -1133,8 +1125,6 @@ public class TransportReplicationActionTests extends ESTestCase {
                 shardStateAction,
                 new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
                 Request::new, Request::new, ThreadPool.Names.SAME);
-            this.withDocumentFailureOnPrimary = withDocumentFailureOnPrimary;
-            this.withDocumentFailureOnReplica = withDocumentFailureOnReplica;
         }
 
         @Override
@@ -1173,7 +1163,6 @@ public class TransportReplicationActionTests extends ESTestCase {
             Index index = (Index) invocation.getArguments()[0];
             final ClusterState state = clusterService.state();
             if (state.metaData().hasIndex(index.getName())) {
-                final IndexMetaData indexSafe = state.metaData().getIndexSafe(index);
                 return mockIndexService(clusterService.state().metaData().getIndexSafe(index), clusterService);
             } else {
                 return null;

@@ -192,6 +192,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
+    @SuppressWarnings("unused")
     public void testClusterGetSettings() throws IOException {
         RestHighLevelClient client = highLevelClient();
 
@@ -257,6 +258,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+    @SuppressWarnings("unused")
     public void testClusterHealth() throws IOException {
         RestHighLevelClient client = highLevelClient();
         client.indices().create(new CreateIndexRequest("index"), RequestOptions.DEFAULT);

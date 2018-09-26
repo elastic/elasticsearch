@@ -22,10 +22,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Clock;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;

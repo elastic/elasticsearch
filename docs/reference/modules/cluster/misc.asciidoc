@@ -30,23 +30,22 @@ In a Elasticsearch 7.0 and later, there will be a soft limit on the number of
 shards in a cluster, based on the number of nodes in the cluster.  This is
 intended to prevent operations which may unintentionally destabilize the
 cluster. Until 7.0, actions which would result in the cluster going over the
-limit will issue a deprecation warning. Strict enforcement of this behavior can
-be enabled by setting the cluster setting `cluster.shards.enforce_max_per_node`
-to `true`.
+limit will issue a deprecation warning.
 
-NOTE: `cluster.shards.enforce_max_per_node` cannot be set to `false`, as this
-setting will be removed in 7.0 and the limit will always be enforced. To return
-to the default behavior for your Elasticsearch version, set this setting to
-`"default"`.
+NOTE: You can set the system property `es.enforce.shard_limit` to `true` to opt
+in to strict enforcement of the shard limit. If this system property is set,
+actions which would result in the cluster going over the limit will result in an
+error, rather than a deprecation warning. This property will be removed in
+Elasticsearch 7.0, as strict enforcement of the limit will be the default and
+only behavior.
 
 If an operation, such as creating a new index, restoring a snapshot of an index,
 or opening a closed index would lead to the number of shards in the cluster
-going over this limit, the operation will issue a deprecation warning, or fail
-if `cluster.shards.enforce_max_per_node` is set.
+going over this limit, the operation will issue a deprecation warning.
 
 If the cluster is already over the limit, due to changes in node membership or
 setting changes, all operations that create or open indices will issue warnings
-or fail until either the limit is increased as described below, or some indices
+until either the limit is increased as described below, or some indices
 are closed or deleted to bring the number of shards below the limit.
 
 Replicas count towards this limit, but closed indexes do not. An index with 5

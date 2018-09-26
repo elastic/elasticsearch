@@ -158,6 +158,20 @@ public class IndicesService extends AbstractLifecycleComponent
     public static final String INDICES_SHARDS_CLOSED_TIMEOUT = "indices.shards_closed_timeout";
     public static final Setting<TimeValue> INDICES_CACHE_CLEAN_INTERVAL_SETTING =
         Setting.positiveTimeSetting("indices.cache.cleanup_interval", TimeValue.timeValueMinutes(1), Property.NodeScope);
+    private static final boolean ENFORCE_SHARD_LIMIT;
+    static {
+        final String ENFORCE_SHARD_LIMIT_KEY = "es.enforce.shard_limit";
+        final String enforceShardLimitSetting = System.getProperty(ENFORCE_SHARD_LIMIT_KEY);
+        if (enforceShardLimitSetting == null) {
+            ENFORCE_SHARD_LIMIT = false;
+        } else if ("true".equals(enforceShardLimitSetting)) {
+            ENFORCE_SHARD_LIMIT = true;
+        } else {
+            throw new IllegalArgumentException(ENFORCE_SHARD_LIMIT_KEY + " may only be unset or set to [true] but was [" +
+                enforceShardLimitSetting + "]");
+        }
+    }
+
     private final PluginsService pluginsService;
     private final NodeEnvironment nodeEnv;
     private final NamedXContentRegistry xContentRegistry;
@@ -1377,7 +1391,7 @@ public class IndicesService extends AbstractLifecycleComponent
         if ((currentOpenShards + newShards) > maxShardsInCluster) {
             String errorMessage = "this action would add [" + newShards + "] total shards, but this cluster currently has [" +
                 currentOpenShards + "]/[" + maxShardsInCluster + "] maximum shards open";
-            if (MetaData.SETTING_ENFORCE_CLUSTER_MAX_SHARDS_PER_NODE.get(theseSettings)) {
+            if (ENFORCE_SHARD_LIMIT) {
                 return Optional.of(errorMessage);
             } else {
                 deprecationLogger.deprecated("In a future major version, this request will fail because {}. Before upgrading, " +

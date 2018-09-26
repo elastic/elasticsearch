@@ -13,10 +13,6 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 public class ClusterDeprecationChecks {
 
     static DeprecationIssue checkShardLimit(ClusterState state) {
-        if (MetaData.SETTING_ENFORCE_CLUSTER_MAX_SHARDS_PER_NODE.get(state.metaData().settings())) {
-            // If this setting is on, the behavior is already as it will be in the next major version.
-            return null;
-        }
         int shardsPerNode = MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(state.metaData().settings());
         int nodeCount = state.getNodes().getDataNodes().size();
         int maxShardsInCluster = shardsPerNode * nodeCount;
@@ -26,8 +22,8 @@ public class ClusterDeprecationChecks {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Number of open shards exceeds cluster soft limit",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html",
-                "There are [" + currentOpenShards +"] open shards in this cluster, but the cluster is limited to [" +
-                    shardsPerNode +"] per data node, for [" + maxShardsInCluster +"] maximum.");
+                "There are [" + currentOpenShards + "] open shards in this cluster, but the cluster is limited to [" +
+                    shardsPerNode + "] per data node, for [" + maxShardsInCluster + "] maximum.");
         }
         return null;
     }

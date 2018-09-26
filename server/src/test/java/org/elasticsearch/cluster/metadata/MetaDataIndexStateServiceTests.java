@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.shards.ClusterShardLimitIT;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -62,26 +61,6 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
             totalShards + "] total shards, but this cluster currently has [" + currentShards + "]/[" + maxShards + "] maximum shards open."+
             " Before upgrading, reduce the number of shards in your cluster or adjust the cluster setting [cluster.shards.max_per_node].");
     }
-
-    public void testValidateShardLimitError() {
-        int nodesInCluster = randomIntBetween(2,100);
-        ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster);
-        Settings clusterSettings = Settings.builder()
-                .put(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())
-                .put(MetaData.SETTING_ENFORCE_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), true)
-                .build();
-        ClusterState state = createClusterForShardLimitTest(nodesInCluster, counts.getFirstIndexShards(), counts.getFirstIndexReplicas(),
-            counts.getFailingIndexShards(), counts.getFailingIndexReplicas(), clusterSettings);
-
-        Index[] indices = Arrays.stream(state.metaData().indices().values().toArray(IndexMetaData.class))
-            .map(IndexMetaData::getIndex)
-            .collect(Collectors.toList())
-            .toArray(new Index[2]);
-
-        expectThrows(ValidationException.class,
-            () -> MetaDataIndexStateService.validateShardLimit(state, indices, deprecationLogger));
-    }
-
 
     public static ClusterState createClusterForShardLimitTest(int nodesInCluster, int openIndexShards, int openIndexReplicas,
                                                               int closedIndexShards, int closedIndexReplicas, Settings clusterSettings) {

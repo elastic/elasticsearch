@@ -78,10 +78,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final UnicastConfiguredHostsResolver configuredHostsResolver;
     private final TimeValue publishTimeout;
     private final PublicationTransportHandler publicationHandler;
+    private final LeaderChecker leaderChecker;
     @Nullable
     private Releasable electionScheduler;
     @Nullable
     private Releasable prevotingRound;
+    @Nullable
+    private Releasable leaderCheckScheduler;
     private AtomicLong maxTermSeen = new AtomicLong();
 
     private Mode mode;
@@ -108,8 +111,25 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.peerFinder = new CoordinatorPeerFinder(settings, transportService,
             new HandshakingTransportAddressConnector(settings, transportService), configuredHostsResolver);
         this.publicationHandler = new PublicationTransportHandler(transportService, this::handlePublishRequest, this::handleApplyCommit);
+        this.leaderChecker = new LeaderChecker(settings, transportService, getOnLeaderFailure());
 
         masterService.setClusterStateSupplier(this::getStateForMasterService);
+    }
+
+    private Runnable getOnLeaderFailure() {
+        return new Runnable() {
+            @Override
+            public void run() {
+                synchronized (mutex) {
+                    becomeCandidate("onLeaderFailure");
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "notification of leader failure";
+            }
+        };
     }
 
     private void handleApplyCommit(ApplyCommitRequest applyCommitRequest) {
@@ -233,6 +253,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             joinAccumulator = joinHelper.new CandidateJoinAccumulator();
 
             peerFinder.activate(coordinationState.get().getLastAcceptedState().nodes());
+            leaderChecker.setCurrentNodes(DiscoveryNodes.EMPTY_NODES);
+
+            if (leaderCheckScheduler != null) {
+                leaderCheckScheduler.close();
+                leaderCheckScheduler = null;
+            }
         }
 
         preVoteCollector.update(getPreVoteResponse(), null);
@@ -251,16 +277,21 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         peerFinder.deactivate(getLocalNode());
         closePrevotingAndElectionScheduler();
         preVoteCollector.update(getPreVoteResponse(), getLocalNode());
+
+        assert leaderCheckScheduler == null : leaderCheckScheduler;
     }
 
     void becomeFollower(String method, DiscoveryNode leaderNode) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         logger.debug("{}: becoming FOLLOWER of [{}] (was {}, lastKnownLeader was [{}])", method, leaderNode, mode, lastKnownLeader);
 
+        final boolean restartLeaderChecker = (mode == Mode.FOLLOWER && Optional.of(leaderNode).equals(lastKnownLeader)) == false;
+
         if (mode != Mode.FOLLOWER) {
             mode = Mode.FOLLOWER;
             joinAccumulator.close(mode);
             joinAccumulator = new JoinHelper.FollowerJoinAccumulator();
+            leaderChecker.setCurrentNodes(DiscoveryNodes.EMPTY_NODES);
         }
 
         lastKnownLeader = Optional.of(leaderNode);
@@ -268,6 +299,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         closePrevotingAndElectionScheduler();
         cancelActivePublication();
         preVoteCollector.update(getPreVoteResponse(), leaderNode);
+
+        if (restartLeaderChecker) {
+            if (leaderCheckScheduler != null) {
+                leaderCheckScheduler.close();
+            }
+            leaderCheckScheduler = leaderChecker.startLeaderChecker(leaderNode);
+        }
     }
 
     private PreVoteResponse getPreVoteResponse() {
@@ -339,6 +377,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert getStateForMasterService().nodes().getMasterNodeId() != null
                     || getStateForMasterService().term() != getCurrentTerm() :
                     getStateForMasterService();
+                assert leaderCheckScheduler == null : leaderCheckScheduler;
             } else if (mode == Mode.FOLLOWER) {
                 assert coordinationState.get().electionWon() == false : getLocalNode() + " is FOLLOWER so electionWon() should be false";
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);
@@ -347,12 +386,16 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert electionScheduler == null : electionScheduler;
                 assert prevotingRound == null : prevotingRound;
                 assert getStateForMasterService().nodes().getMasterNodeId() == null : getStateForMasterService();
+                assert leaderChecker.currentNodeIsMaster() == false;
+                assert leaderCheckScheduler != null;
             } else {
                 assert mode == Mode.CANDIDATE;
                 assert joinAccumulator instanceof JoinHelper.CandidateJoinAccumulator;
                 assert peerFinderLeader.isPresent() == false : peerFinderLeader;
                 assert prevotingRound == null || electionScheduler != null;
                 assert getStateForMasterService().nodes().getMasterNodeId() == null : getStateForMasterService();
+                assert leaderChecker.currentNodeIsMaster() == false;
+                assert leaderCheckScheduler == null : leaderCheckScheduler;
             }
         }
     }
@@ -577,6 +620,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         return "scheduled timeout for " + publication;
                     }
                 });
+
+                leaderChecker.setCurrentNodes(publishRequest.getAcceptedState().nodes());
                 publication.start(Collections.emptySet()); // TODO start failure detector and put faultyNodes here
             }
         } catch (Exception e) {

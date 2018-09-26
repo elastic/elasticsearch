@@ -51,7 +51,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
     protected abstract void handle(DiscoveryNode sender, DiscoveryNode destination, String action, Runnable doDelivery);
 
-    private void sendFromTo(DiscoveryNode sender, DiscoveryNode destination, String action, Runnable doDelivery) {
+    protected final void sendFromTo(DiscoveryNode sender, DiscoveryNode destination, String action, Runnable doDelivery) {
         handle(sender, destination, action, new Runnable() {
             @Override
             public void run() {
@@ -74,10 +74,33 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
         assert destination.equals(getLocalNode()) == false : "non-local message from " + getLocalNode() + " to itself";
 
-        final String requestDescription = new ParameterizedMessage("[{}][{}] from {} to {}",
-            action, requestId, getLocalNode(), destination).getFormattedMessage();
+        sendFromTo(getLocalNode(), destination, action, new Runnable() {
+            @Override
+            public void run() {
+                switch (getConnectionStatus(getLocalNode(), destination)) {
+                    case BLACK_HOLE:
+                        onBlackholedDuringSend(requestId, action, destination);
+                        break;
 
-        final Runnable returnConnectException = new Runnable() {
+                    case DISCONNECTED:
+                        onDisconnectedDuringSend(requestId, action, destination);
+                        break;
+
+                    case CONNECTED:
+                        onConnectedDuringSend(requestId, action, request, destination);
+                        break;
+                }
+            }
+
+            @Override
+            public String toString() {
+                return getRequestDescription(requestId, action, destination);
+            }
+        });
+    }
+
+    protected Runnable getDisconnectException(long requestId, String action, DiscoveryNode destination) {
+        return new Runnable() {
             @Override
             public void run() {
                 handleError(requestId, new ConnectTransportException(destination, "disconnected"));
@@ -85,111 +108,107 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
             @Override
             public String toString() {
-                return "disconnection response to " + requestDescription;
+                return "disconnection response to " + getRequestDescription(requestId, action, destination);
+            }
+        };
+    }
+
+    protected String getRequestDescription(long requestId, String action, DiscoveryNode destination) {
+        return new ParameterizedMessage("[{}][{}] from {} to {}",
+            action, requestId, getLocalNode(), destination).getFormattedMessage();
+    }
+
+    protected void onBlackholedDuringSend(long requestId, String action, DiscoveryNode destination) {
+        logger.trace("dropping {}", getRequestDescription(requestId, action, destination));
+    }
+
+    protected void onDisconnectedDuringSend(long requestId, String action, DiscoveryNode destination) {
+        sendFromTo(destination, getLocalNode(), action, getDisconnectException(requestId, action, destination));
+    }
+
+    protected void onConnectedDuringSend(long requestId, String action, TransportRequest request, DiscoveryNode destination) {
+        Optional<DisruptableMockTransport> destinationTransport = getDisruptedCapturingTransport(destination, action);
+        assert destinationTransport.isPresent();
+
+        final RequestHandlerRegistry<TransportRequest> requestHandler =
+            destinationTransport.get().getRequestHandler(action);
+
+        final String requestDescription = getRequestDescription(requestId, action, destination);
+
+        final TransportChannel transportChannel = new TransportChannel() {
+            @Override
+            public String getProfileName() {
+                return "default";
+            }
+
+            @Override
+            public String getChannelType() {
+                return "disruptable-mock-transport-channel";
+            }
+
+            @Override
+            public void sendResponse(final TransportResponse response) {
+                sendFromTo(destination, getLocalNode(), action, new Runnable() {
+                    @Override
+                    public void run() {
+                        if (getConnectionStatus(destination, getLocalNode()) != ConnectionStatus.CONNECTED) {
+                            logger.trace("dropping response to {}: channel is not CONNECTED",
+                                requestDescription);
+                        } else {
+                            handleResponse(requestId, response);
+                        }
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "response to " + requestDescription;
+                    }
+                });
+            }
+
+            @Override
+            public void sendResponse(TransportResponse response,
+                                     TransportResponseOptions options) {
+                sendResponse(response);
+            }
+
+            @Override
+            public void sendResponse(Exception exception) {
+                sendFromTo(destination, getLocalNode(), action, new Runnable() {
+                    @Override
+                    public void run() {
+                        if (getConnectionStatus(destination, getLocalNode()) != ConnectionStatus.CONNECTED) {
+                            logger.trace("dropping response to {}: channel is not CONNECTED",
+                                requestDescription);
+                        } else {
+                            handleRemoteError(requestId, exception);
+                        }
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "error response to " + requestDescription;
+                    }
+                });
             }
         };
 
-        sendFromTo(getLocalNode(), destination, action, new Runnable() {
-            @Override
-            public void run() {
-                switch (getConnectionStatus(getLocalNode(), destination)) {
-                    case BLACK_HOLE:
-                        logger.trace("dropping {}", requestDescription);
-                        break;
+        final TransportRequest copiedRequest;
+        try {
+            copiedRequest = copyWriteable(request, writeableRegistry(), requestHandler::newRequest);
+        } catch (IOException e) {
+            throw new AssertionError("exception de/serializing request", e);
+        }
 
-                    case DISCONNECTED:
-                        sendFromTo(destination, getLocalNode(), action, returnConnectException);
-                        break;
-
-                    case CONNECTED:
-                        Optional<DisruptableMockTransport> destinationTransport = getDisruptedCapturingTransport(destination, action);
-                        assert destinationTransport.isPresent();
-
-                        final RequestHandlerRegistry<TransportRequest> requestHandler =
-                            destinationTransport.get().getRequestHandler(action);
-
-                        final TransportChannel transportChannel = new TransportChannel() {
-                            @Override
-                            public String getProfileName() {
-                                return "default";
-                            }
-
-                            @Override
-                            public String getChannelType() {
-                                return "disruptable-mock-transport-channel";
-                            }
-
-                            @Override
-                            public void sendResponse(final TransportResponse response) {
-                                sendFromTo(destination, getLocalNode(), action, new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        if (getConnectionStatus(destination, getLocalNode()) != ConnectionStatus.CONNECTED) {
-                                            logger.trace("dropping response to {}: channel is not CONNECTED",
-                                                requestDescription);
-                                        } else {
-                                            handleResponse(requestId, response);
-                                        }
-                                    }
-
-                                    @Override
-                                    public String toString() {
-                                        return "response to " + requestDescription;
-                                    }
-                                });
-                            }
-
-                            @Override
-                            public void sendResponse(TransportResponse response,
-                                                     TransportResponseOptions options) {
-                                sendResponse(response);
-                            }
-
-                            @Override
-                            public void sendResponse(Exception exception) {
-                                sendFromTo(destination, getLocalNode(), action, new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        if (getConnectionStatus(destination, getLocalNode()) != ConnectionStatus.CONNECTED) {
-                                            logger.trace("dropping response to {}: channel is not CONNECTED",
-                                                requestDescription);
-                                        } else {
-                                            handleRemoteError(requestId, exception);
-                                        }
-                                    }
-
-                                    @Override
-                                    public String toString() {
-                                        return "error response to " + requestDescription;
-                                    }
-                                });
-                            }
-                        };
-
-                        final TransportRequest copiedRequest;
-                        try {
-                            copiedRequest = copyWriteable(request, writeableRegistry(), requestHandler::newRequest);
-                        } catch (IOException e) {
-                            throw new AssertionError("exception de/serializing request", e);
-                        }
-
-                        try {
-                            requestHandler.processMessageReceived(copiedRequest, transportChannel);
-                        } catch (Exception e) {
-                            try {
-                                transportChannel.sendResponse(e);
-                            } catch (Exception ee) {
-                                logger.warn("failed to send failure", e);
-                            }
-                        }
-                }
+        try {
+            requestHandler.processMessageReceived(copiedRequest, transportChannel);
+        } catch (Exception e) {
+            try {
+                transportChannel.sendResponse(e);
+            } catch (Exception ee) {
+                logger.warn("failed to send failure", e);
             }
-
-            @Override
-            public String toString() {
-                return requestDescription;
-            }
-        });
+        }
     }
 
     private NamedWriteableRegistry writeableRegistry() {

@@ -41,6 +41,7 @@ import org.elasticsearch.discovery.zen.UnicastHostsProvider.HostsResolver;
 import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
+import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matcher;
@@ -59,7 +60,11 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clusterState;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.setValue;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.value;
+import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.FOLLOWER;
+import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
+import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
+import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
@@ -68,7 +73,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-@TestLogging("org.elasticsearch.cluster.coordination:TRACE,org.elasticsearch.cluster.discovery:TRACE")
+@TestLogging("org.elasticsearch.cluster.coordination:TRACE,org.elasticsearch.discovery:TRACE")
 public class CoordinatorTests extends ESTestCase {
 
     public void testCanUpdateClusterStateAfterStabilisation() {
@@ -101,6 +106,40 @@ public class CoordinatorTests extends ESTestCase {
         assertEquals(currentTerm, newTerm);
     }
 
+    public void testLeaderDisconnectionDetectedQuickly() {
+        final Cluster cluster = new Cluster(randomIntBetween(3, 5));
+        cluster.stabilise();
+
+        final ClusterNode originalLeader = cluster.getAnyLeader();
+        logger.info("--> disconnecting leader {}", originalLeader);
+        originalLeader.disconnect();
+
+        synchronized (originalLeader.coordinator.mutex) {
+            originalLeader.coordinator.becomeCandidate("simulated failure detection"); // TODO remove once follower checker is integrated
+        }
+
+        cluster.stabilise();
+        assertThat(cluster.getAnyLeader().getId(), not(equalTo(originalLeader.getId())));
+    }
+
+    public void testUnresponsiveLeaderDetectedEventually() {
+        final Cluster cluster = new Cluster(randomIntBetween(3, 5));
+        cluster.stabilise();
+
+        final ClusterNode originalLeader = cluster.getAnyLeader();
+        logger.info("--> partitioning leader {}", originalLeader);
+        originalLeader.partition();
+
+        synchronized (originalLeader.coordinator.mutex) {
+            originalLeader.coordinator.becomeCandidate("simulated failure detection"); // TODO remove once follower checker is integrated
+        }
+
+        cluster.stabilise(Cluster.DEFAULT_STABILISATION_TIME
+            + (LEADER_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).millis() + LEADER_CHECK_TIMEOUT_SETTING.get(Settings.EMPTY).millis())
+            * LEADER_CHECK_RETRY_COUNT_SETTING.get(Settings.EMPTY));
+        assertThat(cluster.getAnyLeader().getId(), not(equalTo(originalLeader.getId())));
+    }
+
     private static String nodeIdFromIndex(int nodeIndex) {
         return "node" + nodeIndex;
     }
@@ -114,6 +153,9 @@ public class CoordinatorTests extends ESTestCase {
             // TODO does ThreadPool need a node name any more?
             Settings.builder().put(NODE_NAME_SETTING.getKey(), "deterministic-task-queue").build());
         private final VotingConfiguration initialConfiguration;
+
+        private final Set<String> disconnectedNodes = new HashSet<>();
+        private final Set<String> blackholedNodes = new HashSet<>();
 
         Cluster(int initialNodeCount) {
             logger.info("--> creating cluster of {} nodes", initialNodeCount);
@@ -142,8 +184,12 @@ public class CoordinatorTests extends ESTestCase {
         }
 
         void stabilise() {
+            stabilise(DEFAULT_STABILISATION_TIME);
+        }
+
+        void stabilise(long stabilisationTime) {
             final long stabilisationStartTime = deterministicTaskQueue.getCurrentTimeMillis();
-            while (deterministicTaskQueue.getCurrentTimeMillis() < stabilisationStartTime + DEFAULT_STABILISATION_TIME) {
+            while (deterministicTaskQueue.getCurrentTimeMillis() < stabilisationStartTime + stabilisationTime) {
 
                 while (deterministicTaskQueue.hasRunnableTasks()) {
                     try {
@@ -182,16 +228,21 @@ public class CoordinatorTests extends ESTestCase {
                 }
 
                 final String nodeId = clusterNode.getId();
-                assertThat(nodeId + " has the same term as the leader", clusterNode.coordinator.getCurrentTerm(), is(leaderTerm));
-                // TODO assert that all nodes have actually voted for the leader in this term
 
-                assertThat(nodeId + " is a follower", clusterNode.coordinator.getMode(), is(FOLLOWER));
-                assertThat(nodeId + " is at the same accepted version as the leader",
-                    Optional.of(clusterNode.coordinator.getLastAcceptedState().getVersion()), isPresentAndEqualToLeaderVersion);
-                assertThat(nodeId + " is at the same committed version as the leader",
-                    clusterNode.coordinator.getLastCommittedState().map(ClusterState::getVersion), isPresentAndEqualToLeaderVersion);
-                assertThat(clusterNode.coordinator.getLastCommittedState().map(ClusterState::getNodes).map(dn -> dn.nodeExists(nodeId)),
-                    equalTo(Optional.of(true)));
+                if (disconnectedNodes.contains(nodeId) || blackholedNodes.contains(nodeId)) {
+                    assertThat(nodeId + " is a candidate", clusterNode.coordinator.getMode(), is(CANDIDATE));
+                } else {
+                    assertThat(nodeId + " has the same term as the leader", clusterNode.coordinator.getCurrentTerm(), is(leaderTerm));
+                    // TODO assert that all nodes have actually voted for the leader in this term
+
+                    assertThat(nodeId + " is a follower", clusterNode.coordinator.getMode(), is(FOLLOWER));
+                    assertThat(nodeId + " is at the same accepted version as the leader",
+                        Optional.of(clusterNode.coordinator.getLastAcceptedState().getVersion()), isPresentAndEqualToLeaderVersion);
+                    assertThat(nodeId + " is at the same committed version as the leader",
+                        clusterNode.coordinator.getLastCommittedState().map(ClusterState::getVersion), isPresentAndEqualToLeaderVersion);
+                    assertThat(clusterNode.coordinator.getLastCommittedState().map(ClusterState::getNodes).map(dn -> dn.nodeExists(nodeId)),
+                        equalTo(Optional.of(true)));
+                }
             }
 
             assertThat(leader.coordinator.getLastCommittedState().map(ClusterState::getNodes).map(DiscoveryNodes::getSize),
@@ -202,6 +253,18 @@ public class CoordinatorTests extends ESTestCase {
             List<ClusterNode> allLeaders = clusterNodes.stream().filter(ClusterNode::isLeader).collect(Collectors.toList());
             assertThat(allLeaders, not(empty()));
             return randomFrom(allLeaders);
+        }
+
+        private ConnectionStatus getConnectionStatus(DiscoveryNode sender, DiscoveryNode destination) {
+            ConnectionStatus connectionStatus;
+            if (blackholedNodes.contains(sender.getId()) || blackholedNodes.contains(destination.getId())) {
+                connectionStatus = ConnectionStatus.BLACK_HOLE;
+            } else if (disconnectedNodes.contains(sender.getId()) || disconnectedNodes.contains(destination.getId())) {
+                connectionStatus = ConnectionStatus.DISCONNECTED;
+            } else {
+                connectionStatus = ConnectionStatus.CONNECTED;
+            }
+            return connectionStatus;
         }
 
         class ClusterNode extends AbstractComponent {
@@ -241,7 +304,7 @@ public class CoordinatorTests extends ESTestCase {
 
                     @Override
                     protected ConnectionStatus getConnectionStatus(DiscoveryNode sender, DiscoveryNode destination) {
-                        return ConnectionStatus.CONNECTED;
+                        return Cluster.this.getConnectionStatus(sender, destination);
                     }
 
                     @Override
@@ -262,6 +325,17 @@ public class CoordinatorTests extends ESTestCase {
                             onNode(destination, doDelivery).run();
                         } else {
                             deterministicTaskQueue.scheduleNow(onNode(destination, doDelivery));
+                        }
+                    }
+
+                    @Override
+                    protected void onBlackholedDuringSend(long requestId, String action, DiscoveryNode destination) {
+                        if (action.equals(HANDSHAKE_ACTION_NAME)) {
+                            logger.trace("ignoring blackhole and delivering {}", getRequestDescription(requestId, action, destination));
+                            // handshakes always have a timeout, and are sent in a blocking fashion, so we must respond with an exception.
+                            sendFromTo(destination, getLocalNode(), action, getDisconnectException(requestId, action, destination));
+                        } else {
+                            super.onBlackholedDuringSend(requestId, action, destination);
                         }
                     }
                 };
@@ -290,7 +364,7 @@ public class CoordinatorTests extends ESTestCase {
                 return localNode.getId();
             }
 
-            public DiscoveryNode getLocalNode() {
+            DiscoveryNode getLocalNode() {
                 return localNode;
             }
 
@@ -315,6 +389,14 @@ public class CoordinatorTests extends ESTestCase {
             @Override
             public String toString() {
                 return localNode.toString();
+            }
+
+            void disconnect() {
+                disconnectedNodes.add(localNode.getId());
+            }
+
+            void partition() {
+                blackholedNodes.add(localNode.getId());
             }
         }
 

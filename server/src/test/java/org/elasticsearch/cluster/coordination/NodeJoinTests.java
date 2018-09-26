@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTests;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -38,17 +39,18 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.mockito.ArgumentCaptor;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -66,12 +68,8 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.hamcrest.Matchers.containsString;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @TestLogging("org.elasticsearch.cluster.service:TRACE,org.elasticsearch.cluster.coordination:TRACE")
 public class NodeJoinTests extends ESTestCase {
@@ -81,7 +79,7 @@ public class NodeJoinTests extends ESTestCase {
     private MasterService masterService;
     private Coordinator coordinator;
     private DeterministicTaskQueue deterministicTaskQueue;
-    private TransportRequestHandler<JoinRequest> transportRequestHandler;
+    private RequestHandlerRegistry<TransportRequest> transportRequestHandler;
 
     @BeforeClass
     public static void beforeClass() {
@@ -144,20 +142,29 @@ public class NodeJoinTests extends ESTestCase {
             throw new IllegalStateException("method setupMasterServiceAndCoordinator can only be called once");
         }
         this.masterService = masterService;
-        TransportService transportService = mock(TransportService.class);
-        when(transportService.getLocalNode()).thenReturn(initialState.nodes().getLocalNode());
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<TransportRequestHandler<JoinRequest>> joinRequestHandler = ArgumentCaptor.forClass(
-            (Class) TransportRequestHandler.class);
+        CapturingTransport capturingTransport = new CapturingTransport() {
+            @Override
+            protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode destination) {
+                if (action.equals(HANDSHAKE_ACTION_NAME)) {
+                    handleResponse(requestId, new TransportService.HandshakeResponse(destination, initialState.getClusterName(),
+                        destination.getVersion()));
+                } else {
+                    super.onSendRequest(requestId, action, request, destination);
+                }
+            }
+        };
+        TransportService transportService = capturingTransport.createTransportService(Settings.EMPTY, threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> initialState.nodes().getLocalNode(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), Collections.emptySet());
         coordinator = new Coordinator(Settings.EMPTY,
             transportService,
             ESAllocationTestCase.createAllocationService(Settings.EMPTY),
             masterService,
             () -> new CoordinationStateTests.InMemoryPersistedState(term, initialState), r -> emptyList(), random);
-        verify(transportService).registerRequestHandler(eq(JoinHelper.JOIN_ACTION_NAME), eq(ThreadPool.Names.GENERIC), eq(false), eq(false),
-            anyObject(), joinRequestHandler.capture());
-        transportRequestHandler = joinRequestHandler.getValue();
+        transportService.start();
+        transportService.acceptIncomingRequests();
+        transportRequestHandler = capturingTransport.getRequestHandler(JoinHelper.JOIN_ACTION_NAME);
         coordinator.start();
         coordinator.startInitialJoin();
     }
@@ -202,7 +209,7 @@ public class NodeJoinTests extends ESTestCase {
         // clone the node before submitting to simulate an incoming join, which is guaranteed to have a new
         // disco node object serialized off the network
         try {
-            transportRequestHandler.messageReceived(joinRequest, new TransportChannel() {
+            transportRequestHandler.processMessageReceived(joinRequest, new TransportChannel() {
                 @Override
                 public String getProfileName() {
                     return "dummy";
@@ -229,7 +236,7 @@ public class NodeJoinTests extends ESTestCase {
                     logger.error(() -> new ParameterizedMessage("unexpected error for {}", future), e);
                     future.markAsFailed(e);
                 }
-            }, null);
+            });
         } catch (Exception e) {
             logger.error(() -> new ParameterizedMessage("unexpected error for {}", future), e);
             future.markAsFailed(e);

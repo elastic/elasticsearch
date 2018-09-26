@@ -34,7 +34,7 @@ public class TextTemplate implements ToXContent {
     public TextTemplate(String template) {
         this.script = null;
         this.inlineTemplate = template;
-        this.isUsingMustache = template.contains("{{") && template.indexOf("{{") < template.indexOf("}}");
+        this.isUsingMustache = template.contains("{{");
     }
 
     public TextTemplate(String template, @Nullable XContentType contentType, ScriptType type,
@@ -50,15 +50,14 @@ public class TextTemplate implements ToXContent {
             params = new HashMap<>();
         }
         this.script = new Script(type, type == ScriptType.STORED ? null : Script.DEFAULT_TEMPLATE_LANG, template, options, params);
-        this.isUsingMustache = template.contains("{{") && template.indexOf("{{") < template.indexOf("}}");
+        this.isUsingMustache = template.contains("{{");
         this.inlineTemplate = null;
     }
 
     public TextTemplate(Script script) {
         this.script = script;
         this.inlineTemplate = null;
-        this.isUsingMustache = script.getIdOrCode().contains("{{") &&
-            script.getIdOrCode().indexOf("{{") < script.getIdOrCode().indexOf("}}");
+        this.isUsingMustache = script.getIdOrCode().contains("{{");
     }
 
     public Script getScript() {

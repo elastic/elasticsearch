@@ -19,6 +19,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.watcher.DeactivateWatchRequest;
+import org.elasticsearch.client.watcher.DeactivateWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
@@ -63,6 +65,35 @@ public final class WatcherClient {
                               ActionListener<PutWatchResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, WatcherRequestConverters::putWatch, options,
             PutWatchResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Deactivate an existing watch
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-deactivate-watch.html">
+     *     the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public DeactivateWatchResponse deactivateWatch(DeactivateWatchRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, WatcherRequestConverters::deactivateWatch, options,
+            DeactivateWatchResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously deactivate an existing watch
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-deactivate-watch.html">
+     *     the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void deactivateWatchAsync(DeactivateWatchRequest request, RequestOptions options,
+                                     ActionListener<DeactivateWatchResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, WatcherRequestConverters::deactivateWatch, options,
+            DeactivateWatchResponse::fromXContent, listener, emptySet());
     }
 
     /**

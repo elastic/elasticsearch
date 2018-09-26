@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
+import org.elasticsearch.xpack.core.ml.job.persistence.JobDeletionTask;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
@@ -143,11 +144,17 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, taskId);
 
         // Check if there is a deletion task for this job already and if yes wait for it to complete
-        Optional<Task> existingTask = taskManager.getTasks().values().stream().filter(searchedTask -> task.getDescription().equals(
-                searchedTask.getDescription()) && task.getId() != searchedTask.getId()).findFirst();
-        if (existingTask.isPresent()) {
-            logger.debug("Found existing deletion task for job [{}]", request.getJobId());
-            TaskId existingTaskId = new TaskId(clusterService.localNode().getId(), existingTask.get().getId());
+        Optional<Task> existingStartedTask;
+        synchronized (this) {
+            existingStartedTask = findExistingStartedTask(task);
+            if (existingStartedTask.isPresent() == false) {
+                ((JobDeletionTask) task).start();
+            }
+        }
+        if (existingStartedTask.isPresent()) {
+            logger.debug("[{}] Deletion task [{}] will wait for existing deletion task [{}]", request.getJobId(), task.getId(),
+                    existingStartedTask.get().getId());
+            TaskId existingTaskId = new TaskId(clusterService.localNode().getId(), existingStartedTask.get().getId());
             waitForExistingTaskToComplete(parentTaskClient, request.getJobId(), existingTaskId, listener);
             return;
         }
@@ -168,6 +175,13 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                 });
 
         markJobAsDeleting(request.getJobId(), markAsDeletingListener, request.isForce());
+    }
+
+    private Optional<Task> findExistingStartedTask(Task currentTask) {
+        return taskManager.getTasks().values().stream().filter(filteredTask ->
+                currentTask.getDescription().equals(filteredTask.getDescription()) &&
+                        currentTask.getId() != filteredTask.getId()
+                        && ((JobDeletionTask) filteredTask).isStarted()).findFirst();
     }
 
     private void waitForExistingTaskToComplete(ParentTaskAssigningClient parentTaskClient, String jobId, TaskId taskId,
@@ -203,6 +217,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                                                 + taskErrorBytes.utf8ToString()));
                                     }
                                 } else {
+                                    logger.debug("[{}] Finished waiting for completion of task [{}]", jobId, taskId);
                                     listener.onResponse(new AcknowledgedResponse(true));
                                 }
                             }

@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFiel
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.After;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -562,9 +561,8 @@ public class MlJobIT extends ESRestTestCase {
                 client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats")));
     }
 
-    @Ignore
     public void testDelete_multipleRequest() throws Exception {
-        String jobId = "delete-job-mulitple-times";
+        String jobId = "delete-job-multiple-times";
         createFarequoteJob(jobId);
 
         ConcurrentMapLong<Response> responses = ConcurrentCollections.newConcurrentMapLong();
@@ -575,8 +573,8 @@ public class MlJobIT extends ESRestTestCase {
         AtomicReference<ResponseException> recreationException = new AtomicReference<>();
 
         Runnable deleteJob = () -> {
+            boolean forceDelete = randomBoolean();
             try {
-                boolean forceDelete = randomBoolean();
                 String url = MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId;
                 if (forceDelete) {
                     url += "?force=true";
@@ -597,6 +595,7 @@ public class MlJobIT extends ESRestTestCase {
                 } catch (ResponseException re) {
                     recreationException.set(re);
                 } catch (IOException e) {
+                    logger.error("Error trying to recreate the job", e);
                     ioe.set(e);
                 }
             }
@@ -606,14 +605,14 @@ public class MlJobIT extends ESRestTestCase {
         // the other to complete. This is difficult to schedule but
         // hopefully it will happen in CI
         int numThreads = 5;
-        Thread [] threads = new Thread[numThreads];
-        for (int i=0; i<numThreads; i++) {
+        Thread[] threads = new Thread[numThreads];
+        for (int i = 0; i < numThreads; i++) {
             threads[i] = new Thread(deleteJob);
         }
-        for (int i=0; i<numThreads; i++) {
+        for (int i = 0; i < numThreads; i++) {
             threads[i].start();
         }
-        for (int i=0; i<numThreads; i++) {
+        for (int i = 0; i < numThreads; i++) {
             threads[i].join();
         }
 

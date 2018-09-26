@@ -232,6 +232,14 @@ public final class JsonFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query wildcardQuery(String value,
+                                   MultiTermQuery.RewriteMethod method,
+                                   QueryShardContext context) {
+            throw new UnsupportedOperationException("[wildcard] queries are not currently supported on [" +
+                CONTENT_TYPE + "] fields.");
+        }
+
+        @Override
         public Object valueForDisplay(Object value) {
             if (value == null) {
                 return null;

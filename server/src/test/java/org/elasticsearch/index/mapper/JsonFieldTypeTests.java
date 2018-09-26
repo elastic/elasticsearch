@@ -87,8 +87,17 @@ public class JsonFieldTypeTests extends FieldTypeTestCase {
         JsonFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
-        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
+        UnsupportedOperationException e  = expectThrows(UnsupportedOperationException.class,
             () -> ft.regexpQuery("valu*", 0, 10, null, null));
         assertEquals("[regexp] queries are not currently supported on [json] fields.", e.getMessage());
+    }
+
+    public void testWildcardQuery() {
+        JsonFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
+            () -> ft.wildcardQuery("valu*", null, null));
+        assertEquals("[wildcard] queries are not currently supported on [json] fields.", e.getMessage());
     }
 }

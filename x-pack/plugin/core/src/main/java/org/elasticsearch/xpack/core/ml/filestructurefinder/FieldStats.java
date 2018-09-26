@@ -123,16 +123,16 @@ public class FieldStats implements ToXContentObject, Writeable {
         builder.field(COUNT.getPreferredName(), count);
         builder.field(CARDINALITY.getPreferredName(), cardinality);
         if (minValue != null) {
-            builder.field(MIN_VALUE.getPreferredName(), minValue);
+            builder.field(MIN_VALUE.getPreferredName(), toIntegerIfInteger(minValue));
         }
         if (maxValue != null) {
-            builder.field(MAX_VALUE.getPreferredName(), maxValue);
+            builder.field(MAX_VALUE.getPreferredName(), toIntegerIfInteger(maxValue));
         }
         if (meanValue != null) {
-            builder.field(MEAN_VALUE.getPreferredName(), meanValue);
+            builder.field(MEAN_VALUE.getPreferredName(), toIntegerIfInteger(meanValue));
         }
         if (medianValue != null) {
-            builder.field(MEDIAN_VALUE.getPreferredName(), medianValue);
+            builder.field(MEDIAN_VALUE.getPreferredName(), toIntegerIfInteger(medianValue));
         }
         if (topHits.isEmpty() == false) {
             builder.field(TOP_HITS.getPreferredName(), topHits);
@@ -140,6 +140,15 @@ public class FieldStats implements ToXContentObject, Writeable {
         builder.endObject();
 
         return builder;
+    }
+
+    public static Number toIntegerIfInteger(double d) {
+
+        if (d >= Integer.MIN_VALUE && d <= Integer.MAX_VALUE && Double.compare(d, StrictMath.rint(d)) == 0) {
+            return (int) d;
+        }
+
+        return d;
     }
 
     @Override

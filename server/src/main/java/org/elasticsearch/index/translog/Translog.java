@@ -60,6 +60,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -1825,6 +1826,19 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return translogUUID;
     }
 
+    /**
+     * Returns the max seq_no of translog operations found in this translog. Since this value is calculated based on the current
+     * existing readers, this value is not necessary to be the max seq_no of all operations have been stored in this translog.
+     */
+    public long getMaxSeqNo() {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            final OptionalLong maxSeqNo = Stream.concat(readers.stream(), Stream.of(current))
+                .mapToLong(reader -> reader.getCheckpoint().maxSeqNo).max();
+            assert maxSeqNo.isPresent() : "must have at least one translog generation";
+            return maxSeqNo.getAsLong();
+        }
+    }
 
     TranslogWriter getCurrent() {
         return current;

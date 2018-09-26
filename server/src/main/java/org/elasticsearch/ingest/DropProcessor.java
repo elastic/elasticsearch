@@ -17,12 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.common;
+package org.elasticsearch.ingest;
 
 import java.util.Map;
-import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Processor;
 
 /**
  * Drop processor only returns {@code null} for the execution result to indicate that any document

@@ -163,7 +163,7 @@ public class CoordinatorTests extends ESTestCase {
         follower.partition();
 
         cluster.stabilise(
-            // wait for the new leader to notice that the follower is unresponsive
+            // wait for the leader to notice that the follower is unresponsive
             (FOLLOWER_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).millis() + FOLLOWER_CHECK_TIMEOUT_SETTING.get(Settings.EMPTY).millis())
             * FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(Settings.EMPTY));
         assertThat(cluster.getAnyLeader().getId(), equalTo(leader.getId()));
@@ -262,7 +262,6 @@ public class CoordinatorTests extends ESTestCase {
             assertThat(leader.coordinator.getLastCommittedState().map(ClusterState::getVersion), isPresentAndEqualToLeaderVersion);
             assertThat(leader.coordinator.getLastCommittedState().map(ClusterState::getNodes).map(dn -> dn.nodeExists(leader.getId())),
                 equalTo(Optional.of(true)));
-
 
             for (final ClusterNode clusterNode : clusterNodes) {
                 if (clusterNode == leader) {

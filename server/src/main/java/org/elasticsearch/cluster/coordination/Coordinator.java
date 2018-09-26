@@ -398,6 +398,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         return transportService.getLocalNode();
     }
 
+    // package-visible for testing
     boolean publicationInProgress() {
         synchronized (mutex) {
             return currentPublication.isPresent();

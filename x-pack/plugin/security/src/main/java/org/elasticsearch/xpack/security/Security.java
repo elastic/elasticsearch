@@ -27,7 +27,6 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.util.Providers;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -223,7 +222,6 @@ import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4ServerTra
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;

@@ -280,6 +280,6 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_6_4_0;
+        return Version.V_6_5_0;
     }
 }

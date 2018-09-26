@@ -30,10 +30,10 @@ public final class ScriptCondition implements ExecutableCondition {
 
     public ScriptCondition(Script script) {
         this.script = script;
-        scriptFactory = null;
+        this.scriptFactory = null;
     }
 
-    ScriptCondition(Script script, ExecutableScript.Factory scriptFactory) {
+    ScriptCondition(Script script, ScriptService scriptService) {
         this.script = script;
         this.scriptFactory = scriptService.compile(script, WatcherConditionScript.CONTEXT);
     }
@@ -45,7 +45,7 @@ public final class ScriptCondition implements ExecutableCondition {
     public static ScriptCondition parse(ScriptService scriptService, String watchId, XContentParser parser) throws IOException {
         try {
             Script script = Script.parse(parser);
-            return new ScriptCondition(script, scriptService.compile(script, Watcher.SCRIPT_EXECUTABLE_CONTEXT));
+            return new ScriptCondition(script, scriptService);
         } catch (ElasticsearchParseException pe) {
             throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. failed to parse script", pe, TYPE,
                     watchId);

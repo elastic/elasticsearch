@@ -19,6 +19,12 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.util.BytesRef;
+
 public class IgnoredFieldTypeTests extends FieldTypeTestCase {
 
     @Override
@@ -26,4 +32,12 @@ public class IgnoredFieldTypeTests extends FieldTypeTestCase {
         return new IgnoredFieldMapper.IgnoredFieldType();
     }
 
+    public void testWildcardQuery() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+
+        Query expected = new WildcardQuery(new Term("field", new BytesRef("foo*")));
+        assertEquals(expected, ft.wildcardQuery("foo*", null, null));
+    }
 }

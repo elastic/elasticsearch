@@ -18,12 +18,24 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.util.BytesRef;
 
 public class RoutingFieldTypeTests extends FieldTypeTestCase {
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new RoutingFieldMapper.RoutingFieldType();
+    }
+
+    public void testWildcardQuery() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+
+        Query expected = new WildcardQuery(new Term("field", new BytesRef("foo*")));
+        assertEquals(expected, ft.wildcardQuery("foo*", null, null));
     }
 }

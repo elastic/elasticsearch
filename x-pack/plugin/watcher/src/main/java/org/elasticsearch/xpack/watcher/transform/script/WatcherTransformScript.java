@@ -19,6 +19,7 @@ import java.util.Map;
  * A script to transform the results of a watch execution.
  */
 public abstract class WatcherTransformScript {
+    public static final String[] PARAMETERS = {};
 
     private static final Map<String, String> DEPRECATIONS;
 

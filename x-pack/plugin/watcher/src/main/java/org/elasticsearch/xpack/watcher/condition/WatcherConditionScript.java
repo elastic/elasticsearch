@@ -18,6 +18,7 @@ import java.util.Map;
  * A script to determine whether a watch should be run.
  */
 public abstract class WatcherConditionScript {
+    public static final String[] PARAMETERS = {};
 
     private static final Map<String, String> DEPRECATIONS;
 

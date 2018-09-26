@@ -164,7 +164,7 @@ You could achieve the same thing by adding a custom `type` field as follows:
 PUT twitter
 {
   "mappings": {
-    "_doc": {
+    "doc": {
       "properties": {
         "type": { "type": "keyword" }, <1>
         "name": { "type": "text" },
@@ -177,7 +177,7 @@ PUT twitter
   }
 }
 
-PUT twitter/_doc/user-kimchy
+PUT twitter/doc/user-kimchy
 {
   "type": "user", <1>
   "name": "Shay Banon",
@@ -185,7 +185,7 @@ PUT twitter/_doc/user-kimchy
   "email": "shay@kimchy.com"
 }
 
-PUT twitter/_doc/tweet-1
+PUT twitter/doc/tweet-1
 {
   "type": "tweet", <1>
   "user_name": "kimchy",
@@ -245,8 +245,8 @@ Elasticsearch 6.x::
 
 * Indices created in 6.x only allow a single-type per index.  Any name
   can be used for the type, but there can be only one. The preferred type name
-  is `_doc`, so that index APIs have the same path as they will have in 7.0:
-  `PUT {index}/_doc/{id}` and `POST {index}/_doc`
+  is `doc`, so that index APIs have the same path as they will have in 7.0:
+  `PUT {index}/doc/{id}` and `POST {index}/doc`
 
 * The `_type` name can no longer be combined with the `_id` to form the `_uid`
   field. The `_uid` field has become an alias for the `_id` field.
@@ -260,14 +260,14 @@ Elasticsearch 7.x::
 
 * The `type` parameter in URLs are deprecated.  For instance, indexing
   a document no longer requires a document `type`.  The new index APIs
-  are `PUT {index}/_doc/{id}` in case of explicit ids and `POST {index}/_doc`
+  are `PUT {index}/doc/{id}` in case of explicit ids and `POST {index}/doc`
   for auto-generated ids.
 
 * The index creation, `GET|PUT _mapping` and document APIs support a query
   string parameter (`include_type_name`) which indicates whether requests and
   responses should include a type name. It defaults to `true`.
   7.x indices which don't have an explicit type will use the dummy type name
-  `_doc`. Not setting `include_type_name=false` will result in a deprecation
+  `doc`. Not setting `include_type_name=false` will result in a deprecation
   warning.
 
 * The `_default_` mapping type is removed.
@@ -305,7 +305,7 @@ PUT users
     "index.mapping.single_type": true
   },
   "mappings": {
-    "_doc": {
+    "doc": {
       "properties": {
         "name": {
           "type": "text"
@@ -327,7 +327,7 @@ PUT tweets
     "index.mapping.single_type": true
   },
   "mappings": {
-    "_doc": {
+    "doc": {
       "properties": {
         "content": {
           "type": "text"
@@ -379,7 +379,7 @@ documents of different types which have conflicting IDs:
 PUT new_twitter
 {
   "mappings": {
-    "_doc": {
+    "doc": {
       "properties": {
         "type": {
           "type": "keyword"
@@ -417,7 +417,7 @@ POST _reindex
     "source": """
       ctx._source.type = ctx._type;
       ctx._id = ctx._type + '-' + ctx._id;
-      ctx._type = '_doc';
+      ctx._type = 'doc';
     """
   }
 }
@@ -495,12 +495,12 @@ The above call returns
 [float]
 ==== Document APIs
 
-Index APIs must be call with the `{index}/_doc` path for automatic generation of
-the `_id` and `{index}/_doc/{id}` with explicit ids.
+Index APIs must be call with the `{index}/doc` path for automatic generation of
+the `_id` and `{index}/doc/{id}` with explicit ids.
 
 [source,js]
 --------------------------------------------------
-PUT index/_doc/1?include_type_name=false
+PUT index/doc/1?include_type_name=false
 {
   "foo": "bar"
 }

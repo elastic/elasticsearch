@@ -847,6 +847,7 @@ public class MovAvgIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34098")
     public void testHoltWintersNotEnoughData() {
         Client client = client();
         expectThrows(SearchPhaseExecutionException.class, () -> client.prepareSearch("idx").setTypes("type")

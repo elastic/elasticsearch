@@ -97,9 +97,7 @@ public class CompositeRolesStore extends AbstractComponent {
                                ThreadContext threadContext, XPackLicenseState licenseState) {
         super(settings);
         this.fileRolesStore = fileRolesStore;
-        // invalidating all on a file based role update is heavy handed to say the least, but in general this should be infrequent so the
-        // impact isn't really worth the added complexity of only clearing the changed values
-        fileRolesStore.addListener(this::invalidateAll);
+        fileRolesStore.addListener(this::invalidate);
         this.nativeRolesStore = nativeRolesStore;
         this.reservedRolesStore = reservedRolesStore;
         this.privilegeStore = privilegeStore;
@@ -354,6 +352,23 @@ public class CompositeRolesStore extends AbstractComponent {
             }
         }
         negativeLookupCache.remove(role);
+    }
+
+    public void invalidate(Set<String> roles) {
+        numInvalidation.incrementAndGet();
+
+        // the cache cannot be modified while doing this operation per the terms of the cache iterator
+        try (ReleasableLock ignored = writeLock.acquire()) {
+            Iterator<Set<String>> keyIter = roleCache.keys().iterator();
+            while (keyIter.hasNext()) {
+                Set<String> key = keyIter.next();
+                if (Sets.haveEmptyIntersection(key, roles) == false) {
+                    keyIter.remove();
+                }
+            }
+        }
+
+        negativeLookupCache.removeAll(roles);
     }
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {

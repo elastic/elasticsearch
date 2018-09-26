@@ -39,7 +39,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             FileStructureUtils.guessTimestampField(explanation, Collections.singletonList(sample), EMPTY_OVERRIDES);
         assertNotNull(match);
         assertEquals("field1", match.v1());
-        assertThat(match.v2().dateFormats, contains("ISO8601"));
+        assertThat(match.v2().jodaTimestampFormats, contains("ISO8601"));
         assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
     }
 
@@ -52,7 +52,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             FileStructureUtils.guessTimestampField(explanation, Collections.singletonList(sample), overrides);
         assertNotNull(match);
         assertEquals("field1", match.v1());
-        assertThat(match.v2().dateFormats, contains("ISO8601"));
+        assertThat(match.v2().jodaTimestampFormats, contains("ISO8601"));
         assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
     }
 
@@ -76,7 +76,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             FileStructureUtils.guessTimestampField(explanation, Collections.singletonList(sample), overrides);
         assertNotNull(match);
         assertEquals("field1", match.v1());
-        assertThat(match.v2().dateFormats, contains("ISO8601"));
+        assertThat(match.v2().jodaTimestampFormats, contains("ISO8601"));
         assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
     }
 
@@ -99,7 +99,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             FileStructureUtils.guessTimestampField(explanation, Arrays.asList(sample1, sample2), EMPTY_OVERRIDES);
         assertNotNull(match);
         assertEquals("field1", match.v1());
-        assertThat(match.v2().dateFormats, contains("ISO8601"));
+        assertThat(match.v2().jodaTimestampFormats, contains("ISO8601"));
         assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
     }
 
@@ -128,7 +128,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             FileStructureUtils.guessTimestampField(explanation, Collections.singletonList(sample), EMPTY_OVERRIDES);
         assertNotNull(match);
         assertEquals("time", match.v1());
-        assertThat(match.v2().dateFormats, contains("YYYY-MM-dd HH:mm:ss,SSS"));
+        assertThat(match.v2().jodaTimestampFormats, contains("YYYY-MM-dd HH:mm:ss,SSS"));
         assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
     }
 
@@ -145,7 +145,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             FileStructureUtils.guessTimestampField(explanation, Arrays.asList(sample1, sample2), EMPTY_OVERRIDES);
         assertNotNull(match);
         assertEquals("time", match.v1());
-        assertThat(match.v2().dateFormats, contains("YYYY-MM-dd HH:mm:ss,SSS"));
+        assertThat(match.v2().jodaTimestampFormats, contains("YYYY-MM-dd HH:mm:ss,SSS"));
         assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
     }
 
@@ -176,7 +176,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             FileStructureUtils.guessTimestampField(explanation, Arrays.asList(sample1, sample2), EMPTY_OVERRIDES);
         assertNotNull(match);
         assertEquals("time", match.v1());
-        assertThat(match.v2().dateFormats, contains("YYYY-MM-dd HH:mm:ss,SSS"));
+        assertThat(match.v2().jodaTimestampFormats, contains("YYYY-MM-dd HH:mm:ss,SSS"));
         assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
     }
 
@@ -193,7 +193,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             FileStructureUtils.guessTimestampField(explanation, Arrays.asList(sample1, sample2), EMPTY_OVERRIDES);
         assertNotNull(match);
         assertEquals("time", match.v1());
-        assertThat(match.v2().dateFormats, contains("MMM dd YYYY HH:mm:ss", "MMM  d YYYY HH:mm:ss"));
+        assertThat(match.v2().jodaTimestampFormats, contains("MMM dd YYYY HH:mm:ss", "MMM  d YYYY HH:mm:ss"));
         assertEquals("CISCOTIMESTAMP", match.v2().grokPatternName);
     }
 
@@ -226,7 +226,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             FileStructureUtils.guessTimestampField(explanation, Arrays.asList(sample1, sample2), EMPTY_OVERRIDES);
         assertNotNull(match);
         assertEquals("time2", match.v1());
-        assertThat(match.v2().dateFormats, contains("MMM dd YYYY HH:mm:ss", "MMM  d YYYY HH:mm:ss"));
+        assertThat(match.v2().jodaTimestampFormats, contains("MMM dd YYYY HH:mm:ss", "MMM  d YYYY HH:mm:ss"));
         assertEquals("CISCOTIMESTAMP", match.v2().grokPatternName);
     }
 
@@ -338,7 +338,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         assertEquals(3, fieldStats.size());
         assertEquals(new FieldStats(2, 2, makeTopHits("not a time", 1, "whatever", 1)), fieldStats.get("foo"));
         assertEquals(new FieldStats(2, 2, makeTopHits("2018-05-24 17:28:31,735", 1, "2018-05-29 11:53:02,837", 1)), fieldStats.get("time"));
-        assertEquals(new FieldStats(2, 2, 17.0, 42.0, 29.5, 29.5, makeTopHits(17.0, 1, 42.0, 1)), fieldStats.get("bar"));
+        assertEquals(new FieldStats(2, 2, 17.0, 42.0, 29.5, 29.5, makeTopHits(17, 1, 42, 1)), fieldStats.get("bar"));
         assertNull(fieldStats.get("nothing"));
     }
 

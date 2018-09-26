@@ -200,7 +200,6 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         String indexName = randomAlphaOfLengthBetween(1, 10);
         RollupIndexerJobStats stats= new RollupIndexerJobStats(0, 0, 0, 0);
 
-        String timestampField = "the_histo";
         String valueField = "the_avg";
 
         Directory directory = newDirectory();

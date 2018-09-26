@@ -126,7 +126,6 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
         DeleteRoleRequest request = new DeleteRoleRequest();
         request.name(roleName);
 
-        final boolean found = randomBoolean();
         doAnswer(new Answer() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {

@@ -236,8 +236,7 @@ public class WatchTests extends ESTestCase {
         TriggerService triggerService = new TriggerService(Settings.EMPTY, Collections.emptySet()) {
             @Override
             public Trigger parseTrigger(String jobName, XContentParser parser) throws IOException {
-                XContentParser.Token token;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 }
 
                 return new ScheduleTrigger(randomSchedule());

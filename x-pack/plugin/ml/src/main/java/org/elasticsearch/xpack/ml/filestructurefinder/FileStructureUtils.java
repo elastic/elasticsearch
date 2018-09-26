@@ -240,7 +240,7 @@ public final class FileStructureUtils {
         Iterator<String> iter = fieldValues.iterator();
         TimestampMatch timestampMatch = TimestampFormatFinder.findFirstFullMatch(iter.next());
         while (timestampMatch != null && iter.hasNext()) {
-            // To be mapped as type date all the values must match the same date format - it is
+            // To be mapped as type date all the values must match the same timestamp format - it is
             // not acceptable for all values to be dates, but with different formats
             if (timestampMatch.equals(TimestampFormatFinder.findFirstFullMatch(iter.next(), timestampMatch.candidateIndex)) == false) {
                 timestampMatch = null;

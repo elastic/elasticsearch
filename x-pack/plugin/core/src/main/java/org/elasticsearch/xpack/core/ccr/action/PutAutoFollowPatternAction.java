@@ -42,15 +42,13 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
         static final ParseField LEADER_CLUSTER_ALIAS_FIELD = new ParseField("leader_cluster_alias");
-        static final ParseField LEADER_INDEX_PATTERNS_FIELD = new ParseField("leader_index_patterns");
-        static final ParseField FOLLOW_INDEX_NAME_PATTERN_FIELD = new ParseField("follow_index_name_pattern");
 
         private static final ObjectParser<Request, String> PARSER = new ObjectParser<>("put_auto_follow_pattern_request", Request::new);
 
         static {
             PARSER.declareString(Request::setLeaderClusterAlias, LEADER_CLUSTER_ALIAS_FIELD);
-            PARSER.declareStringArray(Request::setLeaderIndexPatterns, LEADER_INDEX_PATTERNS_FIELD);
-            PARSER.declareString(Request::setFollowIndexNamePattern, FOLLOW_INDEX_NAME_PATTERN_FIELD);
+            PARSER.declareStringArray(Request::setLeaderIndexPatterns, AutoFollowPattern.LEADER_PATTERNS_FIELD);
+            PARSER.declareString(Request::setFollowIndexNamePattern, AutoFollowPattern.FOLLOW_PATTERN_FIELD);
             PARSER.declareInt(Request::setMaxBatchOperationCount, AutoFollowPattern.MAX_BATCH_OPERATION_COUNT);
             PARSER.declareInt(Request::setMaxConcurrentReadBatches, AutoFollowPattern.MAX_CONCURRENT_READ_BATCHES);
             PARSER.declareLong(Request::setMaxOperationSizeInBytes, AutoFollowPattern.MAX_BATCH_SIZE_IN_BYTES);
@@ -59,9 +57,9 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             PARSER.declareField(Request::setMaxRetryDelay,
                 (p, c) -> TimeValue.parseTimeValue(p.text(), AutoFollowPattern.MAX_RETRY_DELAY.getPreferredName()),
                 AutoFollowPattern.MAX_RETRY_DELAY, ObjectParser.ValueType.STRING);
-            PARSER.declareField(Request::setIdleShardRetryDelay,
-                (p, c) -> TimeValue.parseTimeValue(p.text(), AutoFollowPattern.IDLE_SHARD_RETRY_DELAY.getPreferredName()),
-                AutoFollowPattern.IDLE_SHARD_RETRY_DELAY, ObjectParser.ValueType.STRING);
+            PARSER.declareField(Request::setPollTimeout,
+                (p, c) -> TimeValue.parseTimeValue(p.text(), AutoFollowPattern.POLL_TIMEOUT.getPreferredName()),
+                AutoFollowPattern.POLL_TIMEOUT, ObjectParser.ValueType.STRING);
         }
 
         public static Request fromXContent(XContentParser parser, String remoteClusterAlias) throws IOException {
@@ -88,7 +86,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
         private Integer maxConcurrentWriteBatches;
         private Integer maxWriteBufferSize;
         private TimeValue maxRetryDelay;
-        private TimeValue idleShardRetryDelay;
+        private TimeValue pollTimeout;
 
         @Override
         public ActionRequestValidationException validate() {
@@ -98,7 +96,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
                     "] is missing", validationException);
             }
             if (leaderIndexPatterns == null || leaderIndexPatterns.isEmpty()) {
-                validationException = addValidationError("[" + LEADER_INDEX_PATTERNS_FIELD.getPreferredName() +
+                validationException = addValidationError("[" + AutoFollowPattern.LEADER_PATTERNS_FIELD.getPreferredName() +
                     "] is missing", validationException);
             }
             if (maxRetryDelay != null) {
@@ -189,12 +187,12 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             this.maxRetryDelay = maxRetryDelay;
         }
 
-        public TimeValue getIdleShardRetryDelay() {
-            return idleShardRetryDelay;
+        public TimeValue getPollTimeout() {
+            return pollTimeout;
         }
 
-        public void setIdleShardRetryDelay(TimeValue idleShardRetryDelay) {
-            this.idleShardRetryDelay = idleShardRetryDelay;
+        public void setPollTimeout(TimeValue pollTimeout) {
+            this.pollTimeout = pollTimeout;
         }
 
         @Override
@@ -209,7 +207,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             maxConcurrentWriteBatches = in.readOptionalVInt();
             maxWriteBufferSize = in.readOptionalVInt();
             maxRetryDelay = in.readOptionalTimeValue();
-            idleShardRetryDelay = in.readOptionalTimeValue();
+            pollTimeout = in.readOptionalTimeValue();
         }
 
         @Override
@@ -224,7 +222,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             out.writeOptionalVInt(maxConcurrentWriteBatches);
             out.writeOptionalVInt(maxWriteBufferSize);
             out.writeOptionalTimeValue(maxRetryDelay);
-            out.writeOptionalTimeValue(idleShardRetryDelay);
+            out.writeOptionalTimeValue(pollTimeout);
         }
 
         @Override
@@ -232,9 +230,9 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             builder.startObject();
             {
                 builder.field(LEADER_CLUSTER_ALIAS_FIELD.getPreferredName(), leaderClusterAlias);
-                builder.field(LEADER_INDEX_PATTERNS_FIELD.getPreferredName(), leaderIndexPatterns);
+                builder.field(AutoFollowPattern.LEADER_PATTERNS_FIELD.getPreferredName(), leaderIndexPatterns);
                 if (followIndexNamePattern != null) {
-                    builder.field(FOLLOW_INDEX_NAME_PATTERN_FIELD.getPreferredName(), followIndexNamePattern);
+                    builder.field(AutoFollowPattern.FOLLOW_PATTERN_FIELD.getPreferredName(), followIndexNamePattern);
                 }
                 if (maxBatchOperationCount != null) {
                     builder.field(AutoFollowPattern.MAX_BATCH_OPERATION_COUNT.getPreferredName(), maxBatchOperationCount);
@@ -254,8 +252,8 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
                 if (maxRetryDelay != null) {
                     builder.field(AutoFollowPattern.MAX_RETRY_DELAY.getPreferredName(), maxRetryDelay.getStringRep());
                 }
-                if (idleShardRetryDelay != null) {
-                    builder.field(AutoFollowPattern.IDLE_SHARD_RETRY_DELAY.getPreferredName(), idleShardRetryDelay.getStringRep());
+                if (pollTimeout != null) {
+                    builder.field(AutoFollowPattern.POLL_TIMEOUT.getPreferredName(), pollTimeout.getStringRep());
                 }
             }
             builder.endObject();
@@ -276,7 +274,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
                 Objects.equals(maxConcurrentWriteBatches, request.maxConcurrentWriteBatches) &&
                 Objects.equals(maxWriteBufferSize, request.maxWriteBufferSize) &&
                 Objects.equals(maxRetryDelay, request.maxRetryDelay) &&
-                Objects.equals(idleShardRetryDelay, request.idleShardRetryDelay);
+                Objects.equals(pollTimeout, request.pollTimeout);
         }
 
         @Override
@@ -291,7 +289,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
                 maxConcurrentWriteBatches,
                 maxWriteBufferSize,
                 maxRetryDelay,
-                idleShardRetryDelay
+                pollTimeout
             );
         }
     }

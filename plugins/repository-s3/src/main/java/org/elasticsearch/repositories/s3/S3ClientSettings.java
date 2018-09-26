@@ -19,24 +19,24 @@
 
 package org.elasticsearch.repositories.s3;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.BasicAWSCredentials;
-
 import com.amazonaws.auth.BasicSessionCredentials;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * A container for settings used to create an S3 client.
@@ -160,19 +160,6 @@ final class S3ClientSettings {
         return Collections.unmodifiableMap(clients);
     }
 
-    static Map<String, S3ClientSettings> overrideCredentials(Map<String, S3ClientSettings> clientsSettings,
-                                                             BasicAWSCredentials credentials) {
-        final MapBuilder<String, S3ClientSettings> mapBuilder = new MapBuilder<>();
-        for (final Map.Entry<String, S3ClientSettings> entry : clientsSettings.entrySet()) {
-            final S3ClientSettings s3ClientSettings = new S3ClientSettings(credentials, entry.getValue().endpoint,
-                    entry.getValue().protocol, entry.getValue().proxyHost, entry.getValue().proxyPort, entry.getValue().proxyUsername,
-                    entry.getValue().proxyPassword, entry.getValue().readTimeoutMillis, entry.getValue().maxRetries,
-                    entry.getValue().throttleRetries);
-            mapBuilder.put(entry.getKey(), s3ClientSettings);
-        }
-        return mapBuilder.immutableMap();
-    }
-
     static boolean checkDeprecatedCredentials(Settings repositorySettings) {
         if (S3Repository.ACCESS_KEY_SETTING.exists(repositorySettings)) {
             if (S3Repository.SECRET_KEY_SETTING.exists(repositorySettings) == false) {
@@ -224,23 +211,35 @@ final class S3ClientSettings {
 
     // pkg private for tests
     /** Parse settings for a single client. */
-    static S3ClientSettings getClientSettings(Settings settings, String clientName) {
+    static S3ClientSettings getClientSettings(final Settings settings, final String clientName) {
         final AWSCredentials credentials = S3ClientSettings.loadCredentials(settings, clientName);
+        return getClientSettings(settings, clientName, credentials);
+    }
+
+    static S3ClientSettings getClientSettings(final Settings settings, final String clientName, final AWSCredentials credentials) {
         try (SecureString proxyUsername = getConfigValue(settings, clientName, PROXY_USERNAME_SETTING);
              SecureString proxyPassword = getConfigValue(settings, clientName, PROXY_PASSWORD_SETTING)) {
             return new S3ClientSettings(
-                credentials,
-                getConfigValue(settings, clientName, ENDPOINT_SETTING),
-                getConfigValue(settings, clientName, PROTOCOL_SETTING),
-                getConfigValue(settings, clientName, PROXY_HOST_SETTING),
-                getConfigValue(settings, clientName, PROXY_PORT_SETTING),
-                proxyUsername.toString(),
-                proxyPassword.toString(),
-                (int)getConfigValue(settings, clientName, READ_TIMEOUT_SETTING).millis(),
-                getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
-                getConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING)
+                    credentials,
+                    getConfigValue(settings, clientName, ENDPOINT_SETTING),
+                    getConfigValue(settings, clientName, PROTOCOL_SETTING),
+                    getConfigValue(settings, clientName, PROXY_HOST_SETTING),
+                    getConfigValue(settings, clientName, PROXY_PORT_SETTING),
+                    proxyUsername.toString(),
+                    proxyPassword.toString(),
+                    Math.toIntExact(getConfigValue(settings, clientName, READ_TIMEOUT_SETTING).millis()),
+                    getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
+                    getConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING)
             );
         }
+    }
+
+    static S3ClientSettings getClientSettings(final RepositoryMetaData metadata, final AWSCredentials credentials) {
+        final Settings.Builder builder = Settings.builder();
+        for (final String key : metadata.settings().keySet()) {
+            builder.put(PREFIX + "provided" + "." + key, metadata.settings().get(key));
+        }
+        return getClientSettings(builder.build(), "provided", credentials);
     }
 
     private static <T> T getConfigValue(Settings settings, String clientName,

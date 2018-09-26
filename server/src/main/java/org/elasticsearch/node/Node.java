@@ -185,9 +185,7 @@ import static java.util.stream.Collectors.toList;
  * A node represent a node within a cluster ({@code cluster.name}). The {@link #client()} can be used
  * in order to use a {@link Client} to perform actions/operations against the cluster.
  */
-public abstract class Node implements Closeable {
-
-
+public class Node implements Closeable {
     public static final Setting<Boolean> WRITE_PORTS_FILE_SETTING =
         Setting.boolSetting("node.portsfile", false, Property.NodeScope);
     public static final Setting<Boolean> NODE_DATA_SETTING = Setting.boolSetting("node.data", true, Property.NodeScope);
@@ -251,15 +249,6 @@ public abstract class Node implements Closeable {
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
 
-    /**
-     * Constructs a node with the given settings.
-     *
-     * @param preparedSettings Base settings to configure the node with
-     */
-    public Node(Settings preparedSettings) {
-        this(InternalSettingsPreparer.prepareEnvironment(preparedSettings));
-    }
-
     public Node(Environment environment) {
         this(environment, Collections.emptyList(), true);
     }
@@ -282,33 +271,10 @@ public abstract class Node implements Closeable {
             Settings tmpSettings = Settings.builder().put(environment.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
 
-            /*
-             * Create the node environment as soon as possible so we can
-             * recover the node id which we might have to use to derive the
-             * node name. And it is important to get *that* as soon as possible
-             * so that log lines can contain it.
-             */
-            boolean nodeNameExplicitlyDefined = NODE_NAME_SETTING.exists(tmpSettings);
-            try {
-                Consumer<String> nodeIdConsumer = nodeNameExplicitlyDefined ?
-                        nodeId -> {} : nodeId -> registerDerivedNodeNameWithLogger(nodeIdToNodeName(nodeId));
-                nodeEnvironment = new NodeEnvironment(tmpSettings, environment, nodeIdConsumer);
-                resourcesToClose.add(nodeEnvironment);
-            } catch (IOException ex) {
-                throw new IllegalStateException("Failed to create node environment", ex);
-            }
-            if (nodeNameExplicitlyDefined) {
-                logger.info("node name [{}], node ID [{}]",
-                        NODE_NAME_SETTING.get(tmpSettings), nodeEnvironment.nodeId());
-            } else {
-                tmpSettings = Settings.builder()
-                        .put(tmpSettings)
-                        .put(NODE_NAME_SETTING.getKey(), nodeIdToNodeName(nodeEnvironment.nodeId()))
-                        .build();
-                logger.info("node name derived from node ID [{}]; set [{}] to override",
-                        nodeEnvironment.nodeId(), NODE_NAME_SETTING.getKey());
-            }
-
+            nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
+            resourcesToClose.add(nodeEnvironment);
+            logger.info("node name [{}], node ID [{}]",
+                    NODE_NAME_SETTING.get(tmpSettings), nodeEnvironment.nodeId());
 
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
@@ -1016,18 +982,6 @@ public abstract class Node implements Closeable {
     /** Constructs a {@link org.elasticsearch.http.HttpServerTransport} which may be mocked for tests. */
     protected HttpServerTransport newHttpTransport(NetworkModule networkModule) {
         return networkModule.getHttpServerTransportSupplier().get();
-    }
-
-    /**
-     * If the node name was derived from the node id this is called with the
-     * node name as soon as it is available so that we can register the
-     * node name with the logger. If the node name defined in elasticsearch.yml
-     * this is never called.
-     */
-    protected abstract void registerDerivedNodeNameWithLogger(String nodeName);
-
-    private String nodeIdToNodeName(String nodeId) {
-        return nodeId.substring(0, 7);
     }
 
     private static class LocalNodeFactory implements Function<BoundTransportAddress, DiscoveryNode> {

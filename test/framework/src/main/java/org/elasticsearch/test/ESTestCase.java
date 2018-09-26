@@ -934,7 +934,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                 .put(settings)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
                 .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
-        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build), nodeId -> {});
+        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 
     /** Return consistent index settings for the provided index version. */

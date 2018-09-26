@@ -36,8 +36,7 @@ public class TextTemplateEngine extends AbstractComponent {
         template = trimContentType(textTemplate);
 
         int indexStartMustacheExpression = template.indexOf("{{");
-        int indexEndMustacheExpression = template.indexOf("}}");
-        if (indexStartMustacheExpression == -1 || indexStartMustacheExpression > indexEndMustacheExpression) {
+        if (indexStartMustacheExpression == -1) {
             return template;
         }
 

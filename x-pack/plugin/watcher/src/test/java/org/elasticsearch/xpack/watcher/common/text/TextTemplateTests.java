@@ -21,6 +21,7 @@ import org.junit.Before;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
@@ -31,7 +32,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
@@ -115,10 +118,36 @@ public class TextTemplateTests extends ESTestCase {
     }
 
     public void testDontInvokeScriptServiceOnNonMustacheText() {
-        String input = rarely() ? "}}{{" : "this is my text";
+        assertNoCompilation("this is my text");
+        assertScriptServiceInvoked("}}{{");
+        assertScriptServiceInvoked("}}{{ctx.payload}}");
+    }
+
+    private void assertNoCompilation(String input) {
         String output = engine.render(new TextTemplate(input), Collections.emptyMap());
         assertThat(input, is(output));
         verifyZeroInteractions(service);
+    }
+
+    private void assertScriptServiceInvoked(final String input) {
+        ScriptService scriptService = mock(ScriptService.class);
+        TextTemplateEngine e = new TextTemplateEngine(Settings.EMPTY, scriptService);
+
+        TemplateScript.Factory compiledTemplate = templateParams ->
+            new TemplateScript(templateParams) {
+                @Override
+                public String execute() {
+                    return input.toUpperCase(Locale.ROOT);
+                }
+            };
+
+        when(scriptService.compile(new Script(ScriptType.INLINE, lang, input,
+            Collections.singletonMap("content_type", "text/plain"), Collections.emptyMap()), Watcher.SCRIPT_TEMPLATE_CONTEXT))
+            .thenReturn(compiledTemplate);
+
+        String output = e.render(new TextTemplate(input), Collections.emptyMap());
+        verify(scriptService).compile(any(), any());
+        assertThat(output, is(input.toUpperCase(Locale.ROOT)));
     }
 
     public void testParser() throws Exception {

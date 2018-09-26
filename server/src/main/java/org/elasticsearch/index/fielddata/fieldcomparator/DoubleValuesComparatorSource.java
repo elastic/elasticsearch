@@ -76,7 +76,7 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
                 } else {
                     final BitSet rootDocs = nested.rootDocs(context);
                     final DocIdSetIterator innerDocs = nested.innerDocs(context);
-                    final Integer maxChildren = nested.getNestedSort() != null ? nested.getNestedSort().getMaxChildren() : null;
+                    final int maxChildren = nested.getNestedSort() != null ? nested.getNestedSort().getMaxChildren() : Integer.MAX_VALUE;
                     selectedValues = sortMode.select(values, dMissingValue, rootDocs, innerDocs, context.reader().maxDoc(), maxChildren);
                 }
                 return selectedValues.getRawDoubleValues();

@@ -42,7 +42,7 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
 
     private final String path;
     private QueryBuilder filter;
-    private Integer maxChildren;
+    private int maxChildren = Integer.MAX_VALUE;
     private NestedSortBuilder nestedSort;
 
     public NestedSortBuilder(String path) {
@@ -64,14 +64,14 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
         return filter;
     }
 
-    public Integer getMaxChildren() { return maxChildren; }
+    public int getMaxChildren() { return maxChildren; }
 
     public NestedSortBuilder setFilter(final QueryBuilder filter) {
         this.filter = filter;
         return this;
     }
 
-    public NestedSortBuilder setMaxChildren(final Integer maxChildren) {
+    public NestedSortBuilder setMaxChildren(final int maxChildren) {
         this.maxChildren = maxChildren;
         return this;
     }
@@ -105,9 +105,9 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
         if (filter != null) {
             builder.field(FILTER_FIELD.getPreferredName(), filter);
         }
-        if (maxChildren != null) {
-            builder.field(MAX_CHILDREN_FIELD.getPreferredName(), maxChildren);
-        }
+
+        builder.field(MAX_CHILDREN_FIELD.getPreferredName(), maxChildren);
+
         if (nestedSort != null) {
             builder.field(NESTED_FIELD.getPreferredName(), nestedSort);
         }
@@ -118,7 +118,7 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
     public static NestedSortBuilder fromXContent(XContentParser parser) throws IOException {
         String path = null;
         QueryBuilder filter = null;
-        Integer maxChildren = null;
+        int maxChildren = Integer.MAX_VALUE;
         NestedSortBuilder nestedSort = null;
 
         XContentParser.Token token = parser.currentToken();

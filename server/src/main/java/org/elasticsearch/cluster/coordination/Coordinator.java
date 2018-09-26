@@ -111,7 +111,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.peerFinder = new CoordinatorPeerFinder(settings, transportService,
             new HandshakingTransportAddressConnector(settings, transportService), configuredHostsResolver);
         this.publicationHandler = new PublicationTransportHandler(transportService, this::handlePublishRequest, this::handleApplyCommit);
-        this.leaderChecker = new LeaderChecker(settings, transportService, new Runnable() {
+        this.leaderChecker = new LeaderChecker(settings, transportService, getOnLeaderFailure());
+
+        masterService.setClusterStateSupplier(this::getStateForMasterService);
+    }
+
+    private Runnable getOnLeaderFailure() {
+        return new Runnable() {
             @Override
             public void run() {
                 synchronized (mutex) {
@@ -123,9 +129,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             public String toString() {
                 return "notification of leader failure";
             }
-        });
-
-        masterService.setClusterStateSupplier(this::getStateForMasterService);
+        };
     }
 
     private void handleApplyCommit(ApplyCommitRequest applyCommitRequest) {

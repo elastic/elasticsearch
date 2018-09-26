@@ -119,14 +119,14 @@ public class TextLogFileStructureFinderTests extends FileStructureTestCase {
             assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
         assertNull(structure.getExcludeLinesPattern());
-        assertEquals("^\\[\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", structure.getMultilineStartPattern());
+        assertEquals("^\\[\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2},\\d{3}", structure.getMultilineStartPattern());
         assertNull(structure.getDelimiter());
         assertNull(structure.getQuote());
         assertNull(structure.getHasHeaderRow());
         assertNull(structure.getShouldTrimFields());
         assertEquals("\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} \\]\\[.*", structure.getGrokPattern());
         assertEquals("timestamp", structure.getTimestampField());
-        assertEquals(Collections.singletonList("ISO8601"), structure.getTimestampFormats());
+        assertEquals(Collections.singletonList("ISO8601"), structure.getJodaTimestampFormats());
     }
 
     public void testCreateConfigsGivenElasticsearchLogAndTimestampFieldOverride() throws Exception {
@@ -149,14 +149,14 @@ public class TextLogFileStructureFinderTests extends FileStructureTestCase {
             assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
         assertNull(structure.getExcludeLinesPattern());
-        assertEquals("^\\[\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", structure.getMultilineStartPattern());
+        assertEquals("^\\[\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2},\\d{3}", structure.getMultilineStartPattern());
         assertNull(structure.getDelimiter());
         assertNull(structure.getQuote());
         assertNull(structure.getHasHeaderRow());
         assertNull(structure.getShouldTrimFields());
         assertEquals("\\[%{TIMESTAMP_ISO8601:my_time}\\]\\[%{LOGLEVEL:loglevel} \\]\\[.*", structure.getGrokPattern());
         assertEquals("my_time", structure.getTimestampField());
-        assertEquals(Collections.singletonList("ISO8601"), structure.getTimestampFormats());
+        assertEquals(Collections.singletonList("ISO8601"), structure.getJodaTimestampFormats());
     }
 
     public void testCreateConfigsGivenElasticsearchLogAndGrokPatternOverride() throws Exception {
@@ -180,7 +180,7 @@ public class TextLogFileStructureFinderTests extends FileStructureTestCase {
             assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
         assertNull(structure.getExcludeLinesPattern());
-        assertEquals("^\\[\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", structure.getMultilineStartPattern());
+        assertEquals("^\\[\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2},\\d{3}", structure.getMultilineStartPattern());
         assertNull(structure.getDelimiter());
         assertNull(structure.getQuote());
         assertNull(structure.getHasHeaderRow());
@@ -188,7 +188,7 @@ public class TextLogFileStructureFinderTests extends FileStructureTestCase {
         assertEquals("\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} *\\]" +
             "\\[%{JAVACLASS:class} *\\] \\[%{HOSTNAME:node}\\] %{JAVALOGMESSAGE:message}", structure.getGrokPattern());
         assertEquals("timestamp", structure.getTimestampField());
-        assertEquals(Collections.singletonList("ISO8601"), structure.getTimestampFormats());
+        assertEquals(Collections.singletonList("ISO8601"), structure.getJodaTimestampFormats());
     }
 
     public void testCreateConfigsGivenElasticsearchLogAndImpossibleGrokPatternOverride() {
@@ -312,8 +312,8 @@ public class TextLogFileStructureFinderTests extends FileStructureTestCase {
         Tuple<TimestampMatch, Set<String>> mostLikelyMatch =
             TextLogFileStructureFinder.mostLikelyTimestamp(sample.split("\n"), FileStructureOverrides.EMPTY_OVERRIDES);
         assertNotNull(mostLikelyMatch);
-        assertEquals(new TimestampMatch(7, "", "ISO8601", "\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", "TIMESTAMP_ISO8601", ""),
-            mostLikelyMatch.v1());
+        assertEquals(new TimestampMatch(9, "", "ISO8601", "yyyy-MM-dd'T'HH:mm:ss,SSS",
+            "\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2},\\d{3}", "TIMESTAMP_ISO8601", ""), mostLikelyMatch.v1());
     }
 
     public void testMostLikelyTimestampGivenExceptionTrace() {
@@ -325,8 +325,8 @@ public class TextLogFileStructureFinderTests extends FileStructureTestCase {
         // Even though many lines have a timestamp near the end (in the Lucene version information),
         // these are so far along the lines that the weight of the timestamp near the beginning of the
         // first line should take precedence
-        assertEquals(new TimestampMatch(7, "", "ISO8601", "\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", "TIMESTAMP_ISO8601", ""),
-            mostLikelyMatch.v1());
+        assertEquals(new TimestampMatch(9, "", "ISO8601", "yyyy-MM-dd'T'HH:mm:ss,SSS",
+            "\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2},\\d{3}", "TIMESTAMP_ISO8601", ""), mostLikelyMatch.v1());
     }
 
     public void testMostLikelyTimestampGivenExceptionTraceAndTimestampFormatOverride() {
@@ -338,8 +338,8 @@ public class TextLogFileStructureFinderTests extends FileStructureTestCase {
         assertNotNull(mostLikelyMatch);
 
         // The override should force the seemingly inferior choice of timestamp
-        assertEquals(new TimestampMatch(6, "", "YYYY-MM-dd HH:mm:ss", "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}", "TIMESTAMP_ISO8601",
-                ""), mostLikelyMatch.v1());
+        assertEquals(new TimestampMatch(6, "", "YYYY-MM-dd HH:mm:ss", "yyyy-MM-dd HH:mm:ss", "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}",
+            "TIMESTAMP_ISO8601", ""), mostLikelyMatch.v1());
     }
 
     public void testMostLikelyTimestampGivenExceptionTraceAndImpossibleTimestampFormatOverride() {

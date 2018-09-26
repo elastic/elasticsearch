@@ -12,13 +12,17 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterMergePolicy;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.RandomIndexWriter;
@@ -34,10 +38,12 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class SourceOnlySnapshotTests extends ESTestCase {
@@ -89,7 +95,9 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                     try (DirectoryReader snapReader = snapshoter.wrapReader(DirectoryReader.open(targetDir));
                          DirectoryReader wrappedReader = snapshoter.wrapReader(DirectoryReader.open(snapshot))) {
                          DirectoryReader reader = modifyDeletedDocs
-                             ? new SoftDeletesDirectoryReaderWrapper(wrappedReader, softDeletesField) : wrappedReader;
+                             ? new SoftDeletesDirectoryReaderWrapper(wrappedReader, softDeletesField) :
+                             new DropFullDeletedSegmentsReader(wrappedReader);
+                         logger.warn(snapReader + " " + reader);
                         assertEquals(snapReader.maxDoc(), reader.maxDoc());
                         assertEquals(snapReader.numDocs(), reader.numDocs());
                         for (int i = 0; i < snapReader.maxDoc(); i++) {
@@ -242,4 +250,90 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             reader.close();
         }
     }
+
+    public void testFullyDeletedSegments() throws IOException {
+        try (Directory dir = newDirectory()) {
+            SnapshotDeletionPolicy deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
+            IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig()
+                .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+                .setIndexDeletionPolicy(deletionPolicy).setMergePolicy(new FilterMergePolicy(NoMergePolicy.INSTANCE) {
+                    @Override
+                    public boolean useCompoundFile(SegmentInfos infos, SegmentCommitInfo mergedInfo, MergeContext mergeContext) {
+                        return randomBoolean();
+                    }
+
+                    @Override
+                    public boolean keepFullyDeletedSegment(IOSupplier<CodecReader> readerIOSupplier) throws IOException {
+                        return true;
+                    }
+                }));
+            Document doc = new Document();
+            doc.add(new StringField("id", "1", Field.Store.YES));
+            doc.add(new TextField("text", "the quick brown fox", Field.Store.NO));
+            doc.add(new NumericDocValuesField("rank", 1));
+            doc.add(new StoredField("rank", 1));
+            doc.add(new StoredField("src", "the quick brown fox"));
+            writer.addDocument(doc);
+            writer.commit();
+            doc = new Document();
+            doc.add(new StringField("id", "1", Field.Store.YES));
+            doc.add(new TextField("text", "the quick brown fox", Field.Store.NO));
+            doc.add(new NumericDocValuesField("rank", 3));
+            doc.add(new StoredField("rank", 3));
+            doc.add(new StoredField("src", "the quick brown fox"));
+            writer.softUpdateDocument(new Term("id", "1"), doc, new NumericDocValuesField(Lucene.SOFT_DELETES_FIELD, 1));
+            writer.commit();
+            try (Directory targetDir = newDirectory()) {
+                IndexCommit snapshot = deletionPolicy.snapshot();
+                SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(targetDir);
+                snapshoter.syncSnapshot(snapshot);
+
+                try (DirectoryReader snapReader = DirectoryReader.open(targetDir)) {
+                    assertEquals(snapReader.maxDoc(), 1);
+                    assertEquals(snapReader.numDocs(), 1);
+                    assertEquals("3", snapReader.document(0).getField("rank").stringValue());
+                }
+                try (IndexReader writerReader = DirectoryReader.open(writer)) {
+                    assertEquals(writerReader.maxDoc(), 2);
+                    assertEquals(writerReader.numDocs(), 1);
+                }
+            }
+            writer.close();
+        }
+    }
+
+    static class DropFullDeletedSegmentsReader extends FilterDirectoryReader {
+        DropFullDeletedSegmentsReader(DirectoryReader in) throws IOException {
+            super(in, new SubReaderWrapper() {
+                @Override
+                protected LeafReader[] wrap(List<? extends LeafReader> readers) {
+                    List<LeafReader> wrapped = new ArrayList<>(readers.size());
+                    for (LeafReader reader : readers) {
+                        LeafReader wrap = wrap(reader);
+                        assert wrap != null;
+                        if (wrap.numDocs() != 0) {
+                            wrapped.add(wrap);
+                        }
+                    }
+                    return wrapped.toArray(new LeafReader[0]);
+                }
+
+                @Override
+                public LeafReader wrap(LeafReader reader) {
+                    return reader;
+                }
+            });
+        }
+
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            return new DropFullDeletedSegmentsReader(in);
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
+        }
+    }
+
 }

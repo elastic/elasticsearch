@@ -33,7 +33,8 @@ public class JsonFileStructureFinder implements FileStructureFinder {
     private final FileStructure structure;
 
     static JsonFileStructureFinder makeJsonFileStructureFinder(List<String> explanation, String sample, String charsetName,
-                                                               Boolean hasByteOrderMarker) throws IOException {
+                                                               Boolean hasByteOrderMarker, FileStructureOverrides overrides)
+        throws IOException {
 
         List<Map<String, ?>> sampleRecords = new ArrayList<>();
 
@@ -51,10 +52,11 @@ public class JsonFileStructureFinder implements FileStructureFinder {
             .setNumLinesAnalyzed(sampleMessages.size())
             .setNumMessagesAnalyzed(sampleRecords.size());
 
-        Tuple<String, TimestampMatch> timeField = FileStructureUtils.guessTimestampField(explanation, sampleRecords);
+        Tuple<String, TimestampMatch> timeField = FileStructureUtils.guessTimestampField(explanation, sampleRecords, overrides);
         if (timeField != null) {
             structureBuilder.setTimestampField(timeField.v1())
-                .setTimestampFormats(timeField.v2().dateFormats)
+                .setJodaTimestampFormats(timeField.v2().jodaTimestampFormats)
+                .setJavaTimestampFormats(timeField.v2().javaTimestampFormats)
                 .setNeedClientTimezone(timeField.v2().hasTimezoneDependentParsing());
         }
 
@@ -62,7 +64,10 @@ public class JsonFileStructureFinder implements FileStructureFinder {
             FileStructureUtils.guessMappingsAndCalculateFieldStats(explanation, sampleRecords);
 
         SortedMap<String, Object> mappings = mappingsAndFieldStats.v1();
-        mappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"));
+        if (timeField != null) {
+            mappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD,
+                Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"));
+        }
 
         if (mappingsAndFieldStats.v2() != null) {
             structureBuilder.setFieldStats(mappingsAndFieldStats.v2());

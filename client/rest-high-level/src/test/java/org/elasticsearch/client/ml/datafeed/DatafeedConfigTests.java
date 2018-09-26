@@ -44,6 +44,10 @@ public class DatafeedConfigTests extends AbstractXContentTestCase<DatafeedConfig
     }
 
     public static DatafeedConfig createRandom() {
+        return createRandomBuilder().build();
+    }
+
+    public static DatafeedConfig.Builder createRandomBuilder() {
         long bucketSpanMillis = 3600000;
         DatafeedConfig.Builder builder = constructBuilder();
         builder.setIndices(randomStringList(1, 10));
@@ -99,7 +103,7 @@ public class DatafeedConfigTests extends AbstractXContentTestCase<DatafeedConfig
         if (randomBoolean()) {
             builder.setChunkingConfig(ChunkingConfigTests.createRandomizedChunk());
         }
-        return builder.build();
+        return builder;
     }
 
     public static List<String> randomStringList(int min, int max) {

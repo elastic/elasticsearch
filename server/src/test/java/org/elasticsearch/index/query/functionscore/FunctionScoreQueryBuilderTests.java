@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -283,6 +284,13 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         FunctionScoreQueryBuilder builder = new FunctionScoreQueryBuilder(matchAllQuery());
         expectThrows(IllegalArgumentException.class, () -> builder.scoreMode(null));
         expectThrows(IllegalArgumentException.class, () -> builder.boostMode(null));
+    }
+
+    public void testDeprecatedArgumanets() {
+        float weight = -1 * randomFloat();
+        new FunctionScoreQueryBuilder.FilterFunctionBuilder(new WeightBuilder().setWeight(weight));
+        assertWarnings("Setting a negative [weight] in Function Score Query is deprecated "
+            + "and will throw an error in the next major version");
     }
 
     public void testParseFunctionsArray() throws IOException {

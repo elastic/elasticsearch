@@ -20,15 +20,15 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
-import org.elasticsearch.index.fielddata.ScriptDocValues.Dates;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Booleans;
+import org.elasticsearch.index.fielddata.ScriptDocValues.Dates;
+import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.test.ESTestCase;
 
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableDateTime;
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -57,7 +57,7 @@ public class ScriptDocValuesMissingV6BehaviourTests extends ESTestCase {
     }
 
     public void testEpochForMissingValueDate() throws IOException {
-        final ReadableDateTime EPOCH = new DateTime(0, DateTimeZone.UTC);
+        final JodaCompatibleZonedDateTime EPOCH = new JodaCompatibleZonedDateTime(Instant.EPOCH, ZoneOffset.UTC);
         long[][] values = new long[between(3, 10)][];
         for (int d = 0; d < values.length; d++) {
             values[d] = new long[0];

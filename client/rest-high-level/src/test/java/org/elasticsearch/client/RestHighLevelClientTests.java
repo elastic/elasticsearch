@@ -20,8 +20,8 @@
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
-import org.apache.http.Header;
 
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -36,7 +36,6 @@ import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.entity.NStringEntity;
-
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -676,7 +675,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             "indices.get_upgrade",
             "indices.put_alias",
             "mtermvectors",
-            "reindex_rethrottle",
             "render_search_template",
             "scripts_painless_execute",
             "tasks.get",
@@ -774,6 +772,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                         if (apiName.startsWith("xpack.") == false &&
                             apiName.startsWith("license.") == false &&
                             apiName.startsWith("machine_learning.") == false &&
+                            apiName.startsWith("rollup.") == false &&
                             apiName.startsWith("watcher.") == false &&
                             apiName.startsWith("graph.") == false &&
                             apiName.startsWith("migration.") == false &&

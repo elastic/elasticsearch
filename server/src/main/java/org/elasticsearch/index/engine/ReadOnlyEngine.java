@@ -34,6 +34,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -63,6 +64,7 @@ public final class ReadOnlyEngine extends Engine {
     private final SearcherManager searcherManager;
     private final IndexCommit indexCommit;
     private final Lock indexWriterLock;
+    private final DocsStats docsStats;
 
     /**
      * Creates a new ReadOnlyEngine. This ctor can also be used to open a read-only engine on top of an already opened
@@ -101,6 +103,7 @@ public final class ReadOnlyEngine extends Engine {
                 this.indexCommit = reader.getIndexCommit();
                 this.searcherManager = new SearcherManager(reader,
                     new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService()));
+                this.docsStats = docsStats(reader);
                 this.indexWriterLock = indexWriterLock;
                 success = true;
             } finally {
@@ -341,7 +344,8 @@ public final class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void restoreLocalCheckpointFromTranslog() {
+    public int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) {
+        return 0;
     }
 
     @Override
@@ -364,5 +368,15 @@ public final class ReadOnlyEngine extends Engine {
 
     @Override
     public void maybePruneDeletes() {
+    }
+
+    @Override
+    public DocsStats docStats() {
+        return docsStats;
+    }
+
+    @Override
+    public void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {
+
     }
 }

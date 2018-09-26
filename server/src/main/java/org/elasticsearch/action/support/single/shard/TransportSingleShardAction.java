@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,6 +39,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -62,8 +64,8 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
     protected final TransportService transportService;
 
-    final String transportShardAction;
-    final String executor;
+    private final String transportShardAction;
+    private final String executor;
 
     protected TransportSingleShardAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService,
                                          TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
@@ -78,7 +80,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         if (!isSubAction()) {
             transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, new TransportHandler());
         }
-        transportService.registerRequestHandler(transportShardAction, request, executor, new ShardTransportHandler());
+        transportService.registerRequestHandler(transportShardAction, request, ThreadPool.Names.SAME, new ShardTransportHandler());
     }
 
     /**
@@ -96,6 +98,21 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     }
 
     protected abstract Response shardOperation(Request request, ShardId shardId) throws IOException;
+
+
+    protected void asyncShardOperation(Request request, ShardId shardId, ActionListener<Response> listener) throws IOException {
+        threadPool.executor(getExecutor(request, shardId)).execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                listener.onResponse(shardOperation(request, shardId));
+            }
+        });
+    }
 
     protected abstract Response newResponse();
 
@@ -255,25 +272,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         @Override
         public void messageReceived(Request request, final TransportChannel channel) throws Exception {
             // if we have a local operation, execute it on a thread since we don't spawn
-            execute(request, new ActionListener<Response>() {
-                @Override
-                public void onResponse(Response result) {
-                    try {
-                        channel.sendResponse(result);
-                    } catch (Exception e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("failed to send response for get", e1);
-                    }
-                }
-            });
+            execute(request, new HandledTransportAction.ChannelActionListener<>(channel, actionName, request));
         }
     }
 
@@ -284,11 +283,10 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
             if (logger.isTraceEnabled()) {
                 logger.trace("executing [{}] on shard [{}]", request, request.internalShardId);
             }
-            Response response = shardOperation(request, request.internalShardId);
-            channel.sendResponse(response);
+            asyncShardOperation(request, request.internalShardId, new HandledTransportAction.ChannelActionListener<>(channel,
+                transportShardAction, request));
         }
     }
-
     /**
      * Internal request class that gets built on each node. Holds the original request plus additional info.
      */
@@ -308,5 +306,9 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         public String concreteIndex() {
             return concreteIndex;
         }
+    }
+
+    protected String getExecutor(Request request, ShardId shardId) {
+        return executor;
     }
 }

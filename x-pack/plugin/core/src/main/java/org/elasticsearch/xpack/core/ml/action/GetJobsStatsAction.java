@@ -206,7 +206,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
             public ModelSizeStats getModelSizeStats() {
                 return modelSizeStats;
             }
-            
+
             public ForecastStats getForecastStats() {
                 return forecastStats;
             }
@@ -246,7 +246,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 if (forecastStats != null) {
                     builder.field(FORECASTS_STATS, forecastStats);
                 }
-                
+
                 builder.field(STATE, state.toString());
                 if (node != null) {
                     builder.startObject(NODE);
@@ -345,7 +345,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();;
+            builder.startObject();
             jobsStats.doXContentBody(builder, params);
             builder.endObject();
             return builder;

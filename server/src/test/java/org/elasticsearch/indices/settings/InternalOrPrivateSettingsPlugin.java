@@ -69,14 +69,14 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
             UpdateInternalOrPrivateAction.Response,
             UpdateInternalOrPrivateAction.RequestBuilder> {
 
-        static final UpdateInternalOrPrivateAction INSTANCE = new UpdateInternalOrPrivateAction();
+        public static final UpdateInternalOrPrivateAction INSTANCE = new UpdateInternalOrPrivateAction();
         private static final String NAME = "indices:admin/settings/update-internal-or-private-index";
 
         public UpdateInternalOrPrivateAction() {
             super(NAME);
         }
 
-        static class Request extends MasterNodeRequest<Request> {
+        public static class Request extends MasterNodeRequest<Request> {
 
             private String index;
             private String key;
@@ -86,7 +86,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
 
             }
 
-            Request(final String index, final String key, final String value) {
+            public Request(final String index, final String key, final String value) {
                 this.index = index;
                 this.key = key;
                 this.value = value;

@@ -166,5 +166,10 @@ POST _xpack/security/role_mapping/kerbrolemapping
 // CONSOLE
 
 For more information, see {stack-ov}/mapping-roles.html[Mapping users and groups to roles].
+
+NOTE: The Kerberos realm supports
+{stack-ov}/realm-chains.html#authorization_realms[authorization realms] as an
+alternative to role mapping.
+
 --
 

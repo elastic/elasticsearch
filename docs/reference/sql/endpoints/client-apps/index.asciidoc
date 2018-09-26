@@ -3,7 +3,7 @@
 [[sql-client-apps]]
 == SQL Client Applications
 
-Thanks to its <<sql-jdbc, JDBC>> interface, {es-sql} supports a broad range of applications.
+Thanks to its <<sql-jdbc, JDBC>> interface, a broad range of third-party applications can use {es}'s SQL capabilities.
 This section lists, in alphabetical order, a number of them and their respective configuration - the list however is by no means comprehensive (feel free to https://www.elastic.co/blog/art-of-pull-request[submit a PR] to improve it):
 as long as the app can use the {es-sql} driver, it can use {es-sql}.
 

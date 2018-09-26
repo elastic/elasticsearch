@@ -102,8 +102,8 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
     public void testAuthenticateWithValidTicketSucessAuthnWithUserDetailsWhenCacheDisabled()
             throws LoginException, GSSException, IOException {
         // if cache.ttl <= 0 then the cache is disabled
-        settings = KerberosTestCase.buildKerberosRealmSettings(
-                KerberosTestCase.writeKeyTab(dir.resolve("key.keytab"), randomAlphaOfLength(4)).toString(), 100, "0m", true,
+        settings = buildKerberosRealmSettings(
+                writeKeyTab(dir.resolve("key.keytab"), randomAlphaOfLength(4)).toString(), 100, "0m", true,
                 randomBoolean());
         final String username = randomPrincipalName();
         final String outToken = randomAlphaOfLength(10);

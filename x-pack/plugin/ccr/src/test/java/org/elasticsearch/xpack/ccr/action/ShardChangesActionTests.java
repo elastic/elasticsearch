@@ -24,12 +24,15 @@ import org.mockito.Mockito;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ShardChangesActionTests extends ESSingleNodeTestCase {
@@ -46,7 +49,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
                 .build();
         final IndexService indexService = createIndex("index", settings);
 
-        final int numWrites = randomIntBetween(2, 4096);
+        final int numWrites = randomIntBetween(10, 4096);
         for (int i = 0; i < numWrites; i++) {
             client().prepareIndex("index", "doc", Integer.toString(i)).setSource("{}", XContentType.JSON).get();
         }
@@ -65,13 +68,27 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
             assertThat(seenSeqNos, equalTo(expectedSeqNos));
         }
 
-        // get operations for a range no operations exists:
-        Translog.Operation[] operations =  ShardChangesAction.getOperations(indexShard, indexShard.getGlobalCheckpoint(),
-            numWrites, numWrites + 1, indexShard.getHistoryUUID(), Long.MAX_VALUE);
-        assertThat(operations.length, equalTo(0));
+        {
+            // get operations for a range for which no operations exist
+            final IllegalStateException e = expectThrows(
+                    IllegalStateException.class,
+                    () -> ShardChangesAction.getOperations(
+                            indexShard,
+                            indexShard.getGlobalCheckpoint(),
+                            numWrites,
+                            numWrites + 1,
+                            indexShard.getHistoryUUID(),
+                            Long.MAX_VALUE));
+            final String message = String.format(
+                    Locale.ROOT,
+                    "not exposing operations from [%d] greater than the global checkpoint [%d]",
+                    numWrites,
+                    indexShard.getGlobalCheckpoint());
+            assertThat(e, hasToString(containsString(message)));
+        }
 
         // get operations for a range some operations do not exist:
-        operations = ShardChangesAction.getOperations(indexShard, indexShard.getGlobalCheckpoint(),
+        Translog.Operation[] operations = ShardChangesAction.getOperations(indexShard, indexShard.getGlobalCheckpoint(),
             numWrites  - 10, numWrites + 10, indexShard.getHistoryUUID(), Long.MAX_VALUE);
         assertThat(operations.length, equalTo(10));
 
@@ -80,6 +97,17 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
             indexShard.getGlobalCheckpoint(), 0, 10, "different-history-uuid", Long.MAX_VALUE));
         assertThat(e.getMessage(), equalTo("unexpected history uuid, expected [different-history-uuid], actual [" +
                 indexShard.getHistoryUUID() + "]"));
+
+        // invalid range
+        {
+            final long fromSeqNo = randomLongBetween(Long.MIN_VALUE, -1);
+            final int batchSize = randomIntBetween(0, Integer.MAX_VALUE);
+            final IllegalArgumentException invalidRangeError = expectThrows(IllegalArgumentException.class,
+                () -> ShardChangesAction.getOperations(indexShard, indexShard.getGlobalCheckpoint(),
+                    fromSeqNo, batchSize, indexShard.getHistoryUUID(), Long.MAX_VALUE));
+            assertThat(invalidRangeError.getMessage(),
+                equalTo("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + (fromSeqNo + batchSize - 1) + "]"));
+        }
     }
 
     public void testGetOperationsWhenShardNotStarted() throws Exception {

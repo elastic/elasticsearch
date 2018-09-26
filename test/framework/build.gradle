@@ -65,6 +65,7 @@ thirdPartyAudit.excludes = [
 
 task namingConventionsMain(type: org.elasticsearch.gradle.precommit.NamingConventionsTask) {
   checkForTestsInMain = true
+  javaHome = project.runtimeJavaHome
 }
 precommit.dependsOn namingConventionsMain
 

@@ -19,6 +19,7 @@
 package org.elasticsearch.indices;
 
 import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -448,8 +449,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .build();
         MapperService mapperService = indicesService.createIndexMapperService(indexMetaData);
         assertNotNull(mapperService.documentMapperParser().parserContext("type").typeParser("fake-mapper"));
-        assertThat(mapperService.documentMapperParser().parserContext("type").getSimilarity("test").get(),
-            instanceOf(BM25Similarity.class));
+        Similarity sim = mapperService.documentMapperParser().parserContext("type").getSimilarity("test").get();
+        assertThat(sim, instanceOf(BM25Similarity.class));
     }
 
     public void testStatsByShardDoesNotDieFromExpectedExceptions() {

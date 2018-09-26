@@ -138,7 +138,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
         public static final ParseField IGNORE_DOWNTIME = new ParseField("ignore_downtime");
 
         public static final ParseField TIMEOUT = new ParseField("timeout");
-        public static ObjectParser<JobParams, Void> PARSER = new ObjectParser<>(TASK_NAME, JobParams::new);
+        public static ObjectParser<JobParams, Void> PARSER = new ObjectParser<>(TASK_NAME, true, JobParams::new);
 
         static {
             PARSER.declareString(JobParams::setJobId, Job.ID);

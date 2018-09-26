@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authc.ldap;
 import com.unboundid.ldap.sdk.LDAPException;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -16,10 +15,13 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
@@ -31,6 +33,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapLoadBalancing;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
+import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper.UserData;
 import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
@@ -53,7 +56,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
     private final UserRoleMapper roleMapper;
     private final ThreadPool threadPool;
     private final TimeValue executionTimeout;
-
+    private DelegatedAuthorizationSupport delegatedRealms;
 
     public LdapRealm(String type, RealmConfig config, SSLService sslService,
                      ResourceWatcherService watcherService,
@@ -118,6 +121,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
      */
     @Override
     protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
+        assert delegatedRealms != null : "Realm has not been initialized correctly";
         // we submit to the threadpool because authentication using LDAP will execute blocking I/O for a bind request and we don't want
         // network threads stuck waiting for a socket to connect. After the bind, then all interaction with LDAP should be async
         final CancellableLdapRunnable<AuthenticationResult> cancellableLdapRunnable = new CancellableLdapRunnable<>(listener,
@@ -160,6 +164,14 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
     }
 
     @Override
+    public void initialize(Iterable<Realm> realms, XPackLicenseState licenseState) {
+        if (delegatedRealms != null) {
+            throw new IllegalStateException("Realm has already been initialized");
+        }
+        delegatedRealms = new DelegatedAuthorizationSupport(realms, config, licenseState);
+    }
+
+    @Override
     public void usageStats(ActionListener<Map<String, Object>> listener) {
         super.usageStats(ActionListener.wrap(usage -> {
             usage.put("size", getCacheSize());
@@ -171,39 +183,56 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
     }
 
     private static void buildUser(LdapSession session, String username, ActionListener<AuthenticationResult> listener,
-                                  UserRoleMapper roleMapper) {
+                                  UserRoleMapper roleMapper, DelegatedAuthorizationSupport delegatedAuthz) {
+        assert delegatedAuthz != null : "DelegatedAuthorizationSupport is null";
         if (session == null) {
             listener.onResponse(AuthenticationResult.notHandled());
+        } else if (delegatedAuthz.hasDelegation()) {
+            delegatedAuthz.resolve(username, listener);
         } else {
-            boolean loadingGroups = false;
-            try {
-                final Consumer<Exception> onFailure = e -> {
-                    IOUtils.closeWhileHandlingException(session);
-                    listener.onFailure(e);
-                };
-                session.resolve(ActionListener.wrap((ldapData) -> {
-                    final Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder()
-                            .put("ldap_dn", session.userDn())
-                            .put("ldap_groups", ldapData.groups)
-                            .putAll(ldapData.metaData)
-                            .map();
-                    final UserData user = new UserData(username, session.userDn(), ldapData.groups,
-                            metadata, session.realm());
-                    roleMapper.resolveRoles(user, ActionListener.wrap(
-                            roles -> {
-                                IOUtils.close(session);
-                                String[] rolesArray = roles.toArray(new String[roles.size()]);
-                                listener.onResponse(AuthenticationResult.success(
-                                        new User(username, rolesArray, null, null, metadata, true))
-                                );
-                            }, onFailure
-                    ));
-                }, onFailure));
-                loadingGroups = true;
-            } finally {
-                if (loadingGroups == false) {
-                    session.close();
-                }
+            lookupUserFromSession(username, session, roleMapper, listener);
+        }
+    }
+
+    @Override
+    protected void handleCachedAuthentication(User user, ActionListener<AuthenticationResult> listener) {
+        if (delegatedRealms.hasDelegation()) {
+            delegatedRealms.resolve(user.principal(), listener);
+        } else {
+            super.handleCachedAuthentication(user, listener);
+        }
+    }
+
+    private static void lookupUserFromSession(String username, LdapSession session, UserRoleMapper roleMapper,
+                                              ActionListener<AuthenticationResult> listener) {
+        boolean loadingGroups = false;
+        try {
+            final Consumer<Exception> onFailure = e -> {
+                IOUtils.closeWhileHandlingException(session);
+                listener.onFailure(e);
+            };
+            session.resolve(ActionListener.wrap((ldapData) -> {
+                final Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder()
+                    .put("ldap_dn", session.userDn())
+                    .put("ldap_groups", ldapData.groups)
+                    .putAll(ldapData.metaData)
+                    .map();
+                final UserData user = new UserData(username, session.userDn(), ldapData.groups,
+                    metadata, session.realm());
+                roleMapper.resolveRoles(user, ActionListener.wrap(
+                    roles -> {
+                        IOUtils.close(session);
+                        String[] rolesArray = roles.toArray(new String[roles.size()]);
+                        listener.onResponse(AuthenticationResult.success(
+                            new User(username, rolesArray, null, null, metadata, true))
+                        );
+                    }, onFailure
+                ));
+            }, onFailure));
+            loadingGroups = true;
+        } finally {
+            if (loadingGroups == false) {
+                session.close();
             }
         }
     }
@@ -233,7 +262,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
                 resultListener.onResponse(AuthenticationResult.notHandled());
             } else {
                 ldapSessionAtomicReference.set(session);
-                buildUser(session, username, resultListener, roleMapper);
+                buildUser(session, username, resultListener, roleMapper, delegatedRealms);
             }
         }
 

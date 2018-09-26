@@ -1203,7 +1203,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(1, fieldResponse.size());
 
         FieldCapabilities expectedTextCapabilities = new FieldCapabilities(
-            "field", "text", true, false);
+            "field", "text", true, false, new String[]{"index1", "index2"}, null, null);
         assertEquals(expectedTextCapabilities, fieldResponse.get("text"));
     }
 

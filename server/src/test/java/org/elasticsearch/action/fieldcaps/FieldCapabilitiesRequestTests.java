@@ -50,6 +50,7 @@ public class FieldCapabilitiesRequestTests extends AbstractStreamableTestCase<Fi
         if (randomBoolean()) {
             request.indicesOptions(randomBoolean() ? IndicesOptions.strictExpand() : IndicesOptions.lenientExpandOpen());
         }
+        request.includeUnmapped(randomBoolean());
         return request;
     }
 
@@ -75,6 +76,7 @@ public class FieldCapabilitiesRequestTests extends AbstractStreamableTestCase<Fi
             request.indicesOptions(indicesOptions);
         });
         mutators.add(request -> request.setMergeResults(!request.isMergeResults()));
+        mutators.add(request -> request.includeUnmapped(!request.includeUnmapped()));
 
         FieldCapabilitiesRequest mutatedInstance = copyInstance(instance);
         Consumer<FieldCapabilitiesRequest> mutator = randomFrom(mutators);

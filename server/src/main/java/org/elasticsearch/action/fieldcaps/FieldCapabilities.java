@@ -20,6 +20,7 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -34,6 +35,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Describes the capabilities of a field optionally merged across multiple indices.
@@ -214,28 +217,28 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-
         FieldCapabilities that = (FieldCapabilities) o;
-
-        if (isSearchable != that.isSearchable) return false;
-        if (isAggregatable != that.isAggregatable) return false;
-        if (!name.equals(that.name)) return false;
-        if (!type.equals(that.type)) return false;
-        if (!Arrays.equals(indices, that.indices)) return false;
-        if (!Arrays.equals(nonSearchableIndices, that.nonSearchableIndices)) return false;
-        return Arrays.equals(nonAggregatableIndices, that.nonAggregatableIndices);
+        return isSearchable == that.isSearchable &&
+            isAggregatable == that.isAggregatable &&
+            Objects.equals(name, that.name) &&
+            Objects.equals(type, that.type) &&
+            Arrays.equals(indices, that.indices) &&
+            Arrays.equals(nonSearchableIndices, that.nonSearchableIndices) &&
+            Arrays.equals(nonAggregatableIndices, that.nonAggregatableIndices);
     }
 
     @Override
     public int hashCode() {
-        int result = name.hashCode();
-        result = 31 * result + type.hashCode();
-        result = 31 * result + (isSearchable ? 1 : 0);
-        result = 31 * result + (isAggregatable ? 1 : 0);
+        int result = Objects.hash(name, type, isSearchable, isAggregatable);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(nonSearchableIndices);
         result = 31 * result + Arrays.hashCode(nonAggregatableIndices);
         return result;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     static class Builder {
@@ -258,6 +261,10 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             indiceList.add(indexCaps);
             this.isSearchable &= search;
             this.isAggregatable &= agg;
+        }
+
+        List<String> getIndices() {
+            return indiceList.stream().map(c -> c.name).collect(Collectors.toList());
         }
 
         FieldCapabilities build(boolean withIndices) {

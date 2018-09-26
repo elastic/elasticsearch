@@ -80,7 +80,6 @@ class ScriptedMetricAggregator extends MetricsAggregator {
 
                 leafMapScript.setDocument(doc);
                 leafMapScript.execute();
-                CollectionUtils.ensureNoSelfReferences(aggState, "Scripted metric aggs map script");
             }
         };
     }
@@ -103,4 +102,14 @@ class ScriptedMetricAggregator extends MetricsAggregator {
         return new InternalScriptedMetric(name, null, reduceScript, pipelineAggregators(), metaData());
     }
 
+    @Override
+    protected void doPostCollection() throws IOException {
+        ensureNoSelfReferencesInAggState();
+
+        super.doPostCollection();
+    }
+
+    void ensureNoSelfReferencesInAggState() {
+        CollectionUtils.ensureNoSelfReferences(aggState, "Scripted metric aggs map script");
+    }
 }

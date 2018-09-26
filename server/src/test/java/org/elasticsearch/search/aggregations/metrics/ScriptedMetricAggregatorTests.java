@@ -23,9 +23,13 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.MockScriptEngine;
@@ -34,9 +38,11 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.ScriptedMetric;
-import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.junit.After;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -48,6 +54,8 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static java.util.Collections.singleton;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
 
@@ -80,6 +88,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             Collections.emptyMap());
 
     private static final Map<String, Function<Map<String, Object>, Object>> SCRIPTS = new HashMap<>();
+
+    private ScriptedMetricAggregator aggregator = null;
 
     @BeforeClass
     @SuppressWarnings("unchecked")
@@ -152,6 +162,15 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
            state.put("selfRef", state);
            return state;
         });
+    }
+
+    @After
+    public void ensureNoSelfReferencesInAggState() {
+        if (aggregator != null) {
+            verify(aggregator).ensureNoSelfReferencesInAggState();
+
+            aggregator = null;
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -336,6 +355,18 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 assertEquals("Iterable object is self-referencing itself (Scripted metric aggs combine script)", ex.getMessage());
             }
         }
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    protected <A extends Aggregator> A createAggregator(Query query,
+                                                        AggregationBuilder aggregationBuilder,
+                                                        IndexSearcher indexSearcher,
+                                                        IndexSettings indexSettings,
+                                                        MultiBucketConsumerService.MultiBucketConsumer bucketConsumer,
+                                                        MappedFieldType... fieldTypes) throws IOException {
+        aggregator = spy(super.createAggregator(query, aggregationBuilder, indexSearcher, indexSettings, bucketConsumer, fieldTypes));
+        return (A) aggregator;
     }
 
     /**

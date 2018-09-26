@@ -544,7 +544,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testConflictingEngineFactories() throws IOException {
+    public void testConflictingEngineFactories() {
         final String indexName = "foobar";
         final Index index = new Index(indexName, UUIDs.randomBase64UUID());
         final Settings settings = Settings.builder()

@@ -24,6 +24,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -91,6 +92,9 @@ public class SplitIndexIT extends ESIntegTestCase {
     }
 
     public void testSplitFromOneToN() {
+
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/34080", Constants.WINDOWS);
+
         splitToN(1, 5, 10);
         client().admin().indices().prepareDelete("*").get();
         int randomSplit = randomIntBetween(2, 6);

@@ -88,4 +88,10 @@ public class RoleMapperExpressionDslTests extends ESTestCase {
 
         assertThat(expected, equalTo(output));
     }
+
+    public void testFieldRoleMapperExpressionThrowsExceptionForMissingMetadataPrefix() {
+        final IllegalArgumentException ile = expectThrows(IllegalArgumentException.class, () -> FieldRoleMapperExpression.ofMetadata(
+                "terminated_date", new Date(1537145401027L)));
+        assertThat(ile.getMessage(), equalTo("metadata key must have prefix 'metadata.'"));
+    }
 }

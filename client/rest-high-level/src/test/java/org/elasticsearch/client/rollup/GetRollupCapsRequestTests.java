@@ -30,7 +30,4 @@ public class GetRollupCapsRequestTests extends ESTestCase {
         GetRollupCapsRequest request = new GetRollupCapsRequest(pattern);
         assertThat(request.getIndexPattern(), equalTo(MetaData.ALL));
     }
-
 }
-
-

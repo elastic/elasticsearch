@@ -155,7 +155,7 @@ public class CoordinatorTests extends ESTestCase {
         private final VotingConfiguration initialConfiguration;
 
         private final Set<String> disconnectedNodes = new HashSet<>();
-        private final Set<String> partitionedNodes = new HashSet<>();
+        private final Set<String> blackholedNodes = new HashSet<>();
 
         Cluster(int initialNodeCount) {
             logger.info("--> creating cluster of {} nodes", initialNodeCount);
@@ -229,7 +229,7 @@ public class CoordinatorTests extends ESTestCase {
 
                 final String nodeId = clusterNode.getId();
 
-                if (disconnectedNodes.contains(nodeId) || partitionedNodes.contains(nodeId)) {
+                if (disconnectedNodes.contains(nodeId) || blackholedNodes.contains(nodeId)) {
                     assertThat(nodeId + " is a candidate", clusterNode.coordinator.getMode(), is(CANDIDATE));
                 } else {
                     assertThat(nodeId + " has the same term as the leader", clusterNode.coordinator.getCurrentTerm(), is(leaderTerm));
@@ -257,7 +257,7 @@ public class CoordinatorTests extends ESTestCase {
 
         private ConnectionStatus getConnectionStatus(DiscoveryNode sender, DiscoveryNode destination) {
             ConnectionStatus connectionStatus;
-            if (partitionedNodes.contains(sender.getId()) || partitionedNodes.contains(destination.getId())) {
+            if (blackholedNodes.contains(sender.getId()) || blackholedNodes.contains(destination.getId())) {
                 connectionStatus = ConnectionStatus.BLACK_HOLE;
             } else if (disconnectedNodes.contains(sender.getId()) || disconnectedNodes.contains(destination.getId())) {
                 connectionStatus = ConnectionStatus.DISCONNECTED;
@@ -396,7 +396,7 @@ public class CoordinatorTests extends ESTestCase {
             }
 
             void partition() {
-                partitionedNodes.add(localNode.getId());
+                blackholedNodes.add(localNode.getId());
             }
         }
 

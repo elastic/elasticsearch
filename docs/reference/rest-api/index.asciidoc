@@ -19,7 +19,7 @@ directly to configure and access {xpack} features.
 
 
 include::info.asciidoc[]
-include::{xes-repo-dir}/rest-api/graph/explore.asciidoc[]
+include::{es-repo-dir}/graph/explore.asciidoc[]
 include::{es-repo-dir}/licensing/index.asciidoc[]
 include::{es-repo-dir}/migration/migration.asciidoc[]
 include::{es-repo-dir}/ml/apis/ml-api.asciidoc[]

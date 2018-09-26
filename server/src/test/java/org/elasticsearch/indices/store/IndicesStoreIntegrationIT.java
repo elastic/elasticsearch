@@ -94,7 +94,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
     }
 
     public void testIndexCleanup() throws Exception {
-        final String masterNode = internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false));
+        internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false));
         final String node_1 = internalCluster().startNode(Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false));
         final String node_2 = internalCluster().startNode(Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false));
         logger.info("--> creating index [test] with one shard and on replica");
@@ -325,7 +325,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
     }
 
     public void testShardActiveElsewhereDoesNotDeleteAnother() throws Exception {
-        final String masterNode = internalCluster().startMasterOnlyNode();
+        internalCluster().startMasterOnlyNode();
         final List<String> nodes = internalCluster().startDataOnlyNodes(4);
 
         final String node1 = nodes.get(0);

@@ -2561,7 +2561,7 @@ public class InternalEngine extends Engine {
         final long maxSeqNoOfUpdates = getMaxSeqNoOfUpdatesOrDeletes();
         // If the primary is on an old version which does not replicate msu, we need to relax this assertion for that.
         if (maxSeqNoOfUpdates == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_7_0_0_alpha1);
+            assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_5_0);
             return true;
         }
         // We treat a delete on the tombstones on replicas as a regular document, then use updateDocument (not addDocument).

@@ -240,10 +240,12 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             @Override
             protected void innerSendBulkShardOperationsRequest(
                     final List<Translog.Operation> operations,
+                    final long maxSeqNoOfUpdates,
                     final Consumer<BulkShardOperationsResponse> handler,
                     final Consumer<Exception> errorHandler) {
                 Runnable task = () -> {
-                    BulkShardOperationsRequest request = new BulkShardOperationsRequest(params.getFollowShardId(), operations);
+                    BulkShardOperationsRequest request = new BulkShardOperationsRequest(
+                        params.getFollowShardId(), operations, maxSeqNoOfUpdates);
                     ActionListener<BulkShardOperationsResponse> listener = ActionListener.wrap(handler::accept, errorHandler);
                     new CCRAction(request, listener, followerGroup).execute();
                 };
@@ -262,8 +264,10 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     for (IndexShard indexShard : indexShards) {
                         try {
                             final SeqNoStats seqNoStats = indexShard.seqNoStats();
+                            final long maxSeqNoOfUpdatesOrDeletes = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
                             if (from > seqNoStats.getGlobalCheckpoint()) {
-                                handler.accept(ShardChangesAction.getResponse(1L, seqNoStats, ShardChangesAction.EMPTY_OPERATIONS_ARRAY));
+                                handler.accept(ShardChangesAction.getResponse(1L, seqNoStats,
+                                    maxSeqNoOfUpdatesOrDeletes, ShardChangesAction.EMPTY_OPERATIONS_ARRAY));
                                 return;
                             }
                             Translog.Operation[] ops = ShardChangesAction.getOperations(indexShard, seqNoStats.getGlobalCheckpoint(), from,
@@ -273,6 +277,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                                 1L,
                                 seqNoStats.getGlobalCheckpoint(),
                                 seqNoStats.getMaxSeqNo(),
+                                maxSeqNoOfUpdatesOrDeletes,
                                 ops
                             );
                             handler.accept(response);
@@ -315,6 +320,9 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         for (IndexShard followingShard : follower) {
             assertThat(followingShard.estimateNumberOfHistoryOperations("test", 0), equalTo(totalOps));
         }
+        for (IndexShard followingShard : follower) {
+            assertThat(followingShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(leader.getPrimary().getMaxSeqNoOfUpdatesOrDeletes()));
+        }
     }
 
     class CCRAction extends ReplicationAction<BulkShardOperationsRequest, BulkShardOperationsRequest, BulkShardOperationsResponse> {
@@ -327,7 +335,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         protected PrimaryResult performOnPrimary(IndexShard primary, BulkShardOperationsRequest request) throws Exception {
             TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> result =
                 TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(), request.getOperations(),
-                    primary, logger);
+                    request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger);
             return new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful);
         }
 

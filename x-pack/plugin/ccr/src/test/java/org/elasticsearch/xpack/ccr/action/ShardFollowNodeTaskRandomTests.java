@@ -112,6 +112,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             @Override
             protected void innerSendBulkShardOperationsRequest(
                     List<Translog.Operation> operations,
+                    long maxSeqNoOfUpdates,
                     Consumer<BulkShardOperationsResponse> handler,
                     Consumer<Exception> errorHandler) {
                 for(Translog.Operation op : operations) {
@@ -157,7 +158,8 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         assert from >= testRun.finalExpectedGlobalCheckpoint;
                         final long globalCheckpoint = tracker.getCheckpoint();
                         final long maxSeqNo = tracker.getMaxSeqNo();
-                        handler.accept(new ShardChangesAction.Response(0L,globalCheckpoint, maxSeqNo, new Translog.Operation[0]));
+                        handler.accept(new ShardChangesAction.Response(
+                            0L, globalCheckpoint, maxSeqNo, randomNonNegativeLong(), new Translog.Operation[0]));
                     }
                 };
                 threadPool.generic().execute(task);
@@ -231,6 +233,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         mappingVersion,
                         nextGlobalCheckPoint,
                         nextGlobalCheckPoint,
+                        randomNonNegativeLong(),
                         ops.toArray(EMPTY))
                     )
                 );
@@ -253,6 +256,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                             mappingVersion,
                             prevGlobalCheckpoint,
                             prevGlobalCheckpoint,
+                            randomNonNegativeLong(),
                             EMPTY
                         );
                         item.add(new TestResponse(null, mappingVersion, response));
@@ -269,6 +273,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         mappingVersion,
                         localLeaderGCP,
                         localLeaderGCP,
+                        randomNonNegativeLong(),
                         ops.toArray(EMPTY)
                     );
                     item.add(new TestResponse(null, mappingVersion, response));

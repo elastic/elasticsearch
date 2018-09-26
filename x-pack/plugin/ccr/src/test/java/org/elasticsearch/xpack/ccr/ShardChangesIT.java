@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.ccr;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -30,11 +31,15 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -59,6 +64,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -221,6 +227,7 @@ public class ShardChangesIT extends ESIntegTestCase {
             assertBusy(assertExpectedDocumentRunnable(i));
         }
         unfollowIndex("index2");
+        assertMaxSeqNoOfUpdatesIsTransferred(resolveIndex("index1"), resolveIndex("index2"), numberOfPrimaryShards);
     }
 
     public void testSyncMappings() throws Exception {
@@ -258,6 +265,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertThat(XContentMapValues.extractValue("properties.f.type", mappingMetaData.sourceAsMap()), equalTo("integer"));
         assertThat(XContentMapValues.extractValue("properties.k.type", mappingMetaData.sourceAsMap()), equalTo("long"));
         unfollowIndex("index2");
+        assertMaxSeqNoOfUpdatesIsTransferred(resolveIndex("index1"), resolveIndex("index2"), 2);
     }
 
     public void testNoMappingDefined() throws Exception {
@@ -284,7 +292,8 @@ public class ShardChangesIT extends ESIntegTestCase {
     }
 
     public void testFollowIndex_backlog() throws Exception {
-        String leaderIndexSettings = getIndexSettings(between(1, 5), between(0, 1),
+        int numberOfShards = between(1, 5);
+        String leaderIndexSettings = getIndexSettings(numberOfShards, between(0, 1),
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         BulkProcessor.Listener listener = new BulkProcessor.Listener() {
@@ -334,6 +343,7 @@ public class ShardChangesIT extends ESIntegTestCase {
 
         assertSameDocCount("index1", "index2");
         unfollowIndex("index2");
+        assertMaxSeqNoOfUpdatesIsTransferred(resolveIndex("index1"), resolveIndex("index2"), numberOfShards);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33337")
@@ -379,6 +389,7 @@ public class ShardChangesIT extends ESIntegTestCase {
 
         assertSameDocCount("index1", "index2");
         unfollowIndex("index2");
+        assertMaxSeqNoOfUpdatesIsTransferred(resolveIndex("index1"), resolveIndex("index2"), 3);
     }
 
     public void testFollowIndexWithNestedField() throws Exception {
@@ -419,6 +430,7 @@ public class ShardChangesIT extends ESIntegTestCase {
             });
         }
         unfollowIndex("index2");
+        assertMaxSeqNoOfUpdatesIsTransferred(resolveIndex("index1"), resolveIndex("index2"), 1);
     }
 
     public void testUnfollowNonExistingIndex() {
@@ -482,6 +494,7 @@ public class ShardChangesIT extends ESIntegTestCase {
             assertBusy(assertExpectedDocumentRunnable(i));
         }
         unfollowIndex("index2");
+        assertMaxSeqNoOfUpdatesIsTransferred(resolveIndex("index1"), resolveIndex("index2"), 1);
     }
 
     public void testDontFollowTheWrongIndex() throws Exception {
@@ -713,6 +726,44 @@ public class ShardChangesIT extends ESIntegTestCase {
             SearchResponse response2 = client().search(request2).actionGet();
             assertThat(response2.getHits().getTotalHits(), equalTo(response1.getHits().getTotalHits()));
         }, 60, TimeUnit.SECONDS);
+    }
+
+    private void assertMaxSeqNoOfUpdatesIsTransferred(Index leaderIndex, Index followerIndex, int numberOfShards) throws Exception {
+        assertBusy(() -> {
+            long[] msuOnLeader = new long[numberOfShards];
+            for (int i = 0; i < msuOnLeader.length; i++) {
+                msuOnLeader[i] = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            }
+            Set<String> leaderNodes = internalCluster().nodesInclude(leaderIndex.getName());
+            for (String leaderNode : leaderNodes) {
+                IndicesService indicesService = internalCluster().getInstance(IndicesService.class, leaderNode);
+                for (int i = 0; i < numberOfShards; i++) {
+                    IndexShard shard = indicesService.getShardOrNull(new ShardId(leaderIndex, i));
+                    if (shard != null) {
+                        try {
+                            msuOnLeader[i] = SequenceNumbers.max(msuOnLeader[i], shard.getMaxSeqNoOfUpdatesOrDeletes());
+                        } catch (AlreadyClosedException ignored) {
+                            return;
+                        }
+                    }
+                }
+            }
+
+            Set<String> followerNodes = internalCluster().nodesInclude(followerIndex.getName());
+            for (String followerNode : followerNodes) {
+                IndicesService indicesService = internalCluster().getInstance(IndicesService.class, followerNode);
+                for (int i = 0; i < numberOfShards; i++) {
+                    IndexShard shard = indicesService.getShardOrNull(new ShardId(leaderIndex, i));
+                    if (shard != null) {
+                        try {
+                            assertThat(shard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(msuOnLeader[i]));
+                        } catch (AlreadyClosedException ignored) {
+
+                        }
+                    }
+                }
+            }
+        });
     }
 
     public static FollowIndexAction.Request createFollowRequest(String leaderIndex, String followerIndex) {

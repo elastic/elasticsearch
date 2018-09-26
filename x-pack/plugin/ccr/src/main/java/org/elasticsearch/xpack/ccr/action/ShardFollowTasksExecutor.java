@@ -133,9 +133,11 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             @Override
             protected void innerSendBulkShardOperationsRequest(
                     final List<Translog.Operation> operations,
+                    final long maxSeqNoOfUpdatesOrDeletes,
                     final Consumer<BulkShardOperationsResponse> handler,
                     final Consumer<Exception> errorHandler) {
-                final BulkShardOperationsRequest request = new BulkShardOperationsRequest(params.getFollowShardId(), operations);
+                final BulkShardOperationsRequest request = new BulkShardOperationsRequest(
+                    params.getFollowShardId(), operations, maxSeqNoOfUpdatesOrDeletes);
                 followerClient.execute(BulkShardOperationsAction.INSTANCE, request,
                     ActionListener.wrap(response -> handler.accept(response), errorHandler));
             }

@@ -40,19 +40,23 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
-import org.elasticsearch.xpack.ccr.action.CcrStatsAction;
-import org.elasticsearch.xpack.ccr.action.CreateAndFollowIndexAction;
-import org.elasticsearch.xpack.ccr.action.DeleteAutoFollowPatternAction;
-import org.elasticsearch.xpack.ccr.action.FollowIndexAction;
-import org.elasticsearch.xpack.ccr.action.PutAutoFollowPatternAction;
+import org.elasticsearch.xpack.ccr.action.TransportGetAutoFollowPatternAction;
+import org.elasticsearch.xpack.ccr.rest.RestGetAutoFollowPatternAction;
+import org.elasticsearch.xpack.ccr.action.TransportAutoFollowStatsAction;
+import org.elasticsearch.xpack.ccr.rest.RestAutoFollowStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.AutoFollowStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
+import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
+import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
-import org.elasticsearch.xpack.ccr.action.ShardFollowNodeTask;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTasksExecutor;
 import org.elasticsearch.xpack.ccr.action.TransportCcrStatsAction;
+import org.elasticsearch.xpack.ccr.action.TransportCreateAndFollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.TransportDeleteAutoFollowPatternAction;
+import org.elasticsearch.xpack.ccr.action.TransportFollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.TransportPutAutoFollowPatternAction;
-import org.elasticsearch.xpack.ccr.action.UnfollowIndexAction;
+import org.elasticsearch.xpack.ccr.action.TransportUnfollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.TransportBulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
@@ -63,6 +67,11 @@ import org.elasticsearch.xpack.ccr.rest.RestFollowIndexAction;
 import org.elasticsearch.xpack.ccr.rest.RestPutAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.rest.RestUnfollowIndexAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.CreateAndFollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.UnfollowIndexAction;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -73,8 +82,8 @@ import java.util.Optional;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.ccr.CcrSettings.CCR_ENABLED_SETTING;
 import static org.elasticsearch.xpack.ccr.CcrSettings.CCR_FOLLOWING_INDEX_SETTING;
+import static org.elasticsearch.xpack.core.XPackSettings.CCR_ENABLED_SETTING;
 
 /**
  * Container class for CCR functionality.
@@ -82,6 +91,9 @@ import static org.elasticsearch.xpack.ccr.CcrSettings.CCR_FOLLOWING_INDEX_SETTIN
 public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, EnginePlugin {
 
     public static final String CCR_THREAD_POOL_NAME = "ccr";
+    public static final String CCR_CUSTOM_METADATA_KEY = "ccr";
+    public static final String CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS = "leader_index_shard_history_uuids";
+    public static final String CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY = "leader_index_uuid";
 
     private final boolean enabled;
     private final Settings settings;
@@ -147,29 +159,37 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                 new ActionHandler<>(ShardChangesAction.INSTANCE, ShardChangesAction.TransportAction.class),
                 // stats action
                 new ActionHandler<>(CcrStatsAction.INSTANCE, TransportCcrStatsAction.class),
+                new ActionHandler<>(AutoFollowStatsAction.INSTANCE, TransportAutoFollowStatsAction.class),
                 // follow actions
-                new ActionHandler<>(CreateAndFollowIndexAction.INSTANCE, CreateAndFollowIndexAction.TransportAction.class),
-                new ActionHandler<>(FollowIndexAction.INSTANCE, FollowIndexAction.TransportAction.class),
-                new ActionHandler<>(UnfollowIndexAction.INSTANCE, UnfollowIndexAction.TransportAction.class),
+                new ActionHandler<>(CreateAndFollowIndexAction.INSTANCE, TransportCreateAndFollowIndexAction.class),
+                new ActionHandler<>(FollowIndexAction.INSTANCE, TransportFollowIndexAction.class),
+                new ActionHandler<>(UnfollowIndexAction.INSTANCE, TransportUnfollowIndexAction.class),
                 // auto-follow actions
                 new ActionHandler<>(DeleteAutoFollowPatternAction.INSTANCE, TransportDeleteAutoFollowPatternAction.class),
-                new ActionHandler<>(PutAutoFollowPatternAction.INSTANCE, TransportPutAutoFollowPatternAction.class));
+                new ActionHandler<>(PutAutoFollowPatternAction.INSTANCE, TransportPutAutoFollowPatternAction.class),
+                new ActionHandler<>(GetAutoFollowPatternAction.INSTANCE, TransportGetAutoFollowPatternAction.class));
     }
 
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
                                              IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
+        if (enabled == false) {
+            return emptyList();
+        }
+
         return Arrays.asList(
                 // stats API
                 new RestCcrStatsAction(settings, restController),
+                new RestAutoFollowStatsAction(settings, restController),
                 // follow APIs
                 new RestCreateAndFollowIndexAction(settings, restController),
                 new RestFollowIndexAction(settings, restController),
                 new RestUnfollowIndexAction(settings, restController),
                 // auto-follow APIs
                 new RestDeleteAutoFollowPatternAction(settings, restController),
-                new RestPutAutoFollowPatternAction(settings, restController));
+                new RestPutAutoFollowPatternAction(settings, restController),
+                new RestGetAutoFollowPatternAction(settings, restController));
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -179,8 +199,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                         ShardFollowTask::new),
 
                 // Task statuses
-                new NamedWriteableRegistry.Entry(Task.Status.class, ShardFollowNodeTask.Status.STATUS_PARSER_NAME,
-                        ShardFollowNodeTask.Status::new)
+                new NamedWriteableRegistry.Entry(Task.Status.class, ShardFollowNodeTaskStatus.STATUS_PARSER_NAME,
+                        ShardFollowNodeTaskStatus::new)
         );
     }
 
@@ -192,9 +212,9 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
                 // Task statuses
                 new NamedXContentRegistry.Entry(
-                        ShardFollowNodeTask.Status.class,
-                        new ParseField(ShardFollowNodeTask.Status.STATUS_PARSER_NAME),
-                        ShardFollowNodeTask.Status::fromXContent));
+                        ShardFollowNodeTaskStatus.class,
+                        new ParseField(ShardFollowNodeTaskStatus.STATUS_PARSER_NAME),
+                        ShardFollowNodeTaskStatus::fromXContent));
     }
 
     /**
@@ -225,10 +245,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             return Collections.emptyList();
         }
 
-        FixedExecutorBuilder ccrTp = new FixedExecutorBuilder(settings, CCR_THREAD_POOL_NAME,
-                32, 100, "xpack.ccr.ccr_thread_pool");
-
-        return Collections.singletonList(ccrTp);
+        return Collections.singletonList(new FixedExecutorBuilder(settings, CCR_THREAD_POOL_NAME, 32, 100, "xpack.ccr.ccr_thread_pool"));
     }
 
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }

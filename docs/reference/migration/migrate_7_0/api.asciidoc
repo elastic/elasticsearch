@@ -87,3 +87,9 @@ depending on whether {security} is enabled. Previously a
 404 - NOT FOUND (IndexNotFoundException) could be returned in case the
 current user was not authorized for any alias. An empty response with
 status 200 - OK is now returned instead at all times.
+
+==== Put User API response no longer has `user` object
+
+The Put User API response was changed in 6.5.0 to add the `created` field
+outside of the user object where it previously had been. In 7.0.0 the user
+object has been removed in favor of the top level `created` field.

@@ -340,26 +340,22 @@ public class EvilLoggerTests extends ESTestCase {
     }
 
     public void testProperties() throws IOException, UserException {
-        final Settings.Builder builder = Settings.builder().put("cluster.name", randomAlphaOfLength(16));
-        if (randomBoolean()) {
-            builder.put("node.name", randomAlphaOfLength(16));
-        }
-        final Settings settings = builder.build();
+        final Settings settings = Settings.builder()
+                .put("cluster.name", randomAlphaOfLength(16))
+                .put("node.name", randomAlphaOfLength(16))
+                .build();
         setupLogging("minimal", settings);
 
         assertNotNull(System.getProperty("es.logs.base_path"));
 
         assertThat(System.getProperty("es.logs.cluster_name"), equalTo(ClusterName.CLUSTER_NAME_SETTING.get(settings).value()));
-        if (Node.NODE_NAME_SETTING.exists(settings)) {
-            assertThat(System.getProperty("es.logs.node_name"), equalTo(Node.NODE_NAME_SETTING.get(settings)));
-        } else {
-            assertNull(System.getProperty("es.logs.node_name"));
-        }
+        assertThat(System.getProperty("es.logs.node_name"), equalTo(Node.NODE_NAME_SETTING.get(settings)));
     }
 
     public void testNoNodeNameInPatternWarning() throws IOException, UserException {
+        String nodeName = randomAlphaOfLength(16);
+        LogConfigurator.setNodeName(nodeName);
         setupLogging("no_node_name");
-
         final String path =
             System.getProperty("es.logs.base_path") +
                 System.getProperty("file.separator") +
@@ -368,10 +364,10 @@ public class EvilLoggerTests extends ESTestCase {
         assertThat(events.size(), equalTo(2));
         final String location = "org.elasticsearch.common.logging.LogConfigurator";
         // the first message is a warning for unsupported configuration files
-        assertLogLine(events.get(0), Level.WARN, location, "\\[unknown\\] Some logging configurations have %marker but don't "
-                + "have %node_name. We will automatically add %node_name to the pattern to ease the migration for users "
-                + "who customize log4j2.properties but will stop this behavior in 7.0. You should manually replace "
-                + "`%node_name` with `\\[%node_name\\]%marker ` in these locations:");
+        assertLogLine(events.get(0), Level.WARN, location, "\\[" + nodeName + "\\] Some logging configurations have "
+                + "%marker but don't have %node_name. We will automatically add %node_name to the pattern to ease the "
+                + "migration for users who customize log4j2.properties but will stop this behavior in 7.0. You should "
+                + "manually replace `%node_name` with `\\[%node_name\\]%marker ` in these locations:");
         if (Constants.WINDOWS) {
             assertThat(events.get(1), endsWith("no_node_name\\log4j2.properties"));
         } else {

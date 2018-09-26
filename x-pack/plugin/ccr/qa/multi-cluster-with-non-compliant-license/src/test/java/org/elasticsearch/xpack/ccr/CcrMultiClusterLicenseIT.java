@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.ccr;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Booleans;
@@ -47,6 +48,7 @@ public class CcrMultiClusterLicenseIT extends ESRestTestCase {
     }
 
     public void testAutoFollow() throws Exception {
+        assumeFalse("windows is the worst", Constants.WINDOWS);
         if (runningAgainstLeaderCluster == false) {
             final Request request = new Request("PUT", "/_ccr/auto_follow/leader_cluster");
             request.setJsonEntity("{\"leader_index_patterns\":[\"*\"]}");
@@ -62,7 +64,7 @@ public class CcrMultiClusterLicenseIT extends ESRestTestCase {
                 while (it.hasNext()) {
                     final String line = it.next();
                     if (line.matches(".*\\[WARN\\s*\\]\\[o\\.e\\.x\\.c\\.a\\.AutoFollowCoordinator\\s*\\] \\[node-0\\] " +
-                            "failure occurred during auto-follower coordination")) {
+                            "failure occurred while fetching cluster state in leader cluster \\[leader_cluster\\]")) {
                         warn = true;
                         break;
                     }

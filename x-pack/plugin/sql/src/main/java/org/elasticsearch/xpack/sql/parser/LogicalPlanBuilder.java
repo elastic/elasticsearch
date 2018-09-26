@@ -177,6 +177,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
     private Join doJoin(LogicalPlan left, JoinRelationContext ctx) {
         JoinTypeContext joinType = ctx.joinType();
 
+        @SuppressWarnings("unused")
         Join.JoinType type = JoinType.INNER;
         if (joinType != null) {
             if (joinType.FULL() != null) {
@@ -190,6 +191,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
             }
         }
 
+        @SuppressWarnings("unused")
         Expression condition = null;
         JoinCriteriaContext criteria = ctx.joinCriteria();
         if (criteria != null) {

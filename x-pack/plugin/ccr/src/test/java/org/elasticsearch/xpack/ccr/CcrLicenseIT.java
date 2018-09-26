@@ -12,17 +12,22 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
-import org.elasticsearch.xpack.ccr.action.CcrStatsAction;
-import org.elasticsearch.xpack.ccr.action.CreateAndFollowIndexAction;
-import org.elasticsearch.xpack.ccr.action.FollowIndexAction;
-import org.elasticsearch.xpack.ccr.action.PutAutoFollowPatternAction;
-import org.elasticsearch.xpack.ccr.action.ShardFollowNodeTask;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.CreateAndFollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
+import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
+import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -85,9 +90,9 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
 
     public void testThatCcrStatsAreUnavailableWithNonCompliantLicense() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
-        client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.TasksRequest(), new ActionListener<CcrStatsAction.TasksResponse>() {
+        client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.StatsRequest(), new ActionListener<CcrStatsAction.StatsResponses>() {
             @Override
-            public void onResponse(final CcrStatsAction.TasksResponse tasksResponse) {
+            public void onResponse(final CcrStatsAction.StatsResponses statsResponses) {
                 latch.countDown();
                 fail();
             }
@@ -127,6 +132,40 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
     }
 
     public void testAutoFollowCoordinatorLogsSkippingAutoFollowCoordinationWithNonCompliantLicense() throws Exception {
+        // Update the cluster state so that we have auto follow patterns and verify that we log a warning in case of incompatible license:
+        CountDownLatch latch = new CountDownLatch(1);
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        clusterService.submitStateUpdateTask("test-add-auto-follow-pattern", new ClusterStateUpdateTask() {
+
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                AutoFollowPattern autoFollowPattern =
+                    new AutoFollowPattern(Collections.singletonList("logs-*"), null, null, null, null, null, null, null, null);
+                AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(
+                    Collections.singletonMap("test_alias", autoFollowPattern),
+                    Collections.emptyMap(),
+                    Collections.emptyMap());
+
+                ClusterState.Builder newState = ClusterState.builder(currentState);
+                newState.metaData(MetaData.builder(currentState.getMetaData())
+                    .putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)
+                    .build());
+                return newState.build();
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                latch.countDown();
+                fail("unexpected error [" + e.getMessage() + "]");
+            }
+        });
+        latch.await();
+
         final Logger logger = LogManager.getLogger(AutoFollowCoordinator.class);
         final MockLogAppender appender = new MockLogAppender();
         appender.start();
@@ -153,16 +192,12 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
     }
 
     private FollowIndexAction.Request getFollowRequest() {
-        return new FollowIndexAction.Request(
-                "leader",
-                "follower",
-                ShardFollowNodeTask.DEFAULT_MAX_BATCH_OPERATION_COUNT,
-                ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_READ_BATCHES,
-                ShardFollowNodeTask.DEFAULT_MAX_BATCH_SIZE_IN_BYTES,
-                ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_WRITE_BATCHES,
-                ShardFollowNodeTask.DEFAULT_MAX_WRITE_BUFFER_SIZE,
-                TimeValue.timeValueMillis(10),
-                TimeValue.timeValueMillis(10));
+        FollowIndexAction.Request request = new FollowIndexAction.Request();
+        request.setLeaderIndex("leader");
+        request.setFollowerIndex("follower");
+        request.setMaxRetryDelay(TimeValue.timeValueMillis(10));
+        request.setPollTimeout(TimeValue.timeValueMillis(10));
+        return request;
     }
 
 }

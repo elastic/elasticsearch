@@ -75,7 +75,6 @@ import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
@@ -185,7 +184,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         failIfCorrupted();
         try {
             return readSegmentsInfo(null, directory());
-        } catch (CorruptIndexException ex) {
+        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             markStoreCorrupted(ex);
             throw ex;
         }
@@ -1425,7 +1424,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
             map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
             map.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
-            map.put(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, "-1");
+            map.put(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, "-1");
             updateCommitData(writer, map);
         } finally {
             metadataLock.writeLock().unlock();
@@ -1439,11 +1438,28 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void bootstrapNewHistory() throws IOException {
         metadataLock.writeLock().lock();
-        try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory, null)) {
-            final Map<String, String> userData = getUserData(writer);
+        try {
+            Map<String, String> userData = readLastCommittedSegmentsInfo().getUserData();
             final long maxSeqNo = Long.parseLong(userData.get(SequenceNumbers.MAX_SEQ_NO));
+            bootstrapNewHistory(maxSeqNo);
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Marks an existing lucene index with a new history uuid and sets the given maxSeqNo as the local checkpoint
+     * as well as the maximum sequence number.
+     * This is used to make sure no existing shard will recovery from this index using ops based recovery.
+     * @see SequenceNumbers#LOCAL_CHECKPOINT_KEY
+     * @see SequenceNumbers#MAX_SEQ_NO
+     */
+    public void bootstrapNewHistory(long maxSeqNo) throws IOException {
+        metadataLock.writeLock().lock();
+        try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory, null)) {
             final Map<String, String> map = new HashMap<>();
             map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
+            map.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
             map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(maxSeqNo));
             updateCommitData(writer, map);
         } finally {

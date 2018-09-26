@@ -20,6 +20,7 @@ package org.elasticsearch.client.documentation;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -70,6 +71,10 @@ import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutDatafeedResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
+import org.elasticsearch.client.ml.StartDatafeedRequest;
+import org.elasticsearch.client.ml.StartDatafeedResponse;
+import org.elasticsearch.client.ml.StopDatafeedRequest;
+import org.elasticsearch.client.ml.StopDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.datafeed.ChunkingConfig;
@@ -698,6 +703,120 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             DeleteDatafeedRequest deleteDatafeedRequest = new DeleteDatafeedRequest(datafeedId);
             client.machineLearning().deleteDatafeedAsync(deleteDatafeedRequest, RequestOptions.DEFAULT, listener); // <1>
             //end::x-pack-delete-ml-datafeed-request-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testStartDatafeed() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        Job job = MachineLearningIT.buildJob("start-datafeed-job");
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        String datafeedId = job.getId() + "-feed";
+        String indexName = "start_data_2";
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, job.getId())
+            .setTypes(Arrays.asList("doc"))
+            .setIndices(indexName)
+            .build();
+        client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
+        client.machineLearning().openJob(new OpenJobRequest(job.getId()), RequestOptions.DEFAULT);
+        {
+            //tag::x-pack-ml-start-datafeed-request
+            StartDatafeedRequest request = new StartDatafeedRequest(datafeedId); // <1>
+            //end::x-pack-ml-start-datafeed-request
+
+            //tag::x-pack-ml-start-datafeed-request-options
+            request.setEnd("2018-08-21T00:00:00Z"); // <1>
+            request.setStart("2018-08-20T00:00:00Z"); // <2>
+            request.setTimeout(TimeValue.timeValueMinutes(10)); // <3>
+            //end::x-pack-ml-start-datafeed-request-options
+
+            //tag::x-pack-ml-start-datafeed-execute
+            StartDatafeedResponse response = client.machineLearning().startDatafeed(request, RequestOptions.DEFAULT);
+            boolean started = response.isStarted(); // <1>
+            //end::x-pack-ml-start-datafeed-execute
+
+            assertTrue(started);
+        }
+        {
+            StartDatafeedRequest request = new StartDatafeedRequest(datafeedId);
+
+            // tag::x-pack-ml-start-datafeed-listener
+            ActionListener<StartDatafeedResponse> listener = new ActionListener<StartDatafeedResponse>() {
+                @Override
+                public void onResponse(StartDatafeedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::x-pack-ml-start-datafeed-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-start-datafeed-execute-async
+            client.machineLearning().startDatafeedAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::x-pack-ml-start-datafeed-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testStopDatafeed() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            //tag::x-pack-ml-stop-datafeed-request
+            StopDatafeedRequest request = new StopDatafeedRequest("datafeed_id1", "datafeed_id*"); // <1>
+            //end::x-pack-ml-stop-datafeed-request
+            request = StopDatafeedRequest.stopAllDatafeedsRequest();
+
+            //tag::x-pack-ml-stop-datafeed-request-options
+            request.setAllowNoDatafeeds(true); // <1>
+            request.setForce(true); // <2>
+            request.setTimeout(TimeValue.timeValueMinutes(10)); // <3>
+            //end::x-pack-ml-stop-datafeed-request-options
+
+            //tag::x-pack-ml-stop-datafeed-execute
+            StopDatafeedResponse response = client.machineLearning().stopDatafeed(request, RequestOptions.DEFAULT);
+            boolean stopped = response.isStopped(); // <1>
+            //end::x-pack-ml-stop-datafeed-execute
+
+            assertTrue(stopped);
+        }
+        {
+            StopDatafeedRequest request = StopDatafeedRequest.stopAllDatafeedsRequest();
+
+            // tag::x-pack-ml-stop-datafeed-listener
+            ActionListener<StopDatafeedResponse> listener = new ActionListener<StopDatafeedResponse>() {
+                @Override
+                public void onResponse(StopDatafeedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::x-pack-ml-stop-datafeed-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-stop-datafeed-execute-async
+            client.machineLearning().stopDatafeedAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::x-pack-ml-stop-datafeed-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

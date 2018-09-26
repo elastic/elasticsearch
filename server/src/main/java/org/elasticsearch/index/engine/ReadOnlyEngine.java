@@ -374,4 +374,14 @@ public final class ReadOnlyEngine extends Engine {
     public DocsStats docStats() {
         return docsStats;
     }
+
+    @Override
+    public void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {
+
+    }
+
+    @Override
+    public void initializeMaxSeqNoOfUpdatesOrDeletes() {
+        advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats.getMaxSeqNo());
+    }
 }

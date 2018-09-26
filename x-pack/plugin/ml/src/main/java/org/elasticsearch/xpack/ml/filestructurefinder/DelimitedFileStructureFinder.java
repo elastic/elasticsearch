@@ -141,7 +141,8 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             }
 
             structureBuilder.setTimestampField(timeField.v1())
-                .setTimestampFormats(timeField.v2().dateFormats)
+                .setJodaTimestampFormats(timeField.v2().jodaTimestampFormats)
+                .setJavaTimestampFormats(timeField.v2().javaTimestampFormats)
                 .setNeedClientTimezone(timeField.v2().hasTimezoneDependentParsing())
                 .setMultilineStartPattern(timeLineRegex);
         }

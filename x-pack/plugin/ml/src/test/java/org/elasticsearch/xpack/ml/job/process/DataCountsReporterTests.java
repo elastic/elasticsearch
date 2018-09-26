@@ -6,6 +6,9 @@
 package org.elasticsearch.xpack.ml.job.process;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -22,11 +25,15 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -38,18 +45,28 @@ public class DataCountsReporterTests extends ESTestCase {
     private JobDataCountsPersister jobDataCountsPersister;
     private Settings settings;
     private TimeValue bucketSpan = TimeValue.timeValueSeconds(300);
+    private ClusterService clusterService;
 
     @Before
     public void setUpMocks() {
         settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(DataCountsReporter.ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING.getKey(), MAX_PERCENT_DATE_PARSE_ERRORS)
-                .put(DataCountsReporter.ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING.getKey(), MAX_PERCENT_OUT_OF_ORDER_ERRORS)
+                .put(DataCountsReporter.MAX_ACCEPTABLE_PERCENT_OF_DATE_PARSE_ERRORS_SETTING.getKey(), MAX_PERCENT_DATE_PARSE_ERRORS)
+                .put(DataCountsReporter.MAX_ACCEPTABLE_PERCENT_OF_OUT_OF_ORDER_ERRORS_SETTING.getKey(), MAX_PERCENT_OUT_OF_ORDER_ERRORS)
                 .build();
 
         AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "field").build()));
         acBuilder.setBucketSpan(bucketSpan);
         acBuilder.setLatency(TimeValue.ZERO);
         acBuilder.setDetectors(Arrays.asList(new Detector.Builder("metric", "field").build()));
+
+
+        Set<Setting<?>> setOfSettings = new HashSet<>();
+        setOfSettings.add(DataCountsReporter.MAX_ACCEPTABLE_PERCENT_OF_DATE_PARSE_ERRORS_SETTING);
+        setOfSettings.add(DataCountsReporter.MAX_ACCEPTABLE_PERCENT_OF_OUT_OF_ORDER_ERRORS_SETTING);
+        ClusterSettings clusterSettings = new ClusterSettings(settings, setOfSettings);
+
+        clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
         Job.Builder builder = new Job.Builder("sr");
         builder.setAnalysisConfig(acBuilder);
@@ -61,14 +78,14 @@ public class DataCountsReporterTests extends ESTestCase {
 
     public void testSettingAcceptablePercentages() throws IOException {
         DataCountsReporter dataCountsReporter = new DataCountsReporter(settings, job, new DataCounts(job.getId()),
-                jobDataCountsPersister);
+                jobDataCountsPersister, clusterService);
         assertEquals(dataCountsReporter.getAcceptablePercentDateParseErrors(), MAX_PERCENT_DATE_PARSE_ERRORS);
         assertEquals(dataCountsReporter.getAcceptablePercentOutOfOrderErrors(), MAX_PERCENT_OUT_OF_ORDER_ERRORS);
     }
 
     public void testSimpleConstructor() throws Exception {
         DataCountsReporter dataCountsReporter = new DataCountsReporter(settings, job, new DataCounts(job.getId()),
-                jobDataCountsPersister);
+                jobDataCountsPersister, clusterService);
         DataCounts stats = dataCountsReporter.incrementalStats();
         assertNotNull(stats);
         assertAllCountFieldsEqualZero(stats);
@@ -79,7 +96,7 @@ public class DataCountsReporterTests extends ESTestCase {
                 new Date(), new Date(), new Date(), new Date(), new Date());
 
         DataCountsReporter dataCountsReporter =
-                new DataCountsReporter(settings, job, counts, jobDataCountsPersister);
+                new DataCountsReporter(settings, job, counts, jobDataCountsPersister, clusterService);
         DataCounts stats = dataCountsReporter.incrementalStats();
         assertNotNull(stats);
         assertAllCountFieldsEqualZero(stats);
@@ -97,7 +114,7 @@ public class DataCountsReporterTests extends ESTestCase {
 
     public void testResetIncrementalCounts() throws Exception {
         DataCountsReporter dataCountsReporter = new DataCountsReporter(settings, job, new DataCounts(job.getId()),
-                jobDataCountsPersister);
+                jobDataCountsPersister, clusterService);
         DataCounts stats = dataCountsReporter.incrementalStats();
         assertNotNull(stats);
         assertAllCountFieldsEqualZero(stats);
@@ -150,7 +167,7 @@ public class DataCountsReporterTests extends ESTestCase {
 
     public void testReportLatestTimeIncrementalStats() throws IOException {
         DataCountsReporter dataCountsReporter = new DataCountsReporter(settings, job, new DataCounts(job.getId()),
-                jobDataCountsPersister);
+                jobDataCountsPersister, clusterService);
         dataCountsReporter.startNewIncrementalCount();
         dataCountsReporter.reportLatestTimeIncrementalStats(5001L);
         assertEquals(5001L, dataCountsReporter.incrementalStats().getLatestRecordTimeStamp().getTime());
@@ -158,7 +175,7 @@ public class DataCountsReporterTests extends ESTestCase {
 
     public void testReportRecordsWritten() {
         DataCountsReporter dataCountsReporter = new DataCountsReporter(settings, job, new DataCounts(job.getId()),
-                jobDataCountsPersister);
+                jobDataCountsPersister, clusterService);
         dataCountsReporter.setAnalysedFieldsPerRecord(3);
 
         dataCountsReporter.reportRecordWritten(5, 2000);
@@ -182,7 +199,7 @@ public class DataCountsReporterTests extends ESTestCase {
     }
 
     public void testReportRecordsWritten_Given9999Records() {
-        DummyDataCountsReporter dataCountsReporter = new DummyDataCountsReporter();
+        DummyDataCountsReporter dataCountsReporter = new DummyDataCountsReporter(clusterService);
         dataCountsReporter.setAnalysedFieldsPerRecord(3);
 
         for (int i = 1; i <= 9999; i++) {
@@ -199,7 +216,7 @@ public class DataCountsReporterTests extends ESTestCase {
     }
 
     public void testReportRecordsWritten_Given30000Records() {
-        DummyDataCountsReporter dataCountsReporter = new DummyDataCountsReporter();
+        DummyDataCountsReporter dataCountsReporter = new DummyDataCountsReporter(clusterService);
         dataCountsReporter.setAnalysedFieldsPerRecord(3);
 
         for (int i = 1; i <= 30001; i++) {
@@ -216,7 +233,7 @@ public class DataCountsReporterTests extends ESTestCase {
     }
 
     public void testReportRecordsWritten_Given100_000Records() {
-        DummyDataCountsReporter dataCountsReporter = new DummyDataCountsReporter();
+        DummyDataCountsReporter dataCountsReporter = new DummyDataCountsReporter(clusterService);
         dataCountsReporter.setAnalysedFieldsPerRecord(3);
 
         for (int i = 1; i <= 100000; i++) {
@@ -233,7 +250,7 @@ public class DataCountsReporterTests extends ESTestCase {
     }
 
     public void testReportRecordsWritten_Given1_000_000Records() {
-        DummyDataCountsReporter dataCountsReporter = new DummyDataCountsReporter();
+        DummyDataCountsReporter dataCountsReporter = new DummyDataCountsReporter(clusterService);
         dataCountsReporter.setAnalysedFieldsPerRecord(3);
 
         for (int i = 1; i <= 1_000_000; i++) {
@@ -250,7 +267,7 @@ public class DataCountsReporterTests extends ESTestCase {
     }
 
     public void testReportRecordsWritten_Given2_000_000Records() {
-        DummyDataCountsReporter dataCountsReporter = new DummyDataCountsReporter();
+        DummyDataCountsReporter dataCountsReporter = new DummyDataCountsReporter(clusterService);
         dataCountsReporter.setAnalysedFieldsPerRecord(3);
 
         for (int i = 1; i <= 2_000_000; i++) {
@@ -269,7 +286,7 @@ public class DataCountsReporterTests extends ESTestCase {
 
     public void testFinishReporting() {
         DataCountsReporter dataCountsReporter = new DataCountsReporter(settings, job, new DataCounts(job.getId()),
-                jobDataCountsPersister);
+                jobDataCountsPersister, clusterService);
 
         dataCountsReporter.setAnalysedFieldsPerRecord(3);
         Date now = new Date();

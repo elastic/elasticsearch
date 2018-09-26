@@ -23,7 +23,6 @@ import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RawCollationKey;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
@@ -86,6 +85,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             this.collator = ref.collator;
         }
 
+        @Override
         public CollationFieldType clone() {
             return new CollationFieldType(this);
         }
@@ -158,18 +158,23 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
                                 boolean transpositions) {
-            throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException("[fuzzy] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
         public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-            throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException("[prefix] queries are not supported on [" + CONTENT_TYPE + "] fields.");
+        }
+
+        @Override
+        public Query wildcardQuery(String value, QueryShardContext context) {
+            throw new UnsupportedOperationException("[wildcard] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
         public Query regexpQuery(String value, int flags, int maxDeterminizedStates,
                                  MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-            throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException("[regexp] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         public static DocValueFormat COLLATE_FORMAT = new DocValueFormat() {
@@ -239,7 +244,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         private boolean numeric = false;
         private String variableTop = null;
         private boolean hiraganaQuaternaryMode = false;
-        private String nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);

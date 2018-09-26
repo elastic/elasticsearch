@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Custom metadata that contains auto follow patterns and what leader indices an auto follow pattern has already followed.
@@ -79,16 +80,19 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
     public AutoFollowMetadata(Map<String, AutoFollowPattern> patterns,
                               Map<String, List<String>> followedLeaderIndexUUIDs,
                               Map<String, Map<String, String>> headers) {
-        this.patterns = patterns;
-        this.followedLeaderIndexUUIDs = followedLeaderIndexUUIDs;
-        this.headers = Collections.unmodifiableMap(headers);
+        this.patterns = Collections.unmodifiableMap(patterns);
+        this.followedLeaderIndexUUIDs = Collections.unmodifiableMap(followedLeaderIndexUUIDs.entrySet().stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> Collections.unmodifiableList(e.getValue()))));
+        this.headers = Collections.unmodifiableMap(headers.entrySet().stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> Collections.unmodifiableMap(e.getValue()))));
     }
 
     public AutoFollowMetadata(StreamInput in) throws IOException {
-        patterns = in.readMap(StreamInput::readString, AutoFollowPattern::new);
-        followedLeaderIndexUUIDs = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
-        headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString,
-            valIn -> Collections.unmodifiableMap(valIn.readMap(StreamInput::readString, StreamInput::readString))));
+        this(
+            in.readMap(StreamInput::readString, AutoFollowPattern::new),
+            in.readMapOfLists(StreamInput::readString, StreamInput::readString),
+            in.readMap(StreamInput::readString, valIn -> valIn.readMap(StreamInput::readString, StreamInput::readString))
+        );
     }
 
     public Map<String, AutoFollowPattern> getPatterns() {
@@ -170,8 +174,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
 
     public static class AutoFollowPattern implements Writeable, ToXContentObject {
 
-        private static final ParseField LEADER_PATTERNS_FIELD = new ParseField("leader_patterns");
-        private static final ParseField FOLLOW_PATTERN_FIELD = new ParseField("follow_pattern");
+        public static final ParseField LEADER_PATTERNS_FIELD = new ParseField("leader_index_patterns");
+        public static final ParseField FOLLOW_PATTERN_FIELD = new ParseField("follow_index_pattern");
         public static final ParseField MAX_BATCH_OPERATION_COUNT = new ParseField("max_batch_operation_count");
         public static final ParseField MAX_CONCURRENT_READ_BATCHES = new ParseField("max_concurrent_read_batches");
         public static final ParseField MAX_BATCH_SIZE_IN_BYTES = new ParseField("max_batch_size_in_bytes");

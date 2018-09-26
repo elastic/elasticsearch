@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.sort;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -53,7 +54,11 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
         path = in.readOptionalString();
         filter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
-        maxChildren = in.readOptionalVInt();
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            maxChildren = in.readVInt();
+        } else {
+            maxChildren = Integer.MAX_VALUE;
+        }
     }
 
     public String getPath() {
@@ -93,7 +98,11 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
         out.writeOptionalString(path);
         out.writeOptionalNamedWriteable(filter);
         out.writeOptionalWriteable(nestedSort);
-        out.writeOptionalVInt(maxChildren);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeVInt(maxChildren);
+        } else {
+            out.writeVInt(Integer.MAX_VALUE);
+        }
     }
 
     @Override
@@ -106,7 +115,9 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
             builder.field(FILTER_FIELD.getPreferredName(), filter);
         }
 
-        builder.field(MAX_CHILDREN_FIELD.getPreferredName(), maxChildren);
+        if (maxChildren != Integer.MAX_VALUE) {
+            builder.field(MAX_CHILDREN_FIELD.getPreferredName(), maxChildren);
+        }
 
         if (nestedSort != null) {
             builder.field(NESTED_FIELD.getPreferredName(), nestedSort);

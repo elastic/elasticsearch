@@ -109,7 +109,8 @@ public class MultiValueModeTests extends ESTestCase {
         verifySortedNumeric(multiValues, numDocs);
         final FixedBitSet rootDocs = randomRootDocs(numDocs);
         final FixedBitSet innerDocs = randomInnerDocs(rootDocs);
-        verifySortedNumeric(multiValues, numDocs, rootDocs, innerDocs);
+        verifySortedNumeric(multiValues, numDocs, rootDocs, innerDocs, Integer.MAX_VALUE);
+        verifySortedNumeric(multiValues, numDocs, rootDocs, innerDocs, randomIntBetween(1, numDocs));
     }
 
     public void testMultiValuedLongs() throws Exception  {
@@ -147,7 +148,8 @@ public class MultiValueModeTests extends ESTestCase {
         verifySortedNumeric(multiValues, numDocs);
         final FixedBitSet rootDocs = randomRootDocs(numDocs);
         final FixedBitSet innerDocs = randomInnerDocs(rootDocs);
-        verifySortedNumeric(multiValues, numDocs, rootDocs, innerDocs);
+        verifySortedNumeric(multiValues, numDocs, rootDocs, innerDocs, Integer.MAX_VALUE);
+        verifySortedNumeric(multiValues, numDocs, rootDocs, innerDocs, randomIntBetween(1, numDocs));
     }
 
     private void verifySortedNumeric(Supplier<SortedNumericDocValues> supplier, int maxDoc) throws IOException {
@@ -210,11 +212,11 @@ public class MultiValueModeTests extends ESTestCase {
         }
     }
 
-    private void verifySortedNumeric(Supplier<SortedNumericDocValues> supplier, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) throws IOException {
+    private void verifySortedNumeric(Supplier<SortedNumericDocValues> supplier, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs, int maxChildren) throws IOException {
         for (long missingValue : new long[] { 0, randomLong() }) {
             for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX, MultiValueMode.SUM, MultiValueMode.AVG}) {
                 SortedNumericDocValues values = supplier.get();
-                final NumericDocValues selected = mode.select(values, missingValue, rootDocs, new BitSetIterator(innerDocs, 0L), maxDoc, Integer.MAX_VALUE);
+                final NumericDocValues selected = mode.select(values, missingValue, rootDocs, new BitSetIterator(innerDocs, 0L), maxDoc, maxChildren);
                 int prevRoot = -1;
                 for (int root = rootDocs.nextSetBit(0); root != -1; root = root + 1 < maxDoc ? rootDocs.nextSetBit(root + 1) : -1) {
                     assertTrue(selected.advanceExact(root));
@@ -228,8 +230,12 @@ public class MultiValueModeTests extends ESTestCase {
                         expected = Long.MAX_VALUE;
                     }
                     int numValues = 0;
+                    int count = 0;
                     for (int child = innerDocs.nextSetBit(prevRoot + 1); child != -1 && child < root; child = innerDocs.nextSetBit(child + 1)) {
                         if (values.advanceExact(child)) {
+                            if (++count > maxChildren) {
+                                break;
+                            }
                             for (int j = 0; j < values.docValueCount(); ++j) {
                                 if (mode == MultiValueMode.SUM || mode == MultiValueMode.AVG) {
                                     expected += values.nextValue();
@@ -285,7 +291,8 @@ public class MultiValueModeTests extends ESTestCase {
         verifySortedNumericDouble(multiValues, numDocs);
         final FixedBitSet rootDocs = randomRootDocs(numDocs);
         final FixedBitSet innerDocs = randomInnerDocs(rootDocs);
-        verifySortedNumericDouble(multiValues, numDocs, rootDocs, innerDocs);
+        verifySortedNumericDouble(multiValues, numDocs, rootDocs, innerDocs, Integer.MAX_VALUE);
+        verifySortedNumericDouble(multiValues, numDocs, rootDocs, innerDocs, randomIntBetween(1, numDocs));
     }
 
     public void testMultiValuedDoubles() throws Exception  {
@@ -323,7 +330,8 @@ public class MultiValueModeTests extends ESTestCase {
         verifySortedNumericDouble(multiValues, numDocs);
         final FixedBitSet rootDocs = randomRootDocs(numDocs);
         final FixedBitSet innerDocs = randomInnerDocs(rootDocs);
-        verifySortedNumericDouble(multiValues, numDocs, rootDocs, innerDocs);
+        verifySortedNumericDouble(multiValues, numDocs, rootDocs, innerDocs, Integer.MAX_VALUE);
+        verifySortedNumericDouble(multiValues, numDocs, rootDocs, innerDocs, randomIntBetween(1, numDocs));
     }
 
     private void verifySortedNumericDouble(Supplier<SortedNumericDoubleValues> supplier, int maxDoc) throws IOException {
@@ -385,11 +393,11 @@ public class MultiValueModeTests extends ESTestCase {
         }
     }
 
-    private void verifySortedNumericDouble(Supplier<SortedNumericDoubleValues> supplier, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) throws IOException {
+    private void verifySortedNumericDouble(Supplier<SortedNumericDoubleValues> supplier, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs, int maxChildren) throws IOException {
         for (long missingValue : new long[] { 0, randomLong() }) {
             for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX, MultiValueMode.SUM, MultiValueMode.AVG}) {
                 SortedNumericDoubleValues values = supplier.get();
-                final NumericDoubleValues selected = mode.select(values, missingValue, rootDocs, new BitSetIterator(innerDocs, 0L), maxDoc, Integer.MAX_VALUE);
+                final NumericDoubleValues selected = mode.select(values, missingValue, rootDocs, new BitSetIterator(innerDocs, 0L), maxDoc, maxChildren);
                 int prevRoot = -1;
                 for (int root = rootDocs.nextSetBit(0); root != -1; root = root + 1 < maxDoc ? rootDocs.nextSetBit(root + 1) : -1) {
                     assertTrue(selected.advanceExact(root));
@@ -403,8 +411,12 @@ public class MultiValueModeTests extends ESTestCase {
                         expected = Long.MAX_VALUE;
                     }
                     int numValues = 0;
+                    int count = 0;
                     for (int child = innerDocs.nextSetBit(prevRoot + 1); child != -1 && child < root; child = innerDocs.nextSetBit(child + 1)) {
                         if (values.advanceExact(child)) {
+                            if (++count > maxChildren) {
+                                break;
+                            }
                             for (int j = 0; j < values.docValueCount(); ++j) {
                                 if (mode == MultiValueMode.SUM || mode == MultiValueMode.AVG) {
                                     expected += values.nextValue();
@@ -463,7 +475,8 @@ public class MultiValueModeTests extends ESTestCase {
         verifySortedBinary(multiValues, numDocs);
         final FixedBitSet rootDocs = randomRootDocs(numDocs);
         final FixedBitSet innerDocs = randomInnerDocs(rootDocs);
-        verifySortedBinary(multiValues, numDocs, rootDocs, innerDocs);
+        verifySortedBinary(multiValues, numDocs, rootDocs, innerDocs, Integer.MAX_VALUE);
+        verifySortedBinary(multiValues, numDocs, rootDocs, innerDocs, randomIntBetween(1, numDocs));
     }
 
     public void testMultiValuedStrings() throws Exception  {
@@ -501,7 +514,8 @@ public class MultiValueModeTests extends ESTestCase {
         verifySortedBinary(multiValues, numDocs);
         final FixedBitSet rootDocs = randomRootDocs(numDocs);
         final FixedBitSet innerDocs = randomInnerDocs(rootDocs);
-        verifySortedBinary(multiValues, numDocs, rootDocs, innerDocs);
+        verifySortedBinary(multiValues, numDocs, rootDocs, innerDocs, Integer.MAX_VALUE);
+        verifySortedBinary(multiValues, numDocs, rootDocs, innerDocs, randomIntBetween(1, numDocs));
     }
 
     private void verifySortedBinary(Supplier<SortedBinaryDocValues> supplier, int maxDoc) throws IOException {
@@ -548,11 +562,11 @@ public class MultiValueModeTests extends ESTestCase {
         }
     }
 
-    private void verifySortedBinary(Supplier<SortedBinaryDocValues> supplier, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) throws IOException {
+    private void verifySortedBinary(Supplier<SortedBinaryDocValues> supplier, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs, int maxChildren) throws IOException {
         for (BytesRef missingValue : new BytesRef[] { new BytesRef(), new BytesRef(randomAlphaOfLengthBetween(8, 8)) }) {
             for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX}) {
                 SortedBinaryDocValues values = supplier.get();
-                final BinaryDocValues selected = mode.select(values, missingValue, rootDocs, new BitSetIterator(innerDocs, 0L), maxDoc, Integer.MAX_VALUE);
+                final BinaryDocValues selected = mode.select(values, missingValue, rootDocs, new BitSetIterator(innerDocs, 0L), maxDoc, maxChildren);
                 int prevRoot = -1;
                 for (int root = rootDocs.nextSetBit(0); root != -1; root = root + 1 < maxDoc ? rootDocs.nextSetBit(root + 1) : -1) {
                     assertTrue(selected.advanceExact(root));
@@ -560,8 +574,12 @@ public class MultiValueModeTests extends ESTestCase {
                     verifyBinaryValueCanCalledMoreThanOnce(selected, actual);
 
                     BytesRef expected = null;
+                    int count = 0;
                     for (int child = innerDocs.nextSetBit(prevRoot + 1); child != -1 && child < root; child = innerDocs.nextSetBit(child + 1)) {
                         if (values.advanceExact(child)) {
+                            if (++count > maxChildren) {
+                                break;
+                            }
                             for (int j = 0; j < values.docValueCount(); ++j) {
                                 if (expected == null) {
                                     expected = BytesRef.deepCopyOf(values.nextValue());
@@ -630,7 +648,8 @@ public class MultiValueModeTests extends ESTestCase {
         verifySortedSet(multiValues, numDocs);
         final FixedBitSet rootDocs = randomRootDocs(numDocs);
         final FixedBitSet innerDocs = randomInnerDocs(rootDocs);
-        verifySortedSet(multiValues, numDocs, rootDocs, innerDocs);
+        verifySortedSet(multiValues, numDocs, rootDocs, innerDocs, Integer.MAX_VALUE);
+        verifySortedSet(multiValues, numDocs, rootDocs, innerDocs, randomIntBetween(1, numDocs));
     }
 
     public void testMultiValuedOrds() throws Exception  {
@@ -676,7 +695,8 @@ public class MultiValueModeTests extends ESTestCase {
         verifySortedSet(multiValues, numDocs);
         final FixedBitSet rootDocs = randomRootDocs(numDocs);
         final FixedBitSet innerDocs = randomInnerDocs(rootDocs);
-        verifySortedSet(multiValues, numDocs, rootDocs, innerDocs);
+        verifySortedSet(multiValues, numDocs, rootDocs, innerDocs, Integer.MAX_VALUE);
+        verifySortedSet(multiValues, numDocs, rootDocs, innerDocs, randomIntBetween(1, numDocs));
     }
 
     private void verifySortedSet(Supplier<SortedSetDocValues> supplier, int maxDoc) throws IOException {
@@ -715,10 +735,10 @@ public class MultiValueModeTests extends ESTestCase {
         }
     }
 
-    private void verifySortedSet(Supplier<SortedSetDocValues> supplier, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) throws IOException {
+    private void verifySortedSet(Supplier<SortedSetDocValues> supplier, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs, int maxChildren) throws IOException {
         for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX}) {
             SortedSetDocValues values = supplier.get();
-            final SortedDocValues selected = mode.select(values, rootDocs, new BitSetIterator(innerDocs, 0L), Integer.MAX_VALUE);
+            final SortedDocValues selected = mode.select(values, rootDocs, new BitSetIterator(innerDocs, 0L), maxChildren);
             int prevRoot = -1;
             for (int root = rootDocs.nextSetBit(0); root != -1; root = root + 1 < maxDoc ? rootDocs.nextSetBit(root + 1) : -1) {
                 int actual = -1;
@@ -727,8 +747,12 @@ public class MultiValueModeTests extends ESTestCase {
                     verifyOrdValueCanCalledMoreThanOnce(selected, actual);
                 }
                 int expected = -1;
+                int count = 0;
                 for (int child = innerDocs.nextSetBit(prevRoot + 1); child != -1 && child < root; child = innerDocs.nextSetBit(child + 1)) {
                     if (values.advanceExact(child)) {
+                        if (++count > maxChildren) {
+                            break;
+                        }
                         for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values.nextOrd()) {
                             if (expected == -1) {
                                 expected = (int) ord;

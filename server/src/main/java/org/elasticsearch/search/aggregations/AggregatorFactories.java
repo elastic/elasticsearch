@@ -42,6 +42,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -238,8 +239,11 @@ public class AggregatorFactories {
 
     public static class Builder implements Writeable, ToXContentObject {
         private final Set<String> names = new HashSet<>();
-        private final Collection<AggregationBuilder> aggregationBuilders = new HashSet<>();
-        private final Collection<PipelineAggregationBuilder> pipelineAggregatorBuilders = new HashSet<>();
+
+        // Using LinkedHashSets to preserve the order of insertion, that makes the results
+        // ordered nicely, although technically order does not matter
+        private final Collection<AggregationBuilder> aggregationBuilders = new LinkedHashSet<>();
+        private final Collection<PipelineAggregationBuilder> pipelineAggregatorBuilders = new LinkedHashSet<>();
         private boolean skipResolveOrder;
 
         /**

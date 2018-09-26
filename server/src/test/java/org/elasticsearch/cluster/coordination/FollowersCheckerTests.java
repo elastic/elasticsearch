@@ -144,7 +144,7 @@ public class FollowersCheckerTests extends ESTestCase {
         assertThat(followersChecker.getFaultyNodes(), empty());
 
         checkedNodes.clear();
-        followersChecker.setCurrentNodes(discoveryNodesHolder[0] = DiscoveryNodes.EMPTY_NODES);
+        followersChecker.clearCurrentNodes();
         deterministicTaskQueue.runAllTasks(random());
         assertThat(checkedNodes, empty());
     }

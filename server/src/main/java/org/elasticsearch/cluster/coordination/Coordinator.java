@@ -319,7 +319,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 leaderCheckScheduler = null;
             }
 
-            followersChecker.setCurrentNodes(DiscoveryNodes.EMPTY_NODES);
+            followersChecker.clearCurrentNodes();
             followersChecker.updateFastResponseState(getCurrentTerm(), mode);
         }
 
@@ -370,7 +370,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             leaderCheckScheduler = leaderChecker.startLeaderChecker(leaderNode);
         }
 
-        followersChecker.setCurrentNodes(DiscoveryNodes.EMPTY_NODES);
+        followersChecker.clearCurrentNodes();
         followersChecker.updateFastResponseState(getCurrentTerm(), mode);
     }
 

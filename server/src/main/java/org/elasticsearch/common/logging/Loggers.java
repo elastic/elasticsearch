@@ -93,7 +93,7 @@ public class Loggers {
      */
     @Deprecated
     public static Logger getLogger(String s) {
-        return ESLoggerFactory.getLogger(s);
+        return LogManager.getLogger(s);
     }
 
     /**

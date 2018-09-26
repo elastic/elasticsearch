@@ -509,7 +509,7 @@ import com.amazonaws.services.ec2.model.UpdateSecurityGroupRuleDescriptionsIngre
 import com.amazonaws.services.ec2.model.UpdateSecurityGroupRuleDescriptionsIngressResult;
 import com.amazonaws.services.ec2.waiters.AmazonEC2Waiters;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.apache.logging.log4j.LogManager;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -521,7 +521,7 @@ import java.util.regex.Pattern;
 
 public class AmazonEC2Mock implements AmazonEC2 {
 
-    private static final Logger logger = ESLoggerFactory.getLogger(AmazonEC2Mock.class.getName());
+    private static final Logger logger = LogManager.getLogger(AmazonEC2Mock.class);
 
     public static final String PREFIX_PRIVATE_IP = "10.0.0.";
     public static final String PREFIX_PUBLIC_IP = "8.8.8.";

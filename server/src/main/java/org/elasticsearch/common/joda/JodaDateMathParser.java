@@ -20,8 +20,8 @@
 package org.elasticsearch.common.joda;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.time.DateUtils;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 import org.joda.time.format.DateTimeFormatter;
@@ -51,7 +51,7 @@ public class JodaDateMathParser implements DateMathParser {
     // use of `now`.
     @Override
     public long parse(String text, LongSupplier now, boolean roundUp, ZoneId tz) {
-        final DateTimeZone timeZone = tz == null ? null : DateFormatters.zoneIdToDateTimeZone(tz);
+        final DateTimeZone timeZone = tz == null ? null : DateUtils.zoneIdToDateTimeZone(tz);
         long time;
         String mathString;
         if (text.startsWith("now")) {

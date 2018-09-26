@@ -48,8 +48,8 @@ import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -590,7 +590,7 @@ public class RangeFieldMapper extends FieldMapper {
                                     boolean includeUpper, ShapeRelation relation, @Nullable DateTimeZone timeZone,
                                     @Nullable DateMathParser parser, QueryShardContext context) {
                     DateTimeZone zone = (timeZone == null) ? DateTimeZone.UTC : timeZone;
-                    ZoneId zoneId = DateFormatters.dateTimeZoneToZoneId(zone);
+                    ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(zone);
                 DateMathParser dateMathParser = (parser == null) ?
                     DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser() : parser;
                 Long low = lowerTerm == null ? Long.MIN_VALUE :

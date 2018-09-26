@@ -39,8 +39,8 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -310,7 +310,7 @@ public class DateFieldMapper extends FieldMapper {
             } else {
                 strValue = value.toString();
             }
-            return dateParser.parse(strValue, context::nowInMillis, roundUp, DateFormatters.dateTimeZoneToZoneId(zone));
+            return dateParser.parse(strValue, context::nowInMillis, roundUp, DateUtils.dateTimeZoneToZoneId(zone));
         }
 
         @Override

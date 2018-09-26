@@ -20,19 +20,13 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTimeZone;
 
-import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class DateFormattersTests extends ESTestCase {
@@ -80,26 +74,5 @@ public class DateFormattersTests extends ESTestCase {
         String millisAsString = String.valueOf(millis);
         TemporalAccessor accessor = formatter.parse(millisAsString);
         assertThat(millisAsString, is(formatter.format(accessor)));
-    }
-
-    private static final Set<String> IGNORE = new HashSet<>(Arrays.asList(
-        "Eire", "Europe/Dublin" // dublin timezone in joda does not account for DST
-    ));
-    public void testTimezoneIds() {
-        assertNull(DateFormatters.dateTimeZoneToZoneId(null));
-        assertNull(DateFormatters.zoneIdToDateTimeZone(null));
-        for (String jodaId : DateTimeZone.getAvailableIDs()) {
-            if (IGNORE.contains(jodaId)) continue;
-            DateTimeZone jodaTz = DateTimeZone.forID(jodaId);
-            ZoneId zoneId = DateFormatters.dateTimeZoneToZoneId(jodaTz); // does not throw
-            long now = 0;
-            assertThat(jodaId, zoneId.getRules().getOffset(Instant.ofEpochMilli(now)).getTotalSeconds() * 1000,
-                       equalTo(jodaTz.getOffset(now)));
-            if (DateFormatters.DEPRECATED_SHORT_TIMEZONES.containsKey(jodaTz.getID())) {
-                assertWarnings("Use of short timezone id " + jodaId + " is deprecated. Use " + zoneId.getId() + " instead");
-            }
-            // roundtrip does not throw either
-            assertNotNull(DateFormatters.zoneIdToDateTimeZone(zoneId));
-        }
     }
 }

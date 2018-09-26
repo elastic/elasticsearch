@@ -29,8 +29,8 @@ import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.time.DateUtils;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -214,7 +214,7 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public long parseLong(String value, boolean roundUp, LongSupplier now) {
-            return parser.parse(value, now, roundUp, DateFormatters.dateTimeZoneToZoneId(timeZone));
+            return parser.parse(value, now, roundUp, DateUtils.dateTimeZoneToZoneId(timeZone));
         }
 
         @Override

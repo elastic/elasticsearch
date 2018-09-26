@@ -19,7 +19,6 @@
 package org.elasticsearch.client.rollup;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -27,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 public class GetRollupCapsRequest implements Validatable, ToXContentObject {
     private static final String ID = "id";

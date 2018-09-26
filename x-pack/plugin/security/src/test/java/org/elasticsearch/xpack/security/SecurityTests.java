@@ -478,12 +478,12 @@ public class SecurityTests extends ESTestCase {
         for (String defaultFileName : defaultFiles) {
             logger.info("testing default file: {}", defaultFileName);
             Path defaultFile = getDataPath("/config/" + defaultFileName);
-            final List<String> defaultLines = Files.readAllLines(defaultFile);
+            final byte[] defaultBytes = Files.readAllBytes(defaultFile);
             final Path defaultFileConfigPath = configDir.resolve(defaultFileName);
             Path resolvedPath = Security.resolveConfigFile(environment, defaultFileName);
             assertEquals(defaultFileConfigPath, resolvedPath);
 
-            Files.write(defaultFileConfigPath, defaultLines);
+            Files.write(defaultFileConfigPath, defaultBytes);
             assertTrue(Security.isDefaultFile(defaultFileName, defaultFileConfigPath));
 
             resolvedPath = Security.resolveConfigFile(environment, defaultFileName);
@@ -494,8 +494,9 @@ public class SecurityTests extends ESTestCase {
             Files.write(xPackFilePath, Collections.singletonList(randomAlphaOfLength(8)));
             resolvedPath = Security.resolveConfigFile(environment, defaultFileName);
             assertEquals(xPackFilePath, resolvedPath);
-            assertWarnings("Config file [" + defaultFileName + "] is in a deprecated location. Move from " + xPackFilePath + " to " +
-                defaultFileConfigPath);
+            assertWarnings("Config file [" + defaultFileName + "] exists in a deprecated location and non-deprecated location. The" +
+                " file in the non-deprecated location is the default file. Using file found in the deprecated location. Move " +
+                xPackFilePath + " to " + defaultFileConfigPath);
 
             // modify file in new location
             Files.write(defaultFileConfigPath, Collections.singletonList(randomAlphaOfLength(8)),
@@ -504,6 +505,16 @@ public class SecurityTests extends ESTestCase {
             assertFalse(Security.isDefaultFile(defaultFileName, defaultFileConfigPath));
             resolvedPath = Security.resolveConfigFile(environment, defaultFileName);
             assertEquals(defaultFileConfigPath, resolvedPath);
+            assertWarnings("Config file [" + defaultFileName + "] exists in a deprecated location and non-deprecated location. " +
+                "Using file found in the non-deprecated location [" + defaultFileConfigPath + "]. Determine which file should be kept and" +
+                    " move it to " + defaultFileConfigPath + ", then remove " + xPackFilePath);
+
+            // remove default file
+            Files.delete(defaultFileConfigPath);
+            resolvedPath = Security.resolveConfigFile(environment, defaultFileName);
+            assertEquals(xPackFilePath, resolvedPath);
+            assertWarnings("Config file [" + defaultFileName + "] is in a deprecated location. Move from " +
+                xPackFilePath + " to " + defaultFileConfigPath);
         }
 
     }

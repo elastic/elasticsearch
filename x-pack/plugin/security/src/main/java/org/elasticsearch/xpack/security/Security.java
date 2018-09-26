@@ -1177,13 +1177,32 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     }
 
     public static Path resolveConfigFile(Environment env, String name) {
-        Path config =  env.configFile().resolve(name);
-        if (Files.exists(config) == false || isDefaultFile(name, config)) {
-            Path legacyConfig = env.configFile().resolve("x-pack").resolve(name);
-            if (Files.exists(legacyConfig)) {
-                deprecationLogger.deprecated("Config file [" + name + "] is in a deprecated location. Move from " +
-                    legacyConfig.toString() + " to " + config.toString());
-                return legacyConfig;
+        final Path config = env.configFile().resolve(name);
+        final Path legacyConfig = env.configFile().resolve("x-pack").resolve(name);
+        // config and legacy config can be the same path if name is an absolute path
+        if (config.equals(legacyConfig) == false) {
+            final boolean configFileExists = Files.exists(config);
+            final boolean legacyConfigExists = Files.exists(legacyConfig);
+            if (configFileExists == false) {
+                if (legacyConfigExists) {
+                    deprecationLogger.deprecated("Config file [" + name + "] is in a deprecated location. Move from " +
+                        legacyConfig.toString() + " to " + config.toString());
+                    return legacyConfig;
+                }
+            } else if (legacyConfigExists) {
+                // there is a file in both locations
+                if (isDefaultFile(name, config)) {
+                    // use the legacy file as the new file is the default but warn user
+                    deprecationLogger.deprecated("Config file [" + name + "] exists in a deprecated location and non-deprecated location." +
+                        " The file in the non-deprecated location is the default file. Using file found in the deprecated location. Move " +
+                        legacyConfig.toString() + " to " + config.toString());
+                    return legacyConfig;
+                } else {
+                    // the regular file has been modified, but the old still exists, warn the user
+                    deprecationLogger.deprecated("Config file [" + name + "] exists in a deprecated location and non-deprecated location." +
+                        " Using file found in the non-deprecated location [" + config.toString() + "]. Determine which file should be" +
+                        " kept and move it to " + config.toString() + ", then remove " + legacyConfig.toString());
+                }
             }
         }
         return config;

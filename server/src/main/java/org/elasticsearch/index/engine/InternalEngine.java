@@ -139,7 +139,6 @@ public class InternalEngine extends Engine {
     // incoming indexing ops to a single thread:
     private final AtomicInteger throttleRequestCount = new AtomicInteger();
     private final AtomicBoolean pendingTranslogRecovery = new AtomicBoolean(false);
-    public static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final AtomicLong maxSeenAutoIdTimestamp = new AtomicLong(-1);
     private final AtomicLong maxSeqNoOfNonAppendOnlyOperations = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);

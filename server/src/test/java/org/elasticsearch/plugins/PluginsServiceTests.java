@@ -141,6 +141,7 @@ public class PluginsServiceTests extends ESTestCase {
         assertThat(e, hasToString(containsString(expected)));
     }
 
+    @AwaitsFix(bugUrl = "")
     public void testDesktopServicesStoreFiles() throws IOException {
         final Path home = createTempDir();
         final Settings settings =

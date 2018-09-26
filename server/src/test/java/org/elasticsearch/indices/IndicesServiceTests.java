@@ -211,6 +211,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             indicesService.canDeleteShardContent(notAllocated, test.getIndexSettings()), ShardDeletionCheckResult.NO_FOLDER_FOUND);
     }
 
+    //NORELEASE This test relies on the Close API releasing the shard lock, which is not the case anymore with replicated closed indices
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33888")
     public void testDeleteIndexStore() throws Exception {
         IndicesService indicesService = getIndicesService();
         IndexService test = createIndex("test");
@@ -265,6 +267,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         ensureGreen("test");
     }
 
+    //NORELEASE This test relies on the Close API releasing the shard lock, which is not the case anymore with replicated closed indices
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33888")
     public void testPendingTasks() throws Exception {
         IndicesService indicesService = getIndicesService();
         IndexService test = createIndex("test");
@@ -567,4 +571,41 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertThat(e, hasToString(new RegexMatcher(pattern)));
     }
 
+    public void testClosedIndices() {
+        final String index = "test";
+        final int nbShards = randomIntBetween(1, 10);
+        createIndex(index, Settings.builder()
+                                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, nbShards)
+                                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                                    .build());
+
+        final IndicesService indicesService = getIndicesService();
+        final IndexService indexService = indicesService.indexService(resolveIndex(index));
+        assertNotNull(indexService);
+        assertEquals(IndexMetaData.State.OPEN, indexService.getIndexSettings().getIndexMetaData().getState());
+        for (int i = 0; i < nbShards; i++) {
+            assertTrue(indexService.hasShard(i));
+        }
+
+        assertAcked(client().admin().indices().prepareClose(index));
+        ensureGreen(index);
+
+        final IndexService closedIndexService = indicesService.indexService(resolveIndex(index));
+        assertNotSame(indexService, closedIndexService);
+        assertEquals(IndexMetaData.State.CLOSE, closedIndexService.getIndexSettings().getIndexMetaData().getState());
+        for (int i = 0; i < nbShards; i++) {
+            assertTrue(closedIndexService.hasShard(i));
+        }
+
+        assertAcked(client().admin().indices().prepareOpen(index));
+        ensureGreen(index);
+
+        final IndexService reopenedIndexService = indicesService.indexService(resolveIndex(index));
+        assertNotSame(closedIndexService, reopenedIndexService);
+        assertNotSame(index, reopenedIndexService);
+        assertEquals(IndexMetaData.State.OPEN, reopenedIndexService.getIndexSettings().getIndexMetaData().getState());
+        for (int i = 0; i < nbShards; i++) {
+            assertTrue(reopenedIndexService.hasShard(i));
+        }
+    }
 }

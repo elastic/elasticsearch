@@ -127,6 +127,8 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         }
     }
 
+    //NORELEASE This test relies on closed indices NOT having a routing table, which is not the case anymore with replicated closed indices
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33888")
     public void testSyncFailsOnIndexClosedOrMissing() throws InterruptedException {
         createIndex("test");
         IndexService test = getInstanceFromNode(IndicesService.class).indexService(resolveIndex("test"));

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.state;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -55,6 +56,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
+//NORELEASE Tests in this class relies on the fact that a closed index can be reopened immediately after an open -> close transition, which
+// is not the case with replicated closed indices were we need to wait for closed shards to be started before reopening the index again
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33888")
 public class OpenCloseIndexIT extends ESIntegTestCase {
     public void testSimpleCloseOpen() {
         Client client = client();

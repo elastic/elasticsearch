@@ -343,36 +343,43 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         }
 
         // randomly close indices
-        int numberOfIndicesToClose = randomInt(Math.min(1, state.metaData().indices().size()));
+        final int numberOfIndicesToClose = randomInt(Math.min(1, state.metaData().indices().size()));
+        final Set<Index> closedIndices = new HashSet<>();
         for (String index : randomSubsetOf(numberOfIndicesToClose, state.metaData().indices().keys().toArray(String.class))) {
-            CloseIndexRequest closeIndexRequest = new CloseIndexRequest(state.metaData().index(index).getIndex().getName());
-            state = cluster.closeIndices(state, closeIndexRequest);
+            IndexMetaData indexMetaData = state.metaData().index(index);
+            if (state.routingTable().allShards(index).stream().allMatch(ShardRouting::started)) {
+                CloseIndexRequest closeIndexRequest = new CloseIndexRequest(indexMetaData.getIndex().getName());
+                state = cluster.closeIndices(state, closeIndexRequest);
+                closedIndices.add(indexMetaData.getIndex());
+            }
         }
 
         // randomly open indices
-        int numberOfIndicesToOpen = randomInt(Math.min(1, state.metaData().indices().size()));
+        final int numberOfIndicesToOpen = randomInt(Math.min(1, state.metaData().indices().size()));
+        final Set<Index> reopenedIndices = new HashSet<>();
         for (String index : randomSubsetOf(numberOfIndicesToOpen, state.metaData().indices().keys().toArray(String.class))) {
-            OpenIndexRequest openIndexRequest = new OpenIndexRequest(state.metaData().index(index).getIndex().getName());
-            state = cluster.openIndices(state, openIndexRequest);
+            IndexMetaData indexMetaData = state.metaData().index(index);
+            // Do not reopen an index that was just closed
+            if (closedIndices.contains(indexMetaData.getIndex()) == false) {
+                if (state.routingTable().allShards(index).stream().allMatch(ShardRouting::started)) {
+                    OpenIndexRequest openIndexRequest = new OpenIndexRequest(indexMetaData.getIndex().getName());
+                    state = cluster.openIndices(state, openIndexRequest);
+                    reopenedIndices.add(indexMetaData.getIndex());
+                }
+            }
         }
 
         // randomly update settings
         Set<String> indicesToUpdate = new HashSet<>();
-        boolean containsClosedIndex = false;
         int numberOfIndicesToUpdate = randomInt(Math.min(2, state.metaData().indices().size()));
         for (String index : randomSubsetOf(numberOfIndicesToUpdate, state.metaData().indices().keys().toArray(String.class))) {
             indicesToUpdate.add(state.metaData().index(index).getIndex().getName());
-            if (state.metaData().index(index).getState() == IndexMetaData.State.CLOSE) {
-                containsClosedIndex = true;
-            }
         }
         if (indicesToUpdate.isEmpty() == false) {
             UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(
                 indicesToUpdate.toArray(new String[indicesToUpdate.size()]));
             Settings.Builder settings = Settings.builder();
-            if (containsClosedIndex == false) {
-                settings.put(SETTING_NUMBER_OF_REPLICAS, randomInt(2));
-            }
+            settings.put(SETTING_NUMBER_OF_REPLICAS, randomInt(2));
             settings.put("index.refresh_interval", randomIntBetween(1, 5) + "s");
             updateSettingsRequest.settings(settings.build());
             state = cluster.updateSettings(state, updateSettingsRequest);
@@ -390,12 +397,19 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             IndicesClusterStateService indicesClusterStateService = clusterStateServiceMap.get(node);
             MockIndicesService indicesService = (MockIndicesService) indicesClusterStateService.indicesService;
             for (MockIndexService indexService : indicesService) {
-                for (MockIndexShard indexShard : indexService) {
-                    ShardRouting persistedShardRouting = indexShard.routingEntry();
-                    if (persistedShardRouting.initializing() && randomBoolean()) {
-                        startedShards.add(persistedShardRouting);
-                    } else if (rarely()) {
-                        failedShards.add(new FailedShard(persistedShardRouting, "fake shard failure", new Exception(), randomBoolean()));
+                final Index index = indexService.index();
+                // do not start or fail shards of indices that were just closed or reopened, because
+                // they are still initializing and we must wait for the cluster state to be applied
+                // on node before starting or failing them
+                if (closedIndices.contains(index) == false && reopenedIndices.contains(index) == false) {
+                    for (MockIndexShard indexShard : indexService) {
+                        ShardRouting persistedShardRouting = indexShard.routingEntry();
+                        if (persistedShardRouting.initializing() && randomBoolean()) {
+                            startedShards.add(persistedShardRouting);
+                        } else if (rarely()) {
+                            boolean staled = randomBoolean();
+                            failedShards.add(new FailedShard(persistedShardRouting, "fake shard failure", new Exception(), staled));
+                        }
                     }
                 }
             }

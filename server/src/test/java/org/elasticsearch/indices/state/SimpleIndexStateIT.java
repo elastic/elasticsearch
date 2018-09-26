@@ -42,6 +42,8 @@ import static org.hamcrest.Matchers.nullValue;
 public class SimpleIndexStateIT extends ESIntegTestCase {
     private final Logger logger = Loggers.getLogger(SimpleIndexStateIT.class);
 
+    //NORELEASE This test relies on closed indices NOT having a routing table, which is not the case anymore with replicated closed indices
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33888")
     public void testSimpleOpenClose() {
         logger.info("--> creating test index");
         createIndex("test");

@@ -83,56 +83,60 @@ public class MetaDataIndexStateService extends AbstractComponent {
         if (request.indices() == null || request.indices().length == 0) {
             throw new IllegalArgumentException("Index name is required");
         }
+        clusterService.submitStateUpdateTask("close-indices " + Arrays.toString(request.indices()),
+            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
+                @Override
+                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                    return new ClusterStateUpdateResponse(acknowledged);
+                }
 
-        final String indicesAsString = Arrays.toString(request.indices());
-        clusterService.submitStateUpdateTask("close-indices " + indicesAsString, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
-            @Override
-            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                return new ClusterStateUpdateResponse(acknowledged);
+                @Override
+                public ClusterState execute(final ClusterState currentState) {
+                    return closeIndices(currentState, request.indices());
+                }
             }
+        );
+    }
 
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                Set<IndexMetaData> indicesToClose = new HashSet<>();
-                for (Index index : request.indices()) {
-                    final IndexMetaData indexMetaData = currentState.metaData().getIndexSafe(index);
-                    if (indexMetaData.getState() != IndexMetaData.State.CLOSE) {
-                        indicesToClose.add(indexMetaData);
-                    }
-                }
-
-                if (indicesToClose.isEmpty()) {
-                    return currentState;
-                }
-
-                // Check if index closing conflicts with any running restores
-                RestoreService.checkIndexClosing(currentState, indicesToClose);
-                // Check if index closing conflicts with any running snapshots
-                SnapshotsService.checkIndexClosing(currentState, indicesToClose);
-                logger.info("closing indices [{}]", indicesAsString);
-
-                MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder()
-                        .blocks(currentState.blocks());
-                for (IndexMetaData openIndexMetadata : indicesToClose) {
-                    final String indexName = openIndexMetadata.getIndex().getName();
-                    mdBuilder.put(IndexMetaData.builder(openIndexMetadata).state(IndexMetaData.State.CLOSE));
-                    blocksBuilder.addIndexBlock(indexName, INDEX_CLOSED_BLOCK);
-                }
-
-                ClusterState updatedState = ClusterState.builder(currentState).metaData(mdBuilder).blocks(blocksBuilder).build();
-
-                RoutingTable.Builder rtBuilder = RoutingTable.builder(currentState.routingTable());
-                for (IndexMetaData index : indicesToClose) {
-                    rtBuilder.remove(index.getIndex().getName());
-                }
-
-                //no explicit wait for other nodes needed as we use AckedClusterStateUpdateTask
-                return  allocationService.reroute(
-                        ClusterState.builder(updatedState).routingTable(rtBuilder.build()).build(),
-                        "indices closed [" + indicesAsString + "]");
+    ClusterState closeIndices(final ClusterState currentState, final Index[] indices) {
+        final Set<IndexMetaData> indicesToClose = new HashSet<>();
+        for (Index index : indices) {
+            final IndexMetaData indexMetaData = currentState.metaData().getIndexSafe(index);
+            if (indexMetaData.getState() != IndexMetaData.State.CLOSE) {
+                indicesToClose.add(indexMetaData);
             }
-        });
+        }
+
+        if (indicesToClose.isEmpty()) {
+            return currentState;
+        }
+
+        // Check if index closing conflicts with any running restores
+        RestoreService.checkIndexClosing(currentState, indicesToClose);
+        // Check if index closing conflicts with any running snapshots
+        SnapshotsService.checkIndexClosing(currentState, indicesToClose);
+
+        final String indicesAsString = Arrays.toString(indices);
+        logger.info("closing indices [{}]", indicesAsString);
+
+        MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
+        ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
+        for (IndexMetaData openIndexMetadata : indicesToClose) {
+            final String indexName = openIndexMetadata.getIndex().getName();
+            mdBuilder.put(IndexMetaData.builder(openIndexMetadata).state(IndexMetaData.State.CLOSE));
+            blocksBuilder.addIndexBlock(indexName, INDEX_CLOSED_BLOCK);
+        }
+
+        final ClusterState updatedState = ClusterState.builder(currentState).metaData(mdBuilder).blocks(blocksBuilder).build();
+        final RoutingTable.Builder rtBuilder = RoutingTable.builder(updatedState.routingTable());
+        for (IndexMetaData index : indicesToClose) {
+            rtBuilder.addAsFromOpenToClose(updatedState.metaData().getIndexSafe(index.getIndex()));
+        }
+
+        return allocationService.reroute(
+            ClusterState.builder(updatedState).routingTable(rtBuilder.build()).build(),
+            "indices closed [" + indicesAsString + "]");
+
     }
 
     public void openIndex(final OpenIndexClusterStateUpdateRequest request, final ActionListener<OpenIndexClusterStateUpdateResponse> listener) {

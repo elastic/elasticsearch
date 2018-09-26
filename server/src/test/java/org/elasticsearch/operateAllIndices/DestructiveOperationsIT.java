@@ -122,6 +122,8 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
         expectThrows(IllegalArgumentException.class, () -> client().admin().indices().prepareOpen("_all").get());
     }
 
+    //NORELEASE This test relies on closed indices NOT having a routing table, which is not the case anymore with replicated closed indices
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33888")
     public void testOpenIndexDefaultBehaviour() throws Exception {
         if (randomBoolean()) {
             Settings settings = Settings.builder()

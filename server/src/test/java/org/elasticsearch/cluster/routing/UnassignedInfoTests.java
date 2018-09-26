@@ -40,6 +40,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -70,7 +71,8 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 UnassignedInfo.Reason.REALLOCATED_REPLICA,
                 UnassignedInfo.Reason.PRIMARY_FAILED,
                 UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY,
-                UnassignedInfo.Reason.MANUAL_ALLOCATION,};
+                UnassignedInfo.Reason.MANUAL_ALLOCATION,
+                UnassignedInfo.Reason.INDEX_CLOSED,};
         for (int i = 0; i < order.length; i++) {
             assertThat(order[i].ordinal(), equalTo(i));
         }
@@ -128,6 +130,41 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 .routingTable(RoutingTable.builder().addAsFromCloseToOpen(metaData.index("test")).build()).build();
         for (ShardRouting shard : clusterState.getRoutingNodes().shardsWithState(UNASSIGNED)) {
             assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.INDEX_REOPENED));
+        }
+    }
+
+    public void testIndexClosed() {
+        MetaData metaData = MetaData.builder()
+            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1, 3)).numberOfReplicas(randomIntBetween(0, 3)))
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metaData(metaData)
+            .routingTable(RoutingTable.builder().addAsFromOpenToClose(metaData.index("test")).build()).build();
+        for (ShardRouting shard : clusterState.getRoutingNodes().shardsWithState(UNASSIGNED)) {
+            assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.INDEX_CLOSED));
+        }
+    }
+
+    public void testIndexClosedBwc() throws IOException {
+        final Version bwcVersion = VersionUtils.randomVersionBetween(random(),
+            Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
+
+        final UnassignedInfo info = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CLOSED, randomBoolean() ? randomAlphaOfLength(4) : null);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(bwcVersion);
+            info.writeTo(out);
+
+            UnassignedInfo read = new UnassignedInfo(out.bytes().streamInput());
+            assertThat(read.getUnassignedTimeInMillis(), equalTo(info.getUnassignedTimeInMillis()));
+            assertThat(read.getMessage(), equalTo(info.getMessage()));
+            assertThat(read.getDetails(), equalTo(info.getDetails()));
+            assertThat(read.getNumFailedAllocations(), equalTo(info.getNumFailedAllocations()));
+            assertThat(read.getLastAllocationStatus(), equalTo(info.getLastAllocationStatus()));
+            if (bwcVersion.onOrAfter(Version.V_7_0_0_alpha1)) {
+                assertThat(read.getReason(), equalTo(info.getReason()));
+            } else {
+                assertThat(read.getReason(), equalTo(UnassignedInfo.Reason.REINITIALIZED));
+            }
         }
     }
 

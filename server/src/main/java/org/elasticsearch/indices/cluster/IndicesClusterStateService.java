@@ -90,7 +90,6 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.CLOSED;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.FAILURE;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
@@ -220,6 +219,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         removeUnallocatedIndices(event); // also removes shards of removed indices
 
         failMissingShards(state);
+
+        removeIndices(event);
 
         removeShards(state);   // removes any local shards that doesn't match what the master expects
 
@@ -358,8 +359,18 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 assert indexMetaData != null || event.isNewCluster() :
                     "index " + index + " does not exist in the cluster state, it should either " +
                         "have been deleted or the cluster must be new";
-                final AllocatedIndices.IndexRemovalReason reason =
-                    indexMetaData != null && indexMetaData.getState() == IndexMetaData.State.CLOSE ? CLOSED : NO_LONGER_ASSIGNED;
+                AllocatedIndices.IndexRemovalReason reason = NO_LONGER_ASSIGNED;
+                if (indexMetaData != null) {
+                    final IndexMetaData.State newState = indexMetaData.getState();
+                    final IndexMetaData.State currentState = indexService.getIndexSettings().getIndexMetaData().getState();
+                    if (currentState != newState) {
+                        if (newState == IndexMetaData.State.OPEN) {
+                            reason = AllocatedIndices.IndexRemovalReason.REOPENED;
+                        } else {
+                            reason = AllocatedIndices.IndexRemovalReason.CLOSED;
+                        }
+                    }
+                }
                 logger.debug("{} removing index, [{}]", index, reason);
                 indicesService.removeIndex(index, reason, "removing index (no shards allocated)");
             }
@@ -384,6 +395,37 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 // the master thinks we are active, but we don't have this shard at all, mark it as failed
                 sendFailShard(shardRouting, "master marked shard as active, but shard has not been created, mark shard as failed", null,
                     state);
+            }
+        }
+    }
+
+    /**
+     * Removes the {@link IndexService} of indices whose state has changed.
+     * Closing the index services here will force them to be recreated later along with their shards.
+     */
+    private void removeIndices(final ClusterChangedEvent event) {
+        if (event.metaDataChanged() == false) {
+            return;
+        }
+
+        final ClusterState state = event.state();
+        for (AllocatedIndex<? extends Shard> indexService : indicesService) {
+            final Index index = indexService.index();
+            final IndexMetaData newIndexMetaData = state.metaData().index(index);
+            assert newIndexMetaData != null : "index " + index + " does not exist in the cluster state";
+            if (newIndexMetaData != null) {
+                final IndexMetaData.State newState = newIndexMetaData.getState();
+                final IndexMetaData.State currentState = indexService.getIndexSettings().getIndexMetaData().getState();
+                if (currentState != newState) {
+                    final AllocatedIndices.IndexRemovalReason reason;
+                    if (newState == IndexMetaData.State.OPEN) {
+                        reason = AllocatedIndices.IndexRemovalReason.REOPENED;
+                    } else {
+                        reason = AllocatedIndices.IndexRemovalReason.CLOSED;
+                    }
+                    logger.debug("{} removing index (state changed {} -> {})", index, currentState, newState);
+                    indicesService.removeIndex(index, reason, "removing index (state changed)");
+                }
             }
         }
     }
@@ -871,10 +913,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             DELETED,
 
             /**
-             * The index have been closed. The index should be removed and all associated resources released. Persistent parts of the index
-             * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
+             * The index has been closed. The index should be removed and all associated resources released before being created again.
+             * Persistent parts of the index like the shards files, state and transaction logs are kept around.
              */
             CLOSED,
+
+            /**
+             * The index has been reopened. The index should be removed and all associated resources released before being created again.
+             * Persistent parts of the index like the shards files, state and transaction logs are kept around.
+             */
+            REOPENED,
 
             /**
              * Something around index management has failed and the index should be removed.

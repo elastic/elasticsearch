@@ -91,6 +91,8 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertThat(mappingMd.routing().required(), equalTo(true));
     }
 
+    //NORELEASE This test relies on closed indices NOT having a routing table, which is not the case anymore with replicated closed indices
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33888")
     public void testSimpleOpenClose() throws Exception {
         logger.info("--> starting 2 nodes");
         internalCluster().startNodes(2);
@@ -232,6 +234,8 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1").setSource("field1", "value1").setTimeout("100ms").execute().actionGet();
     }
 
+    //NORELEASE This test relies on closed indices NOT having a routing table, which is not the case anymore with replicated closed indices
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33888")
     public void testTwoNodesSingleDoc() throws Exception {
         logger.info("--> cleaning nodes");
 

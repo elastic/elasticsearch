@@ -58,6 +58,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.flush.FlushStats;
@@ -107,6 +108,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
+import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -265,6 +267,9 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertTrue(test > 0);
     }
 
+    //NORELEASE This test assumes that custom data path can be changed on a closed index. That won't be possible anymore,
+    // since closed indices still hold the shard lock. I'm tempted to just remove this test, except if there's a real user need.
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33888")
     public void testIndexCanChangeCustomDataPath() throws Exception {
         Environment env = getInstanceFromNode(Environment.class);
         Path idxPath = env.sharedDataFile().resolve(randomAlphaOfLength(10));
@@ -819,28 +824,39 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
         ensureGreen();
 
-        client().admin().indices().prepareClose(indexName).get();
-
-        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        final ClusterState clusterState = clusterService.state();
-
-        IndexMetaData indexMetaData = clusterState.metaData().index(indexName);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        assertTrue(indicesService.indexService(resolveIndex(indexName)).hasShard(0));
+        assertThat(indicesService.indexService(resolveIndex(indexName)).getShard(0).getEngine(), instanceOf(InternalEngine.class));
 
-        final ShardId shardId = new ShardId(indexMetaData.getIndex(), 0);
-        final DiscoveryNode node = clusterService.localNode();
-        final ShardRouting routing =
-            newShardRouting(shardId, node.getId(), true, ShardRoutingState.INITIALIZING, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
+        assertAcked(client().admin().indices().prepareClose(indexName));
+        ensureGreen(indexName);
+        assertTrue(indicesService.indexService(resolveIndex(indexName)).hasShard(0));
+        assertThat(indicesService.indexService(resolveIndex(indexName)).getShard(0).getEngine(), instanceOf(NoOpEngine.class));
+
+        // Now creating a temporary index service for a fake index
+        IndexMetaData indexMetaData = IndexMetaData.builder("temp").settings(Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
+            .state(IndexMetaData.State.CLOSE)
+            .build();
 
         final IndexService indexService = indicesService.createIndex(indexMetaData, Collections.emptyList());
         try {
-            final IndexShard indexShard = indexService.createShard(routing, id -> {
-            });
+            final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+            final ShardId shardId = new ShardId(indexMetaData.getIndex(), 0);
+            final DiscoveryNode node = clusterService.localNode();
+            final ShardRouting routing =
+                newShardRouting(shardId, node.getId(), true, ShardRoutingState.INITIALIZING, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
+
+            // creating a fake shard and check the engine implementation
+            final IndexShard indexShard = indexService.createShard(routing, id -> {});
             indexShard.markAsRecovering("store", new RecoveryState(indexShard.routingEntry(), node, null));
             indexShard.recoverFromStore();
             assertThat(indexShard.getEngine(), instanceOf(NoOpEngine.class));
         } finally {
-            indexService.close("test terminated", true);
+            indicesService.removeIndex(indexMetaData.getIndex(), IndexRemovalReason.DELETED, "test terminated");
         }
     }
 }

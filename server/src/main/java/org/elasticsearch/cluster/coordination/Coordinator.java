@@ -285,6 +285,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         logger.debug("{}: becoming FOLLOWER of [{}] (was {}, lastKnownLeader was [{}])", method, leaderNode, mode, lastKnownLeader);
 
+        final boolean restartLeaderChecker = (mode == Mode.FOLLOWER && Optional.of(leaderNode).equals(lastKnownLeader)) == false;
+
         if (mode != Mode.FOLLOWER) {
             mode = Mode.FOLLOWER;
             joinAccumulator.close(mode);
@@ -298,10 +300,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         cancelActivePublication();
         preVoteCollector.update(getPreVoteResponse(), leaderNode);
 
-        if (leaderCheckScheduler != null) {
-            leaderCheckScheduler.close();
+        if (restartLeaderChecker) {
+            if (leaderCheckScheduler != null) {
+                leaderCheckScheduler.close();
+            }
+            leaderCheckScheduler = leaderChecker.startLeaderChecker(leaderNode);
         }
-        leaderCheckScheduler = leaderChecker.startLeaderChecker(leaderNode);
     }
 
     private PreVoteResponse getPreVoteResponse() {

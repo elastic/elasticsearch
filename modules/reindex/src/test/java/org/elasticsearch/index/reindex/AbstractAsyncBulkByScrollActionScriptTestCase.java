@@ -56,13 +56,12 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
     protected <T extends ActionRequest> T applyScript(Consumer<Map<String, Object>> scriptBody) {
         IndexRequest index = new IndexRequest("index", "type", "1").source(singletonMap("foo", "bar"));
         ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "type", "id", 0);
-        UpdateScript updateScript = new UpdateScript(Collections.emptyMap()) {
+        UpdateScript.Factory factory = (params, ctx) -> new UpdateScript(Collections.emptyMap(), ctx) {
             @Override
-            public void execute(Map<String, Object> ctx) {
+            public void execute() {
                 scriptBody.accept(ctx);
             }
-        };
-        UpdateScript.Factory factory = params -> updateScript;
+        };;
         ExecutableScript simpleExecutableScript = new SimpleExecutableScript(scriptBody);
         when(scriptService.compile(any(), eq(ExecutableScript.CONTEXT))).thenReturn(params -> simpleExecutableScript);
         when(scriptService.compile(any(), eq(UpdateScript.CONTEXT))).thenReturn(factory);

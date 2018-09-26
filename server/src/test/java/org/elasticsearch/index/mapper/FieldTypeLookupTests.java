@@ -23,6 +23,9 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.JsonFieldMapper.KeyedJsonFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESTestCase;
 
@@ -32,6 +35,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class FieldTypeLookupTests extends ESTestCase {
 
@@ -241,6 +245,55 @@ public class FieldTypeLookupTests extends ESTestCase {
             () -> lookup.copyAndAddAll("type", newList(invalidField), emptyList()));
         assertEquals("The name for field [invalid] has already been used to define a field alias.",
             e.getMessage());
+    }
+
+    public void testJsonFieldType() {
+        String fieldName = "object1.object2.field";
+        JsonFieldMapper mapper = createJsonMapper(fieldName);
+
+        FieldTypeLookup lookup = new FieldTypeLookup()
+            .copyAndAddAll("type", newList(mapper), emptyList());
+        assertEquals(mapper.fieldType(), lookup.get(fieldName));
+
+        String objectKey = "key1.key2";
+        String searchFieldName = fieldName + "." + objectKey;
+
+        MappedFieldType searchFieldType = lookup.get(searchFieldName);
+        assertEquals(mapper.keyedFieldName(), searchFieldType.name());
+        assertThat(searchFieldType, instanceOf(KeyedJsonFieldType.class));
+
+        KeyedJsonFieldType keyedFieldType = (KeyedJsonFieldType) searchFieldType;
+        assertEquals(objectKey, keyedFieldType.key());
+    }
+
+    public void testJsonFieldTypeWithAlias() {
+        String fieldName = "object1.object2.field";
+        JsonFieldMapper mapper = createJsonMapper(fieldName);
+
+        String aliasName = "alias";
+        FieldAliasMapper alias = new FieldAliasMapper(aliasName, aliasName, fieldName);
+
+        FieldTypeLookup lookup = new FieldTypeLookup()
+            .copyAndAddAll("type", newList(mapper), newList(alias));
+        assertEquals(mapper.fieldType(), lookup.get(aliasName));
+
+        String objectKey = "key1.key2";
+        String searchFieldName = aliasName + "." + objectKey;
+
+        MappedFieldType searchFieldType = lookup.get(searchFieldName);
+        assertEquals(mapper.keyedFieldName(), searchFieldType.name());
+        assertThat(searchFieldType, instanceOf(KeyedJsonFieldType.class));
+
+        KeyedJsonFieldType keyedFieldType = (KeyedJsonFieldType) searchFieldType;
+        assertEquals(objectKey, keyedFieldType.key());
+    }
+
+    private JsonFieldMapper createJsonMapper(String fieldName) {
+        Settings settings = Settings.builder()
+            .put("index.version.created", Version.CURRENT)
+            .build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+        return new JsonFieldMapper.Builder(fieldName).build(context);
     }
 
     public void testSimpleMatchToFullName() {

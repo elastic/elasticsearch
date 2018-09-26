@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.JsonFieldMapper.KeyedJsonFieldType;
 import org.junit.Before;
@@ -43,6 +44,20 @@ public class KeyedJsonFieldTypeTests extends FieldTypeTestCase {
     @Override
     protected KeyedJsonFieldType createDefaultFieldType() {
         return new KeyedJsonFieldType("key");
+    }
+
+    public void testIndexedValueForSearch() {
+        KeyedJsonFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+
+        BytesRef keywordValue = ft.indexedValueForSearch("value");
+        assertEquals(new BytesRef("key\0value"), keywordValue);
+
+        BytesRef doubleValue = ft.indexedValueForSearch(2.718);
+        assertEquals(new BytesRef("key\0" + "2.718"), doubleValue);
+
+        BytesRef booleanValue = ft.indexedValueForSearch(true);
+        assertEquals(new BytesRef("key\0true"), booleanValue);
     }
 
     public void testTermQuery() {

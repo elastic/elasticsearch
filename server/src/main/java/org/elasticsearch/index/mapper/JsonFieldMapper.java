@@ -77,7 +77,7 @@ public final class JsonFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "json";
     public static final NamedAnalyzer WHITESPACE_ANALYZER = new NamedAnalyzer(
         "whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer());
-    public static final String KEYED_FIELD_SUFFIX = "._keyed";
+    private static final String KEYED_FIELD_SUFFIX = "._keyed";
 
     private static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new RootJsonFieldType();
@@ -192,10 +192,14 @@ public final class JsonFieldMapper extends FieldMapper {
         private final String key;
         private boolean splitQueriesOnWhitespace;
 
-        public KeyedJsonFieldType(String key) {
+        KeyedJsonFieldType(String key) {
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.key = key;
+        }
+
+        public KeyedJsonFieldType clone() {
+            return new KeyedJsonFieldType(this);
         }
 
         private KeyedJsonFieldType(KeyedJsonFieldType ref) {
@@ -204,8 +208,11 @@ public final class JsonFieldMapper extends FieldMapper {
             this.splitQueriesOnWhitespace = ref.splitQueriesOnWhitespace;
         }
 
-        public KeyedJsonFieldType clone() {
-            return new KeyedJsonFieldType(this);
+        private KeyedJsonFieldType(String name, String key, RootJsonFieldType ref) {
+            super(ref);
+            setName(name);
+            this.key = key;
+            this.splitQueriesOnWhitespace = ref.splitQueriesOnWhitespace;
         }
 
         @Override
@@ -225,6 +232,10 @@ public final class JsonFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        public String key() {
+            return key;
         }
 
         public boolean splitQueriesOnWhitespace() {
@@ -269,8 +280,11 @@ public final class JsonFieldMapper extends FieldMapper {
                 return null;
             }
 
-            String rawValue = JsonFieldParser.createKeyedValue(key, value.toString());
-            return new BytesRef(rawValue);
+            String stringValue = value instanceof BytesRef
+                ? ((BytesRef) value).utf8ToString()
+                : value.toString();
+            String keyedValue = JsonFieldParser.createKeyedValue(key, stringValue);
+            return new BytesRef(keyedValue);
         }
     }
 
@@ -355,10 +369,10 @@ public final class JsonFieldMapper extends FieldMapper {
     private int ignoreAbove;
 
     private JsonFieldMapper(String simpleName,
-                            MappedFieldType fieldType,
-                            MappedFieldType defaultFieldType,
-                            int ignoreAbove,
-                            Settings indexSettings) {
+                    MappedFieldType fieldType,
+                    MappedFieldType defaultFieldType,
+                    int ignoreAbove,
+                    Settings indexSettings) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
 
@@ -385,6 +399,10 @@ public final class JsonFieldMapper extends FieldMapper {
     @Override
     public RootJsonFieldType fieldType() {
         return (RootJsonFieldType) super.fieldType();
+    }
+
+    public KeyedJsonFieldType keyedFieldType(String key) {
+        return new KeyedJsonFieldType(keyedFieldName(), key, fieldType());
     }
 
     public String keyedFieldName() {

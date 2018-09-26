@@ -132,6 +132,7 @@ import org.elasticsearch.search.aggregations.pipeline.derivative.ParsedDerivativ
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -150,6 +151,16 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractWireSerializingTestCase<T> {
     public static final int DEFAULT_MAX_BUCKETS = 100000;
     protected static final double TOLERANCE = 1e-10;
+
+    private static final Comparator<InternalAggregation> INTERNAL_AGG_COMPARATOR = (agg1, agg2) -> {
+        if (agg1.isMapped() == agg2.isMapped()) {
+            return 0;
+        } else if (agg1.isMapped() && agg2.isMapped() == false) {
+            return -1;
+        } else {
+            return 1;
+        }
+    };
 
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
             new SearchModule(Settings.EMPTY, false, emptyList()).getNamedWriteables());
@@ -236,6 +247,8 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             inputs.add(t);
             toReduce.add(t);
         }
+        // Sort aggs so that unmapped come last.  This mimicks the behavior of InternalAggregations.reduce()
+        inputs.sort(INTERNAL_AGG_COMPARATOR);
         ScriptService mockScriptService = mockScriptService();
         MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         if (randomBoolean() && toReduce.size() > 1) {

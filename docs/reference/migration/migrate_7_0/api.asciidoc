@@ -96,6 +96,7 @@ depending on whether {security} is enabled. Previously a
 current user was not authorized for any alias. An empty response with
 status 200 - OK is now returned instead at all times.
 
+[float]
 ==== Put User API response no longer has `user` object
 
 The Put User API response was changed in 6.5.0 to add the `created` field

@@ -22,6 +22,7 @@ appropriate request directly.
 * All classes present in `org.elasticsearch.search.aggregations.metrics.*` packages
 were moved to a single `org.elasticsearch.search.aggregations.metrics` package.
 
+[float]
 ==== `Retry.withBackoff` methods with `Settings` removed
 
 The variants of `Retry.withBackoff` that included `Settings` have been removed

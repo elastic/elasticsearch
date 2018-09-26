@@ -28,6 +28,7 @@ See {plugins}/repository-gcs-client.html#repository-gcs-client[Google Cloud Stor
 * The misspelled helper method `requriesAnalysisSettings(AnalyzerProvider<T> provider)` has been
 renamed to `requiresAnalysisSettings`
 
+[float]
 ==== File-based discovery plugin
 
 * This plugin has been removed since its functionality is now part of

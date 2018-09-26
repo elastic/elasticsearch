@@ -53,6 +53,7 @@ This setting has been removed, as disabling http pipelining support on the serve
 provided little value. The setting `http.pipelining.max_events` can still be used to
 limit the number of pipelined requests in-flight.
 
+[float]
 ==== Cross-cluster search settings renamed
 
 The cross-cluster search remote cluster connection infrastructure is also used

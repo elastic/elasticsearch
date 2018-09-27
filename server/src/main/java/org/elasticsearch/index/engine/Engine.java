@@ -43,6 +43,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
+import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequest;
@@ -110,6 +111,7 @@ public abstract class Engine implements Closeable {
     public static final String SYNC_COMMIT_ID = "sync_id";
     public static final String HISTORY_UUID_KEY = "history_uuid";
     public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
+    public static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
 
     protected final ShardId shardId;
     protected final String allocationId;
@@ -662,7 +664,15 @@ public abstract class Engine implements Closeable {
         }
         Releasable releasable = store::decRef;
         try {
-            EngineSearcher engineSearcher = new EngineSearcher(source, getReferenceManager(scope), store, logger);
+            ReferenceManager<IndexSearcher> referenceManager = getReferenceManager(scope);
+            Searcher engineSearcher = new Searcher(source, referenceManager.acquire(),
+                s -> {
+                  try {
+                      referenceManager.release(s);
+                  } finally {
+                      store.decRef();
+                  }
+              }, logger);
             releasable = null; // success - hand over the reference to the engine searcher
             return engineSearcher;
         } catch (AlreadyClosedException ex) {
@@ -1166,40 +1176,67 @@ public abstract class Engine implements Closeable {
     }
 
     public static class Searcher implements Releasable {
-
         private final String source;
         private final IndexSearcher searcher;
+        private final AtomicBoolean released = new AtomicBoolean(false);
+        private final Logger logger;
+        private final IOUtils.IOConsumer<IndexSearcher> onClose;
 
-        public Searcher(String source, IndexSearcher searcher) {
+        public Searcher(String source, IndexSearcher searcher, Logger logger) {
+            this(source, searcher, s -> s.getIndexReader().close(), logger);
+        }
+
+        public Searcher(String source, IndexSearcher searcher, IOUtils.IOConsumer<IndexSearcher> onClose, Logger logger) {
             this.source = source;
             this.searcher = searcher;
+            this.onClose = onClose;
+            this.logger = logger;
         }
 
         /**
          * The source that caused this searcher to be acquired.
          */
-        public String source() {
+        public final String source() {
             return source;
         }
 
-        public IndexReader reader() {
+        public final IndexReader reader() {
             return searcher.getIndexReader();
         }
 
-        public DirectoryReader getDirectoryReader() {
+        public final DirectoryReader getDirectoryReader() {
             if (reader() instanceof DirectoryReader) {
                 return (DirectoryReader) reader();
             }
             throw new IllegalStateException("Can't use " + reader().getClass() + " as a directory reader");
         }
 
-        public IndexSearcher searcher() {
+        public final IndexSearcher searcher() {
             return searcher;
         }
 
         @Override
         public void close() {
-            // Nothing to close here
+            if (released.compareAndSet(false, true) == false) {
+                /* In general, searchers should never be released twice or this would break reference counting. There is one rare case
+                 * when it might happen though: when the request and the Reaper thread would both try to release it in a very short amount
+                 * of time, this is why we only log a warning instead of throwing an exception.
+                 */
+                logger.warn("Searcher was released twice", new IllegalStateException("Double release"));
+                return;
+            }
+            try {
+                onClose.accept(searcher());
+            } catch (IOException e) {
+                throw new IllegalStateException("Cannot close", e);
+            } catch (AlreadyClosedException e) {
+                // This means there's a bug somewhere: don't suppress it
+                throw new AssertionError(e);
+            }
+        }
+
+        public final Logger getLogger() {
+            return logger;
         }
     }
 

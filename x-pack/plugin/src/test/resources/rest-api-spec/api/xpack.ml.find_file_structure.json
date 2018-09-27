@@ -49,7 +49,7 @@
         },
         "timestamp_format": {
           "type": "string",
-          "description": "Optional parameter to specify the timestamp format in the file"
+          "description": "Optional parameter to specify the timestamp format in the file - may be either a Joda or Java time format"
         },
         "explain": {
           "type": "boolean",

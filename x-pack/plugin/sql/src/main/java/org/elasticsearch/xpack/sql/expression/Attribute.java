@@ -5,7 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.List;
 import java.util.Objects;
@@ -60,6 +63,11 @@ public abstract class Attribute extends NamedExpression {
         throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
     }
 
+    @Override
+    public ScriptTemplate asScript() {
+        throw new SqlIllegalArgumentException("Encountered a bug - an attribute should never be scripted");
+    }
+
     public String qualifier() {
         return qualifier;
     }
@@ -101,6 +109,11 @@ public abstract class Attribute extends NamedExpression {
     @Override
     public int semanticHash() {
         return id().hashCode();
+    }
+
+    @Override
+    protected NodeInfo<? extends Expression> info() {
+        return null;
     }
 
     @Override

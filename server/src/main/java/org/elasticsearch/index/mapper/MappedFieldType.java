@@ -345,7 +345,9 @@ public abstract class MappedFieldType extends FieldType {
         throw new QueryShardException(context, "Can only use prefix queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
     }
 
-    public Query wildcardQuery(String value, QueryShardContext context) {
+    public Query wildcardQuery(String value,
+                               @Nullable MultiTermQuery.RewriteMethod method,
+                               QueryShardContext context) {
         throw new QueryShardException(context, "Can only use wildcard queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
     }
 

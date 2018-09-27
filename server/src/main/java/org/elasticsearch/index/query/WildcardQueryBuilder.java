@@ -19,16 +19,14 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.WildcardQuery;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -184,20 +182,13 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
     protected Query doToQuery(QueryShardContext context) throws IOException {
         MappedFieldType fieldType = context.fieldMapper(fieldName);
 
-        Query query;
         if (fieldType == null) {
-            Term term = new Term(fieldName, BytesRefs.toBytesRef(value));
-            query = new WildcardQuery(term);
-        } else {
-            query = fieldType.wildcardQuery(value, context);
+            return new MatchNoDocsQuery("unknown field [" + fieldName + "]");
         }
 
-        if (query instanceof MultiTermQuery) {
-            MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(
-                rewrite, null, LoggingDeprecationHandler.INSTANCE);
-            QueryParsers.setRewriteMethod((MultiTermQuery) query, rewriteMethod);
-        }
-        return query;
+        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(
+            rewrite, null, LoggingDeprecationHandler.INSTANCE);
+        return fieldType.wildcardQuery(value, method, context);
     }
 
     @Override

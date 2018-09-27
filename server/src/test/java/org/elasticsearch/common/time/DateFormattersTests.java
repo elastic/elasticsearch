@@ -22,12 +22,18 @@ package org.elasticsearch.common.time;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class DateFormattersTests extends ESTestCase {
 
@@ -61,6 +67,53 @@ public class DateFormattersTests extends ESTestCase {
         TemporalAccessor accessor = formatter.parse("123");
         assertThat(DateFormatters.toZonedDateTime(accessor).toInstant().toEpochMilli(), is(123L));
         assertThat(formatter.pattern(), is("strict_date_optional_time||epoch_millis"));
+    }
+
+    public void testLocales() {
+        assertThat(DateFormatters.forPattern("strict_date_optional_time").getLocale(), is(Locale.ROOT));
+        Locale locale = randomLocale(random());
+        assertThat(DateFormatters.forPattern("strict_date_optional_time").withLocale(locale).getLocale(), is(locale));
+        assertThat(DateFormatters.forPattern("epoch_millis").withLocale(locale).getLocale(), is(locale));
+        assertThat(DateFormatters.forPattern("epoch_second").withLocale(locale).getLocale(), is(locale));
+    }
+
+    public void testTimeZones() {
+        // zone is null by default due to different behaviours between java8 and above
+        assertThat(DateFormatters.forPattern("strict_date_optional_time").getZone(), is(nullValue()));
+        ZoneId zoneId = randomZone();
+        assertThat(DateFormatters.forPattern("strict_date_optional_time").withZone(zoneId).getZone(), is(zoneId));
+        assertThat(DateFormatters.forPattern("epoch_millis").withZone(zoneId).getZone(), is(zoneId));
+        assertThat(DateFormatters.forPattern("epoch_second").withZone(zoneId).getZone(), is(zoneId));
+    }
+
+    public void testEqualsAndHashcode() {
+        assertThat(DateFormatters.forPattern("strict_date_optional_time"),
+            sameInstance(DateFormatters.forPattern("strict_date_optional_time")));
+        assertThat(DateFormatters.forPattern("YYYY"), equalTo(DateFormatters.forPattern("YYYY")));
+        assertThat(DateFormatters.forPattern("YYYY").hashCode(),
+            is(DateFormatters.forPattern("YYYY").hashCode()));
+
+        // different timezone, thus not equals
+        assertThat(DateFormatters.forPattern("YYYY").withZone(ZoneId.of("CET")), not(equalTo(DateFormatters.forPattern("YYYY"))));
+
+        // different locale, thus not equals
+        assertThat(DateFormatters.forPattern("YYYY").withLocale(randomLocale(random())),
+            not(equalTo(DateFormatters.forPattern("YYYY"))));
+
+        // different pattern, thus not equals
+        assertThat(DateFormatters.forPattern("YYYY"), not(equalTo(DateFormatters.forPattern("YY"))));
+
+        DateFormatter epochSecondFormatter = DateFormatters.forPattern("epoch_second");
+        assertThat(epochSecondFormatter, sameInstance(DateFormatters.forPattern("epoch_second")));
+        assertThat(epochSecondFormatter.hashCode(), is(DateFormatters.forPattern("epoch_second").hashCode()));
+        assertThat(epochSecondFormatter, not(equalTo(DateFormatters.forPattern("epoch_second").withLocale(randomLocale(random())))));
+        assertThat(epochSecondFormatter, not(equalTo(DateFormatters.forPattern("epoch_second").withZone(ZoneId.of("CET")))));
+
+        DateFormatter epochMillisFormatter = DateFormatters.forPattern("epoch_millis");
+        assertThat(epochMillisFormatter.hashCode(), is(DateFormatters.forPattern("epoch_millis").hashCode()));
+        assertThat(epochMillisFormatter, sameInstance(DateFormatters.forPattern("epoch_millis")));
+        assertThat(epochMillisFormatter, not(equalTo(DateFormatters.forPattern("epoch_millis").withLocale(randomLocale(random())))));
+        assertThat(epochMillisFormatter, not(equalTo(DateFormatters.forPattern("epoch_millis").withZone(ZoneId.of("CET")))));
     }
 
     private void assertThatSameDateTime(DateFormatter formatter, DateFormatter zonedFormatter, long millis) {

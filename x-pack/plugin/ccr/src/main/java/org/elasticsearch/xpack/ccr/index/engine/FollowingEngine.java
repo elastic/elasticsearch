@@ -55,14 +55,14 @@ public final class FollowingEngine extends InternalEngine {
     protected InternalEngine.IndexingStrategy indexingStrategyForOperation(final Index index) throws IOException {
         preFlight(index);
         /*
-         * A NOTE ABOUT OPTIMIZATION USING SEQUENCE NUMBERS:
+         * A note about optimization using sequence numbers:
          *
          * 1. Indexing operations are processed concurrently in an engine. However, operations of the same docID are processed
          *    one by one under the docID lock.
          *
          * 2. An engine itself can resolve correctly if an operation is delivered multiple times. However, if an operation is
-         *    optimized and delivered multiple, it will be appended into Lucene more than once. We void this issue by never
-         *    optimizing an operation if it was processed in the engine (using LocalCheckpointTracker).
+         *    optimized and delivered multiple times, it will be appended into Lucene more than once. We void this issue by
+         *    never optimizing an operation if it was processed in the engine (using LocalCheckpointTracker).
          *
          * 3. When replicating operations to replicas or followers, we also carry the max seq_no_of_updates_or_deletes on the
          *    leader to followers. This transfer guarantees the MUS on a follower when operation O is processed at least the

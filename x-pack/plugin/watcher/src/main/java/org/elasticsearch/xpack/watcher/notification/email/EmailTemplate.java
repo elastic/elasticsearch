@@ -420,7 +420,7 @@ public class EmailTemplate implements ToXContentObject {
 
         /**
          * If this is a text template not using mustache
-         * @param emails
+         * @param emails The list of email addresses to parse
          */
         static void validateEmailAddresses(TextTemplate ... emails) {
             for (TextTemplate emailTemplate : emails) {

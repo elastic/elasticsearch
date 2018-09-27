@@ -19,7 +19,9 @@
 
 package org.elasticsearch.common.time;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 
 import java.time.DateTimeException;
 import java.time.DayOfWeek;
@@ -49,6 +51,8 @@ import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
 public class DateFormatters {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(DateFormatters.class));
 
     private static final DateTimeFormatter TIME_ZONE_FORMATTER_NO_COLON = new DateTimeFormatterBuilder()
         .appendOffset("+HHmm", "Z")
@@ -891,16 +895,6 @@ public class DateFormatters {
         new DateTimeFormatterBuilder().appendValue(ChronoField.YEAR).toFormatter(Locale.ROOT));
 
     /*
-     * Returns a formatter for parsing the seconds since the epoch
-     */
-    private static final DateFormatter EPOCH_SECOND = EpochSecondsDateFormatter.INSTANCE;
-
-    /*
-     * Parses the milliseconds since/before the epoch
-     */
-    private static final DateFormatter EPOCH_MILLIS = EpochMillisDateFormatter.INSTANCE;
-
-    /*
      * Returns a formatter that combines a full date and two digit hour of
      * day. (yyyy-MM-dd'T'HH)
      */
@@ -1373,10 +1367,13 @@ public class DateFormatters {
             return YEAR_MONTH;
         } else if ("yearMonthDay".equals(input) || "year_month_day".equals(input)) {
             return YEAR_MONTH_DAY;
-        } else if ("epoch_second".equals(input) || "epoch_seconds".equals(input)) {
-            return EPOCH_SECOND;
+        } else if ("epoch_second".equals(input)) {
+            DEPRECATION_LOGGER.deprecated("using [epoch_second] as date format should be replaced with [epoch_seconds]");
+            return EpochSecondsDateFormatter.INSTANCE;
+        } else if ("epoch_seconds".equals(input)) {
+            return EpochSecondsDateFormatter.INSTANCE;
         } else if ("epoch_millis".equals(input)) {
-            return EPOCH_MILLIS;
+            return EpochMillisDateFormatter.INSTANCE;
         // strict date formats here, must be at least 4 digits for year and two for months and two for day
         } else if ("strictBasicWeekDate".equals(input) || "strict_basic_week_date".equals(input)) {
             return STRICT_BASIC_WEEK_DATE;

@@ -27,10 +27,12 @@ import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalField;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 public class EpochSecondsDateFormatter implements DateFormatter {
 
     public static DateFormatter INSTANCE = new EpochSecondsDateFormatter();
+    private static final Pattern SPLIT_BY_DOT_PATTERN = Pattern.compile("\\.");
 
     private EpochSecondsDateFormatter() {}
 
@@ -38,7 +40,7 @@ public class EpochSecondsDateFormatter implements DateFormatter {
     public TemporalAccessor parse(String input) {
         try {
             if (input.contains(".")) {
-                String[] inputs = input.split("\\.", 2);
+                String[] inputs = SPLIT_BY_DOT_PATTERN.split("\\.", 2);
                 Long seconds = Long.valueOf(inputs[0]);
                 if (inputs[1].length() == 0) {
                     // this is BWC compatible to joda time, nothing after the dot is allowed

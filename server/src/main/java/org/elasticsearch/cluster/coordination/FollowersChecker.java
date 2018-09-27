@@ -82,6 +82,7 @@ public class FollowersChecker extends AbstractComponent {
     private final Consumer<FollowerCheckRequest> handleRequestAndUpdateState;
 
     private final Object mutex = new Object(); // protects writes to this state; read access does not need sync
+    private volatile boolean active; // for assertions
     private final Map<DiscoveryNode, FollowerChecker> followerCheckers = newConcurrentMap();
     private final Set<DiscoveryNode> faultyNodes = new HashSet<>();
 
@@ -127,6 +128,8 @@ public class FollowersChecker extends AbstractComponent {
                     followerChecker.start();
                 }
             }
+
+            active = true;
         }
     }
 
@@ -137,6 +140,7 @@ public class FollowersChecker extends AbstractComponent {
         synchronized (mutex) {
             followerCheckers.clear();
             faultyNodes.clear();
+            active = false;
         }
     }
 
@@ -227,7 +231,7 @@ public class FollowersChecker extends AbstractComponent {
     // For assertions
     boolean isActive() {
         synchronized (mutex) {
-            return followerCheckers.isEmpty() == false || faultyNodes.isEmpty() == false;
+            return active;
         }
     }
 

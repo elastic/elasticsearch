@@ -54,6 +54,8 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.empty;
@@ -175,9 +177,9 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         assertEquals(putRollupJobRequest.getConfig(), job.getJob());
         assertThat(job.getStats().getNumPages(), lessThan(10L));
         assertEquals(numDocs, job.getStats().getNumDocuments());
-        assertThat(job.getStats().getNumInvocations(), lessThan(10L));
+        assertThat(job.getStats().getNumInvocations(), greaterThan(0L));
         assertEquals(1, job.getStats().getOutputDocuments());
-        assertEquals(IndexerState.STARTED, job.getStatus().getState());
+        assertThat(job.getStatus().getState(), either(IndexerState.STARTED).or(IndexerState.INDEXING));
         assertThat(job.getStatus().getCurrentPosition(), hasKey("date.date_histogram"));
         assertEquals(true, job.getStatus().getUpgradedDocumentId());
     }

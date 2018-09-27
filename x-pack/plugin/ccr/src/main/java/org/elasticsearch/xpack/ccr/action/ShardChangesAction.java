@@ -207,6 +207,12 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             return maxSeqNo;
         }
 
+        private long maxSeqNoOfUpdatesOrDeletes;
+
+        public long getMaxSeqNoOfUpdatesOrDeletes() {
+            return maxSeqNoOfUpdatesOrDeletes;
+        }
+
         private Translog.Operation[] operations;
 
         public Translog.Operation[] getOperations() {
@@ -220,11 +226,13 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             final long mappingVersion,
             final long globalCheckpoint,
             final long maxSeqNo,
+            final long maxSeqNoOfUpdatesOrDeletes,
             final Translog.Operation[] operations) {
 
             this.mappingVersion = mappingVersion;
             this.globalCheckpoint = globalCheckpoint;
             this.maxSeqNo = maxSeqNo;
+            this.maxSeqNoOfUpdatesOrDeletes = maxSeqNoOfUpdatesOrDeletes;
             this.operations = operations;
         }
 
@@ -234,6 +242,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             mappingVersion = in.readVLong();
             globalCheckpoint = in.readZLong();
             maxSeqNo = in.readZLong();
+            maxSeqNoOfUpdatesOrDeletes = in.readZLong();
             operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
         }
 
@@ -243,6 +252,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             out.writeVLong(mappingVersion);
             out.writeZLong(globalCheckpoint);
             out.writeZLong(maxSeqNo);
+            out.writeZLong(maxSeqNoOfUpdatesOrDeletes);
             out.writeArray(Translog.Operation::writeOperation, operations);
         }
 
@@ -254,12 +264,13 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             return mappingVersion == that.mappingVersion &&
                     globalCheckpoint == that.globalCheckpoint &&
                     maxSeqNo == that.maxSeqNo &&
+                    maxSeqNoOfUpdatesOrDeletes == that.maxSeqNoOfUpdatesOrDeletes &&
                     Arrays.equals(operations, that.operations);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(mappingVersion, globalCheckpoint, maxSeqNo, Arrays.hashCode(operations));
+            return Objects.hash(mappingVersion, globalCheckpoint, maxSeqNo, maxSeqNoOfUpdatesOrDeletes, Arrays.hashCode(operations));
         }
     }
 
@@ -294,7 +305,9 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                     request.getMaxOperationCount(),
                     request.getExpectedHistoryUUID(),
                     request.getMaxOperationSizeInBytes());
-            return getResponse(mappingVersion, seqNoStats, operations);
+            // must capture after after snapshotting operations to ensure this MUS is at least the highest MUS of any of these operations.
+            final long maxSeqNoOfUpdatesOrDeletes = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
+            return getResponse(mappingVersion, seqNoStats, maxSeqNoOfUpdatesOrDeletes, operations);
         }
 
         @Override
@@ -358,7 +371,8 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                     final long mappingVersion =
                             clusterService.state().metaData().index(shardId.getIndex()).getMappingVersion();
                     final SeqNoStats latestSeqNoStats = indexShard.seqNoStats();
-                    listener.onResponse(getResponse(mappingVersion, latestSeqNoStats, EMPTY_OPERATIONS_ARRAY));
+                    final long maxSeqNoOfUpdatesOrDeletes = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
+                    listener.onResponse(getResponse(mappingVersion, latestSeqNoStats, maxSeqNoOfUpdatesOrDeletes, EMPTY_OPERATIONS_ARRAY));
                 } catch (final Exception caught) {
                     caught.addSuppressed(e);
                     listener.onFailure(caught);
@@ -433,8 +447,9 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         return operations.toArray(EMPTY_OPERATIONS_ARRAY);
     }
 
-    static Response getResponse(final long mappingVersion, final SeqNoStats seqNoStats, final Translog.Operation[] operations) {
-        return new Response(mappingVersion, seqNoStats.getGlobalCheckpoint(), seqNoStats.getMaxSeqNo(), operations);
+    static Response getResponse(final long mappingVersion, final SeqNoStats seqNoStats,
+                                final long maxSeqNoOfUpdates, final Translog.Operation[] operations) {
+        return new Response(mappingVersion, seqNoStats.getGlobalCheckpoint(), seqNoStats.getMaxSeqNo(), maxSeqNoOfUpdates, operations);
     }
 
 }

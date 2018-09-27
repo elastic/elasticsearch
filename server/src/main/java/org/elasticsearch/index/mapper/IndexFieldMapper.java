@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
@@ -150,8 +151,19 @@ public class IndexFieldMapper extends MetadataFieldMapper {
                 + " vs. " + values);
         }
 
+        @Override
+        public Query wildcardQuery(String value,
+                                   @Nullable MultiTermQuery.RewriteMethod method,
+                                   QueryShardContext context) {
+            if (isSameIndex(value, context.getFullyQualifiedIndex().getName())) {
+                return Queries.newMatchAllQuery();
+            } else {
+                return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.index().getName() + " vs. " + value);
+            }
+        }
+
         private boolean isSameIndex(Object value, String indexName) {
-            String pattern = value instanceof BytesRef ? pattern = ((BytesRef) value).utf8ToString() : value.toString();
+            String pattern = value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : value.toString();
             return Regex.simpleMatch(pattern, indexName);
         }
 

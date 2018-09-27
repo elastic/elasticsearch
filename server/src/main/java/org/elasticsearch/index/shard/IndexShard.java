@@ -79,7 +79,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -505,7 +504,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 if (getMaxSeqNoOfUpdatesOrDeletes() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
                                     // If the old primary was on an old version that did not replicate the msu,
                                     // we need to bootstrap it manually from its local history.
-                                    assert indexSettings.getIndexVersionCreated().before(Version.V_7_0_0_alpha1);
+                                    assert indexSettings.getIndexVersionCreated().before(Version.V_6_5_0);
                                     engine.advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats().getMaxSeqNo());
                                 }
                                 engine.restoreLocalHistoryFromTranslog((resettingEngine, snapshot) ->
@@ -1399,8 +1398,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private boolean assertMaxUnsafeAutoIdInCommit() throws IOException {
         final Map<String, String> userData = SegmentInfos.readLatestCommit(store.directory()).getUserData();
-        assert userData.containsKey(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) :
-            "opening index which was created post 5.5.0 but " + InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID
+        assert userData.containsKey(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) :
+            "opening index which was created post 5.5.0 but " + Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID
                 + " is not found in commit";
         return true;
     }
@@ -1958,7 +1957,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (getMaxSeqNoOfUpdatesOrDeletes() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
                 // If the old primary was on an old version that did not replicate the msu,
                 // we need to bootstrap it manually from its local history.
-                assert indexSettings.getIndexVersionCreated().before(Version.V_7_0_0_alpha1);
+                assert indexSettings.getIndexVersionCreated().before(Version.V_6_5_0);
                 getEngine().advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats().getMaxSeqNo());
             }
         }

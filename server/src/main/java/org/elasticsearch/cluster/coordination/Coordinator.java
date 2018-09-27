@@ -127,6 +127,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     private static NodeRemovalClusterStateTaskExecutor getNodeRemovalExecutor(Settings settings, AllocationService allocationService, Logger logger) {
+        // TODO move NodeRemovalClusterStateTaskExecutor out of Zen since it's not Zen-specific
         return new NodeRemovalClusterStateTaskExecutor(allocationService, new ElectMasterService(settings) {
 
             @Override

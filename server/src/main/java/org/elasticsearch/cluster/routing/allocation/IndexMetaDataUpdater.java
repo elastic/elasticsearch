@@ -69,6 +69,13 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
     @Override
     public void shardStarted(ShardRouting initializingShard, ShardRouting startedShard) {
         addAllocationId(startedShard);
+        if (startedShard.primary()
+            // started shard has to have null recoverySource; have to pick up recoverySource from its initializing state
+            && (initializingShard.recoverySource() instanceof RecoverySource.ExistingStoreRecoverySource
+            || initializingShard.recoverySource() instanceof RecoverySource.SnapshotRecoverySource)) {
+            Updates updates = changes(startedShard.shardId());
+            updates.removedAllocationIds.add(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID);
+        }
     }
 
     @Override
@@ -144,7 +151,8 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
             oldInSyncAllocationIds.contains(updates.initializedPrimary.allocationId().getId()) == false) {
             // we're not reusing an existing in-sync allocation id to initialize a primary, which means that we're either force-allocating
             // an empty or a stale primary (see AllocateEmptyPrimaryAllocationCommand or AllocateStalePrimaryAllocationCommand).
-            RecoverySource.Type recoverySourceType = updates.initializedPrimary.recoverySource().getType();
+            RecoverySource recoverySource = updates.initializedPrimary.recoverySource();
+            RecoverySource.Type recoverySourceType = recoverySource.getType();
             boolean emptyPrimary = recoverySourceType == RecoverySource.Type.EMPTY_STORE;
             assert updates.addedAllocationIds.isEmpty() : (emptyPrimary ? "empty" : "stale") +
                 " primary is not force-initialized in same allocation round where shards are started";
@@ -156,9 +164,12 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
                 // forcing an empty primary resets the in-sync allocations to the empty set (ShardRouting.allocatedPostIndexCreate)
                 indexMetaDataBuilder.putInSyncAllocationIds(shardId.id(), Collections.emptySet());
             } else {
+                assert recoverySource instanceof RecoverySource.ExistingStoreRecoverySource
+                    || recoverySource instanceof RecoverySource.SnapshotRecoverySource
+                    : recoverySource;
                 // forcing a stale primary resets the in-sync allocations to the singleton set with the stale id
                 indexMetaDataBuilder.putInSyncAllocationIds(shardId.id(),
-                    Collections.singleton(updates.initializedPrimary.allocationId().getId()));
+                    Collections.singleton(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID));
             }
         } else {
             // standard path for updating in-sync ids
@@ -291,7 +302,8 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
      * Add allocation id of this shard to the set of in-sync shard copies
      */
     private void addAllocationId(ShardRouting shardRouting) {
-        changes(shardRouting.shardId()).addedAllocationIds.add(shardRouting.allocationId().getId());
+        final Updates changes = changes(shardRouting.shardId());
+        changes.addedAllocationIds.add(shardRouting.allocationId().getId());
     }
 
     /**

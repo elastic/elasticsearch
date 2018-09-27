@@ -132,6 +132,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
      * Recovery from an existing on-disk store
      */
     public static final class ExistingStoreRecoverySource extends RecoverySource {
+        public static final String FORCED_ALLOCATION_ID = "_forced_allocation";
         public static final ExistingStoreRecoverySource INSTANCE = new ExistingStoreRecoverySource(false);
         public static final ExistingStoreRecoverySource FORCE_STALE_PRIMARY_INSTANCE = new ExistingStoreRecoverySource(true);
 

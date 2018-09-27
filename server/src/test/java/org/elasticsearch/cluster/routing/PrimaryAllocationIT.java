@@ -204,6 +204,13 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         }
         rerouteBuilder.get();
 
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+
+        Set<String> expectedAllocationIds = useStaleReplica
+            ? Collections.singleton(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID)
+            : Collections.emptySet();
+        assertEquals(expectedAllocationIds, state.metaData().index(idxName).inSyncAllocationIds(0));
+
         logger.info("--> check that the stale primary shard gets allocated and that documents are available");
         ensureYellow(idxName);
 
@@ -218,7 +225,8 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch(idxName).setSize(0).setQuery(matchAllQuery()).get(), useStaleReplica ? 1L : 0L);
 
         // allocation id of old primary was cleaned from the in-sync set
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        state = client().admin().cluster().prepareState().get().getState();
+
         assertEquals(Collections.singleton(state.routingTable().index(idxName).shard(0).primary.allocationId().getId()),
             state.metaData().index(idxName).inSyncAllocationIds(0));
 

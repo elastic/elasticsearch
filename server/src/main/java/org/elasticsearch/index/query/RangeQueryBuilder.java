@@ -151,6 +151,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     /**
      * Get the field name for this query.
      */
+    @Override
     public String fieldName() {
         return this.fieldName;
     }

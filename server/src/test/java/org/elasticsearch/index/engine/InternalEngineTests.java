@@ -19,42 +19,9 @@
 
 package org.elasticsearch.index.engine;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Set;
-import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-import java.util.function.LongSupplier;
-import java.util.function.Supplier;
-import java.util.function.ToLongBiFunction;
-import java.util.stream.Collectors;
-import java.util.stream.LongStream;
-
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -89,6 +56,7 @@ import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TermQuery;
@@ -161,6 +129,40 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
+
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
+import java.util.function.ToLongBiFunction;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.shuffle;
@@ -662,6 +664,7 @@ public class InternalEngineTests extends EngineTestCase {
         trimUnsafeCommits(engine.config());
         engine = new InternalEngine(engine.config());
         assertTrue(engine.isRecovering());
+        engine.initializeMaxSeqNoOfUpdatesOrDeletes();
         engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
         Engine.Searcher searcher = wrapper.wrap(engine.acquireSearcher("test"));
         assertThat(counter.get(), equalTo(2));
@@ -679,6 +682,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine = new InternalEngine(engine.config());
         expectThrows(IllegalStateException.class, () -> engine.flush(true, true));
         assertTrue(engine.isRecovering());
+        engine.initializeMaxSeqNoOfUpdatesOrDeletes();
         engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
         assertFalse(engine.isRecovering());
         doc = testParsedDocument("2", null, testDocumentWithTextField(), SOURCE, null);
@@ -708,7 +712,8 @@ public class InternalEngineTests extends EngineTestCase {
             IOUtils.close(engine);
         }
         trimUnsafeCommits(engine.config());
-        try (Engine recoveringEngine = new InternalEngine(engine.config())){
+        try (Engine recoveringEngine = new InternalEngine(engine.config())) {
+            recoveringEngine.initializeMaxSeqNoOfUpdatesOrDeletes();
             recoveringEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
             try (Engine.Searcher searcher = recoveringEngine.acquireSearcher("test")) {
                 final TotalHitCountCollector collector = new TotalHitCountCollector();
@@ -745,6 +750,7 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             };
             assertThat(getTranslog(recoveringEngine).stats().getUncommittedOperations(), equalTo(docs));
+            recoveringEngine.initializeMaxSeqNoOfUpdatesOrDeletes();
             recoveringEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
             assertTrue(committed.get());
         } finally {
@@ -779,6 +785,7 @@ public class InternalEngineTests extends EngineTestCase {
             initialEngine.close();
             trimUnsafeCommits(initialEngine.config());
             recoveringEngine = new InternalEngine(initialEngine.config());
+            recoveringEngine.initializeMaxSeqNoOfUpdatesOrDeletes();
             recoveringEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
             try (Engine.Searcher searcher = recoveringEngine.acquireSearcher("test")) {
                 TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), docs);
@@ -812,6 +819,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
             trimUnsafeCommits(config);
             try (InternalEngine engine = new InternalEngine(config)) {
+                engine.initializeMaxSeqNoOfUpdatesOrDeletes();
                 engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
                 assertThat(engine.getLocalCheckpoint(), equalTo(maxSeqNo));
                 assertThat(engine.getLocalCheckpointTracker().getMaxSeqNo(), equalTo(maxSeqNo));
@@ -819,6 +827,7 @@ public class InternalEngineTests extends EngineTestCase {
             trimUnsafeCommits(config);
             try (InternalEngine engine = new InternalEngine(config)) {
                 long upToSeqNo = randomLongBetween(globalCheckpoint.get(), maxSeqNo);
+                engine.initializeMaxSeqNoOfUpdatesOrDeletes();
                 engine.recoverFromTranslog(translogHandler, upToSeqNo);
                 assertThat(engine.getLocalCheckpoint(), equalTo(upToSeqNo));
                 assertThat(engine.getLocalCheckpointTracker().getMaxSeqNo(), equalTo(upToSeqNo));
@@ -1204,6 +1213,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
         trimUnsafeCommits(config);
         engine = new InternalEngine(config);
+        engine.initializeMaxSeqNoOfUpdatesOrDeletes();
         engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
         assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
     }
@@ -1223,6 +1233,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.close();
         trimUnsafeCommits(config);
         engine = new InternalEngine(config);
+        engine.initializeMaxSeqNoOfUpdatesOrDeletes();
         engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
         assertNull("Sync ID must be gone since we have a document to replay", engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID));
     }
@@ -1625,11 +1636,18 @@ public class InternalEngineTests extends EngineTestCase {
                 between(10, 10 * IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.get(Settings.EMPTY)))
             .build());
 
-        try (Store oldReplicaStore = createStore();
-             InternalEngine replicaEngine =
-                 createEngine(oldSettings, oldReplicaStore, createTempDir("translog-old-replica"), newMergePolicy())) {
-            final List<Engine.Operation> ops = generateSingleDocHistory(true, randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL), true, 2, 2, 20, "1");
-            assertOpsOnReplica(ops, replicaEngine, true, logger);
+        try (Store oldReplicaStore = createStore()) {
+            Path translogPath = createTempDir("translog-old-replica");
+            String translogUUID = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+            EngineConfig engineConfig = config(oldSettings, oldReplicaStore, translogPath, newMergePolicy(), null);
+            oldReplicaStore.createEmpty();
+            oldReplicaStore.associateIndexWithNewTranslog(translogUUID);
+            try (InternalEngine replicaEngine = new InternalEngine(engineConfig)) {
+                replicaEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+                final List<Engine.Operation> ops = generateSingleDocHistory(
+                    true, randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL), true, 2, 2, 20, "1");
+                assertOpsOnReplica(ops, replicaEngine, true, logger);
+            }
         }
     }
 
@@ -2016,8 +2034,8 @@ public class InternalEngineTests extends EngineTestCase {
             });
             thread[i].start();
         }
-        for (int i = 0; i < thread.length; i++) {
-            thread[i].join();
+        for (Thread element : thread) {
+            element.join();
         }
         List<OpAndVersion> sortedHistory = new ArrayList<>(history);
         sortedHistory.sort(Comparator.comparing(o -> o.version));
@@ -2216,7 +2234,8 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         trimUnsafeCommits(initialEngine.engineConfig);
-        try (InternalEngine recoveringEngine = new InternalEngine(initialEngine.config())){
+        try (InternalEngine recoveringEngine = new InternalEngine(initialEngine.config())) {
+            recoveringEngine.initializeMaxSeqNoOfUpdatesOrDeletes();
             recoveringEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
 
             assertEquals(primarySeqNo, recoveringEngine.getSeqNoStats(-1).getMaxSeqNo());
@@ -2560,6 +2579,7 @@ public class InternalEngineTests extends EngineTestCase {
                             assertEquals("3", userData.get(Translog.TRANSLOG_GENERATION_KEY));
                         }
                         assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                        engine.initializeMaxSeqNoOfUpdatesOrDeletes();
                         engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
                         userData = engine.getLastCommittedSegmentInfos().getUserData();
                         assertEquals("3", userData.get(Translog.TRANSLOG_GENERATION_KEY));
@@ -2577,6 +2597,7 @@ public class InternalEngineTests extends EngineTestCase {
                     Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
                     assertEquals("1", userData.get(Translog.TRANSLOG_GENERATION_KEY));
                     assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                    engine.initializeMaxSeqNoOfUpdatesOrDeletes();
                     engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
                     assertEquals(2, engine.getTranslog().currentFileGeneration());
                     assertEquals(0L, engine.getTranslog().stats().getUncommittedOperations());
@@ -2591,6 +2612,7 @@ public class InternalEngineTests extends EngineTestCase {
                         Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
                         assertEquals("1", userData.get(Translog.TRANSLOG_GENERATION_KEY));
                         assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                        engine.initializeMaxSeqNoOfUpdatesOrDeletes();
                         engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
                         userData = engine.getLastCommittedSegmentInfos().getUserData();
                         assertEquals("no changes - nothing to commit", "1", userData.get(Translog.TRANSLOG_GENERATION_KEY));
@@ -2697,6 +2719,7 @@ public class InternalEngineTests extends EngineTestCase {
                     }
                 }
             }) {
+                engine.initializeMaxSeqNoOfUpdatesOrDeletes();
                 engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
                 final ParsedDocument doc1 = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
                 engine.index(indexForDoc(doc1));
@@ -2708,6 +2731,7 @@ public class InternalEngineTests extends EngineTestCase {
             try (InternalEngine engine =
                      new InternalEngine(config(indexSettings, store, translogPath, newMergePolicy(), null, null,
                          globalCheckpointSupplier))) {
+                engine.initializeMaxSeqNoOfUpdatesOrDeletes();
                 engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
                 assertVisibleCount(engine, 1);
                 final long committedGen = Long.valueOf(
@@ -2775,6 +2799,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.close();
         trimUnsafeCommits(copy(engine.config(), inSyncGlobalCheckpointSupplier));
         engine = new InternalEngine(copy(engine.config(), inSyncGlobalCheckpointSupplier)); // we need to reuse the engine config unless the parser.mappingModified won't work
+        engine.initializeMaxSeqNoOfUpdatesOrDeletes();
         engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
 
         assertVisibleCount(engine, numDocs, false);
@@ -3438,8 +3463,8 @@ public class InternalEngineTests extends EngineTestCase {
             });
             thread[i].start();
         }
-        for (int i = 0; i < thread.length; i++) {
-            thread[i].join();
+        for (Thread element : thread) {
+            element.join();
         }
         if (primary) {
             assertEquals(0, engine.getNumVersionLookups());
@@ -3481,8 +3506,10 @@ public class InternalEngineTests extends EngineTestCase {
             engine.index(appendOnlyPrimary(doc, true, timestamp1));
             assertEquals(timestamp1, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
         }
-        try (Store store = createStore(newFSDirectory(storeDir)); Engine engine = new InternalEngine(configSupplier.apply(store))) {
+        try (Store store = createStore(newFSDirectory(storeDir));
+             InternalEngine engine = new InternalEngine(configSupplier.apply(store))) {
             assertEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
+            engine.initializeMaxSeqNoOfUpdatesOrDeletes();
             engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
             assertEquals(timestamp1, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
             final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(),
@@ -3545,8 +3572,8 @@ public class InternalEngineTests extends EngineTestCase {
         try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
             assertEquals("unexpected refresh", 0, searcher.reader().maxDoc());
         }
-        for (int i = 0; i < thread.length; i++) {
-            thread[i].join();
+        for (Thread element : thread) {
+            element.join();
         }
 
         engine.refresh("test");
@@ -3768,6 +3795,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
         trimUnsafeCommits(initialEngine.config());
         try (Engine recoveringEngine = new InternalEngine(initialEngine.config())) {
+            recoveringEngine.initializeMaxSeqNoOfUpdatesOrDeletes();
             recoveringEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
             recoveringEngine.fillSeqNoGaps(2);
             assertThat(recoveringEngine.getLocalCheckpoint(), greaterThanOrEqualTo((long) (docs - 1)));
@@ -3878,6 +3906,7 @@ public class InternalEngineTests extends EngineTestCase {
                     throw new UnsupportedOperationException();
                 }
             };
+            noOpEngine.initializeMaxSeqNoOfUpdatesOrDeletes();
             noOpEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
             final int gapsFilled = noOpEngine.fillSeqNoGaps(primaryTerm.get());
             final String reason = "filling gaps";
@@ -4105,6 +4134,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
             trimUnsafeCommits(engineConfig);
             try (InternalEngine engine = new InternalEngine(engineConfig)) {
+                engine.initializeMaxSeqNoOfUpdatesOrDeletes();
                 engine.recoverFromTranslog(translogHandler, globalCheckpoint.get());
                 engine.restoreLocalHistoryFromTranslog(translogHandler);
                 assertThat(getDocIds(engine, true), equalTo(prevDocs));
@@ -4152,6 +4182,7 @@ public class InternalEngineTests extends EngineTestCase {
             trimUnsafeCommits(copy(replicaEngine.config(), globalCheckpoint::get));
             recoveringEngine = new InternalEngine(copy(replicaEngine.config(), globalCheckpoint::get));
             assertEquals(numDocsOnReplica, getTranslog(recoveringEngine).stats().getUncommittedOperations());
+            recoveringEngine.initializeMaxSeqNoOfUpdatesOrDeletes();
             recoveringEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
             assertEquals(maxSeqIDOnReplica, recoveringEngine.getSeqNoStats(-1).getMaxSeqNo());
             assertEquals(checkpointOnReplica, recoveringEngine.getLocalCheckpoint());
@@ -4188,6 +4219,7 @@ public class InternalEngineTests extends EngineTestCase {
             if (flushed) {
                 assertThat(recoveringEngine.getTranslogStats().getUncommittedOperations(), equalTo(0));
             }
+            recoveringEngine.initializeMaxSeqNoOfUpdatesOrDeletes();
             recoveringEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
             assertEquals(maxSeqIDOnReplica, recoveringEngine.getSeqNoStats(-1).getMaxSeqNo());
             assertEquals(maxSeqIDOnReplica, recoveringEngine.getLocalCheckpoint());
@@ -4324,7 +4356,7 @@ public class InternalEngineTests extends EngineTestCase {
                     new Term("_id", parsedDocument.id()),
                     parsedDocument,
                     SequenceNumbers.UNASSIGNED_SEQ_NO,
-                    (long) randomIntBetween(1, 8),
+                    randomIntBetween(1, 8),
                     Versions.MATCH_ANY,
                     VersionType.INTERNAL,
                     Engine.Operation.Origin.PRIMARY,
@@ -4340,7 +4372,7 @@ public class InternalEngineTests extends EngineTestCase {
                     id,
                     new Term("_id", parsedDocument.id()),
                     SequenceNumbers.UNASSIGNED_SEQ_NO,
-                    (long) randomIntBetween(1, 8),
+                    randomIntBetween(1, 8),
                     Versions.MATCH_ANY,
                     VersionType.INTERNAL,
                     Engine.Operation.Origin.PRIMARY,
@@ -4370,7 +4402,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         final EngineConfig engineConfig = config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null,
             () -> globalCheckpoint.get());
-        try (Engine engine = new InternalEngine(engineConfig) {
+        try (InternalEngine engine = new InternalEngine(engineConfig) {
                 @Override
                 protected void commitIndexWriter(IndexWriter writer, Translog translog, String syncId) throws IOException {
                     // Advance the global checkpoint during the flush to create a lag between a persisted global checkpoint in the translog
@@ -4381,6 +4413,7 @@ public class InternalEngineTests extends EngineTestCase {
                     super.commitIndexWriter(writer, translog, syncId);
                 }
             }) {
+            engine.initializeMaxSeqNoOfUpdatesOrDeletes();
             engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
             int numDocs = scaledRandomIntBetween(10, 100);
             for (int docId = 0; docId < numDocs; docId++) {
@@ -4460,8 +4493,8 @@ public class InternalEngineTests extends EngineTestCase {
         engine.refresh("test", Engine.SearcherScope.INTERNAL);
         try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
             TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), searcher.reader().numDocs());
-            for (int i = 0; i < search.scoreDocs.length; i++) {
-                org.apache.lucene.document.Document luceneDoc = searcher.searcher().doc(search.scoreDocs[i].doc);
+            for (ScoreDoc scoreDoc : search.scoreDocs) {
+                org.apache.lucene.document.Document luceneDoc = searcher.searcher().doc(scoreDoc.doc);
                 assertEquals("updated", luceneDoc.get("value"));
             }
             int totalNumDocs = numDocs - numDeletes.get();
@@ -5048,6 +5081,34 @@ public class InternalEngineTests extends EngineTestCase {
     public void testAcquireSearcherOnClosingEngine() throws Exception {
         engine.close();
         expectThrows(AlreadyClosedException.class, () -> engine.acquireSearcher("test"));
+    }
+
+    public void testTrackMaxSeqNoOfUpdatesOrDeletesOnPrimary() throws Exception {
+        engine.close();
+        Set<String> liveDocIds = new HashSet<>();
+        engine = new InternalEngine(engine.config());
+        assertThat(engine.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(-2L));
+        engine.initializeMaxSeqNoOfUpdatesOrDeletes();
+        int numOps = between(1, 500);
+        for (int i = 0; i < numOps; i++) {
+            long currentMaxSeqNoOfUpdates = engine.getMaxSeqNoOfUpdatesOrDeletes();
+            ParsedDocument doc = createParsedDoc(Integer.toString(between(1, 100)), null);
+            if (randomBoolean()) {
+                Engine.IndexResult result = engine.index(indexForDoc(doc));
+                if (liveDocIds.add(doc.id()) == false) {
+                    assertThat("update operations on primary must advance max_seq_no_of_updates",
+                        engine.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(Math.max(currentMaxSeqNoOfUpdates, result.getSeqNo())));
+                } else {
+                    assertThat("append operations should not advance max_seq_no_of_updates",
+                        engine.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(currentMaxSeqNoOfUpdates));
+                }
+            } else {
+                Engine.DeleteResult result = engine.delete(new Engine.Delete(doc.type(), doc.id(), newUid(doc.id()), primaryTerm.get()));
+                liveDocIds.remove(doc.id());
+                assertThat("delete operations on primary must advance max_seq_no_of_updates",
+                    engine.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(Math.max(currentMaxSeqNoOfUpdates, result.getSeqNo())));
+            }
+        }
     }
 
     static void trimUnsafeCommits(EngineConfig config) throws IOException {

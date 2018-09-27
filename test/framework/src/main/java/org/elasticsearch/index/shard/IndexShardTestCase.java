@@ -94,6 +94,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -443,6 +444,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         IndexShard shard = shardFunction.apply(primary);
         if (primary) {
             recoverShardFromStore(shard);
+            assertThat(shard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(shard.seqNoStats().getMaxSeqNo()));
         } else {
             recoveryEmptyReplica(shard, true);
         }
@@ -694,8 +696,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
             shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(),
                 shard.getLocalCheckpoint());
         } else {
-            result = shard.applyIndexOperationOnReplica(shard.seqNoStats().getMaxSeqNo() + 1, 0,
-                VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
+            final long seqNo = shard.seqNoStats().getMaxSeqNo() + 1;
+            shard.advanceMaxSeqNoOfUpdatesOrDeletes(seqNo); // manually replicate max_seq_no_of_updates
+            result = shard.applyIndexOperationOnReplica(seqNo, 0, VersionType.EXTERNAL,
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
             if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
                 throw new TransportReplicationAction.RetryOnReplicaException(shard.shardId,
                     "Mappings are not available on the replica yet, triggered update: " + result.getRequiredMappingUpdate());
@@ -715,7 +719,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
             result = shard.applyDeleteOperationOnPrimary(Versions.MATCH_ANY, type, id, VersionType.INTERNAL);
             shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(), shard.getEngine().getLocalCheckpoint());
         } else {
-            result = shard.applyDeleteOperationOnReplica(shard.seqNoStats().getMaxSeqNo() + 1, 0L, type, id, VersionType.EXTERNAL);
+            final long seqNo = shard.seqNoStats().getMaxSeqNo() + 1;
+            shard.advanceMaxSeqNoOfUpdatesOrDeletes(seqNo); // manually replicate max_seq_no_of_updates
+            result = shard.applyDeleteOperationOnReplica(seqNo, 0L, type, id, VersionType.EXTERNAL);
         }
         return result;
     }

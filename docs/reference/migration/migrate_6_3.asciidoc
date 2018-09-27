@@ -36,17 +36,27 @@ API has provided a response containing only an empty object since 5.0.0. In
 Starting with version 6.3, all of the {xpack} features ship with the default 
 distribution of {es}. You no longer need to install {xpack} separately. 
 
-==== Removal of the `x-pack` configuration directory
-
-The <<config-files-location,config directory>>, which is defined by the 
-`ES_PATH_CONF` environment variable, no longer contains an `x-pack` directory. 
-By default, the files that were stored in this folder, such as the 
+[float]
+==== Deprecation of the `x-pack` configuration directory
+ 
+In 6.2 and earlier releases, the 
+{stack-ov}/security-files.html[security configuration files], such as the 
 `log4js.properties`, `role_mapping.yml`, `roles.yml`, `users`, and `users_roles` 
-files, now exist in the config directory. 
+files, were located in an `x-pack` directory within the 
+<<config-files-location,config directory>>.  
 
-Settings such as `files.role_mapping` now default to `ES_PATH_CONF/role_mapping.yml`.
-If you do not want to use the default locations, however, you must update the 
-settings appropriately. See <<security-settings>>. 
+Starting in 6.3, the security configuration files are located directly in the 
+config directory. 
+
+IMPORTANT: If you upgraded to 6.3, your old security configuration files still 
+exist in an `x-pack` folder. That path is deprecated, however, and you should 
+move your files out of that folder. There is a known problem where the files in 
+the old path are disregarded in favor of the files in the new path: 
+{pull}/33688[#33688].
+
+Settings such as `files.role_mapping` now default to 
+`ES_PATH_CONF/role_mapping.yml`. If you do not want to use the default locations, 
+you must update the settings appropriately. See <<security-settings>>. 
 
 [float]
 [[breaking_63_plugins_changes]]

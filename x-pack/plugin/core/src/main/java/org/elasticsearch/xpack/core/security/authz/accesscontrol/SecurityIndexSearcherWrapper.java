@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanQuery;
@@ -30,14 +31,12 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -89,19 +88,18 @@ import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
  * instance.
  */
 public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
+    private static final Logger logger = LogManager.getLogger(SecurityIndexSearcherWrapper.class);
 
     private final Function<ShardId, QueryShardContext> queryShardContextProvider;
     private final BitsetFilterCache bitsetFilterCache;
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
-    private final Logger logger;
     private final ScriptService scriptService;
 
-    public SecurityIndexSearcherWrapper(IndexSettings indexSettings, Function<ShardId, QueryShardContext> queryShardContextProvider,
+    public SecurityIndexSearcherWrapper(Function<ShardId, QueryShardContext> queryShardContextProvider,
                                         BitsetFilterCache bitsetFilterCache, ThreadContext threadContext, XPackLicenseState licenseState,
                                         ScriptService scriptService) {
         this.scriptService = scriptService;
-        this.logger = Loggers.getLogger(getClass(), indexSettings.getSettings());
         this.queryShardContextProvider = queryShardContextProvider;
         this.bitsetFilterCache = bitsetFilterCache;
         this.threadContext = threadContext;

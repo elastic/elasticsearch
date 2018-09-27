@@ -1,12 +1,15 @@
+[float]
 [[breaking_60_geo_changes]]
 === Geo changes
 
+[float]
 ==== Deprecated `ShapeBuilders` helper class
 
 The `ShapeBuilders` class containing static methods to create shape specific builders
 (e.g., `ShapeBuilders.newPoint`) has been deprecated. One must now use the builder's
 constructor instead (e.g., `new MultiPointBuilder()).
 
+[float]
 ==== Deprecated `ShapeBuilder.parse` static method
 
 The `ShapeBuilder.parse` method has been deprecated. Use `ShapeParser.parse` instead.

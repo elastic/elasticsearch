@@ -277,7 +277,7 @@ Highlighting::
 Index APIs::
  * Add Index UUID to `/_stats` Response {pull}31871[#31871] (issue: {issue}31791[#31791])
  * add support for write index resolution when creating/updating documents {pull}31520[#31520]
- * {ref-64}/breaking_64_api_changes.html#copy-source-settings-on-resize[Allow copying source settings on index resize operations] {pull}30255[#30255] (issue: {issue}28347[#28347])
+ * <<copy-source-settings-on-resize,Allow copying source settings on index resize operations>> {pull}30255[#30255] (issue: {issue}28347[#28347])
 
 Ingest::
  * Extend KV Processor (#31789) {pull}32232[#32232] (issue: {issue}31786[#31786])

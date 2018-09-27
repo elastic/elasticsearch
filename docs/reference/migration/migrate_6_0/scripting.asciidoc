@@ -1,16 +1,20 @@
+[float]
 [[breaking_60_scripting_changes]]
 === Scripting changes
 
+[float]
 ==== Groovy, JavaScript, and Python languages removed
 
 The Groovy, JavaScript, and Python scripting languages were deprecated in
 elasticsearch 5.0 and have now been removed. Use painless instead.
 
+[float]
 ==== Native scripts removed
 
 Native scripts have been removed. Instead,
 <<modules-scripting-engine, implement a `ScriptEngine`>>.
 
+[float]
 ==== Date fields now return dates
 
 `doc.some_date_field.value` now returns ++ReadableDateTime++s instead of
@@ -18,15 +22,18 @@ milliseconds since epoch as a `long`. The same is true for
 `doc.some_date_field[some_number]`. Use `doc.some_date_field.value.millis` to
 fetch the milliseconds since epoch if you need it.
 
+[float]
 ==== Removed access to index internal via the `_index` variable
 
 The `_index` variable has been removed. If you used it for advanced scoring, consider writing a `Similarity` plugin.
 
+[float]
 ==== Script Settings
 
 All of the existing scripting security settings have been removed.  Instead
 they are replaced with `script.allowed_types` and `script.allowed_contexts`.
 
+[float]
 ==== `lang` can no longer be specified when using a stored script as part of a request
 
 The `lang` variable can no longer be specified as part of a request that uses a stored
@@ -35,6 +42,7 @@ different from a request that puts a stored script.  The language of the script 
 already been stored as part of the cluster state and an `id` is sufficient to access
 all of the information necessary to execute a stored script.
 
+[float]
 ==== 'lang` can no longer be used when putting, getting, or deleting a stored script
 
 Stored scripts can no longer have the `lang` parameter specified as part of the url
@@ -42,6 +50,7 @@ when performing PUT, GET, and DELETE actions on the `_scripts/` path.  All store
 scripts must have a unique `id` as the namespace is only `id` now and no longer `lang`
 and `id`.
 
+[float]
 ==== Stored search template apis removed
 
 The PUT, GET and DELETE `_search/template` apis have been removed. Store search templates with the stored scripts apis instead.

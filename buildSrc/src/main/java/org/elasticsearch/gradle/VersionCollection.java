@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.gradle;
 
-import org.gradle.internal.impldep.org.apache.xbean.propertyeditor.SortedSetEditor;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;

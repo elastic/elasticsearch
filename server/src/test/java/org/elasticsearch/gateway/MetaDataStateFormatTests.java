@@ -103,7 +103,6 @@ public class MetaDataStateFormatTests extends ESTestCase {
         final long id = addDummyFiles("foo-", dirs);
         Format format = new Format("foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
-        int version = between(0, Integer.MAX_VALUE/2);
         format.write(state, dirs);
         for (Path file : dirs) {
             Path[] list = content("*", file);
@@ -117,7 +116,6 @@ public class MetaDataStateFormatTests extends ESTestCase {
             DummyState read = format.read(NamedXContentRegistry.EMPTY, list[0]);
             assertThat(read, equalTo(state));
         }
-        final int version2 = between(version, Integer.MAX_VALUE);
         DummyState state2 = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
         format.write(state2, dirs);
 
@@ -145,7 +143,6 @@ public class MetaDataStateFormatTests extends ESTestCase {
 
         Format format = new Format("foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
-        int version = between(0, Integer.MAX_VALUE/2);
         format.write(state, dirs);
         for (Path file : dirs) {
             Path[] list = content("*", file);
@@ -169,7 +166,6 @@ public class MetaDataStateFormatTests extends ESTestCase {
         final long id = addDummyFiles("foo-", dirs);
         Format format = new Format("foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
-        int version = between(0, Integer.MAX_VALUE/2);
         format.write(state, dirs);
         for (Path file : dirs) {
             Path[] list = content("*", file);

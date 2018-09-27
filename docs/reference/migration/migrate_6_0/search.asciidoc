@@ -1,6 +1,8 @@
+[float]
 [[breaking_60_search_changes]]
 === Search and Query DSL changes
 
+[float]
 ==== Changes to queries
 
 * The `collect_payloads` parameter of the `span_near` query has been removed. Payloads will be
@@ -99,19 +101,23 @@ the `match` query but is supported for `match_phrase` and `match_phrase_prefix`.
 * The deprecated multi term rewrite parameters `constant_score_auto`, `constant_score_filter` (synonyms for `constant_score`)
 have been removed.
 
+[float]
 ==== Search shards API
 
 The search shards API no longer accepts the `type` url parameter, which didn't
 have any effect in previous versions.
 
+[float]
 ==== Changes to the Profile API
 
 The `"time"` field showing human readable timing output has been replaced by the `"time_in_nanos"`
 field which displays the elapsed time in nanoseconds. The `"time"` field can be turned on by adding
 `"?human=true"` to the request url. It will display a rounded, human readable time value.
 
+[float]
 ==== Scoring changes
 
+[float]
 ===== Query normalization
 
 Query normalization has been removed. This means that the TF-IDF similarity no
@@ -124,6 +130,7 @@ already integrated boosts into scores as multiplicative factors.
 See https://issues.apache.org/jira/browse/LUCENE-7347[`LUCENE-7347`] for more
 information.
 
+[float]
 ===== Coordination factors
 
 Coordination factors have been removed from the scoring formula. This means that
@@ -137,6 +144,7 @@ produces. BM25 is recommended instead.
 See https://issues.apache.org/jira/browse/LUCENE-7347[`LUCENE-7347`] for more
 information.
 
+[float]
 ==== Fielddata on `_uid`
 
 Fielddata on `_uid` is deprecated. It is possible to switch to `_id` instead
@@ -145,6 +153,7 @@ for the `random_score` function. If you really need access to the id of
 documents for sorting, aggregations or search scripts, the recommendation is
 to duplicate the id as a field in the document.
 
+[float]
 ==== Highlighters
 
 The `unified` highlighter is the new default choice for highlighter.
@@ -156,36 +165,43 @@ The `postings` highlighter has been removed from Lucene and Elasticsearch.
 The `unified` highlighter outputs the same highlighting when `index_options` is set
  to `offsets`.
 
+[float]
 ==== `fielddata_fields`
 
 The deprecated `fielddata_fields` have now been removed. `docvalue_fields` should be used instead.
 
+[float]
 ==== `docvalue_fields`
 
 `docvalue_fields` now have a default upper limit of 100 fields that can be requested.
 This limit can be overridden by using the `index.max_docvalue_fields_search` index setting.
 
+[float]
 ==== `script_fields`
 
 `script_fields` now have a default upper limit of 32 script fields that can be requested.
 This limit can be overridden by using the `index.max_script_fields` index setting.
 
+[float]
 ==== Inner hits
 
 The source inside a hit of inner hits keeps its full path with respect to the entire source.
 In prior versions the source field names were relative to the inner hit.
 
+[float]
 ==== Scroll
 
 The `from` parameter can no longer be used in the search request body when initiating a scroll.
 The parameter was already ignored in these situations, now in addition an error is thrown.
 
+[float]
 ==== Limit on from/size in top hits and inner hits
 
 The maximum number of results (`from` + `size`) that is allowed to be retrieved
 via inner hits and top hits has been limited to 100. The limit can be controlled
 via the `index.max_inner_result_window` index setting.
 
+[float]
 ==== Scroll queries that use the request_cache are deprecated
 
 Setting `request_cache:true` on a query that creates a scroll ('scroll=1m`)
@@ -194,6 +210,7 @@ In future versions we will return a `400 - Bad request` instead of just ignoring
 the hint.
 Scroll queries are not meant to be cached.
 
+[float]
 ==== Limiting the number of terms that can be used in a Terms Query request
 
 Executing a Terms Query with a lot of terms may degrade the cluster performance,
@@ -202,6 +219,7 @@ To safeguard against this, the maximum number of terms that can be used in a
 Terms Query request has been limited to 65536. This default maximum can be changed
 for a particular index with the index setting `index.max_terms_count`.
 
+[float]
 ==== Invalid `_search` request body
 
 For 6.x and starting in 6.3 a deprecation warning will be printed to warn

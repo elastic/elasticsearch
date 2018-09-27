@@ -1,6 +1,8 @@
+[float]
 [[breaking_60_packaging_changes]]
 === Packaging changes
 
+[float]
 ==== Configuring custom user and group for package is no longer allowed
 
 Previously someone could configure the `$ES_USER` and `$ES_GROUP` variables to
@@ -10,15 +12,16 @@ possible, the DEB and RPM packages now exclusively use the user and group
 should use the tarball distribution instead of the provided RPM and DEB
 packages.
 
+[float]
 ==== `path.conf` is no longer a configurable setting
 
 Previous versions of Elasticsearch enabled setting `path.conf` as a
 setting. This was rather convoluted as it meant that you could start
 Elasticsearch with a config file that specified via `path.conf` that
 Elasticsearch should use another config file. Instead, to configure a custom
-config directory, use the <<config-files-location,`ES_PATH_CONF` environment
-variable>>.
+config directory, use the <<config-files-location,`ES_PATH_CONF` environment variable>>.
 
+[float]
 ==== `CONF_DIR` is no longer supported
 
 Previous versions of Elasticsearch enabled using the `CONF_DIR` environment
@@ -28,6 +31,7 @@ files and some scripts (it was used inconsistently). Starting in Elasticsearch
 `ES_PATH_CONF`, and this new environment variable is consistently used for all
 configuration files and scripts.
 
+[float]
 ==== Default path settings are removed
 
 Previous versions of Elasticsearch enabled setting `default.path.data` and
@@ -55,12 +59,14 @@ path.logs: /var/log/elasticsearch
 course preserve those). If you do not do this, Elasticsearch will refuse to
 start.
 
+[float]
 ==== 32-bit is no longer maintained
 
 We previously attempted to ensure that Elasticsearch could be started on 32-bit
 JVM (although a bootstrap check prevented using a 32-bit JVM in production). We
 are no longer maintaining this attempt.
 
+[float]
 ==== `-server` flag no longer filtered in the Windows service
 
 Related to the previous change that 32-bit is no longer supported, the default
@@ -72,6 +78,7 @@ flag was removed from the installation of the Windows service. This means that
 if you have a `jvm.options` file that includes this flag you will need to remove
 it.
 
+[float]
 ==== `ES_JVM_OPTIONS` is no longer supported
 
 The environment variable `ES_JVM_OPTIONS` that enabled a custom location for the
@@ -80,6 +87,7 @@ The environment variable `ES_JVM_OPTIONS` that enabled a custom location for the
 support relocating the configuration files so this change merely aligns the
 other configuration files with the location of the `jvm.options` file.
 
+[float]
 ==== `ES_INCLUDE` is no longer supported
 
 The environment variable `ES_INCLUDE` could previously be used to establish the

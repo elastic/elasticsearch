@@ -1,6 +1,8 @@
+[float]
 [[breaking_60_java_changes]]
 === Java API changes
 
+[float]
 ==== `setSource` methods require XContentType
 
 Previously the `setSource` methods and other methods that accepted byte/string representations of
@@ -8,18 +10,21 @@ an object source did not require the XContentType to be specified. The auto-dete
 type is no longer used, so these methods now require the XContentType as an additional argument when
 providing the source in bytes or as a string.
 
+[float]
 ==== `DeleteByQueryRequest` requires an explicitly set query
 
 In previous versions of Elasticsearch, delete by query requests without an explicit query
 were accepted, match_all was used as the default query and all documents were deleted
 as a result. From version 6.0.0, a `DeleteByQueryRequest` requires an explicit query be set.
 
+[float]
 ==== `InternalStats` and `Stats` getCountAsString() method removed
 
 The `count` value in the stats aggregation represents a doc count that shouldn't require a formatted
 version. This method was deprecated in 5.4 in favour of just using
 `String.valueOf(getCount())` if needed
 
+[float]
 ==== `ActionRequestBuilder#execute` returns `ActionFuture` rather than `ListenableActionFuture`
 
 When sending a request through the request builders e.g. client.prepareSearch().execute(), it used to
@@ -28,6 +33,7 @@ be possible to call `addListener` against the returned `ListenableActionFuture`.
 it is not possible to associate the future with listeners. The `execute` method that accept a listener
 as an argument can be used instead.
 
+[float]
 ==== `Terms.Order` and `Histogram.Order` classes replace by `BucketOrder`
 
 The `terms`, `histogram`, and `date_histogram` aggregation code has been refactored to use common
@@ -36,17 +42,20 @@ code for ordering buckets. The `BucketOrder` class must be used instead of `Term
 accessing internal order instances, e.g. `BucketOrder.count(boolean)` and `BucketOrder.aggregation(String, boolean)`.
 Use `BucketOrder.key(boolean)` to order the `terms` aggregation buckets by `_term`.
 
+[float]
 ==== `getTookInMillis()` removed in `BulkResponse`, `SearchResponse` and `TermVectorsResponse`
 
 In `BulkResponse`, `SearchResponse` and `TermVectorsResponse` `getTookInMiilis()` method
 has been removed in favor of `getTook` method. `getTookInMiilis()` is easily replaced by
 `getTook().getMillis()`.
 
+[float]
 ==== `GetField` and `SearchHitField` replaced by `DocumentField`
 
 As `GetField` and `SearchHitField` have the same members, they have been unified into
 `DocumentField`.
 
+[float]
 ==== Some Aggregation classes have moved packages
 
 The classes for the variants of the range aggregation (geo_distance, date and ip) were moved into the `org.elasticsearch.search.aggregations.bucket.range`
@@ -57,6 +66,7 @@ The `org.elasticsearch.search.aggregations.bucket.terms.support` package was rem
 
 The filter aggregation classes were moved to `org.elasticsearch.search.aggregations.bucket.filter`
 
+[float]
 ==== Constructor for `PercentileRanksAggregationBuilder` has changed
 
 It is now required to include the desired ranks as a non-null, non-empty array of doubles to the builder's constructor,

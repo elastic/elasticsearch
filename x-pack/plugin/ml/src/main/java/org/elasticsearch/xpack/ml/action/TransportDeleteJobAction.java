@@ -6,13 +6,9 @@
 package org.elasticsearch.xpack.ml.action;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -28,7 +24,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -39,13 +34,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -61,7 +52,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
@@ -72,7 +62,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
-import org.elasticsearch.xpack.core.ml.job.persistence.JobDeletionTask;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
@@ -81,12 +70,11 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -102,6 +90,14 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     private final Auditor auditor;
     private final JobResultsProvider jobResultsProvider;
 
+    /**
+     * A map of task listeners by job_id.
+     * Subsequent delete requests store their listeners in the corresponding list in this map
+     * and wait to be notified when the first deletion task completes.
+     * This is guarded by synchronizing on its lock.
+     */
+    private final Map<String, List<ActionListener<AcknowledgedResponse>>> listenersByJobId;
+
     @Inject
     public TransportDeleteJobAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                     ThreadPool threadPool, ActionFilters actionFilters,
@@ -113,6 +109,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         this.persistentTasksService = persistentTasksService;
         this.auditor = auditor;
         this.jobResultsProvider = jobResultsProvider;
+        this.listenersByJobId = new HashMap<>();
     }
 
     @Override
@@ -144,92 +141,58 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, taskId);
 
         // Check if there is a deletion task for this job already and if yes wait for it to complete
-        Optional<Task> existingStartedTask;
-        synchronized (this) {
-            existingStartedTask = findExistingStartedTask(task);
-            if (existingStartedTask.isPresent() == false) {
-                ((JobDeletionTask) task).start();
+        synchronized (listenersByJobId) {
+            if (listenersByJobId.containsKey(request.getJobId())) {
+                logger.debug("[{}] Deletion task [{}] will wait for existing deletion task to complete",
+                        request.getJobId(), task.getId());
+                listenersByJobId.get(request.getJobId()).add(listener);
+                return;
+            } else {
+                List<ActionListener<AcknowledgedResponse>> listeners = new ArrayList<>();
+                listeners.add(listener);
+                listenersByJobId.put(request.getJobId(), listeners);
             }
-        }
-        if (existingStartedTask.isPresent()) {
-            logger.debug("[{}] Deletion task [{}] will wait for existing deletion task [{}]", request.getJobId(), task.getId(),
-                    existingStartedTask.get().getId());
-            TaskId existingTaskId = new TaskId(clusterService.localNode().getId(), existingStartedTask.get().getId());
-            waitForExistingTaskToComplete(parentTaskClient, request.getJobId(), existingTaskId, listener);
-            return;
         }
 
         auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DELETING, taskId));
 
+        // The listener that will be executed at the end of the chain will notify all listeners
+        ActionListener<AcknowledgedResponse> finalListener = ActionListener.wrap(
+                ack -> notifyListeners(request.getJobId(), ack, null),
+                e -> notifyListeners(request.getJobId(), null, e)
+        );
+
         ActionListener<Boolean> markAsDeletingListener = ActionListener.wrap(
                 response -> {
                     if (request.isForce()) {
-                        forceDeleteJob(parentTaskClient, request, listener);
+                        forceDeleteJob(parentTaskClient, request, finalListener);
                     } else {
-                        normalDeleteJob(parentTaskClient, request, listener);
+                        normalDeleteJob(parentTaskClient, request, finalListener);
                     }
                 },
                 e -> {
                     auditor.error(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DELETING_FAILED, e.getMessage()));
-                    listener.onFailure(e);
+                    finalListener.onFailure(e);
                 });
 
         markJobAsDeleting(request.getJobId(), markAsDeletingListener, request.isForce());
     }
 
-    private Optional<Task> findExistingStartedTask(Task currentTask) {
-        return taskManager.getTasks().values().stream().filter(filteredTask ->
-                currentTask.getDescription().equals(filteredTask.getDescription()) &&
-                        currentTask.getId() != filteredTask.getId()
-                        && ((JobDeletionTask) filteredTask).isStarted()).findFirst();
-    }
-
-    private void waitForExistingTaskToComplete(ParentTaskAssigningClient parentTaskClient, String jobId, TaskId taskId,
-                                               ActionListener<AcknowledgedResponse> listener) {
-        threadPool.generic().execute(new AbstractRunnable() {
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
+    private void notifyListeners(String jobId, @Nullable AcknowledgedResponse ack, @Nullable Exception error) {
+        synchronized (listenersByJobId) {
+            List<ActionListener<AcknowledgedResponse>> listeners = listenersByJobId.remove(jobId);
+            if (listeners == null) {
+                logger.error("[{}] No deletion job listeners could be found");
+                return;
             }
-
-            @Override
-            protected void doRun() {
-                GetTaskRequest getTaskRequest = new GetTaskRequest();
-                getTaskRequest.setTaskId(taskId);
-                getTaskRequest.setWaitForCompletion(true);
-                getTaskRequest.setTimeout(MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT);
-                executeAsyncWithOrigin(parentTaskClient, ML_ORIGIN, GetTaskAction.INSTANCE, getTaskRequest,
-                        new ActionListener<GetTaskResponse>() {
-
-                            @Override
-                            public void onResponse(GetTaskResponse getTaskResponse) {
-                                if (getTaskResponse.getTask().getError() != null) {
-                                    BytesReference taskErrorBytes = getTaskResponse.getTask().getError();
-                                    try (InputStream stream = taskErrorBytes.streamInput();
-                                         XContentParser parser = Requests.INDEX_CONTENT_TYPE.xContent().createParser
-                                                 (NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
-                                        // Skip the START_OBJECT token
-                                        parser.nextToken();
-                                        ElasticsearchException taskError = ElasticsearchException.fromXContent(parser);
-                                        onFailure(taskError);
-                                    } catch (IOException e) {
-                                        onFailure(new ElasticsearchException("Could not parse task error: "
-                                                + taskErrorBytes.utf8ToString()));
-                                    }
-                                } else {
-                                    logger.debug("[{}] Finished waiting for completion of task [{}]", jobId, taskId);
-                                    listener.onResponse(new AcknowledgedResponse(true));
-                                }
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.error("[" + jobId + "] Error while waiting for job deletion task to complete", e);
-                                listener.onFailure(e);
-                            }
-                        });
+            for (ActionListener<AcknowledgedResponse> listener : listeners) {
+                if (error != null) {
+                    listener.onFailure(error);
+                } else {
+                    listener.onResponse(ack);
+                }
             }
-        });
+        }
     }
 
     private void normalDeleteJob(ParentTaskAssigningClient parentTaskClient, DeleteJobAction.Request request,

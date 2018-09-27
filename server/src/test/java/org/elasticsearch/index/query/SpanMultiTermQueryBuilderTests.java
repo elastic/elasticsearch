@@ -82,14 +82,14 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
 
     @Override
     protected void doAssertLuceneQuery(SpanMultiTermQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+        if (query instanceof SpanMatchNoDocsQuery) {
+            return;
+        }
         if (queryBuilder.innerQuery().boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
             assertThat(query, instanceOf(SpanBoostQuery.class));
             SpanBoostQuery boostQuery = (SpanBoostQuery) query;
             assertThat(boostQuery.getBoost(), equalTo(queryBuilder.innerQuery().boost()));
             query = boostQuery.getQuery();
-        }
-        if (query instanceof SpanMatchNoDocsQuery) {
-            return;
         }
         assertThat(query, instanceOf(SpanMultiTermQueryWrapper.class));
         SpanMultiTermQueryWrapper spanMultiTermQueryWrapper = (SpanMultiTermQueryWrapper) query;

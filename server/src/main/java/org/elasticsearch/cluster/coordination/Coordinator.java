@@ -55,9 +55,11 @@ import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -451,7 +453,14 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert prevotingRound == null : prevotingRound;
                 assert becomingMaster || getStateForMasterService().nodes().getMasterNodeId() != null : getStateForMasterService();
                 assert leaderCheckScheduler == null : leaderCheckScheduler;
-                assert followersChecker.isActive() == (publicationInProgress() || becomingMaster == false);
+
+                final Set<DiscoveryNode> knownFollowers = followersChecker.getKnownFollowers();
+                final Set<DiscoveryNode> lastPublishedNodes = new HashSet<>();
+                if (becomingMaster == false || publicationInProgress()) {
+                    lastPublishedState().nodes().forEach(lastPublishedNodes::add);
+                    assert lastPublishedNodes.remove(getLocalNode());
+                }
+                assert lastPublishedNodes.equals(knownFollowers) : lastPublishedNodes + " != " + knownFollowers;
             } else if (mode == Mode.FOLLOWER) {
                 assert coordinationState.get().electionWon() == false : getLocalNode() + " is FOLLOWER so electionWon() should be false";
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);
@@ -462,7 +471,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert getStateForMasterService().nodes().getMasterNodeId() == null : getStateForMasterService();
                 assert leaderChecker.currentNodeIsMaster() == false;
                 assert leaderCheckScheduler != null;
-                assert followersChecker.isActive() == false;
+                assert followersChecker.getKnownFollowers().isEmpty();
             } else {
                 assert mode == Mode.CANDIDATE;
                 assert joinAccumulator instanceof JoinHelper.CandidateJoinAccumulator;
@@ -471,7 +480,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert getStateForMasterService().nodes().getMasterNodeId() == null : getStateForMasterService();
                 assert leaderChecker.currentNodeIsMaster() == false;
                 assert leaderCheckScheduler == null : leaderCheckScheduler;
-                assert followersChecker.isActive() == false;
+                assert followersChecker.getKnownFollowers().isEmpty();
             }
         }
     }
@@ -731,6 +740,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             currentPublication.get().onTimeout();
             assert currentPublication.isPresent() == false;
         }
+    }
+
+    private ClusterState lastPublishedState() {
+        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+        return currentPublication.map(Publication::publishedState).orElse(getStateForMasterService());
     }
 
     public enum Mode {

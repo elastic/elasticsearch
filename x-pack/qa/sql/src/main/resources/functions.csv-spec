@@ -412,14 +412,14 @@ AlejandRo      |2
 checkColumnNameWithNestedArithmeticFunctionCallsOnTableColumn
 SELECT CHAR(emp_no % 10000) FROM "test_emp" WHERE emp_no > 10064 ORDER BY emp_no LIMIT 1;
 
-CHAR(((emp_no) % 10000)):s
+CHAR((emp_no) % 10000):s
 A
 ;
 
 checkColumnNameWithComplexNestedArithmeticFunctionCallsOnTableColumn1
 SELECT CHAR(emp_no % (7000 + 3000)) FROM "test_emp" WHERE emp_no > 10065 ORDER BY emp_no LIMIT 1;
 
-CHAR(((emp_no) % ((7000 + 3000)))):s
+CHAR((emp_no) % (7000 + 3000)):s
 B
 ;
 
@@ -427,6 +427,6 @@ B
 checkColumnNameWithComplexNestedArithmeticFunctionCallsOnTableColumn2
 SELECT CHAR((emp_no % (emp_no - 1 + 1)) + 67) FROM "test_emp" WHERE emp_no > 10066 ORDER BY emp_no LIMIT 1;
 
-CHAR(((((emp_no) % (((((emp_no) - 1)) + 1)))) + 67)):s
+CHAR(((emp_no) % (((emp_no) - 1) + 1)) + 67):s
 C
 ;

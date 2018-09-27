@@ -5,8 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ConstantInput;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -33,12 +32,13 @@ public class LiteralAttribute extends TypedAttribute {
         return new LiteralAttribute(location, name, qualifier, nullable, id, synthetic, dataType(), literal);
     }
 
-    public ProcessorDefinition asProcessorDefinition() {
-        return new ConstantInput(location(), literal, literal.value());
-    }
-
     @Override
     protected String label() {
         return "c";
+    }
+
+    @Override
+    public Pipe asPipe() {
+        return literal.asPipe();
     }
 }

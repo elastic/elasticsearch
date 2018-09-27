@@ -11,7 +11,7 @@ import java.util.Objects;
 
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.util.Check;
 
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.bucketSelector;

@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-import java.util.Objects;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
+import java.util.Objects;
 
 public class ScriptSort extends Sort {
 

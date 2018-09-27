@@ -6,26 +6,26 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.UnaryProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 import org.joda.time.DateTime;
 
+import java.util.Locale;
 import java.util.Objects;
 import java.util.TimeZone;
 
-import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
+import static java.lang.String.format;
+import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /*
- * Base class for "naming" date/time functions like month_name and day_name
+ * Base class for "named" date/time functions like month_name and day_name
  */
 abstract class NamedDateTimeFunction extends BaseDateTimeFunction {
 
@@ -40,38 +40,28 @@ abstract class NamedDateTimeFunction extends BaseDateTimeFunction {
             return null;
         }
 
-        return extractName(folded.getMillis(), timeZone().getID());
-    }
-
-    public abstract String extractName(long millis, String tzId);
-
-    @Override
-    protected ScriptTemplate asScriptFrom(FieldAttribute field) {
-        ParamsBuilder params = paramsBuilder();
-
-        String template = null;
-        template = formatTemplate(formatMethodName("{sql}.{method_name}(doc[{}].value.millis, {})"));
-        params.variable(field.name())
-              .variable(timeZone().getID());
-        
-        return new ScriptTemplate(template, params.build(), dataType());
-    }
-    
-    private String formatMethodName(String template) {
-        // the Painless method name will be the enum's lower camelcase name
-        return template.replace("{method_name}", StringUtils.underscoreToLowerCamelCase(nameExtractor().toString()));
+        return nameExtractor().extract(folded.getMillis(), timeZone().getID());
     }
 
     @Override
-    protected final ProcessorDefinition makeProcessorDefinition() {
-        return new UnaryProcessorDefinition(location(), this, ProcessorDefinitions.toProcessorDefinition(field()),
+    public ScriptTemplate scriptWithField(FieldAttribute field) {
+        return new ScriptTemplate(
+                formatTemplate(format(Locale.ROOT, "{sql}.%s(doc[{}].value.millis, {})",
+                        StringUtils.underscoreToLowerCamelCase(nameExtractor().name()))),
+                paramsBuilder()
+                  .variable(field.name())
+                  .variable(timeZone().getID()).build(),
+                dataType());
+    }
+
+    @Override
+    protected final Pipe makePipe() {
+        return new UnaryPipe(location(), this, Expressions.pipe(field()),
                 new NamedDateTimeProcessor(nameExtractor(), timeZone()));
     }
 
     protected abstract NameExtractor nameExtractor();
     
-    protected abstract String dateTimeFormat();
-
     @Override
     public DataType dataType() {
         return DataType.KEYWORD;

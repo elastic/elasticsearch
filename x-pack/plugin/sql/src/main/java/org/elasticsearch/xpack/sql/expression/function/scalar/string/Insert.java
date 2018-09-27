@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -20,9 +20,8 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.string.InsertFunctionProcessor.doProcess;
+import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
  * Returns a character string where length characters have been deleted from the source string, beginning at start,
@@ -40,6 +39,7 @@ public class Insert extends ScalarFunction {
         this.replacement = replacement;
     }
     
+    @Override
     protected TypeResolution resolveType() {
         if (!childrenResolved()) {
             return new TypeResolution("Unresolved children");
@@ -65,7 +65,7 @@ public class Insert extends ScalarFunction {
 
     @Override
     public boolean foldable() {
-        return source.foldable() 
+        return source.foldable()
                 && start.foldable()
                 && length.foldable()
                 && replacement.foldable();
@@ -77,12 +77,12 @@ public class Insert extends ScalarFunction {
     }
 
     @Override
-    protected ProcessorDefinition makeProcessorDefinition() {
-        return new InsertFunctionProcessorDefinition(location(), this,
-                ProcessorDefinitions.toProcessorDefinition(source),
-                ProcessorDefinitions.toProcessorDefinition(start),
-                ProcessorDefinitions.toProcessorDefinition(length),
-                ProcessorDefinitions.toProcessorDefinition(replacement));
+    protected Pipe makePipe() {
+        return new InsertFunctionPipe(location(), this,
+                Expressions.pipe(source),
+                Expressions.pipe(start),
+                Expressions.pipe(length),
+                Expressions.pipe(replacement));
     }
 
     @Override
@@ -100,13 +100,12 @@ public class Insert extends ScalarFunction {
         return asScriptFrom(sourceScript, startScript, lengthScript, replacementScript);
     }
 
-    protected ScriptTemplate asScriptFrom(ScriptTemplate sourceScript, ScriptTemplate startScript,
-            ScriptTemplate lengthScript, ScriptTemplate replacementScript)
-    {
+    private ScriptTemplate asScriptFrom(ScriptTemplate sourceScript, ScriptTemplate startScript,
+            ScriptTemplate lengthScript, ScriptTemplate replacementScript) {
         // basically, transform the script to InternalSqlScriptUtils.[function_name](function_or_field1, function_or_field2,...)
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s,%s,%s)"), 
-                "insert", 
-                sourceScript.template(), 
+        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s,%s,%s)"),
+                "insert",
+                sourceScript.template(),
                 startScript.template(),
                 lengthScript.template(),
                 replacementScript.template()),
@@ -117,8 +116,8 @@ public class Insert extends ScalarFunction {
     }
     
     @Override
-    protected ScriptTemplate asScriptFrom(FieldAttribute field) {
-        return new ScriptTemplate(formatScript("doc[{}].value"),
+    public ScriptTemplate scriptWithField(FieldAttribute field) {
+        return new ScriptTemplate(processScript("doc[{}].value"),
                 paramsBuilder().variable(field.isInexact() ? field.exactAttribute().name() : field.name()).build(),
                 dataType());
     }

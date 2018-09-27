@@ -8,9 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -61,10 +59,5 @@ abstract class BaseDateTimeFunction extends UnaryScalarFunction {
     @Override
     public boolean foldable() {
         return field().foldable();
-    }
-    
-    @Override
-    protected ScriptTemplate asScriptFrom(AggregateFunctionAttribute aggregate) {
-        throw new UnsupportedOperationException();
     }
 }

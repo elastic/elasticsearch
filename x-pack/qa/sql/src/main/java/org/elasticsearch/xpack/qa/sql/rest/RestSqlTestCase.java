@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.qa.sql.rest;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -512,7 +513,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         @SuppressWarnings("unchecked")
         Map<String, Object> filterScript = (Map<String, Object>) bucketSelector.get("script");
         assertEquals(3, filterScript.size());
-        assertEquals("params.a0 > params.v0", filterScript.get("source"));
+        assertEquals("(params.a0) > (params.v0)", filterScript.get("source"));
         assertEquals("painless", filterScript.get("lang"));
         @SuppressWarnings("unchecked")
         Map<String, Object> filterScriptParams = (Map<String, Object>) filterScript.get("params");

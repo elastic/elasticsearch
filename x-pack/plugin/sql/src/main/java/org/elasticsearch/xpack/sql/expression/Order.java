@@ -7,30 +7,53 @@ package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.type.DataType;
 
+import java.util.List;
 import java.util.Objects;
 
-public class Order extends UnaryExpression {
+import static java.util.Collections.singletonList;
+
+public class Order extends Expression {
 
     public enum OrderDirection {
         ASC, DESC
     }
 
+    private final Expression child;
     private final OrderDirection direction;
 
     public Order(Location location, Expression child, OrderDirection direction) {
-        super(location, child);
+        super(location, singletonList(child));
+        this.child = child;
         this.direction = direction;
     }
 
     @Override
     protected NodeInfo<Order> info() {
-        return NodeInfo.create(this, Order::new, child(), direction);
+        return NodeInfo.create(this, Order::new, child, direction);
     }
 
     @Override
-    protected UnaryExpression replaceChild(Expression newChild) {
-        return new Order(location(), newChild, direction);
+    public boolean nullable() {
+        return false;
+    }
+
+    @Override
+    public DataType dataType() {
+        return child.dataType();
+    }
+
+    @Override
+    public Order replaceChildren(List<Expression> newChildren) {
+        if (newChildren.size() != 1) {
+            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
+        }
+        return new Order(location(), newChildren.get(0), direction);
+    }
+
+    public Expression child() {
+        return child;
     }
 
     public OrderDirection direction() {
@@ -44,7 +67,7 @@ public class Order extends UnaryExpression {
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), direction);
+        return Objects.hash(child, direction);
     }
 
     @Override
@@ -59,6 +82,6 @@ public class Order extends UnaryExpression {
 
         Order other = (Order) obj;
         return Objects.equals(direction, other.direction)
-                && Objects.equals(child(), other.child());
+                && Objects.equals(child, other.child);
     }
 }

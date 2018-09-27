@@ -12,8 +12,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import java.util.Arrays;
 import java.util.List;
@@ -186,7 +186,7 @@ public class FunctionRegistryTests extends ESTestCase {
         }
 
         @Override
-        protected ProcessorDefinition makeProcessorDefinition() {
+        protected Pipe makePipe() {
             return null;
         }
     }

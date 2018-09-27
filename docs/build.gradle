@@ -55,7 +55,6 @@ integTestCluster {
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 
   // TODO: remove this for 7.0, this exists to allow the doc examples in 6.x to continue using the defaults
-  systemProperty 'es.scripting.use_java_time', 'false'
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
 }
 
@@ -101,6 +100,7 @@ buildRestTests.docs = fileTree(projectDir) {
   exclude 'reference/rollup/apis/delete-job.asciidoc'
   exclude 'reference/rollup/apis/get-job.asciidoc'
   exclude 'reference/rollup/apis/rollup-caps.asciidoc'
+  exclude 'reference/graph/explore.asciidoc'
 }
 
 listSnippets.docs = buildRestTests.docs

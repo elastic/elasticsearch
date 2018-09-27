@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.IndexSearcher;
@@ -34,6 +35,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -63,6 +65,7 @@ public final class ReadOnlyEngine extends Engine {
     private final SearcherManager searcherManager;
     private final IndexCommit indexCommit;
     private final Lock indexWriterLock;
+    private final DocsStats docsStats;
 
     /**
      * Creates a new ReadOnlyEngine. This ctor can also be used to open a read-only engine on top of an already opened
@@ -93,7 +96,7 @@ public final class ReadOnlyEngine extends Engine {
                 this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
                 this.translogStats = translogStats == null ? new TranslogStats(0, 0, 0, 0, 0) : translogStats;
                 this.seqNoStats = seqNoStats == null ? buildSeqNoStats(lastCommittedSegmentInfos) : seqNoStats;
-                reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), config.getShardId());
+                reader = ElasticsearchDirectoryReader.wrap(open(directory), config.getShardId());
                 if (config.getIndexSettings().isSoftDeleteEnabled()) {
                     reader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
                 }
@@ -101,6 +104,7 @@ public final class ReadOnlyEngine extends Engine {
                 this.indexCommit = reader.getIndexCommit();
                 this.searcherManager = new SearcherManager(reader,
                     new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService()));
+                this.docsStats = docsStats(lastCommittedSegmentInfos);
                 this.indexWriterLock = indexWriterLock;
                 success = true;
             } finally {
@@ -111,6 +115,28 @@ public final class ReadOnlyEngine extends Engine {
         } catch (IOException e) {
             throw new UncheckedIOException(e); // this is stupid
         }
+    }
+
+    protected DirectoryReader open(final Directory directory) throws IOException {
+        return DirectoryReader.open(directory);
+    }
+
+    private DocsStats docsStats(final SegmentInfos lastCommittedSegmentInfos) {
+        long numDocs = 0;
+        long numDeletedDocs = 0;
+        long sizeInBytes = 0;
+        if (lastCommittedSegmentInfos != null) {
+            for (SegmentCommitInfo segmentCommitInfo : lastCommittedSegmentInfos) {
+                numDocs += segmentCommitInfo.info.maxDoc() - segmentCommitInfo.getDelCount() - segmentCommitInfo.getSoftDelCount();
+                numDeletedDocs += segmentCommitInfo.getDelCount() + segmentCommitInfo.getSoftDelCount();
+                try {
+                    sizeInBytes += segmentCommitInfo.sizeInBytes();
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Failed to get size for [" + segmentCommitInfo.info.name + "]", e);
+                }
+            }
+        }
+        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
     }
 
     @Override
@@ -258,10 +284,6 @@ public final class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void resetLocalCheckpoint(long newCheckpoint) {
-    }
-
-    @Override
     public SeqNoStats getSeqNoStats(long globalCheckpoint) {
         return new SeqNoStats(seqNoStats.getMaxSeqNo(), seqNoStats.getLocalCheckpoint(), globalCheckpoint);
     }
@@ -345,7 +367,8 @@ public final class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void restoreLocalCheckpointFromTranslog() {
+    public int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) {
+        return 0;
     }
 
     @Override
@@ -368,5 +391,20 @@ public final class ReadOnlyEngine extends Engine {
 
     @Override
     public void maybePruneDeletes() {
+    }
+
+    @Override
+    public DocsStats docStats() {
+        return docsStats;
+    }
+
+    @Override
+    public void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {
+
+    }
+
+    @Override
+    public void initializeMaxSeqNoOfUpdatesOrDeletes() {
+        advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats.getMaxSeqNo());
     }
 }

@@ -290,10 +290,6 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
                "\"uuid\":\"" + index.getUUID() + "\"," +
                "\"created\":" + metaData.getCreationDate() + "," +
                "\"status\":\"" + indexHealth.getStatus().name().toLowerCase(Locale.ROOT) + "\"," +
-               "\"version\":{" +
-                 "\"created\":\"" + metaData.getCreationVersion() + "\"," +
-                 "\"upgraded\":\"" + metaData.getUpgradedVersion() + "\"" +
-               "}," +
                "\"shards\":{" +
                  "\"total\":" + total + "," +
                  "\"primaries\":" + primaries + "," +

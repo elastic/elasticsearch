@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.Term;
 import org.junit.Before;
 
 import java.io.BufferedReader;
@@ -33,7 +34,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.Term;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createHistogramBucket;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createMax;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createTerms;
@@ -254,7 +254,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(createResponseWithShardFailures());
 
         assertThat(extractor.hasNext(), is(true));
-        IOException e = expectThrows(IOException.class, extractor::next);
+        expectThrows(IOException.class, extractor::next);
     }
 
     public void testExtractionGivenInitSearchResponseEncounteredUnavailableShards() {

@@ -13,6 +13,7 @@ import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Runs the high-level steps needed to create ingest configs for the specified file.  In order:
@@ -70,14 +72,18 @@ public final class FileStructureFinderManager {
         new JsonFileStructureFinderFactory(),
         new XmlFileStructureFinderFactory(),
         // ND-JSON will often also be valid (although utterly weird) CSV, so JSON must come before CSV
-        new DelimitedFileStructureFinderFactory(',', 2, false),
-        new DelimitedFileStructureFinderFactory('\t', 2, false),
-        new DelimitedFileStructureFinderFactory(';', 4, false),
-        new DelimitedFileStructureFinderFactory('|', 5, true),
+        new DelimitedFileStructureFinderFactory(',', '"', 2, false),
+        new DelimitedFileStructureFinderFactory('\t', '"', 2, false),
+        new DelimitedFileStructureFinderFactory(';', '"', 4, false),
+        new DelimitedFileStructureFinderFactory('|', '"', 5, true),
         new TextLogFileStructureFinderFactory()
     ));
 
     private static final int BUFFER_SIZE = 8192;
+
+    public FileStructureFinder findFileStructure(Integer idealSampleLineCount, InputStream fromFile) throws Exception {
+        return findFileStructure(idealSampleLineCount, fromFile, FileStructureOverrides.EMPTY_OVERRIDES);
+    }
 
     /**
      * Given a stream of data from some file, determine its structure.
@@ -86,24 +92,42 @@ public final class FileStructureFinderManager {
      *                             least {@link #MIN_SAMPLE_LINE_COUNT} lines can be read.  If <code>null</code>
      *                             the value of {@link #DEFAULT_IDEAL_SAMPLE_LINE_COUNT} will be used.
      * @param fromFile A stream from which the sample will be read.
+     * @param overrides Aspects of the file structure that are known in advance.  These take precedence over
+     *                  values determined by structure analysis.  An exception will be thrown if the file structure
+     *                  is incompatible with an overridden value.
      * @return A {@link FileStructureFinder} object from which the structure and messages can be queried.
      * @throws Exception A variety of problems could occur at various stages of the structure finding process.
      */
-    public FileStructureFinder findFileStructure(Integer idealSampleLineCount, InputStream fromFile) throws Exception {
+    public FileStructureFinder findFileStructure(Integer idealSampleLineCount, InputStream fromFile, FileStructureOverrides overrides)
+        throws Exception {
         return findFileStructure(new ArrayList<>(), (idealSampleLineCount == null) ? DEFAULT_IDEAL_SAMPLE_LINE_COUNT : idealSampleLineCount,
-            fromFile);
+            fromFile, overrides);
     }
 
     public FileStructureFinder findFileStructure(List<String> explanation, int idealSampleLineCount, InputStream fromFile)
         throws Exception {
+        return findFileStructure(new ArrayList<>(), idealSampleLineCount, fromFile, FileStructureOverrides.EMPTY_OVERRIDES);
+    }
 
-        CharsetMatch charsetMatch = findCharset(explanation, fromFile);
-        String charsetName = charsetMatch.getName();
+    public FileStructureFinder findFileStructure(List<String> explanation, int idealSampleLineCount, InputStream fromFile,
+                                                 FileStructureOverrides overrides) throws Exception {
 
-        Tuple<String, Boolean> sampleInfo = sampleFile(charsetMatch.getReader(), charsetName, MIN_SAMPLE_LINE_COUNT,
+        String charsetName = overrides.getCharset();
+        Reader sampleReader;
+        if (charsetName != null) {
+            // Creating the reader will throw if the specified character set does not exist
+            sampleReader = new InputStreamReader(fromFile, charsetName);
+            explanation.add("Using specified character encoding [" + charsetName + "]");
+        } else {
+            CharsetMatch charsetMatch = findCharset(explanation, fromFile);
+            charsetName = charsetMatch.getName();
+            sampleReader = charsetMatch.getReader();
+        }
+
+        Tuple<String, Boolean> sampleInfo = sampleFile(sampleReader, charsetName, MIN_SAMPLE_LINE_COUNT,
             Math.max(MIN_SAMPLE_LINE_COUNT, idealSampleLineCount));
 
-        return makeBestStructureFinder(explanation, sampleInfo.v1(), charsetName, sampleInfo.v2());
+        return makeBestStructureFinder(explanation, sampleInfo.v1(), charsetName, sampleInfo.v2(), overrides);
     }
 
     CharsetMatch findCharset(List<String> explanation, InputStream inputStream) throws Exception {
@@ -195,15 +219,44 @@ public final class FileStructureFinderManager {
             (containsZeroBytes ? " - could it be binary data?" : ""));
     }
 
-    FileStructureFinder makeBestStructureFinder(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
-        throws Exception {
+    FileStructureFinder makeBestStructureFinder(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker,
+                                                FileStructureOverrides overrides) throws Exception {
 
-        for (FileStructureFinderFactory factory : ORDERED_STRUCTURE_FACTORIES) {
+        Character delimiter = overrides.getDelimiter();
+        Character quote = overrides.getQuote();
+        Boolean shouldTrimFields = overrides.getShouldTrimFields();
+        List<FileStructureFinderFactory> factories;
+        if (delimiter != null) {
+
+            // If a precise delimiter is specified, we only need one structure finder
+            // factory, and we'll tolerate as little as one column in the input
+            factories = Collections.singletonList(new DelimitedFileStructureFinderFactory(delimiter, (quote == null) ? '"' : quote, 1,
+                (shouldTrimFields == null) ? (delimiter == '|') : shouldTrimFields));
+
+        } else if (quote != null || shouldTrimFields != null) {
+
+            // The delimiter is not specified, but some other aspect of delimited files is,
+            // so clone our default delimited factories altering the overridden values
+            factories = ORDERED_STRUCTURE_FACTORIES.stream().filter(factory -> factory instanceof DelimitedFileStructureFinderFactory)
+                .map(factory -> ((DelimitedFileStructureFinderFactory) factory).makeSimilar(quote, shouldTrimFields))
+                .collect(Collectors.toList());
+
+        } else {
+
+            // We can use the default factories, but possibly filtered down to a specific format
+            factories = ORDERED_STRUCTURE_FACTORIES.stream()
+                .filter(factory -> factory.canFindFormat(overrides.getFormat())).collect(Collectors.toList());
+
+        }
+
+        for (FileStructureFinderFactory factory : factories) {
             if (factory.canCreateFromSample(explanation, sample)) {
-                return factory.createFromSample(explanation, sample, charsetName, hasByteOrderMarker);
+                return factory.createFromSample(explanation, sample, charsetName, hasByteOrderMarker, overrides);
             }
         }
-        throw new IllegalArgumentException("Input did not match any known formats");
+
+        throw new IllegalArgumentException("Input did not match " +
+            ((overrides.getFormat() == null) ? "any known formats" : "the specified format [" + overrides.getFormat() + "]"));
     }
 
     private Tuple<String, Boolean> sampleFile(Reader reader, String charsetName, int minLines, int maxLines) throws IOException {
@@ -233,7 +286,7 @@ public final class FileStructureFinderManager {
         }
 
         if (lineCount < minLines) {
-            throw new IllegalArgumentException("Input contained too few lines to sample");
+            throw new IllegalArgumentException("Input contained too few lines [" + lineCount + "] to obtain a meaningful sample");
         }
 
         return new Tuple<>(sample.toString(), hasByteOrderMarker);

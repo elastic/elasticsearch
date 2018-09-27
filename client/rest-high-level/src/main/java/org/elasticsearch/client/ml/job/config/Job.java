@@ -573,7 +573,7 @@ public class Job implements ToXContentObject {
             return this;
         }
 
-        public Builder setDeleting(Boolean deleting) {
+        Builder setDeleting(Boolean deleting) {
             this.deleting = deleting;
             return this;
         }

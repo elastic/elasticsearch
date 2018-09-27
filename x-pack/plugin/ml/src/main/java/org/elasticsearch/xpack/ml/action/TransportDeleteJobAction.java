@@ -182,7 +182,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         synchronized (listenersByJobId) {
             List<ActionListener<AcknowledgedResponse>> listeners = listenersByJobId.remove(jobId);
             if (listeners == null) {
-                logger.error("[{}] No deletion job listeners could be found");
+                logger.error("[{}] No deletion job listeners could be found", jobId);
                 return;
             }
             for (ActionListener<AcknowledgedResponse> listener : listeners) {

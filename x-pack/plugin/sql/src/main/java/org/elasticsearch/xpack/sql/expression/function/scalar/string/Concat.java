@@ -85,7 +85,7 @@ public class Concat extends BinaryScalarFunction {
     
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(formatScript("doc[{}].value"),
+        return new ScriptTemplate(processScript("doc[{}].value"),
                 paramsBuilder().variable(field.isInexact() ? field.exactAttribute().name() : field.name()).build(),
                 dataType());
     }

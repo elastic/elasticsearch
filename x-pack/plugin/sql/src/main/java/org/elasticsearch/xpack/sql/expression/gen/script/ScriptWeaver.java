@@ -46,32 +46,32 @@ public interface ScriptWeaver {
     DataType dataType();
 
     default ScriptTemplate scriptWithFoldable(Expression foldable) {
-        return new ScriptTemplate(formatScript("{}"),
+        return new ScriptTemplate(processScript("{}"),
                 paramsBuilder().variable(foldable.fold()).build(),
                 dataType());
     }
 
     default ScriptTemplate scriptWithScalar(ScalarFunctionAttribute scalar) {
         ScriptTemplate nested = scalar.script();
-        return new ScriptTemplate(formatScript(nested.template()),
+        return new ScriptTemplate(processScript(nested.template()),
                 paramsBuilder().script(nested.params()).build(),
                 dataType());
     }
 
     default ScriptTemplate scriptWithAggregate(AggregateFunctionAttribute aggregate) {
-        return new ScriptTemplate(formatScript("{}"),
+        return new ScriptTemplate(processScript("{}"),
                 paramsBuilder().agg(aggregate).build(),
                 dataType());
     }
 
     default ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(formatScript("doc[{}].value"),
+        return new ScriptTemplate(processScript("doc[{}].value"),
                 paramsBuilder().variable(field.name()).build(),
                 dataType());
     }
 
-    default String formatScript(String template) {
-        return formatTemplate(template);
+    default String processScript(String script) {
+        return formatTemplate(script);
     }
 
     default String formatTemplate(String template) {

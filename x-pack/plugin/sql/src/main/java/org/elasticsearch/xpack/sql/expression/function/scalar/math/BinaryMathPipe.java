@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import java.util.Objects;
 
 /**
- * Processor definition for math operations requiring two arguments.
+ * Math operation pipe requiring two arguments.
  */
 public class BinaryMathPipe extends BinaryPipe {
 

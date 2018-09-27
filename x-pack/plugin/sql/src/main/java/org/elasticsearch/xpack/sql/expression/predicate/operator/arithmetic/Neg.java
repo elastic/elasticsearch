@@ -57,8 +57,8 @@ public class Neg extends UnaryScalarFunction implements ScriptWeaver {
     }
 
     @Override
-    public String formatScript(String template) {
-        return super.formatScript("-" + template);
+    public String processScript(String template) {
+        return super.processScript("-" + template);
     }
 
     @Override

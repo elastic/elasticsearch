@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import java.util.Objects;
 
 /**
- * Processor definition for String operations requiring one string and one numeric argument.
+ * String operations pipe requiring one string and one numeric argument.
  */
 public class BinaryStringNumericPipe extends BinaryPipe {
 

@@ -62,7 +62,6 @@ public class Score extends Function {
         return location().hashCode();
     }
 
-
     @Override
     protected Pipe makePipe() {
         throw new SqlIllegalArgumentException("Scoring cannot be computed on the client");

@@ -16,7 +16,7 @@ import java.util.Objects;
 /**
  * Binary operator. Operators act as _special_ functions in that they have a symbol
  * instead of a name and do not use parathensis.
- * Further more they are don't registered as the rest of the functions as are implicit
+ * Further more they are not registered as the rest of the functions as are implicit
  * to the language.
  */
 public abstract class BinaryPredicate extends BinaryScalarFunction {

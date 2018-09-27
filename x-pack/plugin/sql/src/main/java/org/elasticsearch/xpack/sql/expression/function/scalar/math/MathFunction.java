@@ -40,8 +40,8 @@ public abstract class MathFunction extends UnaryScalarFunction {
     }
 
     @Override
-    public String formatScript(String template) {
-        return super.formatScript(format(Locale.ROOT, "Math.%s(%s)", mathFunction(), template));
+    public String processScript(String template) {
+        return super.processScript(format(Locale.ROOT, "Math.%s(%s)", mathFunction(), template));
     }
 
     protected String mathFunction() {

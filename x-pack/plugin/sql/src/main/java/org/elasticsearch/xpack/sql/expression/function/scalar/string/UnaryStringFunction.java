@@ -58,13 +58,13 @@ public abstract class UnaryStringFunction extends UnaryScalarFunction {
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
         //TODO change this to use _source instead of the exact form (aka field.keyword for text fields)
-        return new ScriptTemplate(formatScript("doc[{}].value"),
+        return new ScriptTemplate(processScript("doc[{}].value"),
                 paramsBuilder().variable(field.isInexact() ? field.exactAttribute().name() : field.name()).build(),
                 dataType());
     }
     
     @Override
-    public String formatScript(String template) {
+    public String processScript(String template) {
         return formatTemplate(
                 format(Locale.ROOT, "{sql}.%s(%s)",
                         StringUtils.underscoreToLowerCamelCase(operation().name()),

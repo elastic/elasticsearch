@@ -59,14 +59,14 @@ public abstract class UnaryStringIntFunction extends UnaryScalarFunction {
     
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(formatScript("doc[{}].value"),
+        return new ScriptTemplate(processScript("doc[{}].value"),
                 paramsBuilder().variable(field.name()).build(),
                 dataType());
     }
     
     @Override
-    public String formatScript(String template) {
-        return super.formatScript(
+    public String processScript(String template) {
+        return super.processScript(
                 format(Locale.ROOT, "{sql}.%s(%s)",
                         operation().toString().toLowerCase(Locale.ROOT),
                         template));

@@ -882,7 +882,8 @@ final class DocumentParser {
                             builder = new ObjectMapper.Builder(paths[i]).enabled(true);
                         }
                         Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(),
-                            context.path());                        mapper = (ObjectMapper) builder.build(builderContext);
+                            context.path());
+                        mapper = (ObjectMapper) builder.build(builderContext);
                         if (mapper.nested() != ObjectMapper.Nested.NO) {
                             throw new MapperParsingException("It is forbidden to create dynamic nested objects ([" + context.path().pathAsText(paths[i])
                                     + "]) through `copy_to` or dots in field names");

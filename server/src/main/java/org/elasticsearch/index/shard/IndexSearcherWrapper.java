@@ -24,8 +24,8 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 
 import java.io.IOException;
@@ -97,21 +97,10 @@ public class IndexSearcherWrapper {
         if (reader == nonClosingReaderWrapper && indexSearcher == innerIndexSearcher) {
             return engineSearcher;
         } else {
-            return new Engine.Searcher(engineSearcher.source(), indexSearcher) {
-                @Override
-                public void close() throws ElasticsearchException {
-                    try {
-                        reader().close();
-                        // we close the reader to make sure wrappers can release resources if needed....
-                        // our NonClosingReaderWrapper makes sure that our reader is not closed
-                    } catch (IOException e) {
-                        throw new ElasticsearchException("failed to close reader", e);
-                    } finally {
-                        engineSearcher.close();
-                    }
-
-                }
-            };
+            // we close the reader to make sure wrappers can release resources if needed....
+            // our NonClosingReaderWrapper makes sure that our reader is not closed
+            return new Engine.Searcher(engineSearcher.source(), indexSearcher, s -> IOUtils.close(s.getIndexReader(), engineSearcher),
+                engineSearcher.getLogger());
         }
     }
 

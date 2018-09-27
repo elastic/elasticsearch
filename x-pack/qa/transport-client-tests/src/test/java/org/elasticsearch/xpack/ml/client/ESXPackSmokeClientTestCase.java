@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.ml.client;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
@@ -54,8 +54,7 @@ public abstract class ESXPackSmokeClientTestCase extends LuceneTestCase {
      */
     public static final String TESTS_CLUSTER = "tests.cluster";
 
-    protected static final Logger logger = ESLoggerFactory
-            .getLogger(ESXPackSmokeClientTestCase.class.getName());
+    protected static final Logger logger = LogManager.getLogger(ESXPackSmokeClientTestCase.class);
 
     private static final AtomicInteger counter = new AtomicInteger();
     private static Client client;

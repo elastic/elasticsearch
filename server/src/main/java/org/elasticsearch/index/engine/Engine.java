@@ -1217,7 +1217,7 @@ public abstract class Engine implements Closeable {
 
         @Override
         public void close() {
-            if (!released.compareAndSet(false, true)) {
+            if (released.compareAndSet(false, true) == false) {
                 /* In general, searchers should never be released twice or this would break reference counting. There is one rare case
                  * when it might happen though: when the request and the Reaper thread would both try to release it in a very short amount
                  * of time, this is why we only log a warning instead of throwing an exception.

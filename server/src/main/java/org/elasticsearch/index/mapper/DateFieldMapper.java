@@ -239,7 +239,7 @@ public class DateFieldMapper extends FieldMapper {
         void setDateTimeFormatter(DateFormatter formatter) {
             checkIfFrozen();
             this.dateTimeFormatter = formatter;
-            this.dateMathParser = new DateMathParser(dateTimeFormatter);
+            this.dateMathParser = dateTimeFormatter.toDateMathParser();
         }
 
         protected DateMathParser dateMathParser() {
@@ -270,7 +270,7 @@ public class DateFieldMapper extends FieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, ShapeRelation relation,
-                @Nullable ZoneId timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
+                                @Nullable ZoneId timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
             failIfNotIndexed();
             if (relation == ShapeRelation.DISJOINT) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
@@ -305,7 +305,7 @@ public class DateFieldMapper extends FieldMapper {
         }
 
         public long parseToMilliseconds(Object value, boolean roundUp,
-                @Nullable ZoneId zone, @Nullable DateMathParser forcedDateParser, QueryRewriteContext context) {
+                                        @Nullable ZoneId zone, @Nullable DateMathParser forcedDateParser, QueryRewriteContext context) {
             DateMathParser dateParser = dateMathParser();
             if (forcedDateParser != null) {
                 dateParser = forcedDateParser;
@@ -322,8 +322,8 @@ public class DateFieldMapper extends FieldMapper {
 
         @Override
         public Relation isFieldWithinQuery(IndexReader reader,
-                Object from, Object to, boolean includeLower, boolean includeUpper,
-                ZoneId timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
+                                           Object from, Object to, boolean includeLower, boolean includeUpper,
+                                           ZoneId timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
             if (dateParser == null) {
                 dateParser = this.dateMathParser;
             }

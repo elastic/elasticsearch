@@ -1126,7 +1126,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .execute().actionGet();
 
-        DateMathParser parser = new DateMathParser(DateFormatters.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis"));
+        DateMathParser parser = DateFormatters.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis").toDateMathParser();
 
         // we pick a random timezone offset of +12/-12 hours and insert two documents
         // one at 00:00 in that time zone and one at 12:00

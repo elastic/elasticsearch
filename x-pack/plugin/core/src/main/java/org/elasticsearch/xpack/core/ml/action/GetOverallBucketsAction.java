@@ -88,7 +88,7 @@ public class GetOverallBucketsAction extends Action<GetOverallBucketsAction.Resp
         }
 
         static long parseDateOrThrow(String date, ParseField paramName, LongSupplier now) {
-            DateMathParser dateMathParser = new DateMathParser(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
+            DateMathParser dateMathParser = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser();
 
             try {
                 return dateMathParser.parse(date, now).toEpochMilli();

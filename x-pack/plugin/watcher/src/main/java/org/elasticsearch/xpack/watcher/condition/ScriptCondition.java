@@ -29,20 +29,17 @@ public final class ScriptCondition implements ExecutableCondition {
     private static final Result MET = new Result(null, TYPE, true);
     private static final Result UNMET = new Result(null, TYPE, false);
 
-    private final ScriptService scriptService;
     private final Script script;
     private final ExecutableScript.Factory scriptFactory;
 
     public ScriptCondition(Script script) {
         this.script = script;
-        scriptService = null;
         scriptFactory = null;
     }
 
-    ScriptCondition(Script script, ScriptService scriptService) {
-        this.scriptService = scriptService;
+    ScriptCondition(Script script, ExecutableScript.Factory scriptFactory) {
         this.script = script;
-        scriptFactory = scriptService.compile(script, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
+        this.scriptFactory = scriptFactory;
     }
 
     public Script getScript() {
@@ -52,7 +49,7 @@ public final class ScriptCondition implements ExecutableCondition {
     public static ScriptCondition parse(ScriptService scriptService, String watchId, XContentParser parser) throws IOException {
         try {
             Script script = Script.parse(parser);
-            return new ScriptCondition(script, scriptService);
+            return new ScriptCondition(script, scriptService.compile(script, Watcher.SCRIPT_EXECUTABLE_CONTEXT));
         } catch (ElasticsearchParseException pe) {
             throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. failed to parse script", pe, TYPE,
                     watchId);

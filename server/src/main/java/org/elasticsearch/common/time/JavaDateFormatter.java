@@ -130,6 +130,11 @@ class JavaDateFormatter implements DateFormatter {
         return this.printer.getZone();
     }
 
+    @Override
+    public DateMathParser toDateMathParser() {
+        return new JavaDateMathParser(this);
+    }
+
     public DateFormatter parseDefaulting(Map<TemporalField, Long> fields) {
         final DateTimeFormatterBuilder parseDefaultingBuilder = new DateTimeFormatterBuilder().append(printer);
         fields.forEach(parseDefaultingBuilder::parseDefaulting);

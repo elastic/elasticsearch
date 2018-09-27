@@ -485,7 +485,6 @@ public class IndexShardTests extends IndexShardTestCase {
         final Result result = indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED));
 
         final int maxSeqNo = result.maxSeqNo;
-        final boolean gap = result.gap;
 
         // promote the replica
         final ShardRouting replicaRouting = indexShard.routingEntry();
@@ -1780,7 +1779,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testRecoverFromStoreWithNoOps() throws IOException {
         final IndexShard shard = newStartedShard(true);
         indexDoc(shard, "_doc", "0");
-        Engine.IndexResult test = indexDoc(shard, "_doc", "1");
+        indexDoc(shard, "_doc", "1");
         // start a replica shard and index the second doc
         final IndexShard otherShard = newStartedShard(false);
         updateMappings(otherShard, shard.indexSettings().getIndexMetaData());
@@ -2877,12 +2876,10 @@ public class IndexShardTests extends IndexShardTestCase {
     class Result {
         private final int localCheckpoint;
         private final int maxSeqNo;
-        private final boolean gap;
 
-        Result(final int localCheckpoint, final int maxSeqNo, final boolean gap) {
+        Result(final int localCheckpoint, final int maxSeqNo) {
             this.localCheckpoint = localCheckpoint;
             this.maxSeqNo = maxSeqNo;
-            this.gap = gap;
         }
     }
 
@@ -2921,7 +2918,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         assert localCheckpoint == indexShard.getLocalCheckpoint();
         assert !gap || (localCheckpoint != max);
-        return new Result(localCheckpoint, max, gap);
+        return new Result(localCheckpoint, max);
     }
 
     /** A dummy repository for testing which just needs restore overridden */

@@ -180,12 +180,12 @@ public interface DocValueFormat extends NamedWriteable {
         public DateTime(DateFormatter formatter, ZoneId timeZone) {
             this.formatter = formatter;
             this.timeZone = Objects.requireNonNull(timeZone);
-            this.parser = new DateMathParser(formatter);
+            this.parser = formatter.toDateMathParser();
         }
 
         public DateTime(StreamInput in) throws IOException {
             this.formatter = DateFormatters.forPattern(in.readString());
-            this.parser = new DateMathParser(formatter);
+            this.parser = formatter.toDateMathParser();
             // calling ZoneId.of("UTC) will produce "UTC" as timezone in the formatter
             // calling ZoneOffset.UTC will produce "Z" as timezone in the formatter
             // as returning a date having UTC is always returning Z as timezone in all

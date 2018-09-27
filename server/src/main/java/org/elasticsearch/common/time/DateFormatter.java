@@ -21,6 +21,7 @@ package org.elasticsearch.common.time;
 
 import org.elasticsearch.ElasticsearchParseException;
 
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
@@ -29,6 +30,7 @@ import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 public interface DateFormatter {
@@ -98,6 +100,13 @@ public interface DateFormatter {
     DateFormatter parseDefaulting(Map<TemporalField, Long> fields);
 
     /**
+     * Create a DateMathParser from the existing formatter
+     *
+     * @return The DateMathParser object
+     */
+    DateMathParser toDateMathParser();
+
+    /**
      * Merge several date formatters into a single one. Useful if you need to have several formatters with
      * different formats act as one, for example when you specify a
      * format like <code>date_hour||epoch_millis</code>
@@ -107,6 +116,34 @@ public interface DateFormatter {
      */
     static DateFormatter merge(DateFormatter ... formatters) {
         return new MergedDateFormatter(formatters);
+    }
+
+    class MergedDateMathParser implements DateMathParser {
+
+        private final DateMathParser[] parsers;
+
+        MergedDateMathParser(DateFormatter ... formatters) {
+            this.parsers = Arrays.stream(formatters)
+                .map(DateFormatter::toDateMathParser)
+                .collect(Collectors.toList()).toArray(new DateMathParser[0]);
+        }
+
+        @Override
+        public Instant parse(String text, LongSupplier now, boolean roundUp, ZoneId tz) {
+            ElasticsearchParseException failure = null;
+            for (DateMathParser parser : parsers) {
+                try {
+                    return parser.parse(text, now, roundUp, tz);
+                } catch (ElasticsearchParseException e) {
+                    if (failure == null) {
+                        failure = e;
+                    } else {
+                        failure.addSuppressed(e);
+                    }
+                }
+            }
+            throw failure;
+        }
     }
 
     class MergedDateFormatter implements DateFormatter {
@@ -164,6 +201,11 @@ public interface DateFormatter {
         @Override
         public ZoneId getZone() {
             return formatters[0].getZone();
+        }
+
+        @Override
+        public DateMathParser toDateMathParser() {
+            return new MergedDateMathParser(formatters);
         }
 
         @Override

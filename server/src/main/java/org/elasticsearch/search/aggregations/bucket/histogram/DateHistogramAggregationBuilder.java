@@ -73,7 +73,7 @@ import static java.util.Collections.unmodifiableMap;
 public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, DateHistogramAggregationBuilder>
         implements MultiBucketAggregationBuilder {
     public static final String NAME = "date_histogram";
-    private static DateMathParser EPOCH_MILLIS_PARSER = new DateMathParser(DateFormatters.forPattern("epoch_millis", Locale.ROOT));
+    private static DateMathParser EPOCH_MILLIS_PARSER = DateFormatters.forPattern("epoch_millis", Locale.ROOT).toDateMathParser();
 
     public static final Map<String, Rounding.DateTimeUnit> DATE_FIELD_UNITS;
 

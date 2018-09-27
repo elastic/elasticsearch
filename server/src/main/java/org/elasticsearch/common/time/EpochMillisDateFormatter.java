@@ -96,6 +96,11 @@ class EpochMillisDateFormatter implements DateFormatter {
     }
 
     @Override
+    public DateMathParser toDateMathParser() {
+        return new JavaDateMathParser(this);
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(locale);
     }

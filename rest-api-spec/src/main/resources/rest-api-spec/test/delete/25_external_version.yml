@@ -1,10 +1,14 @@
 ---
 "External version":
 
+ - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
  - do:
       index:
+          include_type_name: false
           index:          test_1
-          type:           test
           id:             1
           body:           { foo: bar }
           version_type:   external
@@ -15,16 +19,16 @@
  - do:
       catch:             conflict
       delete:
+          include_type_name: false
           index:          test_1
-          type:           test
           id:             1
           version_type:   external
           version:        4
 
  - do:
       delete:
+          include_type_name: false
           index:          test_1
-          type:           test
           id:             1
           version_type:   external
           version:        6

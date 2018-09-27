@@ -294,7 +294,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     DateMathParser getForceDateParser() { // pkg private for testing
         if (Strings.isEmpty(format) == false) {
-            return new DateMathParser(DateFormatters.forPattern(this.format));
+            return DateFormatters.forPattern(this.format).toDateMathParser();
         }
         return null;
     }

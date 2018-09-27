@@ -258,7 +258,7 @@ public class RangeFieldMapper extends FieldMapper {
         public void setDateTimeFormatter(DateFormatter dateTimeFormatter) {
             checkIfFrozen();
             this.dateTimeFormatter = dateTimeFormatter;
-            this.dateMathParser = new DateMathParser(dateTimeFormatter);
+            this.dateMathParser = dateTimeFormatter.toDateMathParser();
         }
 
         protected DateMathParser dateMathParser() {
@@ -591,8 +591,9 @@ public class RangeFieldMapper extends FieldMapper {
                                     boolean includeUpper, ShapeRelation relation, @Nullable ZoneId timeZone,
                                     @Nullable DateMathParser parser, QueryShardContext context) {
                 ZoneId zone = (timeZone == null) ? ZoneOffset.UTC : timeZone;
+
                 DateMathParser dateMathParser = (parser == null) ?
-                    new DateMathParser(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER) : parser;
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser() : parser;
                 Long low = lowerTerm == null ? Long.MIN_VALUE :
                     dateMathParser.parse(lowerTerm instanceof BytesRef ? ((BytesRef) lowerTerm).utf8ToString() : lowerTerm.toString(),
                         context::nowInMillis, false, zone).toEpochMilli();

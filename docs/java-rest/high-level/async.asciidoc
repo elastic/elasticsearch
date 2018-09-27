@@ -1,0 +1,28 @@
+[id="java-rest-high-{api}-async"]
+==== Asynchronous Execution
+
+Executing a +{request}+ can also be done in an asynchronous fashion so that
+the client can return directly. Users need to specify how the response or
+potential failures will be handled by passing the request and a listeners to the
+asynchronous search method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-execute-async]
+--------------------------------------------------
+<1> The `SearchRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `SearchResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed.
+<2> Called when the whole `SearchRequest` fails.

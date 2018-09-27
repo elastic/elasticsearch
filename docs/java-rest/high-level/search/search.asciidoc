@@ -1,10 +1,13 @@
-[[java-rest-high-search]]
+:api: search
+:request: SearchRequest
+
+[id="{mainid}-{api}"]
 === Search API
 
-[[java-rest-high-document-search-request]]
+[id="{mainid}-{api}-request"]
 ==== Search Request
 
-The `SearchRequest` is used for any operation that has to do with searching
+The +{request}+ is used for any operation that has to do with searching
 documents, aggregations, suggestions and also offers ways of requesting
 highlighting on the resulting documents.
 
@@ -20,7 +23,7 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-basic]
 <3> Add a `match_all` query to the `SearchSourceBuilder`.
 <4> Add the `SearchSourceBuilder` to the `SeachRequest`.
 
-[[java-rest-high-search-request-optional]]
+[id="{mainid}-{api}-request-optional"]
 ===== Optional arguments
 
 Let's first look at some of the optional arguments of a `SearchRequest`:
@@ -84,7 +87,7 @@ After this, the `SearchSourceBuilder` only needs to be added to the
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-source-setter]
 --------------------------------------------------
 
-[[java-rest-high-document-search-request-building-queries]]
+[id="{mainid}-{api}-request-building-queries"]
 ===== Building queries
 
 Search queries are created using `QueryBuilder` objects. A `QueryBuilder` exists
@@ -128,7 +131,7 @@ to the `SearchSourceBuilder` as follows:
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-query-setter]
 --------------------------------------------------
 
-The <<java-rest-high-query-builders, Building Queries>> page gives a list of all available search queries with
+The <<{mainid}-query-builders, Building Queries>> page gives a list of all available search queries with
 their corresponding `QueryBuilder` objects and `QueryBuilders` helper methods.
 
 
@@ -159,7 +162,7 @@ The method also accepts an array of one or more wildcard patterns to control whi
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-source-filtering-includes]
 --------------------------------------------------
 
-[[java-rest-high-request-highlighting]]
+[id="{mainid}-{api}-request-highlighting"]
 ===== Requesting Highlighting
 
 Highlighting search results can be achieved by setting a `HighlightBuilder` on the
@@ -179,9 +182,9 @@ There are many options which are explained in detail in the Rest API documentati
 API parameters (e.g. `pre_tags`) are usually changed by
 setters with a similar name (e.g. `#preTags(String ...)`).
 
-Highlighted text fragments can <<java-rest-high-retrieve-highlighting,later be retrieved>> from the `SearchResponse`.
+Highlighted text fragments can <<{mainid}-{api}-response-highlighting,later be retrieved>> from the +response+.
 
-[[java-rest-high-document-search-request-building-aggs]]
+[id="{mainid}-{api}-request-building-aggs"]
 ===== Requesting Aggregations
 
 Aggregations can be added to the search by first creating the appropriate
@@ -194,10 +197,10 @@ sub-aggregation on the average age of employees in the company:
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-aggregations]
 --------------------------------------------------
 
-The <<java-rest-high-aggregation-builders, Building Aggregations>> page gives a list of all available aggregations with
+The <<{mainid}-aggregation-builders, Building Aggregations>> page gives a list of all available aggregations with
 their corresponding `AggregationBuilder` objects and `AggregationBuilders` helper methods.
 
-We will later see how to <<java-rest-high-retrieve-aggs,access aggregations>> in the `SearchResponse`.
+We will later see how to <<{mainid}-{api}-response-aggs,access aggregations>> in the `SearchResponse`.
 
 ===== Requesting Suggestions
 
@@ -213,7 +216,7 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-suggestion
 the text `kmichy`
 <2> Adds the suggestion builder and names it `suggest_user`
 
-We will later see how to <<java-rest-high-retrieve-suggestions,retrieve suggestions>> from the
+We will later see how to <<{mainid}-{api}-response-suggestions,retrieve suggestions>> from the
 `SearchResponse`.
 
 ===== Profiling Queries and Aggregations
@@ -227,12 +230,13 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-profiling]
 --------------------------------------------------
 
 Once the `SearchRequest` is executed the corresponding `SearchResponse` will
-<<java-rest-high-retrieve-profile-results,contain the profiling results>>.
+<<{mainid}-{api}-response-profile,contain the profiling results>>.
 
-[[java-rest-high-document-search-sync]]
+
+[id="{mainid}-{api}-sync"]
 ==== Synchronous Execution
 
-When executing a `SearchRequest` in the following manner, the client waits
+When executing a +{request}+ in the following manner, the client waits
 for the `SearchResponse` to be returned before continuing with code execution:
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -240,36 +244,10 @@ for the `SearchResponse` to be returned before continuing with code execution:
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-execute]
 --------------------------------------------------
 
-[[java-rest-high-document-search-async]]
-==== Asynchronous Execution
+include::../async.asciidoc[]
+:request-name!:
 
-Executing a `SearchRequest` can also be done in an asynchronous fashion so that
-the client can return directly. Users need to specify how the response or
-potential failures will be handled by passing the request and a listeners to the
-asynchronous search method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-execute-async]
---------------------------------------------------
-<1> The `SearchRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for `SearchResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed.
-<2> Called when the whole `SearchRequest` fails.
-
-[[java-rest-high-search-response]]
+[id="{mainid}-{api}-response"]
 ==== SearchResponse
 
 The `SearchResponse` that is returned by executing the search provides details
@@ -294,7 +272,7 @@ failures can also be handled by iterating over an array off
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-response-2]
 --------------------------------------------------
 
-[[java-rest-high-retrieve-searchHits]]
+[id="{mainid}-{api}-response-search-hits"]
 ===== Retrieving SearchHits
 
 To get access to the returned documents, we need to first get the `SearchHits`
@@ -341,10 +319,10 @@ cases need to be cast accordingly:
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-hits-singleHit-source]
 --------------------------------------------------
 
-[[java-rest-high-retrieve-highlighting]]
+[id="{mainid}-{api}-response-highlighting"]
 ===== Retrieving Highlighting
 
-If <<java-rest-high-request-highlighting,requested>>, highlighted text fragments can be retrieved from each `SearchHit` in the result. The hit object offers
+If <<{mainid}-{api}-request-highlighting,requested>>, highlighted text fragments can be retrieved from each `SearchHit` in the result. The hit object offers
 access to a map of field names to `HighlightField` instances, each of which contains one
 or many highlighted text fragments:
 
@@ -356,7 +334,7 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-highlighti
 <1> Get the highlighting for the `title` field
 <2> Get one or many fragments containing the highlighted field content
 
-[[java-rest-high-retrieve-aggs]]
+[id="{mainid}-{api}-response-aggs"]
 ===== Retrieving Aggregations
 
 Aggregations can be retrieved from the `SearchResponse` by first getting the
@@ -406,7 +384,7 @@ decide how to further process them based on their type:
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-aggregations-iterator]
 --------------------------------------------------
 
-[[java-rest-high-retrieve-suggestions]]
+[id="{mainid}-{api}-response-suggestions"]
 ===== Retrieving Suggestions
 
 To get back the suggestions from a `SearchResponse`, use the `Suggest` object as an entry point and then retrieve the nested suggestion objects:
@@ -421,7 +399,7 @@ type of Suggestion class (here `TermSuggestion`), otherwise a `ClassCastExceptio
 <3> Iterate over the suggestion entries
 <4> Iterate over the options in one entry
 
-[[java-rest-high-retrieve-profile-results]]
+[id="{mainid}-{api}-response-profile"]
 ===== Retrieving Profiling Results
 
 Profiling results are retrieved from a `SearchResponse` using the `getProfileResults()` method. This
@@ -494,3 +472,5 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-profiling-
 <5> Retrieve the profile results for the sub-aggregations (if any)
 
 The Rest API documentation contains more information about {ref}/_profiling_aggregations.html[Profiling Aggregations]
+
+:api-name!:

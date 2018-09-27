@@ -163,7 +163,7 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testDeleteRollupJob() throws Exception {
+    public void testDeleteRollupJobAsync() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         String id = "job_2";
@@ -189,11 +189,34 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         listener = new LatchedActionListener<>(listener, latch);
 
+        // tag::x-pack-rollup-delete-rollup-job-execute
+        //client.rollup().deleteRollupJob(request, RequestOptions.DEFAULT); // <1>
+        // end::x-pack-rollup-delete-rollup-job-execute
+
         // tag::x-pack-rollup-delete-rollup-job-execute-async
         client.rollup().deleteRollupJobAsync(request, RequestOptions.DEFAULT, listener); // <1>
         // end::x-pack-rollup-delete-rollup-job-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+    }
+
+    public void testDeleteRollupJob() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        String id = "job_2";
+        // tag::x-pack-rollup-delete-rollup-job-request
+        DeleteRollupJobRequest request = new DeleteRollupJobRequest(id);
+        // end::x-pack-rollup-delete-rollup-job-request
+
+        try {
+            // tag::x-pack-rollup-delete-rollup-job-execute
+            client.rollup().deleteRollupJob(request, RequestOptions.DEFAULT); // <1>
+            // end::x-pack-rollup-delete-rollup-job-execute
+        } catch (Exception e) {
+            // Swallow any exception, this test does not test actually cancelling.
+        }
+
 
     }
 }

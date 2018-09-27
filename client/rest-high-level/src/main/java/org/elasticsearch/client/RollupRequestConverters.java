@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.rollup.DeleteRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
@@ -51,7 +52,7 @@ final class RollupRequestConverters {
             .addPathPartAsIs("job")
             .addPathPart(deleteRollupJobRequest.getId())
             .build();
-        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         request.setEntity(createEntity(deleteRollupJobRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }

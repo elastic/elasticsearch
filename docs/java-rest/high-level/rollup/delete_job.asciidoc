@@ -15,8 +15,19 @@ A `DeleteRollupJobRequest` requires the following argument:
 include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-delete-rollup-job-request]
 --------------------------------------------------
 
-
 [[java-rest-high-x-pack-rollup-delete-rollup-job-execution]]
+==== Execution
+
+The Delete Rollup Job API can be executed through a `RollupClient`
+instance. Such instance can be retrieved from a `RestHighLevelClient`
+using the `rollup()` method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-delete-rollup-job-execute]
+--------------------------------------------------
+
+[[java-rest-high-x-pack-rollup-delete-rollup-job-execution-async]]
 ==== Asynchronous Execution
 
 This request can be executed asynchronously:

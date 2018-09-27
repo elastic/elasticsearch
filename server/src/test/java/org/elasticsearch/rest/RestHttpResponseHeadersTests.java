@@ -40,7 +40,6 @@ import java.util.stream.Collectors;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.mock;
 
 public class RestHttpResponseHeadersTests extends ESTestCase {
 
@@ -114,7 +113,6 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
 
         // Send the request and verify the response status code
         FakeRestChannel restChannel = new FakeRestChannel(restRequest, false, 1);
-        NodeClient client = mock(NodeClient.class);
         restController.dispatchRequest(restRequest, restChannel, new ThreadContext(Settings.EMPTY));
         assertThat(restChannel.capturedResponse().status().getStatus(), is(405));
 

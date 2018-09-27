@@ -1336,8 +1336,11 @@ Set this to `PKCS11`.
 [[pkcs11-truststore-note]]
 [NOTE]
 When configuring the PKCS#11 token that your JVM is configured to use as
-a keystore or a truststore for Elasticsearch, the PIN for the token needs
-to be configured via the appropriate JVM setting (`-Djavax.net.ssl.trustStorePassword`).
+a keystore or a truststore for Elasticsearch, the PIN for the token can be
+configured by setting the appropriate value to `xpack.ssl.truststore.password`
+or `xpack.ssl.truststore.secure_password`. In the absence of the above, {es} will
+fallback to use he appropriate JVM setting (`-Djavax.net.ssl.trustStorePassword`)
+if that s set.
 Since there can only be one PKCS#11 token configured, only one keystore and
 truststore will be usable for configuration in Elasticsearch. This in turn means
 that only one certificate can be used for TLS both in the transport and the

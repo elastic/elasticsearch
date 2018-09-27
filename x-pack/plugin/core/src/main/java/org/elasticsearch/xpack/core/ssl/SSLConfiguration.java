@@ -213,6 +213,7 @@ public final class SSLConfiguration {
     private static TrustConfig createCertChainTrustConfig(Settings settings, KeyConfig keyConfig, SSLConfiguration global) {
         String trustStorePath = SETTINGS_PARSER.truststorePath.get(settings).orElse(null);
         String trustStoreType = getKeyStoreType(SETTINGS_PARSER.truststoreType, settings, trustStorePath);
+        SecureString trustStorePassword = SETTINGS_PARSER.truststorePassword.get(settings);
         List<String> caPaths = getListOrNull(SETTINGS_PARSER.caPaths, settings);
         if (trustStorePath != null && caPaths != null) {
             throw new IllegalArgumentException("you cannot specify a truststore and ca files");
@@ -228,7 +229,6 @@ public final class SSLConfiguration {
         } else if (caPaths != null) {
             return new PEMTrustConfig(caPaths);
         } else if (trustStorePath != null || trustStoreType.equalsIgnoreCase("pkcs11")) {
-            SecureString trustStorePassword = SETTINGS_PARSER.truststorePassword.get(settings);
             String trustStoreAlgorithm = SETTINGS_PARSER.truststoreAlgorithm.get(settings);
             return new StoreTrustConfig(trustStorePath, trustStoreType, trustStorePassword, trustStoreAlgorithm);
         } else if (global == null && System.getProperty("javax.net.ssl.trustStore") != null
@@ -240,9 +240,9 @@ public final class SSLConfiguration {
         } else if (global != null && keyConfig == global.keyConfig()) {
             return global.trustConfig();
         } else if (keyConfig != KeyConfig.NONE) {
-            return DefaultJDKTrustConfig.merge(keyConfig);
+            return DefaultJDKTrustConfig.merge(keyConfig, trustStorePassword);
         } else {
-            return DefaultJDKTrustConfig.INSTANCE;
+            return new DefaultJDKTrustConfig(trustStorePassword);
         }
     }
 

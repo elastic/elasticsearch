@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 
@@ -30,9 +31,10 @@ import java.util.List;
  */
 class DefaultJDKTrustConfig extends TrustConfig {
 
-    static final DefaultJDKTrustConfig INSTANCE = new DefaultJDKTrustConfig();
+    private SecureString trustStorePassword;
 
-    private DefaultJDKTrustConfig() {
+    public DefaultJDKTrustConfig(@Nullable SecureString trustStorePassword) {
+        this.trustStorePassword = trustStorePassword;
     }
 
     @Override
@@ -78,11 +80,11 @@ class DefaultJDKTrustConfig extends TrustConfig {
      * @param trustConfig the trust configuration to merge with
      * @return a {@link TrustConfig} that represents a combination of both trust configurations
      */
-    static TrustConfig merge(TrustConfig trustConfig) {
+    static TrustConfig merge(TrustConfig trustConfig, SecureString trustStorePassword) {
         if (trustConfig == null) {
-            return INSTANCE;
+            return new DefaultJDKTrustConfig(trustStorePassword);
         } else {
-            return new CombiningTrustConfig(Arrays.asList(INSTANCE, trustConfig));
+            return new CombiningTrustConfig(Arrays.asList(new DefaultJDKTrustConfig(trustStorePassword), trustConfig));
         }
     }
 
@@ -96,7 +98,10 @@ class DefaultJDKTrustConfig extends TrustConfig {
     private KeyStore getSystemTrustStore() throws KeyStoreException, CertificateException, NoSuchAlgorithmException, IOException {
         if (System.getProperty("javax.net.ssl.trustStoreType", "").equalsIgnoreCase("PKCS11")) {
             KeyStore keyStore = KeyStore.getInstance("PKCS11");
-            keyStore.load(null, System.getProperty("javax.net.ssl.trustStorePassword", "").toCharArray());
+            if (trustStorePassword.length() == 0) {
+                trustStorePassword = new SecureString(System.getProperty("javax.net.ssl.trustStorePassword", "").toCharArray());
+            }
+            keyStore.load(null, trustStorePassword.getChars());
             return keyStore;
         }
         return null;

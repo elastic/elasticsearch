@@ -58,7 +58,7 @@ public class DateFormattersTests extends ESTestCase {
     }
 
     // this is not in the duelling tests, because the epoch second parser in joda time drops the milliseconds after the comma
-    // but is able to parse this
+    // but is able to parse the rest
     // as this feature is supported it also makes sense to make it exact
     public void testEpochSecondParser() {
         DateFormatter formatter = DateFormatters.forPattern("epoch_seconds");
@@ -75,10 +75,14 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(Instant.from(formatter.parse("1234.1234567")).getNano(), is(123_456_700));
         assertThat(Instant.from(formatter.parse("1234.12345678")).getNano(), is(123_456_780));
         assertThat(Instant.from(formatter.parse("1234.123456789")).getNano(), is(123_456_789));
-        expectThrows(DateTimeParseException.class, () -> formatter.parse("1234.1234567890"));
-        expectThrows(DateTimeParseException.class, () -> formatter.parse("1234.123456789013221"));
-        expectThrows(DateTimeParseException.class, () -> formatter.parse("abc"));
-        expectThrows(DateTimeParseException.class, () -> formatter.parse("1234.abc"));
+        DateTimeParseException e = expectThrows(DateTimeParseException.class, () -> formatter.parse("1234.1234567890"));
+        assertThat(e.getMessage(), is("too much granularity after dot [1234.1234567890]"));
+        e = expectThrows(DateTimeParseException.class, () -> formatter.parse("1234.123456789013221"));
+        assertThat(e.getMessage(), is("too much granularity after dot [1234.123456789013221]"));
+        e = expectThrows(DateTimeParseException.class, () -> formatter.parse("abc"));
+        assertThat(e.getMessage(), is("invalid number [abc]"));
+        e = expectThrows(DateTimeParseException.class, () -> formatter.parse("1234.abc"));
+        assertThat(e.getMessage(), is("invalid number [1234.abc]"));
 
         // different zone, should still yield the same output, as epoch is time zone independent
         ZoneId zoneId = randomZone();

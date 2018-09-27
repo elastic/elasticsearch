@@ -40,7 +40,7 @@ public class EpochSecondsDateFormatter implements DateFormatter {
     public TemporalAccessor parse(String input) {
         try {
             if (input.contains(".")) {
-                String[] inputs = SPLIT_BY_DOT_PATTERN.split("\\.", 2);
+                String[] inputs = SPLIT_BY_DOT_PATTERN.split(input, 2);
                 Long seconds = Long.valueOf(inputs[0]);
                 if (inputs[1].length() == 0) {
                     // this is BWC compatible to joda time, nothing after the dot is allowed
@@ -55,7 +55,7 @@ public class EpochSecondsDateFormatter implements DateFormatter {
                 return Instant.ofEpochSecond(Long.valueOf(input)).atZone(ZoneOffset.UTC);
             }
         } catch (NumberFormatException e) {
-            throw new DateTimeParseException("invalid number", input, 0, e);
+            throw new DateTimeParseException("invalid number [" + input + "]", input, 0, e);
         }
     }
 

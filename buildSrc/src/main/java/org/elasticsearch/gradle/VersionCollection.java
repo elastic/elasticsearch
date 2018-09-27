@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.gradle;
 
+import org.gradle.internal.impldep.org.apache.xbean.propertyeditor.SortedSetEditor;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -194,6 +196,12 @@ public class VersionCollection {
         }
 
         return unreleased;
+    }
+
+    public SortedSet<Version> getReleased() {
+        TreeSet<Version> released = new TreeSet<>(this.versions);
+        released.removeAll(getUnreleased());
+        return released;
     }
 
     public SortedSet<Version> getIndexCompatible() {

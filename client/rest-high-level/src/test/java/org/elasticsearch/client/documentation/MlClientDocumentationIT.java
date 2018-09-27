@@ -30,7 +30,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.MachineLearningGetResultsIT;
 import org.elasticsearch.client.MachineLearningIT;
-import org.elasticsearch.client.MlRestTestStateCleaner;
+import org.elasticsearch.client.MlTestStateCleaner;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.ml.CloseJobRequest;
@@ -126,7 +126,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @After
     public void cleanUp() throws IOException {
-        new MlRestTestStateCleaner(logger, client()).clearMlMetadata();
+        new MlTestStateCleaner(logger, highLevelClient().machineLearning()).clearMlMetadata();
     }
 
     public void testCreateJob() throws Exception {

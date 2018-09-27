@@ -19,7 +19,6 @@
 package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
-
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -93,7 +92,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     @After
     public void cleanUp() throws IOException {
-        new MlRestTestStateCleaner(logger, client()).clearMlMetadata();
+        new MlTestStateCleaner(logger, highLevelClient().machineLearning()).clearMlMetadata();
     }
 
     public void testPutJob() throws Exception {

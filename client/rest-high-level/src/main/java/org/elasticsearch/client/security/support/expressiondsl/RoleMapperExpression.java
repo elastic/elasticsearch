@@ -16,11 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.query;
 
-public interface MultiTermQueryBuilder extends QueryBuilder {
-    /**
-     * Get the field name for this query.
-     */
-    String fieldName();
+package org.elasticsearch.client.security.support.expressiondsl;
+
+import org.elasticsearch.common.xcontent.ToXContentObject;
+
+/**
+ * Implementations of this interface represent an expression used for user role mapping
+ * that can later be resolved to a boolean value.
+ */
+public interface RoleMapperExpression extends ToXContentObject {
+
 }

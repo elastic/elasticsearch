@@ -14,6 +14,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -79,7 +80,7 @@ public class MlAssignmentNotifier extends AbstractComponent implements ClusterSt
             if (Objects.equals(currentAssignment, previousAssignment)) {
                 continue;
             }
-            if (OpenJobAction.TASK_NAME.equals(currentTask.getTaskName())) {
+            if (MlTasks.JOB_TASK_NAME.equals(currentTask.getTaskName())) {
                 String jobId = ((OpenJobAction.JobParams) currentTask.getParams()).getJobId();
                 if (currentAssignment.getExecutorNode() == null) {
                     auditor.warning(jobId, "No node found to open job. Reasons [" + currentAssignment.getExplanation() + "]");
@@ -87,7 +88,7 @@ public class MlAssignmentNotifier extends AbstractComponent implements ClusterSt
                     DiscoveryNode node = event.state().nodes().get(currentAssignment.getExecutorNode());
                     auditor.info(jobId, "Opening job on node [" + node.toString() + "]");
                 }
-            } else if (StartDatafeedAction.TASK_NAME.equals(currentTask.getTaskName())) {
+            } else if (MlTasks.DATAFEED_TASK_NAME.equals(currentTask.getTaskName())) {
                 String datafeedId = ((StartDatafeedAction.DatafeedParams) currentTask.getParams()).getDatafeedId();
                 DatafeedConfig datafeedConfig = MlMetadata.getMlMetadata(event.state()).getDatafeed(datafeedId);
                 if (currentAssignment.getExecutorNode() == null) {

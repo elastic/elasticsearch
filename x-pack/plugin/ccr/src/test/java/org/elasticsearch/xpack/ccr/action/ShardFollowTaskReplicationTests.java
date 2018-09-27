@@ -285,10 +285,10 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     final Consumer<BulkShardOperationsResponse> handler,
                     final Consumer<Exception> errorHandler) {
                 Runnable task = () -> {
-                    String expectedHistoryUUID = params.getRecordedFollowerIndexHistoryUUID();
+                    String historyUUID = params.getRecordedFollowerIndexHistoryUUID();
                     BulkShardOperationsRequest request =
                         new BulkShardOperationsRequest(
-                        params.getFollowShardId(), expectedHistoryUUID, operations, maxSeqNoOfUpdates);
+                        params.getFollowShardId(), historyUUID, operations, maxSeqNoOfUpdates);
                     ActionListener<BulkShardOperationsResponse> listener = ActionListener.wrap(handler::accept, errorHandler);
                     new CCRAction(request, listener, followerGroup).execute();
                 };
@@ -377,7 +377,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         @Override
         protected PrimaryResult performOnPrimary(IndexShard primary, BulkShardOperationsRequest request) throws Exception {
             TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> result =
-                TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(), request.getExpectedHistoryUUID(),
+                TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(), request.getHistoryUUID(),
                     request.getOperations(), request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger);
             return new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful);
         }

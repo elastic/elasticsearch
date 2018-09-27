@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -233,7 +234,7 @@ public final class TransportCreateAndFollowIndexAction
                 ActiveShardCount.DEFAULT, request.timeout(), result -> {
                     if (result) {
                         ccrLicenseChecker.fetchHistoryUUIDs(client, followerIndexMeta, listener::onFailure, historyUUIDs -> {
-                            clusterService.submitStateUpdateTask("", new ClusterStateUpdateTask() {
+                            clusterService.submitStateUpdateTask("record-follower-index-uuids", new ClusterStateUpdateTask() {
                                 @Override
                                 public ClusterState execute(ClusterState currentState) throws Exception {
                                     return recordFollowerShardHistoryUUIDs(currentState, followerIndexMeta.getIndex(), historyUUIDs);
@@ -257,7 +258,7 @@ public final class TransportCreateAndFollowIndexAction
                             });
                         });
                     } else {
-                        listener.onResponse(new CreateAndFollowIndexAction.Response(true, false, false));
+                        listener.onFailure(new ElasticsearchException("creation of leader index was not acked"));
                     }
                 }, listener::onFailure);
     }

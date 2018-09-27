@@ -61,21 +61,21 @@ public class TransportBulkShardOperationsAction
     @Override
     protected WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> shardOperationOnPrimary(
             final BulkShardOperationsRequest request, final IndexShard primary) throws Exception {
-        return shardOperationOnPrimary(request.shardId(), request.getExpectedHistoryUUID(), request.getOperations(),
+        return shardOperationOnPrimary(request.shardId(), request.getHistoryUUID(), request.getOperations(),
             request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger);
     }
 
     // public for testing purposes only
     public static WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> shardOperationOnPrimary(
             final ShardId shardId,
-            final String expectedHistoryUUID,
+            final String historyUUID,
             final List<Translog.Operation> sourceOperations,
             final long maxSeqNoOfUpdatesOrDeletes,
             final IndexShard primary,
             final Logger logger) throws IOException {
-        if (expectedHistoryUUID.equalsIgnoreCase(primary.getHistoryUUID()) == false) {
-            throw new IllegalStateException("unexpected history uuid, expected [" + expectedHistoryUUID +
-                "], actual [" + primary.getHistoryUUID() + "]");
+        if (historyUUID.equalsIgnoreCase(primary.getHistoryUUID()) == false) {
+            throw new IllegalStateException("unexpected history uuid, expected [" + historyUUID +
+                "], actual [" + primary.getHistoryUUID() + "], shard is likely restored from snapshot or force allocated");
         }
 
         final List<Translog.Operation> targetOperations = sourceOperations.stream().map(operation -> {
@@ -116,7 +116,7 @@ public class TransportBulkShardOperationsAction
         primary.advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNoOfUpdatesOrDeletes);
         final Translog.Location location = applyTranslogOperations(targetOperations, primary, Engine.Operation.Origin.PRIMARY);
         final BulkShardOperationsRequest replicaRequest = new BulkShardOperationsRequest(
-            shardId, expectedHistoryUUID, targetOperations, maxSeqNoOfUpdatesOrDeletes);
+            shardId, historyUUID, targetOperations, maxSeqNoOfUpdatesOrDeletes);
         return new CcrWritePrimaryResult(replicaRequest, location, primary, logger);
     }
 

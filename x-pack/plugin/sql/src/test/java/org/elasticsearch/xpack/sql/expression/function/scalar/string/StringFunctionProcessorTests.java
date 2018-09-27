@@ -202,4 +202,14 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
 
         stringCharInputValidation(proc);
     }
+    
+    public void testOctetLength() {
+        StringProcessor proc = new StringProcessor(StringOperation.OCTET_LENGTH);
+        assertNull(proc.process(null));
+        assertEquals(7, proc.process("foo bar"));
+        assertEquals(0, proc.process(""));
+        assertEquals(1, proc.process('f'));
+
+        stringCharInputValidation(proc);
+    }
 }

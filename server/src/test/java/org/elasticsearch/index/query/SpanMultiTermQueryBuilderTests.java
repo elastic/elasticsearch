@@ -159,6 +159,11 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         public void writeTo(StreamOutput out) throws IOException {
 
         }
+
+        @Override
+        public String fieldName() {
+            return "foo";
+        }
     }
 
     /**

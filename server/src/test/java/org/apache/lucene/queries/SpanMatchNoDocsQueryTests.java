@@ -31,7 +31,9 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryUtils;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.test.ESTestCase;
@@ -40,11 +42,11 @@ import java.io.IOException;
 
 public class SpanMatchNoDocsQueryTests extends ESTestCase {
     public void testSimple() throws Exception {
-        SpanMatchNoDocsQuery query = new SpanMatchNoDocsQuery("");
-        assertEquals(query.toString(), "SpanMatchNoDocsQuery(\"\")");
+        SpanMatchNoDocsQuery query = new SpanMatchNoDocsQuery("field", "a good reason");
+        assertEquals(query.toString(), "SpanMatchNoDocsQuery(\"a good reason\")");
         Query rewrite = query.rewrite(null);
         assertTrue(rewrite instanceof SpanMatchNoDocsQuery);
-        assertEquals(rewrite.toString(), "SpanMatchNoDocsQuery(\"\")");
+        assertEquals(rewrite.toString(), "SpanMatchNoDocsQuery(\"a good reason\")");
     }
 
     public void testQuery() throws Exception {
@@ -58,7 +60,7 @@ public class SpanMatchNoDocsQueryTests extends ESTestCase {
         IndexReader ir = DirectoryReader.open(iw);
         IndexSearcher searcher = new IndexSearcher(ir);
 
-        Query query = new SpanMatchNoDocsQuery("field not found");
+        Query query = new SpanMatchNoDocsQuery("unkwown", "field not found");
         assertEquals(searcher.count(query), 0);
 
         ScoreDoc[] hits;
@@ -67,7 +69,7 @@ public class SpanMatchNoDocsQueryTests extends ESTestCase {
         assertEquals(query.toString(), "SpanMatchNoDocsQuery(\"field not found\")");
 
         SpanOrQuery orQuery = new SpanOrQuery(
-            new SpanMatchNoDocsQuery("field not found"),
+            new SpanMatchNoDocsQuery("unknown", "field not found"),
             new SpanTermQuery(new Term("unknown", "one"))
         );
         assertEquals(searcher.count(orQuery), 0);
@@ -75,7 +77,7 @@ public class SpanMatchNoDocsQueryTests extends ESTestCase {
         assertEquals(0, hits.length);
 
         orQuery = new SpanOrQuery(
-            new SpanMatchNoDocsQuery("field not found"),
+            new SpanMatchNoDocsQuery("key", "a good reason"),
             new SpanTermQuery(new Term("key", "one"))
         );
         assertEquals(searcher.count(orQuery), 1);
@@ -84,14 +86,23 @@ public class SpanMatchNoDocsQueryTests extends ESTestCase {
         Query rewrite = orQuery.rewrite(ir);
         assertEquals(rewrite, orQuery);
 
+        SpanNearQuery nearQuery = new SpanNearQuery(
+            new SpanQuery[] {new SpanMatchNoDocsQuery("same", ""), new SpanMatchNoDocsQuery("same", "")},
+            0, true);
+        assertEquals(searcher.count(nearQuery), 0);
+        hits = searcher.search(nearQuery, 1000).scoreDocs;
+        assertEquals(0, hits.length);
+        rewrite = nearQuery.rewrite(ir);
+        assertEquals(rewrite, nearQuery);
+
         iw.close();
         ir.close();
         dir.close();
     }
 
     public void testEquals() {
-        Query q1 = new SpanMatchNoDocsQuery("one");
-        Query q2 = new SpanMatchNoDocsQuery("two");
+        Query q1 = new SpanMatchNoDocsQuery("key1", "one");
+        Query q2 = new SpanMatchNoDocsQuery("key2", "two");
         assertTrue(q1.equals(q2));
         QueryUtils.check(q1);
     }

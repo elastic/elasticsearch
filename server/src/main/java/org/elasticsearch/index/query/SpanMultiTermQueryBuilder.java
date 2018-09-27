@@ -196,7 +196,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
         assert subQuery instanceof SpanBoostQuery == false;
 
         if (subQuery instanceof MatchNoDocsQuery) {
-            return new SpanMatchNoDocsQuery(subQuery.toString());
+            return new SpanMatchNoDocsQuery(multiTermQueryBuilder.fieldName(), subQuery.toString());
         }
 
         final SpanQuery spanQuery;

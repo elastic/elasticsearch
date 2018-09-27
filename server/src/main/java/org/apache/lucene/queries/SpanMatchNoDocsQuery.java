@@ -18,15 +18,17 @@ import java.util.Set;
  * A {@link SpanQuery} that matches no documents.
  */
 public class SpanMatchNoDocsQuery extends SpanQuery {
+    private final String field;
     private final String reason;
 
-    public SpanMatchNoDocsQuery(String reason) {
+    public SpanMatchNoDocsQuery(String field, String reason) {
+        this.field = field;
         this.reason = reason;
     }
 
     @Override
     public String getField() {
-        return null;
+        return field;
     }
 
     @Override

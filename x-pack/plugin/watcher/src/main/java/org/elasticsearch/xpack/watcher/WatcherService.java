@@ -27,12 +27,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.upgrade.UpgradeField;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
@@ -63,7 +63,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalState;
 import static org.elasticsearch.xpack.core.watcher.watch.Watch.INDEX;
 
@@ -92,7 +91,7 @@ public class WatcherService extends AbstractComponent {
         this.scrollSize = settings.getAsInt("xpack.watcher.watch.scroll.size", 100);
         this.defaultSearchTimeout = settings.getAsTime("xpack.watcher.internal.ops.search.default_timeout", TimeValue.timeValueSeconds(30));
         this.parser = parser;
-        this.client = client;
+        this.client = ClientHelper.clientWithOrigin(client, WATCHER_ORIGIN);
         this.executor = executor;
     }
 
@@ -184,6 +183,10 @@ public class WatcherService extends AbstractComponent {
         // changes
         processedClusterStateVersion.set(state.getVersion());
 
+        triggerService.pauseExecution();
+        int cancelledTaskCount = executionService.clearExecutionsAndQueue();
+        logger.info("reloading watcher, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
+
         executor.execute(wrapWatcherService(() -> reloadInner(state, reason, false),
             e -> logger.error("error reloading watcher", e)));
     }
@@ -232,10 +235,6 @@ public class WatcherService extends AbstractComponent {
         // also this is the place where we pause the trigger service execution and clear the current execution service, so that we make sure
         // that existing executions finish, but no new ones are executed
         if (processedClusterStateVersion.get() == state.getVersion()) {
-            triggerService.pauseExecution();
-            int cancelledTaskCount = executionService.clearExecutionsAndQueue();
-            logger.info("reloading watcher, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
-
             executionService.unPause();
             triggerService.start(watches);
             if (triggeredWatches.isEmpty() == false) {
@@ -273,7 +272,7 @@ public class WatcherService extends AbstractComponent {
 
         SearchResponse response = null;
         List<Watch> watches = new ArrayList<>();
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
+        try {
             RefreshResponse refreshResponse = client.admin().indices().refresh(new RefreshRequest(INDEX))
                 .actionGet(TimeValue.timeValueSeconds(5));
             if (refreshResponse.getSuccessfulShards() < indexMetaData.getNumberOfShards()) {
@@ -357,11 +356,9 @@ public class WatcherService extends AbstractComponent {
             }
         } finally {
             if (response != null) {
-                try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
-                    ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-                    clearScrollRequest.addScrollId(response.getScrollId());
-                    client.clearScroll(clearScrollRequest).actionGet(scrollTimeout);
-                }
+                ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+                clearScrollRequest.addScrollId(response.getScrollId());
+                client.clearScroll(clearScrollRequest).actionGet(scrollTimeout);
             }
         }
 

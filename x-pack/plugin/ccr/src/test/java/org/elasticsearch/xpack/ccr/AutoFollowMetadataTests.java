@@ -35,16 +35,31 @@ public class AutoFollowMetadataTests extends AbstractSerializingTestCase<AutoFol
         int numEntries = randomIntBetween(0, 32);
         Map<String, AutoFollowMetadata.AutoFollowPattern> configs = new HashMap<>(numEntries);
         Map<String, List<String>> followedLeaderIndices = new HashMap<>(numEntries);
+        Map<String, Map<String, String>> headers = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
             List<String> leaderPatterns = Arrays.asList(generateRandomStringArray(4, 4, false));
-            AutoFollowMetadata.AutoFollowPattern autoFollowPattern =
-                new AutoFollowMetadata.AutoFollowPattern(leaderPatterns, randomAlphaOfLength(4), randomIntBetween(0, Integer.MAX_VALUE),
-                    randomIntBetween(0, Integer.MAX_VALUE), randomNonNegativeLong(), randomIntBetween(0, Integer.MAX_VALUE),
-                    randomIntBetween(0, Integer.MAX_VALUE), TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(500));
+            AutoFollowMetadata.AutoFollowPattern autoFollowPattern = new AutoFollowMetadata.AutoFollowPattern(
+                leaderPatterns,
+                randomAlphaOfLength(4),
+                randomIntBetween(0, Integer.MAX_VALUE),
+                randomIntBetween(0, Integer.MAX_VALUE),
+                randomNonNegativeLong(),
+                randomIntBetween(0, Integer.MAX_VALUE),
+                randomIntBetween(0, Integer.MAX_VALUE),
+                TimeValue.timeValueMillis(500),
+                TimeValue.timeValueMillis(500));
             configs.put(Integer.toString(i), autoFollowPattern);
             followedLeaderIndices.put(Integer.toString(i), Arrays.asList(generateRandomStringArray(4, 4, false)));
+            if (randomBoolean()) {
+                int numHeaderEntries = randomIntBetween(1, 16);
+                Map<String, String> header = new HashMap<>();
+                for (int j = 0; j < numHeaderEntries; j++) {
+                    header.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
+                }
+                headers.put(Integer.toString(i), header);
+            }
         }
-        return new AutoFollowMetadata(configs, followedLeaderIndices);
+        return new AutoFollowMetadata(configs, followedLeaderIndices, headers);
     }
 
     @Override

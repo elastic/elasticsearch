@@ -20,11 +20,16 @@ package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
@@ -32,6 +37,10 @@ import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.ForecastJobResponse;
+import org.elasticsearch.client.ml.GetCalendarsRequest;
+import org.elasticsearch.client.ml.GetCalendarsResponse;
+import org.elasticsearch.client.ml.GetDatafeedRequest;
+import org.elasticsearch.client.ml.GetDatafeedResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobResponse;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
@@ -46,6 +55,10 @@ import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutDatafeedResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
+import org.elasticsearch.client.ml.StartDatafeedRequest;
+import org.elasticsearch.client.ml.StartDatafeedResponse;
+import org.elasticsearch.client.ml.StopDatafeedRequest;
+import org.elasticsearch.client.ml.StopDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.calendars.CalendarTests;
@@ -58,6 +71,8 @@ import org.elasticsearch.client.ml.job.config.JobState;
 import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.rest.RestStatus;
 import org.junit.After;
 
 import java.io.IOException;
@@ -77,7 +92,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     @After
     public void cleanUp() throws IOException {
-        new MlRestTestStateCleaner(logger, client()).clearMlMetadata();
+        new MlTestStateCleaner(logger, highLevelClient().machineLearning()).clearMlMetadata();
     }
 
     public void testPutJob() throws Exception {
@@ -316,6 +331,84 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(createdDatafeed.getIndices(), equalTo(datafeedConfig.getIndices()));
     }
 
+    public void testGetDatafeed() throws Exception {
+        String jobId1 = "test-get-datafeed-job-1";
+        String jobId2 = "test-get-datafeed-job-2";
+        Job job1 = buildJob(jobId1);
+        Job job2 = buildJob(jobId2);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job1), RequestOptions.DEFAULT);
+        machineLearningClient.putJob(new PutJobRequest(job2), RequestOptions.DEFAULT);
+
+        String datafeedId1 = jobId1 + "-feed";
+        String datafeedId2 = jobId2 + "-feed";
+        DatafeedConfig datafeed1 = DatafeedConfig.builder(datafeedId1, jobId1).setIndices("data_1").build();
+        DatafeedConfig datafeed2 = DatafeedConfig.builder(datafeedId2, jobId2).setIndices("data_2").build();
+        machineLearningClient.putDatafeed(new PutDatafeedRequest(datafeed1), RequestOptions.DEFAULT);
+        machineLearningClient.putDatafeed(new PutDatafeedRequest(datafeed2), RequestOptions.DEFAULT);
+
+        // Test getting specific datafeeds
+        {
+            GetDatafeedRequest request = new GetDatafeedRequest(datafeedId1, datafeedId2);
+            GetDatafeedResponse response = execute(request, machineLearningClient::getDatafeed, machineLearningClient::getDatafeedAsync);
+
+            assertEquals(2, response.count());
+            assertThat(response.datafeeds(), hasSize(2));
+            assertThat(response.datafeeds().stream().map(DatafeedConfig::getId).collect(Collectors.toList()),
+                    containsInAnyOrder(datafeedId1, datafeedId2));
+        }
+
+        // Test getting a single one
+        {
+            GetDatafeedRequest request = new GetDatafeedRequest(datafeedId1);
+            GetDatafeedResponse response = execute(request, machineLearningClient::getDatafeed, machineLearningClient::getDatafeedAsync);
+
+            assertTrue(response.count() == 1L);
+            assertThat(response.datafeeds().get(0).getId(), equalTo(datafeedId1));
+        }
+
+        // Test getting all datafeeds explicitly
+        {
+            GetDatafeedRequest request = GetDatafeedRequest.getAllDatafeedsRequest();
+            GetDatafeedResponse response = execute(request, machineLearningClient::getDatafeed, machineLearningClient::getDatafeedAsync);
+
+            assertTrue(response.count() == 2L);
+            assertTrue(response.datafeeds().size() == 2L);
+            assertThat(response.datafeeds().stream().map(DatafeedConfig::getId).collect(Collectors.toList()),
+                    hasItems(datafeedId1, datafeedId2));
+        }
+
+        // Test getting all datafeeds implicitly
+        {
+            GetDatafeedResponse response = execute(new GetDatafeedRequest(), machineLearningClient::getDatafeed,
+                    machineLearningClient::getDatafeedAsync);
+
+            assertTrue(response.count() >= 2L);
+            assertTrue(response.datafeeds().size() >= 2L);
+            assertThat(response.datafeeds().stream().map(DatafeedConfig::getId).collect(Collectors.toList()),
+                    hasItems(datafeedId1, datafeedId2));
+        }
+
+        // Test get missing pattern with allow_no_datafeeds set to true
+        {
+            GetDatafeedRequest request = new GetDatafeedRequest("missing-*");
+
+            GetDatafeedResponse response = execute(request, machineLearningClient::getDatafeed, machineLearningClient::getDatafeedAsync);
+
+            assertThat(response.count(), equalTo(0L));
+        }
+
+        // Test get missing pattern with allow_no_datafeeds set to false
+        {
+            GetDatafeedRequest request = new GetDatafeedRequest("missing-*");
+            request.setAllowNoDatafeeds(false);
+
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                    () -> execute(request, machineLearningClient::getDatafeed, machineLearningClient::getDatafeedAsync));
+            assertThat(e.status(), equalTo(RestStatus.NOT_FOUND));
+        }
+    }
+
     public void testDeleteDatafeed() throws Exception {
         String jobId = randomValidJobId();
         Job job = buildJob(jobId);
@@ -330,6 +423,145 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 machineLearningClient::deleteDatafeedAsync);
 
         assertTrue(response.isAcknowledged());
+    }
+
+    public void testStartDatafeed() throws Exception {
+        String jobId = "test-start-datafeed";
+        String indexName = "start_data_1";
+
+        // Set up the index and docs
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        BulkRequest bulk = new BulkRequest();
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        long now = (System.currentTimeMillis()/1000)*1000;
+        long thePast = now - 60000;
+        int i = 0;
+        long pastCopy = thePast;
+        while(pastCopy < now) {
+            IndexRequest doc = new IndexRequest();
+            doc.index(indexName);
+            doc.type("doc");
+            doc.id("id" + i);
+            doc.source("{\"total\":" +randomInt(1000) + ",\"timestamp\":"+ pastCopy +"}", XContentType.JSON);
+            bulk.add(doc);
+            pastCopy += 1000;
+            i++;
+        }
+        highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
+        final long totalDocCount = i;
+
+        // create the job and the datafeed
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        machineLearningClient.openJob(new OpenJobRequest(jobId), RequestOptions.DEFAULT);
+
+        String datafeedId = jobId + "-feed";
+        DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, jobId)
+            .setIndices(indexName)
+            .setQueryDelay(TimeValue.timeValueSeconds(1))
+            .setTypes(Arrays.asList("doc"))
+            .setFrequency(TimeValue.timeValueSeconds(1)).build();
+        machineLearningClient.putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
+
+
+        StartDatafeedRequest startDatafeedRequest = new StartDatafeedRequest(datafeedId);
+        startDatafeedRequest.setStart(String.valueOf(thePast));
+        // Should only process two documents
+        startDatafeedRequest.setEnd(String.valueOf(thePast + 2000));
+        StartDatafeedResponse response = execute(startDatafeedRequest,
+            machineLearningClient::startDatafeed,
+            machineLearningClient::startDatafeedAsync);
+
+        assertTrue(response.isStarted());
+
+        assertBusy(() -> {
+            JobStats stats = machineLearningClient.getJobStats(new GetJobStatsRequest(jobId), RequestOptions.DEFAULT).jobStats().get(0);
+            assertEquals(2L, stats.getDataCounts().getInputRecordCount());
+            assertEquals(JobState.CLOSED, stats.getState());
+        }, 30, TimeUnit.SECONDS);
+
+        machineLearningClient.openJob(new OpenJobRequest(jobId), RequestOptions.DEFAULT);
+        StartDatafeedRequest wholeDataFeed = new StartDatafeedRequest(datafeedId);
+        // Process all documents and end the stream
+        wholeDataFeed.setEnd(String.valueOf(now));
+        StartDatafeedResponse wholeResponse = execute(wholeDataFeed,
+            machineLearningClient::startDatafeed,
+            machineLearningClient::startDatafeedAsync);
+        assertTrue(wholeResponse.isStarted());
+
+        assertBusy(() -> {
+            JobStats stats = machineLearningClient.getJobStats(new GetJobStatsRequest(jobId), RequestOptions.DEFAULT).jobStats().get(0);
+            assertEquals(totalDocCount, stats.getDataCounts().getInputRecordCount());
+            assertEquals(JobState.CLOSED, stats.getState());
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testStopDatafeed() throws Exception {
+        String jobId1 = "test-stop-datafeed1";
+        String jobId2 = "test-stop-datafeed2";
+        String jobId3 = "test-stop-datafeed3";
+        String indexName = "stop_data_1";
+
+        // Set up the index
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+
+        // create the job and the datafeed
+        Job job1 = buildJob(jobId1);
+        putJob(job1);
+        openJob(job1);
+
+        Job job2 = buildJob(jobId2);
+        putJob(job2);
+        openJob(job2);
+
+        Job job3 = buildJob(jobId3);
+        putJob(job3);
+        openJob(job3);
+
+        String datafeedId1 = createAndPutDatafeed(jobId1, indexName);
+        String datafeedId2 = createAndPutDatafeed(jobId2, indexName);
+        String datafeedId3 = createAndPutDatafeed(jobId3, indexName);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        machineLearningClient.startDatafeed(new StartDatafeedRequest(datafeedId1), RequestOptions.DEFAULT);
+        machineLearningClient.startDatafeed(new StartDatafeedRequest(datafeedId2), RequestOptions.DEFAULT);
+        machineLearningClient.startDatafeed(new StartDatafeedRequest(datafeedId3), RequestOptions.DEFAULT);
+
+        {
+            StopDatafeedRequest request = new StopDatafeedRequest(datafeedId1);
+            request.setAllowNoDatafeeds(false);
+            StopDatafeedResponse stopDatafeedResponse = execute(request,
+                machineLearningClient::stopDatafeed,
+                machineLearningClient::stopDatafeedAsync);
+            assertTrue(stopDatafeedResponse.isStopped());
+        }
+        {
+            StopDatafeedRequest request = new StopDatafeedRequest(datafeedId2, datafeedId3);
+            request.setAllowNoDatafeeds(false);
+            StopDatafeedResponse stopDatafeedResponse = execute(request,
+                machineLearningClient::stopDatafeed,
+                machineLearningClient::stopDatafeedAsync);
+            assertTrue(stopDatafeedResponse.isStopped());
+        }
+        {
+            StopDatafeedResponse stopDatafeedResponse = execute(new StopDatafeedRequest("datafeed_that_doesnot_exist*"),
+                machineLearningClient::stopDatafeed,
+                machineLearningClient::stopDatafeedAsync);
+            assertTrue(stopDatafeedResponse.isStopped());
+        }
+        {
+            StopDatafeedRequest request = new StopDatafeedRequest("datafeed_that_doesnot_exist*");
+            request.setAllowNoDatafeeds(false);
+            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+                () -> execute(request, machineLearningClient::stopDatafeed, machineLearningClient::stopDatafeedAsync));
+            assertThat(exception.status().getStatus(), equalTo(404));
+        }
     }
 
     public void testDeleteForecast() throws Exception {
@@ -402,13 +634,54 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testPutCalendar() throws IOException {
-
         Calendar calendar = CalendarTests.testInstance();
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         PutCalendarResponse putCalendarResponse = execute(new PutCalendarRequest(calendar), machineLearningClient::putCalendar,
                 machineLearningClient::putCalendarAsync);
 
         assertThat(putCalendarResponse.getCalendar(), equalTo(calendar));
+    }
+
+    public void testGetCalendars() throws Exception {
+        Calendar calendar1 = CalendarTests.testInstance();
+        Calendar calendar2 = CalendarTests.testInstance();
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putCalendar(new PutCalendarRequest(calendar1), RequestOptions.DEFAULT);
+        machineLearningClient.putCalendar(new PutCalendarRequest(calendar2), RequestOptions.DEFAULT);
+
+        GetCalendarsRequest getCalendarsRequest = new GetCalendarsRequest();
+        getCalendarsRequest.setCalendarId("_all");
+        GetCalendarsResponse getCalendarsResponse = execute(getCalendarsRequest, machineLearningClient::getCalendars,
+                machineLearningClient::getCalendarsAsync);
+        assertEquals(2, getCalendarsResponse.count());
+        assertEquals(2, getCalendarsResponse.calendars().size());
+        assertThat(getCalendarsResponse.calendars().stream().map(Calendar::getId).collect(Collectors.toList()),
+                hasItems(calendar1.getId(), calendar1.getId()));
+
+        getCalendarsRequest.setCalendarId(calendar1.getId());
+        getCalendarsResponse = execute(getCalendarsRequest, machineLearningClient::getCalendars,
+                machineLearningClient::getCalendarsAsync);
+        assertEquals(1, getCalendarsResponse.count());
+        assertEquals(calendar1, getCalendarsResponse.calendars().get(0));
+    }
+
+    public void testDeleteCalendar() throws IOException {
+        Calendar calendar = CalendarTests.testInstance();
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        execute(new PutCalendarRequest(calendar), machineLearningClient::putCalendar,
+                machineLearningClient::putCalendarAsync);
+
+        AcknowledgedResponse response = execute(new DeleteCalendarRequest(calendar.getId()),
+                machineLearningClient::deleteCalendar,
+                machineLearningClient::deleteCalendarAsync);
+        assertTrue(response.isAcknowledged());
+
+        // calendar is missing
+        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+                () -> execute(new DeleteCalendarRequest(calendar.getId()), machineLearningClient::deleteCalendar,
+                        machineLearningClient::deleteCalendarAsync));
+        assertThat(exception.status().getStatus(), equalTo(404));
     }
 
     public static String randomValidJobId() {
@@ -426,7 +699,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setDetectorDescription(randomAlphaOfLength(10))
             .build();
         AnalysisConfig.Builder configBuilder = new AnalysisConfig.Builder(Arrays.asList(detector));
-        configBuilder.setBucketSpan(new TimeValue(randomIntBetween(1, 10), TimeUnit.SECONDS));
+        //should not be random, see:https://github.com/elastic/ml-cpp/issues/208
+        configBuilder.setBucketSpan(new TimeValue(5, TimeUnit.SECONDS));
         builder.setAnalysisConfig(configBuilder);
 
         DataDescription.Builder dataDescription = new DataDescription.Builder();
@@ -435,5 +709,24 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         builder.setDataDescription(dataDescription);
 
         return builder.build();
+    }
+
+    private void putJob(Job job) throws IOException {
+        highLevelClient().machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+    }
+
+    private void openJob(Job job) throws IOException {
+        highLevelClient().machineLearning().openJob(new OpenJobRequest(job.getId()), RequestOptions.DEFAULT);
+    }
+
+    private String createAndPutDatafeed(String jobId, String indexName) throws IOException {
+        String datafeedId = jobId + "-feed";
+        DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, jobId)
+            .setIndices(indexName)
+            .setQueryDelay(TimeValue.timeValueSeconds(1))
+            .setTypes(Arrays.asList("doc"))
+            .setFrequency(TimeValue.timeValueSeconds(1)).build();
+        highLevelClient().machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
+        return datafeedId;
     }
 }

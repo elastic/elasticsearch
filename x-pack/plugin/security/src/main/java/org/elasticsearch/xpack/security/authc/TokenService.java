@@ -118,6 +118,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -212,7 +213,8 @@ public final class TokenService extends AbstractComponent {
      * The created token will be stored in the security index.
      */
     public void createUserToken(Authentication authentication, Authentication originatingClientAuth,
-                                ActionListener<Tuple<UserToken, String>> listener, Map<String, Object> metadata) throws IOException {
+                                ActionListener<Tuple<UserToken, String>> listener, Map<String, Object> metadata,
+                                boolean includeRefreshToken) throws IOException {
         ensureEnabled();
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
@@ -226,13 +228,14 @@ public final class TokenService extends AbstractComponent {
                     new Authentication(authentication.getUser(), authentication.getAuthenticatedBy(), authentication.getLookedUpBy(),
                             version);
             final UserToken userToken = new UserToken(version, matchingVersionAuth, expiration, metadata);
-            final String refreshToken = UUIDs.randomBase64UUID();
+            final String refreshToken = includeRefreshToken ? UUIDs.randomBase64UUID() : null;
 
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject();
                 builder.field("doc_type", "token");
                 builder.field("creation_time", created.toEpochMilli());
-                builder.startObject("refresh_token")
+                if (includeRefreshToken) {
+                    builder.startObject("refresh_token")
                         .field("token", refreshToken)
                         .field("invalidated", false)
                         .field("refreshed", false)
@@ -242,6 +245,7 @@ public final class TokenService extends AbstractComponent {
                             .field("realm", originatingClientAuth.getAuthenticatedBy().getName())
                         .endObject()
                         .endObject();
+                }
                 builder.startObject("access_token")
                         .field("invalidated", false)
                         .field("user_token", userToken)
@@ -734,7 +738,7 @@ public final class TokenService extends AbstractComponent {
                                                     .request();
                                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, updateRequest,
                                             ActionListener.<UpdateResponse>wrap(
-                                                    updateResponse -> createUserToken(authentication, userAuth, listener, metadata),
+                                                    updateResponse -> createUserToken(authentication, userAuth, listener, metadata, true),
                                                     e -> {
                                                         Throwable cause = ExceptionsHelper.unwrapCause(e);
                                                         if (cause instanceof VersionConflictEngineException ||
@@ -843,7 +847,7 @@ public final class TokenService extends AbstractComponent {
                 );
 
         final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
-                .setScroll(TimeValue.timeValueSeconds(10L))
+                .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                 .setQuery(boolQuery)
                 .setVersion(false)
                 .setSize(1000)

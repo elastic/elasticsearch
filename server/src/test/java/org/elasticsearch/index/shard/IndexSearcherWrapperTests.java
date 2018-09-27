@@ -56,7 +56,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         writer.addDocument(doc);
         DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
         IndexSearcher searcher = new IndexSearcher(open);
-        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits);
+        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
         final AtomicInteger closeCalls = new AtomicInteger(0);
         IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {
             @Override
@@ -73,7 +73,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         final int sourceRefCount = open.getRefCount();
         final AtomicInteger count = new AtomicInteger();
         final AtomicInteger outerCount = new AtomicInteger();
-        try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher)) {
+        try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher, s -> {}, logger)) {
             final Engine.Searcher wrap =  wrapper.wrap(engineSearcher);
             assertEquals(1, wrap.reader().getRefCount());
             ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), key -> {
@@ -82,7 +82,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
                 }
                 outerCount.incrementAndGet();
             });
-            assertEquals(0, wrap.searcher().search(new TermQuery(new Term("field", "doc")), 1).totalHits);
+            assertEquals(0, wrap.searcher().search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
             wrap.close();
             assertFalse("wrapped reader is closed", wrap.reader().tryIncRef());
             assertEquals(sourceRefCount, open.getRefCount());
@@ -106,7 +106,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         writer.addDocument(doc);
         DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
         IndexSearcher searcher = new IndexSearcher(open);
-        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits);
+        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
         searcher.setSimilarity(iwc.getSimilarity());
         final AtomicInteger closeCalls = new AtomicInteger(0);
         IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {
@@ -121,7 +121,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
             }
         };
         final ConcurrentHashMap<Object, TopDocs> cache = new ConcurrentHashMap<>();
-        try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher)) {
+        try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher, s -> {}, logger)) {
             try (Engine.Searcher wrap = wrapper.wrap(engineSearcher)) {
                 ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), key -> {
                     cache.remove(key);
@@ -148,10 +148,10 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         writer.addDocument(doc);
         DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
         IndexSearcher searcher = new IndexSearcher(open);
-        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits);
+        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
         searcher.setSimilarity(iwc.getSimilarity());
         IndexSearcherWrapper wrapper = new IndexSearcherWrapper();
-        try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher)) {
+        try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher, logger)) {
             final Engine.Searcher wrap = wrapper.wrap(engineSearcher);
             assertSame(wrap, engineSearcher);
         }

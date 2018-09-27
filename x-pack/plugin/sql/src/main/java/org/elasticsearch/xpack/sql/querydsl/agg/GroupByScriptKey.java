@@ -36,10 +36,15 @@ public class GroupByScriptKey extends GroupByKey {
     public TermsValuesSourceBuilder asValueSource() {
         TermsValuesSourceBuilder builder = new TermsValuesSourceBuilder(id())
                 .script(script.toPainless())
-                .order(direction().asOrder());
+                .order(direction().asOrder())
+                .missingBucket(true);
 
-        if (script.outputType().isNumeric()) {
-            builder.valueType(ValueType.NUMBER);
+        if (script.outputType().isInteger) {
+            builder.valueType(ValueType.LONG);
+        } else if (script.outputType().isRational) {
+            builder.valueType(ValueType.DOUBLE);
+        } else if (script.outputType().isString()) {
+            builder.valueType(ValueType.STRING);
         }
 
         return builder;

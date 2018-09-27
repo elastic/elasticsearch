@@ -22,6 +22,7 @@ package org.elasticsearch.transport.nio;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -85,7 +86,8 @@ public class MockNioTransport extends TcpTransport {
     }
 
     @Override
-    protected MockSocketChannel initiateChannel(InetSocketAddress address, ActionListener<Void> connectListener) throws IOException {
+    protected MockSocketChannel initiateChannel(DiscoveryNode node, ActionListener<Void> connectListener) throws IOException {
+        InetSocketAddress address = node.getAddress().address();
         MockSocketChannel channel = nioGroup.openChannel(address, clientChannelFactory);
         channel.addConnectListener(ActionListener.toBiConsumer(connectListener));
         return channel;
@@ -191,6 +193,7 @@ public class MockNioTransport extends TcpTransport {
             BytesChannelContext context = new BytesChannelContext(nioChannel, selector, (e) -> exceptionCaught(nioChannel, e),
                 readWriteHandler, new InboundChannelBuffer(pageSupplier));
             nioChannel.setContext(context);
+            nioChannel.setSoLinger(0);
             return nioChannel;
         }
 
@@ -274,8 +277,9 @@ public class MockNioTransport extends TcpTransport {
 
         @Override
         public void setSoLinger(int value) throws IOException {
-            if (isOpen()) {
-                getRawChannel().setOption(StandardSocketOptions.SO_LINGER, value);
+            SocketChannel rawChannel = getRawChannel();
+            if (rawChannel.isConnected()) {
+                rawChannel.setOption(StandardSocketOptions.SO_LINGER, value);
             }
         }
 

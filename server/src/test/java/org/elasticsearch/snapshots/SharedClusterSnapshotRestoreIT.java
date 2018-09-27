@@ -122,6 +122,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
+import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.shard.IndexShardTests.getEngineFromShard;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -2048,7 +2049,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         // only one shard
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)));
+        final Settings indexSettings = Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).build();
+        assertAcked(prepareCreate("test").setSettings(indexSettings));
         ensureGreen();
         logger.info("-->  indexing");
 
@@ -2094,7 +2097,13 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             SnapshotStatus snapshotStatus = client.admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-2").get().getSnapshots().get(0);
             List<SnapshotIndexShardStatus> shards = snapshotStatus.getShards();
             for (SnapshotIndexShardStatus status : shards) {
-                assertThat(status.getStats().getProcessedFileCount(), equalTo(2)); // we flush before the snapshot such that we have to process the segments_N files plus the .del file
+                // we flush before the snapshot such that we have to process the segments_N files plus the .del file
+                if (INDEX_SOFT_DELETES_SETTING.get(indexSettings)) {
+                    // soft-delete generates DV files.
+                    assertThat(status.getStats().getProcessedFileCount(), greaterThan(2));
+                } else {
+                    assertThat(status.getStats().getProcessedFileCount(), equalTo(2));
+                }
             }
         }
     }
@@ -2810,7 +2819,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         Predicate<String> isRestorableIndex = index -> corruptedIndex.getName().equals(index) == false;
 
-        RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
+        client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
             .setIndices(nbDocsPerIndex.keySet().stream().filter(isRestorableIndex).toArray(String[]::new))
             .setRestoreGlobalState(randomBoolean())
             .setWaitForCompletion(true)

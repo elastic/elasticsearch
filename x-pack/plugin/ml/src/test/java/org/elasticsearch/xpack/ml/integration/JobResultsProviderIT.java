@@ -125,7 +125,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         Long matchedCount = queryResult.stream().filter(
                 c -> c.getId().equals("foo calendar") || c.getId().equals("foo bar calendar") || c.getId().equals("cat foo calendar"))
                 .count();
-        assertEquals(new Long(3), matchedCount);
+        assertEquals(Long.valueOf(3), matchedCount);
 
         queryResult = getCalendars("bar");
         assertThat(queryResult, hasSize(1));

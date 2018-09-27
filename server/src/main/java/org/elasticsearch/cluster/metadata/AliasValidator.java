@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -46,7 +45,6 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
  */
 public class AliasValidator extends AbstractComponent {
 
-    @Inject
     public AliasValidator(Settings settings) {
         super(settings);
     }

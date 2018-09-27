@@ -32,6 +32,7 @@ import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -70,8 +71,13 @@ public class MatchAssertion extends Assertion {
             }
         }
 
-        assertNotNull("field [" + getField() + "] is null", actualValue);
         logger.trace("assert that [{}] matches [{}] (field [{}])", actualValue, expectedValue, getField());
+        if (expectedValue == null) {
+            assertNull("field [" + getField() + "] should be null but was [" + actualValue + "]", actualValue);
+            return;
+        }
+        assertNotNull("field [" + getField() + "] is null", actualValue);
+
         if (actualValue.getClass().equals(safeClass(expectedValue)) == false) {
             if (actualValue instanceof Number && expectedValue instanceof Number) {
                 //Double 1.0 is equal to Integer 1

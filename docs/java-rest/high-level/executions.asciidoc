@@ -7,7 +7,7 @@ which, while a bit ceremonial, does force us to cover these calls in *some*
 test.
 ////
 
-[id="{mainid}-{api}-sync"]
+[id="{upid}-{api}-sync"]
 ==== Synchronous Execution
 
 When executing a +{request}+ in the following manner, the client waits
@@ -18,7 +18,7 @@ for the +{response}+ to be returned before continuing with code execution:
 include-tagged::{doc-tests-file}[{api}-execute]
 --------------------------------------------------
 
-[id="{mainid}-{api}-async"]
+[id="{upid}-{api}-async"]
 ==== Asynchronous Execution
 
 Executing a +{request}+ can also be done in an asynchronous fashion so that

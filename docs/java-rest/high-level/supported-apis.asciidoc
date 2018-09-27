@@ -46,6 +46,8 @@ The Java High Level REST Client supports the following Search APIs:
 * <<java-rest-high-rank-eval>>
 * <<java-rest-high-explain>>
 
+:upid: {mainid}
+:doc-tests-file: {doc-tests}/SearchDocumentationIT.java
 include::search/search.asciidoc[]
 include::search/scroll.asciidoc[]
 include::search/multi-search.asciidoc[]
@@ -54,6 +56,8 @@ include::search/multi-search-template.asciidoc[]
 include::search/field-caps.asciidoc[]
 include::search/rank-eval.asciidoc[]
 include::search/explain.asciidoc[]
+:doc-tests-file!:
+:upid!:
 
 == Miscellaneous APIs
 
@@ -137,9 +141,13 @@ The Java High Level REST Client supports the following Cluster APIs:
 * <<java-rest-high-cluster-get-settings>>
 * <<java-rest-high-cluster-health>>
 
+:upid: {mainid}-cluster
+:doc-tests-file: {doc-tests}/ClusterClientDocumentationIT.java
 include::cluster/put_settings.asciidoc[]
 include::cluster/get_settings.asciidoc[]
 include::cluster/health.asciidoc[]
+:doc-tests-file!:
+:upid!:
 
 == Ingest APIs
 The Java High Level REST Client supports the following Ingest APIs:

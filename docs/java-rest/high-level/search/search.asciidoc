@@ -1,12 +1,13 @@
+--
 :api: search
 :request: SearchRequest
 :response: SearchResponse
-:doc-tests-file: {doc-tests}/SearchDocumentationIT.java
+--
 
-[id="{mainid}-{api}"]
+[id="{upid}-{api}"]
 === Search API
 
-[id="{mainid}-{api}-request"]
+[id="{upid}-{api}-request"]
 ==== Search Request
 
 The +{request}+ is used for any operation that has to do with searching
@@ -25,7 +26,7 @@ include-tagged::{doc-tests-file}[search-request-basic]
 <3> Add a `match_all` query to the `SearchSourceBuilder`.
 <4> Add the `SearchSourceBuilder` to the `SeachRequest`.
 
-[id="{mainid}-{api}-request-optional"]
+[id="{upid}-{api}-request-optional"]
 ===== Optional arguments
 
 Let's first look at some of the optional arguments of a +{request}+:
@@ -89,7 +90,7 @@ After this, the `SearchSourceBuilder` only needs to be added to the
 include-tagged::{doc-tests-file}[search-source-setter]
 --------------------------------------------------
 
-[id="{mainid}-{api}-request-building-queries"]
+[id="{upid}-{api}-request-building-queries"]
 ===== Building queries
 
 Search queries are created using `QueryBuilder` objects. A `QueryBuilder` exists
@@ -133,7 +134,7 @@ to the `SearchSourceBuilder` as follows:
 include-tagged::{doc-tests-file}[search-query-setter]
 --------------------------------------------------
 
-The <<{mainid}-query-builders, Building Queries>> page gives a list of all available search queries with
+The <<{upid}-query-builders, Building Queries>> page gives a list of all available search queries with
 their corresponding `QueryBuilder` objects and `QueryBuilders` helper methods.
 
 
@@ -164,7 +165,7 @@ The method also accepts an array of one or more wildcard patterns to control whi
 include-tagged::{doc-tests-file}[search-source-filtering-includes]
 --------------------------------------------------
 
-[id="{mainid}-{api}-request-highlighting"]
+[id="{upid}-{api}-request-highlighting"]
 ===== Requesting Highlighting
 
 Highlighting search results can be achieved by setting a `HighlightBuilder` on the
@@ -184,9 +185,9 @@ There are many options which are explained in detail in the Rest API documentati
 API parameters (e.g. `pre_tags`) are usually changed by
 setters with a similar name (e.g. `#preTags(String ...)`).
 
-Highlighted text fragments can <<{mainid}-{api}-response-highlighting,later be retrieved>> from the +{response}+.
+Highlighted text fragments can <<{upid}-{api}-response-highlighting,later be retrieved>> from the +{response}+.
 
-[id="{mainid}-{api}-request-building-aggs"]
+[id="{upid}-{api}-request-building-aggs"]
 ===== Requesting Aggregations
 
 Aggregations can be added to the search by first creating the appropriate
@@ -199,10 +200,10 @@ sub-aggregation on the average age of employees in the company:
 include-tagged::{doc-tests-file}[search-request-aggregations]
 --------------------------------------------------
 
-The <<{mainid}-aggregation-builders, Building Aggregations>> page gives a list of all available aggregations with
+The <<{upid}-aggregation-builders, Building Aggregations>> page gives a list of all available aggregations with
 their corresponding `AggregationBuilder` objects and `AggregationBuilders` helper methods.
 
-We will later see how to <<{mainid}-{api}-response-aggs,access aggregations>> in the +{response}+.
+We will later see how to <<{upid}-{api}-response-aggs,access aggregations>> in the +{response}+.
 
 ===== Requesting Suggestions
 
@@ -218,7 +219,7 @@ include-tagged::{doc-tests-file}[search-request-suggestion]
 the text `kmichy`
 <2> Adds the suggestion builder and names it `suggest_user`
 
-We will later see how to <<{mainid}-{api}-response-suggestions,retrieve suggestions>> from the
+We will later see how to <<{upid}-{api}-response-suggestions,retrieve suggestions>> from the
 +{response}+.
 
 ===== Profiling Queries and Aggregations
@@ -232,11 +233,11 @@ include-tagged::{doc-tests-file}[search-request-profiling]
 --------------------------------------------------
 
 Once the +{request}+ is executed the corresponding +{response}+ will
-<<{mainid}-{api}-response-profile,contain the profiling results>>.
+<<{upid}-{api}-response-profile,contain the profiling results>>.
 
 include::../executions.asciidoc[]
 
-[id="{mainid}-{api}-response"]
+[id="{upid}-{api}-response"]
 ==== {response}
 
 The +{response}+ that is returned by executing the search provides details
@@ -261,7 +262,7 @@ failures can also be handled by iterating over an array off
 include-tagged::{doc-tests-file}[search-response-2]
 --------------------------------------------------
 
-[id="{mainid}-{api}-response-search-hits"]
+[id="{upid}-{api}-response-search-hits"]
 ===== Retrieving SearchHits
 
 To get access to the returned documents, we need to first get the `SearchHits`
@@ -308,10 +309,10 @@ cases need to be cast accordingly:
 include-tagged::{doc-tests-file}[search-hits-singleHit-source]
 --------------------------------------------------
 
-[id="{mainid}-{api}-response-highlighting"]
+[id="{upid}-{api}-response-highlighting"]
 ===== Retrieving Highlighting
 
-If <<{mainid}-{api}-request-highlighting,requested>>, highlighted text fragments can be retrieved from each `SearchHit` in the result. The hit object offers
+If <<{upid}-{api}-request-highlighting,requested>>, highlighted text fragments can be retrieved from each `SearchHit` in the result. The hit object offers
 access to a map of field names to `HighlightField` instances, each of which contains one
 or many highlighted text fragments:
 
@@ -323,7 +324,7 @@ include-tagged::{doc-tests-file}[search-request-highlighting-get]
 <1> Get the highlighting for the `title` field
 <2> Get one or many fragments containing the highlighted field content
 
-[id="{mainid}-{api}-response-aggs"]
+[id="{upid}-{api}-response-aggs"]
 ===== Retrieving Aggregations
 
 Aggregations can be retrieved from the +{response}+ by first getting the
@@ -373,7 +374,7 @@ decide how to further process them based on their type:
 include-tagged::{doc-tests-file}[search-request-aggregations-iterator]
 --------------------------------------------------
 
-[id="{mainid}-{api}-response-suggestions"]
+[id="{upid}-{api}-response-suggestions"]
 ===== Retrieving Suggestions
 
 To get back the suggestions from a +{response}+, use the `Suggest` object as an entry point and then retrieve the nested suggestion objects:
@@ -388,7 +389,7 @@ type of Suggestion class (here `TermSuggestion`), otherwise a `ClassCastExceptio
 <3> Iterate over the suggestion entries
 <4> Iterate over the options in one entry
 
-[id="{mainid}-{api}-response-profile"]
+[id="{upid}-{api}-response-profile"]
 ===== Retrieving Profiling Results
 
 Profiling results are retrieved from a +{response}+ using the `getProfileResults()` method. This
@@ -465,4 +466,4 @@ The Rest API documentation contains more information about {ref}/_profiling_aggr
 :doc-tests-file!:
 :response!:
 :request!:
-:api-name!:
+:api!:

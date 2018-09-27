@@ -235,7 +235,7 @@ include-tagged::{doc-tests-file}[search-request-profiling]
 Once the +{request}+ is executed the corresponding +{response}+ will
 <<{upid}-{api}-response-profile,contain the profiling results>>.
 
-include::../executions.asciidoc[]
+include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
 ==== {response}
@@ -462,8 +462,3 @@ include-tagged::{doc-tests-file}[search-request-profiling-aggs]
 <5> Retrieve the profile results for the sub-aggregations (if any)
 
 The Rest API documentation contains more information about {ref}/_profiling_aggregations.html[Profiling Aggregations]
-
-:doc-tests-file!:
-:response!:
-:request!:
-:api!:

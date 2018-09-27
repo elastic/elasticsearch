@@ -146,8 +146,6 @@ The Java High Level REST Client supports the following Cluster APIs:
 include::cluster/put_settings.asciidoc[]
 include::cluster/get_settings.asciidoc[]
 include::cluster/health.asciidoc[]
-:doc-tests-file!:
-:upid!:
 
 == Ingest APIs
 The Java High Level REST Client supports the following Ingest APIs:
@@ -317,3 +315,10 @@ The Java High Level REST Client supports the following Graph APIs:
 * <<java-rest-high-x-pack-graph-explore>>
 
 include::graph/explore.asciidoc[]
+
+// Clear attributes that we use to document that APIs included above:
+--
+:api!:
+:request!:
+:response!:
+--

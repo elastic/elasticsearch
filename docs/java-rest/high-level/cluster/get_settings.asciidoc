@@ -43,7 +43,7 @@ include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
 <1> Timeout to connect to the master node as a `TimeValue`
 <2> Timeout to connect to the master node as a `String`
 
-include::../executions.asciidoc[]
+include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
 ==== Cluster Get Settings Response
@@ -61,6 +61,3 @@ include-tagged::{doc-tests-file}[{api}-response]
 <4> Get the value as a `String` for a particular setting. The order of searching is first in `persistentSettings` then in
 `transientSettings` and finally, if not found in either, in `defaultSettings`.
 
-:response!:
-:request!:
-:api-name!:

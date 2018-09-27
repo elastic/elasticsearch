@@ -570,7 +570,7 @@ public class WatchTests extends ESTestCase {
         Map<String, TransformFactory> factories = new HashMap<>();
         factories.put(ScriptTransform.TYPE, new ScriptTransformFactory(settings, scriptService));
         factories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, xContentRegistry(), scriptService));
-        return new TransformRegistry(Settings.EMPTY, unmodifiableMap(factories));
+        return new TransformRegistry(unmodifiableMap(factories));
     }
 
     private List<ActionWrapper> randomActions() {

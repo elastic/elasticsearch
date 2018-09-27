@@ -315,7 +315,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         final Map<String, TransformFactory> transformFactories = new HashMap<>();
         transformFactories.put(ScriptTransform.TYPE, new ScriptTransformFactory(settings, scriptService));
         transformFactories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, xContentRegistry, scriptService));
-        final TransformRegistry transformRegistry = new TransformRegistry(settings, Collections.unmodifiableMap(transformFactories));
+        final TransformRegistry transformRegistry = new TransformRegistry(Collections.unmodifiableMap(transformFactories));
 
         // actions
         final Map<String, ActionFactory> actionFactoryMap = new HashMap<>();

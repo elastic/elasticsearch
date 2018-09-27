@@ -17,13 +17,8 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -183,10 +178,8 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         this.requestId = randomId();
     }
 
-    private SamlAuthenticator buildAuthenticator(Supplier<List<Credential>> credentials, List<String> reqAuthnCtxClassRef) throws
-        Exception {
-        final Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
-        final Settings realmSettings = Settings.EMPTY;
+    private SamlAuthenticator buildAuthenticator(Supplier<List<Credential>> credentials, List<String> reqAuthnCtxClassRef)
+            throws Exception {
         final IdpConfiguration idp = new IdpConfiguration(IDP_ENTITY_ID, credentials);
 
         final SigningConfiguration signingConfiguration = new SigningConfiguration(Collections.singleton("*"),
@@ -195,9 +188,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
                 .map((cred) -> (X509Credential) cred).collect(Collectors.<X509Credential>toList());
         final SpConfiguration sp = new SpConfiguration(SP_ENTITY_ID, SP_ACS_URL, null, signingConfiguration, spEncryptionCredentials,
             reqAuthnCtxClassRef);
-        final Environment env = TestEnvironment.newEnvironment(globalSettings);
         return new SamlAuthenticator(
-                new RealmConfig("saml_test", realmSettings, globalSettings, env, new ThreadContext(globalSettings)),
                 clock,
                 idp,
                 sp,

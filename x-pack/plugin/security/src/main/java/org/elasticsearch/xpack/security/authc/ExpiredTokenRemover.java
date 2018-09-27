@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -35,15 +35,14 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * Responsible for cleaning the invalidated tokens from the invalidated tokens index.
  */
 final class ExpiredTokenRemover extends AbstractRunnable {
+    private static final Logger logger = LogManager.getLogger(ExpiredTokenRemover.class);
 
     private final Client client;
     private final AtomicBoolean inProgress = new AtomicBoolean(false);
-    private final Logger logger;
     private final TimeValue timeout;
 
     ExpiredTokenRemover(Settings settings, Client client) {
         this.client = client;
-        this.logger = Loggers.getLogger(getClass(), settings);
         this.timeout = TokenService.DELETE_TIMEOUT.get(settings);
     }
 

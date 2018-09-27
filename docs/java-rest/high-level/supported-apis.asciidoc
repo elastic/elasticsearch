@@ -56,8 +56,6 @@ include::search/multi-search-template.asciidoc[]
 include::search/field-caps.asciidoc[]
 include::search/rank-eval.asciidoc[]
 include::search/explain.asciidoc[]
-:doc-tests-file!:
-:upid!:
 
 == Miscellaneous APIs
 
@@ -316,9 +314,14 @@ The Java High Level REST Client supports the following Graph APIs:
 
 include::graph/explore.asciidoc[]
 
-// Clear attributes that we use to document that APIs included above:
+////
+Clear attributes that we use to document that APIs included above so they
+don't leak into the rest of the documentation.
+////
 --
 :api!:
 :request!:
 :response!:
+:doc-tests-file!:
+:upid!:
 --

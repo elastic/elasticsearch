@@ -321,7 +321,8 @@ public class FollowersCheckerTests extends ESTestCase {
             rq -> copyWriteable(rq, writableRegistry(), FollowerCheckRequest::new),
             rq -> {
                 if (randomBoolean()) {
-                    return new FollowerCheckRequest(rq.getTerm(), new DiscoveryNode(randomAlphaOfLength(10), buildNewFakeTransportAddress(), Version.CURRENT));
+                    return new FollowerCheckRequest(rq.getTerm(),
+                        new DiscoveryNode(randomAlphaOfLength(10), buildNewFakeTransportAddress(), Version.CURRENT));
                 } else {
                     return new FollowerCheckRequest(randomNonNegativeLong(), rq.getSender());
                 }

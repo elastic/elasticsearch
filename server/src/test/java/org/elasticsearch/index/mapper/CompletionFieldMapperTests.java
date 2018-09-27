@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.suggest.document.CompletionAnalyzer;
+import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
 import org.apache.lucene.search.suggest.document.PrefixCompletionQuery;
 import org.apache.lucene.search.suggest.document.RegexCompletionQuery;
@@ -183,6 +184,159 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("failed to parse [completion]: expected text or object, but got VALUE_NUMBER", e.getCause().getMessage());
     }
 
+    public void testKeywordWithSubCompletionAndContext() throws Exception {
+        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type1")
+            .startObject("properties")
+            .startObject("keywordfield")
+                .field("type", "keyword")
+                .startObject("fields")
+                .startObject("subsuggest")
+                    .field("type", "completion")
+                    .startArray("contexts")
+                        .startObject()
+                            .field("name","place_type")
+                            .field("type","category")
+                            .field("path","cat")
+                        .endObject()
+                    .endArray()
+                .endObject()
+            .endObject()
+            .endObject().endObject()
+            .endObject().endObject()
+        );
+        System.out.println(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
+
+        ParsedDocument parsedDocument = defaultMapper.parse(SourceToParse.source("test", "type1", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                    .startObject()
+                    .array("keywordfield", "key1", "key2", "key3")
+                    .endObject()),
+            XContentType.JSON));
+
+        ParseContext.Document indexableFields = parsedDocument.rootDoc();
+        assertThat(indexableFields.getFields("keywordfield"), arrayWithSize(6));
+        assertFieldsOfType(indexableFields.getFields("keywordfield.subsuggest"), ContextSuggestField.class, 3);
+    }
+
+    public void testCompletionWithContextAndSubCompletion() throws Exception {
+        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type1")
+            .startObject("properties")
+            .startObject("suggest")
+                .field("type", "completion")
+                .startArray("contexts")
+                    .startObject()
+                        .field("name","place_type")
+                        .field("type","category")
+                        .field("path","cat")
+                    .endObject()
+                .endArray()
+                .startObject("fields")
+                .startObject("subsuggest")
+                    .field("type", "completion")
+                    .startArray("contexts")
+                        .startObject()
+                            .field("name","place_type")
+                            .field("type","category")
+                            .field("path","cat")
+                        .endObject()
+                    .endArray()
+                .endObject()
+            .endObject()
+            .endObject().endObject()
+            .endObject().endObject()
+        );
+        System.out.println(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
+
+        ParsedDocument parsedDocument = defaultMapper.parse(SourceToParse.source("test", "type1", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                    .startObject()
+                        .startObject("suggest")
+                            .array("input","timmy","starbucks")
+                            .startObject("contexts")
+                                .array("place_type","cafe","food")
+                            .endObject()
+                            .field("weight", 3)
+                        .endObject()
+                    .endObject()),
+            XContentType.JSON));
+
+        ParseContext.Document indexableFields = parsedDocument.rootDoc();
+        assertFieldsOfType(indexableFields.getFields("suggest"), ContextSuggestField.class, 2);
+        assertFieldsOfType(indexableFields.getFields("suggest.subsuggest"), ContextSuggestField.class, 2);
+    }
+
+    public void testCompletionWithContextAndSubCompletionIndexByPath() throws Exception {
+        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type1")
+            .startObject("properties")
+            .startObject("suggest")
+                .field("type", "completion")
+                .startArray("contexts")
+                    .startObject()
+                        .field("name","place_type")
+                        .field("type","category")
+                        .field("path","cat")
+                    .endObject()
+                .endArray()
+                .startObject("fields")
+                .startObject("subsuggest")
+                    .field("type", "completion")
+                    .startArray("contexts")
+                        .startObject()
+                            .field("name","place_type")
+                            .field("type","category")
+                            .field("path","cat")
+                        .endObject()
+                    .endArray()
+                .endObject()
+            .endObject()
+            .endObject().endObject()
+            .endObject().endObject()
+        );
+        System.out.println(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
+
+        ParsedDocument parsedDocument = defaultMapper.parse(SourceToParse.source("test", "type1", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                    .startObject()
+                    .array("suggest", "starbucks","timmy")
+                    .array("cat","cafe","food")
+                    .endObject()),
+            XContentType.JSON));
+
+        ParseContext.Document indexableFields = parsedDocument.rootDoc();
+        assertFieldsOfType(indexableFields.getFields("suggest"), ContextSuggestField.class, 2);
+        assertFieldsOfType(indexableFields.getFields("suggest.subsuggest"), ContextSuggestField.class, 2);
+    }
+
+
+    public void testKeywordWithSubCompletionAndStringInsert() throws Exception {
+        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("geofield")
+            .field("type", "geo_point")
+            .startObject("fields")
+            .startObject("analyzed")
+            .field("type", "completion")
+            .endObject()
+            .endObject()
+            .endObject().endObject()
+            .endObject().endObject()
+        );
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
+
+        ParsedDocument parsedDocument = defaultMapper.parse(SourceToParse.source("test", "type1", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("geofield", "41.12,-71.34")
+                    .endObject()),
+            XContentType.JSON));
+
+        ParseContext.Document indexableFields = parsedDocument.rootDoc();
+        assertThat(indexableFields.getFields("geofield"), arrayWithSize(2));
+        assertSuggestFields(indexableFields.getFields("geofield.analyzed"), 1);
+    }
 
     public void testCompletionTypeWithSubCompletionFieldAndStringInsert() throws Exception {
         String mapping = Strings.toString(jsonBuilder().startObject().startObject("type1")
@@ -624,9 +778,13 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     private static void assertSuggestFields(IndexableField[] fields, int expected) {
+        assertFieldsOfType(fields, SuggestField.class, expected);
+    }
+
+    private static void assertFieldsOfType(IndexableField[] fields, Class<?> clazz, int expected) {
         int actualFieldCount = 0;
         for (IndexableField field : fields) {
-            if (field instanceof SuggestField) {
+            if (clazz.isInstance(field)) {
                 actualFieldCount++;
             }
         }

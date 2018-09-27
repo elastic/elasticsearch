@@ -437,7 +437,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         Map<String, CompletionInputMetaData> inputMap = new HashMap<>(1);
 
         if (context.externalValueSet()) {
-            inputMap = (Map<String, CompletionInputMetaData>) context.externalValue();
+            inputMap = getInputMapFromExternalValue(context);
         } else if (token == Token.VALUE_NULL) { // ignore null values
             return;
         } else if (token == Token.START_ARRAY) {
@@ -479,26 +479,28 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             context.doc().add(field);
         }
 
-        for (Map.Entry<String, CompletionInputMetaData> entry : inputMap.entrySet()) {
-            ParseContext externalValueContext = context.createExternalValueContext(singleElementMap(entry));
+        for (CompletionInputMetaData metaData: inputMap.values()) {
+            ParseContext externalValueContext = context.createExternalValueContext(metaData);
             multiFields.parse(this, externalValueContext);
         }
     }
 
-    /**
-     * In order to support convention used by other Field Mappers, toString has to return a value that can be parsed
-     */
-    private Map<String, CompletionInputMetaData> singleElementMap(Map.Entry<String, CompletionInputMetaData> entry) {
-        Map<String, CompletionInputMetaData> map = new HashMap<String, CompletionInputMetaData>(1) {
-            @Override
-            public String toString() {
-                return entry.getKey();
-            }
-        };
-
-        map.put(entry.getKey(), entry.getValue());
-        return map;
+    private Map<String, CompletionInputMetaData> getInputMapFromExternalValue(ParseContext context) {
+        Map<String, CompletionInputMetaData> inputMap;
+        if (isExternalValueOfClass(context, CompletionInputMetaData.class)) {
+            CompletionInputMetaData inputAndMeta = (CompletionInputMetaData) context.externalValue();
+            inputMap = Collections.singletonMap(inputAndMeta.inputField, inputAndMeta);
+        } else {
+            String fieldName = context.externalValue().toString();
+            inputMap = Collections.singletonMap(fieldName, new CompletionInputMetaData(fieldName, Collections.<String, Set<CharSequence>>emptyMap(), 1));
+        }
+        return inputMap;
     }
+
+    private boolean isExternalValueOfClass(ParseContext context, Class<?> clazz) {
+        return context.externalValue().getClass().equals(clazz);
+    }
+
 
     /**
      * Acceptable inputs:
@@ -508,7 +510,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
     private void parse(ParseContext parseContext, Token token, XContentParser parser, Map<String, CompletionInputMetaData> inputMap) throws IOException {
         String currentFieldName = null;
         if (token == Token.VALUE_STRING) {
-            inputMap.put(parser.text(), new CompletionInputMetaData(Collections.<String, Set<CharSequence>>emptyMap(), 1));
+            inputMap.put(parser.text(), new CompletionInputMetaData(parser.text(), Collections.<String, Set<CharSequence>>emptyMap(), 1));
         } else if (token == Token.START_OBJECT) {
             Set<String> inputs = new HashSet<>();
             int weight = 1;
@@ -582,7 +584,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             }
             for (String input : inputs) {
                 if (inputMap.containsKey(input) == false || inputMap.get(input).weight < weight) {
-                    inputMap.put(input, new CompletionInputMetaData(contextsMap, weight));
+                    inputMap.put(input, new CompletionInputMetaData(input, contextsMap, weight));
                 }
             }
         } else {
@@ -591,12 +593,19 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
     }
 
     static class CompletionInputMetaData {
+        public final String inputField;
         public final Map<String, Set<CharSequence>> contexts;
         public final int weight;
 
-        CompletionInputMetaData(Map<String, Set<CharSequence>> contexts, int weight) {
+        CompletionInputMetaData(String inputField, Map<String, Set<CharSequence>> contexts, int weight) {
+            this.inputField = inputField;
             this.contexts = contexts;
             this.weight = weight;
+        }
+
+        @Override
+        public String toString() {
+            return inputField;
         }
     }
 

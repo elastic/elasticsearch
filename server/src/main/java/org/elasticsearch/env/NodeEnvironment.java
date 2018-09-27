@@ -19,6 +19,7 @@
 
 package org.elasticsearch.env;
 
+import java.util.Iterator;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -485,12 +486,28 @@ public final class NodeEnvironment  implements Closeable {
         assert assertPathsDoNotExist(paths);
     }
 
-    private static boolean assertPathsDoNotExist(final Path[] paths) {
+    private static boolean assertPathsDoNotExist(final Path[] paths) throws IOException {
         Set<Path> existingPaths = new HashSet<>();
         for (Path path : paths) {
             if (FileSystemUtils.exists(path)) {
                 existingPaths.add(path);
             }
+        }
+        // Relaxed assertion for the special case where only the empty state directory exists after deleting
+        // the shard directory because it was created again as a result of a metadata read action concurrently.
+        if (existingPaths.size() == 1) {
+            Path leftOver = existingPaths.iterator().next();
+            try (DirectoryStream<Path> children = Files.newDirectoryStream(leftOver)) {
+                Iterator<Path> iter = children.iterator();
+                assert iter.hasNext();
+                Path maybeState = iter.next();
+                assert iter.hasNext() == false;
+                assert maybeState.equals(leftOver.resolve(MetaDataStateFormat.STATE_DIR_NAME));
+                try (DirectoryStream<Path> stateChildren = Files.newDirectoryStream(maybeState)) {
+                    assert stateChildren.iterator().hasNext() == false;
+                }
+            }
+            existingPaths.clear();
         }
         assert existingPaths.size() == 0 : "Paths exist that should have been deleted: " + existingPaths;
         return existingPaths.size() == 0;

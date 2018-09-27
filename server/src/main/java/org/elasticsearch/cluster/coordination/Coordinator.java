@@ -441,20 +441,19 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             assert followersChecker.getFastResponseState().term == getCurrentTerm();
             assert followersChecker.getFastResponseState().mode == getMode();
             if (mode == Mode.LEADER) {
+                final boolean becomingMaster = getStateForMasterService().term() != getCurrentTerm();
+
                 assert coordinationState.get().electionWon();
                 assert lastKnownLeader.isPresent() && lastKnownLeader.get().equals(getLocalNode());
                 assert joinAccumulator instanceof JoinHelper.LeaderJoinAccumulator;
                 assert peerFinderLeader.equals(lastKnownLeader) : peerFinderLeader;
                 assert electionScheduler == null : electionScheduler;
                 assert prevotingRound == null : prevotingRound;
-                assert getStateForMasterService().nodes().getMasterNodeId() != null
-                    || getStateForMasterService().term() != getCurrentTerm() :
-                    getStateForMasterService();
+                assert becomingMaster || getStateForMasterService().nodes().getMasterNodeId() != null : getStateForMasterService();
                 assert leaderCheckScheduler == null : leaderCheckScheduler;
 
-                if (publicationInProgress() || getLastCommittedState().map(s -> s.term() == getCurrentTerm()).orElse(false)) {
-                    assert followersChecker.isActive();
-                }
+                assert followersChecker.isActive() == (publicationInProgress() || becomingMaster == false);
+
             } else if (mode == Mode.FOLLOWER) {
                 assert coordinationState.get().electionWon() == false : getLocalNode() + " is FOLLOWER so electionWon() should be false";
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);

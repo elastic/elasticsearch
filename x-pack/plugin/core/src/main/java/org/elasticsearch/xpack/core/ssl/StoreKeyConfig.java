@@ -89,24 +89,28 @@ class StoreKeyConfig extends KeyConfig {
 
     @Override
     Collection<CertificateInfo> certificates(Environment environment) throws GeneralSecurityException, IOException {
-        final Path path = CertParsingUtils.resolvePath(keyStorePath, environment);
-        final KeyStore trustStore = CertParsingUtils.readKeyStore(path, keyStoreType, keyStorePassword.getChars());
-        final List<CertificateInfo> certificates = new ArrayList<>();
-        final Enumeration<String> aliases = trustStore.aliases();
-        while (aliases.hasMoreElements()) {
-            String alias = aliases.nextElement();
-            final Certificate[] chain = trustStore.getCertificateChain(alias);
-            if (chain == null) {
-                continue;
-            }
-            for (int i = 0; i < chain.length; i++) {
-                final Certificate certificate = chain[i];
-                if (certificate instanceof X509Certificate) {
-                    certificates.add(new CertificateInfo(keyStorePath, keyStoreType, alias, i == 0, (X509Certificate) certificate));
+        // Do not return certificates from the PKCS#11 token, as it is also the JRE default store
+        if (null != keyStorePath) {
+            final Path path = CertParsingUtils.resolvePath(keyStorePath, environment);
+            final KeyStore trustStore = CertParsingUtils.readKeyStore(path, keyStoreType, keyStorePassword.getChars());
+            final List<CertificateInfo> certificates = new ArrayList<>();
+            final Enumeration<String> aliases = trustStore.aliases();
+            while (aliases.hasMoreElements()) {
+                String alias = aliases.nextElement();
+                final Certificate[] chain = trustStore.getCertificateChain(alias);
+                if (chain == null) {
+                    continue;
+                }
+                for (int i = 0; i < chain.length; i++) {
+                    final Certificate certificate = chain[i];
+                    if (certificate instanceof X509Certificate) {
+                        certificates.add(new CertificateInfo(keyStorePath, keyStoreType, alias, i == 0, (X509Certificate) certificate));
+                    }
                 }
             }
+            return certificates;
         }
-        return certificates;
+        return Collections.emptyList();
     }
 
     @Override
@@ -145,9 +149,11 @@ class StoreKeyConfig extends KeyConfig {
                 return;
             }
         }
-        throw new IllegalArgumentException("the keystore [" + keyStorePath + "] does not contain a private key entry");
+        final String message = null != keyStorePath ?
+            "the keystore [" + keyStorePath + "] does not contain a private key entry" :
+            "the system wide configured PKCS#11 token does not contain a private key entry";
+        throw new IllegalArgumentException(message);
     }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

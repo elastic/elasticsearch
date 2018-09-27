@@ -1322,7 +1322,7 @@ a PKCS#12 container includes trusted certificate ("anchor") entries look for
 
 ===== PKCS#11 tokens
 
-When using a PKCS#11 cryptographic token, which contain the
+When using a PKCS#11 cryptographic token, which contains the
 private key, certificate, and certificates that should be trusted, use
 the following settings:
 

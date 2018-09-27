@@ -22,12 +22,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
@@ -154,21 +156,43 @@ public class VersionCollection {
 
     public SortedSet<Version> getUnreleased() {
         SortedSet<Version> unreleased = new TreeSet<>();
+
+        Map<Integer, SortedSet<Version>> groupByMajor = versions.stream()
+            .collect(Collectors.groupingBy(Version::getMajor, Collectors.toCollection(TreeSet::new)));
+
+        SortedSet<Version> currentMajorVersions = groupByMajor.get(currentVersion.getMajor());
+        SortedSet<Version> previousMajorVersions = groupByMajor.get(currentVersion.getMajor() - 1);
+
         // The current version is being worked, is always unreleased
         unreleased.add(currentVersion);
-        // The tip of the previous major will also be unreleased
-        unreleased.add(getLatestBugfixBeforeMajor(currentVersion));
-        // Initial releases of minors and majors will have more unreleased versions before them
-        if (currentVersion.getRevision() == 0) {
-            Version greatestPreviousMinor = getLatestBugfixBeforeMinor(currentVersion);
-            unreleased.add(greatestPreviousMinor);
-            Version greatestMinorBehindByTwo = getLatestBugfixBeforeMinor(greatestPreviousMinor);
-            if (greatestPreviousMinor.getRevision() == 0) {
-                // So we have x.y.0 and x.(y-1).0 with nothing in-between. This happens when x.y.0 is feature freeze.
-                // We'll add x.y.1 as soon as x.y.0 releases so this is correct.
-                unreleased.add(greatestMinorBehindByTwo);
+        // the tip of the previous major is unreleased for sure, be it a minor or a bugfix
+        unreleased.add(previousMajorVersions.last());
+
+        final Map<Integer, SortedSet<Version>> groupByMinor;
+        if (currentMajorVersions.size() == 1) {
+            // Current is an unreleased major: x.0.0 so we have to look for other unreleased versions in the previous major
+            groupByMinor = previousMajorVersions.stream()
+                .collect(Collectors.groupingBy(Version::getMinor, Collectors.toCollection(TreeSet::new)));
+        } else {
+            groupByMinor = currentMajorVersions.stream()
+                .collect(Collectors.groupingBy(Version::getMinor, Collectors.toCollection(TreeSet::new)));
+        }
+        int greatestMinor = groupByMinor.keySet().stream().max(Integer::compareTo).orElse(0);
+        // the last bugfix for this minor series is always unreleased
+        unreleased.add(groupByMinor.get(greatestMinor).last());
+
+        if (groupByMinor.get(greatestMinor).size() == 1) {
+            if (groupByMinor.getOrDefault(greatestMinor - 1, Collections.emptySortedSet()).size() == 1) {
+                // we found that the previous minor is staged but not yet released
+                unreleased.add(groupByMinor.get(greatestMinor - 1).last());
+                // in this case, the minor before that has a bugfix
+                unreleased.add(groupByMinor.get(greatestMinor - 2).last());
+            } else {
+                // turns out this is an unreleased minor x.y.0, that means the previous minor has an unreleased bugfix
+                unreleased.add(groupByMinor.get(greatestMinor - 1).last());
             }
         }
+
         return unreleased;
     }
 

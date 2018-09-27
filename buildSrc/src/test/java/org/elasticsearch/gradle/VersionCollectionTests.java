@@ -36,7 +36,7 @@ public class VersionCollectionTests extends GradleUnitTestCase {
     static {
         // unreleased major and two unreleased minors ( minor in feature freeze )
         sampleVersions.put("8.0.0", Arrays.asList(
-            "7_1_1", "7_2_0", "7_3_0", "8.0.0"
+            "7_0_0", "7_0_1", "7_1_0", "7_1_1", "7_2_0", "7_3_0", "8.0.0"
         ));
         sampleVersions.put("7.0.0-alpha1", Arrays.asList(
             "6_0_0_alpha1", "6_0_0_alpha2", "6_0_0_beta1", "6_0_0_beta2", "6_0_0_rc1", "6_0_0_rc2",
@@ -207,7 +207,7 @@ public class VersionCollectionTests extends GradleUnitTestCase {
         );
 
         assertVersionsEquals(
-            Arrays.asList("7.1.1", "7.2.0", "7.3.0"),
+            Arrays.asList("7.0.0","7.0.1", "7.1.0", "7.1.1", "7.2.0", "7.3.0"),
             getVersionCollection("8.0.0").getIndexCompatible()
         );
     }
@@ -234,7 +234,7 @@ public class VersionCollectionTests extends GradleUnitTestCase {
         );
 
         assertVersionsEquals(
-            Arrays.asList("7.2.0", "7.3.0"),
+            Arrays.asList("7.1.1", "7.2.0", "7.3.0"),
             getVersionCollection("8.0.0").getUnreleasedIndexCompatible()
         );
     }
@@ -257,7 +257,7 @@ public class VersionCollectionTests extends GradleUnitTestCase {
             getVersionCollection("6.6.0").getUnreleased()
         );
         assertVersionsEquals(
-            Arrays.asList("7.2.0", "7.3.0", "8.0.0"),
+            Arrays.asList("7.1.1", "7.2.0", "7.3.0", "8.0.0"),
             getVersionCollection("8.0.0").getUnreleased()
         );
     }
@@ -280,7 +280,7 @@ public class VersionCollectionTests extends GradleUnitTestCase {
             getVersionCollection("6.6.0")
         );
         assertUnreleasedBranchNames(
-            Arrays.asList("7.2", "7.x", "master"),
+            Arrays.asList("7.1", "7.2", "7.x", "master"),
             getVersionCollection("8.0.0")
         );
     }

@@ -50,7 +50,6 @@ import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -258,8 +257,8 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
 public class Security extends Plugin implements ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin, DiscoveryPlugin, MapperPlugin,
         ExtensiblePlugin {
 
-    private static final Logger logger = LogManager.getLogger(Security.class);
-    private static DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final Logger LOGGER = LogManager.getLogger(Security.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LOGGER);
 
     public static final String NAME4 = XPackField.SECURITY + "4";
     public static final Setting<Optional<String>> USER_SETTING =
@@ -541,7 +540,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             extensionName = extension.toString();
         }
         if (failureHandler == null) {
-            logger.debug("Using default authentication failure handler");
+            LOGGER.debug("Using default authentication failure handler");
             final Map<String, List<String>> defaultFailureResponseHeaders = new HashMap<>();
             realms.asList().stream().forEach((realm) -> {
                 Map<String, List<String>> realmFailureHeaders = realm.getAuthenticationFailureHeaders();
@@ -562,7 +561,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             }
             failureHandler = new DefaultAuthenticationFailureHandler(defaultFailureResponseHeaders);
         } else {
-            logger.debug("Using authentication failure handler from extension [" + extensionName + "]");
+            LOGGER.debug("Using authentication failure handler from extension [" + extensionName + "]");
         }
         return failureHandler;
     }
@@ -955,7 +954,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 }
             }
 
-            logger.warn("the [action.auto_create_index] setting is configured to be restrictive [{}]. " +
+            LOGGER.warn("the [action.auto_create_index] setting is configured to be restrictive [{}]. " +
                     " for the next 6 months audit indices are allowed to be created, but please make sure" +
                     " that any future history indices after 6 months with the pattern " +
                     "[.security_audit_log*] are allowed to be created", value);
@@ -1045,7 +1044,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 templates.put(SECURITY_TEMPLATE_NAME, IndexTemplateMetaData.Builder.fromXContent(parser, SECURITY_TEMPLATE_NAME));
             } catch (IOException e) {
                 // TODO: should we handle this with a thrown exception?
-                logger.error("Error loading template [{}] as part of metadata upgrading", SECURITY_TEMPLATE_NAME);
+                LOGGER.error("Error loading template [{}] as part of metadata upgrading", SECURITY_TEMPLATE_NAME);
             }
 
             final byte[] auditTemplate = TemplateUtils.loadTemplate("/" + IndexAuditTrail.INDEX_TEMPLATE_NAME + ".json",
@@ -1055,12 +1054,12 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, auditTemplate)) {
                 IndexTemplateMetaData auditMetadata = new IndexTemplateMetaData.Builder(
                         IndexTemplateMetaData.Builder.fromXContent(parser, IndexAuditTrail.INDEX_TEMPLATE_NAME))
-                        .settings(IndexAuditTrail.customAuditIndexSettings(settings, logger))
+                        .settings(IndexAuditTrail.customAuditIndexSettings(settings, LOGGER))
                         .build();
                 templates.put(IndexAuditTrail.INDEX_TEMPLATE_NAME, auditMetadata);
             } catch (IOException e) {
                 // TODO: should we handle this with a thrown exception?
-                logger.error("Error loading template [{}] as part of metadata upgrading", IndexAuditTrail.INDEX_TEMPLATE_NAME);
+                LOGGER.error("Error loading template [{}] as part of metadata upgrading", IndexAuditTrail.INDEX_TEMPLATE_NAME);
             }
 
             return templates;
@@ -1183,7 +1182,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             final boolean legacyConfigExists = Files.exists(legacyConfig);
             if (configFileExists == false) {
                 if (legacyConfigExists) {
-                    deprecationLogger.deprecated("Config file [" + name + "] is in a deprecated location. Move from " +
+                    DEPRECATION_LOGGER.deprecated("Config file [" + name + "] is in a deprecated location. Move from " +
                         legacyConfig.toString() + " to " + config.toString());
                     return legacyConfig;
                 }
@@ -1191,15 +1190,15 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 // there is a file in both locations
                 if (isDefaultFile(name, config)) {
                     // use the legacy file as the new file is the default but warn user
-                    deprecationLogger.deprecated("Config file [" + name + "] exists in a deprecated location and non-deprecated location." +
-                        " The file in the non-deprecated location is the default file. Using file found in the deprecated location. Move " +
-                        legacyConfig.toString() + " to " + config.toString());
+                    DEPRECATION_LOGGER.deprecated("Config file [" + name + "] exists in a deprecated location and non-deprecated " +
+                        "location. The file in the non-deprecated location is the default file. Using file found in the deprecated " +
+                        "location. Move " + legacyConfig.toString() + " to " + config.toString());
                     return legacyConfig;
                 } else {
                     // the regular file has been modified, but the old still exists, warn the user
-                    deprecationLogger.deprecated("Config file [" + name + "] exists in a deprecated location and non-deprecated location." +
-                        " Using file found in the non-deprecated location [" + config.toString() + "]. Determine which file should be" +
-                        " kept and move it to " + config.toString() + ", then remove " + legacyConfig.toString());
+                    DEPRECATION_LOGGER.deprecated("Config file [" + name + "] exists in a deprecated location and non-deprecated " +
+                        "location. Using file found in the non-deprecated location [" + config.toString() + "]. Determine which file " +
+                        "should be kept and move it to " + config.toString() + ", then remove " + legacyConfig.toString());
                 }
             }
         }
@@ -1207,9 +1206,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     }
 
     static boolean isDefaultFile(String name, Path file) {
-        InputStream in = null;
-        try {
-            in = XPackPlugin.class.getResourceAsStream("/config/" + name);
+        try (InputStream in = XPackPlugin.class.getResourceAsStream("/config/" + name)) {
             if (in != null) {
                 try (InputStream fin = Files.newInputStream(file)) {
                     int inValue = in.read();
@@ -1223,10 +1220,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
-        } finally {
-            if (in != null) {
-                IOUtils.closeWhileHandlingException(in);
-            }
         }
         return false;
     }

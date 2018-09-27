@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.Watcher;
-import org.elasticsearch.xpack.watcher.support.Variables;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -59,13 +58,11 @@ public class ScriptTransformTests extends ESTestCase {
 
         Payload payload = new Payload.Simple("key", "value");
 
-        Map<String, Object> model = Variables.createCtxParamsMap(ctx, payload);
-
         Map<String, Object> transformed = singletonMap("key", "value");
 
         WatcherTransformScript executable = mock(WatcherTransformScript.class);
         when(executable.execute()).thenReturn(transformed);
-        when(factory.newInstance(model, ctx, payload)).thenReturn(executable);
+        when(factory.newInstance(params, ctx, payload)).thenReturn(executable);
 
         Transform.Result result = transform.execute(ctx, payload);
         assertThat(result, notNullValue());
@@ -87,11 +84,9 @@ public class ScriptTransformTests extends ESTestCase {
 
         Payload payload = new Payload.Simple("key", "value");
 
-        Map<String, Object> model = Variables.createCtxParamsMap(ctx, payload);
-
         WatcherTransformScript executable = mock(WatcherTransformScript.class);
         when(executable.execute()).thenThrow(new RuntimeException("_error"));
-        when(factory.newInstance(model, ctx, payload)).thenReturn(executable);
+        when(factory.newInstance(params, ctx, payload)).thenReturn(executable);
 
         Transform.Result result = transform.execute(ctx, payload);
         assertThat(result, notNullValue());
@@ -113,12 +108,10 @@ public class ScriptTransformTests extends ESTestCase {
 
         Payload payload = new Payload.Simple("key", "value");
 
-        Map<String, Object> model = Variables.createCtxParamsMap(ctx, payload);
-
         WatcherTransformScript executable = mock(WatcherTransformScript.class);
         Object value = randomFrom("value", 1, new String[] { "value" }, Collections.singletonList("value"), singleton("value"));
         when(executable.execute()).thenReturn(value);
-        when(factory.newInstance(model, ctx, payload)).thenReturn(executable);
+        when(factory.newInstance(params, ctx, payload)).thenReturn(executable);
 
         Transform.Result result = transform.execute(ctx, payload);
         assertThat(result, notNullValue());

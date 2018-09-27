@@ -13,15 +13,12 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.script.GeneralScriptException;
-import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptMetaData;
 import org.elasticsearch.script.ScriptService;
@@ -35,7 +32,7 @@ import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
-import org.elasticsearch.xpack.watcher.transform.script.WatcherTransformScript;
+import org.elasticsearch.xpack.watcher.test.WatcherMockScriptPlugin;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
@@ -82,15 +79,13 @@ public class ScriptConditionTests extends ESTestCase {
             return total > 1;
         });
 
-        scripts.put("ctx.payload.hits.total > threshold", vars -> {
+        scripts.put("ctx.payload.hits.total > params.threshold", vars -> {
             int total = (int) XContentMapValues.extractValue("ctx.payload.hits.total", vars);
-            int threshold = (int) XContentMapValues.extractValue("threshold", vars);
+            int threshold = (int) XContentMapValues.extractValue("params.threshold", vars);
             return total > threshold;
         });
 
-        ScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts, Collections.emptyMap());
-        scriptService = new ScriptService(Settings.EMPTY, Collections.singletonMap(engine.getType(), engine),
-            Collections.singletonMap(WatcherTransformScript.CONTEXT.name, WatcherTransformScript.CONTEXT));
+        scriptService = WatcherMockScriptPlugin.newMockScriptService(scripts);
 
         ClusterState.Builder clusterState = new ClusterState.Builder(new ClusterName("_name"));
         clusterState.metaData(MetaData.builder().putCustom(ScriptMetaData.TYPE, new ScriptMetaData.Builder(null).build()));
@@ -107,7 +102,7 @@ public class ScriptConditionTests extends ESTestCase {
     }
 
     public void testExecuteMergedParams() throws Exception {
-        Script script = new Script(ScriptType.INLINE, "mockscript", "ctx.payload.hits.total > threshold", singletonMap("threshold", 1));
+        Script script = new Script(ScriptType.INLINE, "mockscript", "ctx.payload.hits.total > params.threshold", singletonMap("threshold", 1));
         ScriptCondition executable = new ScriptCondition(script, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);
@@ -193,16 +188,6 @@ public class ScriptConditionTests extends ESTestCase {
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         ScriptException exception = expectThrows(ScriptException.class, () -> condition.execute(ctx));
         assertThat(exception.getMessage(), containsString("Error evaluating null.foo"));
-    }
-
-    public void testScriptConditionReturnObjectThrowsException() throws Exception {
-        ScriptCondition condition = new ScriptCondition(mockScript("return new Object()"), scriptService);
-        SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY);
-        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
-        Exception exception = expectThrows(IllegalStateException.class, () -> condition.execute(ctx));
-        assertThat(exception.getMessage(),
-                containsString("condition [script] must return a boolean value (true|false) but instead returned [_name]"));
     }
 
     public void testScriptConditionAccessCtx() throws Exception {

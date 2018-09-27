@@ -9,17 +9,13 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
-import org.elasticsearch.script.MockScriptEngine;
-import org.elasticsearch.script.MockScriptPlugin;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
-import org.elasticsearch.xpack.watcher.condition.WatcherConditionScript;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
-import org.elasticsearch.xpack.watcher.transform.script.WatcherTransformScript;
+import org.elasticsearch.xpack.watcher.test.WatcherMockScriptPlugin;
 import org.hamcrest.Matcher;
 
 import java.util.HashMap;
@@ -50,7 +46,7 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
         return types;
     }
 
-    public static class CustomScriptPlugin extends MockScriptPlugin {
+    public static class CustomScriptPlugin extends WatcherMockScriptPlugin {
 
         @Override
         @SuppressWarnings("unchecked")
@@ -108,27 +104,6 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
             });
 
             return scripts;
-        }
-
-        protected Map<ScriptContext<?>, MockScriptEngine.ContextCompiler> pluginContextCompilers() {
-            HashMap<ScriptContext<?>, MockScriptEngine.ContextCompiler> compilers = new HashMap<>();
-            compilers.put(WatcherConditionScript.CONTEXT, (script, options) ->
-                (WatcherConditionScript.Factory) (params, watcherContext) ->
-                    new WatcherConditionScript(params, watcherContext) {
-                        @Override
-                        public boolean execute() {
-                            return (boolean) script.apply(getParams());
-                        }
-                    });
-            compilers.put(WatcherTransformScript.CONTEXT, (script, options) ->
-                (WatcherTransformScript.Factory) (params, watcherContext, payload) ->
-                    new WatcherTransformScript(params, watcherContext, payload) {
-                        @Override
-                        public Object execute() {
-                            return script.apply(getParams());
-                        }
-                    });
-            return compilers;
         }
     }
 

@@ -20,10 +20,13 @@
 package org.elasticsearch.common.joda;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.time.DateUtils;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 import org.joda.time.format.DateTimeFormatter;
 
+import java.time.ZoneId;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
@@ -34,23 +37,21 @@ import java.util.function.LongSupplier;
  * is appended to a datetime with the following syntax:
  * <code>||[+-/](\d+)?[yMwdhHms]</code>.
  */
-public class DateMathParser {
+public class JodaDateMathParser implements DateMathParser {
 
     private final FormatDateTimeFormatter dateTimeFormatter;
 
-    public DateMathParser(FormatDateTimeFormatter dateTimeFormatter) {
+    public JodaDateMathParser(FormatDateTimeFormatter dateTimeFormatter) {
         Objects.requireNonNull(dateTimeFormatter);
         this.dateTimeFormatter = dateTimeFormatter;
-    }
-
-    public long parse(String text, LongSupplier now) {
-        return parse(text, now, false, null);
     }
 
     // Note: we take a callable here for the timestamp in order to be able to figure out
     // if it has been used. For instance, the request cache does not cache requests that make
     // use of `now`.
-    public long parse(String text, LongSupplier now, boolean roundUp, DateTimeZone timeZone) {
+    @Override
+    public long parse(String text, LongSupplier now, boolean roundUp, ZoneId tz) {
+        final DateTimeZone timeZone = tz == null ? null : DateUtils.zoneIdToDateTimeZone(tz);
         long time;
         String mathString;
         if (text.startsWith("now")) {

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteResponse;
@@ -13,7 +14,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -110,8 +110,9 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         realmConfig = randomFrom(RealmConfig.values());
         roleMappings = realmConfig.selectRoleMappings(ESTestCase::randomBoolean);
         useGlobalSSL = randomBoolean();
-        ESLoggerFactory.getLogger("test").info("running test with realm configuration [{}], with direct group to role mapping [{}]. " +
-                "Settings [{}]", realmConfig, realmConfig.mapGroupsAsRoles, realmConfig.settings);
+        LogManager.getLogger(AbstractAdLdapRealmTestCase.class).info(
+                "running test with realm configuration [{}], with direct group to role mapping [{}]. Settings [{}]",
+                realmConfig, realmConfig.mapGroupsAsRoles, realmConfig.settings);
     }
 
     @AfterClass

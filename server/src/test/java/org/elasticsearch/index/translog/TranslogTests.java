@@ -639,12 +639,8 @@ public class TranslogTests extends ESTestCase {
         assertTrue(Files.exists(translogDir.resolve(Translog.getFilename(1))));
         translog.add(new Translog.Index("test", "1", 0, primaryTerm.get(), new byte[]{1}));
         translog.close();
-        try {
-            Translog.Snapshot snapshot = translog.newSnapshot();
-            fail("translog is closed");
-        } catch (AlreadyClosedException ex) {
-            assertEquals(ex.getMessage(), "translog is already closed");
-        }
+        AlreadyClosedException ex = expectThrows(AlreadyClosedException.class, () -> translog.newSnapshot());
+        assertEquals(ex.getMessage(), "translog is already closed");
     }
 
     public void testSnapshotFromMinGen() throws Exception {
@@ -845,7 +841,7 @@ public class TranslogTests extends ESTestCase {
 
         try (Translog translog = openTranslog(config, uuid)) {
             try (Translog.Snapshot snapshot = translog.newSnapshot()) {
-                for (Location loc : locations) {
+                for (int i = 0; i < locations.size(); i++) {
                     snapshot.next();
                 }
             }
@@ -871,7 +867,7 @@ public class TranslogTests extends ESTestCase {
 
         AtomicInteger truncations = new AtomicInteger(0);
         try (Translog.Snapshot snap = translog.newSnapshot()) {
-            for (Translog.Location location : locations) {
+            for (int i = 0; i < locations.size(); i++) {
                 try {
                     assertNotNull(snap.next());
                 } catch (EOFException e) {
@@ -2378,6 +2374,7 @@ public class TranslogTests extends ESTestCase {
         }
 
 
+        @Override
         public int write(ByteBuffer src) throws IOException {
             if (fail.fail()) {
                 if (partialWrite) {
@@ -2486,14 +2483,9 @@ public class TranslogTests extends ESTestCase {
         // don't copy the new file
         Files.createFile(config.getTranslogPath().resolve("translog-" + (read.generation + 1) + ".tlog"));
 
-        try {
-            Translog tlog = new Translog(config, translog.getTranslogUUID(), translog.getDeletionPolicy(), () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get);
-            fail("file already exists?");
-        } catch (TranslogException ex) {
-            // all is well
-            assertEquals(ex.getMessage(), "failed to create new translog file");
-            assertEquals(ex.getCause().getClass(), FileAlreadyExistsException.class);
-        }
+        TranslogException ex = expectThrows(TranslogException.class, () -> new Translog(config, translog.getTranslogUUID(), translog.getDeletionPolicy(), () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get));
+        assertEquals(ex.getMessage(), "failed to create new translog file");
+        assertEquals(ex.getCause().getClass(), FileAlreadyExistsException.class);
     }
 
     public void testRecoverWithUnbackedNextGenAndFutureFile() throws IOException {
@@ -2521,14 +2513,10 @@ public class TranslogTests extends ESTestCase {
             tlog.add(new Translog.Index("test", "" + 1, 1, primaryTerm.get(), Integer.toString(1).getBytes(Charset.forName("UTF-8"))));
         }
 
-        try {
-            Translog tlog = new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get);
-            fail("file already exists?");
-        } catch (TranslogException ex) {
-            // all is well
-            assertEquals(ex.getMessage(), "failed to create new translog file");
-            assertEquals(ex.getCause().getClass(), FileAlreadyExistsException.class);
-        }
+        TranslogException ex = expectThrows(TranslogException.class,
+                () -> new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get));
+        assertEquals(ex.getMessage(), "failed to create new translog file");
+        assertEquals(ex.getCause().getClass(), FileAlreadyExistsException.class);
     }
 
     /**

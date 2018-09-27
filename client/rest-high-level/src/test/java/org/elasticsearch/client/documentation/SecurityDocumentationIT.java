@@ -26,13 +26,13 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
-import org.elasticsearch.client.security.GetSslCertificatesRequest;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.EmptyResponse;
 import org.elasticsearch.client.security.support.CertificateInfo;
+import org.hamcrest.Matchers;
 
 import java.util.Collections;
 import java.util.List;
@@ -180,9 +180,48 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testGetSslCertificates() throws Exception {
         RestHighLevelClient client = highLevelClient();
-        GetSslCertificatesResponse getSslCertificatesResponse = client.security().getSslCertificates(RequestOptions.DEFAULT);
-        List<CertificateInfo> c = getSslCertificatesResponse.getCertificates();
-        System.out.println(c.size());
-        System.out.println(c.get(0));
+        {
+            //tag::get-certificates-execute
+            GetSslCertificatesResponse response = client.security().getSslCertificates(RequestOptions.DEFAULT);
+            //end::get-certificates-execute
+
+            assertNotNull(response);
+
+            //tag::get-certificates-response
+            List<CertificateInfo> certificates = response.getCertificates();
+            //end::get-certificates-response
+
+            assertThat(certificates.size(), Matchers.equalTo(1));
+            assertThat(certificates.get(0).getSubjectDn(), Matchers.is("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
+
+        }
+
+        {
+            // tag::get-certificates-execute-listener
+            ActionListener<GetSslCertificatesResponse> listener = new ActionListener<GetSslCertificatesResponse>() {
+                @Override
+                public void onResponse(GetSslCertificatesResponse getSslCertificatesResponse) {
+
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+
+                }
+            };
+
+            // end::get-certificates-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-certificates-execute-async
+            client.security().getSslCertificatesAsync(RequestOptions.DEFAULT, listener);
+            // end::end-certificates-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+        }
     }
 }

@@ -67,15 +67,15 @@ public class GetSslCertificatesResponse {
     }
 
     public static GetSslCertificatesResponse fromXContent(XContentParser parser) throws IOException {
-        List<Object> unparsedObjects = parser.list();
-        if (unparsedObjects.isEmpty()) {
+        List<Object> unparsedCerts = parser.list();
+        if (unparsedCerts.isEmpty()) {
             return new GetSslCertificatesResponse(Collections.emptyList());
         }
-        List<CertificateInfo> certificates = new ArrayList<CertificateInfo>();
-        for (Object o : unparsedObjects) {
+        List<CertificateInfo> certificates = new ArrayList<>();
+        for (Object cert : unparsedCerts) {
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 @SuppressWarnings("unchecked")
-                Map<String, ?> value = (Map<String, ?>) o;
+                Map<String, ?> value = (Map<String, ?>) cert;
                 builder.map(value);
                 try (XContentParser certificateInfoParser = XContentFactory.xContent(builder.contentType()).createParser(
                     NamedXContentRegistry.EMPTY, DEPRECATION_HANDLER, Strings.toString(builder))) {

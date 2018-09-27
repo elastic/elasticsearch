@@ -150,7 +150,7 @@ public final class SecurityClient {
      * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void getSslCertificates(RequestOptions options, ActionListener<GetSslCertificatesResponse> listener) {
+    public void getSslCertificatesAsync(RequestOptions options, ActionListener<GetSslCertificatesResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(GetSslCertificatesRequest.INSTANCE, GetSslCertificatesRequest::getRequest,
             options, GetSslCertificatesResponse::fromXContent, listener, emptySet());
     }

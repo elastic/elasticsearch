@@ -34,7 +34,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 /**
  * Simple model of an X.509 certificate
  */
-public class CertificateInfo implements ToXContentObject {
+public class CertificateInfo {
     public static final ParseField PATH = new ParseField("path");
     public static final ParseField FORMAT = new ParseField("format");
     public static final ParseField ALIAS = new ParseField("alias");
@@ -62,9 +62,38 @@ public class CertificateInfo implements ToXContentObject {
         this.expiry = expiry;
     }
 
+    public String getPath() {
+        return path;
+    }
+
+    public String getFormat() {
+        return format;
+    }
+
+    public String getAlias() {
+        return alias;
+    }
+
+    public String getSubjectDn() {
+        return subjectDn;
+    }
+
+    public String getSerialNumber() {
+        return serialNumber;
+    }
+
+    public boolean isHasPrivateKey() {
+        return hasPrivateKey;
+    }
+
+    public String getExpiry() {
+        return expiry;
+    }
+
+
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<CertificateInfo, Void> PARSER = new ConstructingObjectParser<>("certificate_info",
-        true, args -> new CertificateInfo((String) args[0], (String) args[0], (String) args[0], (String) args[0], (String) args[0],
+        true, args -> new CertificateInfo((String) args[0], (String) args[1], (String) args[2], (String) args[3], (String) args[4],
         (boolean) args[5], (String) args[6]));
 
     static {
@@ -100,20 +129,7 @@ public class CertificateInfo implements ToXContentObject {
     public int hashCode() {
         return Objects.hash(path, format, alias, subjectDn, serialNumber, hasPrivateKey, expiry);
     }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(PATH.getPreferredName(), path);
-        builder.field(FORMAT.getPreferredName(), format);
-        builder.field(ALIAS.getPreferredName(), alias);
-        builder.field(SUBJECT_DN.getPreferredName(), subjectDn);
-        builder.field(SERIAL_NUMBER.getPreferredName(), serialNumber);
-        builder.field(HAS_PRIVATE_KEY.getPreferredName(), hasPrivateKey);
-        builder.field(EXPIRY.getPreferredName(), expiry);
-        builder.endObject();
-        return builder;
-    }
+    
 
     public static CertificateInfo fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);

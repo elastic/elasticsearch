@@ -25,8 +25,10 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.SpanMatchNoDocsQuery;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -87,6 +89,9 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
             assertThat(boostQuery.getBoost(), equalTo(queryBuilder.innerQuery().boost()));
             query = boostQuery.getQuery();
         }
+        if (query instanceof SpanMatchNoDocsQuery) {
+            return;
+        }
         assertThat(query, instanceOf(SpanMultiTermQueryWrapper.class));
         SpanMultiTermQueryWrapper spanMultiTermQueryWrapper = (SpanMultiTermQueryWrapper) query;
         Query multiTermQuery = queryBuilder.innerQuery().toQuery(context.getQueryShardContext());
@@ -97,7 +102,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         }
         assertThat(multiTermQuery, either(instanceOf(MultiTermQuery.class)).or(instanceOf(TermQuery.class)));
         assertThat(spanMultiTermQueryWrapper.getWrappedQuery(),
-            equalTo(new SpanMultiTermQueryWrapper<>((MultiTermQuery)multiTermQuery).getWrappedQuery()));
+            equalTo(new SpanMultiTermQueryWrapper<>((MultiTermQuery) multiTermQuery).getWrappedQuery()));
     }
 
     public void testIllegalArgument() {

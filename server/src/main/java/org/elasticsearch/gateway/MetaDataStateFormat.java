@@ -82,7 +82,7 @@ public abstract class MetaDataStateFormat<T> {
         this.stateFilePattern = Pattern.compile(Pattern.quote(prefix) + "(\\d+)(" + MetaDataStateFormat.STATE_FILE_EXTENSION + ")?");
     }
 
-    private static void deleteTempFile(Path stateLocation, Directory directory, String fileName) throws IOException {
+    private static void deleteFileIfExists(Path stateLocation, Directory directory, String fileName) throws IOException {
         try {
             directory.deleteFile(fileName);
         } catch (FileNotFoundException | NoSuchFileException ignored) {
@@ -119,7 +119,7 @@ public abstract class MetaDataStateFormat<T> {
             stateDir.syncMetaData();
             logger.trace("written state to {}", stateLocation.resolve(fileName));
         } finally {
-            deleteTempFile(stateLocation, stateDir, tmpFileName);
+            deleteFileIfExists(stateLocation, stateDir, tmpFileName);
         }
     }
 
@@ -133,7 +133,7 @@ public abstract class MetaDataStateFormat<T> {
                 extraStateDir.syncMetaData();
                 logger.trace("copied state to {}", extraStateLocation.resolve(fileName));
             } finally {
-                deleteTempFile(extraStateLocation, extraStateDir, tmpFileName);
+                deleteFileIfExists(extraStateLocation, extraStateDir, tmpFileName);
             }
         }
     }
@@ -227,12 +227,12 @@ public abstract class MetaDataStateFormat<T> {
 
     private void cleanupOldFiles(final String currentStateFile, Path[] locations) throws IOException {
         for (Path location : locations) {
+            logger.trace("cleanupOldFiles: cleaning up {}", location);
             Path stateLocation = location.resolve(STATE_DIR_NAME);
             try (Directory stateDir = newDirectory(stateLocation)) {
                 for (String file : stateDir.listAll()) {
                     if (file.startsWith(prefix) && file.equals(currentStateFile) == false) {
-                        deleteTempFile(stateLocation, stateDir, file);
-                        logger.trace("cleanupOldFiles: cleaned up {}", stateLocation.resolve(file));
+                        deleteFileIfExists(stateLocation, stateDir, file);
                     }
                 }
             }

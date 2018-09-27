@@ -21,12 +21,12 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -137,7 +137,7 @@ public class MaxMapCountCheckTests extends ESTestCase {
             reset(reader);
             final IOException ioException = new IOException("fatal");
             when(reader.readLine()).thenThrow(ioException);
-            final Logger logger = ESLoggerFactory.getLogger("testGetMaxMapCountIOException");
+            final Logger logger = LogManager.getLogger("testGetMaxMapCountIOException");
             final MockLogAppender appender = new MockLogAppender();
             appender.start();
             appender.addExpectation(
@@ -159,7 +159,7 @@ public class MaxMapCountCheckTests extends ESTestCase {
         {
             reset(reader);
             when(reader.readLine()).thenReturn("eof");
-            final Logger logger = ESLoggerFactory.getLogger("testGetMaxMapCountNumberFormatException");
+            final Logger logger = LogManager.getLogger("testGetMaxMapCountNumberFormatException");
             final MockLogAppender appender = new MockLogAppender();
             appender.start();
             appender.addExpectation(

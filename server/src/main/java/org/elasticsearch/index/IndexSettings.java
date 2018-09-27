@@ -62,7 +62,7 @@ public final class IndexSettings {
         Setting.boolSetting("index.query.parse.allow_unmapped_fields", true, Property.IndexScope);
     public static final Setting<TimeValue> INDEX_TRANSLOG_SYNC_INTERVAL_SETTING =
         Setting.timeSetting("index.translog.sync_interval", TimeValue.timeValueSeconds(5), TimeValue.timeValueMillis(100),
-            Property.IndexScope);
+            Property.IndexScope, Property.Dynamic);
     public static final Setting<TimeValue> INDEX_SEARCH_IDLE_AFTER =
         Setting.timeSetting("index.search.idle.after", TimeValue.timeValueSeconds(30),
             TimeValue.timeValueMinutes(0), Property.IndexScope, Property.Dynamic);
@@ -298,7 +298,7 @@ public final class IndexSettings {
     private final boolean queryStringAllowLeadingWildcard;
     private final boolean defaultAllowUnmappedFields;
     private volatile Translog.Durability durability;
-    private final TimeValue syncInterval;
+    private volatile TimeValue syncInterval;
     private volatile TimeValue refreshInterval;
     private volatile ByteSizeValue flushThresholdSize;
     private volatile TimeValue translogRetentionAge;
@@ -474,6 +474,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(
                 INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING,
                 this::setGenerationThresholdSize);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_SYNC_INTERVAL_SETTING, this::setTranslogSyncInterval);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_AGE_SETTING, this::setTranslogRetentionAge);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_SIZE_SETTING, this::setTranslogRetentionSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
@@ -513,6 +514,10 @@ public final class IndexSettings {
 
     private void setRefreshInterval(TimeValue timeValue) {
         this.refreshInterval = timeValue;
+    }
+
+    private void setTranslogSyncInterval(TimeValue newSyncInterval) {
+        this.syncInterval = newSyncInterval;
     }
 
     /**

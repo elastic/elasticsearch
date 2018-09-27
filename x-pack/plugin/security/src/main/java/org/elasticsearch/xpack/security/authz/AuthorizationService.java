@@ -154,11 +154,7 @@ public class AuthorizationService extends AbstractComponent {
                 auditTrail.accessGranted(authentication, action, request, new String[] { SystemUser.ROLE_NAME });
                 return;
             }
-            ElasticsearchSecurityException e = denial(authentication, action, originalRequest, new String[] { SystemUser.ROLE_NAME });
-            // If this throws AssertionError during ES tests then you probably
-            // need to update system user's privileges
-            assert false : e.getMessage();
-            throw e;
+            throw denial(authentication, action, originalRequest, new String[] { SystemUser.ROLE_NAME });
         }
 
         // get the roles of the authenticated user, which may be different than the effective

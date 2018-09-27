@@ -259,7 +259,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void testIndicesActionsForSystemUserWhichAreNotAuthorized() {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = createAuthentication(SystemUser.INSTANCE);
-        assertThrowsAssertionErrorWhenAccessDeniedToSystemUser(
+        assertThrowsAuthorizationException(
             () -> authorize(authentication, "indices:", request),
             "indices:", SystemUser.INSTANCE.principal());
         verify(auditTrail).accessDenied(authentication, "indices:", request, new String[]{SystemUser.ROLE_NAME});
@@ -269,7 +269,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void testClusterAdminActionsForSystemUserWhichAreNotAuthorized() {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = createAuthentication(SystemUser.INSTANCE);
-        assertThrowsAssertionErrorWhenAccessDeniedToSystemUser(
+        assertThrowsAuthorizationException(
             () -> authorize(authentication, "cluster:admin/whatever", request),
             "cluster:admin/whatever", SystemUser.INSTANCE.principal());
         verify(auditTrail).accessDenied(authentication, "cluster:admin/whatever", request, new String[] { SystemUser.ROLE_NAME });
@@ -279,17 +279,11 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void testClusterAdminSnapshotStatusActionForSystemUserWhichIsNotAuthorized() {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = createAuthentication(SystemUser.INSTANCE);
-        assertThrowsAssertionErrorWhenAccessDeniedToSystemUser(
+        assertThrowsAuthorizationException(
             () -> authorize(authentication, "cluster:admin/snapshot/status", request),
             "cluster:admin/snapshot/status", SystemUser.INSTANCE.principal());
         verify(auditTrail).accessDenied(authentication, "cluster:admin/snapshot/status", request, new String[] { SystemUser.ROLE_NAME });
         verifyNoMoreInteractions(auditTrail);
-    }
-
-    private static void assertThrowsAssertionErrorWhenAccessDeniedToSystemUser(ThrowingRunnable throwingRunnable,
-            String action, String user) {
-        AssertionError assertionError = expectThrows(AssertionError.class, throwingRunnable);
-        assertThat(assertionError.getMessage(), containsString("action ["+ action +"] is unauthorized for user ["+ user +"]"));
     }
 
     public void testAuthorizeUsingConditionalPrivileges() {

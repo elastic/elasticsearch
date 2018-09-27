@@ -128,7 +128,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         masterService.setClusterStateSupplier(this::getStateForMasterService);
     }
 
-    private static NodeRemovalClusterStateTaskExecutor getNodeRemovalExecutor(Settings settings, AllocationService allocationService, Logger logger) {
+    private static NodeRemovalClusterStateTaskExecutor getNodeRemovalExecutor(Settings settings, AllocationService allocationService,
+                                                                              Logger logger) {
         // TODO move NodeRemovalClusterStateTaskExecutor out of Zen since it's not Zen-specific
         return new NodeRemovalClusterStateTaskExecutor(allocationService, new ElectMasterService(settings) {
 

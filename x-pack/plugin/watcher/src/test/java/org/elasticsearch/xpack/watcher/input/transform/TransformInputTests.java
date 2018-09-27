@@ -47,7 +47,8 @@ public class TransformInputTests extends ESTestCase {
     @Before
     public void setupScriptService() {
         Map<String, ScriptEngine> engines = new HashMap<>();
-        engines.put(MockScriptEngine.NAME, new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", s -> "2")));
+        engines.put(MockScriptEngine.NAME,
+            new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", s -> "2"), Collections.emptyMap()));
         Map<String, ScriptContext<?>> contexts = new HashMap<>();
         contexts.put(Watcher.SCRIPT_TEMPLATE_CONTEXT.name, Watcher.SCRIPT_TEMPLATE_CONTEXT);
         contexts.put(Watcher.SCRIPT_SEARCH_CONTEXT.name, Watcher.SCRIPT_SEARCH_CONTEXT);

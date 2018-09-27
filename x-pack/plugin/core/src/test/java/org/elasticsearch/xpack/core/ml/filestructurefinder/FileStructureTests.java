@@ -63,7 +63,8 @@ public class FileStructureTests extends AbstractSerializingTestCase<FileStructur
 
         if (format == FileStructure.Format.SEMI_STRUCTURED_TEXT || randomBoolean()) {
             builder.setTimestampField(randomAlphaOfLength(10));
-            builder.setTimestampFormats(Arrays.asList(generateRandomStringArray(3, 20, false, false)));
+            builder.setJodaTimestampFormats(Arrays.asList(generateRandomStringArray(3, 20, false, false)));
+            builder.setJavaTimestampFormats(Arrays.asList(generateRandomStringArray(3, 20, false, false)));
             builder.setNeedClientTimezone(randomBoolean());
         }
 

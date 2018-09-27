@@ -24,6 +24,7 @@ import com.carrotsearch.randomizedtesting.SysGlobals;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
@@ -164,10 +165,6 @@ import static org.junit.Assert.fail;
 public final class InternalTestCluster extends TestCluster {
 
     private final Logger logger = Loggers.getLogger(getClass());
-
-
-    private static final AtomicInteger clusterOrdinal = new AtomicInteger();
-
 
     public static final int DEFAULT_LOW_NUM_MASTER_NODES = 1;
     public static final int DEFAULT_HIGH_NUM_MASTER_NODES = 3;
@@ -316,7 +313,6 @@ public final class InternalTestCluster extends TestCluster {
         assert nodePrefix != null;
 
         this.mockPlugins = mockPlugins;
-
 
         sharedNodesSeeds = new long[numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes];
         for (int i = 0; i < sharedNodesSeeds.length; i++) {
@@ -2062,6 +2058,7 @@ public final class InternalTestCluster extends TestCluster {
         return null;
     }
 
+    @Override
     public synchronized Iterable<Client> getClients() {
         ensureOpen();
         return () -> {

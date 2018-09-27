@@ -16,6 +16,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -85,7 +86,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             void getLeaderClusterState(Map<String, String> headers,
                                        String leaderClusterAlias,
                                        BiConsumer<ClusterState, Exception> handler) {
-                assertThat(headers, sameInstance(autoFollowHeaders.get("remote")));
+                assertThat(headers, equalTo(autoFollowHeaders.get("remote")));
                 handler.accept(leaderState, null);
             }
 
@@ -94,7 +95,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                                  FollowIndexAction.Request followRequest,
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
-                assertThat(headers, sameInstance(autoFollowHeaders.get("remote")));
+                assertThat(headers, equalTo(autoFollowHeaders.get("remote")));
                 assertThat(followRequest.getLeaderIndex(), equalTo("remote:logs-20190101"));
                 assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
                 successHandler.run();
@@ -318,7 +319,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .metaData(imdBuilder)
             .build();
 
-        List<Index> result = AutoFollower.getLeaderIndicesToFollow(autoFollowPattern, leaderState, followerState, Collections.emptyList());
+        List<Index> result = AutoFollower.getLeaderIndicesToFollow("remote", autoFollowPattern, leaderState, followerState,
+            Collections.emptyList());
         result.sort(Comparator.comparing(Index::getName));
         assertThat(result.size(), equalTo(5));
         assertThat(result.get(0).getName(), equalTo("metrics-0"));
@@ -328,13 +330,41 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(result.get(4).getName(), equalTo("metrics-4"));
 
         List<String> followedIndexUUIDs = Collections.singletonList(leaderState.metaData().index("metrics-2").getIndexUUID());
-        result = AutoFollower.getLeaderIndicesToFollow(autoFollowPattern, leaderState, followerState, followedIndexUUIDs);
+        result = AutoFollower.getLeaderIndicesToFollow("remote", autoFollowPattern, leaderState, followerState, followedIndexUUIDs);
         result.sort(Comparator.comparing(Index::getName));
         assertThat(result.size(), equalTo(4));
         assertThat(result.get(0).getName(), equalTo("metrics-0"));
         assertThat(result.get(1).getName(), equalTo("metrics-1"));
         assertThat(result.get(2).getName(), equalTo("metrics-3"));
         assertThat(result.get(3).getName(), equalTo("metrics-4"));
+    }
+
+    public void testGetLeaderIndicesToFollowDoNotSelectFollowIndicesInTheSameCluster() {
+        MetaData.Builder imdBuilder = MetaData.builder();
+        imdBuilder.put(IndexMetaData.builder("metrics-0")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0));
+        imdBuilder.put(IndexMetaData.builder("metrics-1")
+            .putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, new HashMap<>())
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0));
+
+        AutoFollowPattern autoFollowPattern =
+            new AutoFollowPattern(Collections.singletonList("metrics-*"), null, null, null, null, null, null, null, null);
+        imdBuilder.putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(Collections.singletonMap("remote", autoFollowPattern),
+            Collections.emptyMap(), Collections.emptyMap()));
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("name"))
+            .metaData(imdBuilder)
+            .build();
+
+        List<Index> result = AutoFollower.getLeaderIndicesToFollow("_local_", autoFollowPattern, clusterState,
+            clusterState, Collections.emptyList());
+        result.sort(Comparator.comparing(Index::getName));
+        assertThat(result.size(), equalTo(1));
+        assertThat(result.get(0).getName(), equalTo("metrics-0"));
     }
 
     public void testGetFollowerIndexName() {

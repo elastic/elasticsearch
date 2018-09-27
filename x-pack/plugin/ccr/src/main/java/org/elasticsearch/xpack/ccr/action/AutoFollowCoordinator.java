@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -259,8 +260,8 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                     if (leaderClusterState != null) {
                         assert e == null;
                         final List<String> followedIndices = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get(clusterAlias);
-                        final List<Index> leaderIndicesToFollow =
-                            getLeaderIndicesToFollow(autoFollowPattern, leaderClusterState, followerClusterState, followedIndices);
+                        final List<Index> leaderIndicesToFollow = getLeaderIndicesToFollow(clusterAlias, autoFollowPattern,
+                            leaderClusterState, followerClusterState, followedIndices);
                         if (leaderIndicesToFollow.isEmpty()) {
                             finalise(slot, new AutoFollowResult(clusterAlias));
                         } else {
@@ -337,12 +338,21 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
             }
         }
 
-        static List<Index> getLeaderIndicesToFollow(AutoFollowPattern autoFollowPattern,
+        static List<Index> getLeaderIndicesToFollow(String clusterAlias,
+                                                    AutoFollowPattern autoFollowPattern,
                                                     ClusterState leaderClusterState,
                                                     ClusterState followerClusterState,
                                                     List<String> followedIndexUUIDs) {
             List<Index> leaderIndicesToFollow = new ArrayList<>();
             for (IndexMetaData leaderIndexMetaData : leaderClusterState.getMetaData()) {
+                // If an auto follow pattern has been set up for the local cluster then
+                // we should not automatically follow a leader index that is also a follow index because
+                // this can result into an index creation explosion.
+                if (leaderIndexMetaData.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY) != null &&
+                    clusterAlias.equals("_local_")) {
+                    continue;
+                }
+
                 if (autoFollowPattern.match(leaderIndexMetaData.getIndex().getName())) {
                     if (followedIndexUUIDs.contains(leaderIndexMetaData.getIndex().getUUID()) == false) {
                         // TODO: iterate over the indices in the followerClusterState and check whether a IndexMetaData
@@ -368,18 +378,19 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                                                                                       Index indexToFollow) {
             return currentState -> {
                 AutoFollowMetadata currentAutoFollowMetadata = currentState.metaData().custom(AutoFollowMetadata.TYPE);
-
-                Map<String, List<String>> newFollowedIndexUUIDS =
-                    new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
-                newFollowedIndexUUIDS.get(clusterAlias).add(indexToFollow.getUUID());
-
-                ClusterState.Builder newState = ClusterState.builder(currentState);
-                AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(currentAutoFollowMetadata.getPatterns(),
+                Map<String, List<String>> newFollowedIndexUUIDS = new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
+                newFollowedIndexUUIDS.compute(clusterAlias, (key, existingUUIDs) -> {
+                    assert existingUUIDs != null;
+                    List<String> newUUIDs = new ArrayList<>(existingUUIDs);
+                    newUUIDs.add(indexToFollow.getUUID());
+                    return Collections.unmodifiableList(newUUIDs);
+                });
+                final AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(currentAutoFollowMetadata.getPatterns(),
                     newFollowedIndexUUIDS, currentAutoFollowMetadata.getHeaders());
-                newState.metaData(MetaData.builder(currentState.getMetaData())
-                    .putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata)
-                    .build());
-                return newState.build();
+                return ClusterState.builder(currentState)
+                    .metaData(MetaData.builder(currentState.getMetaData())
+                        .putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata).build())
+                    .build();
             };
         }
 

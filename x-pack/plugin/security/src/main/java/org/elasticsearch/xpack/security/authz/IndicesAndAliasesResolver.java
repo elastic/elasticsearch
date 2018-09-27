@@ -277,38 +277,34 @@ class IndicesAndAliasesResolver {
     private List<String> replaceWildcardsWithAuthorizedAliases(String[] aliases, List<String> authorizedAliases) {
         final List<String> finalAliases = new ArrayList<>();
 
-        //IndicesAliasesRequest doesn't support empty aliases (validation fails) but GetAliasesRequest does (in which case empty means _all)
+        // IndicesAliasesRequest doesn't support empty aliases (validation fails) but
+        // GetAliasesRequest does (in which case empty means _all)
         if (aliases.length == 0) {
             finalAliases.addAll(authorizedAliases);
         }
 
-        final String[] patterns = new String[aliases.length];
-        final boolean[] include = new boolean[aliases.length];
-        for (int i = 0; i < aliases.length; i++) {
-            final String alias = aliases[i];
-            if (alias.charAt(0) == '-') {
-                patterns[i] = alias.substring(1);
-                include[i] = false;
-            } else {
-                patterns[i] = alias;
-                include[i] = true;
+        for (final String aliasExpression : aliases) {
+            boolean include = true;
+            if (aliasExpression.charAt(0) == '-') {
+                include = false;
+                aliasExpression.substring(1);
             }
-        }
-
-        for (final String authorizedAlias : authorizedAliases) {
-            boolean matched = false;
-            for (int i = 0; i < patterns.length; i++) {
-                if (include[i]) {
-                    if (matched == false) {
-                        final String pattern = patterns[i];
-                        matched = MetaData.ALL.equals(pattern) || Regex.simpleMatch(pattern, authorizedAlias);
+            if (MetaData.ALL.equals(aliasExpression) || Regex.isSimpleMatchPattern(aliasExpression)) {
+                final Set<String> resolvedAliases = new HashSet<>();
+                for (final String authorizedAlias : authorizedAliases) {
+                    if (MetaData.ALL.equals(aliasExpression) || Regex.simpleMatch(aliasExpression, authorizedAlias)) {
+                        resolvedAliases.add(authorizedAlias);
                     }
-                } else if (matched) {
-                    matched = Regex.simpleMatch(patterns[i], authorizedAlias) == false;
                 }
-            }
-            if (matched) {
-                finalAliases.add(authorizedAlias);
+                if (include) {
+                    finalAliases.addAll(resolvedAliases);
+                } else {
+                    finalAliases.removeAll(resolvedAliases);
+                }
+            } else if (include) {
+                finalAliases.add(aliasExpression);
+            } else {
+                finalAliases.remove(aliasExpression);
             }
         }
 

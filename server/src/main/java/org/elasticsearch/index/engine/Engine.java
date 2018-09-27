@@ -97,6 +97,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -109,6 +110,7 @@ public abstract class Engine implements Closeable {
     public static final String SYNC_COMMIT_ID = "sync_id";
     public static final String HISTORY_UUID_KEY = "history_uuid";
     public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
+    public static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
 
     protected final ShardId shardId;
     protected final String allocationId;
@@ -135,6 +137,16 @@ public abstract class Engine implements Closeable {
      *  inactive shards.
      */
     protected volatile long lastWriteNanos = System.nanoTime();
+
+    /*
+     * This marker tracks the max seq_no of either update operations or delete operations have been processed in this engine.
+     * An index request is considered as an update if it overwrites existing documents with the same docId in the Lucene index.
+     * This marker is started uninitialized (-2), and the optimization using seq_no will be disabled if this marker is uninitialized.
+     * The value of this marker never goes backwards, and is updated/changed differently on primary and replica:
+     * 1. A primary initializes this marker once using the max_seq_no from its history, then advances when processing an update or delete.
+     * 2. A replica never advances this marker by itself but only inherits from its primary (via advanceMaxSeqNoOfUpdatesOrDeletes).
+     */
+    private final AtomicLong maxSeqNoOfUpdatesOrDeletes = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
 
     protected Engine(EngineConfig engineConfig) {
         Objects.requireNonNull(engineConfig.getStore(), "Store must be provided to the engine");
@@ -1786,5 +1798,32 @@ public abstract class Engine implements Closeable {
     @FunctionalInterface
     public interface TranslogRecoveryRunner {
         int run(Engine engine, Translog.Snapshot snapshot) throws IOException;
+    }
+
+    /**
+     * Returns the maximum sequence number of either update or delete operations have been processed in this engine
+     * or the sequence number from {@link #advanceMaxSeqNoOfUpdatesOrDeletes(long)}. An index request is considered
+     * as an update operation if it overwrites the existing documents in Lucene index with the same document id.
+     *
+     * @see #initializeMaxSeqNoOfUpdatesOrDeletes()
+     * @see #advanceMaxSeqNoOfUpdatesOrDeletes(long)
+     */
+    public final long getMaxSeqNoOfUpdatesOrDeletes() {
+        return maxSeqNoOfUpdatesOrDeletes.get();
+    }
+
+    /**
+     * A primary shard calls this method once to initialize the max_seq_no_of_updates marker using the
+     * max_seq_no from Lucene index and translog before replaying the local translog in its local recovery.
+     */
+    public abstract void initializeMaxSeqNoOfUpdatesOrDeletes();
+
+    /**
+     * A replica shard receives a new max_seq_no_of_updates from its primary shard, then calls this method
+     * to advance this marker to at least the given sequence number.
+     */
+    public final void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {
+        maxSeqNoOfUpdatesOrDeletes.updateAndGet(curr -> Math.max(curr, seqNo));
+        assert maxSeqNoOfUpdatesOrDeletes.get() >= seqNo : maxSeqNoOfUpdatesOrDeletes.get() + " < " + seqNo;
     }
 }

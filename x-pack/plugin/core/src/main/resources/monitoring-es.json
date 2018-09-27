@@ -1,6 +1,6 @@
 {
   "index_patterns": [ ".monitoring-es-${monitoring.template.version}-*" ],
-  "version": 6040099,
+  "version": 6050099,
   "settings": {
     "index.number_of_shards": 1,
     "index.number_of_replicas": 0,
@@ -1006,6 +1006,38 @@
             },
             "time_since_last_fetch_millis": {
               "type": "long"
+            }
+          }
+        },
+        "ccr_auto_follow_stats" : {
+          "properties": {
+            "number_of_failed_follow_indices": {
+              "type": "long"
+            },
+            "number_of_failed_remote_cluster_state_requests": {
+              "type": "long"
+            },
+            "number_of_successful_follow_indices": {
+              "type": "long"
+            },
+            "recent_auto_follow_errors": {
+              "type": "nested",
+              "properties": {
+                "leader_index": {
+                  "type": "keyword"
+                },
+                "auto_follow_exception": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "keyword"
+                    },
+                    "reason": {
+                      "type": "text"
+                    }
+                  }
+                }
+              }
             }
           }
         }

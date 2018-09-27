@@ -12,7 +12,7 @@ the realm you use to authenticate. Both the internal `native` and `file` realms
 support this out of the box. The LDAP realm must be configured to run in
 <<ldap-user-search, _user search_ mode>>. The Active Directory realm must be
 <<ad-settings,configured with a `bind_dn` and `secure_bind_password`>> to support
-_run as_. The PKI realm does not support _run as_.
+_run as_. The PKI, Kerberos, and SAML realms do not support _run as_.
 
 To submit requests on behalf of other users, you need to have the `run_as`
 permission. For example, the following role grants permission to submit request

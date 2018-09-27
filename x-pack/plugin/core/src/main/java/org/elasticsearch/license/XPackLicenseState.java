@@ -425,6 +425,16 @@ public class XPackLicenseState {
     }
 
     /**
+     * @return whether "authorization_realms" are allowed based on the license {@link OperationMode}
+     * @see org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings
+     */
+    public boolean isAuthorizationRealmAllowed() {
+        final Status localStatus = status;
+        return (localStatus.mode == OperationMode.PLATINUM || localStatus.mode == OperationMode.TRIAL)
+            && localStatus.active;
+    }
+
+    /**
      * Determine if Watcher is available based on the current license.
      * <p>
      * Watcher is available if the license is active (hasn't expired) and of one of the following types:

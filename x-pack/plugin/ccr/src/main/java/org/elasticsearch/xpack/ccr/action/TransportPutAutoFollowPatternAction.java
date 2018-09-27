@@ -135,12 +135,13 @@ public class TransportPutAutoFollowPatternAction extends
         }
 
         AutoFollowPattern previousPattern = patterns.get(request.getLeaderClusterAlias());
-        List<String> followedIndexUUIDs = followedLeaderIndices.get(request.getLeaderClusterAlias());
-        if (followedIndexUUIDs == null) {
+        final List<String> followedIndexUUIDs;
+        if (followedLeaderIndices.containsKey(request.getLeaderClusterAlias())) {
+            followedIndexUUIDs = new ArrayList<>(followedLeaderIndices.get(request.getLeaderClusterAlias()));
+        } else {
             followedIndexUUIDs = new ArrayList<>();
-            followedLeaderIndices.put(request.getLeaderClusterAlias(), followedIndexUUIDs);
         }
-
+        followedLeaderIndices.put(request.getLeaderClusterAlias(), followedIndexUUIDs);
         // Mark existing leader indices as already auto followed:
         if (previousPattern != null) {
             markExistingIndicesAsAutoFollowedForNewPatterns(request.getLeaderIndexPatterns(), leaderClusterState.metaData(),

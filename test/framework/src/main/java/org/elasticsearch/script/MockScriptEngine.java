@@ -85,6 +85,18 @@ public class MockScriptEngine implements ScriptEngine {
         if (context.instanceClazz.equals(SearchScript.class)) {
             SearchScript.Factory factory = mockCompiled::createSearchScript;
             return context.factoryClazz.cast(factory);
+        } else if(context.instanceClazz.equals(TermsSetQueryScript.class)) {
+            TermsSetQueryScript.Factory factory = (parameters, lookup) -> (TermsSetQueryScript.LeafFactory) ctx
+                -> new TermsSetQueryScript(parameters, lookup, ctx) {
+                @Override
+                public Number execute() {
+                    Map<String, Object> vars = new HashMap<>(parameters);
+                    vars.put("params", parameters);
+                    vars.put("doc", getDoc());
+                    return (Number) script.apply(vars);
+                }
+            };
+            return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ExecutableScript.class)) {
             ExecutableScript.Factory factory = mockCompiled::createExecutableScript;
             return context.factoryClazz.cast(factory);
@@ -105,9 +117,9 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(UpdateScript.class)) {
-            UpdateScript.Factory factory = parameters -> new UpdateScript(parameters) {
+            UpdateScript.Factory factory = (parameters, ctx) -> new UpdateScript(parameters, ctx) {
                 @Override
-                public void execute(Map<String, Object> ctx) {
+                public void execute() {
                     final Map<String, Object> vars = new HashMap<>();
                     vars.put("ctx", ctx);
                     vars.put("params", parameters);

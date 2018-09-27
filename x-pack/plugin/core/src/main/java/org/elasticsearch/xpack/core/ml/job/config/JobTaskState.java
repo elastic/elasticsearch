@@ -14,7 +14,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
-import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -23,7 +23,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 
 public class JobTaskState implements PersistentTaskState {
 
-    public static final String NAME = OpenJobAction.TASK_NAME;
+    public static final String NAME = MlTasks.JOB_TASK_NAME;
 
     private static ParseField STATE = new ParseField("state");
     private static ParseField ALLOCATION_ID = new ParseField("allocation_id");

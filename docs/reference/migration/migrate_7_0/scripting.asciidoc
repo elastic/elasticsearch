@@ -1,6 +1,8 @@
+[float]
 [[breaking_70_scripting_changes]]
 === Scripting changes
 
+[float]
 ==== getDate() and getDates() removed
 
 Fields of type `long` and `date` had `getDate()` and `getDates()` methods
@@ -12,6 +14,7 @@ now been removed. Instead, use `.value` on `date` fields, or explicitly
 parse `long` fields into a date object using
 `Instance.ofEpochMillis(doc["myfield"].value)`.
 
+[float]
 ==== Script errors will return as `400` error codes
 
 Malformed scripts, either in search templates, ingest pipelines or search 

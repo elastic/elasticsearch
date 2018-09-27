@@ -53,6 +53,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -834,6 +835,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         }
     }
 
+    @TestLogging("_root:DEBUG, org.elasticsearch.transport:TRACE")
     public void testCloseWhileConcurrentlyConnecting() throws IOException, InterruptedException, BrokenBarrierException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);

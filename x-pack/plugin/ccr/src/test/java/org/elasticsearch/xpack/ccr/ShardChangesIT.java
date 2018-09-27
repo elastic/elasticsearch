@@ -564,7 +564,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
         client().prepareIndex("index1", "doc", "1").setSource("{}", XContentType.JSON).get();
-        atLeastDocsIndexed("index2", 1L);
+        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(1L)));
 
         client().admin().indices().close(new CloseIndexRequest("index1")).actionGet();
         assertBusy(() -> {
@@ -581,7 +581,7 @@ public class ShardChangesIT extends ESIntegTestCase {
 
         client().admin().indices().open(new OpenIndexRequest("index1")).actionGet();
         client().prepareIndex("index1", "doc", "2").setSource("{}", XContentType.JSON).get();
-        atLeastDocsIndexed("index2", 2L);
+        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(2L)));
 
         unfollowIndex("index2");
     }
@@ -599,7 +599,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
         client().prepareIndex("index1", "doc", "1").setSource("{}", XContentType.JSON).get();
-        atLeastDocsIndexed("index2", 1L);
+        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(1L)));
 
         client().admin().indices().close(new CloseIndexRequest("index2")).actionGet();
         client().prepareIndex("index1", "doc", "2").setSource("{}", XContentType.JSON).get();
@@ -611,7 +611,7 @@ public class ShardChangesIT extends ESIntegTestCase {
             assertThat(response.getStatsResponses().get(0).status().numberOfFailedBulkOperations(), greaterThanOrEqualTo(1L));
         });
         client().admin().indices().open(new OpenIndexRequest("index2")).actionGet();
-        atLeastDocsIndexed("index2", 2L);
+        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(2L)));
 
         unfollowIndex("index2");
     }
@@ -629,7 +629,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
         client().prepareIndex("index1", "doc", "1").setSource("{}", XContentType.JSON).get();
-        atLeastDocsIndexed("index2", 1L);
+        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(1L)));
 
         client().admin().indices().delete(new DeleteIndexRequest("index1")).actionGet();
         ensureNoCcrTasks();
@@ -648,7 +648,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
         client().prepareIndex("index1", "doc", "1").setSource("{}", XContentType.JSON).get();
-        atLeastDocsIndexed("index2", 1L);
+        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(1L)));
 
         client().admin().indices().delete(new DeleteIndexRequest("index2")).actionGet();
         client().prepareIndex("index1", "doc", "2").setSource("{}", XContentType.JSON).get();

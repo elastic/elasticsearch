@@ -46,6 +46,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
@@ -130,7 +131,6 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         AtomicReference<Job.Builder> getJobResponseHolder = new AtomicReference<>();
         blockingCall(actionListener -> jobConfigProvider.getJob(jobId, actionListener), getJobResponseHolder, exceptionHolder);
         assertNull(exceptionHolder.get());
-
         assertEquals(newJob, getJobResponseHolder.get().build());
 
         // Update Job
@@ -168,6 +168,23 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
                 deleteJobResponseHolder, exceptionHolder);
         assertNull(deleteJobResponseHolder.get());
         assertThat(exceptionHolder.get(), instanceOf(ResourceNotFoundException.class));
+    }
+
+    public void testGetJobs() throws Exception {
+        putJob(createJob("nginx", null));
+        putJob(createJob("tomcat", null));
+        putJob(createJob("mysql", null));
+
+        List<String> jobsToGet = Arrays.asList("nginx", "tomcat", "unknown-job");
+
+        AtomicReference<List<Job.Builder>> jobsHolder = new AtomicReference<>();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        blockingCall(actionListener -> jobConfigProvider.getJobs(jobsToGet, actionListener), jobsHolder, exceptionHolder);
+        assertNull(exceptionHolder.get());
+        assertNotNull(jobsHolder.get());
+        assertThat(jobsHolder.get(), hasSize(2));
+        List<String> foundIds = jobsHolder.get().stream().map(Job.Builder::getId).collect(Collectors.toList());
+        assertThat(foundIds, containsInAnyOrder("nginx", "tomcat"));
     }
 
     public void testUpdateWithAValidationError() throws Exception {

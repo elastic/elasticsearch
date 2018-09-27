@@ -166,6 +166,7 @@ import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.UpdateJobProcessNotifier;
 import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizer;
 import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizerFactory;
+import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
@@ -367,6 +368,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
         Auditor auditor = new Auditor(client, clusterService.nodeName());
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings);
+        JobConfigProvider jobConfigProvider = new JobConfigProvider(client, settings);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(settings, client, clusterService, threadPool);
         JobManager jobManager = new JobManager(env, settings, jobResultsProvider, clusterService, auditor, threadPool, client, notifier);
 
@@ -423,6 +425,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         return Arrays.asList(
                 mlLifeCycleService,
                 jobResultsProvider,
+                jobConfigProvider,
                 jobManager,
                 autodetectProcessManager,
                 new MlInitializationService(settings, threadPool, clusterService, client),

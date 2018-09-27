@@ -262,7 +262,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             }
 
             for (DiscoveryNode node : event.state().nodes()) {
-                Collection<PersistentTask<?>> foundTasks = tasks.findTasks(OpenJobAction.TASK_NAME, task -> {
+                Collection<PersistentTask<?>> foundTasks = tasks.findTasks(MlTasks.JOB_TASK_NAME, task -> {
                     JobTaskState jobTaskState = (JobTaskState) task.getState();
                     return node.getId().equals(task.getExecutorNode()) &&
                             (jobTaskState == null || jobTaskState.isStatusStale(task));

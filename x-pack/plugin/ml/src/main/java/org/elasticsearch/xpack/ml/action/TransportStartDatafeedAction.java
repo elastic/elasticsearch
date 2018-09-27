@@ -173,7 +173,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         DataExtractorFactory.create(client, datafeed, job, ActionListener.wrap(
                 dataExtractorFactory ->
                         persistentTasksService.sendStartRequest(MlTasks.datafeedTaskId(params.getDatafeedId()),
-                                StartDatafeedAction.TASK_NAME, params, listener)
+                                MlTasks.DATAFEED_TASK_NAME, params, listener)
                 , listener::onFailure));
     }
 
@@ -272,7 +272,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         private final IndexNameExpressionResolver resolver;
 
         public StartDatafeedPersistentTasksExecutor(Settings settings, DatafeedManager datafeedManager) {
-            super(settings, StartDatafeedAction.TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
+            super(settings, MlTasks.DATAFEED_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
             this.datafeedManager = datafeedManager;
             this.resolver = new IndexNameExpressionResolver(settings);
         }

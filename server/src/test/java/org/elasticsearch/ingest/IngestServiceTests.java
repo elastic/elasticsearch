@@ -19,16 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.concurrent.ExecutorService;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
@@ -59,13 +49,22 @@ import org.hamcrest.CustomTypeSafeMatcher;
 import org.mockito.ArgumentMatcher;
 import org.mockito.invocation.InvocationOnMock;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -769,16 +768,14 @@ public class IngestServiceTests extends ESTestCase {
         previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        final Map<String, PipelineConfiguration> configurationMap = new HashMap<>();
-        configurationMap.put("_id1", new PipelineConfiguration("_id1", new BytesArray("{}"), XContentType.JSON));
-        configurationMap.put("_id2", new PipelineConfiguration("_id2", new BytesArray("{}"), XContentType.JSON));
-        ingestService.updatePipelineStats(new IngestMetadata(configurationMap));
+
 
         @SuppressWarnings("unchecked") final BiConsumer<IndexRequest, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked") final Consumer<Exception> completionHandler = mock(Consumer.class);
 
         final IndexRequest indexRequest = new IndexRequest("_index");
         indexRequest.setPipeline("_id1");
+        indexRequest.source(randomAlphaOfLength(10), randomAlphaOfLength(10));
         ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
         final IngestStats afterFirstRequestStats = ingestService.stats();
         assertThat(afterFirstRequestStats.getStatsPerPipeline().size(), equalTo(2));
@@ -793,23 +790,21 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(afterSecondRequestStats.getStatsPerPipeline().get("_id1").getIngestCount(), equalTo(1L));
         assertThat(afterSecondRequestStats.getStatsPerPipeline().get("_id2").getIngestCount(), equalTo(1L));
         assertThat(afterSecondRequestStats.getTotalStats().getIngestCount(), equalTo(2L));
-    }
 
-    // issue: https://github.com/elastic/elasticsearch/issues/18126
-    public void testUpdatingStatsWhenRemovingPipelineWorks() {
-        IngestService ingestService = createWithProcessors();
-        Map<String, PipelineConfiguration> configurationMap = new HashMap<>();
-        configurationMap.put("_id1", new PipelineConfiguration("_id1", new BytesArray("{}"), XContentType.JSON));
-        configurationMap.put("_id2", new PipelineConfiguration("_id2", new BytesArray("{}"), XContentType.JSON));
-        ingestService.updatePipelineStats(new IngestMetadata(configurationMap));
-        assertThat(ingestService.stats().getStatsPerPipeline(), hasKey("_id1"));
-        assertThat(ingestService.stats().getStatsPerPipeline(), hasKey("_id2"));
+        //update cluster state and ensure that new stats are added to old stats
+        putRequest = new PutPipelineRequest("_id1",
+            new BytesArray("{\"processors\": [{\"mock\" : {}}, {\"mock\" : {}}]}"), XContentType.JSON);
+        previousClusterState = clusterState;
+        clusterState = IngestService.innerPut(putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        indexRequest.setPipeline("_id1");
+        ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
+        final IngestStats afterThirdRequestStats = ingestService.stats();
+        assertThat(afterThirdRequestStats.getStatsPerPipeline().size(), equalTo(2));
+        assertThat(afterThirdRequestStats.getStatsPerPipeline().get("_id1").getIngestCount(), equalTo(2L));
+        assertThat(afterThirdRequestStats.getStatsPerPipeline().get("_id2").getIngestCount(), equalTo(1L));
+        assertThat(afterThirdRequestStats.getTotalStats().getIngestCount(), equalTo(3L));
 
-        configurationMap = new HashMap<>();
-        configurationMap.put("_id3", new PipelineConfiguration("_id3", new BytesArray("{}"), XContentType.JSON));
-        ingestService.updatePipelineStats(new IngestMetadata(configurationMap));
-        assertThat(ingestService.stats().getStatsPerPipeline(), not(hasKey("_id1")));
-        assertThat(ingestService.stats().getStatsPerPipeline(), not(hasKey("_id2")));
     }
 
     public void testExecuteWithDrop() {

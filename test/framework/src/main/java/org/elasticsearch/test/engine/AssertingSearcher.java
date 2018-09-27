@@ -38,10 +38,8 @@ class AssertingSearcher extends Engine.Searcher {
     private final Logger logger;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    AssertingSearcher(IndexSearcher indexSearcher, final Engine.Searcher wrappedSearcher,
-                             ShardId shardId,
-                             Logger logger) {
-        super(wrappedSearcher.source(), indexSearcher);
+    AssertingSearcher(IndexSearcher indexSearcher, final Engine.Searcher wrappedSearcher, ShardId shardId, Logger logger) {
+        super(wrappedSearcher.source(), indexSearcher, s -> {throw new AssertionError();}, logger);
         // we only use the given index searcher here instead of the IS of the wrapped searcher. the IS might be a wrapped searcher
         // with a wrapped reader.
         this.wrappedSearcher = wrappedSearcher;
@@ -50,11 +48,6 @@ class AssertingSearcher extends Engine.Searcher {
         initialRefCount = wrappedSearcher.reader().getRefCount();
         assert initialRefCount > 0 :
                 "IndexReader#getRefCount() was [" + initialRefCount + "] expected a value > [0] - reader is already closed";
-    }
-
-    @Override
-    public String source() {
-        return wrappedSearcher.source();
     }
 
     @Override

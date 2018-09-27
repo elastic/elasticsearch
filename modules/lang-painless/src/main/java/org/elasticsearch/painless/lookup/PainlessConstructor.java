@@ -23,6 +23,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
 import java.util.List;
+import java.util.Objects;
 
 public class PainlessConstructor {
 
@@ -36,5 +37,27 @@ public class PainlessConstructor {
         this.typeParameters = typeParameters;
         this.methodHandle = methodHandle;
         this.methodType = methodType;
+    }
+
+    @Override
+    public boolean equals(Object object) {
+        if (this == object) {
+            return true;
+        }
+
+        if (object == null || getClass() != object.getClass()) {
+            return false;
+        }
+
+        PainlessConstructor that = (PainlessConstructor)object;
+
+        return Objects.equals(javaConstructor, that.javaConstructor) &&
+                Objects.equals(typeParameters, that.typeParameters) &&
+                Objects.equals(methodType, that.methodType);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(javaConstructor, typeParameters, methodType);
     }
 }

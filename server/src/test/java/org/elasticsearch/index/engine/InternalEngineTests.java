@@ -1626,7 +1626,6 @@ public class InternalEngineTests extends EngineTestCase {
         assertOpsOnReplica(ops, replicaEngine, true, logger);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34110")
     public void testOutOfOrderDocsOnReplicaOldPrimary() throws IOException {
         IndexSettings oldSettings = IndexSettingsModule.newIndexSettings("testOld", Settings.builder()
             .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), "1h") // make sure this doesn't kick in on us
@@ -1637,11 +1636,18 @@ public class InternalEngineTests extends EngineTestCase {
                 between(10, 10 * IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.get(Settings.EMPTY)))
             .build());
 
-        try (Store oldReplicaStore = createStore();
-             InternalEngine replicaEngine =
-                 createEngine(oldSettings, oldReplicaStore, createTempDir("translog-old-replica"), newMergePolicy())) {
-            final List<Engine.Operation> ops = generateSingleDocHistory(true, randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL), true, 2, 2, 20, "1");
-            assertOpsOnReplica(ops, replicaEngine, true, logger);
+        try (Store oldReplicaStore = createStore()) {
+            Path translogPath = createTempDir("translog-old-replica");
+            String translogUUID = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+            EngineConfig engineConfig = config(oldSettings, oldReplicaStore, translogPath, newMergePolicy(), null);
+            oldReplicaStore.createEmpty();
+            oldReplicaStore.associateIndexWithNewTranslog(translogUUID);
+            try (InternalEngine replicaEngine = new InternalEngine(engineConfig)) {
+                replicaEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+                final List<Engine.Operation> ops = generateSingleDocHistory(
+                    true, randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL), true, 2, 2, 20, "1");
+                assertOpsOnReplica(ops, replicaEngine, true, logger);
+            }
         }
     }
 

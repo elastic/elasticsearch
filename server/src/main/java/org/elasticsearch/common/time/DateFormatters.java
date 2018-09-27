@@ -1368,9 +1368,6 @@ public class DateFormatters {
         } else if ("yearMonthDay".equals(input) || "year_month_day".equals(input)) {
             return YEAR_MONTH_DAY;
         } else if ("epoch_second".equals(input)) {
-            DEPRECATION_LOGGER.deprecated("using [epoch_second] as date format should be replaced with [epoch_seconds]");
-            return EpochSecondsDateFormatter.INSTANCE;
-        } else if ("epoch_seconds".equals(input)) {
             return EpochSecondsDateFormatter.INSTANCE;
         } else if ("epoch_millis".equals(input)) {
             return EpochMillisDateFormatter.INSTANCE;

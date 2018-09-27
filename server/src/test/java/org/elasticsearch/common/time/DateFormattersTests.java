@@ -61,7 +61,7 @@ public class DateFormattersTests extends ESTestCase {
     // but is able to parse the rest
     // as this feature is supported it also makes sense to make it exact
     public void testEpochSecondParser() {
-        DateFormatter formatter = DateFormatters.forPattern("epoch_seconds");
+        DateFormatter formatter = DateFormatters.forPattern("epoch_second");
 
         assertThat(Instant.from(formatter.parse("1234.567")).toEpochMilli(), is(1234567L));
         assertThat(Instant.from(formatter.parse("1234.")).getNano(), is(0));

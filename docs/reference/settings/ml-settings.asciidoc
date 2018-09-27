@@ -16,7 +16,7 @@ file.
 
 [float]
 [[general-ml-settings]]
-==== General Machine Learning Settings
+==== General machine learning settings
 
 `node.ml`::
 Set to `true` (default) to identify the node as a _machine learning node_. +

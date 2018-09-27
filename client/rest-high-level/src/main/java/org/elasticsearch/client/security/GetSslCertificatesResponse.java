@@ -19,106 +19,74 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.client.security.support.CertificateInfo;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class GetSslCertificatesResponse {
 
-    private final String path;
-    private final String format;
-    private final String alias;
-    private final String subjectDn;
-    private final String serialNumber;
-    private final String expiry;
-    private final boolean hasPrivateKey;
+    private final List<CertificateInfo> certificates;
 
-    public GetSslCertificatesResponse(String path, String format, @Nullable String alias, String subjectDn, String serialNumber, String expiry,
-                                      boolean hasPrivateKey) {
-        this.path = path;
-        this.format = format;
-        this.alias = alias;
-        this.subjectDn = subjectDn;
-        this.serialNumber = serialNumber;
-        this.expiry = expiry;
-        this.hasPrivateKey = hasPrivateKey;
+    public GetSslCertificatesResponse(List<CertificateInfo> certificates) {
+        this.certificates = certificates;
     }
 
-    /**
-     * @return The path to the certificate, as configured in the elasticsearch.yml file.
-     */
-    public String getPath() {
-        return path;
-    }
+    private static final DeprecationHandler DEPRECATION_HANDLER = new DeprecationHandler() {
 
-    /**
-     * @return The format of the file. One of jks, PKCS12, PEM
-     */
-    public String getFormat() {
-        return format;
-    }
+        @Override
+        public void usedDeprecatedName(String usedName, String modernName) {
+        }
 
-    public @Nullable
-    String getAlias() {
-        return alias;
-    }
-
-    public String getSubjectDn() {
-        return subjectDn;
-    }
-
-    public String getSerialNumber() {
-        return serialNumber;
-    }
-
-    public String getExpiry() {
-        return expiry;
-    }
-
-    public boolean isHasPrivateKey() {
-        return hasPrivateKey;
-    }
+        @Override
+        public void usedDeprecatedField(String usedName, String replacedWith) {
+        }
+    };
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final GetSslCertificatesResponse that = (GetSslCertificatesResponse) o;
-        return path.equals(that.path) &&
-            format.equals(that.format) &&
-            Objects.equals(alias, that.alias) &&
-            serialNumber.equals(that.serialNumber) &&
-            expiry.equals(that.expiry) &&
-            hasPrivateKey == that.hasPrivateKey;
+        return Objects.equals(this.certificates, that.certificates);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(path, format, alias, serialNumber, expiry, hasPrivateKey);
-    }
-
-    private static final ConstructingObjectParser<GetSslCertificatesResponse, Void> PARSER = new ConstructingObjectParser<>
-        ("get_ssl_certificates_response",
-            true, args -> new GetSslCertificatesResponse((String) args[0], (String) args[1], (String) args[2], (String) args[3],
-            (String) args[4], (String) args[5], (boolean) args[6]));
-
-    static {
-        PARSER.declareString(constructorArg(), new ParseField("path"));
-        PARSER.declareString(constructorArg(), new ParseField("format"));
-        PARSER.declareStringOrNull(constructorArg(), new ParseField("alias"));
-        PARSER.declareString(constructorArg(), new ParseField("subject_dn"));
-        PARSER.declareString(constructorArg(), new ParseField("serial_number"));
-        PARSER.declareString(constructorArg(), new ParseField("expiry"));
-        PARSER.declareBoolean(constructorArg(), new ParseField("has_private_key"));
+        return Objects.hash(certificates);
     }
 
     public static GetSslCertificatesResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+        List<Object> unparsedObjects = parser.list();
+        if (unparsedObjects.isEmpty()) {
+            return new GetSslCertificatesResponse(Collections.emptyList());
+        }
+        List<CertificateInfo> certificates = new ArrayList<CertificateInfo>();
+        for (Object o : unparsedObjects) {
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                @SuppressWarnings("unchecked")
+                Map<String, ?> value = (Map<String, ?>) o;
+                builder.map(value);
+                try (XContentParser certificateInfoParser = XContentFactory.xContent(builder.contentType()).createParser(
+                    NamedXContentRegistry.EMPTY, DEPRECATION_HANDLER, Strings.toString(builder))) {
+                    certificates.add(CertificateInfo.PARSER.parse(certificateInfoParser, null));
+                }
+            }
+        }
+        return new GetSslCertificatesResponse(certificates);
+    }
+
+    public List<CertificateInfo> getCertificates() {
+        return certificates;
     }
 }

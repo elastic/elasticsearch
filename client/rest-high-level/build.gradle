@@ -76,6 +76,7 @@ forbiddenApisMain {
   addSignatureFiles 'http-signatures'
   signaturesFiles += files('src/main/resources/forbidden/rest-high-level-signatures.txt')
 }
+File nodeCert = file("./testnode.crt")
 
 integTestRunner {
   systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')
@@ -85,11 +86,13 @@ integTestRunner {
 integTestCluster {
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
+  setting 'xpack.ssl.certificate_authorities', 'testnode.crt'
   setupCommand 'setupDummyUser',
           'bin/elasticsearch-users',
           'useradd', System.getProperty('tests.rest.cluster.username', 'test_user'),
           '-p', System.getProperty('tests.rest.cluster.password', 'test-password'),
           '-r', 'superuser'
+  extraConfigFile nodeCert.name, nodeCert
   waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
     ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",

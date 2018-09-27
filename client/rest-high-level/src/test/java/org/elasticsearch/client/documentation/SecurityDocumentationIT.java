@@ -26,12 +26,16 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
+import org.elasticsearch.client.security.GetSslCertificatesRequest;
+import org.elasticsearch.client.security.GetSslCertificatesResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.EmptyResponse;
+import org.elasticsearch.client.security.support.CertificateInfo;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -172,5 +176,13 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
+    }
+
+    public void testGetSslCertificates() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        GetSslCertificatesResponse getSslCertificatesResponse = client.security().getSslCertificates(RequestOptions.DEFAULT);
+        List<CertificateInfo> c = getSslCertificatesResponse.getCertificates();
+        System.out.println(c.size());
+        System.out.println(c.get(0));
     }
 }

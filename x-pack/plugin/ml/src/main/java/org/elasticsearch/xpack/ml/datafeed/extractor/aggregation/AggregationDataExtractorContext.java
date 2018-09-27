@@ -13,21 +13,21 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-class AggregationDataExtractorContext {
+public class AggregationDataExtractorContext {
 
-    final String jobId;
-    final String timeField;
-    final Set<String> fields;
-    final String[] indices;
-    final String[] types;
-    final QueryBuilder query;
-    final AggregatorFactories.Builder aggs;
-    final long start;
-    final long end;
-    final boolean includeDocCount;
-    final Map<String, String> headers;
+    final public String jobId;
+    final public String timeField;
+    final public Set<String> fields;
+    final public String[] indices;
+    final public String[] types;
+    final public QueryBuilder query;
+    final public AggregatorFactories.Builder aggs;
+    final public long start;
+    final public long end;
+    final public boolean includeDocCount;
+    final public Map<String, String> headers;
 
-    AggregationDataExtractorContext(String jobId, String timeField, Set<String> fields, List<String> indices, List<String> types,
+    public AggregationDataExtractorContext(String jobId, String timeField, Set<String> fields, List<String> indices, List<String> types,
                                     QueryBuilder query, AggregatorFactories.Builder aggs, long start, long end, boolean includeDocCount,
                                     Map<String, String> headers) {
         this.jobId = Objects.requireNonNull(jobId);

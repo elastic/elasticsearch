@@ -70,7 +70,7 @@ public class DatafeedJobBuilder {
             if (dataCounts.getLatestRecordTimeStamp() != null) {
                 context.latestRecordTimeMs = dataCounts.getLatestRecordTimeStamp().getTime();
             }
-            DataExtractorFactory.create(client, datafeed, job, dataExtractorFactoryHandler);
+            DataExtractorFactory.create(client, datafeed, job, auditor, dataExtractorFactoryHandler);
         };
 
         // Step 2. Collect data counts

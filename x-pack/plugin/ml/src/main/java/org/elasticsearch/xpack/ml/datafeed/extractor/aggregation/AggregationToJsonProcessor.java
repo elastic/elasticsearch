@@ -40,7 +40,7 @@ import java.util.TreeMap;
  * In order to ensure that datafeeds can restart without duplicating data, we require that
  * each histogram bucket has a nested max aggregation matching the time_field.
  */
-class AggregationToJsonProcessor {
+public class AggregationToJsonProcessor {
 
     private static final Logger LOGGER = Loggers.getLogger(AggregationToJsonProcessor.class);
 
@@ -60,7 +60,7 @@ class AggregationToJsonProcessor {
      * @param includeDocCount whether to include the doc_count
      * @param startTime buckets with a timestamp before this time are discarded
      */
-    AggregationToJsonProcessor(String timeField, Set<String> fields, boolean includeDocCount, long startTime)
+    public AggregationToJsonProcessor(String timeField, Set<String> fields, boolean includeDocCount, long startTime)
             throws IOException {
         this.timeField = Objects.requireNonNull(timeField);
         this.fields = Objects.requireNonNull(fields);
@@ -304,7 +304,7 @@ class AggregationToJsonProcessor {
      * False if there are no documents to write.
      * @throws IOException If an error occurs serialising the JSON
      */
-    boolean writeDocs(int batchSize, OutputStream outputStream) throws IOException {
+    public boolean writeDocs(int batchSize, OutputStream outputStream) throws IOException {
 
         if (docsByBucketTimestamp.isEmpty()) {
             return false;

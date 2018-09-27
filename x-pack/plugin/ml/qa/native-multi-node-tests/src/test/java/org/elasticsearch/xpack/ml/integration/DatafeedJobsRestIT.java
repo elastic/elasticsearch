@@ -16,8 +16,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.After;
 import org.junit.Before;
@@ -28,6 +28,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -662,6 +663,89 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         assertThat(jobStatsResponseAsString, containsString("\"processed_field_count\":4"));
         assertThat(jobStatsResponseAsString, containsString("\"out_of_order_timestamp_count\":0"));
         assertThat(jobStatsResponseAsString, containsString("\"missing_field_count\":0"));
+    }
+
+    public void testLookbackOnlyGivenAggregationsWithHistogramAndRollupIndex() throws Exception {
+        String jobId = "aggs-histogram-rollup-job";
+        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
+        createJobRequest.setJsonEntity("{\n"
+            + "  \"description\": \"Aggs job\",\n"
+            + "  \"analysis_config\": {\n"
+            + "    \"bucket_span\": \"1h\",\n"
+            + "    \"summary_count_field_name\": \"doc_count\",\n"
+            + "    \"detectors\": [\n"
+            + "      {\n"
+            + "        \"function\": \"mean\",\n"
+            + "        \"field_name\": \"responsetime\",\n"
+            + "        \"by_field_name\": \"airline\"\n"
+            + "      }\n"
+            + "    ]\n"
+            + "  },\n"
+            + "  \"data_description\": {\"time_field\": \"time stamp\"}\n"
+            + "}");
+        client().performRequest(createJobRequest);
+
+        String rollupJobId = "rollup-" + jobId;
+        Request createRollupRequest = new Request("PUT", "/_xpack/rollup/job/" + rollupJobId);
+        createRollupRequest.setJsonEntity("{\n"
+            + "\"index_pattern\": \"airline-data-aggs\",\n"
+            + "    \"rollup_index\": \"airline-data-aggs-rollup\",\n"
+            + "    \"cron\": \"*/30 * * * * ?\",\n"
+            + "    \"page_size\" :1000,\n"
+            + "    \"groups\" : {\n"
+            + "      \"date_histogram\": {\n"
+            + "        \"field\": \"time stamp\",\n"
+            + "        \"interval\": \"2m\",\n"
+            + "        \"delay\": \"7d\"\n"
+            + "      },\n"
+            + "      \"terms\": {\n"
+            + "        \"fields\": [\"airline\"]\n"
+            + "      }"
+            + "    },\n"
+            + "    \"metrics\": [\n"
+            + "        {\n"
+            + "            \"field\": \"responsetime\",\n"
+            + "            \"metrics\": [\"avg\",\"min\",\"max\",\"sum\"]\n"
+            + "        },\n"
+            + "        {\n"
+            + "            \"field\": \"time stamp\",\n"
+            + "            \"metrics\": [\"max\"]\n"
+            + "        }\n"
+            + "    ]\n"
+            + "}");
+        client().performRequest(createRollupRequest);
+        client().performRequest(new Request("POST", "/_xpack/rollup/job/" + rollupJobId + "/_start"));
+
+        assertBusy(() -> {
+            Response getRollup = client().performRequest(new Request("GET", "/_xpack/rollup/job/" + rollupJobId));
+            assertThat(EntityUtils.toString(getRollup.getEntity()), containsString("\"documents_processed\":8"));
+        }, 60, TimeUnit.SECONDS);
+        String datafeedId = "datafeed-" + jobId;
+        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"interval\":3600000},"
+            + "\"aggregations\":{"
+            + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
+            + "\"responsetime\":{\"avg\":{\"field\":\"responsetime\"}}}}}";
+        new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs*", "response").setAggregations(aggregations).build();
+        openJob(client(), jobId);
+
+        startDatafeedAndWaitUntilStopped(datafeedId);
+        waitUntilJobIsClosed(jobId);
+        Response jobStatsResponse = client().performRequest(new Request("GET",
+            MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
+        String jobStatsResponseAsString = EntityUtils.toString(jobStatsResponse.getEntity());
+        assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":2"));
+        assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":2"));
+
+        client().performRequest(new Request("POST", "/_xpack/rollup/job/" + rollupJobId + "/_stop"));
+        assertBusy(() -> {
+            Response getRollup = client().performRequest(new Request("GET", "/_xpack/rollup/job/" + rollupJobId));
+            assertThat(EntityUtils.toString(getRollup.getEntity()), containsString("\"job_state\":\"stopped\""));
+        });
+        client().performRequest(new Request("DELETE", "/_xpack/rollup/job/" + rollupJobId));
+        assertBusy(() -> {
+            Response getRollup = client().performRequest(new Request("GET", "/_xpack/rollup/job/" + rollupJobId));
+            assertThat(EntityUtils.toString(getRollup.getEntity()), equalTo("{\"jobs\":[]}"));
+        });
     }
 
     public void testRealtime() throws Exception {

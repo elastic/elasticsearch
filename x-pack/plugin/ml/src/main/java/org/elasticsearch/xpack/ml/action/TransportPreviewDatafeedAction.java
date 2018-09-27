@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -71,18 +72,17 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         // NB: this is using the client from the transport layer, NOT the internal client.
         // This is important because it means the datafeed search will fail if the user
         // requesting the preview doesn't have permission to search the relevant indices.
-        DataExtractorFactory.create(client, previewDatafeed.build(), job, new ActionListener<DataExtractorFactory>() {
-            @Override
-            public void onResponse(DataExtractorFactory dataExtractorFactory) {
-                DataExtractor dataExtractor = dataExtractorFactory.newExtractor(0, Long.MAX_VALUE);
-                threadPool.generic().execute(() -> previewDatafeed(dataExtractor, listener));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        DataExtractorFactory.create(client,
+            previewDatafeed.build(),
+            job,
+            new Auditor(client, clusterService.nodeName()),
+            ActionListener.wrap(
+                dataExtractorFactory -> {
+                    DataExtractor dataExtractor = dataExtractorFactory.newExtractor(0, Long.MAX_VALUE);
+                    threadPool.generic().execute(() -> previewDatafeed(dataExtractor, listener));
+                },
+                listener::onFailure
+            ));
 
     }
 

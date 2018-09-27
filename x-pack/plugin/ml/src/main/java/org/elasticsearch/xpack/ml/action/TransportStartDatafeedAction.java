@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.util.List;
 import java.util.Locale;
@@ -170,7 +171,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private void createDataExtractor(Job job, DatafeedConfig datafeed, StartDatafeedAction.DatafeedParams params,
                                      ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>>
                                              listener) {
-        DataExtractorFactory.create(client, datafeed, job, ActionListener.wrap(
+        DataExtractorFactory.create(client, datafeed, job, new Auditor(client, clusterService.nodeName()), ActionListener.wrap(
                 dataExtractorFactory ->
                         persistentTasksService.sendStartRequest(MlTasks.datafeedTaskId(params.getDatafeedId()),
                                 StartDatafeedAction.TASK_NAME, params, listener)

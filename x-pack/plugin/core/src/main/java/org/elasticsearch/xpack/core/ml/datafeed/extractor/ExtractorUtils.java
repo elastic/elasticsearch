@@ -139,7 +139,7 @@ public final class ExtractorUtils {
         }
     }
 
-    static long validateAndGetCalendarInterval(String calendarInterval) {
+    public static long validateAndGetCalendarInterval(String calendarInterval) {
         TimeValue interval;
         DateTimeUnit dateTimeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(calendarInterval);
         if (dateTimeUnit != null) {

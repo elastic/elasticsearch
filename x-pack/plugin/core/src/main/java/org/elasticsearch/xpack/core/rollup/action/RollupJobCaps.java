@@ -45,6 +45,7 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
     private String rollupIndex;
     private String indexPattern;
     private Map<String, RollupFieldCaps> fieldCapLookup = new HashMap<>();
+    private RollupJobConfig rollupJobConfig;
 
     // TODO now that these rollup caps are being used more widely (e.g. search), perhaps we should
     // store the RollupJob and translate into FieldCaps on demand for json output.  Would make working with
@@ -53,6 +54,7 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
         jobID = job.getId();
         rollupIndex = job.getRollupIndex();
         indexPattern = job.getIndexPattern();
+        rollupJobConfig = job;
         fieldCapLookup = createRollupFieldCaps(job);
     }
 
@@ -77,6 +79,10 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
 
     public String getJobID() {
         return jobID;
+    }
+
+    public RollupJobConfig getRollupJobConfig() {
+        return rollupJobConfig;
     }
 
     @Override

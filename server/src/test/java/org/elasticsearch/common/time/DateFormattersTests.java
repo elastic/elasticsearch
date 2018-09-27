@@ -104,8 +104,6 @@ public class DateFormattersTests extends ESTestCase {
         String millisAsString = String.valueOf(millis);
         ZonedDateTime formatterZonedDateTime = DateFormatters.toZonedDateTime(formatter.parse(millisAsString));
         ZonedDateTime zonedFormatterZonedDateTime = DateFormatters.toZonedDateTime(zonedFormatter.parse(millisAsString));
-        logger.info(formatterZonedDateTime.toInstant());
-        logger.info(zonedFormatterZonedDateTime.toInstant());
         assertThat(formatterZonedDateTime.toInstant().toEpochMilli(), is(zonedFormatterZonedDateTime.toInstant().toEpochMilli()));
     }
 

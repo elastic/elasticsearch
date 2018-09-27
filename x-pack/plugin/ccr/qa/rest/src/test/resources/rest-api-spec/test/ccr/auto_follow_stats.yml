@@ -1,0 +1,10 @@
+---
+"Test autofollow stats":
+  - do:
+      ccr.auto_follow_stats: {}
+
+  - match: { number_of_successful_follow_indices: 0 }
+  - match: { number_of_failed_follow_indices: 0 }
+  - match: { number_of_failed_remote_cluster_state_requests: 0 }
+  - length: { recent_auto_follow_errors: 0 }
+

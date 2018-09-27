@@ -1,0 +1,46 @@
+---
+"No type returned":
+
+  - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
+  - do:
+      index:
+        include_type_name: false
+        index:  test_1
+        id:     1
+        body:   {}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        include_type_name: false
+        index: test_1
+
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._index: "test_1" }
+  - is_false: "hits.hits.0._type"
+  - match: { hits.hits.0._id: "1" }
+
+---
+"Mixing include_type_name=false with explicit types":
+
+  - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
+  - do:
+      catch: /illegal_argument_exception/
+      search:
+          index:   index
+          type:    type
+          include_type_name: false
+
+  - do:
+      catch: /illegal_argument_exception/
+      search:
+          index:   index
+          type:    _doc
+          include_type_name: false

@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.sql.JDBCType;
+import java.sql.SQLType;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -51,10 +52,10 @@ public class ColumnInfo implements ToXContentObject {
     private final String name;
     private final String esType;
     @Nullable
-    private final JDBCType jdbcType;
+    private final SQLType jdbcType;
     private final int displaySize;
 
-    public ColumnInfo(String table, String name, String esType, JDBCType jdbcType, int displaySize) {
+    public ColumnInfo(String table, String name, String esType, SQLType jdbcType, int displaySize) {
         this.table = table;
         this.name = name;
         this.esType = esType;
@@ -79,6 +80,10 @@ public class ColumnInfo implements ToXContentObject {
         builder.field("name", name);
         builder.field("type", esType);
         if (jdbcType != null) {
+            // FIXME: make this pluggable by saving the SQLType.getVendorName
+            if (!(jdbcType instanceof JDBCType)) {
+                throw new IOException("Unknown jdbc type " + jdbcType);
+            }
             builder.field("jdbc_type", jdbcType.getVendorTypeNumber());
             builder.field("display_size", displaySize);
         }
@@ -114,7 +119,7 @@ public class ColumnInfo implements ToXContentObject {
     /**
      * The type of the column as it would be returned by a JDBC driver.
      */
-    public JDBCType jdbcType() {
+    public SQLType jdbcType() {
         return jdbcType;
     }
 
@@ -127,8 +132,12 @@ public class ColumnInfo implements ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ColumnInfo that = (ColumnInfo) o;
         return displaySize == that.displaySize &&
             Objects.equals(table, that.table) &&

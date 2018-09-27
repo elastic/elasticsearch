@@ -1353,6 +1353,16 @@ SELECT RADIANS(90), PI()/2;
 // end::mathInlineRadians
 ;
 
+mathRandom
+// tag::mathRandom
+SELECT RANDOM(123);
+
+   RANDOM(123)
+------------------
+0.7231742029971469
+// end::mathRandom
+;
+
 mathRoundWithNegativeParameter
 // tag::mathRoundWithNegativeParameter
 SELECT ROUND(-345.153, -1) AS rounded;

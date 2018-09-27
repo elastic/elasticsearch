@@ -184,9 +184,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     + getCurrentTerm() + "], rejecting " + followerCheckRequest);
             }
 
-            if (mode != Mode.FOLLOWER) {
-                becomeFollower("onFollowerCheckRequest", followerCheckRequest.getSender());
-            }
+            becomeFollower("onFollowerCheckRequest", followerCheckRequest.getSender());
         }
     }
 

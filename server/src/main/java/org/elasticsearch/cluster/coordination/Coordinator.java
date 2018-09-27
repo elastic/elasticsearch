@@ -458,7 +458,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 final Set<DiscoveryNode> knownFollowers = followersChecker.getKnownFollowers();
                 final Set<DiscoveryNode> lastPublishedNodes = new HashSet<>();
                 if (becomingMaster == false || publicationInProgress()) {
-                    lastPublishedState().nodes().forEach(lastPublishedNodes::add);
+                    final ClusterState lastPublishedState
+                        = currentPublication.map(Publication::publishedState).orElse(coordinationState.get().getLastAcceptedState());
+                    lastPublishedState.nodes().forEach(lastPublishedNodes::add);
                     assert lastPublishedNodes.remove(getLocalNode());
                 }
                 assert lastPublishedNodes.equals(knownFollowers) : lastPublishedNodes + " != " + knownFollowers;
@@ -741,11 +743,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             currentPublication.get().onTimeout();
             assert currentPublication.isPresent() == false;
         }
-    }
-
-    private ClusterState lastPublishedState() {
-        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-        return currentPublication.map(Publication::publishedState).orElse(getStateForMasterService());
     }
 
     public enum Mode {

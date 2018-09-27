@@ -246,7 +246,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject()
             .endObject().endObject()
         );
-        System.out.println(mapping);
+
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
 
         ParsedDocument parsedDocument = defaultMapper.parse(SourceToParse.source("test", "type1", "1", BytesReference
@@ -294,7 +294,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject()
             .endObject().endObject()
         );
-        System.out.println(mapping);
+
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
 
         ParsedDocument parsedDocument = defaultMapper.parse(SourceToParse.source("test", "type1", "1", BytesReference

@@ -23,7 +23,8 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 
 /**
- * Metrics to measure ingest actions. This counts measure documents and timings for a given scope.
+ * <p>Metrics to measure ingest actions.
+ * <p>This counts measure documents and timings for a given scope.
  * The scope is determined by the calling code. For example you can use this class to count all documents across all pipeline,
  * or you can use this class to count documents for a given pipeline or a specific processor.
  * This class does not make assumptions about it's given scope.
@@ -35,7 +36,7 @@ class IngestMetric {
      */
     private final MeanMetric ingestTime = new MeanMetric();
     /**
-     * The current count of things being measure. Should mostly like ever be 0 or 1.
+     * The current count of things being measure. Should most likely ever be 0 or 1.
      * Useful when aggregating multiple metrics to see how many things are in flight.
      */
     private final CounterMetric ingestCurrent = new CounterMetric();
@@ -73,8 +74,9 @@ class IngestMetric {
     }
 
     /**
-     * Add two sets of metrics together. *Important* does NOT add the current count intentionally,
-     * since the current count value is ephemeral and requires a increase/decrease pairing.
+     * <p>Add two sets of metrics together.
+     * <p><strong>Note -</strong> this method does <strong>not</strong> add the current count values.
+     * The current count value is ephemeral and requires a increase/decrease operation pairs to keep the value correct.
      *
      * @param metrics The metric to add.
      */

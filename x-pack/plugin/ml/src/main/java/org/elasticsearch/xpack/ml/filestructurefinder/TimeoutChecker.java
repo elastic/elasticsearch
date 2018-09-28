@@ -54,6 +54,7 @@ public class TimeoutChecker implements Closeable {
     /**
      * Stops the timer if running.
      */
+    @Override
     public void close() {
         FutureUtils.cancel(future);
     }

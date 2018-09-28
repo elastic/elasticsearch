@@ -22,8 +22,6 @@ package org.elasticsearch.client.security.support;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -129,7 +127,7 @@ public class CertificateInfo {
     public int hashCode() {
         return Objects.hash(path, format, alias, subjectDn, serialNumber, hasPrivateKey, expiry);
     }
-    
+
 
     public static CertificateInfo fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);

@@ -221,12 +221,12 @@ public class FunctionRegistry {
     }
 
     public String concreteFunctionName(String alias) {
-        String normalized = normalize(alias);
-        return aliases.getOrDefault(normalized, alias.toUpperCase(Locale.ROOT));
+        String upperCase = alias.toUpperCase(Locale.ROOT);
+        return aliases.getOrDefault(upperCase, upperCase);
     }
 
     public boolean functionExists(String name) {
-        return defs.containsKey(normalize(name));
+        return defs.containsKey(name);
     }
 
     public Collection<FunctionDefinition> listFunctions() {

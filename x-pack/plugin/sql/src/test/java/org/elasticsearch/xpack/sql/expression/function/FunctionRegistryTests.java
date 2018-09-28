@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.sql.expression.function;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.LocationTests;
@@ -187,7 +187,7 @@ public class FunctionRegistryTests extends ESTestCase {
         }
 
         @Override
-        protected ProcessorDefinition makeProcessorDefinition() {
+        protected Pipe makePipe() {
             return null;
         }
     }

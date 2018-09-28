@@ -1295,7 +1295,7 @@ public abstract class TransportReplicationAction<
             } else {
                 globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
             }
-            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
                 maxSeqNoOfUpdatesOrDeletes = in.readZLong();
             } else {
                 // UNASSIGNED_SEQ_NO (-2) means uninitialized, and replicas will disable
@@ -1310,7 +1310,7 @@ public abstract class TransportReplicationAction<
             if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
                 out.writeZLong(globalCheckpoint);
             }
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
                 out.writeZLong(maxSeqNoOfUpdatesOrDeletes);
             }
         }

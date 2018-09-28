@@ -35,7 +35,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         customMetaData.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, "uuid");
         customMetaData.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, "_na_");
 
-        ResumeFollowAction.Request request = ShardChangesIT.createFollowRequest("index1", "index2");
+        ResumeFollowAction.Request request = ShardChangesIT.resumeFollow("index1", "index2");
         String[] UUIDs = new String[]{"uuid"};
         {
             // should fail, because leader index does not exist

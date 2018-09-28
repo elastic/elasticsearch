@@ -21,17 +21,22 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ingest.SimulateProcessorResult;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.ingest.CompoundProcessor.ON_FAILURE_MESSAGE_FIELD;
 import static org.elasticsearch.ingest.CompoundProcessor.ON_FAILURE_PROCESSOR_TAG_FIELD;
@@ -39,10 +44,11 @@ import static org.elasticsearch.ingest.CompoundProcessor.ON_FAILURE_PROCESSOR_TY
 import static org.elasticsearch.ingest.TrackingResultProcessor.decorate;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -50,13 +56,11 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
     private IngestDocument ingestDocument;
     private List<SimulateProcessorResult> resultList;
-    private Set<PipelineProcessor> pipelinesSeen;
 
     @Before
     public void init() {
         ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         resultList = new ArrayList<>();
-        pipelinesSeen = Collections.newSetFromMap(new IdentityHashMap<>());
     }
 
     public void testActualProcessor() throws Exception {
@@ -76,9 +80,9 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
     public void testActualCompoundProcessorWithoutOnFailure() throws Exception {
         RuntimeException exception = new RuntimeException("processor failed");
-        TestProcessor testProcessor = new TestProcessor(ingestDocument -> {  throw exception; });
+        TestProcessor testProcessor = new TestProcessor(ingestDocument -> { throw exception; });
         CompoundProcessor actualProcessor = new CompoundProcessor(testProcessor);
-        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList, pipelinesSeen);
+        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList);
 
         try {
             trackingProcessor.execute(ingestDocument);
@@ -97,14 +101,14 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
     public void testActualCompoundProcessorWithOnFailure() throws Exception {
         RuntimeException exception = new RuntimeException("fail");
-        TestProcessor failProcessor = new TestProcessor("fail", "test", ingestDocument -> {  throw exception; });
+        TestProcessor failProcessor = new TestProcessor("fail", "test", ingestDocument -> { throw exception; });
         TestProcessor onFailureProcessor = new TestProcessor("success", "test", ingestDocument -> {});
         CompoundProcessor actualProcessor = new CompoundProcessor(false,
             Arrays.asList(new CompoundProcessor(false,
                 Arrays.asList(failProcessor, onFailureProcessor),
                 Arrays.asList(onFailureProcessor, failProcessor))),
             Arrays.asList(onFailureProcessor));
-        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList, pipelinesSeen);
+        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList);
         trackingProcessor.execute(ingestDocument);
 
         SimulateProcessorResult expectedFailResult = new SimulateProcessorResult(failProcessor.getTag(), ingestDocument);
@@ -139,10 +143,10 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
     public void testActualCompoundProcessorWithIgnoreFailure() throws Exception {
         RuntimeException exception = new RuntimeException("processor failed");
-        TestProcessor testProcessor = new TestProcessor(ingestDocument -> {  throw exception; });
+        TestProcessor testProcessor = new TestProcessor(ingestDocument -> { throw exception; });
         CompoundProcessor actualProcessor = new CompoundProcessor(true, Collections.singletonList(testProcessor),
             Collections.emptyList());
-        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList, pipelinesSeen);
+        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList);
 
         trackingProcessor.execute(ingestDocument);
 
@@ -152,6 +156,45 @@ public class TrackingResultProcessorTests extends ESTestCase {
         assertThat(resultList.get(0).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
         assertThat(resultList.get(0).getFailure(), sameInstance(exception));
         assertThat(resultList.get(0).getProcessorTag(), equalTo(expectedResult.getProcessorTag()));
+    }
+
+    public void testActualCompoundProcessorWithFalseConditional() throws Exception {
+        String key1 = randomAlphaOfLength(10);
+        String key2 = randomAlphaOfLength(10);
+        String key3 = randomAlphaOfLength(10);
+
+        String scriptName = "conditionalScript";
+        ScriptService scriptService = new ScriptService(Settings.builder().build(), Collections.singletonMap(Script.DEFAULT_SCRIPT_LANG,
+            new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Collections.singletonMap(scriptName, ctx -> false), Collections.emptyMap())),
+            new HashMap<>(ScriptModule.CORE_CONTEXTS)
+        );
+
+        CompoundProcessor compoundProcessor = new CompoundProcessor(
+            new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key1, randomInt()); }),
+            new ConditionalProcessor(
+                randomAlphaOfLength(10),
+                new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap()), scriptService,
+                new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key2, randomInt()); })),
+            new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key3, randomInt()); }));
+
+        CompoundProcessor trackingProcessor = decorate(compoundProcessor, resultList);
+        trackingProcessor.execute(ingestDocument);
+        SimulateProcessorResult expectedResult = new SimulateProcessorResult(compoundProcessor.getTag(), ingestDocument);
+
+        //the step for key 2 is never executed due to conditional and thus not part of the result set
+        assertThat(resultList.size(), equalTo(2));
+
+        assertTrue(resultList.get(0).getIngestDocument().hasField(key1));
+        assertFalse(resultList.get(0).getIngestDocument().hasField(key2));
+        assertFalse(resultList.get(0).getIngestDocument().hasField(key3));
+
+        assertTrue(resultList.get(1).getIngestDocument().hasField(key1));
+        assertFalse(resultList.get(1).getIngestDocument().hasField(key2));
+        assertTrue(resultList.get(1).getIngestDocument().hasField(key3));
+
+        assertThat(resultList.get(1).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
+        assertThat(resultList.get(1).getFailure(), nullValue());
+        assertThat(resultList.get(1).getProcessorTag(), nullValue());
     }
 
     public void testActualPipelineProcessor() throws Exception {
@@ -176,13 +219,13 @@ public class TrackingResultProcessorTests extends ESTestCase {
         PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, pipelineConfig);
         CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
 
-        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList, pipelinesSeen);
+        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList);
 
         trackingProcessor.execute(ingestDocument);
 
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getTag(), ingestDocument);
 
-        verify(ingestService).getPipeline(pipelineId);
+        verify(ingestService,  Mockito.atLeast(1)).getPipeline(pipelineId);
         assertThat(resultList.size(), equalTo(3));
 
         assertTrue(resultList.get(0).getIngestDocument().hasField(key1));
@@ -196,6 +239,142 @@ public class TrackingResultProcessorTests extends ESTestCase {
         assertThat(resultList.get(2).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
         assertThat(resultList.get(2).getFailure(), nullValue());
         assertThat(resultList.get(2).getProcessorTag(), nullValue());
+    }
+
+    public void testActualPipelineProcessorWithTrueConditional() throws Exception {
+        String pipelineId1 = "pipeline1";
+        String pipelineId2 = "pipeline2";
+        IngestService ingestService = mock(IngestService.class);
+        Map<String, Object> pipelineConfig0 = new HashMap<>();
+        pipelineConfig0.put("pipeline", pipelineId1);
+        Map<String, Object> pipelineConfig1 = new HashMap<>();
+        pipelineConfig1.put("pipeline", pipelineId1);
+        Map<String, Object> pipelineConfig2 = new HashMap<>();
+        pipelineConfig2.put("pipeline", pipelineId2);
+        PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
+
+        String key1 = randomAlphaOfLength(10);
+        String key2 = randomAlphaOfLength(10);
+        String key3 = randomAlphaOfLength(10);
+
+        String scriptName = "conditionalScript";
+
+        ScriptService scriptService = new ScriptService(Settings.builder().build(), Collections.singletonMap(Script.DEFAULT_SCRIPT_LANG,
+            new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Collections.singletonMap(scriptName, ctx -> true), Collections.emptyMap())),
+            new HashMap<>(ScriptModule.CORE_CONTEXTS)
+        );
+
+        Pipeline pipeline1 = new Pipeline(
+            pipelineId1, null, null, new CompoundProcessor(
+            new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key1, randomInt()); }),
+            new ConditionalProcessor(
+                randomAlphaOfLength(10),
+                new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap()), scriptService,
+                factory.create(Collections.emptyMap(), null, pipelineConfig2)),
+            new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key3, randomInt()); })
+        )
+        );
+
+        Pipeline pipeline2 = new Pipeline(
+            pipelineId2, null, null, new CompoundProcessor(
+                new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key2, randomInt()); })));
+
+        when(ingestService.getPipeline(pipelineId1)).thenReturn(pipeline1);
+        when(ingestService.getPipeline(pipelineId2)).thenReturn(pipeline2);
+
+        PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, pipelineConfig0);
+        CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
+
+        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList);
+
+       trackingProcessor.execute(ingestDocument);
+
+
+        SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getTag(), ingestDocument);
+
+        verify(ingestService, Mockito.atLeast(1)).getPipeline(pipelineId1);
+        verify(ingestService, Mockito.atLeast(1)).getPipeline(pipelineId2);
+        assertThat(resultList.size(), equalTo(3));
+
+        assertTrue(resultList.get(0).getIngestDocument().hasField(key1));
+        assertFalse(resultList.get(0).getIngestDocument().hasField(key2));
+        assertFalse(resultList.get(0).getIngestDocument().hasField(key3));
+
+        assertTrue(resultList.get(1).getIngestDocument().hasField(key1));
+        assertTrue(resultList.get(1).getIngestDocument().hasField(key2));
+        assertFalse(resultList.get(1).getIngestDocument().hasField(key3));
+
+        assertThat(resultList.get(2).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
+        assertThat(resultList.get(2).getFailure(), nullValue());
+        assertThat(resultList.get(2).getProcessorTag(), nullValue());
+    }
+
+    public void testActualPipelineProcessorWithFalseConditional() throws Exception {
+        String pipelineId1 = "pipeline1";
+        String pipelineId2 = "pipeline2";
+        IngestService ingestService = mock(IngestService.class);
+        Map<String, Object> pipelineConfig0 = new HashMap<>();
+        pipelineConfig0.put("pipeline", pipelineId1);
+        Map<String, Object> pipelineConfig1 = new HashMap<>();
+        pipelineConfig1.put("pipeline", pipelineId1);
+        Map<String, Object> pipelineConfig2 = new HashMap<>();
+        pipelineConfig2.put("pipeline", pipelineId2);
+        PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
+
+        String key1 = randomAlphaOfLength(10);
+        String key2 = randomAlphaOfLength(10);
+        String key3 = randomAlphaOfLength(10);
+
+        String scriptName = "conditionalScript";
+
+        ScriptService scriptService = new ScriptService(Settings.builder().build(), Collections.singletonMap(Script.DEFAULT_SCRIPT_LANG,
+            new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Collections.singletonMap(scriptName, ctx -> false), Collections.emptyMap())),
+            new HashMap<>(ScriptModule.CORE_CONTEXTS)
+        );
+
+        Pipeline pipeline1 = new Pipeline(
+            pipelineId1, null, null, new CompoundProcessor(
+            new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key1, randomInt()); }),
+            new ConditionalProcessor(
+                randomAlphaOfLength(10),
+                new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap()), scriptService,
+                factory.create(Collections.emptyMap(), null, pipelineConfig2)),
+            new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key3, randomInt()); })
+        )
+        );
+
+        Pipeline pipeline2 = new Pipeline(
+            pipelineId2, null, null, new CompoundProcessor(
+            new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key2, randomInt()); })));
+
+        when(ingestService.getPipeline(pipelineId1)).thenReturn(pipeline1);
+        when(ingestService.getPipeline(pipelineId2)).thenReturn(pipeline2);
+
+        PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, pipelineConfig0);
+        CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
+
+        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList);
+
+        trackingProcessor.execute(ingestDocument);
+
+
+        SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getTag(), ingestDocument);
+
+        verify(ingestService, Mockito.atLeast(1)).getPipeline(pipelineId1);
+        verify(ingestService, Mockito.never()).getPipeline(pipelineId2);
+        assertThat(resultList.size(), equalTo(2));
+
+        assertTrue(resultList.get(0).getIngestDocument().hasField(key1));
+        assertFalse(resultList.get(0).getIngestDocument().hasField(key2));
+        assertFalse(resultList.get(0).getIngestDocument().hasField(key3));
+
+        assertTrue(resultList.get(1).getIngestDocument().hasField(key1));
+        assertFalse(resultList.get(1).getIngestDocument().hasField(key2));
+        assertTrue(resultList.get(1).getIngestDocument().hasField(key3));
+
+        assertThat(resultList.get(1).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
+        assertThat(resultList.get(1).getFailure(), nullValue());
+        assertThat(resultList.get(1).getProcessorTag(), nullValue());
     }
 
     public void testActualPipelineProcessorWithHandledFailure() throws Exception {
@@ -226,13 +405,13 @@ public class TrackingResultProcessorTests extends ESTestCase {
         PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, pipelineConfig);
         CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
 
-        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList, pipelinesSeen);
+        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList);
 
         trackingProcessor.execute(ingestDocument);
 
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getTag(), ingestDocument);
 
-        verify(ingestService).getPipeline(pipelineId);
+        verify(ingestService, Mockito.atLeast(2)).getPipeline(pipelineId);
         assertThat(resultList.size(), equalTo(4));
 
         assertTrue(resultList.get(0).getIngestDocument().hasField(key1));
@@ -253,25 +432,36 @@ public class TrackingResultProcessorTests extends ESTestCase {
     }
 
     public void testActualPipelineProcessorWithCycle() throws Exception {
-        String pipelineId = "pipeline1";
+        String pipelineId1 = "pipeline1";
+        String pipelineId2 = "pipeline2";
         IngestService ingestService = mock(IngestService.class);
-        Map<String, Object> pipelineConfig = new HashMap<>();
-        pipelineConfig.put("pipeline", pipelineId);
+        Map<String, Object> pipelineConfig0 = new HashMap<>();
+        pipelineConfig0.put("pipeline", pipelineId1);
+        Map<String, Object> pipelineConfig1 = new HashMap<>();
+        pipelineConfig1.put("pipeline", pipelineId1);
+        Map<String, Object> pipelineConfig2 = new HashMap<>();
+        pipelineConfig2.put("pipeline", pipelineId2);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
 
-        PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, pipelineConfig);
-        Pipeline pipeline = new Pipeline(
-            pipelineId, null, null, new CompoundProcessor(pipelineProcessor)
-        );
-        when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);
+        Pipeline pipeline1 = new Pipeline(
+            pipelineId1, null, null, new CompoundProcessor(factory.create(Collections.emptyMap(), null, pipelineConfig2)));
 
+        Pipeline pipeline2 = new Pipeline(
+            pipelineId2, null, null, new CompoundProcessor(factory.create(Collections.emptyMap(), null, pipelineConfig1)));
+
+        when(ingestService.getPipeline(pipelineId1)).thenReturn(pipeline1);
+        when(ingestService.getPipeline(pipelineId2)).thenReturn(pipeline2);
+
+        PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, pipelineConfig0);
         CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class,
-            () -> decorate(actualProcessor, resultList, pipelinesSeen));
-        assertThat(exception.getMessage(), equalTo("Cycle detected for pipeline: pipeline1"));
-    }
+        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList);
 
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> trackingProcessor.execute(ingestDocument));
+        assertThat(exception.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(exception.getCause().getCause(), instanceOf(IngestCycleException.class));
+        assertThat(exception.getMessage(), containsString("Cycle detected for pipeline: pipeline1"));
+    }
 
     public void testActualPipelineProcessorRepeatedInvocation() throws Exception {
         String pipelineId = "pipeline1";
@@ -284,19 +474,19 @@ public class TrackingResultProcessorTests extends ESTestCase {
         PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, pipelineConfig);
         Pipeline pipeline = new Pipeline(
             pipelineId, null, null, new CompoundProcessor(
-                new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key1, randomInt()); }))
+            new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key1, randomInt()); }))
         );
         when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);
 
         CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor, pipelineProcessor);
 
-        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList, pipelinesSeen);
+        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList);
 
         trackingProcessor.execute(ingestDocument);
 
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getTag(), ingestDocument);
 
-        verify(ingestService, times(2)).getPipeline(pipelineId);
+        verify(ingestService,  Mockito.atLeast(2)).getPipeline(pipelineId);
         assertThat(resultList.size(), equalTo(2));
 
         assertThat(resultList.get(0).getIngestDocument(), not(equalTo(expectedResult.getIngestDocument())));

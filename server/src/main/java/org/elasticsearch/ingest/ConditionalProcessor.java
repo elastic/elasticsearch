@@ -50,14 +50,24 @@ public class ConditionalProcessor extends AbstractProcessor {
         this.processor = processor;
     }
 
+
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        IngestConditionalScript script =
-            scriptService.compile(condition, IngestConditionalScript.CONTEXT).newInstance(condition.getParams());
-        if (script.execute(new UnmodifiableIngestData(ingestDocument.getSourceAndMetadata()))) {
+        if (evaluate(ingestDocument)) {
             return processor.execute(ingestDocument);
         }
         return ingestDocument;
+    }
+
+    boolean evaluate(IngestDocument ingestDocument) {
+        IngestConditionalScript script =
+            scriptService.compile(condition, IngestConditionalScript.CONTEXT).newInstance(condition.getParams());
+        return script.execute(new UnmodifiableIngestData(ingestDocument.getSourceAndMetadata()));
+    }
+
+    //tODO remove
+    public Processor getProcessor() {
+        return processor;
     }
 
     @Override

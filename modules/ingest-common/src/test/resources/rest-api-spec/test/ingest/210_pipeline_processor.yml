@@ -102,7 +102,7 @@ teardown:
 - match: { acknowledged: true }
 
 - do:
-    catch: /illegal_state_exception/
+    catch: /ingest_cycle_exception/
     index:
       index: test
       type: test
@@ -110,4 +110,4 @@ teardown:
       pipeline: "outer"
       body: {}
 - match: { error.root_cause.0.type: "exception" }
-- match: { error.root_cause.0.reason: "java.lang.IllegalArgumentException: java.lang.IllegalStateException: Cycle detected for pipeline: inner" }
+- match: { error.root_cause.0.reason: "java.lang.IllegalArgumentException: org.elasticsearch.ingest.IngestCycleException: Cycle detected for pipeline: inner" }

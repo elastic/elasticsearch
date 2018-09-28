@@ -307,14 +307,8 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                 + "Are you taking a risk of losing documents and proceed with removing a corrupted marker ?",
                 terminal);
         }
-        String[] files = directory.listAll();
-        boolean found = false;
-        for (String file : files) {
-            if (file.startsWith(Store.CORRUPTED)) {
-                directory.deleteFile(file);
-
-                terminal.println("Deleted corrupt marker " + file + " from " + path);
-            }
+        if (Store.removeCorruptionMarker(directory)) {
+            terminal.println("Deleted corrupt marker from " + path);
         }
     }
 

@@ -87,6 +87,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -558,6 +559,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     public static boolean isMarkedCorrupted(final Path path) throws IOException {
+        if (Files.exists(path) == false) {
+            return false;
+        }
         try (Directory directory = new SimpleFSDirectory(path)) {
             return isMarkedCorrupted(directory);
         }
@@ -581,11 +585,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         removeCorruptionMarker(directory());
     }
 
-    public static void removeCorruptionMarker(final Directory directory) throws IOException {
+    public static boolean removeCorruptionMarker(final Directory directory) throws IOException {
         IOException firstException = null;
         final String[] files = directory.listAll();
+        boolean found = false;
         for (String file : files) {
             if (file.startsWith(CORRUPTED)) {
+                found = true;
                 try {
                     directory.deleteFile(file);
                 } catch (IOException ex) {
@@ -600,6 +606,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         if (firstException != null) {
             throw firstException;
         }
+        return found;
     }
 
     public void failIfCorrupted() throws IOException {
@@ -612,8 +619,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     public static void failIfCorrupted(Path path, ShardId shardId, Class<? extends Exception> exceptionClass) throws IOException {
-        try (Directory directory = new SimpleFSDirectory(path)) {
-            Store.failIfCorrupted(directory, shardId, exceptionClass);
+        if (Files.exists(path)) {
+            try (Directory directory = new SimpleFSDirectory(path)) {
+                Store.failIfCorrupted(directory, shardId, exceptionClass);
+            }
         }
     }
 

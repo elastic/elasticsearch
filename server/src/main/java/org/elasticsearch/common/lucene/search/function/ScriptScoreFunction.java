@@ -82,16 +82,14 @@ public class ScriptScoreFunction extends ScoreFunction {
                     exp = ((ExplainableSearchScript) leafScript).explain(subQueryScore);
                 } else {
                     double score = score(docId, subQueryScore.getValue().floatValue());
+                    // info about params already included in sScript
                     String explanation = "script score function, computed with script:\"" + sScript + "\"";
-                    if (sScript.getParams() != null) {
-                        explanation += " and parameters: \n" + sScript.getParams().toString();
-                    }
                     Explanation scoreExp = Explanation.match(
-                            subQueryScore.getValue(), "_score: ",
-                            subQueryScore);
+                        subQueryScore.getValue(), "_score: ",
+                        subQueryScore);
                     return Explanation.match(
-                            (float) score, explanation,
-                            scoreExp);
+                        (float) score, explanation,
+                        scoreExp);
                 }
                 return exp;
             }

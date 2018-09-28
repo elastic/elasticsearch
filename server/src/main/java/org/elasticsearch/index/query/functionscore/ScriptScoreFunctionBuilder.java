@@ -80,6 +80,11 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
     }
 
     @Override
+    public final String getWriteableName() {
+        return getName();
+    }
+
+    @Override
     protected boolean doEquals(ScriptScoreFunctionBuilder functionBuilder) {
         return Objects.equals(this.script, functionBuilder.script);
     }
@@ -100,8 +105,7 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
         }
     }
 
-    public static ScriptScoreFunctionBuilder fromXContent(XContentParser parser)
-            throws IOException, ParsingException {
+    public static ScriptScoreFunctionBuilder fromXContent(XContentParser parser) throws IOException, ParsingException {
         Script script = null;
         String currentFieldName = null;
         XContentParser.Token token;

@@ -20,6 +20,7 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
+import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -32,7 +33,7 @@ import java.util.function.DoubleSupplier;
 /**
  * A script used for adjusting the score on a per document basis.
  */
-public abstract class ScoreScript {
+public abstract class ScoreScript implements ScorerAware {
 
     public static final String[] PARAMETERS = new String[]{};
 
@@ -56,6 +57,11 @@ public abstract class ScoreScript {
         return params;
     }
 
+    /** The leaf lookup for the Lucene segment this script was created for. */
+    protected final LeafSearchLookup getLeafLookup() {
+        return leafLookup;
+    }
+
     /** The doc lookup for the Lucene segment this script was created for. */
     public final Map<String, ScriptDocValues<?>> getDoc() {
         return leafLookup.doc();
@@ -74,6 +80,11 @@ public abstract class ScoreScript {
                 throw new UncheckedIOException(e);
             }
         };
+    }
+
+    /** Return the score of the current document. */
+    public double getScore() {
+        return scoreSupplier.getAsDouble();
     }
 
     public double get_score() {

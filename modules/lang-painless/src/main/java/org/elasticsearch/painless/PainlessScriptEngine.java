@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
@@ -101,7 +102,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
 
         for (Map.Entry<ScriptContext<?>, List<Whitelist>> entry : contexts.entrySet()) {
             ScriptContext<?> context = entry.getKey();
-            if (context.instanceClazz.equals(SearchScript.class)) {
+            if (context.instanceClazz.equals(SearchScript.class) || context.instanceClazz.equals(ScoreScript.class)) {
                 contextsToCompilers.put(context, new Compiler(GenericElasticsearchScript.class, null, null,
                         PainlessLookupBuilder.buildFromWhitelists(entry.getValue())));
             } else {
@@ -144,6 +145,33 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
                         // a new instance is required for the class bindings model to work correctly
                         GenericElasticsearchScript newInstance = (GenericElasticsearchScript)constructor.newInstance();
                         return new ScriptImpl(newInstance, p, lookup, context);
+                    } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+                        throw new IllegalArgumentException("internal error");
+                    }
+                }
+                @Override
+                public boolean needs_score() {
+                    return needsScore;
+                }
+            };
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(ScoreScript.class)) {
+            Constructor<?> constructor = compile(compiler, scriptName, scriptSource, params);
+            boolean needsScore;
+
+            try {
+                GenericElasticsearchScript newInstance = (GenericElasticsearchScript)constructor.newInstance();
+                needsScore = newInstance.needs_score();
+            } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+                throw new IllegalArgumentException("internal error");
+            }
+            
+            ScoreScript.Factory factory = (p, lookup) -> new ScoreScript.LeafFactory() {
+                @Override
+                public ScoreScript newInstance(final LeafReaderContext context) {
+                    try {
+                        GenericElasticsearchScript newInstance = (GenericElasticsearchScript)constructor.newInstance();
+                        return new ScoreScriptImpl(newInstance, p, lookup, context);
                     } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
                         throw new IllegalArgumentException("internal error");
                     }

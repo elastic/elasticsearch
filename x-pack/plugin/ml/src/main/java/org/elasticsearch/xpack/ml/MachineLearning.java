@@ -162,6 +162,7 @@ import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
+import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.UpdateJobProcessNotifier;
 import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizer;
@@ -369,6 +370,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         Auditor auditor = new Auditor(client, clusterService.nodeName());
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings);
         JobConfigProvider jobConfigProvider = new JobConfigProvider(client, settings);
+        DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, settings, xContentRegistry);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(settings, client, clusterService, threadPool);
         JobManager jobManager = new JobManager(env, settings, jobResultsProvider, clusterService, auditor, threadPool, client, notifier);
 
@@ -426,6 +428,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 mlLifeCycleService,
                 jobResultsProvider,
                 jobConfigProvider,
+                datafeedConfigProvider,
                 jobManager,
                 autodetectProcessManager,
                 new MlInitializationService(settings, threadPool, clusterService, client),

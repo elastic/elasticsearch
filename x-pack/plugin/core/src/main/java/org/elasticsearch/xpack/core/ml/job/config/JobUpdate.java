@@ -458,7 +458,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 && (modelSnapshotId == null || Objects.equals(modelSnapshotId, job.getModelSnapshotId()))
                 && (establishedModelMemory == null || Objects.equals(establishedModelMemory, job.getEstablishedModelMemory()))
                 && (jobVersion == null || Objects.equals(jobVersion, job.getJobVersion()))
-                && (clearJobFinishTime == false || job.getFinishedTime() == null);
+                && ((clearJobFinishTime == null || clearJobFinishTime == false) || job.getFinishedTime() == null);
     }
 
     boolean updatesDetectors(Job job) {

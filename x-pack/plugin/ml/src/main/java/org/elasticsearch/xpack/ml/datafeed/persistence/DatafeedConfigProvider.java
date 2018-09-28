@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.ml.job.persistence.ExpandedIdsMatcher;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -168,17 +169,17 @@ public class DatafeedConfigProvider extends AbstractComponent {
     }
 
     /**
-     * Find any datafeeds that are used by job {@code jobid} i.e. the
-     * datafeed that references job {@code jobid}.
+     * Find any datafeeds that are used by jobs {@code jobIds} i.e. the
+     * datafeeds that references any of the jobs in {@code jobIds}.
      *
      * In theory there should never be more than one datafeed referencing a
      * particular job.
      *
-     * @param jobId     The job to find
+     * @param jobIds    The jobs to find the datafeeds of
      * @param listener  Datafeed Id listener
      */
-    public void findDatafeedForJobId(String jobId, ActionListener<Set<String>> listener) {
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedJobIdQuery(jobId));
+    public void findDatafeedsForJobIds(Collection<String> jobIds, ActionListener<Set<String>> listener) {
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedJobIdsQuery(jobIds));
         sourceBuilder.fetchSource(false);
         sourceBuilder.docValueField(DatafeedConfig.ID.getPreferredName());
 
@@ -191,8 +192,8 @@ public class DatafeedConfigProvider extends AbstractComponent {
                         response -> {
                             Set<String> datafeedIds = new HashSet<>();
                             SearchHit[] hits = response.getHits().getHits();
-                            // There should be 0 or 1 datafeeds referencing the same job
-                            assert hits.length <= 1;
+                            // There cannot be more than one datafeed per job
+                            assert hits.length <= jobIds.size();
 
                             for (SearchHit hit : hits) {
                                 datafeedIds.add(hit.field(DatafeedConfig.ID.getPreferredName()).getValue());
@@ -463,10 +464,10 @@ public class DatafeedConfigProvider extends AbstractComponent {
         return boolQueryBuilder;
     }
 
-    private QueryBuilder buildDatafeedJobIdQuery(String jobId) {
+    private QueryBuilder buildDatafeedJobIdsQuery(Collection<String> jobIds) {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.filter(new TermQueryBuilder(DatafeedConfig.CONFIG_TYPE.getPreferredName(), DatafeedConfig.TYPE));
-        boolQueryBuilder.filter(new TermQueryBuilder(Job.ID.getPreferredName(), jobId));
+        boolQueryBuilder.filter(new TermsQueryBuilder(Job.ID.getPreferredName(), jobIds));
         return boolQueryBuilder;
     }
 

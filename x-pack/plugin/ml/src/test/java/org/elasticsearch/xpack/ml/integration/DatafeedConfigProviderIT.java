@@ -289,7 +289,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         assertThat(expandedDatafeeds, containsInAnyOrder(bar1, foo1, foo2));
     }
 
-    public void testFindDatafeedForJobId() throws Exception {
+    public void testFindDatafeedsForJobIds() throws Exception {
         putDatafeedConfig(createDatafeedConfig("foo-1", "j1"), Collections.emptyMap());
         putDatafeedConfig(createDatafeedConfig("foo-2", "j2"), Collections.emptyMap());
         putDatafeedConfig(createDatafeedConfig("bar-1", "j3"), Collections.emptyMap());
@@ -299,17 +299,17 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         AtomicReference<Set<String>> datafeedIdsHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
-        blockingCall(actionListener -> datafeedConfigProvider.findDatafeedForJobId("new-job", actionListener),
+        blockingCall(actionListener -> datafeedConfigProvider.findDatafeedsForJobIds(Collections.singletonList("new-job"), actionListener),
                 datafeedIdsHolder, exceptionHolder);
         assertThat(datafeedIdsHolder.get(), empty());
 
-        blockingCall(actionListener -> datafeedConfigProvider.findDatafeedForJobId("j2", actionListener),
+        blockingCall(actionListener -> datafeedConfigProvider.findDatafeedsForJobIds(Collections.singletonList("j2"), actionListener),
                 datafeedIdsHolder, exceptionHolder);
         assertThat(datafeedIdsHolder.get(), contains("foo-2"));
 
-        blockingCall(actionListener -> datafeedConfigProvider.findDatafeedForJobId("j3", actionListener),
+        blockingCall(actionListener -> datafeedConfigProvider.findDatafeedsForJobIds(Arrays.asList("j3", "j1"), actionListener),
                 datafeedIdsHolder, exceptionHolder);
-        assertThat(datafeedIdsHolder.get(), contains("bar-1"));
+        assertThat(datafeedIdsHolder.get(), containsInAnyOrder("bar-1", "foo-1"));
     }
 
     public void testHeadersAreOverwritten() throws Exception {

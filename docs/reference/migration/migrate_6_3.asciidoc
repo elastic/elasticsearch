@@ -52,7 +52,8 @@ IMPORTANT: If you upgraded to 6.3, your old security configuration files still
 exist in an `x-pack` folder. That path is deprecated, however, and you should 
 move your files out of that folder. There is a known problem where the files in 
 the old path are disregarded in favor of the files in the new path: 
-{pull}/33688[#33688].
+{pull}/33688[#33688]. For more information, see 
+{stack-ov}/trb-security-path.html[Failures due to relocation of the configuration files].
 
 Settings such as `files.role_mapping` now default to 
 `ES_PATH_CONF/role_mapping.yml`. If you do not want to use the default locations, 

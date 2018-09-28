@@ -150,22 +150,22 @@ public class ScriptServiceTests extends ESTestCase {
     public void testInlineScriptCompiledOnceCache() throws IOException {
         buildScriptService(Settings.EMPTY);
         Script script = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
-        SearchScript.Factory factoryScript1 = scriptService.compile(script, SearchScript.CONTEXT);
-        SearchScript.Factory factoryScript2 = scriptService.compile(script, SearchScript.CONTEXT);
+        FieldScript.Factory factoryScript1 = scriptService.compile(script, FieldScript.CONTEXT);
+        FieldScript.Factory factoryScript2 = scriptService.compile(script, FieldScript.CONTEXT);
         assertThat(factoryScript1, sameInstance(factoryScript2));
     }
 
     public void testAllowAllScriptTypeSettings() throws IOException {
         buildScriptService(Settings.EMPTY);
 
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
-        assertCompileAccepted(null, "script", ScriptType.STORED, SearchScript.CONTEXT);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, FieldScript.CONTEXT);
+        assertCompileAccepted(null, "script", ScriptType.STORED, FieldScript.CONTEXT);
     }
 
     public void testAllowAllScriptContextSettings() throws IOException {
         buildScriptService(Settings.EMPTY);
 
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, FieldScript.CONTEXT);
         assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.AGGS_CONTEXT);
         assertCompileAccepted("painless", "script", ScriptType.INLINE, UpdateScript.CONTEXT);
         assertCompileAccepted("painless", "script", ScriptType.INLINE, IngestScript.CONTEXT);
@@ -176,16 +176,16 @@ public class ScriptServiceTests extends ESTestCase {
         builder.put("script.allowed_types", "inline");
         buildScriptService(builder.build());
 
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
-        assertCompileRejected(null, "script", ScriptType.STORED, SearchScript.CONTEXT);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, FieldScript.CONTEXT);
+        assertCompileRejected(null, "script", ScriptType.STORED, FieldScript.CONTEXT);
     }
 
     public void testAllowSomeScriptContextSettings() throws IOException {
         Settings.Builder builder = Settings.builder();
-        builder.put("script.allowed_contexts", "search, aggs");
+        builder.put("script.allowed_contexts", "search, field, aggs");
         buildScriptService(builder.build());
 
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, FieldScript.CONTEXT);
         assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.AGGS_CONTEXT);
         assertCompileRejected("painless", "script", ScriptType.INLINE, UpdateScript.CONTEXT);
     }
@@ -195,8 +195,8 @@ public class ScriptServiceTests extends ESTestCase {
         builder.put("script.allowed_types", "none");
         buildScriptService(builder.build());
 
-        assertCompileRejected("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
-        assertCompileRejected(null, "script", ScriptType.STORED, SearchScript.CONTEXT);
+        assertCompileRejected("painless", "script", ScriptType.INLINE, FieldScript.CONTEXT);
+        assertCompileRejected(null, "script", ScriptType.STORED, FieldScript.CONTEXT);
     }
 
     public void testAllowNoScriptContextSettings() throws IOException {
@@ -204,7 +204,7 @@ public class ScriptServiceTests extends ESTestCase {
         builder.put("script.allowed_contexts", "none");
         buildScriptService(builder.build());
 
-        assertCompileRejected("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
+        assertCompileRejected("painless", "script", ScriptType.INLINE, FieldScript.CONTEXT);
         assertCompileRejected("painless", "script", ScriptType.INLINE, SearchScript.AGGS_CONTEXT);
     }
 

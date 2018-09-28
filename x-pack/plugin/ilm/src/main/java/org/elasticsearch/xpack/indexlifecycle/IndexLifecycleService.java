@@ -94,7 +94,7 @@ public class IndexLifecycleService extends AbstractComponent
         IndexLifecycleMetadata currentMetadata = clusterState.metaData().custom(IndexLifecycleMetadata.TYPE);
         if (currentMetadata != null) {
             OperationMode currentMode = currentMetadata.getOperationMode();
-            if (OperationMode.STOPPED.equals(currentMode) || OperationMode.STOPPING.equals(currentMode)) {
+            if (OperationMode.STOPPED.equals(currentMode)) {
                 return;
             }
 
@@ -105,6 +105,13 @@ public class IndexLifecycleService extends AbstractComponent
                 String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
                 if (Strings.isNullOrEmpty(policyName) == false) {
                     StepKey stepKey = IndexLifecycleRunner.getCurrentStepKey(LifecycleExecutionState.fromIndexMetadata(idxMeta));
+                    if (OperationMode.STOPPING == currentMode &&
+                        stepKey != null &&
+                        IGNORE_ACTIONS_MAINTENANCE_REQUESTED.contains(stepKey.getAction()) == false) {
+                        logger.info("skipping policy [{}] for index [{}]. stopping Index Lifecycle execution",
+                            policyName, idxMeta.getIndex().getName());
+                        continue;
+                    }
                     lifecycleRunner.maybeRunAsyncAction(clusterState, idxMeta, policyName, stepKey);
                 }
             }

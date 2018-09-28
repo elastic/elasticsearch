@@ -24,14 +24,14 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public final class FollowIndexAction extends Action<AcknowledgedResponse> {
+public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
 
-    public static final FollowIndexAction INSTANCE = new FollowIndexAction();
-    public static final String NAME = "cluster:admin/xpack/ccr/follow_index";
+    public static final ResumeFollowAction INSTANCE = new ResumeFollowAction();
+    public static final String NAME = "cluster:admin/xpack/ccr/resume_follow";
 
     public static final TimeValue MAX_RETRY_DELAY = TimeValue.timeValueMinutes(5);
 
-    private FollowIndexAction() {
+    private ResumeFollowAction() {
         super(NAME);
     }
 
@@ -210,7 +210,7 @@ public final class FollowIndexAction extends Action<AcknowledgedResponse> {
                     maxRetryDelay.getStringRep() + "]";
                 e = addValidationError(message, e);
             }
-            if (maxRetryDelay != null && maxRetryDelay.millis() > FollowIndexAction.MAX_RETRY_DELAY.millis()) {
+            if (maxRetryDelay != null && maxRetryDelay.millis() > ResumeFollowAction.MAX_RETRY_DELAY.millis()) {
                 String message = "[" + MAX_RETRY_DELAY_FIELD.getPreferredName() + "] must be less than [" + MAX_RETRY_DELAY +
                     "] but was [" + maxRetryDelay.getStringRep() + "]";
                 e = addValidationError(message, e);

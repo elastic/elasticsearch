@@ -59,7 +59,8 @@ public class TransportUnfollowActionTests extends ESTestCase {
                 .build())
             .build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> TransportUnfollowAction.unfollow("follow_index", current));
-        assertThat(e.getMessage(), equalTo("cannot unfollow index [follow_index], because it has not been closed"));
+        assertThat(e.getMessage(),
+            equalTo("cannot convert the follower index [follow_index] to a non-follower, because it has not been closed"));
     }
 
     public void testUnfollowRunningShardFollowTasks() {
@@ -95,7 +96,8 @@ public class TransportUnfollowActionTests extends ESTestCase {
                 .build())
             .build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> TransportUnfollowAction.unfollow("follow_index", current));
-        assertThat(e.getMessage(), equalTo("cannot unfollow index [follow_index], because it has not been paused"));
+        assertThat(e.getMessage(),
+            equalTo("cannot convert the follower index [follow_index] to a non-follower, because it has not been paused"));
     }
 
 }

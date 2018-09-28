@@ -85,15 +85,16 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
                 if (persistentTask.getTaskName().equals(ShardFollowTask.NAME)) {
                     ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
                     if (shardFollowTask.getFollowShardId().getIndexName().equals(followerIndex)) {
-                        throw new IllegalArgumentException("cannot unfollow index [" + followerIndex +
-                            "], because it has not been paused");
+                        throw new IllegalArgumentException("cannot convert the follower index [" + followerIndex +
+                            "] to a non-follower, because it has not been paused");
                     }
                 }
             }
         }
 
         if (followerIMD.getState() != IndexMetaData.State.CLOSE) {
-            throw new IllegalArgumentException("cannot unfollow index [" + followerIndex + "], because it has not been closed");
+            throw new IllegalArgumentException("cannot convert the follower index [" + followerIndex +
+                "] to a non-follower, because it has not been closed");
         }
 
         IndexMetaData.Builder newIMD = IndexMetaData.builder(followerIMD);

@@ -6,21 +6,20 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.UnaryProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.Locale;
 import java.util.Objects;
 
 import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
+import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
  * Base unary function for text manipulating SQL functions that receive as parameter a number
@@ -52,25 +51,24 @@ public abstract class UnaryStringIntFunction extends UnaryScalarFunction {
     }
 
     @Override
-    protected final ProcessorDefinition makeProcessorDefinition() {
-        return new UnaryProcessorDefinition(location(), this, ProcessorDefinitions.toProcessorDefinition(field()),
-                new StringProcessor(operation()));
+    protected final Pipe makePipe() {
+        return new UnaryPipe(location(), this, Expressions.pipe(field()), new StringProcessor(operation()));
     }
 
     protected abstract StringOperation operation();
     
     @Override
-    protected ScriptTemplate asScriptFrom(FieldAttribute field) {
-        return new ScriptTemplate(formatScript("doc[{}].value"),
+    public ScriptTemplate scriptWithField(FieldAttribute field) {
+        return new ScriptTemplate(processScript("doc[{}].value"),
                 paramsBuilder().variable(field.name()).build(),
                 dataType());
     }
     
     @Override
-    protected String formatScript(String template) {
-        return super.formatScript(
-                format(Locale.ROOT, "{sql}.%s(%s)", 
-                        StringUtils.underscoreToLowerCamelCase(operation().toString()), 
+    public String processScript(String template) {
+        return super.processScript(
+                format(Locale.ROOT, "{sql}.%s(%s)",
+                        operation().toString().toLowerCase(Locale.ROOT),
                         template));
     }
 

@@ -261,7 +261,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
      */
     @Override
     protected QueryShardContext queryShardContextMock(MapperService mapperService) {
-        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS);
+        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
         ScriptService scriptService =  new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
         return new QueryShardContext(0, mapperService.getIndexSettings(), null, null, mapperService, null, scriptService,

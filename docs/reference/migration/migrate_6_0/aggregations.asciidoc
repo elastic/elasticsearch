@@ -1,6 +1,8 @@
+[float]
 [[breaking_60_aggregations_changes]]
 === Aggregations changes
 
+[float]
 ==== Deprecated `pattern` element of include/exclude for terms aggregations has been removed
 
 The `include` and `exclude` options of `terms` aggregations used to accept a
@@ -50,6 +52,7 @@ POST /twitter/_search?size=0
 // CONSOLE
 // TEST[setup:twitter]
 
+[float]
 ==== Numeric `to` and `from` parameters in `date_range` aggregation are interpreted according to `format` now
 
 Numeric `to` and `from` parameters in `date_range` aggregations used to always be interpreted as `epoch_millis`,
@@ -58,13 +61,14 @@ Now we interpret these parameters according to the `format` of the target field.
 If the `format` in the mappings is not compatible with the numeric input value, a compatible 
 `format` (e.g. `epoch_millis`, `epoch_second`) must be specified in the `date_range` aggregation, otherwise an error is thrown.
 
-
+[float]
 ==== `global_ordinals_hash` and `global_ordinals_low_cardinality` are deprecated in the `terms` aggregation
 
 The execution hints `global_ordinals_hash` and `global_ordinals_low_cardinality` are deprecated and should be replaced
 by `global_ordinals` which now internally choose whether it should remap global ordinals to dense ordinals or directly use the
 segment ordinals.
 
+[float]
 ==== `missing` is deprecated in the `composite` aggregation
 
 The `missing` option of the `composite` aggregation is deprecated, `missing_bucket`

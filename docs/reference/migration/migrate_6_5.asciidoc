@@ -1,5 +1,8 @@
 [[breaking-changes-6.5]]
 == Breaking changes in 6.5
+++++
+<titleabbrev>6.5</titleabbrev>
+++++
 
 This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 6.5.
@@ -11,9 +14,11 @@ your application to Elasticsearch 6.5.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
+[float]
 [[breaking_65_logging_changes]]
 === Logging changes
 
+[float]
 ==== %node_name in logging pattern
 
 To make the node name appear consistently in Elasticsearch's logs and to clean
@@ -27,9 +32,11 @@ will not change the logging configuration files though. You should make this
 change before 7.0 because in 7.0 Elasticsearch will no longer automatically
 add the node name to the logging configuration if it isn't already present.
 
+[float]
 [[breaking_65_search_changes]]
 === Search changes
 
+[float]
 ==== Scroll
 
 Using `rescore` with a scroll query now raises a deprecation warning and
@@ -37,9 +44,11 @@ ignores the parameter.  In earlier 6.x releases, rescore on scroll queries was
 silently ignored.  In 7.0 and later, we will return a `400 - Bad Request` with
 a validation error.
 
+[float]
 [[breaking_65_sql_changes]]
 === SQL plugin changes
 
+[float]
 ==== Grouping by columns with missing values will create an additional group 
 
 An additional group will be present in the result of requests containing a
@@ -47,9 +56,11 @@ An additional group will be present in the result of requests containing a
 The records with missing values in the grouped by column will be collectively
 considered a single bucket.
 
+[float]
 [[breaking_65_client_changes]]
 === Client changes
 
+[float]
 ==== Deprecate Retry.withBackoff methods that take Settings
 
 `Settings` is no longer required by `Retry` so the `withBackoff` methods that

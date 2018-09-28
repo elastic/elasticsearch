@@ -1499,7 +1499,7 @@ this:
       "type" : "keyword"
     }
   },
-  "field_stats" : { <1>
+  "field_stats" : { <2>
     "class" : {
       "count" : 53,
       "cardinality" : 14,

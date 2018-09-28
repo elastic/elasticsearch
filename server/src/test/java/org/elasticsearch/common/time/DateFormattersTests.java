@@ -25,6 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 
 import static org.hamcrest.Matchers.containsString;

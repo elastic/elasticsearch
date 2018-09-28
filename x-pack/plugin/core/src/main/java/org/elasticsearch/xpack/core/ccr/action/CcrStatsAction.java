@@ -23,9 +23,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 
 public class CcrStatsAction extends Action<CcrStatsAction.StatsResponses> {
@@ -45,7 +47,7 @@ public class CcrStatsAction extends Action<CcrStatsAction.StatsResponses> {
 
     public static class StatsResponses extends BaseTasksResponse implements ToXContentObject {
 
-        private final List<StatsResponse> statsResponse;
+        private List<StatsResponse> statsResponse;
 
         public List<StatsResponse> getStatsResponses() {
             return statsResponse;
@@ -87,6 +89,31 @@ public class CcrStatsAction extends Action<CcrStatsAction.StatsResponses> {
             builder.endObject();
             return builder;
         }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            statsResponse = in.readList(StatsResponse::new);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeList(statsResponse);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            StatsResponses that = (StatsResponses) o;
+            return Objects.equals(statsResponse, that.statsResponse);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(statsResponse);
+        }
     }
 
     public static class StatsRequest extends BaseTasksRequest<StatsRequest> implements IndicesRequest {
@@ -102,15 +129,9 @@ public class CcrStatsAction extends Action<CcrStatsAction.StatsResponses> {
             this.indices = indices;
         }
 
-        private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
-
         @Override
         public IndicesOptions indicesOptions() {
-            return indicesOptions;
-        }
-
-        public void setIndicesOptions(final IndicesOptions indicesOptions) {
-            this.indicesOptions = indicesOptions;
+            return IndicesOptions.strictExpand();
         }
 
         @Override
@@ -134,17 +155,27 @@ public class CcrStatsAction extends Action<CcrStatsAction.StatsResponses> {
         @Override
         public void readFrom(final StreamInput in) throws IOException {
             super.readFrom(in);
-            indices = in.readStringArray();
-            indicesOptions = IndicesOptions.readIndicesOptions(in);
+            indices = in.readOptionalStringArray();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeStringArray(indices);
-            indicesOptions.writeIndicesOptions(out);
+            out.writeOptionalStringArray(indices);
         }
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            StatsRequest that = (StatsRequest) o;
+            return Arrays.equals(indices, that.indices);
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(indices);
+        }
     }
 
     public static class StatsResponse implements Writeable {
@@ -168,6 +199,18 @@ public class CcrStatsAction extends Action<CcrStatsAction.StatsResponses> {
             status.writeTo(out);
         }
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            StatsResponse that = (StatsResponse) o;
+            return Objects.equals(status, that.status);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(status);
+        }
     }
 
 }

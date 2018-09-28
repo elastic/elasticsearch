@@ -19,42 +19,9 @@
 
 package org.elasticsearch.index.engine;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Set;
-import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-import java.util.function.LongSupplier;
-import java.util.function.Supplier;
-import java.util.function.ToLongBiFunction;
-import java.util.stream.Collectors;
-import java.util.stream.LongStream;
-
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -161,6 +128,40 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
+
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
+import java.util.function.ToLongBiFunction;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.shuffle;
@@ -2863,11 +2864,7 @@ public class InternalEngineTests extends EngineTestCase {
                 IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), null,
                 new NoneCircuitBreakerService(), () -> SequenceNumbers.UNASSIGNED_SEQ_NO, primaryTerm::get, tombstoneDocSupplier());
-        try {
-            InternalEngine internalEngine = new InternalEngine(brokenConfig);
-            fail("translog belongs to a different engine");
-        } catch (EngineCreationFailureException ex) {
-        }
+        expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 
         engine = createEngine(store, primaryTranslogDir); // and recover again!
         assertVisibleCount(engine, numDocs, false);

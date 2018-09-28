@@ -11,6 +11,7 @@ import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.ServerSet;
 import com.unboundid.util.ssl.HostNameSSLSocketVerifier;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -62,7 +63,7 @@ public abstract class SessionFactory {
 
     protected SessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool) {
         this.config = config;
-        this.logger = config.logger(getClass());
+        this.logger = LogManager.getLogger(getClass());
         final Settings settings = config.settings();
         TimeValue searchTimeout = settings.getAsTime(SessionFactorySettings.TIMEOUT_LDAP_SETTING, SessionFactorySettings.TIMEOUT_DEFAULT);
         if (searchTimeout.millis() < 1000L) {

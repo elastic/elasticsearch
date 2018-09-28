@@ -34,10 +34,10 @@
 //=== Known Issues
 ////
 
-[[release-notes-6.4.1]]
-== {es} version 6.4.1
+[[release-notes-6.4.2]]
+== {es} version 6.4.2
 
-coming[6.4.1]
+coming[6.4.2]
 
 //[float]
 //[[breaking-n.n.n]]
@@ -64,6 +64,16 @@ coming[6.4.1]
 //[float]
 //=== Known Issues
 
+
+[[release-notes-6.4.1]]
+== {es} version 6.4.1
+
+[float]
+=== Bug Fixes
+
+Rollover::
+{es} can once again start if any shards on the node have been
+<<indices-rollover-index, rolled over>>. {pull}33394[#33394]
 
 [[release-notes-6.4.0]]
 == {es} version 6.4.0
@@ -257,7 +267,7 @@ Highlighting::
 Index APIs::
  * Add Index UUID to `/_stats` Response {pull}31871[#31871] (issue: {issue}31791[#31791])
  * add support for write index resolution when creating/updating documents {pull}31520[#31520]
- * {ref-64}/breaking_64_api_changes.html#copy-source-settings-on-resize[Allow copying source settings on index resize operations] {pull}30255[#30255] (issue: {issue}28347[#28347])
+ * <<copy-source-settings-on-resize,Allow copying source settings on index resize operations>> {pull}30255[#30255] (issue: {issue}28347[#28347])
 
 Ingest::
  * Extend KV Processor (#31789) {pull}32232[#32232] (issue: {issue}31786[#31786])

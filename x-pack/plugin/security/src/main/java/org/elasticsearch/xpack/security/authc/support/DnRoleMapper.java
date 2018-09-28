@@ -20,6 +20,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import com.unboundid.ldap.sdk.DN;
 import com.unboundid.ldap.sdk.LDAPException;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
@@ -30,10 +31,10 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings;
+import org.elasticsearch.xpack.security.Security;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -44,8 +45,8 @@ import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.rela
  * This class loads and monitors the file defining the mappings of DNs to internal ES Roles.
  */
 public class DnRoleMapper implements UserRoleMapper {
+    private static final Logger logger = LogManager.getLogger(DnRoleMapper.class);
 
-    protected final Logger logger;
     protected final RealmConfig config;
 
     private final Path file;
@@ -55,7 +56,6 @@ public class DnRoleMapper implements UserRoleMapper {
 
     public DnRoleMapper(RealmConfig config, ResourceWatcherService watcherService) {
         this.config = config;
-        this.logger = config.logger(getClass());
 
         useUnmappedGroupsAsRoles = DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING.get(config.settings());
         file = resolveFile(config.settings(), config.env());
@@ -80,7 +80,7 @@ public class DnRoleMapper implements UserRoleMapper {
 
     public static Path resolveFile(Settings settings, Environment env) {
         String location = DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING.get(settings);
-        return XPackPlugin.resolveConfigFile(env, location);
+        return Security.resolveConfigFile(env, location);
     }
 
     /**

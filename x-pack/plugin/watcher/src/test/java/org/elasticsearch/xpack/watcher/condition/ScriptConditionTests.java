@@ -83,7 +83,7 @@ public class ScriptConditionTests extends ESTestCase {
             return total > threshold;
         });
 
-        ScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts);
+        ScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts, Collections.emptyMap());
         scriptService = new ScriptService(Settings.EMPTY, Collections.singletonMap(engine.getType(), engine),
             Collections.singletonMap(Watcher.SCRIPT_EXECUTABLE_CONTEXT.name, Watcher.SCRIPT_EXECUTABLE_CONTEXT));
 

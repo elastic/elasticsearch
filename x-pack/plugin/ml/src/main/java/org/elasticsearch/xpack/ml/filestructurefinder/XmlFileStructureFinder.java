@@ -38,7 +38,8 @@ public class XmlFileStructureFinder implements FileStructureFinder {
     private final FileStructure structure;
 
     static XmlFileStructureFinder makeXmlFileStructureFinder(List<String> explanation, String sample, String charsetName,
-                                                             Boolean hasByteOrderMarker, FileStructureOverrides overrides)
+                                                             Boolean hasByteOrderMarker, FileStructureOverrides overrides,
+                                                             TimeoutChecker timeoutChecker)
         throws IOException, ParserConfigurationException, SAXException {
 
         String messagePrefix;
@@ -66,6 +67,7 @@ public class XmlFileStructureFinder implements FileStructureFinder {
                 sampleRecords.add(docToMap(docBuilder.parse(is)));
                 sampleMessages.add(sampleDoc);
                 linesConsumed += numNewlinesIn(sampleDoc);
+                timeoutChecker.check("XML parsing");
             } catch (SAXException e) {
                 // Tolerate an incomplete last record as long as we have one complete record
                 if (sampleRecords.isEmpty() || i < sampleDocEnds.length - 1) {
@@ -90,7 +92,8 @@ public class XmlFileStructureFinder implements FileStructureFinder {
             .setNumMessagesAnalyzed(sampleRecords.size())
             .setMultilineStartPattern("^\\s*<" + topLevelTag);
 
-        Tuple<String, TimestampMatch> timeField = FileStructureUtils.guessTimestampField(explanation, sampleRecords, overrides);
+        Tuple<String, TimestampMatch> timeField =
+            FileStructureUtils.guessTimestampField(explanation, sampleRecords, overrides, timeoutChecker);
         if (timeField != null) {
             structureBuilder.setTimestampField(timeField.v1())
                 .setJodaTimestampFormats(timeField.v2().jodaTimestampFormats)
@@ -99,7 +102,7 @@ public class XmlFileStructureFinder implements FileStructureFinder {
         }
 
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats =
-            FileStructureUtils.guessMappingsAndCalculateFieldStats(explanation, sampleRecords);
+            FileStructureUtils.guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker);
 
         if (mappingsAndFieldStats.v2() != null) {
             structureBuilder.setFieldStats(mappingsAndFieldStats.v2());

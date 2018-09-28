@@ -73,7 +73,7 @@ public class InternalScriptedMetricAggStateV6CompatTests extends InternalAggrega
 
         @SuppressWarnings("unchecked")
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
-                Collections.singletonMap(REDUCE_SCRIPT_NAME, script));
+                Collections.singletonMap(REDUCE_SCRIPT_NAME, script), Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
         return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
     }

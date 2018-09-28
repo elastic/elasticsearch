@@ -1,11 +1,14 @@
+[float]
 [[breaking_60_stats_changes]]
 === Stats and info changes
 
+[float]
 ==== Removal of `throttle_time` in the `store` stats
 
 Given that store throttling has been removed, the `store` stats do not report
 `throttle_time` anymore.
 
+[float]
 ==== FS stats no longer reports if the disk spins
 
 Elasticsearch has defaulted to assuming that it is running on SSDs since

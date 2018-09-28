@@ -358,8 +358,8 @@ selectInline
 // tag::selectInline
 SELECT 1 + 1;
 
-    (1 + 1)    
----------------
+    1 + 1    
+--------------
 2      
 
 // end::selectInline
@@ -1236,9 +1236,9 @@ mathInlineDegrees
 // tag::mathInlineDegrees
 SELECT DEGREES(PI() * 2), DEGREES(PI());
 
-DEGREES(((PI) * 2))|  DEGREES(PI)
--------------------+---------------
-360.0              |180.0
+DEGREES((PI) * 2)|  DEGREES(PI)
+-----------------+---------------
+360.0            |180.0
 // end::mathInlineDegrees
 ;
 
@@ -1256,7 +1256,7 @@ mathExpInline
 // tag::mathExpInline
 SELECT EXP(1), E(), EXP(2), E() * E();
 
-     EXP(1)      |        E        |     EXP(2)     |   ((E) * (E))
+     EXP(1)      |        E        |     EXP(2)     |     (E) * (E)
 -----------------+-----------------+----------------+------------------
 2.718281828459045|2.718281828459045|7.38905609893065|7.3890560989306495
 // end::mathExpInline
@@ -1296,8 +1296,8 @@ mathInlineLog10
 // tag::mathInlineLog10
 SELECT LOG10(5), LOG(5)/LOG(10);
 
-     LOG10(5)     |((LOG(5)) / (LOG(10)))
-------------------+----------------------
+     LOG10(5)     |(LOG(5)) / (LOG(10))
+------------------+--------------------
 0.6989700043360189|0.6989700043360187
 // end::mathInlineLog10
 ;
@@ -1336,7 +1336,7 @@ mathInlineRadians
 // tag::mathInlineRadians
 SELECT RADIANS(90), PI()/2;
 
-   RADIANS(90)    |    ((PI) / 2)
+   RADIANS(90)    |     (PI) / 2
 ------------------+------------------
 1.5707963267948966|1.5707963267948966
 // end::mathInlineRadians

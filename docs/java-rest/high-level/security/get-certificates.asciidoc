@@ -1,0 +1,52 @@
+[[java-rest-high-security-get-certificates]]
+=== SSL Certificate API
+
+[[java-rest-high-security-get-certificates-execution]]
+==== Execution
+
+The X.509 Certificates that are used to encrypt communications in an
+Elasticsearch cluster using the `security().getSslCertificates()` method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[get-certificates-execute]
+--------------------------------------------------
+
+[[java-rest-high-security-get-certificates-response]]
+==== Response
+
+The returned `GetSslCertificatesResponse` contains a single field, `certificates`.
+This field, accessed with `getCertificates` returns a List of `CertificateInfo`
+objects containing the information for all the certificates used.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[get-certificates-response]
+--------------------------------------------------
+<1> `certificates` is a List of `CertificateInfo`
+
+[[java-rest-high-security-get-certificates-execute-async]]
+==== Asynchronous Execution
+
+This request can be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[get-certificates-execute-async]
+--------------------------------------------------
+<1> The `ActionListener` to use when the execution completes.
+
+The asynchronous method does not block and returns immediately. Once the request
+has completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for a `GetSslCertificatesResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[get-certificates-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument.
+<2> Called in case of failure. The raised exception is provided as an argument.

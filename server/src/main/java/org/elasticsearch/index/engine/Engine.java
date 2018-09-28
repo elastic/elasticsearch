@@ -1838,9 +1838,9 @@ public abstract class Engine implements Closeable {
      * A note on the optimization using max_seq_no_of_updates_or_deletes:
      * For each operation O, the key invariants are:
      * <ol>
-     *     <li> I1. There is no operation on docID(O) with seqno that is > MSU(O) and < seqno(O) </li>
-     *     <li> I2. If MSU(O) < seqno(O) then docID(O) did not exist when O was applied; more precisely, if there is any O'
-     *      * with seqno(O') < seqno(O) and docID(O') = docID(O) then the one with the greatest seqno is a delete. </li>
+     *     <li> I1: There is no operation on docID(O) with seqno that is > MSU(O) and < seqno(O) </li>
+     *     <li> I2: If MSU(O) < seqno(O) then docID(O) did not exist when O was applied; more precisely, if there is any O'
+     *              with seqno(O') < seqno(O) and docID(O') = docID(O) then the one with the greatest seqno is a delete. </li>
      * </ol>
      * <p>
      * When a receiving shard (either a replica or a follower) receives an operation O, it must first ensure its own MSU is >= MSU(O),

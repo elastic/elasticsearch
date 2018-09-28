@@ -17,7 +17,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -26,6 +25,7 @@ import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.support.Validation.Users;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.support.SecurityFiles;
 
 import java.io.IOException;
@@ -92,7 +92,7 @@ public class FileUserPasswdStore {
     }
 
     public static Path resolveFile(Environment env) {
-        return XPackPlugin.resolveConfigFile(env, "users");
+        return Security.resolveConfigFile(env, "users");
     }
 
     /**

@@ -65,8 +65,7 @@ public class ConditionalProcessor extends AbstractProcessor {
         return script.execute(new UnmodifiableIngestData(ingestDocument.getSourceAndMetadata()));
     }
 
-    //tODO remove
-    public Processor getProcessor() {
+    Processor getProcessor() {
         return processor;
     }
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.AmazonClientException;
+import com.amazonaws.AmazonServiceException;
 import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.AbstractAmazonS3;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
@@ -27,6 +28,8 @@ import com.amazonaws.services.s3.model.DeleteObjectRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsResult;
 import com.amazonaws.services.s3.model.GetObjectRequest;
+import com.amazonaws.services.s3.model.HeadBucketRequest;
+import com.amazonaws.services.s3.model.HeadBucketResult;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
@@ -73,8 +76,15 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     }
 
     @Override
-    public boolean doesBucketExist(final String bucket) {
-        return this.bucket.equalsIgnoreCase(bucket);
+    public HeadBucketResult headBucket(final HeadBucketRequest headBucketRequest) throws SdkClientException, AmazonServiceException {
+        if (this.bucket.equalsIgnoreCase(headBucketRequest.getBucketName())) {
+            return new HeadBucketResult();
+        } else {
+            final AmazonServiceException e =
+                    new AmazonServiceException("bucket [" + headBucketRequest.getBucketName() + "] does not exist");
+            e.setStatusCode(404);
+            throw e;
+        }
     }
 
     @Override

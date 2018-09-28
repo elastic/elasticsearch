@@ -19,12 +19,12 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
@@ -905,8 +905,8 @@ public class ScopedSettingsTests extends ESTestCase {
     }
 
     public void testLoggingUpdates() {
-        final Level level = ESLoggerFactory.getRootLogger().getLevel();
-        final Level testLevel = ESLoggerFactory.getLogger("test").getLevel();
+        final Level level = LogManager.getRootLogger().getLevel();
+        final Level testLevel = LogManager.getLogger("test").getLevel();
         Level property = randomFrom(Level.values());
         Settings.Builder builder = Settings.builder().put("logger.level", property);
         try {
@@ -916,33 +916,33 @@ public class ScopedSettingsTests extends ESTestCase {
                     IllegalArgumentException.class,
                     () -> settings.validate(Settings.builder().put("logger._root", "boom").build(), false));
             assertEquals("Unknown level constant [BOOM].", ex.getMessage());
-            assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(level, LogManager.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
-            assertEquals(Level.TRACE, ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(Level.TRACE, LogManager.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().build());
-            assertEquals(property, ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(property, LogManager.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger.test", "TRACE").build());
-            assertEquals(Level.TRACE, ESLoggerFactory.getLogger("test").getLevel());
+            assertEquals(Level.TRACE, LogManager.getLogger("test").getLevel());
             settings.applySettings(Settings.builder().build());
-            assertEquals(property, ESLoggerFactory.getLogger("test").getLevel());
+            assertEquals(property, LogManager.getLogger("test").getLevel());
         } finally {
-            Loggers.setLevel(ESLoggerFactory.getRootLogger(), level);
-            Loggers.setLevel(ESLoggerFactory.getLogger("test"), testLevel);
+            Loggers.setLevel(LogManager.getRootLogger(), level);
+            Loggers.setLevel(LogManager.getLogger("test"), testLevel);
         }
     }
 
     public void testFallbackToLoggerLevel() {
-        final Level level = ESLoggerFactory.getRootLogger().getLevel();
+        final Level level = LogManager.getRootLogger().getLevel();
         try {
             ClusterSettings settings =
                 new ClusterSettings(Settings.builder().put("logger.level", "ERROR").build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(level, LogManager.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
-            assertEquals(Level.TRACE, ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(Level.TRACE, LogManager.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().build()); // here we fall back to 'logger.level' which is our default.
-            assertEquals(Level.ERROR, ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(Level.ERROR, LogManager.getRootLogger().getLevel());
         } finally {
-            Loggers.setLevel(ESLoggerFactory.getRootLogger(), level);
+            Loggers.setLevel(LogManager.getRootLogger(), level);
         }
     }
 

@@ -81,10 +81,3 @@ sufficient:
 The maximum number of records that are output per bucket. The default value is 
 `500`.
 
-`xpack.ml.max_percent_date_errors`:: (<<cluster-update-settings,Dynamic>>) 
-The maximum percentage of date parsing errors before an exception occurs. The 
-default value is `25`.
-
-`xpack.ml.max_percent_out_of_order_errors`:: (<<cluster-update-settings,Dynamic>>) 
-The maximum percentage of out of order records before an exception occurs. The 
-default value is `25`. 

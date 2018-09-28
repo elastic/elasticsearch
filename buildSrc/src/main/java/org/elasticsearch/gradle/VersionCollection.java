@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.gradle;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -30,7 +29,6 @@ import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static java.util.Collections.emptySortedSet;
 
@@ -70,23 +68,17 @@ public class VersionCollection {
 
     public class UnreleasedVersionDescription {
         private final Version version;
-        private final Integer index;
         private final String branch;
         private final String gradleProjectName;
 
-        public UnreleasedVersionDescription(Integer index, Version version, String branch, String gradleProjectName) {
+        public UnreleasedVersionDescription(Version version, String branch, String gradleProjectName) {
             this.version = version;
-            this.index = index;
             this.branch = branch;
             this.gradleProjectName = gradleProjectName;
         }
 
         public Version getVersion() {
             return version;
-        }
-
-        public Integer getIndex() {
-            return index;
         }
 
         public String getBranch() {
@@ -167,20 +159,16 @@ public class VersionCollection {
     }
 
     public void forPreviousUnreleased(Consumer<UnreleasedVersionDescription> consumer) {
-        List<Version> unreleasedVersionsList = new ArrayList<>(getUnreleased());
-        IntStream.range(0, unreleasedVersionsList.size())
-            .filter(index -> unreleasedVersionsList.get(index).equals(currentVersion) == false)
-            .forEach(index ->
-            consumer.accept(new UnreleasedVersionDescription(
-                index,
-                unreleasedVersionsList.get(index),
-                getBranchFor(unreleasedVersionsList.get(index)),
-                getGradleProjectNameFor(unreleasedVersionsList.get(index))
-            ))
-        );
+        getUnreleased().stream()
+            .filter(version -> version.equals(currentVersion) == false)
+            .forEach(version -> consumer.accept(
+                new UnreleasedVersionDescription(
+                    version,
+                    getBranchFor(version),
+                    getGradleProjectNameFor(version)
+                )
+            ));
     }
-
-
 
     private String getGradleProjectNameFor(Version version) {
         if (version.equals(currentVersion)) {

@@ -67,11 +67,11 @@ public class FollowIndexIT extends ESRestTestCase {
         } else {
             logger.info("Running against follow cluster");
             final String followIndexName = "test_index2";
-            createAndFollowIndex("leader_cluster:" + leaderIndexName, followIndexName);
+            followIndex("leader_cluster:" + leaderIndexName, followIndexName);
             assertBusy(() -> verifyDocuments(followIndexName, numDocs));
             // unfollow and then follow and then index a few docs in leader index:
-            unfollowIndex(followIndexName);
-            followIndex("leader_cluster:" + leaderIndexName, followIndexName);
+            pauseFollow(followIndexName);
+            resumeFollow("leader_cluster:" + leaderIndexName, followIndexName);
             try (RestClient leaderClient = buildLeaderClient()) {
                 int id = numDocs;
                 index(leaderClient, leaderIndexName, Integer.toString(id), "field", id, "filtered_field", "true");
@@ -86,11 +86,11 @@ public class FollowIndexIT extends ESRestTestCase {
     public void testFollowNonExistingLeaderIndex() throws Exception {
         assumeFalse("Test should only run when both clusters are running", runningAgainstLeaderCluster);
         ResponseException e = expectThrows(ResponseException.class,
-            () -> followIndex("leader_cluster:non-existing-index", "non-existing-index"));
+            () -> resumeFollow("leader_cluster:non-existing-index", "non-existing-index"));
         assertThat(e.getMessage(), containsString("no such index"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
-        e = expectThrows(ResponseException.class, () -> createAndFollowIndex("leader_cluster:non-existing-index", "non-existing-index"));
+        e = expectThrows(ResponseException.class, () -> followIndex("leader_cluster:non-existing-index", "non-existing-index"));
         assertThat(e.getMessage(), containsString("no such index"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
@@ -146,20 +146,20 @@ public class FollowIndexIT extends ESRestTestCase {
         assertOK(client().performRequest(new Request("POST", "/" + index + "/_refresh")));
     }
 
+    private static void resumeFollow(String leaderIndex, String followIndex) throws IOException {
+        final Request request = new Request("POST", "/" + followIndex + "/_ccr/resume_follow");
+        request.setJsonEntity("{\"leader_index\": \"" + leaderIndex + "\", \"poll_timeout\": \"10ms\"}");
+        assertOK(client().performRequest(request));
+    }
+
     private static void followIndex(String leaderIndex, String followIndex) throws IOException {
-        final Request request = new Request("POST", "/" + followIndex + "/_ccr/follow");
+        final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow");
         request.setJsonEntity("{\"leader_index\": \"" + leaderIndex + "\", \"poll_timeout\": \"10ms\"}");
         assertOK(client().performRequest(request));
     }
 
-    private static void createAndFollowIndex(String leaderIndex, String followIndex) throws IOException {
-        final Request request = new Request("POST", "/" + followIndex + "/_ccr/create_and_follow");
-        request.setJsonEntity("{\"leader_index\": \"" + leaderIndex + "\", \"poll_timeout\": \"10ms\"}");
-        assertOK(client().performRequest(request));
-    }
-
-    private static void unfollowIndex(String followIndex) throws IOException {
-        assertOK(client().performRequest(new Request("POST", "/" + followIndex + "/_ccr/unfollow")));
+    private static void pauseFollow(String followIndex) throws IOException {
+        assertOK(client().performRequest(new Request("POST", "/" + followIndex + "/_ccr/pause_follow")));
     }
 
     private static void verifyDocuments(String index, int expectedNumDocs) throws IOException {

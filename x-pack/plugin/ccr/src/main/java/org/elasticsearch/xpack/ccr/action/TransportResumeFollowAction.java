@@ -40,7 +40,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
-import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -54,7 +54,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.stream.Collectors;
 
-public class TransportFollowIndexAction extends HandledTransportAction<FollowIndexAction.Request, AcknowledgedResponse> {
+public class TransportResumeFollowAction extends HandledTransportAction<ResumeFollowAction.Request, AcknowledgedResponse> {
 
     static final long DEFAULT_MAX_BATCH_SIZE_IN_BYTES = Long.MAX_VALUE;
     private static final TimeValue DEFAULT_MAX_RETRY_DELAY = new TimeValue(500);
@@ -73,7 +73,7 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
     private final CcrLicenseChecker ccrLicenseChecker;
 
     @Inject
-    public TransportFollowIndexAction(
+    public TransportResumeFollowAction(
             final Settings settings,
             final ThreadPool threadPool,
             final TransportService transportService,
@@ -83,7 +83,7 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
             final PersistentTasksService persistentTasksService,
             final IndicesService indicesService,
             final CcrLicenseChecker ccrLicenseChecker) {
-        super(settings, FollowIndexAction.NAME, transportService, actionFilters, FollowIndexAction.Request::new);
+        super(settings, ResumeFollowAction.NAME, transportService, actionFilters, ResumeFollowAction.Request::new);
         this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -95,7 +95,7 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
 
     @Override
     protected void doExecute(final Task task,
-                             final FollowIndexAction.Request request,
+                             final ResumeFollowAction.Request request,
                              final ActionListener<AcknowledgedResponse> listener) {
         if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
@@ -115,7 +115,7 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
         }
     }
 
-    private void followLocalIndex(final FollowIndexAction.Request request,
+    private void followLocalIndex(final ResumeFollowAction.Request request,
                                   final ActionListener<AcknowledgedResponse> listener) {
         final ClusterState state = clusterService.state();
         final IndexMetaData followerIndexMetadata = state.getMetaData().index(request.getFollowerIndex());
@@ -134,7 +134,7 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
     }
 
     private void followRemoteIndex(
-            final FollowIndexAction.Request request,
+            final ResumeFollowAction.Request request,
             final String clusterAlias,
             final String leaderIndex,
             final ActionListener<AcknowledgedResponse> listener) {
@@ -165,7 +165,7 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
      * </ul>
      */
     void start(
-            FollowIndexAction.Request request,
+            ResumeFollowAction.Request request,
             String clusterNameAlias,
             IndexMetaData leaderIndexMetadata,
             IndexMetaData followIndexMetadata,
@@ -233,7 +233,7 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
     }
 
     static void validate(
-            final FollowIndexAction.Request request,
+            final ResumeFollowAction.Request request,
             final IndexMetaData leaderIndex,
             final IndexMetaData followIndex,
             final String[] leaderIndexHistoryUUID,
@@ -300,7 +300,7 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
     private static ShardFollowTask createShardFollowTask(
         int shardId,
         String clusterAliasName,
-        FollowIndexAction.Request request,
+        ResumeFollowAction.Request request,
         IndexMetaData leaderIndexMetadata,
         IndexMetaData followIndexMetadata,
         String recordedLeaderShardHistoryUUID,

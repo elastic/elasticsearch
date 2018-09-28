@@ -17,7 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.ShardChangesIT;
-import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -25,17 +25,17 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.xpack.ccr.action.TransportFollowIndexAction.validate;
+import static org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction.validate;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TransportFollowIndexActionTests extends ESTestCase {
+public class TransportResumeFollowActionTests extends ESTestCase {
 
     public void testValidation() throws IOException {
         final Map<String, String> customMetaData = new HashMap<>();
         customMetaData.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, "uuid");
         customMetaData.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, "_na_");
 
-        FollowIndexAction.Request request = ShardChangesIT.createFollowRequest("index1", "index2");
+        ResumeFollowAction.Request request = ShardChangesIT.createFollowRequest("index1", "index2");
         String[] UUIDs = new String[]{"uuid"};
         {
             // should fail, because leader index does not exist

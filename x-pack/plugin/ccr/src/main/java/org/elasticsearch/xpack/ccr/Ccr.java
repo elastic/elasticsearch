@@ -52,26 +52,26 @@ import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTasksExecutor;
 import org.elasticsearch.xpack.ccr.action.TransportCcrStatsAction;
-import org.elasticsearch.xpack.ccr.action.TransportCreateAndFollowIndexAction;
+import org.elasticsearch.xpack.ccr.action.TransportPutFollowAction;
 import org.elasticsearch.xpack.ccr.action.TransportDeleteAutoFollowPatternAction;
-import org.elasticsearch.xpack.ccr.action.TransportFollowIndexAction;
+import org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction;
 import org.elasticsearch.xpack.ccr.action.TransportPutAutoFollowPatternAction;
-import org.elasticsearch.xpack.ccr.action.TransportUnfollowIndexAction;
+import org.elasticsearch.xpack.ccr.action.TransportPauseFollowAction;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.TransportBulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
 import org.elasticsearch.xpack.ccr.rest.RestCcrStatsAction;
-import org.elasticsearch.xpack.ccr.rest.RestCreateAndFollowIndexAction;
+import org.elasticsearch.xpack.ccr.rest.RestPutFollowAction;
 import org.elasticsearch.xpack.ccr.rest.RestDeleteAutoFollowPatternAction;
-import org.elasticsearch.xpack.ccr.rest.RestFollowIndexAction;
+import org.elasticsearch.xpack.ccr.rest.RestResumeFollowAction;
 import org.elasticsearch.xpack.ccr.rest.RestPutAutoFollowPatternAction;
-import org.elasticsearch.xpack.ccr.rest.RestUnfollowIndexAction;
+import org.elasticsearch.xpack.ccr.rest.RestPauseFollowAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
-import org.elasticsearch.xpack.core.ccr.action.CreateAndFollowIndexAction;
-import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
-import org.elasticsearch.xpack.core.ccr.action.UnfollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -161,9 +161,9 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                 new ActionHandler<>(CcrStatsAction.INSTANCE, TransportCcrStatsAction.class),
                 new ActionHandler<>(AutoFollowStatsAction.INSTANCE, TransportAutoFollowStatsAction.class),
                 // follow actions
-                new ActionHandler<>(CreateAndFollowIndexAction.INSTANCE, TransportCreateAndFollowIndexAction.class),
-                new ActionHandler<>(FollowIndexAction.INSTANCE, TransportFollowIndexAction.class),
-                new ActionHandler<>(UnfollowIndexAction.INSTANCE, TransportUnfollowIndexAction.class),
+                new ActionHandler<>(PutFollowAction.INSTANCE, TransportPutFollowAction.class),
+                new ActionHandler<>(ResumeFollowAction.INSTANCE, TransportResumeFollowAction.class),
+                new ActionHandler<>(PauseFollowAction.INSTANCE, TransportPauseFollowAction.class),
                 // auto-follow actions
                 new ActionHandler<>(DeleteAutoFollowPatternAction.INSTANCE, TransportDeleteAutoFollowPatternAction.class),
                 new ActionHandler<>(PutAutoFollowPatternAction.INSTANCE, TransportPutAutoFollowPatternAction.class),
@@ -183,9 +183,9 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                 new RestCcrStatsAction(settings, restController),
                 new RestAutoFollowStatsAction(settings, restController),
                 // follow APIs
-                new RestCreateAndFollowIndexAction(settings, restController),
-                new RestFollowIndexAction(settings, restController),
-                new RestUnfollowIndexAction(settings, restController),
+                new RestPutFollowAction(settings, restController),
+                new RestResumeFollowAction(settings, restController),
+                new RestPauseFollowAction(settings, restController),
                 // auto-follow APIs
                 new RestDeleteAutoFollowPatternAction(settings, restController),
                 new RestPutAutoFollowPatternAction(settings, restController),

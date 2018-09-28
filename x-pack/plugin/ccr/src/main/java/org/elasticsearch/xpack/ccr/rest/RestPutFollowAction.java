@@ -14,25 +14,24 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.core.ccr.action.UnfollowIndexAction.INSTANCE;
-import static org.elasticsearch.xpack.core.ccr.action.UnfollowIndexAction.Request;
+import static org.elasticsearch.xpack.core.ccr.action.PutFollowAction.INSTANCE;
+import static org.elasticsearch.xpack.core.ccr.action.PutFollowAction.Request;
 
-public class RestUnfollowIndexAction extends BaseRestHandler {
+public class RestPutFollowAction extends BaseRestHandler {
 
-    public RestUnfollowIndexAction(Settings settings, RestController controller) {
+    public RestPutFollowAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST, "/{index}/_ccr/unfollow", this);
+        controller.registerHandler(RestRequest.Method.PUT, "/{index}/_ccr/follow", this);
     }
 
     @Override
     public String getName() {
-        return "ccr_unfollow_index_action";
+        return "ccr_put_follow_action";
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        Request request = new Request();
-        request.setFollowIndex(restRequest.param("index"));
+        Request request = new Request(RestResumeFollowAction.createRequest(restRequest));
         return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

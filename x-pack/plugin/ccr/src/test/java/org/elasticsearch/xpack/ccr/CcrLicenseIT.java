@@ -23,8 +23,8 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
-import org.elasticsearch.xpack.core.ccr.action.CreateAndFollowIndexAction;
-import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
@@ -44,10 +44,10 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
     }
 
     public void testThatFollowingIndexIsUnavailableWithNonCompliantLicense() throws InterruptedException {
-        final FollowIndexAction.Request followRequest = getFollowRequest();
+        final ResumeFollowAction.Request followRequest = getFollowRequest();
         final CountDownLatch latch = new CountDownLatch(1);
         client().execute(
-                FollowIndexAction.INSTANCE,
+                ResumeFollowAction.INSTANCE,
                 followRequest,
                 new ActionListener<AcknowledgedResponse>() {
                     @Override
@@ -66,15 +66,15 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
     }
 
     public void testThatCreateAndFollowingIndexIsUnavailableWithNonCompliantLicense() throws InterruptedException {
-        final FollowIndexAction.Request followRequest = getFollowRequest();
-        final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
+        final ResumeFollowAction.Request followRequest = getFollowRequest();
+        final PutFollowAction.Request createAndFollowRequest = new PutFollowAction.Request(followRequest);
         final CountDownLatch latch = new CountDownLatch(1);
         client().execute(
-                CreateAndFollowIndexAction.INSTANCE,
+                PutFollowAction.INSTANCE,
                 createAndFollowRequest,
-                new ActionListener<CreateAndFollowIndexAction.Response>() {
+                new ActionListener<PutFollowAction.Response>() {
                     @Override
-                    public void onResponse(final CreateAndFollowIndexAction.Response response) {
+                    public void onResponse(final PutFollowAction.Response response) {
                         latch.countDown();
                         fail();
                     }
@@ -191,8 +191,8 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), equalTo("current license is non-compliant for [ccr]"));
     }
 
-    private FollowIndexAction.Request getFollowRequest() {
-        FollowIndexAction.Request request = new FollowIndexAction.Request();
+    private ResumeFollowAction.Request getFollowRequest() {
+        ResumeFollowAction.Request request = new ResumeFollowAction.Request();
         request.setLeaderIndex("leader");
         request.setFollowerIndex("follower");
         request.setMaxRetryDelay(TimeValue.timeValueMillis(10));

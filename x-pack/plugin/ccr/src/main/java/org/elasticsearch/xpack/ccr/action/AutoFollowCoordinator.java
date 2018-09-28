@@ -34,8 +34,8 @@ import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
-import org.elasticsearch.xpack.core.ccr.action.CreateAndFollowIndexAction;
-import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -184,13 +184,13 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
 
             @Override
             void createAndFollow(Map<String, String> headers,
-                                 FollowIndexAction.Request followRequest,
+                                 ResumeFollowAction.Request followRequest,
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
                 Client followerClient = CcrLicenseChecker.wrapClient(client, headers);
-                CreateAndFollowIndexAction.Request request = new CreateAndFollowIndexAction.Request(followRequest);
+                PutFollowAction.Request request = new PutFollowAction.Request(followRequest);
                 followerClient.execute(
-                    CreateAndFollowIndexAction.INSTANCE,
+                    PutFollowAction.INSTANCE,
                     request,
                     ActionListener.wrap(r -> successHandler.run(), failureHandler)
                 );
@@ -306,7 +306,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
 
             String leaderIndexNameWithClusterAliasPrefix = clusterAlias.equals("_local_") ? leaderIndexName :
                 clusterAlias + ":" + leaderIndexName;
-            FollowIndexAction.Request request = new FollowIndexAction.Request();
+            ResumeFollowAction.Request request = new ResumeFollowAction.Request();
             request.setLeaderIndex(leaderIndexNameWithClusterAliasPrefix);
             request.setFollowerIndex(followIndexName);
             request.setMaxBatchOperationCount(pattern.getMaxBatchOperationCount());
@@ -409,7 +409,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
 
         abstract void createAndFollow(
             Map<String, String> headers,
-            FollowIndexAction.Request followRequest,
+            ResumeFollowAction.Request followRequest,
             Runnable successHandler,
             Consumer<Exception> failureHandler
         );

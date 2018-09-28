@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
 
@@ -17,21 +17,21 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class FollowIndexRequestTests extends AbstractStreamableXContentTestCase<FollowIndexAction.Request> {
+public class FollowIndexRequestTests extends AbstractStreamableXContentTestCase<ResumeFollowAction.Request> {
 
     @Override
-    protected FollowIndexAction.Request createBlankInstance() {
-        return new FollowIndexAction.Request();
+    protected ResumeFollowAction.Request createBlankInstance() {
+        return new ResumeFollowAction.Request();
     }
 
     @Override
-    protected FollowIndexAction.Request createTestInstance() {
+    protected ResumeFollowAction.Request createTestInstance() {
         return createTestRequest();
     }
 
     @Override
-    protected FollowIndexAction.Request doParseInstance(XContentParser parser) throws IOException {
-        return FollowIndexAction.Request.fromXContent(parser, null);
+    protected ResumeFollowAction.Request doParseInstance(XContentParser parser) throws IOException {
+        return ResumeFollowAction.Request.fromXContent(parser, null);
     }
 
     @Override
@@ -39,8 +39,8 @@ public class FollowIndexRequestTests extends AbstractStreamableXContentTestCase<
         return false;
     }
 
-    static FollowIndexAction.Request createTestRequest() {
-        FollowIndexAction.Request request = new FollowIndexAction.Request();
+    static ResumeFollowAction.Request createTestRequest() {
+        ResumeFollowAction.Request request = new ResumeFollowAction.Request();
         request.setLeaderIndex(randomAlphaOfLength(4));
         request.setFollowerIndex(randomAlphaOfLength(4));
         if (randomBoolean()) {
@@ -68,7 +68,7 @@ public class FollowIndexRequestTests extends AbstractStreamableXContentTestCase<
     }
 
     public void testValidate() {
-        FollowIndexAction.Request request = new FollowIndexAction.Request();
+        ResumeFollowAction.Request request = new ResumeFollowAction.Request();
         request.setLeaderIndex("index1");
         request.setFollowerIndex("index2");
         request.setMaxRetryDelay(TimeValue.ZERO);

@@ -66,22 +66,20 @@ public final class FollowingEngine extends InternalEngine {
          *
          * 3. When replicating operations to replicas or followers, we also carry the max seq_no_of_updates_or_deletes on the
          *    leader to followers. This transfer guarantees the MUS on a follower when operation O is processed at least the
-         *    MUS on the leader when it was executed [MSU_r(O) >= MSU_p(O)].
+         *    MUS on the leader when it was executed [every operation O => MSU_r(O) >= MSU_p(O)].
          *
          * 4. The following proves that docID(O) does not exist on a follower when operation O is applied if MSU_r(O) <= LCP < seqno(O):
          *
-         *    4.1) If such operation O' with docID(O’) = docID(O), and LCP < seqno(O) < seqno(O’), then MSU_r(O) >= MSU_r(O') because
-         *         O' was delivered to the follower before O. MUS_p(O') is at least seqno(O) because O' on the primary captured
-         *         that O was updated (either by O' or by O" with seqno(O) < seqno(O") < seqno(O')).
-         *         Thus MUS_r(O) >= MSU_r(O') >= MSU_p(O') >= seqno(O) > LCP which contradicts the assumption [MSU_r(O) <= LCP].
+         *    4.1) Given two operations O and O' with docID(O’) = docID(O) and seqno(O) < seqno(O’) then MSU_p(O') on the primary
+         *         must be at least seqno(O). Moreover, the MSU_r on a follower >= min(seqno(O), seqno(O')) after these operations
+          *        arrive in any order.
          *
-         *    4.2) If such operation O' with docID(O') = docID(O), and LCP < seqno(O') < seqno(O), then MSU_p(O) is at least seqno(O')
-         *         because O on the primary captured that O' was updated (either by O' or by O" with seqno(O') < seqno(O") < seqno(O)).
-         *         Thus MUS_r(O) >= MSU_p(O) >= seqno(O') > LCP which contradicts the assumption [MSU_r(O) <= LCP].
+         *    4.2) If such operation O' with docID(O’) = docID(O) and LCP < seqno(O’) then MSU_r(O) >= min(seqno(O), seqno(O')) > LCP
+         *         because both arrived on the follower[4.1]. This contradicts the assumption [MSU_r(O) <= LCP].
          *
          *    4.3) MSU(O) < seqno(O) then docID(O) does not exist when O is applied on a leader. This means docID(O) does not exist
          *         after we apply every operation with docID = docID(O) and seqno < seqno(O). On the follower, we have applied every
-         *         operation with seqno <= LCP, and there is no such O' with docID(O’) = docID(O) and LCP < seqno(O’)[4.1 and 4.2].
+         *         operation with seqno <= LCP, and there is no such O' with docID(O’) = docID(O) and LCP < seqno(O’)[4.2].
          *         These mean the follower has applied every operation with docID = docID(O) and seqno < seqno(O).
          *         Thus docID(O) does not exist on the follower.
          */

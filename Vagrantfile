@@ -65,7 +65,7 @@ Vagrant.configure(2) do |config|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/ubuntu-18.04-x86_64'
       deb_common config, box, extra: <<-SHELL
-        # Install Jayatana so we can work around it being present.
+       # Install Jayatana so we can work around it being present.
        [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
       SHELL
     end

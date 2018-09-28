@@ -31,7 +31,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
     private final PolicyStepsRegistry policyStepsRegistry;
     private final IndexLifecycleRunner lifecycleRunner;
     private LongSupplier nowSupplier;
-    private Step.StepKey nextStepKey;
+    private Step.StepKey nextStepKey = null;
 
     public ExecuteStepsUpdateTask(String policy, Index index, Step startStep, PolicyStepsRegistry policyStepsRegistry,
                                   IndexLifecycleRunner lifecycleRunner, LongSupplier nowSupplier) {

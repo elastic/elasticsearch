@@ -90,6 +90,23 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
         assertThat(result.stdout, containsString("DisplayName : " + displayName));
     }
 
+    // runs the service command, dumping all log files on failure
+    private void assertCommand(String command) {
+        Result result = sh.runIgnoreExitCode(serviceScript + " " + command);
+        if (result.exitCode != 0) {
+            logger.error("---- Failed to run service command " + command);
+            logger.error(result);
+            logger.error("Dumping log files\n");
+            Result logs = sh.run("$files = Get-ChildItem \"" + installation.logs + "\\*.log\"; " +
+                "Write-Output $files; " +
+                "foreach ($file in $files) {" +
+                    "Write-Output \"$file\"; " +
+                    "Get-Content \"$file\" " +
+                "}");
+            logger.error(logs.stdout);
+        }
+    }
+
     public void test10InstallArchive() {
         installation = installArchive(distribution());
         verifyArchiveInstallation(installation, distribution());
@@ -145,7 +162,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
 
     public void test30StartStop() throws IOException {
         sh.run(serviceScript + " install");
-        sh.run(serviceScript + " start");
+        assertCommand("start");
         ServerUtils.waitForElasticsearch();
         ServerUtils.runElasticsearchTests();
         sh.run(serviceScript + " stop");
@@ -185,7 +202,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
         Files.write(fakeServiceMgr, Arrays.asList("echo \"Fake Service Manager GUI\""));
         Shell sh = new Shell();
         Result result =  sh.run(serviceScript + " manager");
-        TestCase.assertTrue(result.stdout, result.stdout.contains("Fake Service Manager GUI"));
+        assertThat(result.stdout, containsString("Fake Service Manager GUI"));
 
         // check failure too
         Files.write(fakeServiceMgr, Arrays.asList("echo \"Fake Service Manager GUI Failure\"", "exit 1"));

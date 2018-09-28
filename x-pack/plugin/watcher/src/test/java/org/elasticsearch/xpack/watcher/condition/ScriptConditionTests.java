@@ -102,7 +102,8 @@ public class ScriptConditionTests extends ESTestCase {
     }
 
     public void testExecuteMergedParams() throws Exception {
-        Script script = new Script(ScriptType.INLINE, "mockscript", "ctx.payload.hits.total > params.threshold", singletonMap("threshold", 1));
+        Script script = new Script(ScriptType.INLINE, "mockscript",
+            "ctx.payload.hits.total > params.threshold", singletonMap("threshold", 1));
         ScriptCondition executable = new ScriptCondition(script, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);

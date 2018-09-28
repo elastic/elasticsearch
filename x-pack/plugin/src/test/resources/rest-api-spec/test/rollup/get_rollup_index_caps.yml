@@ -291,6 +291,10 @@ setup:
 ---
 "Verify job caps by rollup index comma delimited list":
 
+- skip:
+    version: " - 6.99.99"
+    reason: "comma delimited index support was fixed in 7.0"
+
 - do:
     headers:
       Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser

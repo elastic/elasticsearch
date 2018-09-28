@@ -29,7 +29,7 @@ public class RestGetRollupIndexCapsAction extends BaseRestHandler {
         String index = restRequest.param(INDEX.getPreferredName());
         IndicesOptions options = IndicesOptions.fromRequest(restRequest, IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED);
         GetRollupIndexCapsAction.Request request =
-            new GetRollupIndexCapsAction.Request(Strings.commaDelimitedListToStringArray(index), options);
+            new GetRollupIndexCapsAction.Request(Strings.splitStringByCommaToArray(index), options);
         return channel -> client.execute(GetRollupIndexCapsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

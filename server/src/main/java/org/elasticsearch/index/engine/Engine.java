@@ -1858,8 +1858,9 @@ public abstract class Engine implements Closeable {
      * 2. Also MSU(O) <= MSU <= LCP < seqno(O) (we discard O if seqno(O) ≤ LCP) so the second invariant applies,
      * meaning that the O' was a delete.
      * <p>
-     * Moreover, operations that are optimized using the MSU optimization will not be processed twice as this will create duplicates
-     * in Lucene. To avoid it we check the local checkpoint tracker to see if an operation was already processed.
+     * Therefore, if MSU <= LCP < seqno(O) we know that O can safely be optimized with and added to lucene with addDocument. Moreover,
+     * operations that are optimized using the MSU optimization must not be processed twice as this will create duplicates in Lucene.
+     * To avoid this we check the local checkpoint tracker to see if an operation was already processed.
      *
      * @see #initializeMaxSeqNoOfUpdatesOrDeletes()
      * @see #advanceMaxSeqNoOfUpdatesOrDeletes(long)

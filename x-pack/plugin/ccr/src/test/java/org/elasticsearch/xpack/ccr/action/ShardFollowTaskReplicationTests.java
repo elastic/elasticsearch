@@ -206,7 +206,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             assertBusy(() -> {
                 assertThat(shardFollowTask.isStopped(), is(true));
                 assertThat(shardFollowTask.getFailure().getMessage(), equalTo("unexpected history uuid, expected [" + oldHistoryUUID +
-                    "], actual [" + newHistoryUUID + "]"));
+                    "], actual [" + newHistoryUUID + "], shard is likely restored from snapshot or force allocated"));
             });
         }
     }

@@ -116,7 +116,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
             // User does have create_follow_index index privilege on 'allowed' index,
             // but not read / monitor roles on 'disallowed' index:
             e = expectThrows(ResponseException.class,
-                () -> createAndFollowIndex("leader_cluster:" + unallowedIndex, allowedIndex));
+                () -> follow("leader_cluster:" + unallowedIndex, allowedIndex));
             assertThat(e.getMessage(), containsString("insufficient privileges to follow index [unallowed-index], " +
                 "privilege for action [indices:monitor/stats] is missing, " +
                 "privilege for action [indices:data/read/xpack/ccr/shard_changes] is missing"));

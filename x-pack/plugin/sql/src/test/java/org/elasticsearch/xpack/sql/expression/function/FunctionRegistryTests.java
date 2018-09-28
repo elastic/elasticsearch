@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.TimeZone;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.sql.expression.function.FunctionRegistry.buildSetOfFunctions;
 import static org.elasticsearch.xpack.sql.expression.function.FunctionRegistry.def;
 import static org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction.ResolutionType.DISTINCT;
 import static org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction.ResolutionType.EXTRACT;
@@ -32,7 +31,7 @@ import static org.mockito.Mockito.mock;
 public class FunctionRegistryTests extends ESTestCase {
     public void testNoArgFunction() {
         UnresolvedFunction ur = uf(STANDARD);
-        FunctionRegistry r = new FunctionRegistry(Arrays.asList(buildSetOfFunctions(def(Dummy.class, Dummy::new))));
+        FunctionRegistry r = new FunctionRegistry(def(Dummy.class, Dummy::new));
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
 
@@ -49,10 +48,10 @@ public class FunctionRegistryTests extends ESTestCase {
 
     public void testUnaryFunction() {
         UnresolvedFunction ur = uf(STANDARD, mock(Expression.class));
-        FunctionRegistry r = new FunctionRegistry(Arrays.asList(buildSetOfFunctions(def(Dummy.class, (Location l, Expression e) -> {
+        FunctionRegistry r = new FunctionRegistry(def(Dummy.class, (Location l, Expression e) -> {
             assertSame(e, ur.children().get(0));
             return new Dummy(l);
-        }))));
+        }));
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertFalse(def.datetime());
         assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
@@ -76,12 +75,11 @@ public class FunctionRegistryTests extends ESTestCase {
     public void testUnaryDistinctAwareFunction() {
         boolean urIsDistinct = randomBoolean();
         UnresolvedFunction ur = uf(urIsDistinct ? DISTINCT : STANDARD, mock(Expression.class));
-        FunctionRegistry r = new FunctionRegistry(Arrays.asList(
-                buildSetOfFunctions(def(Dummy.class, (Location l, Expression e, boolean distinct) -> {
+        FunctionRegistry r = new FunctionRegistry(def(Dummy.class, (Location l, Expression e, boolean distinct) -> {
                     assertEquals(urIsDistinct, distinct);
                     assertSame(e, ur.children().get(0));
                     return new Dummy(l);
-        }))));
+        }));
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
         assertFalse(def.datetime());
@@ -101,12 +99,11 @@ public class FunctionRegistryTests extends ESTestCase {
         boolean urIsExtract = randomBoolean();
         UnresolvedFunction ur = uf(urIsExtract ? EXTRACT : STANDARD, mock(Expression.class));
         TimeZone providedTimeZone = randomTimeZone();
-        FunctionRegistry r = new FunctionRegistry(Arrays.asList(
-                buildSetOfFunctions(def(Dummy.class, (Location l, Expression e, TimeZone tz) -> {
+        FunctionRegistry r = new FunctionRegistry(def(Dummy.class, (Location l, Expression e, TimeZone tz) -> {
                     assertEquals(providedTimeZone, tz);
                     assertSame(e, ur.children().get(0));
                     return new Dummy(l);
-        }))));
+        }));
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertEquals(ur.location(), ur.buildResolved(providedTimeZone, def).location());
         assertTrue(def.datetime());
@@ -129,12 +126,11 @@ public class FunctionRegistryTests extends ESTestCase {
 
     public void testBinaryFunction() {
         UnresolvedFunction ur = uf(STANDARD, mock(Expression.class), mock(Expression.class));
-        FunctionRegistry r = new FunctionRegistry(Arrays.asList(
-                buildSetOfFunctions(def(Dummy.class, (Location l, Expression lhs, Expression rhs) -> {
+        FunctionRegistry r = new FunctionRegistry(def(Dummy.class, (Location l, Expression lhs, Expression rhs) -> {
                     assertSame(lhs, ur.children().get(0));
                     assertSame(rhs, ur.children().get(1));
                     return new Dummy(l);
-        }))));
+        }));
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
         assertFalse(def.datetime());

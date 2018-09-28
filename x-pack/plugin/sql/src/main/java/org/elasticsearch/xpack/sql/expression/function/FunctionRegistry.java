@@ -94,11 +94,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TimeZone;
-import java.util.TreeSet;
 import java.util.function.BiFunction;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
@@ -106,132 +104,130 @@ import static java.util.stream.Collectors.toList;
 
 public class FunctionRegistry {
     // list of functions grouped by type of functions (aggregate, statistics, math etc) and ordered alphabetically inside each group
-    private static final List<TreeSet<FunctionDefinition>> DEFAULT_FUNCTIONS = unmodifiableList(Arrays.asList(
-            // Aggregate functions
-            buildSetOfFunctions(
-                    def(Avg.class, Avg::new),
-                    def(Count.class, Count::new),
-                    def(Max.class, Max::new),
-                    def(Min.class, Min::new),
-                    def(Sum.class, Sum::new)),
-            // Statistics
-            buildSetOfFunctions(
-                    def(StddevPop.class, StddevPop::new),
-                    def(VarPop.class, VarPop::new),
-                    def(Percentile.class, Percentile::new),
-                    def(PercentileRank.class, PercentileRank::new),
-                    def(SumOfSquares.class, SumOfSquares::new),
-                    def(Skewness.class, Skewness::new),
-                    def(Kurtosis.class, Kurtosis::new)),
-            // Scalar functions
-            // Date
-            buildSetOfFunctions(
-                    def(DayName.class, DayName::new, "DAYNAME"),
-                    def(DayOfMonth.class, DayOfMonth::new, "DAYOFMONTH", "DAY", "DOM"),
-                    def(DayOfWeek.class, DayOfWeek::new, "DAYOFWEEK", "DOW"),
-                    def(DayOfYear.class, DayOfYear::new, "DAYOFYEAR", "DOY"),
-                    def(HourOfDay.class, HourOfDay::new, "HOUR"),
-                    def(MinuteOfDay.class, MinuteOfDay::new),
-                    def(MinuteOfHour.class, MinuteOfHour::new, "MINUTE"),
-                    def(MonthName.class, MonthName::new, "MONTHNAME"),
-                    def(MonthOfYear.class, MonthOfYear::new, "MONTH"),
-                    def(SecondOfMinute.class, SecondOfMinute::new, "SECOND"),
-                    def(Quarter.class, Quarter::new),
-                    def(Year.class, Year::new),
-                    def(WeekOfYear.class, WeekOfYear::new, "WEEK")),
-            // Math
-            buildSetOfFunctions(
-                    def(Abs.class, Abs::new),
-                    def(ACos.class, ACos::new),
-                    def(ASin.class, ASin::new),
-                    def(ATan.class, ATan::new),
-                    def(ATan2.class, ATan2::new),
-                    def(Cbrt.class, Cbrt::new),
-                    def(Ceil.class, Ceil::new, "CEILING"),
-                    def(Cos.class, Cos::new),
-                    def(Cosh.class, Cosh::new),
-                    def(Cot.class, Cot::new),
-                    def(Degrees.class, Degrees::new),
-                    def(E.class, E::new),
-                    def(Exp.class, Exp::new),
-                    def(Expm1.class, Expm1::new),
-                    def(Floor.class, Floor::new),
-                    def(Log.class, Log::new),
-                    def(Log10.class, Log10::new),
-                    // SQL and ODBC require MOD as a _function_
-                    def(Mod.class, Mod::new),
-                    def(Pi.class, Pi::new),
-                    def(Power.class, Power::new),
-                    def(Radians.class, Radians::new),
-                    def(Random.class, Random::new, "RAND"),
-                    def(Round.class, Round::new),
-                    def(Sign.class, Sign::new, "SIGNUM"),
-                    def(Sin.class, Sin::new),
-                    def(Sinh.class, Sinh::new),
-                    def(Sqrt.class, Sqrt::new),
-                    def(Tan.class, Tan::new),
-                    def(Truncate.class, Truncate::new)),
-            // String
-            buildSetOfFunctions(
-                    def(Ascii.class, Ascii::new),
-                    def(BitLength.class, BitLength::new),
-                    def(Char.class, Char::new),
-                    def(CharLength.class, CharLength::new, "CHARACTER_LENGTH"),
-                    def(Concat.class, Concat::new),
-                    def(Insert.class, Insert::new),
-                    def(LCase.class, LCase::new),
-                    def(Left.class, Left::new),
-                    def(Length.class, Length::new),
-                    def(Locate.class, Locate::new),
-                    def(LTrim.class, LTrim::new),
-                    def(OctetLength.class, OctetLength::new),
-                    def(Position.class, Position::new),
-                    def(Repeat.class, Repeat::new),
-                    def(Replace.class, Replace::new),
-                    def(Right.class, Right::new),
-                    def(RTrim.class, RTrim::new),
-                    def(Space.class, Space::new),
-                    def(Substring.class, Substring::new),
-                    def(UCase.class, UCase::new)),
-            // Special
-            buildSetOfFunctions(def(Score.class, Score::new))));
-
+    // a single function will have one entry for itself with its name associated to its instance and, also, one entry for each alias
+    // it has with the alias name associated to the FunctionDefinition instance
     private final Map<String, FunctionDefinition> defs = new LinkedHashMap<>();
-    private final Map<String, String> aliases;
+    private final Map<String, String> aliases = new HashMap<>();
 
     /**
      * Constructor to build with the default list of functions.
      */
     public FunctionRegistry() {
-        this(DEFAULT_FUNCTIONS);
+        defineDefaultFunctions();
     }
-
+    
     /**
      * Constructor specifying alternate functions for testing.
      */
-    FunctionRegistry(List<TreeSet<FunctionDefinition>> functions) {
-        this.aliases = new HashMap<>();
-        for (TreeSet<FunctionDefinition> batchSet : functions) {
-            Map<String, FunctionDefinition> batchMap = new HashMap<>();
-            
-            // build a temporary map of [function_name/alias_name : function instance] entries
-            for (FunctionDefinition f : batchSet) {
-                batchMap.put(f.name(), f);
-                for (String alias : f.aliases()) {
-                    Object old = aliases.put(alias, f.name());
-                    if (old != null) {
-                        throw new IllegalArgumentException("alias [" + alias + "] is used by [" + old + "] and [" + f.name() + "]");
-                    }
-                    batchMap.put(alias, f);
+    FunctionRegistry(FunctionDefinition... functions) {
+        addToMap(functions);
+    }
+    
+    private void defineDefaultFunctions() {
+        // Aggregate functions
+        addToMap(def(Avg.class, Avg::new),
+                def(Count.class, Count::new),
+                def(Max.class, Max::new),
+                def(Min.class, Min::new),
+                def(Sum.class, Sum::new));
+        // Statistics
+        addToMap(def(StddevPop.class, StddevPop::new),
+                def(VarPop.class, VarPop::new),
+                def(Percentile.class, Percentile::new),
+                def(PercentileRank.class, PercentileRank::new),
+                def(SumOfSquares.class, SumOfSquares::new),
+                def(Skewness.class, Skewness::new),
+                def(Kurtosis.class, Kurtosis::new));
+        // Scalar functions
+        // Date
+        addToMap(def(DayName.class, DayName::new, "DAYNAME"),
+                def(DayOfMonth.class, DayOfMonth::new, "DAYOFMONTH", "DAY", "DOM"),
+                def(DayOfWeek.class, DayOfWeek::new, "DAYOFWEEK", "DOW"),
+                def(DayOfYear.class, DayOfYear::new, "DAYOFYEAR", "DOY"),
+                def(HourOfDay.class, HourOfDay::new, "HOUR"),
+                def(MinuteOfDay.class, MinuteOfDay::new),
+                def(MinuteOfHour.class, MinuteOfHour::new, "MINUTE"),
+                def(MonthName.class, MonthName::new, "MONTHNAME"),
+                def(MonthOfYear.class, MonthOfYear::new, "MONTH"),
+                def(SecondOfMinute.class, SecondOfMinute::new, "SECOND"),
+                def(Quarter.class, Quarter::new),
+                def(Year.class, Year::new),
+                def(WeekOfYear.class, WeekOfYear::new, "WEEK"));
+        // Math
+        addToMap(def(Abs.class, Abs::new),
+                def(ACos.class, ACos::new),
+                def(ASin.class, ASin::new),
+                def(ATan.class, ATan::new),
+                def(ATan2.class, ATan2::new),
+                def(Cbrt.class, Cbrt::new),
+                def(Ceil.class, Ceil::new, "CEILING"),
+                def(Cos.class, Cos::new),
+                def(Cosh.class, Cosh::new),
+                def(Cot.class, Cot::new),
+                def(Degrees.class, Degrees::new),
+                def(E.class, E::new),
+                def(Exp.class, Exp::new),
+                def(Expm1.class, Expm1::new),
+                def(Floor.class, Floor::new),
+                def(Log.class, Log::new),
+                def(Log10.class, Log10::new),
+                // SQL and ODBC require MOD as a _function_
+                def(Mod.class, Mod::new),
+                def(Pi.class, Pi::new),
+                def(Power.class, Power::new),
+                def(Radians.class, Radians::new),
+                def(Random.class, Random::new, "RAND"),
+                def(Round.class, Round::new),
+                def(Sign.class, Sign::new, "SIGNUM"),
+                def(Sin.class, Sin::new),
+                def(Sinh.class, Sinh::new),
+                def(Sqrt.class, Sqrt::new),
+                def(Tan.class, Tan::new),
+                def(Truncate.class, Truncate::new));
+        // String
+        addToMap(def(Ascii.class, Ascii::new),
+                def(BitLength.class, BitLength::new),
+                def(Char.class, Char::new),
+                def(CharLength.class, CharLength::new, "CHARACTER_LENGTH"),
+                def(Concat.class, Concat::new),
+                def(Insert.class, Insert::new),
+                def(LCase.class, LCase::new),
+                def(Left.class, Left::new),
+                def(Length.class, Length::new),
+                def(Locate.class, Locate::new),
+                def(LTrim.class, LTrim::new),
+                def(OctetLength.class, OctetLength::new),
+                def(Position.class, Position::new),
+                def(Repeat.class, Repeat::new),
+                def(Replace.class, Replace::new),
+                def(Right.class, Right::new),
+                def(RTrim.class, RTrim::new),
+                def(Space.class, Space::new),
+                def(Substring.class, Substring::new),
+                def(UCase.class, UCase::new));
+        // Special
+        addToMap(def(Score.class, Score::new));
+    }
+    
+    private void addToMap(FunctionDefinition...functions) {
+        // temporary map to hold [function_name/alias_name : function instance]
+        Map<String, FunctionDefinition> batchMap = new HashMap<>();
+        for (FunctionDefinition f : functions) {
+            batchMap.put(f.name(), f);
+            for (String alias : f.aliases()) {
+                Object old = aliases.put(alias, f.name());
+                if (old != null) {
+                    throw new IllegalArgumentException("alias [" + alias + "] is used by [" + old + "] and [" + f.name() + "]");
                 }
+                batchMap.put(alias, f);
             }
-            // sort the temporary map by key name and add it to the global map of functions
-            defs.putAll(batchMap.entrySet().stream()
-                    .sorted(Map.Entry.comparingByKey())
-                    .collect(Collectors.<Entry<String, FunctionDefinition>, String, 
-                            FunctionDefinition, LinkedHashMap<String, FunctionDefinition>> toMap(Map.Entry::getKey, Map.Entry::getValue,
-                    (oldValue, newValue) -> oldValue, LinkedHashMap::new)));
         }
+        // sort the temporary map by key name and add it to the global map of functions
+        defs.putAll(batchMap.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .collect(Collectors.<Entry<String, FunctionDefinition>, String, 
+                        FunctionDefinition, LinkedHashMap<String, FunctionDefinition>> toMap(Map.Entry::getKey, Map.Entry::getValue,
+                (oldValue, newValue) -> oldValue, LinkedHashMap::new)));
     }
 
     public FunctionDefinition resolveFunction(String name) {
@@ -435,9 +431,5 @@ public class FunctionRegistry {
     private static String normalize(String name) {
         // translate CamelCase to camel_case
         return StringUtils.camelCaseToUnderscore(name);
-    }
-    
-    protected static final TreeSet<FunctionDefinition> buildSetOfFunctions(FunctionDefinition... defs) {
-        return Stream.of(defs).collect(Collectors.toCollection(()->new TreeSet<>((o1,o2) -> o1.name().compareTo(o2.name()))));
     }
 }

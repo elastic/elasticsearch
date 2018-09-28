@@ -402,6 +402,7 @@ These are the linux flavors supported, all of which we provide images for
 
 * ubuntu-1404 aka trusty
 * ubuntu-1604 aka xenial
+* ubuntu-1804 aka bionic beaver
 * debian-8 aka jessie
 * debian-9 aka stretch, the current debian stable distribution
 * centos-6

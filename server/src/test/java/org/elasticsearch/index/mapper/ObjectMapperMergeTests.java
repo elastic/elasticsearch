@@ -19,6 +19,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.settings.Settings;
@@ -119,7 +120,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
 
     private static TextFieldMapper createTextFieldMapper(String name) {
         final TextFieldType fieldType = new TextFieldType();
-        final Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, "1").build();
+        final Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
 
         return new TextFieldMapper(name, fieldType, fieldType, -1, null, indexSettings, MultiFields.empty(), CopyTo.empty());
     }

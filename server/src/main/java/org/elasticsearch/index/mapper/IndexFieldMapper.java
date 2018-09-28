@@ -38,6 +38,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 
 public class IndexFieldMapper extends MetadataFieldMapper {
@@ -152,13 +153,42 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public Query prefixQuery(String value,
+                                 @Nullable MultiTermQuery.RewriteMethod method,
+                                 QueryShardContext context) {
+            String indexName = context.getFullyQualifiedIndex().getName();
+            if (indexName.startsWith(value)) {
+                return Queries.newMatchAllQuery();
+            } else {
+                return Queries.newMatchNoDocsQuery("The index [" + indexName +
+                    "] doesn't match the provided prefix [" + value + "].");
+            }
+        }
+
+        @Override
+        public Query regexpQuery(String value, int flags, int maxDeterminizedStates,
+                                 MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+            String indexName = context.getFullyQualifiedIndex().getName();
+            Pattern pattern = Regex.compile(value, Regex.flagsToString(flags));
+
+            if (pattern.matcher(indexName).matches()) {
+                return Queries.newMatchAllQuery();
+            } else {
+                return Queries.newMatchNoDocsQuery("The index [" + indexName +
+                    "] doesn't match the provided pattern [" + value + "].");
+            }
+        }
+
+        @Override
         public Query wildcardQuery(String value,
                                    @Nullable MultiTermQuery.RewriteMethod method,
                                    QueryShardContext context) {
-            if (isSameIndex(value, context.getFullyQualifiedIndex().getName())) {
+            String indexName = context.getFullyQualifiedIndex().getName();
+            if (isSameIndex(value, indexName)) {
                 return Queries.newMatchAllQuery();
             } else {
-                return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.index().getName() + " vs. " + value);
+                return Queries.newMatchNoDocsQuery("The index [" + indexName +
+                    "] doesn't match the provided pattern [" + value + "].");
             }
         }
 

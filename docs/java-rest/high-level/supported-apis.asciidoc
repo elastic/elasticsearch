@@ -46,6 +46,8 @@ The Java High Level REST Client supports the following Search APIs:
 * <<java-rest-high-rank-eval>>
 * <<java-rest-high-explain>>
 
+:upid: {mainid}
+:doc-tests-file: {doc-tests}/SearchDocumentationIT.java
 include::search/search.asciidoc[]
 include::search/scroll.asciidoc[]
 include::search/multi-search.asciidoc[]
@@ -137,6 +139,8 @@ The Java High Level REST Client supports the following Cluster APIs:
 * <<java-rest-high-cluster-get-settings>>
 * <<java-rest-high-cluster-health>>
 
+:upid: {mainid}-cluster
+:doc-tests-file: {doc-tests}/ClusterClientDocumentationIT.java
 include::cluster/put_settings.asciidoc[]
 include::cluster/get_settings.asciidoc[]
 include::cluster/health.asciidoc[]
@@ -309,3 +313,15 @@ The Java High Level REST Client supports the following Graph APIs:
 * <<java-rest-high-x-pack-graph-explore>>
 
 include::graph/explore.asciidoc[]
+
+////
+Clear attributes that we use to document that APIs included above so they
+don't leak into the rest of the documentation.
+////
+--
+:api!:
+:request!:
+:response!:
+:doc-tests-file!:
+:upid!:
+--

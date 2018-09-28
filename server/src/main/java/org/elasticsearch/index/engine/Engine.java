@@ -1838,29 +1838,29 @@ public abstract class Engine implements Closeable {
      * A note on the optimization using max_seq_no_of_updates_or_deletes:
      * For each operation O, the key invariants are:
      * <ol>
-     *     <li> I1: There is no operation on docID(O) with seqno that is > MSU(O) and < seqno(O) </li>
-     *     <li> I2: If MSU(O) < seqno(O) then docID(O) did not exist when O was applied; more precisely, if there is any O'
-     *              with seqno(O') < seqno(O) and docID(O') = docID(O) then the one with the greatest seqno is a delete. </li>
+     *     <li> I1: There is no operation on docID(O) with seqno that is {@literal > MSU(O) and < seqno(O)} </li>
+     *     <li> I2: If {@literal MSU(O) < seqno(O)} then docID(O) did not exist when O was applied; more precisely, if there is any O'
+     *              with {@literal seqno(O') < seqno(O) and docID(O') = docID(O)} then the one with the greatest seqno is a delete.</li>
      * </ol>
      * <p>
-     * When a receiving shard (either a replica or a follower) receives an operation O, it must first ensure its own MSU is >= MSU(O),
-     * and then compares its MSU to its local checkpoint (LCP). If LCP < MSU then there’s a gap: there may be some operations that act
-     * on docID(O) about which we do not yet know, so we cannot perform an add. Note this also covers the case where a future operation O'
-     * with seqNo(O') > seqNo(O)  and docId(O') = docID(O) is processed before O. In that case MSU(O') is at least seqNo(O') and this
-     * means MSU >= seqNo(O') > seqNo(O) > LCP (because O wasn't processed yet).
+     * When a receiving shard (either a replica or a follower) receives an operation O, it must first ensure its own MSU at least MSU(O),
+     * and then compares its MSU to its local checkpoint (LCP). If {@literal LCP < MSU} then there's a gap: there may be some operations
+     * that act on docID(O) about which we do not yet know, so we cannot perform an add. Note this also covers the case where a future
+     * operation O' with {@literal seqNo(O') > seqNo(O) and docId(O') = docID(O)} is processed before O. In that case MSU(O') is at least
+     * seqno(O') and this means {@literal MSU >= seqNo(O') > seqNo(O) > LCP} (because O wasn't processed yet).
      * <p>
-     * However, if MSU <= LCP then there is no gap: we have processed every operation <= LCP, and no operation O' with seqno(O') > LCP
-     * and seqno(O') < seqno(O) also has docID(O') = docID(O), because such an operation would have seqno(O') > LCP >= MSU >= MSU(O)
-     * which contradicts the first invariant. Furthermore in this case we immediately know that docID(O) has been deleted
-     * (or never existed) without needing to check Lucene for the following reason. If there's no earlier operation on docID(O) then
-     * this is clear, so suppose instead that the preceding operation on docID(O) is O':
-     * 1. The first invariant above tells us that seqno(O') <= MSU(O) <= LCP so we have already applied O' to Lucene.
-     * 2. Also MSU(O) <= MSU <= LCP < seqno(O) (we discard O if seqno(O) ≤ LCP) so the second invariant applies,
-     * meaning that the O' was a delete.
+     * However, if {@literal MSU <= LCP} then there is no gap: we have processed every {@literal operation <= LCP}, and no operation O'
+     * with {@literal seqno(O') > LCP and seqno(O') < seqno(O) also has docID(O') = docID(O)}, because such an operation would have
+     * {@literal seqno(O') > LCP >= MSU >= MSU(O)} which contradicts the first invariant. Furthermore in this case we immediately know
+     * that docID(O) has been deleted (or never existed) without needing to check Lucene for the following reason. If there's no earlier
+     * operation on docID(O) then this is clear, so suppose instead that the preceding operation on docID(O) is O':
+     * 1. The first invariant above tells us that {@literal seqno(O') <= MSU(O) <= LCP} so we have already applied O' to Lucene.
+     * 2. Also {@literal MSU(O) <= MSU <= LCP < seqno(O)} (we discard O if {@literal seqno(O) <= LCP}) so the second invariant applies,
+     *    meaning that the O' was a delete.
      * <p>
-     * Therefore, if MSU <= LCP < seqno(O) we know that O can safely be optimized with and added to lucene with addDocument. Moreover,
-     * operations that are optimized using the MSU optimization must not be processed twice as this will create duplicates in Lucene.
-     * To avoid this we check the local checkpoint tracker to see if an operation was already processed.
+     * Therefore, if {@literal MSU <= LCP < seqno(O)} we know that O can safely be optimized with and added to lucene with addDocument.
+     * Moreover, operations that are optimized using the MSU optimization must not be processed twice as this will create duplicates
+     * in Lucene. To avoid this we check the local checkpoint tracker to see if an operation was already processed.
      *
      * @see #initializeMaxSeqNoOfUpdatesOrDeletes()
      * @see #advanceMaxSeqNoOfUpdatesOrDeletes(long)

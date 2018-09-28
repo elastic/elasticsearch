@@ -54,36 +54,7 @@ public final class FollowingEngine extends InternalEngine {
     @Override
     protected InternalEngine.IndexingStrategy indexingStrategyForOperation(final Index index) throws IOException {
         preFlight(index);
-        /*
-         * A note about optimization using sequence numbers:
-         *
-         * 1. Indexing operations are processed concurrently in an engine. However, operations of the same docID are processed
-         *    one by one under the docID lock.
-         *
-         * 2. Operations that are optimized using the MSU optimization will not be processed twice as this will create duplicates
-         *    in Lucene. To avoid it we check the local checkpoint tracker to see if an operation was already processed.
-         *
-         * 3. When replicating operations to replicas or followers, we also carry the max seq_no_of_updates_or_deletes on the
-         *    leader to followers. This transfer guarantees the MUS on a follower when operation O is processed at least the
-         *    MUS on the leader when it was executed [every operation O => MSU_r(O) >= MSU_p(O)].
-         *
-         * 4. The following proves that docID(O) does not exist on a follower when operation O is applied if MSU_r(O) <= LCP < seqno(O):
-         *
-         *    4.1) If such operation O' on the follower with docID(O’) = docID(O) and LCP < seqno(O) < seqno(O’) then MUS_p(O') >= seqno(O')
-         *         because O' is an update or MUS_p(O') >= seqno(delete O") with docID(O") = docID(O) and seqno(O) < seqno(O") < seqno(O').
-         *         MSU_r(O) >= MSU_r(O') because O' was delivered to the follower before O, and MSU_p(O') > seqno(O) > LCP in both cases.
-         *         Thus MUS_r(O) >= MSU_r(O') >= MSU_p(O') > seqno(O) > LCP which contradicts the assumption [MSU_r(O) <= LCP]
-         *
-         *    4.2) If such operation O' in the history with docID(O’) = docID(O), and LCP < seqno(O') < seqno(O) then MSU_p(O) >= seqno(O)
-         *         because O is an update or MSU_p(O) >= seqno(delete O") with docID(O") = docID(O) and seqno(O') < seqno(O") < seqno(O).
-         *         Thus MSU_r(O) >= MSU_p(O) > seqno(O') > LCP in both cases which contradicts the assumption [MSU_r(O) <= LCP].
-         *
-         *    4.3) MSU(O) < seqno(O) then docID(O) does not exist when O is applied on a leader. This means docID(O) does not exist
-         *         after we apply every operation with docID = docID(O) and seqno < seqno(O). On the follower, we have applied every
-         *         operation with seqno <= LCP, and there is no such O' in the history with docID(O’) = docID(O) and LCP < seqno(O’)[4.2].
-         *         These mean the follower has applied every operation with docID = docID(O) and seqno < seqno(O).
-         *         Thus docID(O) does not exist on the follower.
-         */
+        // NOTES: refer Engine#getMaxSeqNoOfUpdatesOrDeletes for the explanation of the optimization using sequence numbers.
         final long maxSeqNoOfUpdatesOrDeletes = getMaxSeqNoOfUpdatesOrDeletes();
         assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is not initialized";
         if (hasBeenProcessedBefore(index)) {

@@ -91,7 +91,7 @@ public class RolloverStep extends AsyncWaitStep {
                 Objects.equals(maxDocs, other.maxDocs);
     }
 
-    // TODO: expand the information we provide?
+    // We currently have no information to provide for this AsyncWaitStep, so this is an empty object
     private class EmptyInfo implements ToXContentObject {
         private EmptyInfo() {}
 

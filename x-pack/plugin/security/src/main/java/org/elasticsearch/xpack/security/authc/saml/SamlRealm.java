@@ -15,6 +15,7 @@ import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
@@ -134,6 +135,7 @@ import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings
  * are still cool and no chance to opt out
  */
 public final class SamlRealm extends Realm implements Releasable {
+    private static final Logger logger = LogManager.getLogger(SamlRealm.class);
 
     public static final String USER_METADATA_NAMEID_VALUE = "saml_" + SamlAttributes.NAMEID_SYNTHENTIC_ATTRIBUTE;
     public static final String USER_METADATA_NAMEID_FORMAT = USER_METADATA_NAMEID_VALUE + "_format";
@@ -178,7 +180,6 @@ public final class SamlRealm extends Realm implements Releasable {
      */
     public static SamlRealm create(RealmConfig config, SSLService sslService, ResourceWatcherService watcherService,
                                    UserRoleMapper roleMapper) throws Exception {
-        final Logger logger = config.logger(SamlRealm.class);
         SamlUtils.initialize(logger);
 
         if (TokenService.isTokenServiceEnabled(config.globalSettings()) == false) {
@@ -196,9 +197,9 @@ public final class SamlRealm extends Realm implements Releasable {
         final Clock clock = Clock.systemUTC();
         final IdpConfiguration idpConfiguration = getIdpConfiguration(config, metadataResolver, idpDescriptor);
         final TimeValue maxSkew = CLOCK_SKEW.get(config.settings());
-        final SamlAuthenticator authenticator = new SamlAuthenticator(config, clock, idpConfiguration, serviceProvider, maxSkew);
+        final SamlAuthenticator authenticator = new SamlAuthenticator(clock, idpConfiguration, serviceProvider, maxSkew);
         final SamlLogoutRequestHandler logoutHandler =
-                new SamlLogoutRequestHandler(config, clock, idpConfiguration, serviceProvider, maxSkew);
+                new SamlLogoutRequestHandler(clock, idpConfiguration, serviceProvider, maxSkew);
 
         final SamlRealm realm = new SamlRealm(config, roleMapper, authenticator, logoutHandler, idpDescriptor, serviceProvider);
 

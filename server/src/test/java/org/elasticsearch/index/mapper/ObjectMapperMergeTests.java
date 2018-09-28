@@ -20,8 +20,6 @@ package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.FieldMapper.CopyTo;
 import org.elasticsearch.index.mapper.FieldMapper.MultiFields;
@@ -33,8 +31,6 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
-import static org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
-import static org.elasticsearch.index.mapper.ObjectMapper.Nested;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class ObjectMapperMergeTests extends ESTestCase {
@@ -101,21 +97,23 @@ public class ObjectMapperMergeTests extends ESTestCase {
     }
 
     private static RootObjectMapper createRootObjectMapper(String name, boolean enabled, Map<String, Mapper> mappers) {
-        final Explicit<Boolean> dateDetection = new Explicit<>(false, false);
-        final Explicit<Boolean> numericDetection = new Explicit<>(false, false);
-        final Explicit<FormatDateTimeFormatter[]> dynamicDateTimeFormatters = new Explicit<>(new FormatDateTimeFormatter[0], false);
-        final Explicit<DynamicTemplate[]> dynamicTemplates = new Explicit<>(new DynamicTemplate[0], false);
+        final Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
+        final Mapper.BuilderContext context = new Mapper.BuilderContext(indexSettings, new ContentPath());
+        final RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder(name).enabled(enabled).build(context);
 
-        return new RootObjectMapper(
-            name, enabled, null, mappers,
-            dynamicDateTimeFormatters, dynamicTemplates,
-            dateDetection, numericDetection,
-            Settings.EMPTY
-        );
+        mappers.values().forEach(rootObjectMapper::putMapper);
+
+        return rootObjectMapper;
     }
 
     private static ObjectMapper createObjectMapper(String name, boolean enabled, Map<String, Mapper> mappers) {
-        return new ObjectMapper(name, name, enabled, Nested.NO, Dynamic.FALSE, mappers, Settings.EMPTY);
+        final Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
+        final Mapper.BuilderContext context = new Mapper.BuilderContext(indexSettings, new ContentPath());
+        final ObjectMapper mapper = new ObjectMapper.Builder(name).enabled(enabled).build(context);
+
+        mappers.values().forEach(mapper::putMapper);
+
+        return mapper;
     }
 
     private static TextFieldMapper createTextFieldMapper(String name) {

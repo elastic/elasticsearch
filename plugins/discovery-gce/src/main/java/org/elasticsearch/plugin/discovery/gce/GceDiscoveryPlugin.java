@@ -22,6 +22,7 @@ package org.elasticsearch.plugin.discovery.gce;
 import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.util.ClassInfo;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cloud.gce.GceInstancesService;
@@ -41,6 +42,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -48,6 +50,10 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Closeable {
+
+    /** Determines whether settings those reroutes GCE call should be allowed. */
+    private static final boolean ALLOW_REROUTE_GCE_SETTINGS =
+        Booleans.parseBoolean(System.getProperty("es.allow_reroute_gce_settings", "false"));
 
     public static final String GCE = "gce";
     protected final Settings settings;
@@ -94,16 +100,22 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(
-            GceMetadataService.GCE_HOST,
-            GceInstancesServiceImpl.GCE_ROOT_URL,
-            // Register GCE settings
-            GceInstancesService.PROJECT_SETTING,
-            GceInstancesService.ZONE_SETTING,
-            GceUnicastHostsProvider.TAGS_SETTING,
-            GceInstancesService.REFRESH_SETTING,
-            GceInstancesService.RETRY_SETTING,
-            GceInstancesService.MAX_WAIT_SETTING);
+        List<Setting<?>> settings = new ArrayList<>(
+            Arrays.asList(
+                // Register GCE settings
+                GceInstancesService.PROJECT_SETTING,
+                GceInstancesService.ZONE_SETTING,
+                GceUnicastHostsProvider.TAGS_SETTING,
+                GceInstancesService.REFRESH_SETTING,
+                GceInstancesService.RETRY_SETTING,
+                GceInstancesService.MAX_WAIT_SETTING)
+        );
+
+        if (ALLOW_REROUTE_GCE_SETTINGS) {
+            settings.add(GceMetadataService.GCE_HOST);
+            settings.add(GceInstancesServiceImpl.GCE_ROOT_URL);
+        }
+        return Collections.unmodifiableList(settings);
     }
 
 

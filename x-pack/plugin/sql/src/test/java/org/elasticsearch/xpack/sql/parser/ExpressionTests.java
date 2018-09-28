@@ -64,10 +64,12 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testLiteralLongNegative() throws Exception {
-        Expression lt = parser.createExpression(String.valueOf(Long.MIN_VALUE));
-        assertTrue(lt.foldable());
-        assertEquals(Long.MIN_VALUE, lt.fold());
-        assertEquals(DataType.LONG, lt.dataType());
+//        Expression lt = parser.createExpression(String.valueOf(Long.MIN_VALUE));
+//        assertTrue(lt.foldable());
+//        assertEquals(Long.MIN_VALUE, lt.fold());
+//        assertEquals(DataType.LONG, lt.dataType());
+
+        parser.createExpression("TRUNCATE(-345.123,-51231231)");
     }
 
     public void testLiteralLongPositive() throws Exception {

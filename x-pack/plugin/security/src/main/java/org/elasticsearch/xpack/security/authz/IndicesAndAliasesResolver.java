@@ -283,11 +283,11 @@ class IndicesAndAliasesResolver {
             finalAliases.addAll(authorizedAliases);
         }
 
-        for (final String aliasExpression : aliases) {
+        for (String aliasExpression : aliases) {
             boolean include = true;
             if (aliasExpression.charAt(0) == '-') {
                 include = false;
-                aliasExpression.substring(1);
+                aliasExpression = aliasExpression.substring(1);
             }
             if (MetaData.ALL.equals(aliasExpression) || Regex.isSimpleMatchPattern(aliasExpression)) {
                 final Set<String> resolvedAliases = new HashSet<>();

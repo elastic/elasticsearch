@@ -11,7 +11,6 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -23,6 +22,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
+import org.elasticsearch.xpack.watcher.test.WatcherMockScriptPlugin;
 
 import java.util.HashMap;
 import java.util.List;
@@ -42,7 +42,7 @@ public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTestCa
         return types;
     }
 
-    public static class CustomScriptPlugin extends MockScriptPlugin {
+    public static class CustomScriptPlugin extends WatcherMockScriptPlugin {
 
         @Override
         @SuppressWarnings("unchecked")

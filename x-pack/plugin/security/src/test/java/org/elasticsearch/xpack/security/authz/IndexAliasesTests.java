@@ -362,8 +362,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
                 IndicesAliasesAction.NAME, "create_test_aliases_alias");
 
         //fails: user doesn't have manage_aliases on test_*, wildcards can't get replaced
-        IndexNotFoundException indexNotFoundException = expectThrows(IndexNotFoundException.class,
-                client.admin().indices().prepareAliases().removeAlias("test_*", "alias_1")::get);
+        expectThrows(IndexNotFoundException.class, client.admin().indices().prepareAliases().removeAlias("test_*", "alias_1")::get);
         }
 
     public void testGetAliasesCreateAndAliasesPermission2() {

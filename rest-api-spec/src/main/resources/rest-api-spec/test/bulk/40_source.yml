@@ -1,37 +1,43 @@
 ---
 "Source filtering":
+
+  - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
   - do:
       index:
+        include_type_name: false
         refresh: true
         index: test_index
-        type: test_type
         id: test_id_1
         body: { "foo": "bar", "bar": "foo" }
 
   - do:
       index:
+        include_type_name: false
         refresh: true
         index: test_index
-        type: test_type
         id: test_id_2
         body: { "foo": "qux", "bar": "pux" }
 
   - do:
       index:
+        include_type_name: false
         refresh: true
         index: test_index
-        type: test_type
         id: test_id_3
         body: { "foo": "corge", "bar": "forge" }
 
 
   - do:
       bulk:
+        include_type_name: false
         refresh: true
         body: |
-          { "update": { "_index": "test_index", "_type": "test_type", "_id": "test_id_1", "_source": true } }
+          { "update": { "_index": "test_index", "_id": "test_id_1", "_source": true } }
           { "doc": { "foo": "baz" } }
-          { "update": { "_index": "test_index", "_type": "test_type", "_id": "test_id_2" } }
+          { "update": { "_index": "test_index", "_id": "test_id_2" } }
           { "_source": true, "doc": { "foo": "quux" } }
 
   - match: { items.0.update.get._source.foo: baz }
@@ -39,8 +45,8 @@
 
   - do:
       bulk:
+        include_type_name: false
         index: test_index
-        type: test_type
         _source: true
         body: |
           { "update": { "_id": "test_id_3" } }
@@ -50,11 +56,12 @@
 
   - do:
       bulk:
+        include_type_name: false
         refresh: true
         body: |
-          { "update": { "_index": "test_index", "_type": "test_type", "_id": "test_id_1", "_source": {"includes": "bar"} } }
+          { "update": { "_index": "test_index", "_id": "test_id_1", "_source": {"includes": "bar"} } }
           { "doc": { "foo": "baz" } }
-          { "update": { "_index": "test_index", "_type": "test_type", "_id": "test_id_2" } }
+          { "update": { "_index": "test_index", "_id": "test_id_2" } }
           { "_source": {"includes": "foo"}, "doc": { "foo": "quux" } }
 
   - match: { items.0.update.get._source.bar: foo }
@@ -64,8 +71,8 @@
 
   - do:
       bulk:
+        include_type_name: false
         index: test_index
-        type: test_type
         _source_include: foo
         body: |
           { "update": { "_id": "test_id_3" } }

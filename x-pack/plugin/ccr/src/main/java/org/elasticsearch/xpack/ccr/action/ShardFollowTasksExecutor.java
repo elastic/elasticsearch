@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -21,8 +22,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -164,9 +167,24 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     protected void nodeOperation(final AllocatedPersistentTask task, final ShardFollowTask params, final PersistentTaskState state) {
         Client followerClient = wrapClient(client, params.getHeaders());
         ShardFollowNodeTask shardFollowNodeTask = (ShardFollowNodeTask) task;
-        logger.info("{} Started to track leader shard {}", params.getFollowShardId(), params.getLeaderShardId());
-        fetchGlobalCheckpoint(followerClient, params.getFollowShardId(),
-                (followerGCP, maxSeqNo) -> shardFollowNodeTask.start(followerGCP, maxSeqNo, followerGCP, maxSeqNo), task::markAsFailed);
+        logger.info("{} Starting to track leader shard {}", params.getFollowShardId(), params.getLeaderShardId());
+
+        BiLongConsumer handler = (followerGCP, maxSeqNo) -> shardFollowNodeTask.start(followerGCP, maxSeqNo, followerGCP, maxSeqNo);
+        Consumer<Exception> errorHandler = e -> {
+            if (shardFollowNodeTask.isStopped()) {
+                return;
+            }
+
+            if (ShardFollowNodeTask.shouldRetry(e)) {
+                logger.debug(new ParameterizedMessage("failed to fetch follow shard global {} checkpoint and max sequence number",
+                    shardFollowNodeTask), e);
+                threadPool.schedule(params.getMaxRetryDelay(), Ccr.CCR_THREAD_POOL_NAME, () -> nodeOperation(task, params, state));
+            } else {
+                shardFollowNodeTask.markAsFailed(e);
+            }
+        };
+
+        fetchGlobalCheckpoint(followerClient, params.getFollowShardId(), handler, errorHandler);
     }
 
     private void fetchGlobalCheckpoint(
@@ -176,6 +194,11 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             final Consumer<Exception> errorHandler) {
         client.admin().indices().stats(new IndicesStatsRequest().indices(shardId.getIndexName()), ActionListener.wrap(r -> {
             IndexStats indexStats = r.getIndex(shardId.getIndexName());
+            if (indexStats == null) {
+                errorHandler.accept(new IndexNotFoundException(shardId.getIndex()));
+                return;
+            }
+
             Optional<ShardStats> filteredShardStats = Arrays.stream(indexStats.getShards())
                     .filter(shardStats -> shardStats.getShardRouting().shardId().equals(shardId))
                     .filter(shardStats -> shardStats.getShardRouting().primary())
@@ -186,7 +209,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 final long maxSeqNo = seqNoStats.getMaxSeqNo();
                 handler.accept(globalCheckpoint, maxSeqNo);
             } else {
-                errorHandler.accept(new IllegalArgumentException("Cannot find shard stats for shard " + shardId));
+                errorHandler.accept(new ShardNotFoundException(shardId));
             }
         }, errorHandler));
     }

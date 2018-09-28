@@ -376,7 +376,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         return Math.min(backOffDelay, maxRetryDelayInMillis);
     }
 
-    private static boolean shouldRetry(Exception e) {
+    static boolean shouldRetry(Exception e) {
         return NetworkExceptionHelper.isConnectException(e) ||
             NetworkExceptionHelper.isCloseConnectionException(e) ||
             TransportActions.isShardNotAvailableException(e);

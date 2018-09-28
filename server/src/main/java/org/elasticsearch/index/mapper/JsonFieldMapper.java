@@ -77,6 +77,7 @@ public final class JsonFieldMapper extends FieldMapper {
         static {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setStored(false);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.freeze();
         }
@@ -120,12 +121,20 @@ public final class JsonFieldMapper extends FieldMapper {
             return builder;
         }
 
+        @Override
         public Builder addMultiField(Mapper.Builder mapperBuilder) {
             throw new UnsupportedOperationException("[fields] is not supported for [" + CONTENT_TYPE + "] fields.");
         }
 
+        @Override
         public Builder copyTo(CopyTo copyTo) {
             throw new UnsupportedOperationException("[copy_to] is not supported for [" + CONTENT_TYPE + "] fields.");
+        }
+
+        @Override
+        public Builder store(boolean store) {
+            throw new UnsupportedOperationException("[store] is not currently supported for [" +
+                CONTENT_TYPE + "] fields.");
         }
 
         @Override

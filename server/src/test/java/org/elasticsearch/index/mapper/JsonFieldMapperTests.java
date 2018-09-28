@@ -130,28 +130,14 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "json")
-                        .field("index", false)
                         .field("store", true)
                     .endObject()
                 .endObject()
             .endObject()
         .endObject());
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-            .startObject("field")
-                .field("key", "value")
-            .endObject()
-        .endObject());
-
-        ParsedDocument parsedDoc = mapper.parse(SourceToParse.source("test", "type", "1", doc, XContentType.JSON));
-        IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-
-        IndexableField field = fields[0];
-        assertTrue(field.fieldType().stored());
+        expectThrows(UnsupportedOperationException.class, () ->
+            parser.parse("type", new CompressedXContent(mapping)));
     }
 
     public void testIndexOptions() throws IOException {

@@ -3,6 +3,7 @@ package org.elasticsearch.gradle;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -207,7 +208,7 @@ public class VersionCollectionTests extends GradleUnitTestCase {
         );
 
         assertVersionsEquals(
-            Arrays.asList("7.0.0","7.0.1", "7.1.0", "7.1.1", "7.2.0", "7.3.0"),
+            Arrays.asList("7.0.0", "7.0.1", "7.1.0", "7.1.1", "7.2.0", "7.3.0"),
             getVersionCollection("8.0.0").getIndexCompatible()
         );
     }
@@ -264,34 +265,64 @@ public class VersionCollectionTests extends GradleUnitTestCase {
 
     public void testGetBranch() {
         assertUnreleasedBranchNames(
-            Arrays.asList("6.4", "6.x", "master"),
+            Arrays.asList("6.4", "6.x"),
             getVersionCollection("7.0.0-alpha1")
         );
         assertUnreleasedBranchNames(
-            Arrays.asList("5.6", "6.4", "6.x"),
+            Arrays.asList("5.6", "6.4"),
             getVersionCollection("6.5.0")
         );
         assertUnreleasedBranchNames(
-            Arrays.asList("5.6", "6.4"),
+            Arrays.asList("5.6"),
             getVersionCollection("6.4.2")
         );
         assertUnreleasedBranchNames(
-            Arrays.asList("5.6", "6.4", "6.5", "6.x"),
+            Arrays.asList("5.6", "6.4", "6.5"),
             getVersionCollection("6.6.0")
         );
         assertUnreleasedBranchNames(
-            Arrays.asList("7.1", "7.2", "7.x", "master"),
+            Arrays.asList("7.1", "7.2", "7.x"),
             getVersionCollection("8.0.0")
         );
     }
 
-    private void assertUnreleasedBranchNames(List<String> branches, VersionCollection versionCollection) {
-        assertEquals(
-            branches,
-            versionCollection.getUnreleased().stream()
-                .map(unreleasedVersion -> versionCollection.getBranchFor(unreleasedVersion))
-                .collect(Collectors.toList())
+    public void testGetGradleProjectName() {
+        assertUnreleasedGradleProjectNames(
+            Arrays.asList("maintenance", "minor"),
+            getVersionCollection("7.0.0-alpha1")
         );
+        assertUnreleasedGradleProjectNames(
+            Arrays.asList("bugfix", "maintenance"),
+            getVersionCollection("6.5.0")
+        );
+        assertUnreleasedGradleProjectNames(
+            Arrays.asList("bugfix"),
+            getVersionCollection("6.4.2")
+        );
+        assertUnreleasedGradleProjectNames(
+            Arrays.asList("bugfix", "maintenance", "staged"),
+            getVersionCollection("6.6.0")
+        );
+        assertUnreleasedGradleProjectNames(
+            Arrays.asList("maintenance", "staged", "minor"),
+            getVersionCollection("8.0.0")
+        );
+    }
+
+    private void assertUnreleasedGradleProjectNames(List<String> expectedNAmes, VersionCollection versionCollection) {
+        List<String> actualNames = new ArrayList<>();
+        versionCollection.forPreviousUnreleased(unreleasedVersionDescription ->
+            actualNames.add(unreleasedVersionDescription.getGradleProjectName())
+        );
+        assertEquals(expectedNAmes, actualNames);
+    }
+
+    private void assertUnreleasedBranchNames(List<String> expectedBranches, VersionCollection versionCollection) {
+        List<String> actualBranches = new ArrayList<>();
+        versionCollection.forPreviousUnreleased(unreleasedVersionDescription ->
+            actualBranches.add(unreleasedVersionDescription.getBranch())
+        );
+        assertEquals(expectedBranches, actualBranches);
     }
 
 

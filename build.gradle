@@ -255,17 +255,17 @@ subprojects {
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
     "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
   ]
-  // substitute unreleased versiopns with projects that check out and build locally
-  bwcVersions.forEachUnreleased { VersionCollection.UnreleasedVersionDescription unreleasedVersion ->
-    Version snapshot = unreleasedVersion.version
-    String snapshotProject = ":distribution:bwc:build-unreleased-version-${unreleasedVersion.index}"
-    ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${snapshot}"] = snapshotProject
-    ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${snapshot}"] = snapshotProject
-    ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${snapshot}"] = snapshotProject
-    if (snapshot.onOrAfter('6.3.0')) {
-      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch-oss:${snapshot}"] = snapshotProject
-      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch-oss:${snapshot}"] = snapshotProject
-      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch-oss:${snapshot}"] = snapshotProject
+  // substitute unreleased versions with projects that check out and build locally
+  bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionDescription unreleasedVersion ->
+    Version unreleased = unreleasedVersion.version
+    String snapshotProject = ":distribution:bwc:${unreleasedVersion.gradleProjectName}"
+    ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${unreleased}"] = snapshotProject
+    ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${unreleased}"] = snapshotProject
+    ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${unreleased}"] = snapshotProject
+    if (unreleased.onOrAfter('6.3.0')) {
+      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch-oss:${unreleased}"] = snapshotProject
+      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch-oss:${unreleased}"] = snapshotProject
+      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch-oss:${unreleased}"] = snapshotProject
     }
   }
 

@@ -33,8 +33,8 @@ import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
  *  unreleased versions are when Gradle projects are set up, so we use "build-unreleased-version-*" as placeholders
  *  and configure them to build various versions here.
  */
-bwcVersions.forEachUnreleased { VersionCollection.UnreleasedVersionDescription unreleasedVersion ->
-    project("$project.path:build-unreleased-version-$unreleasedVersion.index") {
+bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionDescription unreleasedVersion ->
+    project("$project.path:$unreleasedVersion.gradleProjectName") {
         Version bwcVersion = unreleasedVersion.version
         String bwcBranch = unreleasedVersion.branch
         apply plugin: 'distribution'

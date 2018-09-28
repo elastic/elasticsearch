@@ -7,10 +7,13 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.bulk.BulkProcessor;
@@ -51,6 +54,9 @@ import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction.StatsRequest;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction.StatsResponses;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
@@ -72,7 +78,10 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -542,6 +551,110 @@ public class ShardChangesIT extends ESIntegTestCase {
             "this setting is managed via a dedicated API"));
     }
 
+    public void testCloseLeaderIndex() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("index1")
+            .setSettings(Settings.builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()));
+
+        final ResumeFollowAction.Request followRequest = createFollowRequest("index1", "index2");
+        final PutFollowAction.Request createAndFollowRequest = new PutFollowAction.Request(followRequest);
+        client().execute(PutFollowAction.INSTANCE, createAndFollowRequest).get();
+
+        client().prepareIndex("index1", "doc", "1").setSource("{}", XContentType.JSON).get();
+        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(1L)));
+
+        client().admin().indices().close(new CloseIndexRequest("index1")).actionGet();
+        assertBusy(() -> {
+            StatsResponses response = client().execute(CcrStatsAction.INSTANCE, new StatsRequest()).actionGet();
+            assertThat(response.getNodeFailures(), empty());
+            assertThat(response.getTaskFailures(), empty());
+            assertThat(response.getStatsResponses(), hasSize(1));
+            assertThat(response.getStatsResponses().get(0).status().numberOfFailedFetches(), greaterThanOrEqualTo(1L));
+            assertThat(response.getStatsResponses().get(0).status().fetchExceptions().size(), equalTo(1));
+            ElasticsearchException exception = response.getStatsResponses().get(0).status()
+                .fetchExceptions().entrySet().iterator().next().getValue().v2();
+            assertThat(exception.getMessage(), equalTo("blocked by: [FORBIDDEN/4/index closed];"));
+        });
+
+        client().admin().indices().open(new OpenIndexRequest("index1")).actionGet();
+        client().prepareIndex("index1", "doc", "2").setSource("{}", XContentType.JSON).get();
+        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(2L)));
+
+        unfollowIndex("index2");
+    }
+
+    public void testCloseFollowIndex() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("index1")
+            .setSettings(Settings.builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()));
+
+        final ResumeFollowAction.Request followRequest = createFollowRequest("index1", "index2");
+        final PutFollowAction.Request createAndFollowRequest = new PutFollowAction.Request(followRequest);
+        client().execute(PutFollowAction.INSTANCE, createAndFollowRequest).get();
+
+        client().prepareIndex("index1", "doc", "1").setSource("{}", XContentType.JSON).get();
+        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(1L)));
+
+        client().admin().indices().close(new CloseIndexRequest("index2")).actionGet();
+        client().prepareIndex("index1", "doc", "2").setSource("{}", XContentType.JSON).get();
+        assertBusy(() -> {
+            StatsResponses response = client().execute(CcrStatsAction.INSTANCE, new StatsRequest()).actionGet();
+            assertThat(response.getNodeFailures(), empty());
+            assertThat(response.getTaskFailures(), empty());
+            assertThat(response.getStatsResponses(), hasSize(1));
+            assertThat(response.getStatsResponses().get(0).status().numberOfFailedBulkOperations(), greaterThanOrEqualTo(1L));
+        });
+        client().admin().indices().open(new OpenIndexRequest("index2")).actionGet();
+        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(2L)));
+
+        unfollowIndex("index2");
+    }
+
+    public void testDeleteLeaderIndex() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("index1")
+            .setSettings(Settings.builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()));
+
+        final ResumeFollowAction.Request followRequest = createFollowRequest("index1", "index2");
+        final PutFollowAction.Request createAndFollowRequest = new PutFollowAction.Request(followRequest);
+        client().execute(PutFollowAction.INSTANCE, createAndFollowRequest).get();
+
+        client().prepareIndex("index1", "doc", "1").setSource("{}", XContentType.JSON).get();
+        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(1L)));
+
+        client().admin().indices().delete(new DeleteIndexRequest("index1")).actionGet();
+        ensureNoCcrTasks();
+    }
+
+    public void testDeleteFollowerIndex() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("index1")
+            .setSettings(Settings.builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()));
+
+        final ResumeFollowAction.Request followRequest = createFollowRequest("index1", "index2");
+        final PutFollowAction.Request createAndFollowRequest = new PutFollowAction.Request(followRequest);
+        client().execute(PutFollowAction.INSTANCE, createAndFollowRequest).get();
+
+        client().prepareIndex("index1", "doc", "1").setSource("{}", XContentType.JSON).get();
+        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(1L)));
+
+        client().admin().indices().delete(new DeleteIndexRequest("index2")).actionGet();
+        client().prepareIndex("index1", "doc", "2").setSource("{}", XContentType.JSON).get();
+        ensureNoCcrTasks();
+    }
+
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {
         return () -> {
             final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
@@ -584,10 +697,14 @@ public class ShardChangesIT extends ESIntegTestCase {
             unfollowRequest.setFollowIndex(index);
             client().execute(PauseFollowAction.INSTANCE, unfollowRequest).get();
         }
+        ensureNoCcrTasks();
+    }
+
+    private void ensureNoCcrTasks() throws Exception {
         assertBusy(() -> {
             final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
             final PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            assertThat(tasks.tasks().size(), equalTo(0));
+            assertThat(tasks.tasks(), empty());
 
             ListTasksRequest listTasksRequest = new ListTasksRequest();
             listTasksRequest.setDetailed(true);

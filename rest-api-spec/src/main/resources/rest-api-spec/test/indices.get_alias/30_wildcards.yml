@@ -1,0 +1,180 @@
+---
+setup:
+
+  - do:
+      indices.create:
+        index: test_index_a1
+        body:
+          aliases:
+            test_alias_a: {}
+            test_alias_a1: {}
+
+  - do:
+      indices.create:
+        index: test_index_ab1
+        body:
+          aliases:
+            test_alias_a: {}
+            test_alias_ab1: {}
+            test_alias_b: {}
+
+  - do:
+      indices.create:
+        index: test_index_b1
+        body:
+          aliases:
+            test_alias_b: {}
+            test_alias_b1: {}
+
+  - do:
+      indices.create:
+        index: test_index_no_alias
+
+---
+"Basic test for alias wildcard inclusion":
+
+  - do:
+      indices.get_alias:
+        name: "test_alias_a*"
+
+  - match: {test_index_a1.aliases.test_alias_a: {}}
+  - match: {test_index_a1.aliases.test_alias_a1: {}}
+  - match: {test_index_ab1.aliases.test_alias_a: {}}
+  - match: {test_index_ab1.aliases.test_alias_ab1: {}}
+  - is_false: test_index_ab1.aliases.test_alias_b
+  - is_false: test_index_b1.aliases.test_alias_b
+  - is_false: test_index_b1.aliases.test_alias_b1
+
+  - do:
+      indices.get_alias:
+        name: "test_alias_b*"
+
+  - match: {test_index_ab1.aliases.test_alias_b: {}}
+  - match: {test_index_b1.aliases.test_alias_b: {}}
+  - match: {test_index_b1.aliases.test_alias_b1: {}}
+  - is_false: test_index_a1.aliases.test_alias_a
+  - is_false: test_index_a1.aliases.test_alias_a1
+  - is_false: test_index_ab1.aliases.test_alias_a
+  - is_false: test_index_ab1.aliases.test_alias_ab1
+
+---
+"Test for alias wildcard inclusion and simple exclusion":
+
+  - do:
+      indices.get_alias:
+        name: "test_alias_a*,-test_alias_ab1"
+
+  - match: {test_index_a1.aliases.test_alias_a: {}}
+  - match: {test_index_a1.aliases.test_alias_a1: {}}
+  - match: {test_index_ab1.aliases.test_alias_a: {}}
+  - is_false: test_index_ab1.aliases.test_alias_b
+  - is_false: test_index_ab1.aliases.test_alias_ab1
+  - is_false: test_index_b1.aliases.test_alias_b
+  - is_false: test_index_b1.aliases.test_alias_b1
+
+  - do:
+      indices.get_alias:
+        name: "test_alias_a*,-test_alias_ab1,-test_alias_a1"
+
+  - match: {test_index_a1.aliases.test_alias_a: {}}
+  - match: {test_index_ab1.aliases.test_alias_a: {}}
+  - is_false: test_index_a1.aliases.test_alias_a1
+  - is_false: test_index_ab1.aliases.test_alias_b
+  - is_false: test_index_ab1.aliases.test_alias_ab1
+  - is_false: test_index_b1.aliases.test_alias_b
+  - is_false: test_index_b1.aliases.test_alias_b1
+
+  - do:
+      indices.get_alias:
+        name: "test_alias_a*,-test_alias_ab1,-test_alias_a"
+
+  - match: {test_index_a1.aliases.test_alias_a1: {}}
+  - is_false: test_index_ab1.aliases.test_alias_a
+  - is_false: test_index_a1.aliases.test_alias_a
+  - is_false: test_index_ab1.aliases.test_alias_b
+  - is_false: test_index_ab1.aliases.test_alias_ab1
+  - is_false: test_index_b1.aliases.test_alias_b
+  - is_false: test_index_b1.aliases.test_alias_b1
+
+---
+"Test for alias wildcard inclusion and wildcard exclusion":
+
+  - do:
+      indices.get_alias:
+        name: "test_alias_*,-test_alias_b*"
+
+  - match: {test_index_a1.aliases.test_alias_a: {}}
+  - match: {test_index_a1.aliases.test_alias_a1: {}}
+  - match: {test_index_ab1.aliases.test_alias_a: {}}
+  - match: {test_index_ab1.aliases.test_alias_ab1: {}}
+  - is_false: test_index_ab1.aliases.test_alias_b
+  - is_false: test_index_b1.aliases.test_alias_b1
+  - is_false: test_index_b1.aliases.test_alias_b
+
+  - do:
+      indices.get_alias:
+        name: "test_alias_*,-test_alias_a*"
+
+  - match: {test_index_ab1.aliases.test_alias_b: {}}
+  - match: {test_index_b1.aliases.test_alias_b: {}}
+  - match: {test_index_b1.aliases.test_alias_b1: {}}
+  - is_false: test_index_a1.aliases.test_alias_a
+  - is_false: test_index_a1.aliases.test_alias_a1
+  - is_false: test_index_ab1.aliases.test_alias_a
+  - is_false: test_index_ab1.aliases.test_alias_ab1
+
+---
+"Test for wildcard exclusion then inclusion":
+
+  - do:
+      indices.get_alias:
+        name: "test_alias_*,-test_alias_a*,test_alias_ab1"
+
+  - match: {test_index_ab1.aliases.test_alias_b: {}}
+  - match: {test_index_b1.aliases.test_alias_b: {}}
+  - match: {test_index_b1.aliases.test_alias_b1: {}}
+  - match: {test_index_ab1.aliases.test_alias_ab1: {}}
+  - is_false: test_index_a1.aliases.test_alias_a1
+  - is_false: test_index_a1.aliases.test_alias_a
+  - is_false: test_index_ab1.aliases.test_alias_a
+
+---
+"Test multiple wildcard exclusion":
+
+  - do:
+      indices.get_alias:
+        name: "test_alias_*,-test_alias_a*,test_alias_ab1,-test_alias_b*"
+
+  - match: {test_index_ab1.aliases.test_alias_ab1: {}}
+  - is_false: test_index_ab1.aliases.test_alias_b
+  - is_false: test_index_b1.aliases.test_alias_b
+  - is_false: test_index_b1.aliases.test_alias_b1
+  - is_false: test_index_a1.aliases.test_alias_a1
+  - is_false: test_index_a1.aliases.test_alias_a
+  - is_false: test_index_ab1.aliases.test_alias_a
+
+---
+"Test wildcard complete exclusion":
+
+  - do:
+      indices.get_alias:
+        name: "test_alias_a*,test_alias_b,-test_alias_*"
+
+  - match: { '': {}}
+
+---
+"Test non-existent alias returns 404":
+  - do:
+      catch: missing
+      indices.get_alias:
+        name: test_alias_*,non-existent,test_alias_b1,-test_alias_b*
+
+  - match: { 'status': 404 }
+  - match: { 'error': 'alias [non-existent] missing' }
+  - match: { test_index_a1.aliases.test_alias_a: { } }
+  - match: { test_index_a1.aliases.test_alias_a1: { } }
+  - match: { test_index_ab1.aliases.test_alias_ab1: { } }
+  - match: { test_index_ab1.aliases.test_alias_a: { } }
+  - is_false: test_index_ab1.aliases.test_alias_b
+  - is_false: test_index_b1.aliases.test_alias_b
+  - is_false: test_index_b1.aliases.test_alias_b1

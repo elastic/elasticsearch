@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher.AckListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -128,6 +129,11 @@ public abstract class Publication extends AbstractComponent {
             }
         }
         return isCompleted;
+    }
+
+    // For assertions
+    ClusterState publishedState() {
+        return publishRequest.getAcceptedState();
     }
 
     private void onPossibleCommitFailure() {

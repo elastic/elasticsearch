@@ -129,6 +129,13 @@ public class FollowersChecker extends AbstractComponent {
     }
 
     /**
+     * Clear the set of known nodes, stopping all checks.
+     */
+    public void clearCurrentNodes() {
+        setCurrentNodes(DiscoveryNodes.EMPTY_NODES);
+    }
+
+    /**
      * The system is normally in a state in which every follower remains a follower of a stable leader in a single term for an extended
      * period of time, and therefore our response to every follower check is the same. We handle this case with a single volatile read
      * entirely on the network thread, and only if the fast path fails do we perform some work in the background, by notifying the
@@ -207,6 +214,20 @@ public class FollowersChecker extends AbstractComponent {
             '}';
     }
 
+    // For assertions
+    FastResponseState getFastResponseState() {
+        return fastResponseState;
+    }
+
+    // For assertions
+    Set<DiscoveryNode> getKnownFollowers() {
+        synchronized (mutex) {
+            final Set<DiscoveryNode> knownFollowers = new HashSet<>(faultyNodes);
+            knownFollowers.addAll(followerCheckers.keySet());
+            return knownFollowers;
+        }
+    }
+
     static class FastResponseState {
         final long term;
         final Mode mode;
@@ -251,7 +272,7 @@ public class FollowersChecker extends AbstractComponent {
                 return;
             }
 
-            final FollowerCheckRequest request = new FollowerCheckRequest(fastResponseState.term);
+            final FollowerCheckRequest request = new FollowerCheckRequest(fastResponseState.term, transportService.getLocalNode());
             logger.trace("handleWakeUp: checking {} with {}", discoveryNode, request);
             transportService.sendRequest(discoveryNode, FOLLOWER_CHECK_ACTION_NAME, request,
                 TransportRequestOptions.builder().withTimeout(followerCheckTimeout).withType(Type.PING).build(),
@@ -350,23 +371,32 @@ public class FollowersChecker extends AbstractComponent {
 
         private final long term;
 
+        private final DiscoveryNode sender;
+
         public long getTerm() {
             return term;
         }
 
-        public FollowerCheckRequest(final long term) {
+        public DiscoveryNode getSender() {
+            return sender;
+        }
+
+        public FollowerCheckRequest(final long term, final DiscoveryNode sender) {
             this.term = term;
+            this.sender = sender;
         }
 
         public FollowerCheckRequest(final StreamInput in) throws IOException {
             super(in);
             term = in.readLong();
+            sender = new DiscoveryNode(in);
         }
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeLong(term);
+            sender.writeTo(out);
         }
 
         @Override
@@ -374,19 +404,21 @@ public class FollowersChecker extends AbstractComponent {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             FollowerCheckRequest that = (FollowerCheckRequest) o;
-            return term == that.term;
+            return term == that.term &&
+                Objects.equals(sender, that.sender);
         }
 
         @Override
         public String toString() {
             return "FollowerCheckRequest{" +
                 "term=" + term +
+                ", sender=" + sender +
                 '}';
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(term);
+            return Objects.hash(term, sender);
         }
     }
 }

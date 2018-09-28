@@ -18,18 +18,22 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
 import org.elasticsearch.cluster.coordination.JoinHelper.InitialJoinAccumulator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.lease.Releasable;
@@ -43,16 +47,19 @@ import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
 import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.UnicastConfiguredHostsResolver;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.zen.ZenDiscovery.NodeRemovalClusterStateTaskExecutor;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -64,7 +71,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             TimeValue.timeValueMillis(30000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
 
     private final TransportService transportService;
+    private final MasterService masterService;
     private final JoinHelper joinHelper;
+    private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
     private final Supplier<CoordinationState.PersistedState> persistedStateSupplier;
     // TODO: the following two fields are package-private as some tests require access to them
     // These tests can be rewritten to use public methods once Coordinator is more feature-complete
@@ -79,6 +88,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final TimeValue publishTimeout;
     private final PublicationTransportHandler publicationHandler;
     private final LeaderChecker leaderChecker;
+    private final FollowersChecker followersChecker;
     @Nullable
     private Releasable electionScheduler;
     @Nullable
@@ -98,6 +108,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                        UnicastHostsProvider unicastHostsProvider, Random random) {
         super(settings);
         this.transportService = transportService;
+        this.masterService = masterService;
         this.joinHelper = new JoinHelper(settings, allocationService, masterService, transportService,
             this::getCurrentTerm, this::handleJoinRequest, this::joinLeaderInTerm);
         this.persistedStateSupplier = persistedStateSupplier;
@@ -112,8 +123,30 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             new HandshakingTransportAddressConnector(settings, transportService), configuredHostsResolver);
         this.publicationHandler = new PublicationTransportHandler(transportService, this::handlePublishRequest, this::handleApplyCommit);
         this.leaderChecker = new LeaderChecker(settings, transportService, getOnLeaderFailure());
-
+        this.followersChecker = new FollowersChecker(settings, transportService, this::onFollowerCheckRequest, this::onFollowerFailure);
+        this.nodeRemovalExecutor = getNodeRemovalExecutor(settings, allocationService, logger);
         masterService.setClusterStateSupplier(this::getStateForMasterService);
+    }
+
+    private static NodeRemovalClusterStateTaskExecutor getNodeRemovalExecutor(Settings settings, AllocationService allocationService,
+                                                                              Logger logger) {
+        // TODO move NodeRemovalClusterStateTaskExecutor out of Zen since it's not Zen-specific
+        return new NodeRemovalClusterStateTaskExecutor(allocationService, new ElectMasterService(settings) {
+
+            @Override
+            public boolean hasEnoughMasterNodes(Iterable<DiscoveryNode> nodes) {
+                return true;
+            }
+
+            @Override
+            public void logMinimumMasterNodesWarningIfNecessary(ClusterState oldState, ClusterState newState) {
+                // ignore
+            }
+
+        },
+            s -> {
+                throw new AssertionError("not implemented");
+            }, logger);
     }
 
     private Runnable getOnLeaderFailure() {
@@ -130,6 +163,32 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 return "notification of leader failure";
             }
         };
+    }
+
+    private void onFollowerFailure(DiscoveryNode discoveryNode) {
+        synchronized (mutex) {
+            if (mode == Mode.LEADER) {
+                masterService.submitStateUpdateTask("node-left",
+                    new NodeRemovalClusterStateTaskExecutor.Task(discoveryNode, "node left"),
+                    ClusterStateTaskConfig.build(Priority.IMMEDIATE),
+                    nodeRemovalExecutor,
+                    nodeRemovalExecutor);
+            }
+        }
+    }
+
+    private void onFollowerCheckRequest(FollowerCheckRequest followerCheckRequest) {
+        synchronized (mutex) {
+            ensureTermAtLeast(followerCheckRequest.getSender(), followerCheckRequest.getTerm());
+
+            if (getCurrentTerm() != followerCheckRequest.getTerm()) {
+                logger.trace("onFollowerCheckRequest: current term is [{}], rejecting {}", getCurrentTerm(), followerCheckRequest);
+                throw new CoordinationStateRejectedException("onFollowerCheckRequest: current term is ["
+                    + getCurrentTerm() + "], rejecting " + followerCheckRequest);
+            }
+
+            becomeFollower("onFollowerCheckRequest", followerCheckRequest.getSender());
+        }
     }
 
     private void handleApplyCommit(ApplyCommitRequest applyCommitRequest) {
@@ -217,7 +276,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             lastJoin = Optional.of(join);
             peerFinder.setCurrentTerm(getCurrentTerm());
             if (mode != Mode.CANDIDATE) {
-                becomeCandidate("joinLeaderInTerm");
+                becomeCandidate("joinLeaderInTerm"); // updates followersChecker
+            } else {
+                followersChecker.updateFastResponseState(getCurrentTerm(), mode);
             }
             return join;
         }
@@ -259,6 +320,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 leaderCheckScheduler.close();
                 leaderCheckScheduler = null;
             }
+
+            followersChecker.clearCurrentNodes();
+            followersChecker.updateFastResponseState(getCurrentTerm(), mode);
         }
 
         preVoteCollector.update(getPreVoteResponse(), null);
@@ -279,6 +343,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         preVoteCollector.update(getPreVoteResponse(), getLocalNode());
 
         assert leaderCheckScheduler == null : leaderCheckScheduler;
+        followersChecker.updateFastResponseState(getCurrentTerm(), mode);
     }
 
     void becomeFollower(String method, DiscoveryNode leaderNode) {
@@ -306,6 +371,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             }
             leaderCheckScheduler = leaderChecker.startLeaderChecker(leaderNode);
         }
+
+        followersChecker.clearCurrentNodes();
+        followersChecker.updateFastResponseState(getCurrentTerm(), mode);
     }
 
     private PreVoteResponse getPreVoteResponse() {
@@ -330,6 +398,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     // package-visible for testing
     DiscoveryNode getLocalNode() {
         return transportService.getLocalNode();
+    }
+
+    // package-visible for testing
+    boolean publicationInProgress() {
+        synchronized (mutex) {
+            return currentPublication.isPresent();
+        }
     }
 
     @Override
@@ -360,24 +435,35 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     @Override
     protected void doClose() {
-
     }
 
     public void invariant() {
         synchronized (mutex) {
             final Optional<DiscoveryNode> peerFinderLeader = peerFinder.getLeader();
             assert peerFinder.getCurrentTerm() == getCurrentTerm();
+            assert followersChecker.getFastResponseState().term == getCurrentTerm();
+            assert followersChecker.getFastResponseState().mode == getMode();
             if (mode == Mode.LEADER) {
+                final boolean becomingMaster = getStateForMasterService().term() != getCurrentTerm();
+
                 assert coordinationState.get().electionWon();
                 assert lastKnownLeader.isPresent() && lastKnownLeader.get().equals(getLocalNode());
                 assert joinAccumulator instanceof JoinHelper.LeaderJoinAccumulator;
                 assert peerFinderLeader.equals(lastKnownLeader) : peerFinderLeader;
                 assert electionScheduler == null : electionScheduler;
                 assert prevotingRound == null : prevotingRound;
-                assert getStateForMasterService().nodes().getMasterNodeId() != null
-                    || getStateForMasterService().term() != getCurrentTerm() :
-                    getStateForMasterService();
+                assert becomingMaster || getStateForMasterService().nodes().getMasterNodeId() != null : getStateForMasterService();
                 assert leaderCheckScheduler == null : leaderCheckScheduler;
+
+                final Set<DiscoveryNode> knownFollowers = followersChecker.getKnownFollowers();
+                final Set<DiscoveryNode> lastPublishedNodes = new HashSet<>();
+                if (becomingMaster == false || publicationInProgress()) {
+                    final ClusterState lastPublishedState
+                        = currentPublication.map(Publication::publishedState).orElse(coordinationState.get().getLastAcceptedState());
+                    lastPublishedState.nodes().forEach(lastPublishedNodes::add);
+                    assert lastPublishedNodes.remove(getLocalNode());
+                }
+                assert lastPublishedNodes.equals(knownFollowers) : lastPublishedNodes + " != " + knownFollowers;
             } else if (mode == Mode.FOLLOWER) {
                 assert coordinationState.get().electionWon() == false : getLocalNode() + " is FOLLOWER so electionWon() should be false";
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);
@@ -388,6 +474,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert getStateForMasterService().nodes().getMasterNodeId() == null : getStateForMasterService();
                 assert leaderChecker.currentNodeIsMaster() == false;
                 assert leaderCheckScheduler != null;
+                assert followersChecker.getKnownFollowers().isEmpty();
             } else {
                 assert mode == Mode.CANDIDATE;
                 assert joinAccumulator instanceof JoinHelper.CandidateJoinAccumulator;
@@ -396,6 +483,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert getStateForMasterService().nodes().getMasterNodeId() == null : getStateForMasterService();
                 assert leaderChecker.currentNodeIsMaster() == false;
                 assert leaderCheckScheduler == null : leaderCheckScheduler;
+                assert followersChecker.getKnownFollowers().isEmpty();
             }
         }
     }
@@ -622,7 +710,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 });
 
                 leaderChecker.setCurrentNodes(publishRequest.getAcceptedState().nodes());
-                publication.start(Collections.emptySet()); // TODO start failure detector and put faultyNodes here
+                followersChecker.setCurrentNodes(publishRequest.getAcceptedState().nodes());
+                publication.start(followersChecker.getFaultyNodes());
             }
         } catch (Exception e) {
             logger.debug(() -> new ParameterizedMessage("[{}] publishing failed", clusterChangedEvent.source()), e);

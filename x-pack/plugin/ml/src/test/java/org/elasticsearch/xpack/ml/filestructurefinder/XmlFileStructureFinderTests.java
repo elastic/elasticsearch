@@ -19,7 +19,7 @@ public class XmlFileStructureFinderTests extends FileStructureTestCase {
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
         FileStructureFinder structureFinder = factory.createFromSample(explanation, XML_SAMPLE, charset, hasByteOrderMarker,
-            FileStructureOverrides.EMPTY_OVERRIDES);
+            FileStructureOverrides.EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER);
 
         FileStructure structure = structureFinder.getStructure();
 

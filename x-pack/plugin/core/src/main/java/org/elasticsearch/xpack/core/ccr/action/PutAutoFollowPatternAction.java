@@ -105,9 +105,9 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
                         maxRetryDelay.getStringRep() + "]";
                     validationException = addValidationError(message, validationException);
                 }
-                if (maxRetryDelay.millis() > FollowIndexAction.MAX_RETRY_DELAY.millis()) {
+                if (maxRetryDelay.millis() > ResumeFollowAction.MAX_RETRY_DELAY.millis()) {
                     String message = "[" + AutoFollowPattern.MAX_RETRY_DELAY.getPreferredName() + "] must be less than [" +
-                        FollowIndexAction.MAX_RETRY_DELAY +
+                        ResumeFollowAction.MAX_RETRY_DELAY +
                         "] but was [" + maxRetryDelay.getStringRep() + "]";
                     validationException = addValidationError(message, validationException);
                 }

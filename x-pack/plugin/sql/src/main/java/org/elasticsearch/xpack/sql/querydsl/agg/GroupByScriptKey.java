@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.querydsl.agg;
 
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
 
 import java.util.Objects;

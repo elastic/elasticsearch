@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.gradle;
 
-import org.gradle.api.GradleException;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;

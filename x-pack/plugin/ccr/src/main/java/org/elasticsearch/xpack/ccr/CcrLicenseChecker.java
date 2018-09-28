@@ -277,7 +277,22 @@ public final class CcrLicenseChecker {
         leaderClient.admin().indices().stats(request, ActionListener.wrap(indicesStatsHandler, onFailure));
     }
 
+    /**
+     * Check if the user executing the current action has privileges to follow the specified indices on the cluster specified by the leader
+     * client. The specified callback will be invoked with null if the user has the necessary privileges to follow the specified indices,
+     * otherwise the callback will be invoked with an exception outlining the authorization error.
+     *
+     * @param leaderClient the leader client
+     * @param indices      the indices
+     * @param handler      the callback
+     */
     public void hasPrivilegesToFollowIndices(final Client leaderClient, final String[] indices, final Consumer<Exception> handler) {
+        Objects.requireNonNull(leaderClient, "leaderClient");
+        Objects.requireNonNull(indices, "indices");
+        if (indices.length == 0) {
+            throw new IllegalArgumentException("indices must not be empty");
+        }
+        Objects.requireNonNull(handler, "handler");
         if (isAuthAllowed.getAsBoolean() == false) {
             handler.accept(null);
             return;

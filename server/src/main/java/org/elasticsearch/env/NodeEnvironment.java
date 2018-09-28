@@ -551,10 +551,8 @@ public final class NodeEnvironment  implements Closeable {
      * @param index the index to lock shards for
      * @param lockTimeoutMS how long to wait for acquiring the indices shard locks
      * @return the {@link ShardLock} instances for this index.
-     * @throws IOException if an IOException occurs.
      */
-    public List<ShardLock> lockAllForIndex(Index index, IndexSettings settings, long lockTimeoutMS)
-            throws IOException, ShardLockObtainFailedException {
+    public List<ShardLock> lockAllForIndex(Index index, IndexSettings settings, long lockTimeoutMS) throws ShardLockObtainFailedException {
         final int numShards = settings.getNumberOfShards();
         if (numShards <= 0) {
             throw new IllegalArgumentException("settings must contain a non-null > 0 number of shards");
@@ -842,7 +840,7 @@ public final class NodeEnvironment  implements Closeable {
     /**
      * Resolves all existing paths to <code>indexFolderName</code> in ${data.paths}/nodes/{node.id}/indices
      */
-    public Path[] resolveIndexFolder(String indexFolderName) throws IOException {
+    public Path[] resolveIndexFolder(String indexFolderName) {
         if (nodePaths == null || locks == null) {
             throw new IllegalStateException("node is not configured to store local location");
         }
@@ -985,17 +983,6 @@ public final class NodeEnvironment  implements Closeable {
                 }
             }
         }
-    }
-
-    /**
-     * Resolve the custom path for a index's shard.
-     * Uses the {@code IndexMetaData.SETTING_DATA_PATH} setting to determine
-     * the root path for the index.
-     *
-     * @param indexSettings settings for the index
-     */
-    public Path resolveBaseCustomLocation(IndexSettings indexSettings) {
-        return resolveBaseCustomLocation(indexSettings, sharedDataPath, nodeLockId);
     }
 
     /**

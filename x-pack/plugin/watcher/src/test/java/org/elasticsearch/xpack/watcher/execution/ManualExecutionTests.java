@@ -12,7 +12,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
-import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
@@ -32,6 +31,7 @@ import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
+import org.elasticsearch.xpack.watcher.test.WatcherMockScriptPlugin;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -66,7 +66,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
         return types;
     }
 
-    public static class CustomScriptPlugin extends MockScriptPlugin {
+    public static class CustomScriptPlugin extends WatcherMockScriptPlugin {
 
         @Override
         @SuppressWarnings("unchecked")
@@ -74,7 +74,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
             scripts.put("sleep", vars -> {
-                Number millis = (Number) XContentMapValues.extractValue("millis", vars);
+                Number millis = (Number) XContentMapValues.extractValue("params.millis", vars);
                 if (millis != null) {
                     try {
                         Thread.sleep(millis.longValue());

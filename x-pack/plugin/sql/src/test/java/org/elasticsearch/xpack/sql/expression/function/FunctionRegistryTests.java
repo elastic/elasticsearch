@@ -156,6 +156,33 @@ public class FunctionRegistryTests extends ESTestCase {
         assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
     }
 
+    public void testFunctionResolving() {
+        UnresolvedFunction ur = uf(STANDARD, mock(Expression.class));
+        FunctionRegistry r = new FunctionRegistry(
+            Arrays.asList(def(Dummy.class, (Location l, Expression e) -> {
+            assertSame(e, ur.children().get(0));
+            return new Dummy(l);
+        }, "DUMMY_FUNCTION")));
+
+        FunctionDefinition def = r.resolveFunction(r.concreteFunctionName("DuMMy_FuncTIon"));
+        assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
+
+        def = r.resolveFunction(r.concreteFunctionName("DummyFunction"));
+        assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
+
+        def = r.resolveFunction(r.concreteFunctionName("dummyFunction"));
+        assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
+
+        def = r.resolveFunction(r.concreteFunctionName("Dummy_Function"));
+        assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
+
+        def = r.resolveFunction(r.concreteFunctionName("dummy_function"));
+        assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
+
+        def = r.resolveFunction(r.concreteFunctionName("DUMMY_FUNCTION"));
+        assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
+    }
+
     private UnresolvedFunction uf(UnresolvedFunction.ResolutionType resolutionType, Expression... children) {
         return new UnresolvedFunction(LocationTests.randomLocation(), "dummy", resolutionType, Arrays.asList(children));
     }

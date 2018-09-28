@@ -90,6 +90,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 import java.util.function.BiFunction;
@@ -221,7 +222,7 @@ public class FunctionRegistry {
 
     public String concreteFunctionName(String alias) {
         String normalized = normalize(alias);
-        return aliases.getOrDefault(normalized, normalized);
+        return aliases.getOrDefault(normalized, alias.toUpperCase(Locale.ROOT));
     }
 
     public boolean functionExists(String name) {

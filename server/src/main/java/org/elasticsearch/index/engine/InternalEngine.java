@@ -2336,7 +2336,7 @@ public class InternalEngine extends Engine {
      * Checks if the given operation has been processed in this engine or not.
      * @return true if the given operation was processed; otherwise false.
      */
-    protected boolean containsOperation(Operation op) {
+    protected final boolean hasBeenProcessedBefore(Operation op) {
         assert op.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "operation is not assigned seq_no";
         assert versionMap.assertKeyedLockHeldByCurrentThread(op.uid().bytes());
         return localCheckpointTracker.contains(op.seqNo());

@@ -62,27 +62,32 @@ public final class FollowingEngine extends InternalEngine {
          *
          * 2. An engine itself can resolve correctly if an operation is delivered multiple times. However, if an operation is
          *    optimized and delivered multiple times, it will be appended into Lucene more than once. We void this issue by
-         *    never optimizing an operation if it was processed in the engine (using LocalCheckpointTracker).
+         *    not executing operations which have been processed before (using LocalCheckpointTracker).
          *
          * 3. When replicating operations to replicas or followers, we also carry the max seq_no_of_updates_or_deletes on the
          *    leader to followers. This transfer guarantees the MUS on a follower when operation O is processed at least the
-         *    MUS on the leader when it was executed.
+         *    MUS on the leader when it was executed [MSU_r(O) >= MSU_p(O)].
          *
-         * 4. The following proves that docID(O) does not exist on a follower when operation O is applied if MSU(O) <= LCP < seqno(O):
+         * 4. The following proves that docID(O) does not exist on a follower when operation O is applied if MSU_r(O) <= LCP < seqno(O):
          *
-         *    4.1) If such operation O' with docID(O’) = docID(O), and LCP < seqno(O’), then MSU(O) >= MSU(O') because O' was
-         *         delivered to the follower before O. MUS(0') on the leader is at least seqno(O) or seqno(0') and both > LCP.
-         *         This contradicts the assumption [MSU(O) <= LCP].
+         *    4.1) If such operation O' with docID(O’) = docID(O), and LCP < seqno(O) < seqno(O’), then MSU_r(O) >= MSU_r(O') because
+         *         O' was delivered to the follower before O. MUS_p(O') is at least seqno(O) because O' on the primary captured
+         *         that O was updated (either by O' or by O" with seqno(O) < seqno(O") < seqno(O')).
+         *         Thus MUS_r(O) >= MSU_r(O') >= MSU_p(O') >= seqno(O) > LCP which contradicts the assumption [MSU_r(O) <= LCP].
          *
-         *    4.2) MSU(O) < seqno(O) then docID(O) does not exist when O is applied on a leader. This means docID(O) does not exist
+         *    4.2) If such operation O' with docID(O') = docID(O), and LCP < seqno(O') < seqno(O), then MSU_p(O) is at least seqno(O')
+         *         because O on the primary captured that O' was updated (either by O' or by O" with seqno(O') < seqno(O") < seqno(O)).
+         *         Thus MUS_r(O) >= MSU_p(O) >= seqno(O') > LCP which contradicts the assumption [MSU_r(O) <= LCP].
+         *
+         *    4.3) MSU(O) < seqno(O) then docID(O) does not exist when O is applied on a leader. This means docID(O) does not exist
          *         after we apply every operation with docID = docID(O) and seqno < seqno(O). On the follower, we have applied every
-         *         operation with seqno <= LCP, and there is no such O' with docID(O’) = docID(O) and LCP < seqno(O’)[4.1].
+         *         operation with seqno <= LCP, and there is no such O' with docID(O’) = docID(O) and LCP < seqno(O’)[4.1 and 4.2].
          *         These mean the follower has applied every operation with docID = docID(O) and seqno < seqno(O).
          *         Thus docID(O) does not exist on the follower.
          */
         final long maxSeqNoOfUpdatesOrDeletes = getMaxSeqNoOfUpdatesOrDeletes();
         assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is not initialized";
-        if (containsOperation(index)) {
+        if (hasBeenProcessedBefore(index)) {
             return IndexingStrategy.processButSkipLucene(false, index.seqNo(), index.version());
 
         } else if (maxSeqNoOfUpdatesOrDeletes <= getLocalCheckpoint()) {

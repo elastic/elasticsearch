@@ -19,7 +19,9 @@
 package org.elasticsearch.cloud.gce;
 
 import org.apache.http.client.methods.HttpGet;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
@@ -30,13 +32,18 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * {@link GCEFixture} is a fixture that emulates a GCE service.
@@ -110,42 +117,49 @@ public class GCEFixture extends AbstractHttpFixture {
             request -> simpleValue.apply(PROJECT_ID));
         handlers.insert(nonAuthPath(HttpGet.METHOD_NAME, "/computeMetadata/v1/project/attributes/google-compute-default-zone"),
             request -> simpleValue.apply(ZONE));
+        // https://cloud.google.com/compute/docs/access/create-enable-service-accounts-for-instances
         handlers.insert(nonAuthPath(HttpGet.METHOD_NAME, "/computeMetadata/v1/instance/service-accounts/default/token"),
-            request -> jsonValue.apply("{\"access_token\":\""
-                + TOKEN + "\", \"expires_in\":3268, \"token_type\":\"" + TOKEN_TYPE + "\"}"));
+            request -> jsonValue.apply(Strings.toString(jsonBuilder()
+                .startObject()
+                    .field("access_token", TOKEN)
+                    .field("expires_in", TimeUnit.HOURS.toSeconds(1))
+                    .field("token_type", TOKEN_TYPE)
+                .endObject())));
 
         // https://cloud.google.com/compute/docs/reference/rest/v1/instances
         handlers.insert(authPath(HttpGet.METHOD_NAME, "/compute/v1/projects/{project}/zones/{zone}/instances"),
             request -> {
-                final Map<String, String> headers = new HashMap<>(JSON_CONTENT_TYPE);
-                commonHeaderConsumer.accept(headers);
-
-                final StringBuilder builder = new StringBuilder();
-                builder.append("{\"id\": \"test-instances\",\"items\":[");
+                final List items = new ArrayList();
                 int count = 0;
                 for (String address : Files.readAllLines(nodes)) {
-                    if (count > 0) {
-                        builder.append(",");
-                    }
                     count++;
-                    builder.append("{\"description\": \"ES Node ").append(count).append("\",")
-                        .append("\"id\": \"").append(9309873766405L + count).append("\",\n")
-                        .append("\"kind\": \"compute#instance\",\n")
-                        .append("\"machineType\": \"n1-standard-1\",\n")
-                        .append("\"name\": \"test").append(count).append("\",\n")
-                        .append("\"networkInterfaces\": [{\n")
-                        .append("  \"accessConfigs\": [],\n")
-                        .append("  \"name\": \"nic0\",\n")
-                        .append("  \"network\": \"default\",\n")
-                        .append("  \"networkIP\": \"").append(address).append("\"\n")
-                        .append("  }\n")
-                        .append("],\n")
-                        .append("\"status\": \"RUNNING\",\"zone\": \"").append(ZONE).append("\"")
-                        .append("}");
+                    items.add(MapBuilder.<String, Object>newMapBuilder()
+                        .put("id", Long.toString(9309873766405L + count))
+                        .put("description", "ES node" + count)
+                        .put("name", "test" + count)
+                        .put("kind", "compute#instance")
+                        .put("machineType", "n1-standard-1")
+                        .put("networkInterfaces",
+                            Collections.singletonList(MapBuilder.<String, Object>newMapBuilder()
+                            .put("accessConfigs", Collections.emptyList())
+                            .put("name", "nic0")
+                            .put("network", "default")
+                            .put("networkIP", address)
+                            .immutableMap()))
+                        .put("status", "RUNNING")
+                        .put("zone", ZONE)
+                        .immutableMap());
                 }
-                builder.append("]}");
 
-                final byte[] responseAsBytes = builder.toString().getBytes(StandardCharsets.UTF_8);
+                final String json = Strings.toString(jsonBuilder()
+                    .startObject()
+                    .field("id", "test-instances")
+                    .field("items", items)
+                    .endObject());
+
+                final byte[] responseAsBytes = json.getBytes(StandardCharsets.UTF_8);
+                final Map<String, String> headers = new HashMap<>(JSON_CONTENT_TYPE);
+                commonHeaderConsumer.accept(headers);
                 return new Response(RestStatus.OK.getStatus(), headers, responseAsBytes);
         });
         return handlers;
@@ -172,22 +186,23 @@ public class GCEFixture extends AbstractHttpFixture {
         return null;
     }
 
-    private static Response newError(final RestStatus status, final String code, final String message) {
-        final String response = "{\n" +
-            " \"error\": {\n" +
-            "  \"errors\": [\n" +
-            "   {\n" +
-            "    \"domain\": \"global\",\n" +
-            "    \"reason\": \"required\",\n" +
-            "    \"message\": \"" + message + "\",\n" +
-            "    \"locationType\": \"header\",\n" +
-            "    \"location\": \"" + code + "\"\n" +
-            "   }\n" +
-            "  ],\n" +
-            "  \"code\": " + status.getStatus() + ",\n" +
-            "  \"message\": \"" + message + "\"\n" +
-            " }\n" +
-            "}";
+    private static Response newError(final RestStatus status, final String code, final String message) throws IOException {
+        final String response = Strings.toString(jsonBuilder()
+            .startObject()
+            .field("error", MapBuilder.<String, Object>newMapBuilder()
+                .put("errors", Collections.singletonList(
+                    MapBuilder.<String, Object>newMapBuilder()
+                    .put("domain", "global")
+                    .put("reason", "required")
+                    .put("message", message)
+                    .put("locationType", "header")
+                    .put("location", code)
+                    .immutableMap()
+                ))
+                .put("code", status.getStatus())
+                .put("message", message)
+                .immutableMap())
+            .endObject());
 
         return new Response(status.getStatus(), JSON_CONTENT_TYPE, response.getBytes(UTF_8));
     }

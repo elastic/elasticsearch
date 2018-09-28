@@ -19,19 +19,29 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.ScriptContext;
 
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 public class BindingsTests extends ScriptTestCase {
 
     public abstract static class BindingsTestScript {
         public static final String[] PARAMETERS = { "test", "bound" };
-        abstract int execute(int test, int bound);
+        public abstract int execute(int test, int bound);
         public interface Factory {
             BindingsTestScript newInstance();
         }
         public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("bindings_test", Factory.class);
+    }
+
+    @Override
+    protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
+        Map<ScriptContext<?>, List<Whitelist>> contexts = super.scriptContexts();
+        contexts.put(BindingsTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        return contexts;
     }
 
     public void testBasicBinding() {

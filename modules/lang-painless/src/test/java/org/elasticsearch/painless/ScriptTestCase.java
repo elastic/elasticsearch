@@ -31,6 +31,7 @@ import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,6 +68,7 @@ public abstract class ScriptTestCase extends ESTestCase {
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
         contexts.put(SearchScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        contexts.put(PainlessTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         return contexts;
     }
 
@@ -100,7 +102,7 @@ public abstract class ScriptTestCase extends ESTestCase {
         }
         // test actual script execution
         PainlessTestScript.Factory factory = scriptEngine.compile(null, script, PainlessTestScript.CONTEXT, compileParams);
-        PainlessTestScript testScript = factory.newInstance(vars);
+        PainlessTestScript testScript = factory.newInstance(vars == null ? Collections.emptyMap() : vars);
         return testScript.execute();
     }
 

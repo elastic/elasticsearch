@@ -37,8 +37,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
-import org.elasticsearch.xpack.core.ccr.action.CreateAndFollowIndexAction;
-import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.util.HashMap;
 import java.util.List;
@@ -46,8 +46,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-public final class TransportCreateAndFollowIndexAction
-        extends TransportMasterNodeAction<CreateAndFollowIndexAction.Request, CreateAndFollowIndexAction.Response> {
+public final class TransportPutFollowAction
+        extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
 
     private final Client client;
     private final AllocationService allocationService;
@@ -56,7 +56,7 @@ public final class TransportCreateAndFollowIndexAction
     private final CcrLicenseChecker ccrLicenseChecker;
 
     @Inject
-    public TransportCreateAndFollowIndexAction(
+    public TransportPutFollowAction(
             final Settings settings,
             final ThreadPool threadPool,
             final TransportService transportService,
@@ -68,13 +68,13 @@ public final class TransportCreateAndFollowIndexAction
             final CcrLicenseChecker ccrLicenseChecker) {
         super(
                 settings,
-                CreateAndFollowIndexAction.NAME,
+                PutFollowAction.NAME,
                 transportService,
                 clusterService,
                 threadPool,
                 actionFilters,
                 indexNameExpressionResolver,
-                CreateAndFollowIndexAction.Request::new);
+                PutFollowAction.Request::new);
         this.client = client;
         this.allocationService = allocationService;
         this.remoteClusterService = transportService.getRemoteClusterService();
@@ -88,15 +88,15 @@ public final class TransportCreateAndFollowIndexAction
     }
 
     @Override
-    protected CreateAndFollowIndexAction.Response newResponse() {
-        return new CreateAndFollowIndexAction.Response();
+    protected PutFollowAction.Response newResponse() {
+        return new PutFollowAction.Response();
     }
 
     @Override
     protected void masterOperation(
-            final CreateAndFollowIndexAction.Request request,
+            final PutFollowAction.Request request,
             final ClusterState state,
-            final ActionListener<CreateAndFollowIndexAction.Response> listener) throws Exception {
+            final ActionListener<PutFollowAction.Response> listener) throws Exception {
         if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
@@ -116,9 +116,9 @@ public final class TransportCreateAndFollowIndexAction
     }
 
     private void createFollowerIndexAndFollowLocalIndex(
-            final CreateAndFollowIndexAction.Request request,
+            final PutFollowAction.Request request,
             final ClusterState state,
-            final ActionListener<CreateAndFollowIndexAction.Response> listener) {
+            final ActionListener<PutFollowAction.Response> listener) {
         // following an index in local cluster, so use local cluster state to fetch leader index metadata
         final String leaderIndex = request.getFollowRequest().getLeaderIndex();
         final IndexMetaData leaderIndexMetadata = state.getMetaData().index(leaderIndex);
@@ -134,10 +134,10 @@ public final class TransportCreateAndFollowIndexAction
     }
 
     private void createFollowerIndexAndFollowRemoteIndex(
-            final CreateAndFollowIndexAction.Request request,
+            final PutFollowAction.Request request,
             final String clusterAlias,
             final String leaderIndex,
-            final ActionListener<CreateAndFollowIndexAction.Response> listener) {
+            final ActionListener<PutFollowAction.Response> listener) {
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
                 client,
                 clusterAlias,
@@ -149,8 +149,8 @@ public final class TransportCreateAndFollowIndexAction
     private void createFollowerIndex(
             final IndexMetaData leaderIndexMetaData,
             final String[] historyUUIDs,
-            final CreateAndFollowIndexAction.Request request,
-            final ActionListener<CreateAndFollowIndexAction.Response> listener) {
+            final PutFollowAction.Request request,
+            final ActionListener<PutFollowAction.Response> listener) {
         if (leaderIndexMetaData == null) {
             listener.onFailure(new IllegalArgumentException("leader index [" + request.getFollowRequest().getLeaderIndex() +
                     "] does not exist"));
@@ -162,7 +162,7 @@ public final class TransportCreateAndFollowIndexAction
                     if (result) {
                         initiateFollowing(request, listener);
                     } else {
-                        listener.onResponse(new CreateAndFollowIndexAction.Response(true, false, false));
+                        listener.onResponse(new PutFollowAction.Response(true, false, false));
                     }
                 },
                 listener::onFailure);
@@ -228,23 +228,23 @@ public final class TransportCreateAndFollowIndexAction
     }
 
     private void initiateFollowing(
-            final CreateAndFollowIndexAction.Request request,
-            final ActionListener<CreateAndFollowIndexAction.Response> listener) {
+            final PutFollowAction.Request request,
+            final ActionListener<PutFollowAction.Response> listener) {
         activeShardsObserver.waitForActiveShards(new String[]{request.getFollowRequest().getFollowerIndex()},
                 ActiveShardCount.DEFAULT, request.timeout(), result -> {
                     if (result) {
-                        client.execute(FollowIndexAction.INSTANCE, request.getFollowRequest(), ActionListener.wrap(
-                                r -> listener.onResponse(new CreateAndFollowIndexAction.Response(true, true, r.isAcknowledged())),
+                        client.execute(ResumeFollowAction.INSTANCE, request.getFollowRequest(), ActionListener.wrap(
+                                r -> listener.onResponse(new PutFollowAction.Response(true, true, r.isAcknowledged())),
                                 listener::onFailure
                         ));
                     } else {
-                        listener.onResponse(new CreateAndFollowIndexAction.Response(true, false, false));
+                        listener.onResponse(new PutFollowAction.Response(true, false, false));
                     }
                 }, listener::onFailure);
     }
 
     @Override
-    protected ClusterBlockException checkBlock(final CreateAndFollowIndexAction.Request request, final ClusterState state) {
+    protected ClusterBlockException checkBlock(final PutFollowAction.Request request, final ClusterState state) {
         return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.getFollowRequest().getFollowerIndex());
     }
 

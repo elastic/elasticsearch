@@ -28,7 +28,7 @@ the watch payload in the email body:
 "actions" : {
   "send_email" : { <1>
     "email" : { <2>
-      "to" : "<username>@<domainname>", <3>
+      "to" : "username@example.org", <3>
       "subject" : "Watcher Notification", <4>
       "body" : "{{ctx.payload.hits.total}} error logs found" <5>
     }

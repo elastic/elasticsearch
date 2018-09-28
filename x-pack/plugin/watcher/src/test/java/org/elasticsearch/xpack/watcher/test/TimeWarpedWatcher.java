@@ -5,8 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.test;
 
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -36,8 +35,7 @@ public class TimeWarpedWatcher extends LocalStateCompositeXPackPlugin {
 
     public TimeWarpedWatcher(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
-        Logger logger = Loggers.getLogger(TimeWarpedWatcher.class, settings);
-        logger.info("using time warped watchers plugin");
+        LogManager.getLogger(TimeWarpedWatcher.class).info("using time warped watchers plugin");
 
         TimeWarpedWatcher thisVar = this;
 
@@ -69,7 +67,7 @@ public class TimeWarpedWatcher extends LocalStateCompositeXPackPlugin {
 
             @Override
             protected Consumer<Iterable<TriggerEvent>> getTriggerEngineListener(ExecutionService executionService){
-                return new SyncTriggerEventConsumer(settings, executionService);
+                return new SyncTriggerEventConsumer(executionService);
             }
         });
     }

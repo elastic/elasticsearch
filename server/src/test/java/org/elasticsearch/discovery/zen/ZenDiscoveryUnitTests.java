@@ -26,7 +26,9 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -38,6 +40,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -46,6 +49,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.discovery.zen.PublishClusterStateActionTests.AssertingAckListener;
+import org.elasticsearch.discovery.zen.ZenDiscovery.ZenNodeRemovalClusterStateTaskExecutor;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -57,6 +61,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
+import org.hamcrest.CoreMatchers;
 import org.hamcrest.core.IsInstanceOf;
 
 import java.io.Closeable;
@@ -73,6 +78,8 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -91,6 +98,12 @@ import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class ZenDiscoveryUnitTests extends ESTestCase {
 
@@ -520,5 +533,60 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             .build();
 
         ZenDiscovery.validateIncomingState(logger, state, higherVersionState);
+    }
+
+    public void testNotEnoughMasterNodesAfterRemove() throws Exception {
+        final ElectMasterService electMasterService = mock(ElectMasterService.class);
+        when(electMasterService.hasEnoughMasterNodes(any(Iterable.class))).thenReturn(false);
+
+        final AllocationService allocationService = mock(AllocationService.class);
+
+        final AtomicBoolean rejoinCalled = new AtomicBoolean();
+        final Consumer<String> submitRejoin = source -> rejoinCalled.set(true);
+
+        final AtomicReference<ClusterState> remainingNodesClusterState = new AtomicReference<>();
+        final ZenNodeRemovalClusterStateTaskExecutor executor =
+            new ZenNodeRemovalClusterStateTaskExecutor(allocationService, electMasterService, submitRejoin, logger) {
+                @Override
+                protected ClusterState remainingNodesClusterState(ClusterState currentState, DiscoveryNodes.Builder remainingNodesBuilder) {
+                    remainingNodesClusterState.set(super.remainingNodesClusterState(currentState, remainingNodesBuilder));
+                    return remainingNodesClusterState.get();
+                }
+            };
+
+        final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
+        final int nodes = randomIntBetween(2, 16);
+        final List<NodeRemovalClusterStateTaskExecutor.Task> tasks = new ArrayList<>();
+        // to ensure there is at least one removal
+        boolean first = true;
+        for (int i = 0; i < nodes; i++) {
+            final DiscoveryNode node = node(i);
+            builder.add(node);
+            if (first || randomBoolean()) {
+                tasks.add(new NodeRemovalClusterStateTaskExecutor.Task(node, randomBoolean() ? "left" : "failed"));
+            }
+            first = false;
+        }
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(builder).build();
+
+        final ClusterStateTaskExecutor.ClusterTasksResult<NodeRemovalClusterStateTaskExecutor.Task> result =
+            executor.execute(clusterState, tasks);
+        verify(electMasterService).hasEnoughMasterNodes(eq(remainingNodesClusterState.get().nodes()));
+        verify(electMasterService).countMasterNodes(eq(remainingNodesClusterState.get().nodes()));
+        verify(electMasterService).minimumMasterNodes();
+        verifyNoMoreInteractions(electMasterService);
+
+        // ensure that we did not reroute
+        verifyNoMoreInteractions(allocationService);
+        assertTrue(rejoinCalled.get());
+        assertThat(result.resultingState, CoreMatchers.equalTo(clusterState));
+
+        for (final NodeRemovalClusterStateTaskExecutor.Task task : tasks) {
+            assertNotNull(result.resultingState.nodes().get(task.node().getId()));
+        }
+    }
+
+    private DiscoveryNode node(final int id) {
+        return new DiscoveryNode(Integer.toString(id), buildNewFakeTransportAddress(), Version.CURRENT);
     }
 }

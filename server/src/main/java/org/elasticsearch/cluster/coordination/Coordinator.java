@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
@@ -47,9 +46,7 @@ import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
 import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.UnicastConfiguredHostsResolver;
-import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
-import org.elasticsearch.discovery.zen.ZenDiscovery.NodeRemovalClusterStateTaskExecutor;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
@@ -124,29 +121,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.publicationHandler = new PublicationTransportHandler(transportService, this::handlePublishRequest, this::handleApplyCommit);
         this.leaderChecker = new LeaderChecker(settings, transportService, getOnLeaderFailure());
         this.followersChecker = new FollowersChecker(settings, transportService, this::onFollowerCheckRequest, this::onFollowerFailure);
-        this.nodeRemovalExecutor = getNodeRemovalExecutor(settings, allocationService, logger);
+        this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         masterService.setClusterStateSupplier(this::getStateForMasterService);
-    }
-
-    private static NodeRemovalClusterStateTaskExecutor getNodeRemovalExecutor(Settings settings, AllocationService allocationService,
-                                                                              Logger logger) {
-        // TODO move NodeRemovalClusterStateTaskExecutor out of Zen since it's not Zen-specific
-        return new NodeRemovalClusterStateTaskExecutor(allocationService, new ElectMasterService(settings) {
-
-            @Override
-            public boolean hasEnoughMasterNodes(Iterable<DiscoveryNode> nodes) {
-                return true;
-            }
-
-            @Override
-            public void logMinimumMasterNodesWarningIfNecessary(ClusterState oldState, ClusterState newState) {
-                // ignore
-            }
-
-        },
-            s -> {
-                throw new AssertionError("not implemented");
-            }, logger);
     }
 
     private Runnable getOnLeaderFailure() {

@@ -1,15 +1,20 @@
 package org.elasticsearch.gradle;
 
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /*
@@ -33,6 +38,9 @@ import java.util.stream.Collectors;
 public class VersionCollectionTests extends GradleUnitTestCase {
 
     private static final Map<String, List<String>> sampleVersions = new HashMap<>();
+
+    @Rule
+    public ExpectedException expectedEx = ExpectedException.none();
 
     static {
         // unreleased major and two unreleased minors ( minor in feature freeze )
@@ -307,6 +315,58 @@ public class VersionCollectionTests extends GradleUnitTestCase {
             Arrays.asList("maintenance", "staged", "minor"),
             getVersionCollection("8.0.0")
         );
+    }
+
+    public void testCompareToAuthoritative() {
+        List<String> listOfVersions = Arrays.asList("7.0.0", "7.0.1", "7.1.0", "7.1.1", "7.2.0", "7.3.0", "8.0.0");
+        HashSet<Version> authoritativeReleasedVersions = new HashSet<>(
+            Arrays.asList("7.0.0", "7.0.1", "7.1.0").stream()
+                .map(Version::fromString)
+                .collect(Collectors.toList())
+        );
+        VersionCollection vc = new VersionCollection(
+            listOfVersions.stream()
+                .map(this::formatVersionToLine)
+                .collect(Collectors.toList()),
+            Version.fromString("8.0.0")
+        );
+        vc.compareToAuthoritive(authoritativeReleasedVersions);
+    }
+
+    public void testCompareToAuthoritativeUnreleasedActuallyReleased() {
+        List<String> listOfVersions = Arrays.asList("7.0.0", "7.0.1", "7.1.0", "7.1.1", "7.2.0", "7.3.0", "8.0.0");
+        HashSet<Version> authoritativeReleasedVersions = new HashSet<>(
+            Arrays.asList("7.0.0", "7.0.1", "7.1.0", "7.1.1", "8.0.0").stream()
+                .map(Version::fromString)
+                .collect(Collectors.toList())
+        );
+        VersionCollection vc = new VersionCollection(
+            listOfVersions.stream()
+                .map(this::formatVersionToLine)
+                .collect(Collectors.toList()),
+            Version.fromString("8.0.0")
+        );
+        expectedEx.expect(IllegalStateException.class);
+        expectedEx.expectMessage("but they are released");
+        vc.compareToAuthoritive(authoritativeReleasedVersions);
+    }
+
+    public void testCompareToAuthoritativeNotReallyRelesed() {
+        List<String> listOfVersions = Arrays.asList("7.0.0", "7.0.1", "7.1.0", "7.1.1", "7.2.0", "7.3.0", "8.0.0");
+        HashSet<Version> authoritativeReleasedVersions = new HashSet<>(
+            Arrays.asList("7.0.0", "7.0.1").stream()
+                .map(Version::fromString)
+                .collect(Collectors.toList())
+        );
+        VersionCollection vc = new VersionCollection(
+            listOfVersions.stream()
+                .map(this::formatVersionToLine)
+                .collect(Collectors.toList()),
+            Version.fromString("8.0.0")
+        );
+        expectedEx.expect(IllegalStateException.class);
+        expectedEx.expectMessage("not really released");
+        vc.compareToAuthoritive(authoritativeReleasedVersions);
     }
 
     private void assertUnreleasedGradleProjectNames(List<String> expectedNAmes, VersionCollection versionCollection) {

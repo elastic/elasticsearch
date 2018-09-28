@@ -18,10 +18,14 @@
  */
 package org.elasticsearch.gradle;
 
+import org.gradle.api.GradleException;
+
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Consumer;
@@ -261,7 +265,34 @@ public class VersionCollection {
         return groupByMinor;
     }
 
-    public SortedSet<Version> getReleased() {
+    public void compareToAuthoritive(List<Version> authoritativeReleasedVersions) {
+        compareToAuthoritive(new HashSet<>(authoritativeReleasedVersions));
+    }
+
+    public void compareToAuthoritive(Set<Version> authoritativeReleasedVersions) {
+
+        Set<Version> notReallyReleased = new TreeSet<>(getReleased());
+        notReallyReleased.removeAll(authoritativeReleasedVersions);
+        if (notReallyReleased.isEmpty() == false) {
+            throw new IllegalStateException(
+                "out-of-date released versions" +
+                    "\nFollowing versions are not really released, but the build thinks they are: " + notReallyReleased
+            );
+        }
+
+        Set<Version> incorrectlyConsideredUnreleased = new TreeSet<>(authoritativeReleasedVersions);
+        incorrectlyConsideredUnreleased.retainAll(getUnreleased());
+        if (incorrectlyConsideredUnreleased.isEmpty() == false) {
+            throw new IllegalStateException(
+                "out-of-date released versions" +
+                    "\nBuild considers versions unreleased, " +
+                    "but they are released according to an authoritative source: " + incorrectlyConsideredUnreleased +
+                    "\nThe next versions probably needs to be added to Version.java (CURRENT doesn't count)."
+            );
+        }
+    }
+
+    private SortedSet<Version> getReleased() {
         TreeSet<Version> released = new TreeSet<>(this.versions);
         released.removeAll(getUnreleased());
         return released;

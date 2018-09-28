@@ -137,32 +137,12 @@ task verifyVersions {
       throw new GradleException("Must run in online mode to verify versions")
     }
     // Read the list from maven central
-    Node xml
     new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
-        xml = new XmlParser().parse(s)
-    }
-    Set<Version> actuallyReleasedVersions = new TreeSet<>(
-            xml.versioning.versions.version
-                    .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
-                    .collect { Version.fromString(it) }
-    )
-
-    Set<Version> notReallyReleased = new TreeSet<>(bwcVersions.released)
-    notReallyReleased.removeAll(actuallyReleasedVersions)
-    if (notReallyReleased.isEmpty() == false) {
-      throw new GradleException(
-              "out-of-date released versions" +
-              "\nFollowing versions are not really released, but the build thinks they are: $notReallyReleased"
-      )
-    }
-
-    Set<Version> incorrectlyConsideredUnreleased = actuallyReleasedVersions.intersect(bwcVersions.unreleased)
-    if (incorrectlyConsideredUnreleased.isEmpty() == false) {
-      throw new GradleException(
-              "out-of-date released versions" +
-                      "\nBuild considers versions unreleased, " +
-                      "but they are released on maven central: ${incorrectlyConsideredUnreleased}" +
-                      "\nThe next versions probably needs to be added to Version.java (CURRENT doesn't count)."
+      bwcVersions.compareToAuthoritive(
+              new XmlParser().parse(s)
+                      .versioning.versions.version
+                      .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
+                      .collect { Version.fromString(it) }
       )
     }
   }

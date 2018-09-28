@@ -6,6 +6,7 @@
 This section summarizes the changes in each release.
 
 * <<release-notes-6.5.0>>
+* <<release-notes-6.4.2>>
 * <<release-notes-6.4.1>>
 * <<release-notes-6.4.0>>
 * <<release-notes-6.3.2>>

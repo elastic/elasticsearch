@@ -34,10 +34,10 @@
 //=== Known Issues
 ////
 
-[[release-notes-6.4.1]]
-== {es} version 6.4.1
+[[release-notes-6.4.2]]
+== {es} version 6.4.2
 
-coming[6.4.1]
+coming[6.4.2]
 
 //[float]
 //[[breaking-n.n.n]]
@@ -64,6 +64,16 @@ coming[6.4.1]
 //[float]
 //=== Known Issues
 
+
+[[release-notes-6.4.1]]
+== {es} version 6.4.1
+
+[float]
+=== Bug Fixes
+
+Rollover::
+{es} can once again start if any shards on the node have been
+<<indices-rollover-index, rolled over>>. {pull}33394[#33394]
 
 [[release-notes-6.4.0]]
 == {es} version 6.4.0

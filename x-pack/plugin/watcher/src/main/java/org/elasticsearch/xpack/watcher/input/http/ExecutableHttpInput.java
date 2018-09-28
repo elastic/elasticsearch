@@ -44,7 +44,7 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
     public HttpInput.Result execute(WatchExecutionContext ctx, Payload payload) {
         HttpRequest request = null;
         try {
-            Map<String, Object> model = Variables.createCtxModel(ctx, payload);
+            Map<String, Object> model = Variables.createCtxParamsMap(ctx, payload);
             request = input.getRequest().render(templateEngine, model);
             return doExecute(ctx, request);
         } catch (Exception e) {

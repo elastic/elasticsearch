@@ -51,7 +51,8 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
         String stage2Mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("person").startObject("properties")
                 .startObject("name").field("type", "text").endObject()
                 .startObject("age").field("type", "integer").endObject()
-                .startObject("obj1").startObject("properties").startObject("prop1").field("type", "integer").endObject().endObject().endObject()
+                .startObject("obj1").startObject("properties").startObject("prop1").field("type", "integer").endObject().endObject()
+                .endObject()
                 .endObject().endObject().endObject());
         DocumentMapper stage2 = parser.parse("person", new CompressedXContent(stage2Mapping));
 
@@ -70,7 +71,8 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
         DocumentMapper mapper = parser.parse("type1", new CompressedXContent(objectMapping));
         assertNull(mapper.root().dynamic());
 
-        String withDynamicMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1").field("dynamic", "false").endObject().endObject());
+        String withDynamicMapping = Strings.toString(
+                XContentFactory.jsonBuilder().startObject().startObject("type1").field("dynamic", "false").endObject().endObject());
         DocumentMapper withDynamicMapper = parser.parse("type1", new CompressedXContent(withDynamicMapping));
         assertThat(withDynamicMapper.root().dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
 

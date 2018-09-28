@@ -19,6 +19,10 @@
 
 package org.elasticsearch.env;
 
+import java.io.UncheckedIOException;
+import java.util.Iterator;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -486,12 +490,27 @@ public final class NodeEnvironment  implements Closeable {
     }
 
     private static boolean assertPathsDoNotExist(final Path[] paths) {
-        Set<Path> existingPaths = new HashSet<>();
-        for (Path path : paths) {
-            if (FileSystemUtils.exists(path)) {
-                existingPaths.add(path);
-            }
-        }
+        Set<Path> existingPaths = Stream.of(paths)
+            .filter(FileSystemUtils::exists)
+            .filter(leftOver -> {
+                // Relaxed assertion for the special case where only the empty state directory exists after deleting
+                // the shard directory because it was created again as a result of a metadata read action concurrently.
+                try (DirectoryStream<Path> children = Files.newDirectoryStream(leftOver)) {
+                    Iterator<Path> iter = children.iterator();
+                    if (iter.hasNext() == false) {
+                        return true;
+                    }
+                    Path maybeState = iter.next();
+                    if (iter.hasNext() || maybeState.equals(leftOver.resolve(MetaDataStateFormat.STATE_DIR_NAME)) == false) {
+                        return true;
+                    }
+                    try (DirectoryStream<Path> stateChildren = Files.newDirectoryStream(maybeState)) {
+                        return stateChildren.iterator().hasNext();
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }).collect(Collectors.toSet());
         assert existingPaths.size() == 0 : "Paths exist that should have been deleted: " + existingPaths;
         return existingPaths.size() == 0;
     }

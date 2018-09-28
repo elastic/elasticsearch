@@ -156,6 +156,26 @@ public class FunctionRegistryTests extends ESTestCase {
                     .buildResolved(randomTimeZone(), def));
         assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
     }
+    
+    public void testAliasNameIsTheSameAsAFunctionName() {
+        FunctionRegistry r = new FunctionRegistry(def(Dummy.class, Dummy::new, "ALIAS"));
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
+                r.addToMap(def(Dummy2.class, Dummy2::new, "DUMMY")));
+        assertEquals(iae.getMessage(), "alias [DUMMY] is used by [DUMMY] and [DUMMY2]");
+    }
+    
+    public void testDuplicateAliasInTwoDifferentFunctionsFromTheSameBatch() {
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
+                new FunctionRegistry(def(Dummy.class, Dummy::new, "ALIAS"), def(Dummy2.class, Dummy2::new, "ALIAS")));
+        assertEquals(iae.getMessage(), "alias [ALIAS] is used by [DUMMY(ALIAS)] and [DUMMY2]");
+    }
+    
+    public void testDuplicateAliasInTwoDifferentFunctionsFromTwoDifferentBatches() {
+        FunctionRegistry r = new FunctionRegistry(def(Dummy.class, Dummy::new, "ALIAS"));
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
+                r.addToMap(def(Dummy2.class, Dummy2::new, "ALIAS")));
+        assertEquals(iae.getMessage(), "alias [ALIAS] is used by [DUMMY] and [DUMMY2]");
+    }
 
     private UnresolvedFunction uf(UnresolvedFunction.ResolutionType resolutionType, Expression... children) {
         return new UnresolvedFunction(LocationTests.randomLocation(), "dummy", resolutionType, Arrays.asList(children));
@@ -189,6 +209,12 @@ public class FunctionRegistryTests extends ESTestCase {
         @Override
         protected Pipe makePipe() {
             return null;
+        }
+    }
+    
+    public static class Dummy2 extends Dummy {
+        public Dummy2(Location location) {
+            super(location);
         }
     }
 }

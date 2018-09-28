@@ -209,17 +209,18 @@ public class FunctionRegistry {
         addToMap(def(Score.class, Score::new));
     }
     
-    private void addToMap(FunctionDefinition...functions) {
+    protected void addToMap(FunctionDefinition...functions) {
         // temporary map to hold [function_name/alias_name : function instance]
         Map<String, FunctionDefinition> batchMap = new HashMap<>();
         for (FunctionDefinition f : functions) {
             batchMap.put(f.name(), f);
             for (String alias : f.aliases()) {
-                Object old = aliases.put(alias, f.name());
-                if (old != null) {
-                    throw new IllegalArgumentException("alias [" + alias + "] is used by [" + old + "] and [" + f.name() + "]");
+                Object old = batchMap.put(alias, f);
+                if (old != null || defs.containsKey(alias)) {
+                    throw new IllegalArgumentException("alias [" + alias + "] is used by "
+                            + "[" + (old != null ? old : defs.get(alias).name()) + "] and [" + f.name() + "]");
                 }
-                batchMap.put(alias, f);
+                aliases.put(alias, f.name());
             }
         }
         // sort the temporary map by key name and add it to the global map of functions

@@ -12,7 +12,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
-import org.elasticsearch.xpack.watcher.Watcher;
 
 import java.time.Clock;
 
@@ -56,7 +55,7 @@ public class AlwaysConditionTests extends ESTestCase {
         switch (type) {
             case ScriptCondition.TYPE:
             Script mockScript = mockScript("_script");
-            return new ScriptCondition(mockScript, scriptService.compile(mockScript, Watcher.SCRIPT_EXECUTABLE_CONTEXT));
+            return new ScriptCondition(mockScript, scriptService);
             case CompareCondition.TYPE:
                 return new CompareCondition("_path", randomFrom(CompareCondition.Op.values()), randomFrom(5, "3"),
                         Clock.systemUTC());

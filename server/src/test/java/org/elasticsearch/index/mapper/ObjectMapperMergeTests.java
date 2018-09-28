@@ -47,21 +47,11 @@ public class ObjectMapperMergeTests extends ESTestCase {
             "foo", createObjectMapper("foo", true, ImmutableMap.of(
                 "bar", barFieldMapper))));
 
-    private static Explicit<Boolean> dateDetection = new Explicit<>(false, false);
-    private static Explicit<Boolean> numericDetection = new Explicit<>(false, false);
-    private static Explicit<FormatDateTimeFormatter[]> dynamicDateTimeFormatters = new Explicit<>(new FormatDateTimeFormatter[0], false);
-    private static Explicit<DynamicTemplate[]> dynamicTemplates = new Explicit<>(new DynamicTemplate[0], false);
-
     @AfterClass
     public static void cleanupReferences() {
         barFieldMapper = null;
         bazFieldMapper = null;
         rootObjectMapper = null;
-
-        dateDetection = null;
-        numericDetection = null;
-        dynamicDateTimeFormatters = null;
-        dynamicTemplates = null;
     }
 
     public void testMerge() {
@@ -110,6 +100,11 @@ public class ObjectMapperMergeTests extends ESTestCase {
     }
 
     private static RootObjectMapper createRootObjectMapper(String name, boolean enabled, Map<String, Mapper> mappers) {
+        final Explicit<Boolean> dateDetection = new Explicit<>(false, false);
+        final Explicit<Boolean> numericDetection = new Explicit<>(false, false);
+        final Explicit<FormatDateTimeFormatter[]> dynamicDateTimeFormatters = new Explicit<>(new FormatDateTimeFormatter[0], false);
+        final Explicit<DynamicTemplate[]> dynamicTemplates = new Explicit<>(new DynamicTemplate[0], false);
+
         return new RootObjectMapper(
             name, enabled, null, mappers,
             dynamicDateTimeFormatters, dynamicTemplates,

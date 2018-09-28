@@ -27,7 +27,6 @@ import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalField;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * This is a special formatter to parse the milliseconds since the epoch.
@@ -40,14 +39,9 @@ import java.util.Objects;
  */
 class EpochMillisDateFormatter implements DateFormatter {
 
-    public static DateFormatter INSTANCE = new EpochMillisDateFormatter(ZoneOffset.UTC, Locale.ROOT);
+    public static DateFormatter INSTANCE = new EpochMillisDateFormatter();
 
-    private final ZoneId zoneId;
-    private final Locale locale;
-
-    private EpochMillisDateFormatter(ZoneId zoneId, Locale locale) {
-        this.zoneId = zoneId;
-        this.locale = locale;
+    private EpochMillisDateFormatter() {
     }
 
     @Override
@@ -60,19 +54,19 @@ class EpochMillisDateFormatter implements DateFormatter {
     }
 
     @Override
-    public DateFormatter withZone(ZoneId newZoneId) {
-        if (Locale.ROOT.equals(locale) && ZoneOffset.UTC.equals(newZoneId)) {
-            return INSTANCE;
+    public DateFormatter withZone(ZoneId zoneId) {
+        if (ZoneOffset.UTC.equals(zoneId) == false) {
+            throw new IllegalArgumentException(pattern() + " date formatter can only be in zone offset UTC");
         }
-        return new EpochMillisDateFormatter(newZoneId, locale);
+        return INSTANCE;
     }
 
     @Override
-    public DateFormatter withLocale(Locale newLocale) {
-        if (Locale.ROOT.equals(newLocale) && ZoneOffset.UTC.equals(zoneId)) {
-            return INSTANCE;
+    public DateFormatter withLocale(Locale locale) {
+        if (Locale.ROOT.equals(locale) == false) {
+            throw new IllegalArgumentException(pattern() + " date formatter can only be in locale ROOT");
         }
-        return new EpochMillisDateFormatter(zoneId, newLocale);
+        return this;
     }
 
     @Override
@@ -92,28 +86,11 @@ class EpochMillisDateFormatter implements DateFormatter {
 
     @Override
     public Locale getLocale() {
-        return locale;
+        return Locale.ROOT;
     }
 
     @Override
     public ZoneId getZone() {
-        return zoneId;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(locale);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj.getClass().equals(this.getClass()) == false) {
-            return false;
-        }
-        EpochMillisDateFormatter other = (EpochMillisDateFormatter) obj;
-
-        return Objects.equals(pattern(), other.pattern()) &&
-               Objects.equals(zoneId, other.zoneId) &&
-               Objects.equals(locale, other.locale);
+        return ZoneOffset.UTC;
     }
 }

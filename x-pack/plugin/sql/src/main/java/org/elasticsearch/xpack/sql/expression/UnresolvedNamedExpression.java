@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.sql.capabilities.UnresolvedException;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -41,5 +42,10 @@ abstract class UnresolvedNamedExpression extends NamedExpression implements Unre
     @Override
     public Attribute toAttribute() {
         throw new UnresolvedException("attribute", this);
+    }
+
+    @Override
+    public ScriptTemplate asScript() {
+        throw new UnresolvedException("script", this);
     }
 }

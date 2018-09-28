@@ -33,7 +33,7 @@ class DefaultJDKTrustConfig extends TrustConfig {
 
     private SecureString trustStorePassword;
 
-    public DefaultJDKTrustConfig(@Nullable SecureString trustStorePassword) {
+    DefaultJDKTrustConfig(@Nullable SecureString trustStorePassword) {
         this.trustStorePassword = trustStorePassword;
     }
 

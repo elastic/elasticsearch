@@ -5,10 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate;
 
-import org.elasticsearch.xpack.sql.expression.BinaryLogic;
-import org.elasticsearch.xpack.sql.expression.BinaryOperator;
-import org.elasticsearch.xpack.sql.expression.BinaryOperator.Negateable;
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator.Negateable;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
@@ -17,7 +15,7 @@ import java.util.Objects;
 public class Or extends BinaryLogic implements Negateable {
 
     public Or(Location location, Expression left, Expression right) {
-        super(location, left, right);
+        super(location, left, right, "||");
     }
 
     @Override
@@ -43,10 +41,5 @@ public class Or extends BinaryLogic implements Negateable {
     @Override
     public And negate() {
         return new And(location(), new Not(location(), left()), new Not(location(), right()));
-    }
-
-    @Override
-    public String symbol() {
-        return "||";
     }
 }

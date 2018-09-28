@@ -64,7 +64,7 @@ public class SourceGeneratorTests extends ESTestCase {
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
         Builder aggBuilder = sourceBuilder.aggregations();
         assertEquals(1, aggBuilder.count());
-        CompositeAggregationBuilder composite = (CompositeAggregationBuilder) aggBuilder.getAggregatorFactories().get(0);
+        CompositeAggregationBuilder composite = (CompositeAggregationBuilder) aggBuilder.getAggregatorFactories().iterator().next();
         // TODO: cannot access size
         //assertEquals(10, composite.size());
     }

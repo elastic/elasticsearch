@@ -41,7 +41,7 @@ import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptP
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -74,7 +74,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
 
     public void testGetAggregatorFactories_returnsUnmodifiableList() {
         AggregatorFactories.Builder builder = new AggregatorFactories.Builder().addAggregator(AggregationBuilders.avg("foo"));
-        List<AggregationBuilder> aggregatorFactories = builder.getAggregatorFactories();
+        Collection<AggregationBuilder> aggregatorFactories = builder.getAggregatorFactories();
         assertThat(aggregatorFactories.size(), equalTo(1));
         expectThrows(UnsupportedOperationException.class, () -> aggregatorFactories.add(AggregationBuilders.avg("bar")));
     }
@@ -82,7 +82,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
     public void testGetPipelineAggregatorFactories_returnsUnmodifiableList() {
         AggregatorFactories.Builder builder = new AggregatorFactories.Builder().addPipelineAggregator(
             PipelineAggregatorBuilders.avgBucket("foo", "path1"));
-        List<PipelineAggregationBuilder> pipelineAggregatorFactories = builder.getPipelineAggregatorFactories();
+        Collection<PipelineAggregationBuilder> pipelineAggregatorFactories = builder.getPipelineAggregatorFactories();
         assertThat(pipelineAggregatorFactories.size(), equalTo(1));
         expectThrows(UnsupportedOperationException.class,
             () -> pipelineAggregatorFactories.add(PipelineAggregatorBuilders.avgBucket("bar", "path2")));
@@ -269,10 +269,10 @@ public class AggregatorFactoriesTests extends ESTestCase {
         AggregatorFactories.Builder rewritten = builder
                 .rewrite(new QueryRewriteContext(xContentRegistry, null, null, () -> 0L));
         assertNotSame(builder, rewritten);
-        List<AggregationBuilder> aggregatorFactories = rewritten.getAggregatorFactories();
+        Collection<AggregationBuilder> aggregatorFactories = rewritten.getAggregatorFactories();
         assertEquals(1, aggregatorFactories.size());
-        assertThat(aggregatorFactories.get(0), instanceOf(FilterAggregationBuilder.class));
-        FilterAggregationBuilder rewrittenFilterAggBuilder = (FilterAggregationBuilder) aggregatorFactories.get(0);
+        assertThat(aggregatorFactories.iterator().next(), instanceOf(FilterAggregationBuilder.class));
+        FilterAggregationBuilder rewrittenFilterAggBuilder = (FilterAggregationBuilder) aggregatorFactories.iterator().next();
         assertNotSame(filterAggBuilder, rewrittenFilterAggBuilder);
         assertNotEquals(filterAggBuilder, rewrittenFilterAggBuilder);
         // Check the filter was rewritten from a wrapper query to a terms query

@@ -30,7 +30,7 @@ dependencies {
     testCompile project(path: ':plugins:discovery-gce', configuration: 'runtime')
 }
 
-/** A task to start the GCEFixture which emulates an GCE service **/
+/** A task to start the GCEFixture which emulates a GCE service **/
 task gceFixture(type: AntFixture) {
     dependsOn compileTestJava
     env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"

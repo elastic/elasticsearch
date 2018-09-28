@@ -39,7 +39,7 @@ import java.util.function.Function;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
- * {@link GCEFixture} is a fixture that emulates an GCE service.
+ * {@link GCEFixture} is a fixture that emulates a GCE service.
  */
 public class GCEFixture extends AbstractHttpFixture {
 

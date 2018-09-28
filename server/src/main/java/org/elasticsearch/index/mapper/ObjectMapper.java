@@ -479,7 +479,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
             if (mergeIntoObjectMapper.isEnabled() != mergeWithObjectMapper.isEnabled()) {
                 final String path = mergeWith.fullPath() + "." + mergeWithObjectMapper.simpleName() + ".enabled";
-
                 throw new MapperException("Can't update attribute for type [" + path + "] in index mapping");
             }
         }

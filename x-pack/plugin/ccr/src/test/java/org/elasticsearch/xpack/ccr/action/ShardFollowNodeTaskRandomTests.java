@@ -80,7 +80,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             new ShardId("leader_index", "", 0),
             testRun.maxOperationCount,
             concurrency,
-            TransportFollowIndexAction.DEFAULT_MAX_BATCH_SIZE_IN_BYTES,
+            TransportResumeFollowAction.DEFAULT_MAX_BATCH_SIZE_IN_BYTES,
             concurrency,
             10240,
             TimeValue.timeValueMillis(10),

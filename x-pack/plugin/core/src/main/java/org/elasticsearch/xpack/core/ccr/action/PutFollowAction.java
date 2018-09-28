@@ -22,15 +22,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public final class CreateAndFollowIndexAction extends Action<
-        CreateAndFollowIndexAction.Request,
-        CreateAndFollowIndexAction.Response,
-        CreateAndFollowIndexAction.RequestBuilder> {
+public final class PutFollowAction extends Action<
+        PutFollowAction.Request,
+        PutFollowAction.Response,
+        PutFollowAction.RequestBuilder> {
 
-    public static final CreateAndFollowIndexAction INSTANCE = new CreateAndFollowIndexAction();
-    public static final String NAME = "indices:admin/xpack/ccr/create_and_follow_index";
+    public static final PutFollowAction INSTANCE = new PutFollowAction();
+    public static final String NAME = "indices:admin/xpack/ccr/put_follow";
 
-    private CreateAndFollowIndexAction() {
+    private PutFollowAction() {
         super(NAME);
     }
 
@@ -41,9 +41,9 @@ public final class CreateAndFollowIndexAction extends Action<
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest {
 
-        private FollowIndexAction.Request followRequest;
+        private ResumeFollowAction.Request followRequest;
 
-        public Request(FollowIndexAction.Request followRequest) {
+        public Request(ResumeFollowAction.Request followRequest) {
             this.followRequest = Objects.requireNonNull(followRequest);
         }
 
@@ -51,7 +51,7 @@ public final class CreateAndFollowIndexAction extends Action<
 
         }
 
-        public FollowIndexAction.Request getFollowRequest() {
+        public ResumeFollowAction.Request getFollowRequest() {
             return followRequest;
         }
 
@@ -73,7 +73,7 @@ public final class CreateAndFollowIndexAction extends Action<
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            followRequest = new FollowIndexAction.Request();
+            followRequest = new ResumeFollowAction.Request();
             followRequest.readFrom(in);
         }
 

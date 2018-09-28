@@ -17,12 +17,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public class UnfollowIndexAction extends Action<UnfollowIndexAction.Request, AcknowledgedResponse, UnfollowIndexAction.RequestBuilder> {
+public class PauseFollowAction extends Action<PauseFollowAction.Request, AcknowledgedResponse, PauseFollowAction.RequestBuilder> {
 
-    public static final UnfollowIndexAction INSTANCE = new UnfollowIndexAction();
-    public static final String NAME = "cluster:admin/xpack/ccr/unfollow_index";
+    public static final PauseFollowAction INSTANCE = new PauseFollowAction();
+    public static final String NAME = "cluster:admin/xpack/ccr/pause_follow";
 
-    private UnfollowIndexAction() {
+    private PauseFollowAction() {
         super(NAME);
     }
 

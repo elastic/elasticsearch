@@ -20,18 +20,18 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ccr.action.UnfollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-public class TransportUnfollowIndexAction extends HandledTransportAction<UnfollowIndexAction.Request, AcknowledgedResponse> {
+public class TransportPauseFollowAction extends HandledTransportAction<PauseFollowAction.Request, AcknowledgedResponse> {
 
     private final Client client;
     private final PersistentTasksService persistentTasksService;
 
     @Inject
-    public TransportUnfollowIndexAction(
+    public TransportPauseFollowAction(
             final Settings settings,
             final ThreadPool threadPool,
             final TransportService transportService,
@@ -39,20 +39,14 @@ public class TransportUnfollowIndexAction extends HandledTransportAction<Unfollo
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final Client client,
             final PersistentTasksService persistentTasksService) {
-        super(
-                settings,
-                UnfollowIndexAction.NAME,
-                threadPool,
-                transportService,
-                actionFilters,
-                indexNameExpressionResolver,
-                UnfollowIndexAction.Request::new);
+        super(settings, PauseFollowAction.NAME, threadPool, transportService, actionFilters,
+            indexNameExpressionResolver, PauseFollowAction.Request::new);
         this.client = client;
         this.persistentTasksService = persistentTasksService;
     }
 
     @Override
-    protected void doExecute(final UnfollowIndexAction.Request request, final ActionListener<AcknowledgedResponse> listener) {
+    protected void doExecute(final PauseFollowAction.Request request, final ActionListener<AcknowledgedResponse> listener) {
 
         client.admin().cluster().state(new ClusterStateRequest(), ActionListener.wrap(r -> {
             IndexMetaData followIndexMetadata = r.getState().getMetaData().index(request.getFollowIndex());

@@ -24,6 +24,7 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSessionContext;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
@@ -542,17 +543,6 @@ public class SSLService extends AbstractComponent {
             return context;
         }
 
-        /**
-         * Invalidates the sessions in the provided {@link SSLSessionContext}
-         */
-        private void invalidateSessions(SSLSessionContext sslSessionContext) {
-            Enumeration<byte[]> sessionIds = sslSessionContext.getIds();
-            while (sessionIds.hasMoreElements()) {
-                byte[] sessionId = sessionIds.nextElement();
-                sslSessionContext.getSession(sessionId).invalidate();
-            }
-        }
-
         synchronized void reload() {
             invalidateSessions(context.getClientSessionContext());
             invalidateSessions(context.getServerSessionContext());
@@ -589,6 +579,24 @@ public class SSLService extends AbstractComponent {
             TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance("X509");
             trustManagerFactory.init(keyStore);
             return (X509ExtendedTrustManager) trustManagerFactory.getTrustManagers()[0];
+        }
+    }
+
+    /**
+     * Invalidates the sessions in the provided {@link SSLSessionContext}
+     */
+    static void invalidateSessions(SSLSessionContext sslSessionContext) {
+        Enumeration<byte[]> sessionIds = sslSessionContext.getIds();
+        while (sessionIds.hasMoreElements()) {
+            byte[] sessionId = sessionIds.nextElement();
+            SSLSession session = sslSessionContext.getSession(sessionId);
+            // a SSLSession could be null as there is no lock while iterating, the session cache
+            // could have evicted a value, the session could be timed out, or the session could
+            // have already been invalidated, which removes the value from the session cache in the
+            // sun implementation
+            if (session != null) {
+                session.invalidate();
+            }
         }
     }
 

@@ -6,19 +6,26 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
@@ -48,7 +55,7 @@ import java.util.stream.Collectors;
 public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private static final int DELAY_MILLIS = 50;
-    private static final Logger LOGGER = Loggers.getLogger(ShardFollowNodeTask.class);
+    private static final Logger LOGGER = LogManager.getLogger(ShardFollowNodeTask.class);
 
     private final String leaderIndex;
     private final ShardFollowTask params;
@@ -376,10 +383,22 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         return Math.min(backOffDelay, maxRetryDelayInMillis);
     }
 
-    private static boolean shouldRetry(Exception e) {
-        return NetworkExceptionHelper.isConnectException(e) ||
-            NetworkExceptionHelper.isCloseConnectionException(e) ||
-            TransportActions.isShardNotAvailableException(e);
+    static boolean shouldRetry(Exception e) {
+        if (NetworkExceptionHelper.isConnectException(e)) {
+            return true;
+        } else if (NetworkExceptionHelper.isCloseConnectionException(e)) {
+            return true;
+        }
+
+        final Throwable actual = ExceptionsHelper.unwrapCause(e);
+        return actual instanceof ShardNotFoundException ||
+            actual instanceof IllegalIndexShardStateException ||
+            actual instanceof NoShardAvailableActionException ||
+            actual instanceof UnavailableShardsException ||
+            actual instanceof AlreadyClosedException ||
+            actual instanceof ElasticsearchSecurityException || // If user does not have sufficient privileges
+            actual instanceof ClusterBlockException || // If leader index is closed or no elected master
+            actual instanceof IndexClosedException; // If follow index is closed
     }
 
     // These methods are protected for testing purposes:

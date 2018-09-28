@@ -339,4 +339,40 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         ), 0.0f);
         assertThat(query, equalTo(expected));
     }
+
+    public void testJsonSplitQueriesOnWhitespace() throws IOException {
+        IndexService indexService = createIndex("test_json");
+        MapperService mapperService = indexService.mapperService();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "json")
+                    .endObject()
+                    .startObject("field_split")
+                        .field("type", "json")
+                        .field("split_queries_on_whitespace", true)
+                    .endObject()
+                .endObject()
+            .endObject().endObject());
+        mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+
+        QueryShardContext queryShardContext = indexService.newQueryShardContext(randomInt(20),
+            null, () -> { throw new UnsupportedOperationException(); }, null);
+        MultiMatchQuery parser = new MultiMatchQuery(queryShardContext);
+
+        Map<String, Float> fieldNames = new HashMap<>();
+        fieldNames.put("field", 1.0f);
+        fieldNames.put("field_split", 1.0f);
+        Query query = parser.parse(MultiMatchQueryBuilder.Type.BEST_FIELDS, fieldNames, "Foo Bar", null);
+
+        DisjunctionMaxQuery expected = new DisjunctionMaxQuery(Arrays.asList(
+            new TermQuery(new Term("field", "Foo Bar")),
+            new BooleanQuery.Builder()
+                .add(new TermQuery(new Term("field_split", "Foo")), BooleanClause.Occur.SHOULD)
+                .add(new TermQuery(new Term("field_split", "Bar")), BooleanClause.Occur.SHOULD)
+                .build()
+        ), 0.0f);
+        assertThat(query, equalTo(expected));
+    }
 }

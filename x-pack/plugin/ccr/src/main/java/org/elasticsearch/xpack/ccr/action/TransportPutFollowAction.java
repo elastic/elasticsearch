@@ -130,7 +130,7 @@ public final class TransportPutFollowAction
         Consumer<String[]> historyUUIDhandler = historyUUIDs -> {
             createFollowerIndex(leaderIndexMetadata, historyUUIDs, request, listener);
         };
-        ccrLicenseChecker.hasPrivilegesToFollowIndex(client, new String[] {leaderIndex}, e -> {
+        ccrLicenseChecker.hasPrivilegesToFollowIndices(client, new String[] {leaderIndex}, e -> {
             if (e == null) {
                 ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, leaderIndexMetadata, listener::onFailure, historyUUIDhandler);
             } else {

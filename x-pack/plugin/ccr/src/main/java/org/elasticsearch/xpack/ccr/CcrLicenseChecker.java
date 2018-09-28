@@ -62,8 +62,8 @@ import java.util.stream.Collectors;
  */
 public final class CcrLicenseChecker {
 
-    private final BooleanSupplier isAuthAllowed;
     private final BooleanSupplier isCcrAllowed;
+    private final BooleanSupplier isAuthAllowed;
 
     /**
      * Constructs a CCR license checker with the default rule based on the license state for checking if CCR is allowed.
@@ -76,11 +76,11 @@ public final class CcrLicenseChecker {
      * Constructs a CCR license checker with the specified boolean suppliers.
      *
      * @param isCcrAllowed  a boolean supplier that should return true if CCR is allowed and false otherwise
-     * @param isAuthAllowed a boolean supplier that should return true if security, authentication and authorization are be enabled
+     * @param isAuthAllowed a boolean supplier that should return true if security, authentication, and authorization is allowed
      */
     public CcrLicenseChecker(final BooleanSupplier isCcrAllowed, final BooleanSupplier isAuthAllowed) {
-        this.isAuthAllowed = Objects.requireNonNull(isAuthAllowed);
-        this.isCcrAllowed = Objects.requireNonNull(isCcrAllowed);
+        this.isCcrAllowed = Objects.requireNonNull(isCcrAllowed, "isCcrAllowed");
+        this.isAuthAllowed = Objects.requireNonNull(isAuthAllowed, "isAuthAllowed");
     }
 
     /**
@@ -130,11 +130,10 @@ public final class CcrLicenseChecker {
                     }
 
                     final Client leaderClient = client.getRemoteClusterClient(clusterAlias);
-                    hasPrivilegesToFollowIndex(leaderClient, new String[] {leaderIndex}, e -> {
+                    hasPrivilegesToFollowIndices(leaderClient, new String[] {leaderIndex}, e -> {
                         if (e == null) {
-                            fetchLeaderHistoryUUIDs(leaderClient, leaderIndexMetaData, onFailure, historyUUIDs -> {
-                                consumer.accept(historyUUIDs, leaderIndexMetaData);
-                            });
+                            fetchLeaderHistoryUUIDs(leaderClient, leaderIndexMetaData, onFailure, historyUUIDs ->
+                                    consumer.accept(historyUUIDs, leaderIndexMetaData));
                         } else {
                             onFailure.accept(e);
                         }
@@ -156,9 +155,8 @@ public final class CcrLicenseChecker {
      * @param request                    the cluster state request
      * @param onFailure                  the failure consumer
      * @param leaderClusterStateConsumer the leader cluster state consumer
-     * @param <T>                        the type of response the listener is waiting for
      */
-    public <T> void checkRemoteClusterLicenseAndFetchClusterState(
+    public void checkRemoteClusterLicenseAndFetchClusterState(
             final Client client,
             final Map<String, String> headers,
             final String clusterAlias,
@@ -279,11 +277,7 @@ public final class CcrLicenseChecker {
         leaderClient.admin().indices().stats(request, ActionListener.wrap(indicesStatsHandler, onFailure));
     }
 
-    public void hasPrivilegesToFollowIndex(
-        final Client leaderClient,
-        final String[] indices,
-        Consumer<Exception> handler
-    ) {
+    public void hasPrivilegesToFollowIndices(final Client leaderClient, final String[] indices, final Consumer<Exception> handler) {
         if (isAuthAllowed.getAsBoolean() == false) {
             handler.accept(null);
             return;
@@ -307,7 +301,8 @@ public final class CcrLicenseChecker {
             if (response.isCompleteMatch()) {
                 handler.accept(null);
             } else {
-                StringBuilder message = new StringBuilder("insufficient privileges to follow index ");
+                StringBuilder message = new StringBuilder("insufficient privileges to follow");
+                message.append(indices.length == 1 ? " index " : " indices ");
                 message.append(Arrays.toString(indices));
 
                 HasPrivilegesResponse.ResourcePrivileges resourcePrivileges = response.getIndexPrivileges().get(0);

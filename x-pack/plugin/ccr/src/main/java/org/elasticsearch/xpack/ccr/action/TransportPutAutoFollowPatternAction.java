@@ -92,7 +92,7 @@ public class TransportPutAutoFollowPatternAction extends
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
         String[] indices = request.getLeaderIndexPatterns().toArray(new String[0]);
-        ccrLicenseChecker.hasPrivilegesToFollowIndex(leaderClient, indices, e -> {
+        ccrLicenseChecker.hasPrivilegesToFollowIndices(leaderClient, indices, e -> {
             if (e == null) {
                 leaderClient.admin().cluster().state(
                     clusterStateRequest,

@@ -45,6 +45,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -491,12 +492,43 @@ public class FollowingEngineTests extends ESTestCase {
                     // extends the fetch range so we may deliver some overlapping operations more than once.
                     final long fromSeqNo = randomLongBetween(Math.max(lastSeqNo - 5, 0), lastSeqNo + 1);
                     final long toSeqNo = randomLongBetween(nextSeqNo, Math.min(nextSeqNo + 5, checkpoint));
-                    try (Translog.Snapshot snapshot = leader.newChangesSnapshot("test", mapperService, fromSeqNo, toSeqNo, true)) {
+                    try (Translog.Snapshot snapshot =
+                             shuffleSnapshot(leader.newChangesSnapshot("test", mapperService, fromSeqNo, toSeqNo, true))) {
                         follower.advanceMaxSeqNoOfUpdatesOrDeletes(leader.getMaxSeqNoOfUpdatesOrDeletes());
                         translogHandler.run(follower, snapshot);
                     }
                 }
             }
         }
+    }
+
+    private Translog.Snapshot shuffleSnapshot(Translog.Snapshot snapshot) throws IOException {
+        final List<Translog.Operation> operations = new ArrayList<>(snapshot.totalOperations());
+        Translog.Operation op;
+        while ((op = snapshot.next()) != null) {
+            operations.add(op);
+        }
+        Randomness.shuffle(operations);
+        final Iterator<Translog.Operation> iterator = operations.iterator();
+
+        return new Translog.Snapshot() {
+            @Override
+            public int totalOperations() {
+                return snapshot.totalOperations();
+            }
+
+            @Override
+            public Translog.Operation next() {
+                if (iterator.hasNext()) {
+                    return iterator.next();
+                }
+                return null;
+            }
+
+            @Override
+            public void close() throws IOException {
+                snapshot.close();
+            }
+        };
     }
 }

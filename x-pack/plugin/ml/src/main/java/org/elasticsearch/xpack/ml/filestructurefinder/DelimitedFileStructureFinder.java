@@ -41,10 +41,11 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
 
     static DelimitedFileStructureFinder makeDelimitedFileStructureFinder(List<String> explanation, String sample, String charsetName,
                                                                          Boolean hasByteOrderMarker, CsvPreference csvPreference,
-                                                                         boolean trimFields, FileStructureOverrides overrides)
+                                                                         boolean trimFields, FileStructureOverrides overrides,
+                                                                         TimeoutChecker timeoutChecker)
         throws IOException {
 
-        Tuple<List<List<String>>, List<Integer>> parsed = readRows(sample, csvPreference);
+        Tuple<List<List<String>>, List<Integer>> parsed = readRows(sample, csvPreference, timeoutChecker);
         List<List<String>> rows = parsed.v1();
         List<Integer> lineNumbers = parsed.v2();
 
@@ -106,7 +107,8 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             structureBuilder.setShouldTrimFields(true);
         }
 
-        Tuple<String, TimestampMatch> timeField = FileStructureUtils.guessTimestampField(explanation, sampleRecords, overrides);
+        Tuple<String, TimestampMatch> timeField = FileStructureUtils.guessTimestampField(explanation, sampleRecords, overrides,
+            timeoutChecker);
         if (timeField != null) {
             String timeLineRegex = null;
             StringBuilder builder = new StringBuilder("^");
@@ -148,7 +150,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
         }
 
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats =
-            FileStructureUtils.guessMappingsAndCalculateFieldStats(explanation, sampleRecords);
+            FileStructureUtils.guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker);
 
         SortedMap<String, Object> mappings = mappingsAndFieldStats.v1();
         if (timeField != null) {
@@ -183,7 +185,8 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
         return structure;
     }
 
-    static Tuple<List<List<String>>, List<Integer>> readRows(String sample, CsvPreference csvPreference) throws IOException {
+    static Tuple<List<List<String>>, List<Integer>> readRows(String sample, CsvPreference csvPreference, TimeoutChecker timeoutChecker)
+        throws IOException {
 
         int fieldsInFirstRow = -1;
 
@@ -204,6 +207,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
                         }
                     }
                     rows.add(row);
+                    timeoutChecker.check("delimited record parsing");
                     lineNumbers.add(csvReader.getLineNumber());
                 }
             } catch (SuperCsvException e) {

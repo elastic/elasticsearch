@@ -22,7 +22,7 @@ This API provides a starting point for ingesting data into {es} in a format that
 is suitable for subsequent use with other {ml} functionality.
 
 Unlike other {es} endpoints, the data that is posted to this endpoint does not
-need to be UTF-8 encoded and in JSON format.  It must, however, be text; binary
+need to be UTF-8 encoded and in JSON format. It must, however, be text; binary
 file formats are not currently supported.
 
 The response from the API contains:
@@ -122,6 +122,11 @@ to request analysis of 100000 lines to achieve some variety.
   is not specified and the delimiter is pipe (`|`), the default value is `true`.
   Otherwise, the default value is `false`.
 
+`timeout`::
+  (time) Sets the maximum amount of time that the structure analysis make take.
+  If the analysis is still running when the timeout expires then it will be
+  aborted. The default value is 25 seconds.
+
 `timestamp_field`::
   (string) The name of the field that contains the primary timestamp of each
   record in the file. In particular, if the file were ingested into an index,
@@ -197,7 +202,7 @@ the formats it knows, which are these Joda formats and their Java time equivalen
 
 The text file that you want to analyze. It must contain data that is suitable to
 be ingested into {es}. It does not need to be in JSON format and it does not
-need to be UTF-8 encoded.  The size is limited to the {es} HTTP receive buffer
+need to be UTF-8 encoded. The size is limited to the {es} HTTP receive buffer
 size, which defaults to 100 Mb.
 
 
@@ -245,6 +250,7 @@ POST _xpack/ml/find_file_structure
 // TEST
 
 If the request does not encounter errors, you receive the following result:
+
 [source,js]
 ----
 {
@@ -483,7 +489,7 @@ If the request does not encounter errors, you receive the following result:
     `keyword` type as it is not considered specific enough to convert to the
     `date` type.
 <9> `field_stats` contains the most common values of each field, plus basic
-    numeric statistics for the numeric `page_count` field.  This information
+    numeric statistics for the numeric `page_count` field. This information
     may provide clues that the data needs to be cleaned or transformed prior
     to use by other {ml} functionality.
 
@@ -502,11 +508,12 @@ curl -s "s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2018-06.csv" | head 
 
 --
 NOTE: The `Content-Type: application/json` header must be set even though in
-this case the data is not JSON.  (Alternatively the `Content-Type` can be set
+this case the data is not JSON. (Alternatively the `Content-Type` can be set
 to any other supported by Elasticsearch, but it must be set.)
 --
 
 If the request does not encounter errors, you receive the following result:
+
 [source,js]
 ----
 {
@@ -1269,9 +1276,405 @@ If the request does not encounter errors, you receive the following result:
 <8> `joda_timestamp_formats` are used to tell Logstash and Ingest pipeline how
     to parse timestamps.
 <9> `java_timestamp_formats` are the Java time formats recognized in the time
-    fields.  In future Ingest pipeline will switch to use this format.
+    fields. In future Ingest pipeline will switch to use this format.
 <10> The timestamp format in this sample doesn't specify a timezone, so to
      accurately convert them to UTC timestamps to store in Elasticsearch it's
      necessary to supply the timezone they relate to. `need_client_timezone`
      will be `false` for timestamp formats that include the timezone.
 
+If you try to analyze a lot of data then the analysis will take a long time.
+If you want to limit the amount of processing your {es} cluster performs for
+a request, use the timeout query parameter. The analysis will be aborted and
+an error returned when the timeout expires. For example, you can replace 20000
+lines in the previous example with 200000 and set a 1 second timeout on the
+analysis:
+
+[source,js]
+----
+curl -s "s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2018-06.csv" | head -200000 | curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_xpack/ml/find_file_structure?pretty&lines_to_sample=200000&timeout=1s" -T -
+----
+// NOTCONSOLE
+// Not converting to console because this shows how curl can be used
+
+Unless you are using an incredibly fast computer you'll receive a timeout error:
+
+[source,js]
+----
+{
+  "error" : {
+    "root_cause" : [
+      {
+        "type" : "timeout_exception",
+        "reason" : "Aborting structure analysis during [delimited record parsing] as it has taken longer than the timeout of [1s]"
+      }
+    ],
+    "type" : "timeout_exception",
+    "reason" : "Aborting structure analysis during [delimited record parsing] as it has taken longer than the timeout of [1s]"
+  },
+  "status" : 500
+}
+----
+// NOTCONSOLE
+
+--
+NOTE: If you try the example above yourself you will note that the overall
+running time of the `curl` commands is considerably longer than 1 second. This
+is because it takes a while to download 200000 lines of CSV from the internet,
+and the timeout is measured from the time this endpoint starts to process the
+data.
+--
+
+This is an example of analyzing {es}'s own log file:
+
+[source,js]
+----
+curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_xpack/ml/find_file_structure?pretty" -T "$ES_HOME/logs/elasticsearch.log"
+----
+// NOTCONSOLE
+// Not converting to console because this shows how curl can be used
+
+If the request does not encounter errors, the result will look something like
+this:
+
+[source,js]
+----
+{
+  "num_lines_analyzed" : 53,
+  "num_messages_analyzed" : 53,
+  "sample_start" : "[2018-09-27T14:39:28,518][INFO ][o.e.e.NodeEnvironment    ] [node-0] using [1] data paths, mounts [[/ (/dev/disk1)]], net usable_space [165.4gb], net total_space [464.7gb], types [hfs]\n[2018-09-27T14:39:28,521][INFO ][o.e.e.NodeEnvironment    ] [node-0] heap size [494.9mb], compressed ordinary object pointers [true]\n",
+  "charset" : "UTF-8",
+  "has_byte_order_marker" : false,
+  "format" : "semi_structured_text", <1>
+  "multiline_start_pattern" : "^\\[\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2},\\d{3}", <2>
+  "grok_pattern" : "\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel}.*", <3>
+  "timestamp_field" : "timestamp",
+  "joda_timestamp_formats" : [
+    "ISO8601"
+  ],
+  "java_timestamp_formats" : [
+    "yyyy-MM-dd'T'HH:mm:ss,SSS"
+  ],
+  "need_client_timezone" : true,
+  "mappings" : {
+    "@timestamp" : {
+      "type" : "date"
+    },
+    "loglevel" : {
+      "type" : "keyword"
+    },
+    "message" : {
+      "type" : "text"
+    }
+  },
+  "field_stats" : {
+    "loglevel" : {
+      "count" : 53,
+      "cardinality" : 3,
+      "top_hits" : [
+        {
+          "value" : "INFO",
+          "count" : 51
+        },
+        {
+          "value" : "DEBUG",
+          "count" : 1
+        },
+        {
+          "value" : "WARN",
+          "count" : 1
+        }
+      ]
+    },
+    "timestamp" : {
+      "count" : 53,
+      "cardinality" : 28,
+      "top_hits" : [
+        {
+          "value" : "2018-09-27T14:39:29,859",
+          "count" : 10
+        },
+        {
+          "value" : "2018-09-27T14:39:29,860",
+          "count" : 9
+        },
+        {
+          "value" : "2018-09-27T14:39:29,858",
+          "count" : 6
+        },
+        {
+          "value" : "2018-09-27T14:39:28,523",
+          "count" : 3
+        },
+        {
+          "value" : "2018-09-27T14:39:34,234",
+          "count" : 2
+        },
+        {
+          "value" : "2018-09-27T14:39:28,518",
+          "count" : 1
+        },
+        {
+          "value" : "2018-09-27T14:39:28,521",
+          "count" : 1
+        },
+        {
+          "value" : "2018-09-27T14:39:28,522",
+          "count" : 1
+        },
+        {
+          "value" : "2018-09-27T14:39:29,861",
+          "count" : 1
+        },
+        {
+          "value" : "2018-09-27T14:39:32,786",
+          "count" : 1
+        }
+      ]
+    }
+  }
+}
+----
+// NOTCONSOLE
+
+<1> This time the `format` has been identified as `semi_structured_text`.
+<2> The `multiline_start_pattern` is set on the basis that the timestamp appears
+    in the first line of each multi-line log message.
+<3> A very simple `grok_pattern` has been created, which extracts the timestamp
+    and recognizable fields that appear in every analyzed message. In this case
+    the only field that was recognized beyond the timestamp was the log level.
+
+If you recognize more fields than the simple `grok_pattern` produced by the
+structure finder unaided then you can resubmit the request specifying a more
+advanced `grok_pattern` as a query parameter and the structure finder will
+calculate `field_stats` for your additional fields.
+
+In the case of the {es} log a more complete Grok pattern is
+`\[%{TIMESTAMP_ISO8601:timestamp}\]\[%{LOGLEVEL:loglevel} *\]\[%{JAVACLASS:class} *\] \[%{HOSTNAME:node}\] %{JAVALOGMESSAGE:message}`.
+You can analyze the same log file again, submitting this `grok_pattern` as a
+query parameter (appropriately URL escaped):
+
+[source,js]
+----
+curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_xpack/ml/find_file_structure?pretty&format=semi_structured_text&grok_pattern=%5C%5B%25%7BTIMESTAMP_ISO8601:timestamp%7D%5C%5D%5C%5B%25%7BLOGLEVEL:loglevel%7D%20*%5C%5D%5C%5B%25%7BJAVACLASS:class%7D%20*%5C%5D%20%5C%5B%25%7BHOSTNAME:node%7D%5C%5D%20%25%7BJAVALOGMESSAGE:message%7D" -T "$ES_HOME/logs/elasticsearch.log"
+----
+// NOTCONSOLE
+// Not converting to console because this shows how curl can be used
+
+If the request does not encounter errors, the result will look something like
+this:
+
+[source,js]
+----
+{
+  "num_lines_analyzed" : 53,
+  "num_messages_analyzed" : 53,
+  "sample_start" : "[2018-09-27T14:39:28,518][INFO ][o.e.e.NodeEnvironment    ] [node-0] using [1] data paths, mounts [[/ (/dev/disk1)]], net usable_space [165.4gb], net total_space [464.7gb], types [hfs]\n[2018-09-27T14:39:28,521][INFO ][o.e.e.NodeEnvironment    ] [node-0] heap size [494.9mb], compressed ordinary object pointers [true]\n",
+  "charset" : "UTF-8",
+  "has_byte_order_marker" : false,
+  "format" : "semi_structured_text",
+  "multiline_start_pattern" : "^\\[\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2},\\d{3}",
+  "grok_pattern" : "\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} *\\]\\[%{JAVACLASS:class} *\\] \\[%{HOSTNAME:node}\\] %{JAVALOGMESSAGE:message}", <1>
+  "timestamp_field" : "timestamp",
+  "joda_timestamp_formats" : [
+    "ISO8601"
+  ],
+  "java_timestamp_formats" : [
+    "yyyy-MM-dd'T'HH:mm:ss,SSS"
+  ],
+  "need_client_timezone" : true,
+  "mappings" : {
+    "@timestamp" : {
+      "type" : "date"
+    },
+    "class" : {
+      "type" : "keyword"
+    },
+    "loglevel" : {
+      "type" : "keyword"
+    },
+    "message" : {
+      "type" : "text"
+    },
+    "node" : {
+      "type" : "keyword"
+    }
+  },
+  "field_stats" : { <1>
+    "class" : {
+      "count" : 53,
+      "cardinality" : 14,
+      "top_hits" : [
+        {
+          "value" : "o.e.p.PluginsService",
+          "count" : 26
+        },
+        {
+          "value" : "o.e.c.m.MetaDataIndexTemplateService",
+          "count" : 8
+        },
+        {
+          "value" : "o.e.n.Node",
+          "count" : 7
+        },
+        {
+          "value" : "o.e.e.NodeEnvironment",
+          "count" : 2
+        },
+        {
+          "value" : "o.e.a.ActionModule",
+          "count" : 1
+        },
+        {
+          "value" : "o.e.c.s.ClusterApplierService",
+          "count" : 1
+        },
+        {
+          "value" : "o.e.c.s.MasterService",
+          "count" : 1
+        },
+        {
+          "value" : "o.e.d.DiscoveryModule",
+          "count" : 1
+        },
+        {
+          "value" : "o.e.g.GatewayService",
+          "count" : 1
+        },
+        {
+          "value" : "o.e.l.LicenseService",
+          "count" : 1
+        }
+      ]
+    },
+    "loglevel" : {
+      "count" : 53,
+      "cardinality" : 3,
+      "top_hits" : [
+        {
+          "value" : "INFO",
+          "count" : 51
+        },
+        {
+          "value" : "DEBUG",
+          "count" : 1
+        },
+        {
+          "value" : "WARN",
+          "count" : 1
+        }
+      ]
+    },
+    "message" : {
+      "count" : 53,
+      "cardinality" : 53,
+      "top_hits" : [
+        {
+          "value" : "Using REST wrapper from plugin org.elasticsearch.xpack.security.Security",
+          "count" : 1
+        },
+        {
+          "value" : "adding template [.monitoring-alerts] for index patterns [.monitoring-alerts-6]",
+          "count" : 1
+        },
+        {
+          "value" : "adding template [.monitoring-beats] for index patterns [.monitoring-beats-6-*]",
+          "count" : 1
+        },
+        {
+          "value" : "adding template [.monitoring-es] for index patterns [.monitoring-es-6-*]",
+          "count" : 1
+        },
+        {
+          "value" : "adding template [.monitoring-kibana] for index patterns [.monitoring-kibana-6-*]",
+          "count" : 1
+        },
+        {
+          "value" : "adding template [.monitoring-logstash] for index patterns [.monitoring-logstash-6-*]",
+          "count" : 1
+        },
+        {
+          "value" : "adding template [.triggered_watches] for index patterns [.triggered_watches*]",
+          "count" : 1
+        },
+        {
+          "value" : "adding template [.watch-history-9] for index patterns [.watcher-history-9*]",
+          "count" : 1
+        },
+        {
+          "value" : "adding template [.watches] for index patterns [.watches*]",
+          "count" : 1
+        },
+        {
+          "value" : "starting ...",
+          "count" : 1
+        }
+      ]
+    },
+    "node" : {
+      "count" : 53,
+      "cardinality" : 1,
+      "top_hits" : [
+        {
+          "value" : "node-0",
+          "count" : 53
+        }
+      ]
+    },
+    "timestamp" : {
+      "count" : 53,
+      "cardinality" : 28,
+      "top_hits" : [
+        {
+          "value" : "2018-09-27T14:39:29,859",
+          "count" : 10
+        },
+        {
+          "value" : "2018-09-27T14:39:29,860",
+          "count" : 9
+        },
+        {
+          "value" : "2018-09-27T14:39:29,858",
+          "count" : 6
+        },
+        {
+          "value" : "2018-09-27T14:39:28,523",
+          "count" : 3
+        },
+        {
+          "value" : "2018-09-27T14:39:34,234",
+          "count" : 2
+        },
+        {
+          "value" : "2018-09-27T14:39:28,518",
+          "count" : 1
+        },
+        {
+          "value" : "2018-09-27T14:39:28,521",
+          "count" : 1
+        },
+        {
+          "value" : "2018-09-27T14:39:28,522",
+          "count" : 1
+        },
+        {
+          "value" : "2018-09-27T14:39:29,861",
+          "count" : 1
+        },
+        {
+          "value" : "2018-09-27T14:39:32,786",
+          "count" : 1
+        }
+      ]
+    }
+  }
+}
+----
+// NOTCONSOLE
+
+<1> The `grok_pattern` in the output is now the overridden one supplied in the
+    query parameter.
+<2> The returned `field_stats` include entries for the fields from the
+    overridden `grok_pattern`.
+
+The URL escaping is hard, so if you are working interactively it is best to use
+the {ml} UI!

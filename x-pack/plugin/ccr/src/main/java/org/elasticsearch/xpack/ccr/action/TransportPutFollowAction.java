@@ -127,10 +127,16 @@ public final class TransportPutFollowAction
             return;
         }
 
-        Consumer<String[]> handler = historyUUIDs -> {
+        Consumer<String[]> historyUUIDhandler = historyUUIDs -> {
             createFollowerIndex(leaderIndexMetadata, historyUUIDs, request, listener);
         };
-        ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, leaderIndexMetadata, listener::onFailure, handler);
+        ccrLicenseChecker.hasPrivilegesToFollowIndices(client, new String[] {leaderIndex}, e -> {
+            if (e == null) {
+                ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, leaderIndexMetadata, listener::onFailure, historyUUIDhandler);
+            } else {
+                listener.onFailure(e);
+            }
+        });
     }
 
     private void createFollowerIndexAndFollowRemoteIndex(

@@ -104,6 +104,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
                 assertThat(countCcrNodeTasks(), equalTo(0));
             });
 
+            // User does not have create_follow_index index privilege for 'unallowedIndex':
             Exception e = expectThrows(ResponseException.class,
                 () -> follow("leader_cluster:" + unallowedIndex, unallowedIndex));
             assertThat(e.getMessage(),
@@ -112,9 +113,22 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
             assertThat(indexExists(adminClient(), unallowedIndex), is(false));
             assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
 
+            // User does have create_follow_index index privilege on 'allowed' index,
+            // but not read / monitor roles on 'disallowed' index:
+            e = expectThrows(ResponseException.class,
+                () -> follow("leader_cluster:" + unallowedIndex, allowedIndex));
+            assertThat(e.getMessage(), containsString("insufficient privileges to follow index [unallowed-index], " +
+                "privilege for action [indices:monitor/stats] is missing, " +
+                "privilege for action [indices:data/read/xpack/ccr/shard_changes] is missing"));
+            // Verify that the follow index has not been created and no node tasks are running
+            assertThat(indexExists(adminClient(), unallowedIndex), is(false));
+            assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
+
             e = expectThrows(ResponseException.class,
                 () -> resumeFollow("leader_cluster:" + unallowedIndex, unallowedIndex));
-            assertThat(e.getMessage(), containsString("action [indices:monitor/stats] is unauthorized for user [test_ccr]"));
+            assertThat(e.getMessage(), containsString("insufficient privileges to follow index [unallowed-index], " +
+                "privilege for action [indices:monitor/stats] is missing, " +
+                "privilege for action [indices:data/read/xpack/ccr/shard_changes] is missing"));
             assertThat(indexExists(adminClient(), unallowedIndex), is(false));
             assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
         }
@@ -125,8 +139,15 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
         String allowedIndex = "logs-eu-20190101";
         String disallowedIndex = "logs-us-20190101";
 
+        {
+            Request request = new Request("PUT", "/_ccr/auto_follow/leader_cluster");
+            request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"]}");
+            Exception e = expectThrows(ResponseException.class, () -> assertOK(client().performRequest(request)));
+            assertThat(e.getMessage(), containsString("insufficient privileges to follow index [logs-*]"));
+        }
+
         Request request = new Request("PUT", "/_ccr/auto_follow/leader_cluster");
-        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"]}");
+        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-eu-*\"]}");
         assertOK(client().performRequest(request));
 
         try (RestClient leaderClient = buildLeaderClient()) {

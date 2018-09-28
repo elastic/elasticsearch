@@ -387,7 +387,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             null,
             null,
             mock(ClusterService.class),
-            new CcrLicenseChecker(() -> true)
+            new CcrLicenseChecker(() -> true, () -> false)
         );
 
         autoFollowCoordinator.updateStats(Collections.singletonList(

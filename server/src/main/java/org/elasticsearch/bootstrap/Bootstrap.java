@@ -216,11 +216,6 @@ final class Bootstrap {
                 final BoundTransportAddress boundTransportAddress, List<BootstrapCheck> checks) throws NodeValidationException {
                 BootstrapChecks.check(context, boundTransportAddress, checks);
             }
-
-            @Override
-            protected void registerDerivedNodeNameWithLogger(String nodeName) {
-                LogConfigurator.setNodeName(nodeName);
-            }
         };
     }
 
@@ -260,7 +255,9 @@ final class Bootstrap {
         if (secureSettings != null) {
             builder.setSecureSettings(secureSettings);
         }
-        return InternalSettingsPreparer.prepareEnvironment(builder.build(), Collections.emptyMap(), configPath);
+        return InternalSettingsPreparer.prepareEnvironment(builder.build(), Collections.emptyMap(), configPath,
+                // HOSTNAME is set by elasticsearch-env and elasticsearch-env.bat so it is always available
+                () -> System.getenv("HOSTNAME"));
     }
 
     private void start() throws NodeValidationException {
@@ -293,9 +290,7 @@ final class Bootstrap {
         final SecureSettings keystore = loadSecureSettings(initialEnv);
         final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
 
-        if (Node.NODE_NAME_SETTING.exists(environment.settings())) {
-            LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
-        }
+        LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
         try {
             LogConfigurator.configure(environment);
         } catch (IOException e) {
@@ -312,7 +307,7 @@ final class Bootstrap {
         final boolean closeStandardStreams = (foreground == false) || quiet;
         try {
             if (closeStandardStreams) {
-                final Logger rootLogger = ESLoggerFactory.getRootLogger();
+                final Logger rootLogger = LogManager.getRootLogger();
                 final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
                 if (maybeConsoleAppender != null) {
                     Loggers.removeAppender(rootLogger, maybeConsoleAppender);
@@ -344,7 +339,7 @@ final class Bootstrap {
             }
         } catch (NodeValidationException | RuntimeException e) {
             // disable console logging, so user does not see the exception twice (jvm will show it already)
-            final Logger rootLogger = ESLoggerFactory.getRootLogger();
+            final Logger rootLogger = LogManager.getRootLogger();
             final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
             if (foreground && maybeConsoleAppender != null) {
                 Loggers.removeAppender(rootLogger, maybeConsoleAppender);

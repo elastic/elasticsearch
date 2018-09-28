@@ -439,8 +439,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
     }
 
     public void testBadSigmaAsSubAgg() throws Exception {
-        try {
-            SearchResponse response = client()
+        Exception ex = expectThrows(Exception.class, () -> client()
                     .prepareSearch("idx")
                     .addAggregation(
                             terms("terms")
@@ -451,21 +450,18 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
                                                     .extendedBounds(minRandomValue, maxRandomValue)
                                                     .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                                     .subAggregation(extendedStatsBucket("extended_stats_bucket", "histo>sum")
-                                            .sigma(-1.0))).execute().actionGet();
-            fail("Illegal sigma was provided but no exception was thrown.");
-        } catch (Exception e) {
-            Throwable cause = ExceptionsHelper.unwrapCause(e);
-            if (cause == null) {
-                throw e;
-            } else if (cause instanceof SearchPhaseExecutionException) {
-                SearchPhaseExecutionException spee = (SearchPhaseExecutionException) e;
-                Throwable rootCause = spee.getRootCause();
-                if (!(rootCause instanceof IllegalArgumentException)) {
-                    throw e;
-                }
-            } else if (!(cause instanceof IllegalArgumentException)) {
-                throw e;
+                                            .sigma(-1.0))).execute().actionGet());
+        Throwable cause = ExceptionsHelper.unwrapCause(ex);
+        if (cause == null) {
+            throw ex;
+        } else if (cause instanceof SearchPhaseExecutionException) {
+            SearchPhaseExecutionException spee = (SearchPhaseExecutionException) ex;
+            Throwable rootCause = spee.getRootCause();
+            if (!(rootCause instanceof IllegalArgumentException)) {
+                throw ex;
             }
+        } else if (!(cause instanceof IllegalArgumentException)) {
+            throw ex;
         }
     }
 

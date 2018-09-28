@@ -634,7 +634,6 @@ public class MoreTypes {
         private final int modifiers;
         private final boolean synthetic;
         private final Class<? extends Member> memberType;
-        private final String memberKey;
 
         private MemberImpl(Member member) {
             this.declaringClass = member.getDeclaringClass();
@@ -642,7 +641,6 @@ public class MoreTypes {
             this.modifiers = member.getModifiers();
             this.synthetic = member.isSynthetic();
             this.memberType = memberType(member);
-            this.memberKey = memberKey(member);
         }
 
         @Override

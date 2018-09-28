@@ -16,6 +16,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -51,13 +52,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private final String leaderIndex;
     private final ShardFollowTask params;
-    private final TimeValue pollTimeout;
-    private final TimeValue maxRetryDelay;
     private final BiConsumer<TimeValue, Runnable> scheduler;
     private final LongSupplier relativeTimeProvider;
 
     private long leaderGlobalCheckpoint;
     private long leaderMaxSeqNo;
+    private long leaderMaxSeqNoOfUpdatesOrDeletes = SequenceNumbers.UNASSIGNED_SEQ_NO;
     private long lastRequestedSeqNo;
     private long followerGlobalCheckpoint = 0;
     private long followerMaxSeqNo = 0;
@@ -83,8 +83,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         this.params = params;
         this.scheduler = scheduler;
         this.relativeTimeProvider = relativeTimeProvider;
-        this.pollTimeout = params.getPollTimeout();
-        this.maxRetryDelay = params.getMaxRetryDelay();
         /*
          * We keep track of the most recent fetch exceptions, with the number of exceptions that we track equal to the maximum number of
          * concurrent fetches. For each failed fetch, we track the from sequence number associated with the request, and we clear the entry
@@ -205,7 +203,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             numConcurrentWrites++;
             LOGGER.trace("{}[{}] write [{}/{}] [{}]", params.getFollowShardId(), numConcurrentWrites, ops.get(0).seqNo(),
                 ops.get(ops.size() - 1).seqNo(), ops.size());
-            sendBulkShardOperationsRequest(ops);
+            sendBulkShardOperationsRequest(ops, leaderMaxSeqNoOfUpdatesOrDeletes, new AtomicInteger(0));
         }
     }
 
@@ -266,6 +264,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         onOperationsFetched(response.getOperations());
         leaderGlobalCheckpoint = Math.max(leaderGlobalCheckpoint, response.getGlobalCheckpoint());
         leaderMaxSeqNo = Math.max(leaderMaxSeqNo, response.getMaxSeqNo());
+        leaderMaxSeqNoOfUpdatesOrDeletes = SequenceNumbers.max(leaderMaxSeqNoOfUpdatesOrDeletes, response.getMaxSeqNoOfUpdatesOrDeletes());
         final long newFromSeqNo;
         if (response.getOperations().length == 0) {
             newFromSeqNo = from;
@@ -295,13 +294,11 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
     }
 
-    private void sendBulkShardOperationsRequest(List<Translog.Operation> operations) {
-        sendBulkShardOperationsRequest(operations, new AtomicInteger(0));
-    }
-
-    private void sendBulkShardOperationsRequest(List<Translog.Operation> operations, AtomicInteger retryCounter) {
+    private void sendBulkShardOperationsRequest(List<Translog.Operation> operations, long leaderMaxSeqNoOfUpdatesOrDeletes,
+                                                AtomicInteger retryCounter) {
+        assert leaderMaxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "mus is not replicated";
         final long startTime = relativeTimeProvider.getAsLong();
-        innerSendBulkShardOperationsRequest(operations,
+        innerSendBulkShardOperationsRequest(operations, leaderMaxSeqNoOfUpdatesOrDeletes,
                 response -> {
                     synchronized (ShardFollowNodeTask.this) {
                         totalIndexTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
@@ -315,7 +312,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                         totalIndexTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
                         numberOfFailedBulkOperations++;
                     }
-                    handleFailure(e, retryCounter, () -> sendBulkShardOperationsRequest(operations, retryCounter));
+                    handleFailure(e, retryCounter,
+                        () -> sendBulkShardOperationsRequest(operations, leaderMaxSeqNoOfUpdatesOrDeletes, retryCounter));
                 }
         );
     }
@@ -361,7 +359,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             int currentRetry = retryCounter.incrementAndGet();
             LOGGER.debug(new ParameterizedMessage("{} error during follow shard task, retrying [{}]",
                 params.getFollowShardId(), currentRetry), e);
-            long delay = computeDelay(currentRetry, maxRetryDelay.getMillis());
+            long delay = computeDelay(currentRetry, params.getPollTimeout().getMillis());
             scheduler.accept(TimeValue.timeValueMillis(delay), task);
         } else {
             markAsFailed(e);
@@ -378,7 +376,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         return Math.min(backOffDelay, maxRetryDelayInMillis);
     }
 
-    private static boolean shouldRetry(Exception e) {
+    static boolean shouldRetry(Exception e) {
         return NetworkExceptionHelper.isConnectException(e) ||
             NetworkExceptionHelper.isCloseConnectionException(e) ||
             TransportActions.isShardNotAvailableException(e);
@@ -387,8 +385,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     // These methods are protected for testing purposes:
     protected abstract void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler);
 
-    protected abstract void innerSendBulkShardOperationsRequest(
-            List<Translog.Operation> operations, Consumer<BulkShardOperationsResponse> handler, Consumer<Exception> errorHandler);
+    protected abstract void innerSendBulkShardOperationsRequest(List<Translog.Operation> operations, long leaderMaxSeqNoOfUpdatesOrDeletes,
+                                    Consumer<BulkShardOperationsResponse> handler, Consumer<Exception> errorHandler);
 
     protected abstract void innerSendShardChangesRequest(long from, int maxOperationCount, Consumer<ShardChangesAction.Response> handler,
                                                          Consumer<Exception> errorHandler);

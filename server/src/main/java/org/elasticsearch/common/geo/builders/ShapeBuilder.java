@@ -24,6 +24,7 @@ import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -32,7 +33,6 @@ import org.elasticsearch.common.geo.parsers.GeoWKTParser;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
@@ -54,7 +54,7 @@ import java.util.Objects;
  */
 public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>> implements NamedWriteable, ToXContentObject {
 
-    protected static final Logger LOGGER = ESLoggerFactory.getLogger(ShapeBuilder.class.getName());
+    protected static final Logger LOGGER = LogManager.getLogger(ShapeBuilder.class);
 
     private static final boolean DEBUG;
     static {

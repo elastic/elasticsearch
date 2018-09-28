@@ -21,6 +21,7 @@ package org.elasticsearch.test.store;
 
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.store.BaseDirectoryWrapper;
@@ -62,20 +63,14 @@ public class MockFSDirectoryService extends FsDirectoryService {
         Setting.doubleSetting("index.store.mock.random.io_exception_rate_on_open", 0.0d,  0.0d, Property.IndexScope, Property.NodeScope);
     public static final Setting<Double> RANDOM_IO_EXCEPTION_RATE_SETTING =
         Setting.doubleSetting("index.store.mock.random.io_exception_rate", 0.0d,  0.0d, Property.IndexScope, Property.NodeScope);
-    public static final Setting<Boolean> RANDOM_PREVENT_DOUBLE_WRITE_SETTING =
-        Setting.boolSetting("index.store.mock.random.prevent_double_write", true, Property.IndexScope, Property.NodeScope);// true is default in MDW
-    public static final Setting<Boolean> RANDOM_NO_DELETE_OPEN_FILE_SETTING =
-        Setting.boolSetting("index.store.mock.random.no_delete_open_file", true, Property.IndexScope, Property.NodeScope);// true is default in MDW
     public static final Setting<Boolean> CRASH_INDEX_SETTING =
-        Setting.boolSetting("index.store.mock.random.crash_index", true, Property.IndexScope, Property.NodeScope);// true is default in MDW
+        Setting.boolSetting("index.store.mock.random.crash_index", true, Property.IndexScope, Property.NodeScope);
 
     private final FsDirectoryService delegateService;
     private final Random random;
     private final double randomIOExceptionRate;
     private final double randomIOExceptionRateOnOpen;
     private final MockDirectoryWrapper.Throttling throttle;
-    private final boolean preventDoubleWrite;
-    private final boolean noDeleteOpenFile;
     private final boolean crashIndex;
 
     @Inject
@@ -87,8 +82,6 @@ public class MockFSDirectoryService extends FsDirectoryService {
 
         randomIOExceptionRate = RANDOM_IO_EXCEPTION_RATE_SETTING.get(indexSettings);
         randomIOExceptionRateOnOpen = RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING.get(indexSettings);
-        preventDoubleWrite = RANDOM_PREVENT_DOUBLE_WRITE_SETTING.get(indexSettings);
-        noDeleteOpenFile = RANDOM_NO_DELETE_OPEN_FILE_SETTING.exists(indexSettings) ? RANDOM_NO_DELETE_OPEN_FILE_SETTING.get(indexSettings) : random.nextBoolean();
         random.nextInt(shardId.getId() + 1); // some randomness per shard
         throttle = MockDirectoryWrapper.Throttling.NEVER;
         crashIndex = CRASH_INDEX_SETTING.get(indexSettings);

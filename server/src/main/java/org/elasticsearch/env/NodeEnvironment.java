@@ -78,7 +78,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 import static java.util.Collections.unmodifiableSet;
 
@@ -234,18 +233,14 @@ public final class NodeEnvironment  implements Closeable {
     /**
      * Setup the environment.
      * @param settings settings from elasticsearch.yml
-     * @param nodeIdConsumer called as soon as the node id is available to the
-     *      node name in log messages if it wasn't loaded from
-     *      elasticsearch.yml
      */
-    public NodeEnvironment(Settings settings, Environment environment, Consumer<String> nodeIdConsumer) throws IOException {
+    public NodeEnvironment(Settings settings, Environment environment) throws IOException {
         if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {
             nodePaths = null;
             sharedDataPath = null;
             locks = null;
             nodeLockId = -1;
             nodeMetaData = new NodeMetaData(generateNodeId(settings));
-            nodeIdConsumer.accept(nodeMetaData.nodeId());
             return;
         }
         boolean success = false;
@@ -295,7 +290,6 @@ public final class NodeEnvironment  implements Closeable {
             this.nodePaths = nodeLock.nodePaths;
             this.nodeLockId = nodeLock.nodeId;
             this.nodeMetaData = loadOrCreateNodeMetaData(settings, logger, nodePaths);
-            nodeIdConsumer.accept(nodeMetaData.nodeId());
 
             if (logger.isDebugEnabled()) {
                 logger.debug("using node location [{}], local_lock_id [{}]", nodePaths, nodeLockId);
@@ -494,7 +488,7 @@ public final class NodeEnvironment  implements Closeable {
     private static boolean assertPathsDoNotExist(final Path[] paths) {
         Set<Path> existingPaths = new HashSet<>();
         for (Path path : paths) {
-            if (FileSystemUtils.exists(paths)) {
+            if (FileSystemUtils.exists(path)) {
                 existingPaths.add(path);
             }
         }
@@ -557,10 +551,8 @@ public final class NodeEnvironment  implements Closeable {
      * @param index the index to lock shards for
      * @param lockTimeoutMS how long to wait for acquiring the indices shard locks
      * @return the {@link ShardLock} instances for this index.
-     * @throws IOException if an IOException occurs.
      */
-    public List<ShardLock> lockAllForIndex(Index index, IndexSettings settings, long lockTimeoutMS)
-            throws IOException, ShardLockObtainFailedException {
+    public List<ShardLock> lockAllForIndex(Index index, IndexSettings settings, long lockTimeoutMS) throws ShardLockObtainFailedException {
         final int numShards = settings.getNumberOfShards();
         if (numShards <= 0) {
             throw new IllegalArgumentException("settings must contain a non-null > 0 number of shards");
@@ -848,7 +840,7 @@ public final class NodeEnvironment  implements Closeable {
     /**
      * Resolves all existing paths to <code>indexFolderName</code> in ${data.paths}/nodes/{node.id}/indices
      */
-    public Path[] resolveIndexFolder(String indexFolderName) throws IOException {
+    public Path[] resolveIndexFolder(String indexFolderName) {
         if (nodePaths == null || locks == null) {
             throw new IllegalStateException("node is not configured to store local location");
         }
@@ -991,17 +983,6 @@ public final class NodeEnvironment  implements Closeable {
                 }
             }
         }
-    }
-
-    /**
-     * Resolve the custom path for a index's shard.
-     * Uses the {@code IndexMetaData.SETTING_DATA_PATH} setting to determine
-     * the root path for the index.
-     *
-     * @param indexSettings settings for the index
-     */
-    public Path resolveBaseCustomLocation(IndexSettings indexSettings) {
-        return resolveBaseCustomLocation(indexSettings, sharedDataPath, nodeLockId);
     }
 
     /**

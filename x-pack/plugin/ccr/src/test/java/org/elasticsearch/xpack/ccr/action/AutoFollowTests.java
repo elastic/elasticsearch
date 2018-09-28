@@ -15,6 +15,8 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
+import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
+import org.elasticsearch.xpack.core.ccr.action.AutoFollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
@@ -58,6 +60,9 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
         });
         createIndex("transactions-201901", leaderIndexSettings, "_doc");
         assertBusy(() -> {
+            AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(2L));
+
             IndicesExistsRequest request = new IndicesExistsRequest("copy-transactions-201901");
             assertTrue(client().admin().indices().exists(request).actionGet().isExists());
         });
@@ -82,9 +87,8 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
         }
         int expectedVal1 = numIndices;
         assertBusy(() -> {
-            MetaData metaData = client().admin().cluster().prepareState().get().getState().metaData();
-            int count = (int) Arrays.stream(metaData.getConcreteAllIndices()).filter(s -> s.startsWith("copy-")).count();
-            assertThat(count, equalTo(expectedVal1));
+            AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo((long) expectedVal1));
         });
 
         deleteAutoFollowPatternSetting();
@@ -136,7 +140,7 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
             request.setMaxRetryDelay(TimeValue.timeValueMillis(500));
         }
         if (randomBoolean()) {
-            request.setIdleShardRetryDelay(TimeValue.timeValueMillis(500));
+            request.setPollTimeout(TimeValue.timeValueMillis(500));
         }
         assertTrue(client().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
 
@@ -167,8 +171,8 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
             if (request.getMaxRetryDelay() != null) {
                 assertThat(shardFollowTask.getMaxRetryDelay(), equalTo(request.getMaxRetryDelay()));
             }
-            if (request.getIdleShardRetryDelay() != null) {
-                assertThat(shardFollowTask.getPollTimeout(), equalTo(request.getIdleShardRetryDelay()));
+            if (request.getPollTimeout() != null) {
+                assertThat(shardFollowTask.getPollTimeout(), equalTo(request.getPollTimeout()));
             }
         });
     }
@@ -186,6 +190,11 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
         DeleteAutoFollowPatternAction.Request request = new DeleteAutoFollowPatternAction.Request();
         request.setLeaderClusterAlias("_local_");
         assertTrue(client().execute(DeleteAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
+    }
+
+    private AutoFollowStats getAutoFollowStats() {
+        AutoFollowStatsAction.Request request = new AutoFollowStatsAction.Request();
+        return client().execute(AutoFollowStatsAction.INSTANCE, request).actionGet().getStats();
     }
 
 }

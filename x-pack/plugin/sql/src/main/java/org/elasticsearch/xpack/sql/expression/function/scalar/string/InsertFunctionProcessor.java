@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -16,7 +16,7 @@ import java.util.Objects;
 public class InsertFunctionProcessor implements Processor {
 
     private final Processor source, start, length, replacement;
-    public static final String NAME = "ins";
+    public static final String NAME = "si";
 
     public InsertFunctionProcessor(Processor source, Processor start, Processor length, Processor replacement) {
         this.source = source;
@@ -81,8 +81,8 @@ public class InsertFunctionProcessor implements Processor {
         StringBuilder sb = new StringBuilder(source.toString());
         String replString = (replacement.toString());
 
-        return sb.replace(realStart, 
-                realStart + ((Number) length).intValue(), 
+        return sb.replace(realStart,
+                realStart + ((Number) length).intValue(),
                 replString).toString();
     }
     

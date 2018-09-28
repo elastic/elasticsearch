@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ml.configcreator;
 import org.elasticsearch.xpack.ml.filestructurefinder.FileStructureFinder;
 import org.elasticsearch.xpack.ml.filestructurefinder.FileStructureFinderManager;
 import org.elasticsearch.xpack.ml.filestructurefinder.FileStructureUtils;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
@@ -15,13 +17,27 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
 public class LogConfigWriterTests extends LogConfigCreatorTestCase {
 
-    private FileStructureFinderManager structureFinderManager = new FileStructureFinderManager();
+    private ScheduledExecutorService scheduler;
+    private FileStructureFinderManager structureFinderManager;
+
+    @Before
+    public void setup() {
+        scheduler = new ScheduledThreadPoolExecutor(1);
+        structureFinderManager = new FileStructureFinderManager(scheduler);
+    }
+
+    @After
+    public void shutdownScheduler() {
+        scheduler.shutdown();
+    }
 
     public void testBestLogstashQuoteFor() {
         assertEquals("\"", LogConfigWriter.bestLogstashQuoteFor("normal"));

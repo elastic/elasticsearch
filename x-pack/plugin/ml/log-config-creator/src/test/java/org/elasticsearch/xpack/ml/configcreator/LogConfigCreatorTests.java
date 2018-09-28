@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.configcreator;
 
 import org.elasticsearch.xpack.ml.filestructurefinder.FileStructureFinder;
 import org.elasticsearch.xpack.ml.filestructurefinder.FileStructureFinderManager;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -14,6 +15,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 public class LogConfigCreatorTests extends LogConfigCreatorTestCase {
 
@@ -30,14 +33,21 @@ public class LogConfigCreatorTests extends LogConfigCreatorTestCase {
     private static final String INDEX_MAPPINGS_CONSOLE = TEST_TYPE + "-index-mappings.console";
     private static final String INDEX_MAPPINGS_SH = TEST_TYPE + "-index-mappings.sh";
 
+    private ScheduledExecutorService scheduler;
     private FileStructureFinderManager structureFinderManager;
     private LogConfigWriter logConfigWriter;
 
     @Before
     public void setup() throws IOException {
-        structureFinderManager = new FileStructureFinderManager();
+        scheduler = new ScheduledThreadPoolExecutor(1);
+        structureFinderManager = new FileStructureFinderManager(scheduler);
         logConfigWriter = new LogConfigWriter(TEST_TERMINAL, null, TEST_FILE_NAME, TEST_INDEX_NAME, TEST_TYPE,
             randomFrom(POSSIBLE_HOSTNAMES), randomFrom(POSSIBLE_HOSTNAMES), "UTC");
+    }
+
+    @After
+    public void shutdownScheduler() {
+        scheduler.shutdown();
     }
 
     public void testFindLogFileFormatGivenJson() throws Exception {

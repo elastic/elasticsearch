@@ -24,6 +24,8 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -155,10 +157,11 @@ public class LogConfigCreator extends Command {
             throw new UserException(ExitCodes.USAGE, "[" + file + "] does not exist or is not a file");
         }
 
+        ScheduledExecutorService scheduler = new ScheduledThreadPoolExecutor(1);
         try {
             LogConfigWriter logConfigWriter = new LogConfigWriter(terminal, filebeatModulePath,
                 file.toAbsolutePath().normalize().toString(), indexName, typeName, elasticsearchHost, logstashHost, timezone);
-            FileStructureFinderManager structureFinderManager = new FileStructureFinderManager();
+            FileStructureFinderManager structureFinderManager = new FileStructureFinderManager(scheduler);
             FileStructureFinder structureFinder = structureFinderManager.findFileStructure(sampleLines, Files.newInputStream(file));
             FileStructure structure = structureFinder.getStructure();
             for (String reason : structure.getExplanation()) {
@@ -167,6 +170,8 @@ public class LogConfigCreator extends Command {
             logConfigWriter.writeConfigs(structure, structureFinder.getSampleMessages(), outputDirectory);
         } catch (IllegalArgumentException | IOException e) {
             throw new UserException(ExitCodes.DATA_ERROR, "Cannot determine format of file [" + file + "]: " + e.getMessage());
+        } finally {
+            scheduler.shutdown();
         }
     }
 

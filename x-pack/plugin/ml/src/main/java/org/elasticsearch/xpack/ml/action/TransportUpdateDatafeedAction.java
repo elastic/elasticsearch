@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 
+import java.util.Collections;
 import java.util.Map;
 
 public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<UpdateDatafeedAction.Request, PutDatafeedAction.Response> {
@@ -100,7 +101,7 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
      * if it does have a datafeed it must be the one we are updating
      */
     private void checkJobDoesNotHaveADifferentDatafeed(String jobId, String datafeedId, ActionListener<Boolean> listener) {
-        datafeedConfigProvider.findDatafeedForJobId(jobId, ActionListener.wrap(
+        datafeedConfigProvider.findDatafeedsForJobIds(Collections.singletonList(jobId), ActionListener.wrap(
                 datafeedIds -> {
                     if (datafeedIds.isEmpty()) {
                         // Ok the job does not have a datafeed

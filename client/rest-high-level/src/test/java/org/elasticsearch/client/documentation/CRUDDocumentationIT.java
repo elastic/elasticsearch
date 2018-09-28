@@ -95,7 +95,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Documentation for Cluster APIs in the high level java client.
+ * Documentation for CRUD APIs in the high level java client.
  * Code wrapped in {@code tag} and {@code end} tags is included in the docs.
  */
 public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {

@@ -173,36 +173,36 @@ public class FunctionRegistryTests extends ESTestCase {
         }, "DUMMY_FUNC")));
 
         // Resolve by primary name
-        FunctionDefinition def = r.resolveFunction(r.concreteFunctionName("DuMMy_FuncTIon"));
+        FunctionDefinition def = r.resolveFunction(r.resolveAlias("DuMMy_FuncTIon"));
         assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
 
-        def = r.resolveFunction(r.concreteFunctionName("Dummy_Function"));
+        def = r.resolveFunction(r.resolveAlias("Dummy_Function"));
         assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
 
-        def = r.resolveFunction(r.concreteFunctionName("dummy_function"));
+        def = r.resolveFunction(r.resolveAlias("dummy_function"));
         assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
 
-        def = r.resolveFunction(r.concreteFunctionName("DUMMY_FUNCTION"));
+        def = r.resolveFunction(r.resolveAlias("DUMMY_FUNCTION"));
         assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
 
         // Resolve by alias
-        def = r.resolveFunction(r.concreteFunctionName("DumMy_FunC"));
+        def = r.resolveFunction(r.resolveAlias("DumMy_FunC"));
         assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
 
-        def = r.resolveFunction(r.concreteFunctionName("dummy_func"));
+        def = r.resolveFunction(r.resolveAlias("dummy_func"));
         assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
 
-        def = r.resolveFunction(r.concreteFunctionName("DUMMY_FUNC"));
+        def = r.resolveFunction(r.resolveAlias("DUMMY_FUNC"));
         assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
 
         // Not resolved
         SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class,
-            () -> r.resolveFunction(r.concreteFunctionName("DummyFunction")));
+            () -> r.resolveFunction(r.resolveAlias("DummyFunction")));
         assertThat(e.getMessage(),
             is("Cannot find function DUMMYFUNCTION; this should have been caught during analysis"));
 
         e = expectThrows(SqlIllegalArgumentException.class,
-            () -> r.resolveFunction(r.concreteFunctionName("dummyFunction")));
+            () -> r.resolveFunction(r.resolveAlias("dummyFunction")));
         assertThat(e.getMessage(),
             is("Cannot find function DUMMYFUNCTION; this should have been caught during analysis"));
     }

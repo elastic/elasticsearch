@@ -71,7 +71,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     protected void doAssertLuceneQuery(WildcardQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
 
-        if (expectedFieldName.equals(STRING_FIELD_NAME)) {
+        if (expectedFieldName.equals(STRING_FIELD_NAME) && getCurrentTypes().length > 0) {
             assertThat(query, instanceOf(WildcardQuery.class));
             WildcardQuery wildcardQuery = (WildcardQuery) query;
 
@@ -98,7 +98,11 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
         WildcardQueryBuilder wildcardQueryBuilder = new WildcardQueryBuilder(STRING_FIELD_NAME, "");
-        assertEquals(wildcardQueryBuilder.toQuery(context).getClass(), WildcardQuery.class);
+        if (getCurrentTypes().length > 0) {
+            assertEquals(wildcardQueryBuilder.toQuery(context).getClass(), WildcardQuery.class);
+        } else {
+            assertEquals(wildcardQueryBuilder.toQuery(context).getClass(), MatchNoDocsQuery.class);
+        }
     }
 
     public void testFromJson() throws IOException {

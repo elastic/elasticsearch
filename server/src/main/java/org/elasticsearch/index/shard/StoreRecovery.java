@@ -427,12 +427,12 @@ final class StoreRecovery {
                 } else {
                     store.bootstrapNewHistory();
                 }
+            }
+            if (recoverySource.getType() != RecoverySource.Type.EXISTING_STORE) {
                 final long maxSeqNo = Long.parseLong(store.readLastCommittedSegmentsInfo().userData.get(SequenceNumbers.MAX_SEQ_NO));
                 final String translogUUID = Translog.createEmptyTranslog(
                     indexShard.shardPath().resolveTranslog(), maxSeqNo, shardId, indexShard.getPendingPrimaryTerm());
                 store.associateIndexWithNewTranslog(translogUUID);
-            } else {
-                assert recoverySource.getType() == RecoverySource.Type.EXISTING_STORE;
             }
             indexShard.openEngineAndRecoverFromTranslog();
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());

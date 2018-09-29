@@ -40,6 +40,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
@@ -52,6 +53,7 @@ import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
+import org.elasticsearch.xpack.ccr.index.engine.FollowingEngine;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
@@ -210,7 +212,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         for (int i = 0; i < firstBatchNumDocs; i++) {
             assertBusy(assertExpectedDocumentRunnable(i));
         }
-
+        assertTotalNumberOfOptimizedIndexing(resolveIndex("index2"), numberOfPrimaryShards, firstBatchNumDocs);
         unfollowIndex("index2");
         client().execute(ResumeFollowAction.INSTANCE, followRequest.getFollowRequest()).get();
         final int secondBatchNumDocs = randomIntBetween(2, 64);
@@ -234,6 +236,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         for (int i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
             assertBusy(assertExpectedDocumentRunnable(i));
         }
+        assertTotalNumberOfOptimizedIndexing(resolveIndex("index2"), numberOfPrimaryShards, firstBatchNumDocs + secondBatchNumDocs);
         unfollowIndex("index2");
         assertMaxSeqNoOfUpdatesIsTransferred(resolveIndex("index1"), resolveIndex("index2"), numberOfPrimaryShards);
     }
@@ -347,6 +350,8 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertThat(bulkProcessor.awaitClose(1L, TimeUnit.MINUTES), is(true));
 
         assertSameDocCount("index1", "index2");
+        assertTotalNumberOfOptimizedIndexing(resolveIndex("index2"), numberOfShards,
+            client().prepareSearch("index2").get().getHits().totalHits);
         unfollowIndex("index2");
         assertMaxSeqNoOfUpdatesIsTransferred(resolveIndex("index1"), resolveIndex("index2"), numberOfShards);
     }
@@ -436,6 +441,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         }
         unfollowIndex("index2");
         assertMaxSeqNoOfUpdatesIsTransferred(resolveIndex("index1"), resolveIndex("index2"), 1);
+        assertTotalNumberOfOptimizedIndexing(resolveIndex("index2"), 1, numDocs);
     }
 
     public void testUnfollowNonExistingIndex() {
@@ -473,7 +479,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureYellow("index1");
 
-        final int numDocs = 1024;
+        final int numDocs = between(10, 1024);
         logger.info("Indexing [{}] docs", numDocs);
         for (int i = 0; i < numDocs; i++) {
             final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
@@ -499,6 +505,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         }
         unfollowIndex("index2");
         assertMaxSeqNoOfUpdatesIsTransferred(resolveIndex("index1"), resolveIndex("index2"), 1);
+        assertTotalNumberOfOptimizedIndexing(resolveIndex("index2"), 1, numDocs);
     }
 
     public void testDontFollowTheWrongIndex() throws Exception {
@@ -868,6 +875,27 @@ public class ShardChangesIT extends ESIntegTestCase {
                     }
                 }
             }
+        });
+    }
+
+    private void assertTotalNumberOfOptimizedIndexing(Index followerIndex, int numberOfShards, long expectedTotal) throws Exception {
+        assertBusy(() -> {
+            long[] numOfOptimizedOps = new long[numberOfShards];
+            for (int shardId = 0; shardId < numberOfShards; shardId++) {
+                for (String node : internalCluster().nodesInclude(followerIndex.getName())) {
+                    IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+                    IndexShard shard = indicesService.getShardOrNull(new ShardId(followerIndex, shardId));
+                    if (shard != null) {
+                        try {
+                            FollowingEngine engine = ((FollowingEngine) IndexShardTestCase.getEngine(shard));
+                            numOfOptimizedOps[shardId] = engine.getNumberOfOptimizedIndexing();
+                        } catch (AlreadyClosedException e) {
+                            throw new AssertionError(e); // causes assertBusy to retry
+                        }
+                    }
+                }
+            }
+            assertThat(Arrays.stream(numOfOptimizedOps).sum(), equalTo(expectedTotal));
         });
     }
 

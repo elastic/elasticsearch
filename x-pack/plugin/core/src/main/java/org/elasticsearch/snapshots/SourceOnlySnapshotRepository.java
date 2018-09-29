@@ -127,7 +127,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             snapshot.syncSnapshot(snapshotIndexCommit);
             // we will use the lucene doc ID as the seq ID so we set the local checkpoint to maxDoc with a new index UUID
             SegmentInfos segmentInfos = tempStore.readLastCommittedSegmentsInfo();
-            tempStore.bootstrapNewHistory(segmentInfos.totalMaxDoc());
+            tempStore.bootstrapNewHistory(segmentInfos.totalMaxDoc(), segmentInfos.totalMaxDoc());
             store.incRef();
             try (DirectoryReader reader = DirectoryReader.open(tempStore.directory())) {
                 IndexCommit indexCommit = reader.getIndexCommit();

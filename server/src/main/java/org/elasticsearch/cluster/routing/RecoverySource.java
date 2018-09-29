@@ -93,7 +93,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
     public abstract Type getType();
 
     public boolean shouldBootstrapNewHistoryUUID() {
-        return false;
+        return true;
     }
 
     @Override
@@ -294,6 +294,11 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         @Override
         public String toString() {
             return "peer recovery";
+        }
+
+        @Override
+        public boolean shouldBootstrapNewHistoryUUID() {
+            return false;
         }
     }
 }

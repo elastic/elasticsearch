@@ -93,14 +93,6 @@ public class DeterministicTaskQueue extends AbstractComponent {
     }
 
     /**
-     * Runs the first runnable task.
-     */
-    public void runNextTask() { // TODO can this be removed? Only used in tests.
-        assert hasRunnableTasks();
-        runTask(0);
-    }
-
-    /**
      * Runs an arbitrary runnable task.
      */
     public void runRandomTask() {

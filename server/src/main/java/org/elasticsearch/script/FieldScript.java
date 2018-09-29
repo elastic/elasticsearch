@@ -20,7 +20,7 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.search.lookup.LeafDocLookup;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -34,18 +34,20 @@ import java.util.Map;
  */
 public abstract class FieldScript {
 
+    public static final String[] PARAMETERS = {};
+
     private static final Map<String, String> DEPRECATIONS;
 
     static {
         Map<String, String> deprecations = new HashMap<>();
         deprecations.put(
             "doc",
-            "Accessing variable [doc] via [params.doc] from within a terms-set-query-script " +
+            "Accessing variable [doc] via [params.doc] from within a field script " +
                 "is deprecated in favor of directly accessing [doc]."
         );
         deprecations.put(
             "_doc",
-            "Accessing variable [doc] via [params._doc] from within a terms-set-query-script " +
+            "Accessing variable [doc] via [params._doc] from within a field script " +
                 "is deprecated in favor of directly accessing [doc]."
         );
         DEPRECATIONS = Collections.unmodifiableMap(deprecations);
@@ -77,7 +79,7 @@ public abstract class FieldScript {
     }
 
     /** The doc lookup for the Lucene segment this script was created for. */
-    public final LeafDocLookup getDoc() {
+    public final Map<String, ScriptDocValues<?>> getDoc() {
         return leafLookup.doc();
     }
 

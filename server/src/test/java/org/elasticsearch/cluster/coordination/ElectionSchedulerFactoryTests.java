@@ -130,7 +130,7 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
         final long backOffTime = ELECTION_BACK_OFF_TIME_SETTING.get(settings).millis();
         final long maxTimeout = ELECTION_MAX_TIMEOUT_SETTING.get(settings).millis();
 
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings);
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
         final ElectionSchedulerFactory electionSchedulerFactory
             = new ElectionSchedulerFactory(settings, random(), deterministicTaskQueue.getThreadPool());
 

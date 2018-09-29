@@ -68,7 +68,7 @@ public class FollowersCheckerTests extends ESTestCase {
         final DiscoveryNodes[] discoveryNodesHolder
             = new DiscoveryNodes[]{DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build()};
 
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings);
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
 
         final Set<DiscoveryNode> checkedNodes = new HashSet<>();
         final AtomicInteger checkCount = new AtomicInteger();
@@ -225,7 +225,7 @@ public class FollowersCheckerTests extends ESTestCase {
         final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getName()).put(testSettings).build();
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings);
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
 
         final MockTransport mockTransport = new MockTransport() {
             @Override
@@ -333,7 +333,7 @@ public class FollowersCheckerTests extends ESTestCase {
         final DiscoveryNode leader = new DiscoveryNode("leader", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode follower = new DiscoveryNode("follower", buildNewFakeTransportAddress(), Version.CURRENT);
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), follower.getName()).build();
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings);
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
 
         final MockTransport mockTransport = new MockTransport() {
             @Override

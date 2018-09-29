@@ -114,7 +114,8 @@ public class NodeJoinTests extends ESTestCase {
     }
 
     private void setupFakeMasterServiceAndCoordinator(long term, ClusterState initialState) {
-        deterministicTaskQueue = new DeterministicTaskQueue(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build());
+        deterministicTaskQueue
+            = new DeterministicTaskQueue(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(), random());
         FakeThreadPoolMasterService fakeMasterService = new FakeThreadPoolMasterService("test", deterministicTaskQueue::scheduleNow);
         setupMasterServiceAndCoordinator(term, initialState, fakeMasterService, deterministicTaskQueue.getThreadPool(), Randomness.get());
         fakeMasterService.setClusterStatePublisher((event, publishListener, ackListener) -> {

@@ -93,7 +93,7 @@ public class LeaderCheckerTests extends ESTestCase {
         final Settings settings = settingsBuilder.build();
         logger.info("--> using {}", settings);
 
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings);
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
         final MockTransport mockTransport = new MockTransport() {
 
             int consecutiveFailedRequestsCount;
@@ -197,7 +197,7 @@ public class LeaderCheckerTests extends ESTestCase {
         final Response[] responseHolder = new Response[]{Response.SUCCESS};
 
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getId()).build();
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings);
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
         final MockTransport mockTransport = new MockTransport() {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
@@ -280,7 +280,7 @@ public class LeaderCheckerTests extends ESTestCase {
         final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getId()).build();
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings);
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
         final CapturingTransport capturingTransport = new CapturingTransport();
 
         final TransportService transportService = capturingTransport.createTransportService(settings,

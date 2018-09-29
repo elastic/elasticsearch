@@ -45,43 +45,36 @@ import java.util.function.Function;
 public class DeterministicTaskQueue extends AbstractComponent {
 
     private final List<Runnable> runnableTasks = new ArrayList<>();
+    private final Random random;
     private List<DeferredTask> deferredTasks = new ArrayList<>();
     private long currentTimeMillis;
     private long nextDeferredTaskExecutionTimeMillis = Long.MAX_VALUE;
 
-    public DeterministicTaskQueue(Settings settings) {
+    public DeterministicTaskQueue(Settings settings, Random random) {
         super(settings);
+        this.random = random;
     }
 
-    public void runAllTasks() {
-        while (true) {
-            runAllRunnableTasks();
-            if (hasDeferredTasks()) {
-                advanceTime();
-            } else {
-                break;
-            }
-        }
+    public void runAllRunnableTasks(Random random) {
+        runAllRunnableTasks(); // TODO inline this
     }
 
     public void runAllRunnableTasks() {
         while (hasRunnableTasks()) {
-            runNextTask();
-        }
-    }
-
-    public void runAllRunnableTasks(Random random) {
-        while (hasRunnableTasks()) {
-            runRandomTask(random);
+            runRandomTask();
         }
     }
 
     public void runAllTasks(Random random) {
+        runAllTasks(); // TODO inline this
+    }
+
+    public void runAllTasks() {
         while (hasDeferredTasks() || hasRunnableTasks()) {
             if (hasDeferredTasks() && random.nextBoolean()) {
                 advanceTime();
             } else if (hasRunnableTasks()) {
-                runRandomTask(random);
+                runRandomTask();
             }
         }
     }
@@ -110,15 +103,19 @@ public class DeterministicTaskQueue extends AbstractComponent {
     /**
      * Runs the first runnable task.
      */
-    public void runNextTask() {
+    public void runNextTask() { // TODO can this be removed? Only used in tests.
         assert hasRunnableTasks();
         runTask(0);
+    }
+
+    public void runRandomTask(Random random) {
+        runRandomTask(); // TODO inline this
     }
 
     /**
      * Runs an arbitrary runnable task.
      */
-    public void runRandomTask(final Random random) {
+    public void runRandomTask() {
         assert hasRunnableTasks();
         runTask(RandomNumbers.randomIntBetween(random, 0, runnableTasks.size() - 1));
     }

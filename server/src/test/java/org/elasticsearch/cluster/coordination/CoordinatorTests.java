@@ -180,7 +180,7 @@ public class CoordinatorTests extends ESTestCase {
         final List<ClusterNode> clusterNodes;
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
             // TODO does ThreadPool need a node name any more?
-            Settings.builder().put(NODE_NAME_SETTING.getKey(), "deterministic-task-queue").build());
+            Settings.builder().put(NODE_NAME_SETTING.getKey(), "deterministic-task-queue").build(), random());
         private final VotingConfiguration initialConfiguration;
 
         private final Set<String> disconnectedNodes = new HashSet<>();

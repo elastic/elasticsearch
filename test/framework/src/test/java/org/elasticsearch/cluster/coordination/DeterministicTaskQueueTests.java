@@ -69,7 +69,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     private List<String> getResultsOfRunningRandomly(Random random) {
-        final DeterministicTaskQueue taskQueue = newTaskQueue();
+        final DeterministicTaskQueue taskQueue = newTaskQueue(random);
         final List<String> strings = new ArrayList<>(4);
 
         taskQueue.scheduleNow(() -> strings.add("foo"));
@@ -80,7 +80,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertThat(strings, empty());
 
         while (taskQueue.hasRunnableTasks()) {
-            taskQueue.runRandomTask(random);
+            taskQueue.runRandomTask();
         }
 
         assertThat(strings, containsInAnyOrder("foo", "bar", "baz", "quux"));
@@ -240,7 +240,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertThat(strings, empty());
 
         while (taskQueue.hasRunnableTasks()) {
-            taskQueue.runRandomTask(random());
+            taskQueue.runRandomTask();
         }
 
         assertThat(strings, containsInAnyOrder("foo", "bar"));
@@ -259,7 +259,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertThat(strings, empty());
 
         while (taskQueue.hasRunnableTasks()) {
-            taskQueue.runRandomTask(random());
+            taskQueue.runRandomTask();
         }
 
         assertThat(strings, containsInAnyOrder("foo", "bar"));
@@ -315,7 +315,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         taskQueue.runAllTasks();
 
         assertThat(taskQueue.getCurrentTimeMillis(), is(startTime + delayMillis));
-        assertThat(strings, contains("runnable", "also runnable", "deferred"));
+        assertThat(strings, containsInAnyOrder("runnable", "also runnable", "deferred"));
 
         final long delayMillis1 = randomLongBetween(2, 100);
         final long delayMillis2 = randomLongBetween(1, delayMillis1 - 1);
@@ -333,12 +333,16 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         final ScheduledFuture<?> future = threadPool.schedule(cancelledDelay, "", () -> strings.add("cancelled before execution"));
 
         future.cancel(false);
-        taskQueue.runAllTasks(random());
+        taskQueue.runAllTasks();
 
-        assertThat(strings, contains("runnable", "also runnable", "deferred", "not quite so deferred", "further deferred"));
+        assertThat(strings, containsInAnyOrder("runnable", "also runnable", "deferred", "not quite so deferred", "further deferred"));
     }
 
     private static DeterministicTaskQueue newTaskQueue() {
-        return new DeterministicTaskQueue(Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build());
+        return newTaskQueue(random());
+    }
+
+    private static DeterministicTaskQueue newTaskQueue(Random random) {
+        return new DeterministicTaskQueue(Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build(), random);
     }
 }

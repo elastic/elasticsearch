@@ -52,6 +52,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.mockito.internal.stubbing.answers.Returns;
 
 import javax.net.ssl.SSLContext;
 
@@ -387,6 +388,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             wipeRollupJobs();
             waitForPendingRollupTasks();
         }
+
     }
 
     /**
@@ -472,6 +474,10 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private void waitForPendingRollupTasks() throws Exception {
         waitForPendingTasks(adminClient(), taskName -> taskName.startsWith("xpack/rollup/job") == false);
+    }
+
+    private void waitForPendingCcrTasks() {
+        //waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(""));
     }
 
     /**

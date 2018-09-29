@@ -1,0 +1,91 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ccr-get-auto-follow-pattern]]
+=== Get Auto-Follow Pattern API
+++++
+<titleabbrev>Get Auto-Follow Pattern</titleabbrev>
+++++
+
+Get auto-follow patterns.
+
+==== Description
+
+This API gets configured auto-follow patterns. This API will return the
+configured auto-follow patterns on a per-cluster basis.
+
+==== Request
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT /_ccr/auto_follow/leader_cluster
+{
+  "leader_cluster" : "leader_cluster",
+  "leader_index_patterns" :
+  [
+    "leader_index*"
+  ],
+  "follow_index_pattern" : "{{leader_index}}-follower"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:leader_cluster]
+// TESTSETUP
+
+[source,js]
+--------------------------------------------------
+DELETE /_ccr/auto_follow/leader_cluster
+--------------------------------------------------
+// CONSOLE
+// TEST
+// TEARDOWN
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+GET /_ccr/auto_follow/
+--------------------------------------------------
+// CONSOLE
+
+Here, all auto-follow patterns will be returned.
+
+[source,js]
+--------------------------------------------------
+GET /_ccr/auto_follow/<leader_cluster>
+--------------------------------------------------
+// CONSOLE
+// TEST[s/<leader_cluster>/leader_cluster/]
+
+Here, all auto-follow patterns configured for the
+<<modules-remote-clusters,remote cluster>> specified by `<leader_cluster>`
+will be returned.
+
+==== Example
+
+The following is an example of using the get auto-follow pattern API.
+
+[source,js]
+--------------------------------------------------
+GET /_ccr/auto_follow/leader_cluster
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:leader_cluster]
+
+The API returns the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "leader_cluster" :
+  {
+    "leader_index_patterns" :
+    [
+      "leader_index*"
+    ],
+    "follow_index_pattern" : "{{leader_index}}-follower"
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE

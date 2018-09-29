@@ -1,0 +1,93 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ccr-post-resume-follow]]
+=== Resume Follower API
+++++
+<titleabbrev>Resume Follower</titleabbrev>
+++++
+
+Resumes a follower index.
+
+==== Description
+
+This API resumes a follower index that has been paused either explicitly with
+the <<ccr-post-pause-follow, pause follower API>> or implicitly due to
+execution that can not be retried due to failure during following. When this API
+returns, the follower index will resume fetching operations from the leader index.
+
+==== Request
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT /follower_index/_ccr/follow
+{
+  "leader_cluster" : "leader_cluster",
+  "leader_index" : "leader_index"
+}
+
+POST /follower_index/_ccr/pause_follow
+--------------------------------------------------
+// CONSOLE
+// TESTSETUP
+// TEST[setup:leader_cluster_and_leader_index]
+
+[source,js]
+--------------------------------------------------
+POST /follower_index/_ccr/pause_follow
+--------------------------------------------------
+// CONSOLE
+// TEARDOWN
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+POST /<follower_index>/_ccr/resume_follow
+{
+  "leader_cluster" : "<leader_cluster>",
+  "leader_index" : "<leader_index>"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/<follower_index>/follower_index/]
+// TEST[s/<leader_cluster>/leader_cluster/]
+// TEST[s/<leader_index>/leader_index/]
+
+Here, `<follower_index>` is the name of the follower index to resume.
+
+==== Request Body
+`leader_cluster`::
+  (required string) the <<modules-remote-clusters,remote cluster>> containing the leader
+  index
+
+`leader_index`::
+  (required string) the name of the index in the leader cluster to follow
+
+include::../follow-request-body.asciidoc[]
+
+==== Example
+
+The following is an example of using the resume follower API.
+
+[source,js]
+--------------------------------------------------
+POST /follower_index/_ccr/resume_follow
+{
+  "leader_cluster" : "leader_cluster",
+  "leader_index" : "leader_index"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+The API returns the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "acknowledged" : true
+}
+--------------------------------------------------
+// TESTRESPONSE

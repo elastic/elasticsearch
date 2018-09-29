@@ -1,0 +1,245 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ccr-get-follow-stats]]
+=== Get Follower Stats API
+++++
+<titleabbrev>Get Follower Stats</titleabbrev>
+++++
+
+Get follower stats.
+
+==== Description
+
+This API gets follower stats. This API will return shard-level stats about the
+following tasks associated with each shard for the specified indices.
+
+==== Request
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT /follower_index/_ccr/follow
+{
+  "leader_cluster" : "leader_cluster",
+  "leader_index" : "leader_index"
+}
+--------------------------------------------------
+// CONSOLE
+// TESTSETUP
+// TEST[setup:leader_cluster_and_leader_index]
+
+[source,js]
+--------------------------------------------------
+POST /follower_index/_ccr/pause_follow
+--------------------------------------------------
+// CONSOLE
+// TEARDOWN
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+GET /_ccr/stats
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+Here, all follower indices will have their follower stats returned.
+
+[source,js]
+--------------------------------------------------
+GET /<index>/_ccr/stats
+--------------------------------------------------
+// CONSOLE
+// TEST[s/<index>/follower_index/]
+
+Here, `<index>` is a comma-delimited list of index patterns that will be matched
+against follower indices to retrieve follower stats for.
+
+==== Results
+
+This API returns the following information:
+
+`indices`::
+  (array) an array of follower index statistics
+
+The `indices` array consists of objects containing two fields:
+
+`indices[].index`::
+  (string) the name of the follower index
+
+`indices[].shards`::
+  (array) an array of shard-level following task statistics
+
+The `shards` array consists of objects containing the following fields:
+
+`indices[].shards[].leader_cluster`::
+  (string) the <modules-remote-clusters,remote cluster>> containing the leader
+  index
+
+`indices[].shards[].leader_index`::
+  (string) the name of the index in the leader cluster being followed
+
+`indices[].shards[].follower_index`::
+  (string) the name of the follower index
+
+`indices[].shards[].shard_id`::
+  (integer) the numerical shard ID, with values from 0 to one less than the
+  number of replicas
+
+`indices[].shards[].leader_global_checkpoint`::
+  (long) the current global checkpoint on the leader known to the follower task
+
+`indices[].shards[].leader_max_seq_no`::
+  (long) the current maximum sequence number on the leader known to the follower
+  task
+
+`indices[].shards[].follower_global_checkpoint`::
+  (long) the current global checkpoint on the follower; the difference between the
+  `leader_global_checkpoint` and the `follower_global_checkpoint` is an
+  indication of how much the follower is lagging the leader
+
+`indices[].shards[].follower_max_seq_no`::
+  (long) the current maximum sequence number on the follower
+
+`indices[].shards[].last_requested_seq_no`::
+  (long) the starting sequence number of the last batch of operations requested
+  from the leader
+
+`indices[].shards[].number_of_concurrent_reads`::
+  (integer) the number of active fetches
+
+`indices[].shards[].number_of_concurrent_writes`::
+  (integer) the number of active writes
+
+`indices[].shards[].number_of_queued_writes`::
+  (integer) the number of write operations queued on the follower
+
+`indices[].shards[].mapping_version`::
+  (long) the mapping version on the follower
+
+`indices[].shards[].total_fetch_time_millis`::
+  (long) the total time fetches were outstanding, measured from the time a fetch
+  was sent to the leader to the time a reply was returned to the follower
+
+`indices[].shards[].number_of_successful_fetches`::
+  (long) the number of successful fetches
+
+`indices[].shards[].number_of_failed_fetches`::
+  (long) the number of failed fetches
+
+`indices[].shards[].operations_received`::
+  (long) the total number of operations received from the leader
+
+`indices[].shards[].total_transferred_bytes`::
+  (long) the total of transferred bytes received from the leader (note this is
+  only an estimate and does not account for compression if enabled)
+
+`indices[].shards[].total_index_time_millis`::
+  (long) the total time spent indexing on the follower
+
+`indices[].shards[].number_of_successful_bulk_operations`::
+  (long) the number of bulk operations executed on the follower
+
+`indices[].shards[].number_of_failed_bulk_operations`::
+  (long) the number of failed operations executed on the follower
+
+`indices[].shards[].number_of_operations_indexed`::
+  (long) the number of operations indexed on the follower
+
+`indices[].shards[].fetch_exceptions`::
+  (array) an array of objects representing failed fetches
+
+The `fetch_exceptions` array consists of objects containing the following
+fields:
+
+`indices[].shards[].fetch_exceptions[].from_seq_no`::
+  (long) the starting sequence number of the batch requested from the leader
+
+`indices[].shards[].fetch_exceptions[].retries`::
+  (integer) the number of times the batch has been retried
+
+`indices[].shards[].fetch_exceptions[].exception`::
+  (object) represents the exception that caused the fetch to fail
+
+Continuing with the fields from `shards`:
+
+`indices[].shards[].time_since_last_fetch_millis`::
+  (long) the number of milliseconds since a fetch request was sent to the
+  leader; note that when the follower is caught up to the leader, this number
+  will increase up to the configured `poll_timeout` at which point another fetch
+  request will be sent to the leader
+
+`indices[].fatal_exception`::
+  (object) an object representing a fatal exception that cancelled the following
+  task; in this situation, the following task must be resumed manually with the
+  <<ccr-post-resume-follow,resume follower API>>
+
+==== Example
+
+[source,js]
+--------------------------------------------------
+GET /_ccr/stats
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+The API returns the following results:
+[source,js]
+--------------------------------------------------
+{
+  "indices" : [
+    {
+      "index" : "follower_index",
+      "shards" : [
+        {
+          "leader_cluster" : "leader_cluster",
+          "leader_index" : "leader_index",
+          "follower_index" : "follower_index",
+          "shard_id" : 0,
+          "leader_global_checkpoint" : 1024,
+          "leader_max_seq_no" : 1536,
+          "follower_global_checkpoint" : 768,
+          "follower_max_seq_no" : 896,
+          "last_requested_seq_no" : 897,
+          "number_of_concurrent_reads" : 8,
+          "number_of_concurrent_writes" : 2,
+          "number_of_queued_writes" : 64,
+          "mapping_version" : 4,
+          "total_fetch_time_millis" : 17415,
+          "number_of_successful_fetches" : 32,
+          "number_of_failed_fetches" : 0,
+          "operations_received" : 896,
+          "total_transferred_bytes" : 32768,
+          "total_index_time_millis" : 16384,
+          "number_of_successful_bulk_operations" : 16,
+          "number_of_failed_bulk_operations" : 0,
+          "number_of_operations_indexed" : 832,
+          "fetch_exceptions" : [ ],
+          "time_since_last_fetch_millis" : 8
+        }
+      ]
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"leader_global_checkpoint" : 1024/"leader_global_checkpoint" : $body.indices.0.shards.0.leader_global_checkpoint/]
+// TESTRESPONSE[s/"leader_max_seq_no" : 1536/"leader_max_seq_no" : $body.indices.0.shards.0.leader_max_seq_no/]
+// TESTRESPONSE[s/"follower_global_checkpoint" : 768/"follower_global_checkpoint" : $body.indices.0.shards.0.follower_global_checkpoint/]
+// TESTRESPONSE[s/"follower_max_seq_no" : 896/"follower_max_seq_no" : $body.indices.0.shards.0.follower_max_seq_no/]
+// TESTRESPONSE[s/"last_requested_seq_no" : 897/"last_requested_seq_no" : $body.indices.0.shards.0.last_requested_seq_no/]
+// TESTRESPONSE[s/"number_of_concurrent_reads" : 8/"number_of_concurrent_reads" : $body.indices.0.shards.0.number_of_concurrent_reads/]
+// TESTRESPONSE[s/"number_of_concurrent_writes" : 2/"number_of_concurrent_writes" : $body.indices.0.shards.0.number_of_concurrent_writes/]
+// TESTRESPONSE[s/"number_of_queued_writes" : 64/"number_of_queued_writes" : $body.indices.0.shards.0.number_of_queued_writes/]
+// TESTRESPONSE[s/"mapping_version" : 4/"mapping_version" : $body.indices.0.shards.0.mapping_version/]
+// TESTRESPONSE[s/"total_fetch_time_millis" : 17415/"total_fetch_time_millis" : $body.indices.0.shards.0.total_fetch_time_millis/]
+// TESTRESPONSE[s/"number_of_successful_fetches" : 32/"number_of_successful_fetches" : $body.indices.0.shards.0.number_of_successful_fetches/]
+// TESTRESPONSE[s/"number_of_failed_fetches" : 0/"number_of_failed_fetches" : $body.indices.0.shards.0.number_of_failed_fetches/]
+// TESTRESPONSE[s/"operations_received" : 896/"operations_received" : $body.indices.0.shards.0.operations_received/]
+// TESTRESPONSE[s/"total_transferred_bytes" : 32768/"total_transferred_bytes" : $body.indices.0.shards.0.total_transferred_bytes/]
+// TESTRESPONSE[s/"total_index_time_millis" : 16384/"total_index_time_millis" : $body.indices.0.shards.0.total_index_time_millis/]
+// TESTRESPONSE[s/"number_of_successful_bulk_operations" : 16/"number_of_successful_bulk_operations" : $body.indices.0.shards.0.number_of_successful_bulk_operations/]
+// TESTRESPONSE[s/"number_of_failed_bulk_operations" : 0/"number_of_failed_bulk_operations" : $body.indices.0.shards.0.number_of_failed_bulk_operations/]
+// TESTRESPONSE[s/"number_of_operations_indexed" : 832/"number_of_operations_indexed" : $body.indices.0.shards.0.number_of_operations_indexed/]
+// TESTRESPONSE[s/"time_since_last_fetch_millis" : 8/"time_since_last_fetch_millis" : $body.indices.0.shards.0.time_since_last_fetch_millis/]

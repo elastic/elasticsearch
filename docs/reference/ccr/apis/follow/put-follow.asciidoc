@@ -1,0 +1,85 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ccr-put-follow]]
+=== Create Follower API
+++++
+<titleabbrev>Create Follower</titleabbrev>
+++++
+
+Creates a follower index.
+
+==== Description
+
+This API creates a new follower index that is configured to follow the
+referenced leader index. When this API returns, the follower index exists, and
+{ccr} will start replicating operations from the leader index to the follower
+index.
+
+==== Request
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+POST /follower_index/_ccr/pause_follow
+--------------------------------------------------
+// CONSOLE
+// TEARDOWN
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT /<follower_index>/_ccr/follow
+{
+  "leader_cluster" : "<leader_cluster>",
+  "leader_index" : "<leader_index>"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:leader_cluster_and_leader_index]
+// TEST[s/<follower_index>/follower_index/]
+// TEST[s/<leader_cluster>/leader_cluster/]
+// TEST[s/<leader_index>/leader_index/]
+
+Here, `<follower_index>` is the name of the follower index to create,
+`<leader_cluster>` is the name of the
+<<modules-remote-clusters,remote cluster> containing the leader index, and
+`<leader_index>` is the name of the leader index in that remote cluster.
+
+==== Request Body
+`leader_cluster`::
+  (required string) the <<modules-remote-clusters,remote cluster>> containing the leader
+  index
+
+`leader_index`::
+  (required string) the name of the index in the leader cluster to follow
+
+include::../follow-request-body.asciidoc[]
+
+==== Example
+
+The following is an example of using the create follower API.
+
+[source,js]
+--------------------------------------------------
+PUT /follower_index/_ccr/follow
+{
+  "leader_cluster" : "leader_cluster",
+  "leader_index" : "leader_index"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:leader_cluster_and_leader_index]
+
+The API returns the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "follow_index_created" : true,
+  "follow_index_shards_acked" : true,
+  "index_following_started" : true
+}
+--------------------------------------------------
+// TESTRESPONSE

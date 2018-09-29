@@ -1,0 +1,30 @@
+`max_batch_operation_count`::
+  (integer) the maximum number of operations to pull per fetch from the remote
+  cluster
+
+`max_concurrent_read_batches`::
+  (long) the maximum number of concurrent fetches from the remote cluster
+
+`max_batch_size`::
+  (<<byte-units,byte value>>) the maximum size in bytes of batches pulled per
+  fetch from the remote cluster
+
+`max_concurrent_write_batches`::
+  (integer) the maximum number of concurrent writes on the following index
+
+`max_write_buffer_size`::
+  (integer) the maximum number of operations that can be queued for writing;
+  when this limit is reached, fetches from the remote cluster will be
+  deferred until the number of queued operations goes below the limit
+
+`max_retry_delay`::
+  (<<time-units,time value>>) the maximum time to wait before retrying an
+  operation that failed exceptionally; an exponential backoff strategy is
+  employed when retrying
+
+`poll_timeout`::
+  (<<time-units,time value>>) the maximum time to wait for new operations on the
+  remote cluster when the follower index is synchronized with the leader index;
+  when the timeout has elapsed, the poll for operations will return to the
+  follower so that it can update some statistics, and then the follower will
+  immediately attempt to fetch from the leader again

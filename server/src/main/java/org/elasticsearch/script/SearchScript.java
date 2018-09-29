@@ -41,7 +41,7 @@ import java.util.Map;
  *     <li>Call one of the {@code run} methods: {@link #run()}, {@link #runAsDouble()}, or {@link #runAsLong()}</li>
  * </ol>
  */
-public abstract class SearchScript implements ScorerAware, ExecutableScript {
+public abstract class SearchScript implements ScorerAware {
 
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
@@ -112,7 +112,6 @@ public abstract class SearchScript implements ScorerAware, ExecutableScript {
         setNextVar("_value", value);
     }
 
-    @Override
     public void setNextVar(String field, Object value) {}
 
     /** Return the result as a long. This is used by aggregation scripts over long fields. */
@@ -120,7 +119,6 @@ public abstract class SearchScript implements ScorerAware, ExecutableScript {
         throw new UnsupportedOperationException("runAsLong is not implemented");
     }
 
-    @Override
     public Object run() {
         return runAsDouble();
     }

@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -45,7 +44,6 @@ public class NeedsScoreTests extends ESSingleNodeTestCase {
 
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
         contexts.put(SearchScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(ExecutableScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         PainlessScriptEngine service = new PainlessScriptEngine(Settings.EMPTY, contexts);
 
         QueryShardContext shardContext = index.newQueryShardContext(0, null, () -> 0, null);

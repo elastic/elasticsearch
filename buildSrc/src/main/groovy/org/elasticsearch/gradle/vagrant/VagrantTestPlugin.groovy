@@ -31,7 +31,8 @@ class VagrantTestPlugin implements Plugin<Project> {
             'opensuse-42',
             'sles-12',
             'ubuntu-1404',
-            'ubuntu-1604'
+            'ubuntu-1604',
+            'ubuntu-1804'
     ])
 
     /** All Windows boxes that we test, which may or may not be supplied **/

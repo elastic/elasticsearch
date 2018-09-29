@@ -37,7 +37,9 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.Is.is;
 
@@ -337,6 +339,39 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         taskQueue.runAllTasks();
 
         assertThat(strings, containsInAnyOrder("runnable", "also runnable", "deferred", "not quite so deferred", "further deferred"));
+    }
+
+    public void testDelayVariabilityAppliesToImmediateTasks() {
+        final DeterministicTaskQueue deterministicTaskQueue = newTaskQueue();
+        advanceToRandomTime(deterministicTaskQueue);
+        final long variabilityMillis = randomLongBetween(100, 500);
+        deterministicTaskQueue.setExecutionDelayVariabilityMillis(variabilityMillis);
+        for (int i = 0; i < 100; i++) {
+            deterministicTaskQueue.scheduleNow(() -> {});
+        }
+
+        final long startTime = deterministicTaskQueue.getCurrentTimeMillis();
+        deterministicTaskQueue.runAllTasks();
+        final long elapsedTime = deterministicTaskQueue.getCurrentTimeMillis() - startTime;
+        assertThat(elapsedTime, greaterThan(0L)); // fails with negligible probability 2^{-100}
+        assertThat(elapsedTime, lessThanOrEqualTo(variabilityMillis));
+    }
+
+    public void testDelayVariabilityAppliesToFutureTasks() {
+        final DeterministicTaskQueue deterministicTaskQueue = newTaskQueue();
+        advanceToRandomTime(deterministicTaskQueue);
+        final long delayMillis = randomLongBetween(30000, 60000);
+        final long variabilityMillis = randomLongBetween(100, 500);
+        deterministicTaskQueue.setExecutionDelayVariabilityMillis(variabilityMillis);
+        for (int i = 0; i < 100; i++) {
+            deterministicTaskQueue.scheduleAt(delayMillis, () -> {});
+        }
+
+        final long startTime = deterministicTaskQueue.getCurrentTimeMillis();
+        deterministicTaskQueue.runAllTasks();
+        final long elapsedTime = deterministicTaskQueue.getCurrentTimeMillis() - startTime;
+        assertThat(elapsedTime, greaterThan(delayMillis)); // fails with negligible probability
+        assertThat(elapsedTime, lessThanOrEqualTo(delayMillis + variabilityMillis));
     }
 
     private static DeterministicTaskQueue newTaskQueue() {

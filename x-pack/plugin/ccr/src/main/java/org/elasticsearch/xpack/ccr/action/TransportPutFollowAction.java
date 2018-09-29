@@ -26,12 +26,12 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
@@ -41,10 +41,11 @@ import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction.splitClusterAliasAndIndexName;
 
 public final class TransportPutFollowAction
         extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
@@ -101,16 +102,13 @@ public final class TransportPutFollowAction
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
-        final String[] indices = new String[]{request.getFollowRequest().getLeaderIndex()};
-        final Map<String, List<String>> remoteClusterIndices = remoteClusterService.groupClusterIndices(indices, s -> false);
-        if (remoteClusterIndices.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+        final Tuple<String, String> remoteClusterAndIndex =
+            splitClusterAliasAndIndexName(remoteClusterService.getRemoteClusterNames(), request.getFollowRequest().getLeaderIndex());
+        if (remoteClusterAndIndex.v1() == null) {
             createFollowerIndexAndFollowLocalIndex(request, state, listener);
         } else {
-            assert remoteClusterIndices.size() == 1;
-            final Map.Entry<String, List<String>> entry = remoteClusterIndices.entrySet().iterator().next();
-            assert entry.getValue().size() == 1;
-            final String clusterAlias = entry.getKey();
-            final String leaderIndex = entry.getValue().get(0);
+            final String clusterAlias = remoteClusterAndIndex.v1();
+            final String leaderIndex = remoteClusterAndIndex.v2();
             createFollowerIndexAndFollowRemoteIndex(request, clusterAlias, leaderIndex, listener);
         }
     }

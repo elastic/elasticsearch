@@ -423,7 +423,7 @@ class IndicesAndAliasesResolver {
         }
 
         @Override
-        protected Set<String> getRemoteClusterNames() {
+        public Set<String> getRemoteClusterNames() {
             return clusters;
         }
 

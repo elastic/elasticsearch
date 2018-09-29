@@ -368,7 +368,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     }
 
     @Override
-    protected Set<String> getRemoteClusterNames() {
+    public Set<String> getRemoteClusterNames() {
         return this.remoteClusters.keySet();
     }
 

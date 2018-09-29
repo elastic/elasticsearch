@@ -283,7 +283,7 @@ public abstract class RemoteClusterAware extends AbstractComponent {
         return perClusterIndices;
     }
 
-    protected abstract Set<String> getRemoteClusterNames();
+    public abstract Set<String> getRemoteClusterNames();
 
 
     /**

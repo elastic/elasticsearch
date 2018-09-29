@@ -27,7 +27,6 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -1590,13 +1589,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
 
                 // read the snapshot data persisted
-                final SegmentInfos segmentCommitInfos;
                 try {
-                    segmentCommitInfos = Lucene.pruneUnreferencedFiles(restoredSegmentsFile.name(), store.directory());
+                    Lucene.pruneUnreferencedFiles(restoredSegmentsFile.name(), store.directory());
                 } catch (IOException e) {
                     throw new IndexShardRestoreFailedException(shardId, "Failed to fetch index version after copying it over", e);
                 }
-                recoveryState.getIndex().updateVersion(segmentCommitInfos.getVersion());
 
                 /// now, go over and clean files that are in the store, but were not in the snapshot
                 try {

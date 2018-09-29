@@ -74,6 +74,7 @@ import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -241,14 +242,18 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             assertThat(explanation.getShardState(), equalTo(ShardRoutingState.STARTED));
         });
 
-        final Pattern pattern = Pattern.compile("Corrupted Lucene index segments found -\\s+(?<docs>\\d+) documents will be lost.");
-        final Matcher matcher = pattern.matcher(terminal.getOutput());
-        assertThat(matcher.find(), equalTo(true));
-        final int expectedNumDocs = numDocs - Integer.parseInt(matcher.group("docs"));
+        final int expectedNumDocs = getExpectedNumDocs(numDocs, terminal);
 
         ensureGreen(indexName);
 
         assertHitCount(client().prepareSearch(indexName).setQuery(matchAllQuery()).get(), expectedNumDocs);
+    }
+
+    public static int getExpectedNumDocs(int numDocs, MockTerminal terminal) throws UnsupportedEncodingException {
+        final Pattern pattern = Pattern.compile("Corrupted Lucene index segments found -\\s+(?<docs>\\d+) documents will be lost.");
+        final Matcher matcher = pattern.matcher(terminal.getOutput());
+        assertThat(matcher.find(), equalTo(true));
+        return numDocs - Integer.parseInt(matcher.group("docs"));
     }
 
     public void testCorruptTranslogTruncation() throws Exception {
@@ -612,7 +617,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         return getDirs(nodeId, shardId, dirSuffix);
     }
 
-    private Set<Path> getDirs(String nodeId, ShardId shardId, String dirSuffix) {
+    public static Set<Path> getDirs(String nodeId, ShardId shardId, String dirSuffix) {
         final NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(nodeId).setFs(true).get();
         final Set<Path> translogDirs = new TreeSet<>();
         final NodeStats nodeStats = nodeStatses.getNodes().get(0);

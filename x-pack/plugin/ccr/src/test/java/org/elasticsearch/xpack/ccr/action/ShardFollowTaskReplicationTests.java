@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.ccr.action.bulk.TransportBulkShardOperationsAction;
+import org.elasticsearch.xpack.ccr.index.engine.FollowingEngine;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
 
 import java.io.IOException;
@@ -72,6 +73,9 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 assertThat(followerGroup.getPrimary().getGlobalCheckpoint(), equalTo(leaderGroup.getPrimary().getGlobalCheckpoint()));
                 followerGroup.assertAllEqual(indexedDocIds.size());
             });
+            for (IndexShard shard : followerGroup) {
+                assertThat(((FollowingEngine) (getEngine(shard))).getNumberOfOptimizedIndexing(), equalTo((long) docCount));
+            }
             // Deletes should be replicated to the follower
             List<String> deleteDocIds = randomSubsetOf(indexedDocIds);
             for (String deleteId : deleteDocIds) {

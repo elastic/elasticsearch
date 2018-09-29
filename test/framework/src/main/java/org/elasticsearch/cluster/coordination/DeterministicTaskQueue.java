@@ -55,18 +55,10 @@ public class DeterministicTaskQueue extends AbstractComponent {
         this.random = random;
     }
 
-    public void runAllRunnableTasks(Random random) {
-        runAllRunnableTasks(); // TODO inline this
-    }
-
     public void runAllRunnableTasks() {
         while (hasRunnableTasks()) {
             runRandomTask();
         }
-    }
-
-    public void runAllTasks(Random random) {
-        runAllTasks(); // TODO inline this
     }
 
     public void runAllTasks() {
@@ -106,10 +98,6 @@ public class DeterministicTaskQueue extends AbstractComponent {
     public void runNextTask() { // TODO can this be removed? Only used in tests.
         assert hasRunnableTasks();
         runTask(0);
-    }
-
-    public void runRandomTask(Random random) {
-        runRandomTask(); // TODO inline this
     }
 
     /**

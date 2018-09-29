@@ -66,7 +66,7 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
                     if (deterministicTaskQueue.hasRunnableTasks() == false) {
                         deterministicTaskQueue.advanceTime();
                     }
-                    deterministicTaskQueue.runAllRunnableTasks(random());
+                    deterministicTaskQueue.runAllRunnableTasks();
                 }
                 assertTrue(electionStarted.compareAndSet(true, false));
 
@@ -101,7 +101,7 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
                 lastElectionTime = thisElectionTime;
             }
         }
-        deterministicTaskQueue.runAllTasks(random());
+        deterministicTaskQueue.runAllTasks();
         assertFalse(electionStarted.get());
     }
 

@@ -251,7 +251,7 @@ public class NodeJoinTests extends ESTestCase {
 
     private void joinNodeAndRun(final JoinRequest joinRequest) {
         SimpleFuture fut = joinNodeAsync(joinRequest);
-        deterministicTaskQueue.runAllRunnableTasks(random());
+        deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(fut.isDone());
         FutureUtils.get(fut);
     }
@@ -269,7 +269,7 @@ public class NodeJoinTests extends ESTestCase {
         SimpleFuture fut = joinNodeAsync(new JoinRequest(node1, Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion))));
         assertEquals(Coordinator.Mode.LEADER, coordinator.getMode());
         assertNull(coordinator.getStateForMasterService().nodes().getMasterNodeId());
-        deterministicTaskQueue.runAllRunnableTasks(random());
+        deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(fut.isDone());
         assertTrue(isLocalNodeElectedMaster());
         assertTrue(coordinator.getStateForMasterService().nodes().isLocalNodeElectedMaster());
@@ -333,12 +333,12 @@ public class NodeJoinTests extends ESTestCase {
         long newTerm = initialTerm + randomLongBetween(1, 10);
         SimpleFuture futNode0 = joinNodeAsync(new JoinRequest(node0, Optional.of(
             new Join(node0, node0, newTerm, initialTerm, initialVersion))));
-        deterministicTaskQueue.runAllRunnableTasks(random());
+        deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(futNode0.isDone());
         assertFalse(isLocalNodeElectedMaster());
         SimpleFuture futNode1 = joinNodeAsync(new JoinRequest(node1, Optional.of(
             new Join(node1, node0, newTerm, initialTerm, initialVersion))));
-        deterministicTaskQueue.runAllRunnableTasks(random());
+        deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(futNode1.isDone());
         assertFalse(isLocalNodeElectedMaster());
         joinNodeAndRun(new JoinRequest(node2, Optional.of(new Join(node2, node0, newTerm, initialTerm, initialVersion))));
@@ -396,7 +396,7 @@ public class NodeJoinTests extends ESTestCase {
             new VotingConfiguration(Collections.singleton(node1.getId()))));
         long newTerm = initialTerm + randomLongBetween(1, 10);
         SimpleFuture fut = joinNodeAsync(new JoinRequest(node0, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))));
-        deterministicTaskQueue.runAllRunnableTasks(random());
+        deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(fut.isDone());
         assertFalse(isLocalNodeElectedMaster());
         synchronized (coordinator.mutex) {

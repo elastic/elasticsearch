@@ -228,7 +228,7 @@ public class PeerFinderTests extends ESTestCase {
     @After
     public void deactivateAndRunRemainingTasks() {
         peerFinder.deactivate(localNode);
-        deterministicTaskQueue.runAllRunnableTasks(random());
+        deterministicTaskQueue.runAllRunnableTasks();
     }
 
     public void testAddsReachableNodesFromUnicastHostsList() {
@@ -726,7 +726,7 @@ public class PeerFinderTests extends ESTestCase {
                 return "assertNotifiedOfAllUpdates";
             }
         });
-        deterministicTaskQueue.runAllRunnableTasks(random());
+        deterministicTaskQueue.runAllRunnableTasks();
         assertNotifiedOfAllUpdates();
     }
 }

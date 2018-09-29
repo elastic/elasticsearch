@@ -222,7 +222,7 @@ public class CoordinatorTests extends ESTestCase {
 
                 while (deterministicTaskQueue.hasRunnableTasks()) {
                     try {
-                        deterministicTaskQueue.runRandomTask(random());
+                        deterministicTaskQueue.runRandomTask();
                     } catch (CoordinationStateRejectedException e) {
                         logger.debug("ignoring benign exception thrown when stabilising", e);
                     }

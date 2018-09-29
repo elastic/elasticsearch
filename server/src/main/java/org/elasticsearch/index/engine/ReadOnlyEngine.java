@@ -377,7 +377,23 @@ public final class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) {
+    public Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
+        translogRecoveryRunner.run(this, new Translog.Snapshot() {
+            @Override
+            public int totalOperations() {
+                return 0;
+            }
+
+            @Override
+            public Translog.Operation next() {
+                return null;
+            }
+
+            @Override
+            public void close() {
+
+            }
+        });
         return this;
     }
 

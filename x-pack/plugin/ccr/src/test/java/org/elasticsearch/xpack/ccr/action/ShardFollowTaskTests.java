@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
@@ -29,7 +31,7 @@ public class ShardFollowTaskTests extends AbstractSerializingTestCase<ShardFollo
             new ShardId(randomAlphaOfLength(4), randomAlphaOfLength(4), randomInt(5)),
             randomIntBetween(1, Integer.MAX_VALUE),
             randomIntBetween(1, Integer.MAX_VALUE),
-            randomNonNegativeLong(),
+            new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
             randomIntBetween(1, Integer.MAX_VALUE),
             randomIntBetween(1, Integer.MAX_VALUE),
             TimeValue.parseTimeValue(randomTimeValue(), ""),

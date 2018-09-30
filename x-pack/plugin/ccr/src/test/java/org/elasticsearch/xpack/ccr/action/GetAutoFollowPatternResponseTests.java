@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
@@ -31,7 +33,7 @@ public class GetAutoFollowPatternResponseTests extends AbstractStreamableTestCas
                 randomAlphaOfLength(4),
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
-                randomNonNegativeLong(),
+                new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
                 TimeValue.timeValueMillis(500),

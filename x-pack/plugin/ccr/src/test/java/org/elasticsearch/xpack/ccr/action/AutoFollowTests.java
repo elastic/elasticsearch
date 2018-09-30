@@ -9,6 +9,8 @@ import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsReques
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -134,7 +136,7 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
             request.setMaxBatchOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxOperationSizeInBytes(randomNonNegativeLong());
+            request.setMaxBatchSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
         }
         if (randomBoolean()) {
             request.setMaxRetryDelay(TimeValue.timeValueMillis(500));
@@ -165,8 +167,8 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
             if (request.getMaxBatchOperationCount() != null) {
                 assertThat(shardFollowTask.getMaxBatchOperationCount(), equalTo(request.getMaxBatchOperationCount()));
             }
-            if (request.getMaxOperationSizeInBytes() != null) {
-                assertThat(shardFollowTask.getMaxBatchSizeInBytes(), equalTo(request.getMaxOperationSizeInBytes()));
+            if (request.getMaxBatchSize() != null) {
+                assertThat(shardFollowTask.getMaxBatchSize(), equalTo(request.getMaxBatchSize()));
             }
             if (request.getMaxRetryDelay() != null) {
                 assertThat(shardFollowTask.getMaxRetryDelay(), equalTo(request.getMaxRetryDelay()));

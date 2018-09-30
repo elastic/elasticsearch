@@ -16,6 +16,8 @@ import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;
@@ -211,7 +213,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             new ShardId("leader_index", "", 0),
             between(1, 64),
             between(1, 8),
-            Long.MAX_VALUE,
+            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
             between(1, 4), 10240,
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueMillis(10),
@@ -275,7 +277,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                                 return;
                             }
                             Translog.Operation[] ops = ShardChangesAction.getOperations(indexShard, seqNoStats.getGlobalCheckpoint(), from,
-                                maxOperationCount, params.getRecordedLeaderIndexHistoryUUID(), params.getMaxBatchSizeInBytes());
+                                maxOperationCount, params.getRecordedLeaderIndexHistoryUUID(), params.getMaxBatchSize());
                             // hard code mapping version; this is ok, as mapping updates are not tested here
                             final ShardChangesAction.Response response = new ShardChangesAction.Response(
                                 1L,

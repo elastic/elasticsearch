@@ -406,18 +406,28 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
     static final Translog.Operation[] EMPTY_OPERATIONS_ARRAY = new Translog.Operation[0];
 
     /**
-     * Returns at most maxOperationCount operations from the specified from sequence number. This method will never return operations above
-     * the specified globalCheckpoint.
+     * Returns at most the specified maximum number of operations from the specified from sequence number. This method will never return
+     * operations above the specified global checkpoint.
      *
-     * Also if the sum of collected operations' size is above the specified max batch size then this method stops collecting more operations
-     * and returns what has been collected so far.
+     * Also if the sum of collected operations size is above the specified maximum batch size then this method stops collecting more
+     * operations and returns what has been collected so far.
+     *
+     * @param indexShard the shard
+     * @param globalCheckpoint the global checkpoint
+     * @param fromSeqNo the starting sequence number
+     * @param maxOperationCount the maximum number of operations
+     * @param expectedHistoryUUID the expected history UUID for the shard
+     * @param maxBatchSize the maximum batch size
+     * @return the operations
+     * @throws IOException if an I/O exception occurs reading the operations
      */
-    static Translog.Operation[] getOperations(IndexShard indexShard,
-                                              long globalCheckpoint,
-                                              long fromSeqNo,
-                                              int maxOperationCount,
-                                              String expectedHistoryUUID,
-                                              ByteSizeValue maxBatchSize) throws IOException {
+    static Translog.Operation[] getOperations(
+            final IndexShard indexShard,
+            final long globalCheckpoint,
+            final long fromSeqNo,
+            final int maxOperationCount,
+            final String expectedHistoryUUID,
+            final ByteSizeValue maxBatchSize) throws IOException {
         if (indexShard.state() != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(indexShard.shardId(), indexShard.state());
         }

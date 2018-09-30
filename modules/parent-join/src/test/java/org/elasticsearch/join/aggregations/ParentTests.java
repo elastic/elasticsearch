@@ -19,18 +19,24 @@
 
 package org.elasticsearch.join.aggregations;
 
-public abstract class JoinAggregationBuilders {
-    /**
-     * Create a new {@link Children} aggregation with the given name.
-     */
-    public static ChildrenAggregationBuilder children(String name, String childType) {
-        return new ChildrenAggregationBuilder(name, childType);
+import java.util.Collection;
+import java.util.Collections;
+
+import org.elasticsearch.join.ParentJoinPlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
+
+public class ParentTests extends BaseAggregationTestCase<ParentAggregationBuilder> {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singleton(ParentJoinPlugin.class);
     }
 
-    /**
-     * Create a new {@link Parent} aggregation with the given name.
-     */
-    public static ParentAggregationBuilder parent(String name, String childType) {
-        return new ParentAggregationBuilder(name, childType);
+    @Override
+    protected ParentAggregationBuilder createTestAggregatorBuilder() {
+        String name = randomAlphaOfLengthBetween(3, 20);
+        String parentType = randomAlphaOfLengthBetween(5, 40);
+        return new ParentAggregationBuilder(name, parentType);
     }
 }

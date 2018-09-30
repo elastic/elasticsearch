@@ -19,18 +19,10 @@
 
 package org.elasticsearch.join.aggregations;
 
-public abstract class JoinAggregationBuilders {
-    /**
-     * Create a new {@link Children} aggregation with the given name.
-     */
-    public static ChildrenAggregationBuilder children(String name, String childType) {
-        return new ChildrenAggregationBuilder(name, childType);
-    }
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 
-    /**
-     * Create a new {@link Parent} aggregation with the given name.
-     */
-    public static ParentAggregationBuilder parent(String name, String childType) {
-        return new ParentAggregationBuilder(name, childType);
-    }
+/**
+ * An single bucket aggregation that translates child documents to their parent documents.
+ */
+public interface Parent extends SingleBucketAggregation {
 }

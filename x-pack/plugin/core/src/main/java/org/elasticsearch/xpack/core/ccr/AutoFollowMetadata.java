@@ -351,29 +351,28 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             if (o == null || getClass() != o.getClass()) return false;
             AutoFollowPattern that = (AutoFollowPattern) o;
             return Objects.equals(leaderIndexPatterns, that.leaderIndexPatterns) &&
-                Objects.equals(followIndexPattern, that.followIndexPattern) &&
-                Objects.equals(maxBatchOperationCount, that.maxBatchOperationCount) &&
-                Objects.equals(maxConcurrentReadBatches, that.maxConcurrentReadBatches) &&
-                Objects.equals(maxBatchSize, that.maxBatchSize) &&
-                Objects.equals(maxConcurrentWriteBatches, that.maxConcurrentWriteBatches) &&
-                Objects.equals(maxWriteBufferSize, that.maxWriteBufferSize) &&
-                Objects.equals(maxRetryDelay, that.maxRetryDelay) &&
-                Objects.equals(pollTimeout, that.pollTimeout);
+                    Objects.equals(followIndexPattern, that.followIndexPattern) &&
+                    Objects.equals(maxBatchOperationCount, that.maxBatchOperationCount) &&
+                    Objects.equals(maxConcurrentReadBatches, that.maxConcurrentReadBatches) &&
+                    Objects.equals(maxBatchSize, that.maxBatchSize) &&
+                    Objects.equals(maxConcurrentWriteBatches, that.maxConcurrentWriteBatches) &&
+                    Objects.equals(maxWriteBufferSize, that.maxWriteBufferSize) &&
+                    Objects.equals(maxRetryDelay, that.maxRetryDelay) &&
+                    Objects.equals(pollTimeout, that.pollTimeout);
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(
-                leaderIndexPatterns,
-                followIndexPattern,
-                maxBatchOperationCount,
-                maxConcurrentReadBatches,
+                    leaderIndexPatterns,
+                    followIndexPattern,
+                    maxBatchOperationCount,
+                    maxConcurrentReadBatches,
                     maxBatchSize,
-                maxConcurrentWriteBatches,
-                maxWriteBufferSize,
-                maxRetryDelay,
-                pollTimeout
-            );
+                    maxConcurrentWriteBatches,
+                    maxWriteBufferSize,
+                    maxRetryDelay,
+                    pollTimeout);
         }
     }
 

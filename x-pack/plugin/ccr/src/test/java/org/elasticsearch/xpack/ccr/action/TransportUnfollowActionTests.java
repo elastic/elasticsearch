@@ -78,7 +78,7 @@ public class TransportUnfollowActionTests extends ESTestCase {
             new ShardId("leader_index", "", 0),
             1024,
             1,
-            TransportResumeFollowAction.DEFAULT_MAX_BATCH_SIZE_IN_BYTES,
+            TransportResumeFollowAction.DEFAULT_MAX_BATCH_SIZE,
             1,
             10240,
             TimeValue.timeValueMillis(10),

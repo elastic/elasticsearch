@@ -31,7 +31,7 @@ import java.util.List;
  */
 public final class ClearRolesCacheResponse {
 
-    final private List<Node> nodes;
+    private final List<Node> nodes;
 
     public ClearRolesCacheResponse(List<Node> nodes) {
         this.nodes = nodes;
@@ -44,8 +44,8 @@ public final class ClearRolesCacheResponse {
 
     public static class Node {
 
-        final private String id;
-        final private String name;
+        private final String id;
+        private final String name;
 
         public Node(String id, String name) {
             this.id = id;

@@ -72,6 +72,7 @@ public final class ClearRolesCacheResponse {
         return objectParser.parse(parser, null);
     }
 
+    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ClearRolesCacheResponse, Void> PARSER =
         new ConstructingObjectParser<>("clear_roles_cache_response", false, args -> new ClearRolesCacheResponse((List<Node>)args[0]));
 

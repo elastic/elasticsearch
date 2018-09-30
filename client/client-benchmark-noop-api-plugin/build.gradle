@@ -28,8 +28,7 @@ esplugin {
 }
 
 // Not published so no need to assemble
-tasks.remove(assemble)
-build.dependsOn.remove('assemble')
+assemble.enabled = false
 
 dependencyLicenses.enabled = false
 dependenciesInfo.enabled = false

@@ -5,32 +5,33 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
+import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 
-import java.util.List;
-
 /**
- * {@link Expression}s that can be converted into Elasticsearch
- * sorts, aggregations, or queries. They can also be extracted
- * from the result of a search.
+ * {@link Expression}s that can be materialized and represent the result columns sent to the client.
+ * Typically are converted into constants, functions or Elasticsearch order-bys,
+ * aggregations, or queries. They can also be extracted from the result of a search.
  *
  * In the statement {@code SELECT ABS(foo), A, B+C FROM ...} the three named
- * expressions (ABS(foo), A, B+C) get converted to attributes and the user can
+ * expressions {@code ABS(foo), A, B+C} get converted to attributes and the user can
  * only see Attributes.
  *
- * In the statement {@code SELECT foo FROM TABLE WHERE foo > 10 + 1} 10+1 is an
- * expression. It's not named - meaning there's no alias for it (defined by the
- * user) and as such there's no attribute - no column to be returned to the user.
- * It's an expression used for filtering so it doesn't appear in the result set
- * (derived table). "foo" on the other hand is an expression, a named expression
- * (it has a name) and also an attribute - it's a column in the result set.
+ * In the statement {@code SELECT foo FROM TABLE WHERE foo > 10 + 1} both {@code foo} and
+ * {@code 10 + 1} are named expressions, the first due to the SELECT, the second due to being a function.
+ * However since {@code 10 + 1} is used for filtering it doesn't appear appear in the result set
+ * (derived table) and as such it is never translated to an attribute.
+ * "foo" on the other hand is since it's a column in the result set.
  *
- * Another example {@code SELECT foo FROM ... WHERE bar > 10 +1} "foo" gets
- * converted into an Attribute, bar does not. That's because bar is used for
+ * Another example {@code SELECT foo FROM ... WHERE bar > 10 +1} {@code foo} gets
+ * converted into an Attribute, bar does not. That's because {@code bar} is used for
  * filtering alone but it's not part of the projection meaning the user doesn't
  * need it in the derived table.
  */
@@ -60,6 +61,11 @@ public abstract class Attribute extends NamedExpression {
     @Override
     public final Expression replaceChildren(List<Expression> newChildren) {
         throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
+    }
+
+    @Override
+    public ScriptTemplate asScript() {
+        throw new SqlIllegalArgumentException("Encountered a bug - an attribute should never be scripted");
     }
 
     public String qualifier() {
@@ -103,6 +109,11 @@ public abstract class Attribute extends NamedExpression {
     @Override
     public int semanticHash() {
         return id().hashCode();
+    }
+
+    @Override
+    protected NodeInfo<? extends Expression> info() {
+        return null;
     }
 
     @Override

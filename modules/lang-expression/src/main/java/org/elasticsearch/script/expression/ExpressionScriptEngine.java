@@ -26,7 +26,7 @@ import org.apache.lucene.expressions.js.VariableContext;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.queries.function.valuesource.DoubleConstValueSource;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
@@ -41,7 +41,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.BucketAggregationScript;
 import org.elasticsearch.script.BucketAggregationSelectorScript;
 import org.elasticsearch.script.ClassPermission;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
@@ -111,9 +110,6 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
         });
         if (context.instanceClazz.equals(SearchScript.class)) {
             SearchScript.Factory factory = (p, lookup) -> newSearchScript(expr, lookup, p);
-            return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(ExecutableScript.class)) {
-            ExecutableScript.Factory factory = (p) -> new ExpressionExecutableScript(expr, p);
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(BucketAggregationScript.class)) {
             return context.factoryClazz.cast(newBucketAggregationScriptFactory(expr));
@@ -336,7 +332,7 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
                     }
 
                     @Override
-                    public void setScorer(Scorer scorer) {
+                    public void setScorer(Scorable scorer) {
                         script.setScorer(scorer);
                     }
 

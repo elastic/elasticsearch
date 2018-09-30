@@ -16,6 +16,9 @@ Multi-document APIs::
 * <<java-rest-high-document-bulk>>
 * <<java-rest-high-document-multi-get>>
 * <<java-rest-high-document-reindex>>
+* <<java-rest-high-document-update-by-query>>
+* <<java-rest-high-document-delete-by-query>>
+* <<java-rest-high-document-reindex-rethrottle>>
 
 include::document/index.asciidoc[]
 include::document/get.asciidoc[]
@@ -25,6 +28,9 @@ include::document/update.asciidoc[]
 include::document/bulk.asciidoc[]
 include::document/multi-get.asciidoc[]
 include::document/reindex.asciidoc[]
+include::document/update-by-query.asciidoc[]
+include::document/delete-by-query.asciidoc[]
+include::document/reindex-rethrottle.asciidoc[]
 
 == Search APIs
 
@@ -40,6 +46,8 @@ The Java High Level REST Client supports the following Search APIs:
 * <<java-rest-high-rank-eval>>
 * <<java-rest-high-explain>>
 
+:upid: {mainid}
+:doc-tests-file: {doc-tests}/SearchDocumentationIT.java
 include::search/search.asciidoc[]
 include::search/scroll.asciidoc[]
 include::search/multi-search.asciidoc[]
@@ -131,6 +139,8 @@ The Java High Level REST Client supports the following Cluster APIs:
 * <<java-rest-high-cluster-get-settings>>
 * <<java-rest-high-cluster-health>>
 
+:upid: {mainid}-cluster
+:doc-tests-file: {doc-tests}/ClusterClientDocumentationIT.java
 include::cluster/put_settings.asciidoc[]
 include::cluster/get_settings.asciidoc[]
 include::cluster/health.asciidoc[]
@@ -185,9 +195,11 @@ include::tasks/cancel_tasks.asciidoc[]
 The Java High Level REST Client supports the following Scripts APIs:
 
 * <<java-rest-high-get-stored-script>>
+* <<java-rest-high-put-stored-script>>
 * <<java-rest-high-delete-stored-script>>
 
 include::script/get_script.asciidoc[]
+include::script/put_script.asciidoc[]
 include::script/delete_script.asciidoc[]
 
 == Licensing APIs
@@ -211,16 +223,50 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<java-rest-high-x-pack-ml-delete-job>>
 * <<java-rest-high-x-pack-ml-open-job>>
 * <<java-rest-high-x-pack-ml-close-job>>
+* <<java-rest-high-x-pack-ml-flush-job>>
+* <<java-rest-high-x-pack-ml-update-job>>
+* <<java-rest-high-x-pack-ml-get-job-stats>>
+* <<java-rest-high-x-pack-ml-put-datafeed>>
+* <<java-rest-high-x-pack-ml-get-datafeed>>
+* <<java-rest-high-x-pack-ml-delete-datafeed>>
+* <<java-rest-high-x-pack-ml-start-datafeed>>
+* <<java-rest-high-x-pack-ml-stop-datafeed>>
+* <<java-rest-high-x-pack-ml-forecast-job>>
+* <<java-rest-high-x-pack-ml-delete-forecast>>
 * <<java-rest-high-x-pack-ml-get-buckets>>
+* <<java-rest-high-x-pack-ml-get-overall-buckets>>
 * <<java-rest-high-x-pack-ml-get-records>>
+* <<java-rest-high-x-pack-ml-post-data>>
+* <<java-rest-high-x-pack-ml-get-influencers>>
+* <<java-rest-high-x-pack-ml-get-categories>>
+* <<java-rest-high-x-pack-ml-get-calendars>>
+* <<java-rest-high-x-pack-ml-put-calendar>>
+* <<java-rest-high-x-pack-ml-delete-calendar>>
 
 include::ml/put-job.asciidoc[]
 include::ml/get-job.asciidoc[]
 include::ml/delete-job.asciidoc[]
 include::ml/open-job.asciidoc[]
 include::ml/close-job.asciidoc[]
+include::ml/update-job.asciidoc[]
+include::ml/flush-job.asciidoc[]
+include::ml/put-datafeed.asciidoc[]
+include::ml/get-datafeed.asciidoc[]
+include::ml/delete-datafeed.asciidoc[]
+include::ml/start-datafeed.asciidoc[]
+include::ml/stop-datafeed.asciidoc[]
+include::ml/get-job-stats.asciidoc[]
+include::ml/forecast-job.asciidoc[]
+include::ml/delete-forecast.asciidoc[]
 include::ml/get-buckets.asciidoc[]
+include::ml/get-overall-buckets.asciidoc[]
 include::ml/get-records.asciidoc[]
+include::ml/post-data.asciidoc[]
+include::ml/get-influencers.asciidoc[]
+include::ml/get-categories.asciidoc[]
+include::ml/get-calendars.asciidoc[]
+include::ml/put-calendar.asciidoc[]
+include::ml/delete-calendar.asciidoc[]
 
 == Migration APIs
 
@@ -229,6 +275,26 @@ The Java High Level REST Client supports the following Migration APIs:
 * <<java-rest-high-migration-get-assistance>>
 
 include::migration/get-assistance.asciidoc[]
+
+== Rollup APIs
+
+The Java High Level REST Client supports the following Rollup APIs:
+
+* <<java-rest-high-x-pack-rollup-put-job>>
+
+include::rollup/put_job.asciidoc[]
+
+== Security APIs
+
+The Java High Level REST Client supports the following Security APIs:
+
+* <<java-rest-high-security-put-user>>
+* <<java-rest-high-security-enable-user>>
+* <<java-rest-high-security-disable-user>>
+
+include::security/put-user.asciidoc[]
+include::security/enable-user.asciidoc[]
+include::security/disable-user.asciidoc[]
 
 == Watcher APIs
 
@@ -247,3 +313,15 @@ The Java High Level REST Client supports the following Graph APIs:
 * <<java-rest-high-x-pack-graph-explore>>
 
 include::graph/explore.asciidoc[]
+
+////
+Clear attributes that we use to document that APIs included above so they
+don't leak into the rest of the documentation.
+////
+--
+:api!:
+:request!:
+:response!:
+:doc-tests-file!:
+:upid!:
+--

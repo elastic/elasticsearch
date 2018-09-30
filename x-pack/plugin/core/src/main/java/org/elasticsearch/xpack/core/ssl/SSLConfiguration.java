@@ -192,7 +192,7 @@ public final class SSLConfiguration {
         if (global != null) {
             return global.keyConfig();
         }
-        if (System.getProperty("javax.net.ssl.keyStore") != null) {
+        if (System.getProperty("javax.net.ssl.keyStore") != null && System.getProperty("javax.net.ssl.keyStore").equals("NONE") == false) {
             // TODO: we should not support loading a keystore from sysprops...
             try (SecureString keystorePassword = new SecureString(System.getProperty("javax.net.ssl.keyStorePassword", ""))) {
                 return new StoreKeyConfig(System.getProperty("javax.net.ssl.keyStore"), KeyStore.getDefaultType(), keystorePassword,
@@ -206,7 +206,7 @@ public final class SSLConfiguration {
     private static TrustConfig createTrustConfig(Settings settings, KeyConfig keyConfig, SSLConfiguration global) {
         final TrustConfig trustConfig = createCertChainTrustConfig(settings, keyConfig, global);
         return SETTINGS_PARSER.trustRestrictionsPath.get(settings)
-                .map(path -> (TrustConfig) new RestrictedTrustConfig(settings, path, trustConfig))
+                .map(path -> (TrustConfig) new RestrictedTrustConfig(path, trustConfig))
                 .orElse(trustConfig);
     }
 
@@ -233,7 +233,8 @@ public final class SSLConfiguration {
             String trustStoreAlgorithm = SETTINGS_PARSER.truststoreAlgorithm.get(settings);
             String trustStoreType = getKeyStoreType(SETTINGS_PARSER.truststoreType, settings, trustStorePath);
             return new StoreTrustConfig(trustStorePath, trustStoreType, trustStorePassword, trustStoreAlgorithm);
-        } else if (global == null && System.getProperty("javax.net.ssl.trustStore") != null) {
+        } else if (global == null && System.getProperty("javax.net.ssl.trustStore") != null
+            && System.getProperty("javax.net.ssl.trustStore").equals("NONE") == false) {
             try (SecureString truststorePassword = new SecureString(System.getProperty("javax.net.ssl.trustStorePassword", ""))) {
                 return new StoreTrustConfig(System.getProperty("javax.net.ssl.trustStore"), KeyStore.getDefaultType(), truststorePassword,
                         System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()));

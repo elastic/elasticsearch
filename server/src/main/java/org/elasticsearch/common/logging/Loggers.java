@@ -49,29 +49,34 @@ public class Loggers {
         Setting.prefixKeySetting("logger.", (key) -> new Setting<>(key, Level.INFO.name(), Level::valueOf, Setting.Property.Dynamic,
             Setting.Property.NodeScope));
 
-    public static Logger getLogger(Class<?> clazz, Settings settings, ShardId shardId, String... prefixes) {
-        return getLogger(clazz, settings, shardId.getIndex(), asArrayList(Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
+    public static Logger getLogger(Class<?> clazz, ShardId shardId, String... prefixes) {
+        return getLogger(clazz, shardId.getIndex(), asArrayList(Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
     }
 
     /**
-     * Just like {@link #getLogger(Class, org.elasticsearch.common.settings.Settings, ShardId, String...)} but String loggerName instead of
-     * Class.
+     * Just like {@link #getLogger(Class, ShardId, String...)} but String loggerName instead of
+     * Class and no extra prefixes.
      */
-    public static Logger getLogger(String loggerName, Settings settings, ShardId shardId, String... prefixes) {
-        return getLogger(loggerName, settings,
-            asArrayList(shardId.getIndexName(), Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
+    public static Logger getLogger(String loggerName, ShardId shardId) {
+        return ESLoggerFactory.getLogger(formatPrefix(shardId.getIndexName(), Integer.toString(shardId.id())), loggerName);
     }
 
-    public static Logger getLogger(Class<?> clazz, Settings settings, Index index, String... prefixes) {
-        return getLogger(clazz, settings, asArrayList(Loggers.SPACE, index.getName(), prefixes).toArray(new String[0]));
+    public static Logger getLogger(Class<?> clazz, Index index, String... prefixes) {
+        return getLogger(clazz, asArrayList(Loggers.SPACE, index.getName(), prefixes).toArray(new String[0]));
     }
 
+    /**
+     * Get a logger.
+     * @deprecated prefer {@link #getLogger(Class, String...)} or {@link LogManager#getLogger}
+     *     as the Settings is no longer needed
+     */
+    @Deprecated
     public static Logger getLogger(Class<?> clazz, Settings settings, String... prefixes) {
         return ESLoggerFactory.getLogger(formatPrefix(prefixes), clazz);
     }
 
-    public static Logger getLogger(String loggerName, Settings settings, String... prefixes) {
-        return ESLoggerFactory.getLogger(formatPrefix(prefixes), loggerName);
+    public static Logger getLogger(Class<?> clazz, String... prefixes) {
+        return ESLoggerFactory.getLogger(formatPrefix(prefixes), clazz);
     }
 
     public static Logger getLogger(Logger parentLogger, String s) {
@@ -88,7 +93,7 @@ public class Loggers {
      */
     @Deprecated
     public static Logger getLogger(String s) {
-        return ESLoggerFactory.getLogger(s);
+        return LogManager.getLogger(s);
     }
 
     /**

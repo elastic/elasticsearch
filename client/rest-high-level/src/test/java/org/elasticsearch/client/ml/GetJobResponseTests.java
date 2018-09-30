@@ -26,6 +26,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 public class GetJobResponseTests extends AbstractXContentTestCase<GetJobResponse> {
 
@@ -47,7 +48,12 @@ public class GetJobResponseTests extends AbstractXContentTestCase<GetJobResponse
     }
 
     @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> !field.isEmpty();
+    }
+
+    @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 }

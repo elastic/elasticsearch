@@ -91,10 +91,6 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(2))
             .build();
 
-        RoutingTable routingTable = RoutingTable.builder()
-            .addAsNew(metaData.index("test"))
-            .build();
-
         RoutingTable initialRoutingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
                 .build();

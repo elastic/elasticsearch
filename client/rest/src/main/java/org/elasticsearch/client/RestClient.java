@@ -85,7 +85,7 @@ import static java.util.Collections.singletonList;
  * The hosts that are part of the cluster need to be provided at creation time, but can also be replaced later
  * by calling {@link #setNodes(Collection)}.
  * <p>
- * The method {@link #performRequest(String, String, Map, HttpEntity, Header...)} allows to send a request to the cluster. When
+ * The method {@link #performRequest(Request)} allows to send a request to the cluster. When
  * sending a request, a host gets selected out of the provided ones in a round-robin fashion. Failing hosts are marked dead and
  * retried after a certain amount of time (minimum 1 minute, maximum 30 minutes), depending on how many times they previously
  * failed (the more failures, the later they will be retried). In case of failures all of the alive nodes (or dead nodes that
@@ -110,15 +110,17 @@ public class RestClient implements Closeable {
     private final FailureListener failureListener;
     private final NodeSelector nodeSelector;
     private volatile NodeTuple<List<Node>> nodeTuple;
+    private final boolean strictDeprecationMode;
 
-    RestClient(CloseableHttpAsyncClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders,
-               List<Node> nodes, String pathPrefix, FailureListener failureListener, NodeSelector nodeSelector) {
+    RestClient(CloseableHttpAsyncClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders, List<Node> nodes, String pathPrefix,
+            FailureListener failureListener, NodeSelector nodeSelector, boolean strictDeprecationMode) {
         this.client = client;
         this.maxRetryTimeoutMillis = maxRetryTimeoutMillis;
         this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
         this.failureListener = failureListener;
         this.pathPrefix = pathPrefix;
         this.nodeSelector = nodeSelector;
+        this.strictDeprecationMode = strictDeprecationMode;
         setNodes(nodes);
     }
 
@@ -143,17 +145,6 @@ public class RestClient implements Closeable {
      */
     public static RestClientBuilder builder(HttpHost... hosts) {
         return new RestClientBuilder(hostsToNodes(hosts));
-    }
-
-    /**
-     * Replaces the hosts with which the client communicates.
-     *
-     * @deprecated prefer {@link #setNodes(Collection)} because it allows you
-     * to set metadata for use with {@link NodeSelector}s
-     */
-    @Deprecated
-    public void setHosts(HttpHost... hosts) {
-        setNodes(hostsToNodes(hosts));
     }
 
     /**
@@ -251,234 +242,6 @@ public class RestClient implements Closeable {
         }
     }
 
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to and waits for the corresponding response
-     * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, Header...)} but without parameters
-     * and request body.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param headers the optional request headers
-     * @return the response returned by Elasticsearch
-     * @throws IOException in case of a problem or the connection was aborted
-     * @throws ClientProtocolException in case of an http protocol error
-     * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
-     * @deprecated prefer {@link #performRequest(Request)}
-     */
-    @Deprecated
-    public Response performRequest(String method, String endpoint, Header... headers) throws IOException {
-        Request request = new Request(method, endpoint);
-        addHeaders(request, headers);
-        return performRequest(request);
-    }
-
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to and waits for the corresponding response
-     * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, Header...)} but without request body.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param params the query_string parameters
-     * @param headers the optional request headers
-     * @return the response returned by Elasticsearch
-     * @throws IOException in case of a problem or the connection was aborted
-     * @throws ClientProtocolException in case of an http protocol error
-     * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
-     * @deprecated prefer {@link #performRequest(Request)}
-     */
-    @Deprecated
-    public Response performRequest(String method, String endpoint, Map<String, String> params, Header... headers) throws IOException {
-        Request request = new Request(method, endpoint);
-        addParameters(request, params);
-        addHeaders(request, headers);
-        return performRequest(request);
-    }
-
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to and waits for the corresponding response
-     * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, HttpAsyncResponseConsumerFactory, Header...)}
-     * which doesn't require specifying an {@link HttpAsyncResponseConsumerFactory} instance,
-     * {@link HttpAsyncResponseConsumerFactory} will be used to create the needed instances of {@link HttpAsyncResponseConsumer}.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param params the query_string parameters
-     * @param entity the body of the request, null if not applicable
-     * @param headers the optional request headers
-     * @return the response returned by Elasticsearch
-     * @throws IOException in case of a problem or the connection was aborted
-     * @throws ClientProtocolException in case of an http protocol error
-     * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
-     * @deprecated prefer {@link #performRequest(Request)}
-     */
-    @Deprecated
-    public Response performRequest(String method, String endpoint, Map<String, String> params,
-                                   HttpEntity entity, Header... headers) throws IOException {
-        Request request = new Request(method, endpoint);
-        addParameters(request, params);
-        request.setEntity(entity);
-        addHeaders(request, headers);
-        return performRequest(request);
-    }
-
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to. Blocks until the request is completed and returns
-     * its response or fails by throwing an exception. Selects a host out of the provided ones in a round-robin fashion. Failing hosts
-     * are marked dead and retried after a certain amount of time (minimum 1 minute, maximum 30 minutes), depending on how many times
-     * they previously failed (the more failures, the later they will be retried). In case of failures all of the alive nodes (or dead
-     * nodes that deserve a retry) are retried until one responds or none of them does, in which case an {@link IOException} will be thrown.
-     *
-     * This method works by performing an asynchronous call and waiting
-     * for the result. If the asynchronous call throws an exception we wrap
-     * it and rethrow it so that the stack trace attached to the exception
-     * contains the call site. While we attempt to preserve the original
-     * exception this isn't always possible and likely haven't covered all of
-     * the cases. You can get the original exception from
-     * {@link Exception#getCause()}.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param params the query_string parameters
-     * @param entity the body of the request, null if not applicable
-     * @param httpAsyncResponseConsumerFactory the {@link HttpAsyncResponseConsumerFactory} used to create one
-     * {@link HttpAsyncResponseConsumer} callback per retry. Controls how the response body gets streamed from a non-blocking HTTP
-     * connection on the client side.
-     * @param headers the optional request headers
-     * @return the response returned by Elasticsearch
-     * @throws IOException in case of a problem or the connection was aborted
-     * @throws ClientProtocolException in case of an http protocol error
-     * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
-     * @deprecated prefer {@link #performRequest(Request)}
-     */
-    @Deprecated
-    public Response performRequest(String method, String endpoint, Map<String, String> params,
-                                   HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
-                                   Header... headers) throws IOException {
-        Request request = new Request(method, endpoint);
-        addParameters(request, params);
-        request.setEntity(entity);
-        setOptions(request, httpAsyncResponseConsumerFactory, headers);
-        return performRequest(request);
-    }
-
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to. Doesn't wait for the response, instead
-     * the provided {@link ResponseListener} will be notified upon completion or failure. Shortcut to
-     * {@link #performRequestAsync(String, String, Map, HttpEntity, ResponseListener, Header...)} but without parameters and  request body.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
-     * @param headers the optional request headers
-     * @deprecated prefer {@link #performRequestAsync(Request, ResponseListener)}
-     */
-    @Deprecated
-    public void performRequestAsync(String method, String endpoint, ResponseListener responseListener, Header... headers) {
-        Request request;
-        try {
-            request = new Request(method, endpoint);
-            addHeaders(request, headers);
-        } catch (Exception e) {
-            responseListener.onFailure(e);
-            return;
-        }
-        performRequestAsync(request, responseListener);
-    }
-
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to. Doesn't wait for the response, instead
-     * the provided {@link ResponseListener} will be notified upon completion or failure. Shortcut to
-     * {@link #performRequestAsync(String, String, Map, HttpEntity, ResponseListener, Header...)} but without request body.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param params the query_string parameters
-     * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
-     * @param headers the optional request headers
-     * @deprecated prefer {@link #performRequestAsync(Request, ResponseListener)}
-     */
-    @Deprecated
-    public void performRequestAsync(String method, String endpoint, Map<String, String> params,
-                                    ResponseListener responseListener, Header... headers) {
-        Request request;
-        try {
-            request = new Request(method, endpoint);
-            addParameters(request, params);
-            addHeaders(request, headers);
-        } catch (Exception e) {
-            responseListener.onFailure(e);
-            return;
-        }
-        performRequestAsync(request, responseListener);
-    }
-
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to. Doesn't wait for the response, instead
-     * the provided {@link ResponseListener} will be notified upon completion or failure.
-     * Shortcut to {@link #performRequestAsync(String, String, Map, HttpEntity, HttpAsyncResponseConsumerFactory, ResponseListener,
-     * Header...)} which doesn't require specifying an {@link HttpAsyncResponseConsumerFactory} instance,
-     * {@link HttpAsyncResponseConsumerFactory} will be used to create the needed instances of {@link HttpAsyncResponseConsumer}.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param params the query_string parameters
-     * @param entity the body of the request, null if not applicable
-     * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
-     * @param headers the optional request headers
-     * @deprecated prefer {@link #performRequestAsync(Request, ResponseListener)}
-     */
-    @Deprecated
-    public void performRequestAsync(String method, String endpoint, Map<String, String> params,
-                                    HttpEntity entity, ResponseListener responseListener, Header... headers) {
-        Request request;
-        try {
-            request = new Request(method, endpoint);
-            addParameters(request, params);
-            request.setEntity(entity);
-            addHeaders(request, headers);
-        } catch (Exception e) {
-            responseListener.onFailure(e);
-            return;
-        }
-        performRequestAsync(request, responseListener);
-    }
-
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to. The request is executed asynchronously
-     * and the provided {@link ResponseListener} gets notified upon request completion or failure.
-     * Selects a host out of the provided ones in a round-robin fashion. Failing hosts are marked dead and retried after a certain
-     * amount of time (minimum 1 minute, maximum 30 minutes), depending on how many times they previously failed (the more failures,
-     * the later they will be retried). In case of failures all of the alive nodes (or dead nodes that deserve a retry) are retried
-     * until one responds or none of them does, in which case an {@link IOException} will be thrown.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param params the query_string parameters
-     * @param entity the body of the request, null if not applicable
-     * @param httpAsyncResponseConsumerFactory the {@link HttpAsyncResponseConsumerFactory} used to create one
-     * {@link HttpAsyncResponseConsumer} callback per retry. Controls how the response body gets streamed from a non-blocking HTTP
-     * connection on the client side.
-     * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
-     * @param headers the optional request headers
-     * @deprecated prefer {@link #performRequestAsync(Request, ResponseListener)}
-     */
-    @Deprecated
-    public void performRequestAsync(String method, String endpoint, Map<String, String> params,
-                                    HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
-                                    ResponseListener responseListener, Header... headers) {
-        Request request;
-        try {
-            request = new Request(method, endpoint);
-            addParameters(request, params);
-            request.setEntity(entity);
-            setOptions(request, httpAsyncResponseConsumerFactory, headers);
-        } catch (Exception e) {
-            responseListener.onFailure(e);
-            return;
-        }
-        performRequestAsync(request, responseListener);
-    }
-
     void performRequestAsyncNoCatch(Request request, ResponseListener listener) throws IOException {
         Map<String, String> requestParams = new HashMap<>(request.getParameters());
         //ignore is a special parameter supported by the clients, shouldn't be sent to es
@@ -535,7 +298,11 @@ public class RestClient implements Closeable {
                     Response response = new Response(request.getRequestLine(), node.getHost(), httpResponse);
                     if (isSuccessfulResponse(statusCode) || ignoreErrorCodes.contains(response.getStatusLine().getStatusCode())) {
                         onResponse(node);
-                        listener.onSuccess(response);
+                        if (strictDeprecationMode && response.hasWarnings()) {
+                            listener.onDefinitiveFailure(new ResponseException(response));
+                        } else {
+                            listener.onSuccess(response);
+                        }
                     } else {
                         ResponseException responseException = new ResponseException(response);
                         if (isRetryStatus(statusCode)) {
@@ -1033,44 +800,6 @@ public class RestClient implements Closeable {
         @Override
         public void remove() {
             itr.remove();
-        }
-    }
-
-    /**
-     * Add all headers from the provided varargs argument to a {@link Request}. This only exists
-     * to support methods that exist for backwards compatibility.
-     */
-    @Deprecated
-    private static void addHeaders(Request request, Header... headers) {
-        setOptions(request, RequestOptions.DEFAULT.getHttpAsyncResponseConsumerFactory(), headers);
-    }
-
-    /**
-     * Add all headers from the provided varargs argument to a {@link Request}. This only exists
-     * to support methods that exist for backwards compatibility.
-     */
-    @Deprecated
-    private static void setOptions(Request request, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
-            Header... headers) {
-        Objects.requireNonNull(headers, "headers cannot be null");
-        RequestOptions.Builder options = request.getOptions().toBuilder();
-        for (Header header : headers) {
-            Objects.requireNonNull(header, "header cannot be null");
-            options.addHeader(header.getName(), header.getValue());
-        }
-        options.setHttpAsyncResponseConsumerFactory(httpAsyncResponseConsumerFactory);
-        request.setOptions(options);
-    }
-
-    /**
-     * Add all parameters from a map to a {@link Request}. This only exists
-     * to support methods that exist for backwards compatibility.
-     */
-    @Deprecated
-    private static void addParameters(Request request, Map<String, String> parameters) {
-        Objects.requireNonNull(parameters, "parameters cannot be null");
-        for (Map.Entry<String, String> entry : parameters.entrySet()) {
-            request.addParameter(entry.getKey(), entry.getValue());
         }
     }
 }

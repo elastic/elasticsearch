@@ -6,6 +6,8 @@ import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.MatchesIterator;
+import org.apache.lucene.search.MatchesUtils;
 import org.apache.lucene.search.intervals.IntervalIterator;
 import org.apache.lucene.search.intervals.Intervals;
 import org.apache.lucene.search.intervals.IntervalsSource;
@@ -69,7 +71,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
     public static final IntervalsSource NO_INTERVALS = new IntervalsSource() {
 
         @Override
-        public IntervalIterator intervals(String field, LeafReaderContext ctx) throws IOException {
+        public IntervalIterator intervals(String field, LeafReaderContext ctx) {
             return new IntervalIterator() {
                 @Override
                 public int start() {
@@ -82,7 +84,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 }
 
                 @Override
-                public int nextInterval() throws IOException {
+                public int nextInterval() {
                     return NO_MORE_INTERVALS;
                 }
 
@@ -97,12 +99,12 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 }
 
                 @Override
-                public int nextDoc() throws IOException {
+                public int nextDoc() {
                     return NO_MORE_DOCS;
                 }
 
                 @Override
-                public int advance(int target) throws IOException {
+                public int advance(int target) {
                     return NO_MORE_DOCS;
                 }
 
@@ -111,6 +113,11 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                     return 0;
                 }
             };
+        }
+
+        @Override
+        public MatchesIterator matches(String field, LeafReaderContext ctx, int doc) {
+            return null;
         }
 
         @Override

@@ -59,20 +59,20 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                 String state = objectPath.evaluate("stats.0.watcher_state");
 
                 switch (state) {
-                case "stopped":
-                    Response startResponse = adminClient().performRequest(new Request("POST", "/_xpack/watcher/_start"));
-                    String body = EntityUtils.toString(startResponse.getEntity());
-                    assertThat(body, containsString("\"acknowledged\":true"));
-                    break;
-                case "stopping":
-                    throw new AssertionError("waiting until stopping state reached stopped state to start again");
-                case "starting":
-                    throw new AssertionError("waiting until starting state reached started state");
-                case "started":
-                    // all good here, we are done
-                    break;
-                default:
-                    throw new AssertionError("unknown state[" + state + "]");
+                    case "stopped":
+                        Response startResponse = adminClient().performRequest(new Request("POST", "/_xpack/watcher/_start"));
+                        Map<String, Object> responseMap = entityAsMap(startResponse);
+                        assertThat(responseMap, hasEntry("acknowledged", true));
+                        break;
+                    case "stopping":
+                        throw new AssertionError("waiting until stopping state reached stopped state to start again");
+                    case "starting":
+                        throw new AssertionError("waiting until starting state reached started state");
+                    case "started":
+                        // all good here, we are done
+                        break;
+                    default:
+                        throw new AssertionError("unknown state[" + state + "]");
                 }
             } catch (IOException e) {
                 throw new AssertionError(e);
@@ -293,6 +293,8 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         Response response = client().performRequest(request);
         Map<String, Object> responseMap = entityAsMap(response);
         assertThat(responseMap, hasEntry("_id", watchId));
+        assertThat(responseMap, hasEntry("created", true));
+        assertThat(responseMap, hasEntry("_version", 1));
     }
 
     private ObjectPath getWatchHistoryEntry(String watchId) throws Exception {

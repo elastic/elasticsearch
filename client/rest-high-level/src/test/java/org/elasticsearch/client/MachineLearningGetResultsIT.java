@@ -23,19 +23,34 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetBucketsResponse;
+import org.elasticsearch.client.ml.GetCategoriesRequest;
+import org.elasticsearch.client.ml.GetCategoriesResponse;
+import org.elasticsearch.client.ml.GetInfluencersRequest;
+import org.elasticsearch.client.ml.GetInfluencersResponse;
+import org.elasticsearch.client.ml.GetOverallBucketsRequest;
+import org.elasticsearch.client.ml.GetOverallBucketsResponse;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.GetRecordsResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
+import org.elasticsearch.client.ml.job.config.AnalysisConfig;
+import org.elasticsearch.client.ml.job.config.DataDescription;
+import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.results.AnomalyRecord;
 import org.elasticsearch.client.ml.job.results.Bucket;
+import org.elasticsearch.client.ml.job.results.Influencer;
+import org.elasticsearch.client.ml.job.results.OverallBucket;
 import org.elasticsearch.client.ml.job.util.PageParams;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -59,7 +74,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
     @Before
     public void createJobAndIndexResults() throws IOException {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
-        Job job = MachineLearningIT.buildJob(JOB_ID);
+        Job job = buildJob(JOB_ID);
         machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
         BulkRequest bulkRequest = new BulkRequest();
@@ -113,9 +128,148 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
         bulkRequest.add(indexRequest);
     }
 
+    private void addCategoryIndexRequest(long categoryId, String categoryName, BulkRequest bulkRequest) {
+        IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX, DOC);
+        indexRequest.source("{\"job_id\":\"" + JOB_ID + "\", \"category_id\": " + categoryId + ", \"terms\": \"" +
+            categoryName + "\",  \"regex\": \".*?" + categoryName + ".*\", \"max_matching_length\": 3, \"examples\": [\"" +
+            categoryName + "\"]}", XContentType.JSON);
+        bulkRequest.add(indexRequest);
+    }
+
+    private void addCategoriesIndexRequests(BulkRequest bulkRequest) {
+
+        List<String> categories = Arrays.asList("AAL", "JZA", "JBU");
+
+        for (int i = 0; i < categories.size(); i++) {
+            addCategoryIndexRequest(i+1, categories.get(i), bulkRequest);
+        }
+    }
+
     @After
     public void deleteJob() throws IOException {
-        new MlRestTestStateCleaner(logger, client()).clearMlMetadata();
+        new MlTestStateCleaner(logger, highLevelClient().machineLearning()).clearMlMetadata();
+    }
+
+    public void testGetCategories() throws IOException {
+
+        // index some category results
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        addCategoriesIndexRequests(bulkRequest);
+
+        highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        {
+            GetCategoriesRequest request = new GetCategoriesRequest(JOB_ID);
+            request.setPageParams(new PageParams(0, 10000));
+
+            GetCategoriesResponse response = execute(request, machineLearningClient::getCategories,
+                    machineLearningClient::getCategoriesAsync);
+
+            assertThat(response.count(), equalTo(3L));
+            assertThat(response.categories().size(), equalTo(3));
+            assertThat(response.categories().get(0).getCategoryId(), equalTo(1L));
+            assertThat(response.categories().get(0).getGrokPattern(), equalTo(".*?AAL.*"));
+            assertThat(response.categories().get(0).getRegex(), equalTo(".*?AAL.*"));
+            assertThat(response.categories().get(0).getTerms(), equalTo("AAL"));
+
+            assertThat(response.categories().get(1).getCategoryId(), equalTo(2L));
+            assertThat(response.categories().get(1).getGrokPattern(), equalTo(".*?JZA.*"));
+            assertThat(response.categories().get(1).getRegex(), equalTo(".*?JZA.*"));
+            assertThat(response.categories().get(1).getTerms(), equalTo("JZA"));
+
+            assertThat(response.categories().get(2).getCategoryId(), equalTo(3L));
+            assertThat(response.categories().get(2).getGrokPattern(), equalTo(".*?JBU.*"));
+            assertThat(response.categories().get(2).getRegex(), equalTo(".*?JBU.*"));
+            assertThat(response.categories().get(2).getTerms(), equalTo("JBU"));
+        }
+        {
+            GetCategoriesRequest request = new GetCategoriesRequest(JOB_ID);
+            request.setPageParams(new PageParams(0, 1));
+
+            GetCategoriesResponse response = execute(request, machineLearningClient::getCategories,
+                    machineLearningClient::getCategoriesAsync);
+
+            assertThat(response.count(), equalTo(3L));
+            assertThat(response.categories().size(), equalTo(1));
+            assertThat(response.categories().get(0).getCategoryId(), equalTo(1L));
+            assertThat(response.categories().get(0).getGrokPattern(), equalTo(".*?AAL.*"));
+            assertThat(response.categories().get(0).getRegex(), equalTo(".*?AAL.*"));
+            assertThat(response.categories().get(0).getTerms(), equalTo("AAL"));
+        }
+        {
+            GetCategoriesRequest request = new GetCategoriesRequest(JOB_ID);
+            request.setPageParams(new PageParams(1, 2));
+
+            GetCategoriesResponse response = execute(request, machineLearningClient::getCategories,
+                    machineLearningClient::getCategoriesAsync);
+
+            assertThat(response.count(), equalTo(3L));
+            assertThat(response.categories().size(), equalTo(2));
+            assertThat(response.categories().get(0).getCategoryId(), equalTo(2L));
+            assertThat(response.categories().get(0).getGrokPattern(), equalTo(".*?JZA.*"));
+            assertThat(response.categories().get(0).getRegex(), equalTo(".*?JZA.*"));
+            assertThat(response.categories().get(0).getTerms(), equalTo("JZA"));
+
+            assertThat(response.categories().get(1).getCategoryId(), equalTo(3L));
+            assertThat(response.categories().get(1).getGrokPattern(), equalTo(".*?JBU.*"));
+            assertThat(response.categories().get(1).getRegex(), equalTo(".*?JBU.*"));
+            assertThat(response.categories().get(1).getTerms(), equalTo("JBU"));
+        }
+        {
+            GetCategoriesRequest request = new GetCategoriesRequest(JOB_ID);
+            request.setCategoryId(0L); // request a non-existent category
+
+            GetCategoriesResponse response = execute(request, machineLearningClient::getCategories,
+                    machineLearningClient::getCategoriesAsync);
+
+            assertThat(response.count(), equalTo(0L));
+            assertThat(response.categories().size(), equalTo(0));
+        }
+        {
+            GetCategoriesRequest request = new GetCategoriesRequest(JOB_ID);
+            request.setCategoryId(1L);
+
+            GetCategoriesResponse response = execute(request, machineLearningClient::getCategories,
+                    machineLearningClient::getCategoriesAsync);
+
+            assertThat(response.count(), equalTo(1L));
+            assertThat(response.categories().size(), equalTo(1));
+            assertThat(response.categories().get(0).getCategoryId(), equalTo(1L));
+            assertThat(response.categories().get(0).getGrokPattern(), equalTo(".*?AAL.*"));
+            assertThat(response.categories().get(0).getRegex(), equalTo(".*?AAL.*"));
+            assertThat(response.categories().get(0).getTerms(), equalTo("AAL"));
+        }
+        {
+            GetCategoriesRequest request = new GetCategoriesRequest(JOB_ID);
+            request.setCategoryId(2L);
+
+            GetCategoriesResponse response = execute(request, machineLearningClient::getCategories,
+                    machineLearningClient::getCategoriesAsync);
+
+            assertThat(response.count(), equalTo(1L));
+            assertThat(response.categories().get(0).getCategoryId(), equalTo(2L));
+            assertThat(response.categories().get(0).getGrokPattern(), equalTo(".*?JZA.*"));
+            assertThat(response.categories().get(0).getRegex(), equalTo(".*?JZA.*"));
+            assertThat(response.categories().get(0).getTerms(), equalTo("JZA"));
+
+        }
+        {
+            GetCategoriesRequest request = new GetCategoriesRequest(JOB_ID);
+            request.setCategoryId(3L);
+
+            GetCategoriesResponse response = execute(request, machineLearningClient::getCategories,
+                    machineLearningClient::getCategoriesAsync);
+
+            assertThat(response.count(), equalTo(1L));
+            assertThat(response.categories().get(0).getCategoryId(), equalTo(3L));
+            assertThat(response.categories().get(0).getGrokPattern(), equalTo(".*?JBU.*"));
+            assertThat(response.categories().get(0).getRegex(), equalTo(".*?JBU.*"));
+            assertThat(response.categories().get(0).getTerms(), equalTo("JBU"));
+        }
     }
 
     public void testGetBuckets() throws IOException {
@@ -206,6 +360,111 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testGetOverallBuckets() throws IOException {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        GetBucketsRequest getBucketsRequest = new GetBucketsRequest(JOB_ID);
+        getBucketsRequest.setPageParams(new PageParams(0, 3));
+        List<Bucket> firstBuckets = machineLearningClient.getBuckets(getBucketsRequest, RequestOptions.DEFAULT).buckets();
+
+        String anotherJobId = "test-get-overall-buckets-job";
+        Job anotherJob = buildJob(anotherJobId);
+        machineLearningClient.putJob(new PutJobRequest(anotherJob), RequestOptions.DEFAULT);
+
+        // Let's index matching buckets with the score being 10.0 higher
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (Bucket bucket : firstBuckets) {
+            IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX, DOC);
+            indexRequest.source("{\"job_id\":\"" + anotherJobId + "\", \"result_type\":\"bucket\", \"timestamp\": " +
+                    bucket.getTimestamp().getTime() + "," + "\"bucket_span\": 3600,\"is_interim\": " + bucket.isInterim()
+                    + ", \"anomaly_score\": " + String.valueOf(bucket.getAnomalyScore() + 10.0) + "}", XContentType.JSON);
+            bulkRequest.add(indexRequest);
+        }
+        highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);
+
+        {
+            GetOverallBucketsRequest request = new GetOverallBucketsRequest(JOB_ID, anotherJobId);
+
+            GetOverallBucketsResponse response = execute(request, machineLearningClient::getOverallBuckets,
+                    machineLearningClient::getOverallBucketsAsync);
+
+            assertThat(response.count(), equalTo(241L));
+            List<OverallBucket> overallBuckets = response.overallBuckets();
+            assertThat(overallBuckets.size(), equalTo(241));
+            assertThat(overallBuckets.stream().allMatch(b -> b.getBucketSpan() == 3600L), is(true));
+            assertThat(overallBuckets.get(0).getTimestamp().getTime(), equalTo(START_TIME_EPOCH_MS));
+            assertThat(overallBuckets.get(240).isInterim(), is(true));
+        }
+        {
+            GetOverallBucketsRequest request = new GetOverallBucketsRequest(JOB_ID, anotherJobId);
+            request.setBucketSpan(TimeValue.timeValueHours(2));
+
+            GetOverallBucketsResponse response = execute(request, machineLearningClient::getOverallBuckets,
+                    machineLearningClient::getOverallBucketsAsync);
+
+            assertThat(response.count(), equalTo(121L));
+        }
+        {
+            long end = START_TIME_EPOCH_MS + 10 * 3600000L;
+            GetOverallBucketsRequest request = new GetOverallBucketsRequest(JOB_ID, anotherJobId);
+            request.setEnd(String.valueOf(end));
+
+            GetOverallBucketsResponse response = execute(request, machineLearningClient::getOverallBuckets,
+                    machineLearningClient::getOverallBucketsAsync);
+
+            assertThat(response.count(), equalTo(10L));
+            assertThat(response.overallBuckets().get(0).getTimestamp().getTime(), equalTo(START_TIME_EPOCH_MS));
+            assertThat(response.overallBuckets().get(9).getTimestamp().getTime(), equalTo(end - 3600000L));
+        }
+        {
+            GetOverallBucketsRequest request = new GetOverallBucketsRequest(JOB_ID, anotherJobId);
+            request.setExcludeInterim(true);
+
+            GetOverallBucketsResponse response = execute(request, machineLearningClient::getOverallBuckets,
+                    machineLearningClient::getOverallBucketsAsync);
+
+            assertThat(response.count(), equalTo(240L));
+            assertThat(response.overallBuckets().stream().allMatch(b -> b.isInterim() == false), is(true));
+        }
+        {
+            GetOverallBucketsRequest request = new GetOverallBucketsRequest(JOB_ID);
+            request.setOverallScore(75.0);
+
+            GetOverallBucketsResponse response = execute(request, machineLearningClient::getOverallBuckets,
+                    machineLearningClient::getOverallBucketsAsync);
+
+            assertThat(response.count(), equalTo(bucketStats.criticalCount));
+            assertThat(response.overallBuckets().stream().allMatch(b -> b.getOverallScore() >= 75.0), is(true));
+        }
+        {
+            long start = START_TIME_EPOCH_MS + 10 * 3600000L;
+            GetOverallBucketsRequest request = new GetOverallBucketsRequest(JOB_ID, anotherJobId);
+            request.setStart(String.valueOf(start));
+
+            GetOverallBucketsResponse response = execute(request, machineLearningClient::getOverallBuckets,
+                    machineLearningClient::getOverallBucketsAsync);
+
+            assertThat(response.count(), equalTo(231L));
+            assertThat(response.overallBuckets().get(0).getTimestamp().getTime(), equalTo(start));
+        }
+        {
+            GetOverallBucketsRequest request = new GetOverallBucketsRequest(JOB_ID, anotherJobId);
+            request.setEnd(String.valueOf(START_TIME_EPOCH_MS + 3 * 3600000L));
+            request.setTopN(2);
+
+            GetOverallBucketsResponse response = execute(request, machineLearningClient::getOverallBuckets,
+                    machineLearningClient::getOverallBucketsAsync);
+
+            assertThat(response.count(), equalTo(3L));
+            List<OverallBucket> overallBuckets = response.overallBuckets();
+            for (int i = 0; i < overallBuckets.size(); ++i) {
+                // As the second job has scores that are -10 from the first, the overall buckets should be +5 from the initial job
+                assertThat(overallBuckets.get(i).getOverallScore(), is(closeTo(firstBuckets.get(i).getAnomalyScore() + 5.0, 0.0001)));
+            }
+        }
+    }
+
     public void testGetRecords() throws IOException {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
 
@@ -270,6 +529,119 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
                 previousProb = record.getProbability();
             }
         }
+    }
+
+    public void testGetInfluencers() throws IOException {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        // Let us index a few influencer docs
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        long timestamp = START_TIME_EPOCH_MS;
+        long end = START_TIME_EPOCH_MS + 5 * 3600000L;
+        while (timestamp < end) {
+            boolean isLast = timestamp == end - 3600000L;
+            // Last one is interim
+            boolean isInterim = isLast;
+            // Last one score is higher
+            double score = isLast ? 90.0 : 42.0;
+
+            IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX, DOC);
+            indexRequest.source("{\"job_id\":\"" + JOB_ID + "\", \"result_type\":\"influencer\", \"timestamp\": " +
+                    timestamp + "," + "\"bucket_span\": 3600,\"is_interim\": " + isInterim + ", \"influencer_score\": " + score + ", " +
+                    "\"influencer_field_name\":\"my_influencer\", \"influencer_field_value\": \"inf_1\", \"probability\":"
+                    + randomDouble() + "}", XContentType.JSON);
+            bulkRequest.add(indexRequest);
+            timestamp += 3600000L;
+        }
+        highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);
+
+        {
+            GetInfluencersRequest request = new GetInfluencersRequest(JOB_ID);
+            request.setDescending(false);
+
+            GetInfluencersResponse response = execute(request, machineLearningClient::getInfluencers,
+                    machineLearningClient::getInfluencersAsync);
+
+            assertThat(response.count(), equalTo(5L));
+        }
+        {
+            long requestStart = START_TIME_EPOCH_MS + 3600000L;
+            long requestEnd = end - 3600000L;
+            GetInfluencersRequest request = new GetInfluencersRequest(JOB_ID);
+            request.setStart(String.valueOf(requestStart));
+            request.setEnd(String.valueOf(requestEnd));
+
+            GetInfluencersResponse response = execute(request, machineLearningClient::getInfluencers,
+                    machineLearningClient::getInfluencersAsync);
+
+            assertThat(response.count(), equalTo(3L));
+            for (Influencer influencer : response.influencers()) {
+                assertThat(influencer.getTimestamp().getTime(), greaterThanOrEqualTo(START_TIME_EPOCH_MS));
+                assertThat(influencer.getTimestamp().getTime(), lessThan(end));
+            }
+        }
+        {
+            GetInfluencersRequest request = new GetInfluencersRequest(JOB_ID);
+            request.setSort("timestamp");
+            request.setDescending(false);
+            request.setPageParams(new PageParams(1, 2));
+
+            GetInfluencersResponse response = execute(request, machineLearningClient::getInfluencers,
+                    machineLearningClient::getInfluencersAsync);
+
+            assertThat(response.influencers().size(), equalTo(2));
+            assertThat(response.influencers().get(0).getTimestamp().getTime(), equalTo(START_TIME_EPOCH_MS + 3600000L));
+            assertThat(response.influencers().get(1).getTimestamp().getTime(), equalTo(START_TIME_EPOCH_MS + 2 * 3600000L));
+        }
+        {
+            GetInfluencersRequest request = new GetInfluencersRequest(JOB_ID);
+            request.setExcludeInterim(true);
+
+            GetInfluencersResponse response = execute(request, machineLearningClient::getInfluencers,
+                    machineLearningClient::getInfluencersAsync);
+
+            assertThat(response.count(), equalTo(4L));
+            assertThat(response.influencers().stream().anyMatch(Influencer::isInterim), is(false));
+        }
+        {
+            GetInfluencersRequest request = new GetInfluencersRequest(JOB_ID);
+            request.setInfluencerScore(75.0);
+
+            GetInfluencersResponse response = execute(request, machineLearningClient::getInfluencers,
+                    machineLearningClient::getInfluencersAsync);
+
+            assertThat(response.count(), equalTo(1L));
+            assertThat(response.influencers().get(0).getInfluencerScore(), greaterThanOrEqualTo(75.0));
+        }
+        {
+            GetInfluencersRequest request = new GetInfluencersRequest(JOB_ID);
+            request.setSort("probability");
+            request.setDescending(true);
+
+            GetInfluencersResponse response = execute(request, machineLearningClient::getInfluencers,
+                    machineLearningClient::getInfluencersAsync);
+
+            assertThat(response.influencers().size(), equalTo(5));
+            double previousProb = 1.0;
+            for (Influencer influencer : response.influencers()) {
+                assertThat(influencer.getProbability(), lessThanOrEqualTo(previousProb));
+                previousProb = influencer.getProbability();
+            }
+        }
+    }
+
+    public static Job buildJob(String jobId) {
+        Job.Builder builder = new Job.Builder(jobId);
+
+        Detector detector = new Detector.Builder("count", null).build();
+        AnalysisConfig.Builder configBuilder = new AnalysisConfig.Builder(Arrays.asList(detector));
+        configBuilder.setBucketSpan(TimeValue.timeValueHours(1));
+        builder.setAnalysisConfig(configBuilder);
+
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        builder.setDataDescription(dataDescription);
+        return builder.build();
     }
 
     private static class Stats {

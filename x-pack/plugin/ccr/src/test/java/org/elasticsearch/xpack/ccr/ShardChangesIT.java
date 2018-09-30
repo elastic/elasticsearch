@@ -655,9 +655,8 @@ public class ShardChangesIT extends ESIntegTestCase {
     public void testUnfollowIndex() throws Exception {
         String leaderIndexSettings = getIndexSettings(1, 0, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON).get());
-        ResumeFollowAction.Request followRequest = createFollowRequest("index1", "index2");
-        PutFollowAction.Request createAndFollowRequest = new PutFollowAction.Request(followRequest);
-        client().execute(PutFollowAction.INSTANCE, createAndFollowRequest).get();
+        PutFollowAction.Request followRequest = follow("index1", "index2");
+        client().execute(PutFollowAction.INSTANCE, followRequest).get();
         client().prepareIndex("index1", "doc").setSource("{}", XContentType.JSON).get();
         assertBusy(() -> {
             assertThat(client().prepareSearch("index2").get().getHits().getTotalHits(), equalTo(1L));

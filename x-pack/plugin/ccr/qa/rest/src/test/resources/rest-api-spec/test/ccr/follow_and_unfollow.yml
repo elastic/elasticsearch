@@ -40,3 +40,13 @@
       ccr.pause_follow:
         index: bar
   - is_true: acknowledged
+
+  - do:
+      indices.close:
+        index: bar
+  - is_true: acknowledged
+
+  - do:
+      ccr.unfollow:
+        index: bar
+  - is_true: acknowledged

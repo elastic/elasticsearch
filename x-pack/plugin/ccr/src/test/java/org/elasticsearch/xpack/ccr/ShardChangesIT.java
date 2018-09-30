@@ -23,6 +23,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -62,6 +63,7 @@ import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction.StatsResponses;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -648,6 +650,34 @@ public class ShardChangesIT extends ESIntegTestCase {
         client().admin().indices().delete(new DeleteIndexRequest("index2")).actionGet();
         client().prepareIndex("index1", "doc", "2").setSource("{}", XContentType.JSON).get();
         ensureNoCcrTasks();
+    }
+
+    public void testUnfollowIndex() throws Exception {
+        String leaderIndexSettings = getIndexSettings(1, 0, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON).get());
+        ResumeFollowAction.Request followRequest = createFollowRequest("index1", "index2");
+        PutFollowAction.Request createAndFollowRequest = new PutFollowAction.Request(followRequest);
+        client().execute(PutFollowAction.INSTANCE, createAndFollowRequest).get();
+        client().prepareIndex("index1", "doc").setSource("{}", XContentType.JSON).get();
+        assertBusy(() -> {
+            assertThat(client().prepareSearch("index2").get().getHits().getTotalHits(), equalTo(1L));
+        });
+
+        // Indexing directly into index2 would fail now, because index2 is a follow index.
+        // We can't test this here because an assertion trips before an actual error is thrown and then index call hangs.
+
+        // Turn follow index into a regular index by: pausing shard follow, close index, unfollow index and then open index:
+        unfollowIndex("index2");
+        client().admin().indices().close(new CloseIndexRequest("index2")).actionGet();
+        assertAcked(client().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request("index2")).actionGet());
+        client().admin().indices().open(new OpenIndexRequest("index2")).actionGet();
+        ensureGreen("index2");
+
+        // Indexing succeeds now, because index2 is no longer a follow index:
+        client().prepareIndex("index2", "doc").setSource("{}", XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        assertThat(client().prepareSearch("index2").get().getHits().getTotalHits(), equalTo(2L));
     }
 
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {

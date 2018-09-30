@@ -19,6 +19,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
@@ -56,7 +58,7 @@ import java.util.stream.Collectors;
 
 public class TransportResumeFollowAction extends HandledTransportAction<ResumeFollowAction.Request, AcknowledgedResponse> {
 
-    static final long DEFAULT_MAX_BATCH_SIZE_IN_BYTES = Long.MAX_VALUE;
+    static final ByteSizeValue DEFAULT_MAX_BATCH_SIZE = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
     private static final TimeValue DEFAULT_MAX_RETRY_DELAY = new TimeValue(500);
     private static final int DEFAULT_MAX_CONCURRENT_WRITE_BATCHES = 1;
     private static final int DEFAULT_MAX_WRITE_BUFFER_SIZE = 10240;
@@ -326,11 +328,11 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             maxConcurrentReadBatches = DEFAULT_MAX_CONCURRENT_READ_BATCHES;
         }
 
-        long maxOperationSizeInBytes;
-        if (request.getMaxOperationSizeInBytes() != null) {
-            maxOperationSizeInBytes = request.getMaxOperationSizeInBytes();
+        ByteSizeValue maxBatchSize;
+        if (request.getMaxBatchSize() != null) {
+            maxBatchSize = request.getMaxBatchSize();
         } else {
-            maxOperationSizeInBytes = DEFAULT_MAX_BATCH_SIZE_IN_BYTES;
+            maxBatchSize = DEFAULT_MAX_BATCH_SIZE;
         }
 
         int maxConcurrentWriteBatches;
@@ -356,7 +358,7 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             new ShardId(leaderIndexMetadata.getIndex(), shardId),
             maxBatchOperationCount,
             maxConcurrentReadBatches,
-            maxOperationSizeInBytes,
+            maxBatchSize,
             maxConcurrentWriteBatches,
             maxWriteBufferSize,
             maxRetryDelay,

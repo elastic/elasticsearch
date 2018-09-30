@@ -19,7 +19,9 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.PutUserRequest;
@@ -64,5 +66,14 @@ final class SecurityRequestConverters {
         RequestConverters.Params params = new RequestConverters.Params(request);
         params.withRefreshPolicy(setUserEnabledRequest.getRefreshPolicy());
         return request;
+    }
+
+    static Request clearRolesCache(ClearRolesCacheRequest disableCacheRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack/security/role")
+            .addCommaSeparatedPathParts(disableCacheRequest.names())
+            .addPathPart("_clear_cache")
+            .build();
+        return new Request(HttpPost.METHOD_NAME, endpoint);
     }
 }

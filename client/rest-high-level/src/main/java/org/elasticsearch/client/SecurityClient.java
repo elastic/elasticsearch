@@ -20,11 +20,13 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.security.ClearRolesCacheRequest;
+import org.elasticsearch.client.security.ClearRolesCacheResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
+import org.elasticsearch.client.security.EmptyResponse;
 import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
-import org.elasticsearch.client.security.EmptyResponse;
 
 import java.io.IOException;
 
@@ -124,5 +126,36 @@ public final class SecurityClient {
                                 ActionListener<EmptyResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::disableUser, options,
             EmptyResponse::fromXContent, listener, emptySet());
+    }
+
+
+    /**
+     * Clears the native roles cache for a set of roles.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-role-cache.html">
+     * the docs</a> for more.
+     *
+     * @param request the request with the roles for which the cache should be cleared.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the enable user call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public ClearRolesCacheResponse clearRolesCache(ClearRolesCacheRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::clearRolesCache, options,
+            ClearRolesCacheResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Clears the native roles cache for a set of roles asynchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-role-cache.html">
+     * the docs</a> for more.
+     *
+     * @param request  the request with the roles for which the cache should be cleared.
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void clearRolesCacheAsync(ClearRolesCacheRequest request, RequestOptions options,
+                                     ActionListener<ClearRolesCacheResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::clearRolesCache, options,
+            ClearRolesCacheResponse::fromXContent, listener, emptySet());
     }
 }

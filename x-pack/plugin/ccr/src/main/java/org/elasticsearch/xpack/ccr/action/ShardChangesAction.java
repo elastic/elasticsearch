@@ -406,11 +406,11 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
     static final Translog.Operation[] EMPTY_OPERATIONS_ARRAY = new Translog.Operation[0];
 
     /**
-     * Returns at most maxOperationCount operations from the specified from sequence number.
-     * This method will never return operations above the specified globalCheckpoint.
+     * Returns at most maxOperationCount operations from the specified from sequence number. This method will never return operations above
+     * the specified globalCheckpoint.
      *
-     * Also if the sum of collected operations' size is above the specified maxBatchSize then this method
-     * stops collecting more operations and returns what has been collected so far.
+     * Also if the sum of collected operations' size is above the specified maxBatchSize then this method stops collecting more operations
+     * and returns what has been collected so far.
      */
     static Translog.Operation[] getOperations(IndexShard indexShard,
                                               long globalCheckpoint,

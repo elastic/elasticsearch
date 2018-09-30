@@ -409,7 +409,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
      * Returns at most maxOperationCount operations from the specified from sequence number. This method will never return operations above
      * the specified globalCheckpoint.
      *
-     * Also if the sum of collected operations' size is above the specified maxBatchSize then this method stops collecting more operations
+     * Also if the sum of collected operations' size is above the specified max batch size then this method stops collecting more operations
      * and returns what has been collected so far.
      */
     static Translog.Operation[] getOperations(IndexShard indexShard,

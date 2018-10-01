@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.watcher.test.bench;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interva
 @SuppressForbidden(reason = "benchmark")
 public class ScheduleEngineTriggerBenchmark {
 
-    private static final Logger logger = ESLoggerFactory.getLogger(ScheduleEngineTriggerBenchmark.class);
+    private static final Logger logger = LogManager.getLogger(ScheduleEngineTriggerBenchmark.class);
 
     public static void main(String[] args) throws Exception {
         int numWatches = 1000;

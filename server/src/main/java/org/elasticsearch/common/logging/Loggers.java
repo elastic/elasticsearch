@@ -102,7 +102,7 @@ public class Loggers {
      */
     @Deprecated
     public static Logger getLogger(Class<?> clazz) {
-        return ESLoggerFactory.getLogger(clazz);
+        return ESLoggerFactory.getLogger(null, clazz);
     }
 
     private static String formatPrefix(String... prefixes) {

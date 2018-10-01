@@ -1,6 +1,8 @@
 [[analysis-word-delimiter-tokenfilter]]
 === Word Delimiter Token Filter
 
+deprecated[7.0.0,Replaced by <<analysis-word-delimiter-graph-tokenfilter,Word Delimiter Graph Token Filter>>]
+
 Named `word_delimiter`, it Splits words into subwords and performs
 optional transformations on subword groups. Words are split into
 subwords with the following rules:

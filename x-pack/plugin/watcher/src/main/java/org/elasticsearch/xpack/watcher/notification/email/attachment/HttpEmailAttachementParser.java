@@ -79,7 +79,7 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
     @Override
     public Attachment toAttachment(WatchExecutionContext context, Payload payload,
                                    HttpRequestAttachment attachment) throws IOException {
-        Map<String, Object> model = Variables.createCtxModel(context, payload);
+        Map<String, Object> model = Variables.createCtxParamsMap(context, payload);
         HttpRequest httpRequest = attachment.getRequestTemplate().render(templateEngine, model);
 
         HttpResponse response = httpClient.execute(httpRequest);

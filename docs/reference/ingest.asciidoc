@@ -1,5 +1,5 @@
 [[ingest]]
-= Ingest Node
+= Ingest node
 
 [partintro]
 --

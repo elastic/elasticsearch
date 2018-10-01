@@ -288,7 +288,6 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
     }
 
     // simulate handling of sending shard failure during an isolation
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33704")
     public void testSendingShardFailure() throws Exception {
         List<String> nodes = startCluster(3, 2);
         String masterNode = internalCluster().getMasterName();
@@ -365,7 +364,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
     public void testSearchWithRelocationAndSlowClusterStateProcessing() throws Exception {
         // don't use DEFAULT settings (which can cause node disconnects on a slow CI machine)
         configureCluster(Settings.EMPTY, 3, null, 1);
-        final String masterNode = internalCluster().startMasterOnlyNode();
+        internalCluster().startMasterOnlyNode();
         final String node_1 = internalCluster().startDataOnlyNode();
 
         logger.info("--> creating index [test] with one shard and on replica");

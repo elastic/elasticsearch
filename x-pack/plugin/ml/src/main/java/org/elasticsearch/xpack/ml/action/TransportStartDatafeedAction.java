@@ -321,7 +321,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                      final PersistentTaskState state) {
             DatafeedTask datafeedTask = (DatafeedTask) allocatedPersistentTask;
             datafeedTask.datafeedManager = datafeedManager;
-            datafeedManager.run(datafeedTask,
+            datafeedManager.run(datafeedTask, params.getJob(), params.getDatafeedConfig(),
                     (error) -> {
                         if (error != null) {
                             datafeedTask.markAsFailed(error);

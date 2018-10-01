@@ -93,11 +93,17 @@ public class IndexLifecycleRunner {
         }
         Step currentStep = getCurrentStep(stepRegistry, policy, indexMetaData, lifecycleState);
         if (currentStep == null) {
-            // This may happen in the case that there is invalid ilm-step index settings or the stepRegistry is out of
-            // sync with the current cluster state
-            logger.warn("current step [" + getCurrentStepKey(lifecycleState) + "] for index [" + indexMetaData.getIndex().getName()
-                + "] with policy [" + policy + "] is not recognized");
-            return;
+            if (stepRegistry.policyExists(policy) == false) {
+                logger.trace("policy [{}] for index [{}] does not exist, recording this in step_info for this index",
+                    policy, indexMetaData.getIndex().getName());
+                setStepInfo(indexMetaData.getIndex(), policy, getCurrentStepKey(lifecycleState),
+                    new StepInfoExceptionWrapper(new IllegalArgumentException("policy [" + policy + "] does not exist")));
+                return;
+            } else {
+                logger.error("current step [" + getCurrentStepKey(lifecycleState) + "] for index [" + indexMetaData.getIndex().getName()
+                    + "] with policy [" + policy + "] is not recognized");
+                return;
+            }
         }
         logger.debug("running policy with current-step [" + currentStep.getKey() + "]");
         if (currentStep instanceof TerminalPolicyStep) {

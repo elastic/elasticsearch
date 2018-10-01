@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
     private final Index index;
@@ -58,7 +59,7 @@ public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
         Settings indexSettings = idxMeta.getSettings();
         LifecycleExecutionState indexILMData = LifecycleExecutionState.fromIndexMetadata(idxMeta);
         if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
-                && currentStepKey.equals(IndexLifecycleRunner.getCurrentStepKey(indexILMData))) {
+                && Objects.equals(currentStepKey, IndexLifecycleRunner.getCurrentStepKey(indexILMData))) {
             return IndexLifecycleRunner.addStepInfoToClusterState(index, currentState, stepInfo);
         } else {
             // either the policy has changed or the step is now

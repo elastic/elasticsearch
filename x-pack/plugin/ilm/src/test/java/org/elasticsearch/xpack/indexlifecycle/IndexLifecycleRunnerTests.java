@@ -349,7 +349,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Mockito.verifyZeroInteractions(clusterService);
     }
 
-    public void testRunPolicyWithNoStepsInRegistry() {
+    public void testRunPolicyThatDoesntExist() {
         String policyName = "cluster_state_action_policy";
         ClusterService clusterService = mock(ClusterService.class);
         IndexLifecycleRunner runner = new IndexLifecycleRunner(new PolicyStepsRegistry(NamedXContentRegistry.EMPTY, null),
@@ -358,7 +358,10 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         // verify that no exception is thrown
         runner.runPolicy(policyName, indexMetaData, null, randomBoolean());
-        Mockito.verifyZeroInteractions(clusterService);
+        Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
+            Mockito.argThat(new SetStepInfoUpdateTaskMatcher(indexMetaData.getIndex(), policyName, null,
+                new StepInfoExceptionWrapper(new IllegalArgumentException("policy [" + policyName + "] does not exist")))));
+        Mockito.verifyNoMoreInteractions(clusterService);
     }
 
     public void testRunPolicyUnknownStepType() {

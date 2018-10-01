@@ -107,8 +107,15 @@ public class CoordinatorTests extends ESTestCase {
         cluster.stabilise();
 
         final long currentTerm = cluster.getAnyLeader().coordinator.getCurrentTerm();
-        cluster.addNodes(randomIntBetween(1, 2));
-        cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+        final int newNodesCount = randomIntBetween(1, 2);
+        cluster.addNodes(newNodesCount);
+        cluster.stabilise(
+            // The first pinging discovers the master
+            defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING)
+                // One message delay to send a join
+                + DEFAULT_DELAY_VARIABILITY
+                // Commit a new cluster state with the new node(s). Might be split into multiple commits
+                + newNodesCount * DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
 
         final long newTerm = cluster.getAnyLeader().coordinator.getCurrentTerm();
         assertEquals(currentTerm, newTerm);

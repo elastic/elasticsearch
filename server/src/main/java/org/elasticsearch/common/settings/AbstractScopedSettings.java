@@ -716,7 +716,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             } else if (get(key) == null) {
                 throw new IllegalArgumentException(type + " setting [" + key + "], not recognized");
             } else if (isDelete == false && canUpdate.test(key)) {
-                validate(key, toApply, false); // we might not have a full picture here do to a dependency validation
+                validate(key, toApply, target.build());
                 settingsBuilder.copy(key, toApply);
                 updates.copy(key, toApply);
                 changed = true;
@@ -731,6 +731,26 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         changed |= applyDeletes(toRemove, target, k -> isValidDelete(k, onlyDynamic));
         target.put(settingsBuilder.build());
         return changed;
+    }
+
+    private void validate(String key, Settings toApply, Settings target) {
+        Settings.Builder toValidate = Settings.builder();
+        // Existing settings reused to have to bigger picture,
+        // this help to validate runtime dependencies
+        // (e.g. disk watermarks "low", "high" and "flood_stage").
+        // Add only valid target settings to "toValidate" settings
+        target.keySet().forEach(targetKey -> {
+            try {
+                validate(targetKey, target, false);
+                toValidate.copy(targetKey, target);
+            } catch (Exception ignored) {
+                // Don't add invalid settings for validation
+            }
+        });
+        // Put last to override existing setting
+        toValidate.copy(key, toApply);
+        // We might not have a full picture here do to a dependency validation
+        validate(toValidate.build(), false);
     }
 
     private static boolean applyDeletes(Set<String> deletes, Settings.Builder builder, Predicate<String> canRemove) {

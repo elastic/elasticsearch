@@ -64,13 +64,16 @@ import static org.elasticsearch.cluster.coordination.CoordinationStateTests.setV
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.value;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.FOLLOWER;
-import static org.elasticsearch.cluster.coordination.CoordinatorTests.Cluster.DEFAULT_CLUSTER_STATE_UPDATE_DELAY;
+import static org.elasticsearch.cluster.coordination.CoordinatorTests.Cluster.DEFAULT_DELAY_VARIABILITY;
+import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_BACK_OFF_TIME_SETTING;
+import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
+import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
@@ -105,7 +108,7 @@ public class CoordinatorTests extends ESTestCase {
 
         final long currentTerm = cluster.getAnyLeader().coordinator.getCurrentTerm();
         cluster.addNodes(randomIntBetween(1, 2));
-        cluster.stabilise();
+        cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
 
         final long newTerm = cluster.getAnyLeader().coordinator.getCurrentTerm();
         assertEquals(currentTerm, newTerm);
@@ -119,7 +122,16 @@ public class CoordinatorTests extends ESTestCase {
         logger.info("--> disconnecting leader {}", originalLeader);
         originalLeader.disconnect();
 
-        cluster.stabilise();
+        cluster.stabilise(
+            // first wait for the follower to check the leader
+            defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING)
+                // then wait for the exception response
+                + DEFAULT_DELAY_VARIABILITY
+                // then wait for a new election
+                + DEFAULT_ELECTION_DELAY
+                // then wait for the old leader's removal to be committed
+                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+
         assertThat(cluster.getAnyLeader().getId(), not(equalTo(originalLeader.getId())));
     }
 
@@ -152,7 +164,13 @@ public class CoordinatorTests extends ESTestCase {
         logger.info("--> disconnecting follower {}", follower);
         follower.disconnect();
 
-        cluster.stabilise();
+        cluster.stabilise(
+            // first wait for the leader to check the follower
+            defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING)
+                // then wait for the exception response
+                + DEFAULT_DELAY_VARIABILITY
+                // then wait for the removal to be committed
+                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
         assertThat(cluster.getAnyLeader().getId(), equalTo(leader.getId()));
     }
 
@@ -182,6 +200,28 @@ public class CoordinatorTests extends ESTestCase {
         return setting.get(Settings.EMPTY);
     }
 
+    // Updating the cluster state involves up to 5 delays:
+    // 1. submit the task to the master service
+    // 2. send PublishRequest
+    // 3. receive PublishResponse
+    // 4. send ApplyCommitRequest
+    // 5. receive ApplyCommitResponse and apply committed state
+    private static final long DEFAULT_CLUSTER_STATE_UPDATE_DELAY = 5 * DEFAULT_DELAY_VARIABILITY;
+
+    private static final int ELECTION_RETRIES = 10;
+
+    // The time it takes to
+    private static final long DEFAULT_ELECTION_DELAY
+        // Pinging all peers twice should be enough to discover all nodes
+        = defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2
+        // Then wait for an election to be scheduled; we allow enough time for retries to allow for collisions
+        + defaultMillis(ELECTION_INITIAL_TIMEOUT_SETTING) * ELECTION_RETRIES
+        + defaultMillis(ELECTION_BACK_OFF_TIME_SETTING) * ELECTION_RETRIES * (ELECTION_RETRIES - 1) / 2
+        // Allow two round-trip for pre-voting and voting
+        + 4 * DEFAULT_DELAY_VARIABILITY
+        // Then a commit of the new leader's first cluster state
+        + DEFAULT_CLUSTER_STATE_UPDATE_DELAY;
+
     private static String nodeIdFromIndex(int nodeIndex) {
         return "node" + nodeIndex;
     }
@@ -190,14 +230,6 @@ public class CoordinatorTests extends ESTestCase {
 
         static final long DEFAULT_STABILISATION_TIME = 3000L; // TODO use a real stabilisation time - needs fault detection and disruption
         static final long DEFAULT_DELAY_VARIABILITY = 100L;
-
-        // Updating the cluster state involves up to 5 delays:
-        // 1. submit the task to the master service
-        // 2. send PublishRequest
-        // 3. receive PublishResponse
-        // 4. send ApplyCommitRequest
-        // 5. receive ApplyCommitResponse and apply committed state
-        static final long DEFAULT_CLUSTER_STATE_UPDATE_DELAY = 5 * DEFAULT_DELAY_VARIABILITY;
 
         final List<ClusterNode> clusterNodes;
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(

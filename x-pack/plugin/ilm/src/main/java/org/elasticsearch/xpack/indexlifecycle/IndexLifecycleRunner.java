@@ -174,7 +174,8 @@ public class IndexLifecycleRunner {
 
     private void executeClusterStateSteps(Index index, String policy, Step step) {
         assert step instanceof ClusterStateActionStep || step instanceof ClusterStateWaitStep;
-        clusterService.submitStateUpdateTask("ILM", new ExecuteStepsUpdateTask(policy, index, step, stepRegistry, nowSupplier));
+        clusterService.submitStateUpdateTask("ilm-execute-cluster-state-steps",
+            new ExecuteStepsUpdateTask(policy, index, step, stepRegistry, nowSupplier));
     }
 
     /**
@@ -383,18 +384,19 @@ public class IndexLifecycleRunner {
     private void moveToStep(Index index, String policy, StepKey currentStepKey, StepKey nextStepKey) {
         logger.debug("moveToStep[" + policy + "] [" + index.getName() + "]" + currentStepKey + " -> "
             + nextStepKey);
-        clusterService.submitStateUpdateTask("ILM", new MoveToNextStepUpdateTask(index, policy, currentStepKey,
+        clusterService.submitStateUpdateTask("ilm-move-to-step", new MoveToNextStepUpdateTask(index, policy, currentStepKey,
             nextStepKey, nowSupplier));
     }
 
     private void moveToErrorStep(Index index, String policy, StepKey currentStepKey, Exception e) {
         logger.error("policy [" + policy + "] for index [" + index.getName() + "] failed on step [" + currentStepKey
             + "]. Moving to ERROR step.", e);
-        clusterService.submitStateUpdateTask("ILM", new MoveToErrorStepUpdateTask(index, policy, currentStepKey, e, nowSupplier));
+        clusterService.submitStateUpdateTask("ilm-move-to-error-step",
+            new MoveToErrorStepUpdateTask(index, policy, currentStepKey, e, nowSupplier));
     }
 
     private void setStepInfo(Index index, String policy, StepKey currentStepKey, ToXContentObject stepInfo) {
-        clusterService.submitStateUpdateTask("ILM", new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo));
+        clusterService.submitStateUpdateTask("ilm-set-step-info", new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo));
     }
 
     public static ClusterState setPolicyForIndexes(final String newPolicyName, final Index[] indices, ClusterState currentState,

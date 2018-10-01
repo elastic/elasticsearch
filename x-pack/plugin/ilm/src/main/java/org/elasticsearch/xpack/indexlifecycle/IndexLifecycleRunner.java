@@ -480,8 +480,8 @@ public class IndexLifecycleRunner {
         newSettings.remove(LifecycleSettings.LIFECYCLE_SKIP_SETTING.getKey());
         newSettings.remove(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.getKey());
 
-        return IndexMetaData.builder(indexMetadata)
-            .removeCustom(ILM_CUSTOM_METADATA_KEY)
-            .settings(newSettings);
+        IndexMetaData.Builder builder = IndexMetaData.builder(indexMetadata);
+        builder.removeCustom(ILM_CUSTOM_METADATA_KEY);
+        return builder.settings(newSettings);
     }
 }

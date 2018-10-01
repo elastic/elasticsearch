@@ -36,14 +36,18 @@ public class GetRollupJobRequest implements Validatable {
      * @param jobId id of the job to return or {@code _all} to return all jobs
      */
     public GetRollupJobRequest(final String jobId) {
-        this.jobId = Objects.requireNonNull(jobId, "jobId is required");
+        Objects.requireNonNull(jobId, "jobId is required");
+        if ("_all".equals(jobId)) {
+            throw new IllegalArgumentException("use the default ctor to ask for all jobs");
+        }
+        this.jobId = jobId;
     }
 
     /**
      * Create a request to load all rollup jobs.
      */
     public GetRollupJobRequest() {
-        this("_all");
+        this.jobId = "_all";
     }
 
     /**

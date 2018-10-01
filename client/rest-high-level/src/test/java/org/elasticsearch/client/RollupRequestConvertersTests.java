@@ -50,7 +50,7 @@ public class RollupRequestConvertersTests extends ESTestCase {
     public void testGetJob() {
         boolean getAll = randomBoolean();
         String job = getAll ? "_all" : RequestConvertersTests.randomIndicesNames(1, 1)[0];
-        GetRollupJobRequest get = new GetRollupJobRequest(job);
+        GetRollupJobRequest get = getAll ? new GetRollupJobRequest() : new GetRollupJobRequest(job);
 
         Request request = RollupRequestConverters.getJob(get);
         assertThat(request.getEndpoint(), equalTo("/_xpack/rollup/job/" + job));

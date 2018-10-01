@@ -25,4 +25,9 @@ public class GetRollupJobRequestTests extends ESTestCase {
         final NullPointerException e = expectThrows(NullPointerException.class, () -> new GetRollupJobRequest(null));
         assertEquals("jobId is required", e.getMessage());
     }
+
+    public void testDoNotUseAll() {
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new GetRollupJobRequest("_all"));
+        assertEquals("use the default ctor to ask for all jobs", e.getMessage());
+    }
 }

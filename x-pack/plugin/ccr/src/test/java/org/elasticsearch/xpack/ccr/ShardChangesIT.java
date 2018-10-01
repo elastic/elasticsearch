@@ -355,7 +355,7 @@ public class ShardChangesIT extends ESIntegTestCase {
 
         assertSameDocCount("index1", "index2");
         assertTotalNumberOfOptimizedIndexing(resolveIndex("index2"), numberOfShards,
-            client().prepareSearch("index2").get().getHits().totalHits);
+            client().prepareSearch("index1").get().getHits().totalHits);
         unfollowIndex("index2");
         assertMaxSeqNoOfUpdatesIsTransferred(resolveIndex("index1"), resolveIndex("index2"), numberOfShards);
     }
@@ -915,7 +915,7 @@ public class ShardChangesIT extends ESIntegTestCase {
                 for (String node : internalCluster().nodesInclude(followerIndex.getName())) {
                     IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
                     IndexShard shard = indicesService.getShardOrNull(new ShardId(followerIndex, shardId));
-                    if (shard != null) {
+                    if (shard != null && shard.routingEntry().primary()) {
                         try {
                             FollowingEngine engine = ((FollowingEngine) IndexShardTestCase.getEngine(shard));
                             numOfOptimizedOps[shardId] = engine.getNumberOfOptimizedIndexing();

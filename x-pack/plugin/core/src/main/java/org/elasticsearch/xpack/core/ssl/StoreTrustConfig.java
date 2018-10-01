@@ -64,23 +64,18 @@ class StoreTrustConfig extends TrustConfig {
 
     @Override
     Collection<CertificateInfo> certificates(Environment environment) throws GeneralSecurityException, IOException {
-        // Do not return certificates from the PKCS#11 token, as it is also the JRE default store
-        if (null != trustStorePath) {
-            final Path path = CertParsingUtils.resolvePath(trustStorePath, environment);
-            final KeyStore trustStore = CertParsingUtils.readKeyStore(path, trustStoreType, trustStorePassword.getChars());
-            final List<CertificateInfo> certificates = new ArrayList<>();
-            final Enumeration<String> aliases = trustStore.aliases();
-            while (aliases.hasMoreElements()) {
-                String alias = aliases.nextElement();
-                final Certificate certificate = trustStore.getCertificate(alias);
-                if (certificate instanceof X509Certificate) {
-                    final boolean hasKey = trustStore.isKeyEntry(alias);
-                    certificates.add(new CertificateInfo(trustStorePath, trustStoreType, alias, hasKey, (X509Certificate) certificate));
-                }
+        final KeyStore trustStore = getStore(environment, trustStorePath, trustStoreType, trustStorePassword);
+        final List<CertificateInfo> certificates = new ArrayList<>();
+        final Enumeration<String> aliases = trustStore.aliases();
+        while (aliases.hasMoreElements()) {
+            String alias = aliases.nextElement();
+            final Certificate certificate = trustStore.getCertificate(alias);
+            if (certificate instanceof X509Certificate) {
+                final boolean hasKey = trustStore.isKeyEntry(alias);
+                certificates.add(new CertificateInfo(trustStorePath, trustStoreType, alias, hasKey, (X509Certificate) certificate));
             }
-            return certificates;
         }
-        return Collections.emptyList();
+        return certificates;
     }
 
     @Override

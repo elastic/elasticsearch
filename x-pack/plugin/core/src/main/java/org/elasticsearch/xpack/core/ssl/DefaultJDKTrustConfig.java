@@ -33,6 +33,10 @@ class DefaultJDKTrustConfig extends TrustConfig {
 
     private SecureString trustStorePassword;
 
+    /**
+     * @param trustStorePassword the password for the default jdk truststore defined either as a system property or in the Elasticsearch
+     *                           configuration. It applies only when PKCS#11 tokens are user, is null otherwise
+     */
     DefaultJDKTrustConfig(@Nullable SecureString trustStorePassword) {
         this.trustStorePassword = trustStorePassword;
     }
@@ -78,6 +82,7 @@ class DefaultJDKTrustConfig extends TrustConfig {
     /**
      * Merges the default trust configuration with the provided {@link TrustConfig}
      * @param trustConfig the trust configuration to merge with
+     * @param trustStorePassword he password for the default jdk truststore. It applies only to PKCS#11 tokens
      * @return a {@link TrustConfig} that represents a combination of both trust configurations
      */
     static TrustConfig merge(TrustConfig trustConfig, SecureString trustStorePassword) {
@@ -96,11 +101,9 @@ class DefaultJDKTrustConfig extends TrustConfig {
      * @return the KeyStore used as truststore for PKCS#11 initialized with the password, null otherwise
      */
     private KeyStore getSystemTrustStore() throws KeyStoreException, CertificateException, NoSuchAlgorithmException, IOException {
-        if (System.getProperty("javax.net.ssl.trustStoreType", "").equalsIgnoreCase("PKCS11")) {
+        if (System.getProperty("javax.net.ssl.trustStoreType", "").equalsIgnoreCase("PKCS11")
+            && trustStorePassword != null) {
             KeyStore keyStore = KeyStore.getInstance("PKCS11");
-            if (trustStorePassword.length() == 0) {
-                trustStorePassword = new SecureString(System.getProperty("javax.net.ssl.trustStorePassword", "").toCharArray());
-            }
             keyStore.load(null, trustStorePassword.getChars());
             return keyStore;
         }

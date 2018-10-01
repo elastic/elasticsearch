@@ -33,6 +33,5 @@ public class TestsSSLService extends SSLService {
 
     public SSLContext sslContext(String context) {
         return sslContextHolder(super.getSSLConfiguration(context)).sslContext();
-
     }
 }

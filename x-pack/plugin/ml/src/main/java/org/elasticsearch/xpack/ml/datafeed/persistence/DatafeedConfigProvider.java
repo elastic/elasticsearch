@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -136,6 +137,9 @@ public class DatafeedConfigProvider extends AbstractComponent {
      * If the datafeed document is missing a {@code ResourceNotFoundException}
      * is returned via the listener.
      *
+     * If the .ml-config index does not exist it is treated as a missing datafeed
+     * error.
+     *
      * @param datafeedId The datafeed ID
      * @param datafeedConfigListener The config listener
      */
@@ -154,7 +158,11 @@ public class DatafeedConfigProvider extends AbstractComponent {
             }
             @Override
             public void onFailure(Exception e) {
-                datafeedConfigListener.onFailure(e);
+                if (e.getClass() == IndexNotFoundException.class) {
+                    datafeedConfigListener.onFailure(ExceptionsHelper.missingDatafeedException(datafeedId));
+                } else {
+                    datafeedConfigListener.onFailure(e);
+                }
             }
         });
     }

@@ -19,8 +19,10 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.JsonFieldMapper.JsonFieldType;
@@ -47,15 +49,23 @@ public class JsonFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input);
 
         List<IndexableField> fields = parser.parse(xContentParser);
-        assertEquals(2, fields.size());
+        assertEquals(4, fields.size());
 
         IndexableField field1 = fields.get(0);
         assertEquals("field", field1.name());
         assertEquals(new BytesRef("value1"), field1.binaryValue());
 
-        IndexableField field2 = fields.get(1);
+        IndexableField prefixedField1 = fields.get(1);
+        assertEquals("field._prefixed", prefixedField1.name());
+        assertEquals(new BytesRef("key1\0value1"), prefixedField1.binaryValue());
+
+        IndexableField field2 = fields.get(2);
         assertEquals("field", field2.name());
         assertEquals(new BytesRef("value2"), field2.binaryValue());
+
+        IndexableField prefixedField2 = fields.get(3);
+        assertEquals("field._prefixed", prefixedField2.name());
+        assertEquals(new BytesRef("key2\0value2"), prefixedField2.binaryValue());
     }
 
     public void testNumericValues() throws Exception {
@@ -63,11 +73,15 @@ public class JsonFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input);
 
         List<IndexableField> fields = parser.parse(xContentParser);
-        assertEquals(1, fields.size());
+        assertEquals(2, fields.size());
 
         IndexableField field = fields.get(0);
         assertEquals("field", field.name());
         assertEquals(new BytesRef("2.718"), field.binaryValue());
+
+        IndexableField prefixedField = fields.get(1);
+        assertEquals("field._prefixed", prefixedField.name());
+        assertEquals(new BytesRef("key" + '\0' + "2.718"), prefixedField.binaryValue());
     }
 
     public void testBooleanValues() throws Exception {
@@ -75,27 +89,71 @@ public class JsonFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input);
 
         List<IndexableField> fields = parser.parse(xContentParser);
-        assertEquals(1, fields.size());
+        assertEquals(2, fields.size());
 
         IndexableField field = fields.get(0);
         assertEquals("field", field.name());
         assertEquals(new BytesRef("false"), field.binaryValue());
+
+        IndexableField prefixedField = fields.get(1);
+        assertEquals("field._prefixed", prefixedField.name());
+        assertEquals(new BytesRef("key\0false"), prefixedField.binaryValue());
     }
 
-    public void testArrays() throws Exception {
+    public void testBasicArrays() throws Exception {
         String input = "{ \"key\": [true, false] }";
         XContentParser xContentParser = createXContentParser(input);
 
         List<IndexableField> fields = parser.parse(xContentParser);
-        assertEquals(2, fields.size());
+        assertEquals(4, fields.size());
 
         IndexableField field1 = fields.get(0);
         assertEquals("field", field1.name());
         assertEquals(new BytesRef("true"), field1.binaryValue());
 
-        IndexableField field2 = fields.get(1);
+        IndexableField prefixedField1 = fields.get(1);
+        assertEquals("field._prefixed", prefixedField1.name());
+        assertEquals(new BytesRef("key\0true"), prefixedField1.binaryValue());
+
+        IndexableField field2 = fields.get(2);
         assertEquals("field", field2.name());
         assertEquals(new BytesRef("false"), field2.binaryValue());
+
+        IndexableField prefixedField2 = fields.get(3);
+        assertEquals("field._prefixed", prefixedField2.name());
+        assertEquals(new BytesRef("key\0false"), prefixedField2.binaryValue());
+    }
+
+    public void testArraysOfObjects() throws Exception {
+        String input = "{ \"key1\": [{ \"key2\": true }, false], \"key4\": \"other\" }";
+        XContentParser xContentParser = createXContentParser(input);
+
+        List<IndexableField> fields = parser.parse(xContentParser);
+        assertEquals(6, fields.size());
+
+        IndexableField field1 = fields.get(0);
+        assertEquals("field", field1.name());
+        assertEquals(new BytesRef("true"), field1.binaryValue());
+
+        IndexableField prefixedField1 = fields.get(1);
+        assertEquals("field._prefixed", prefixedField1.name());
+        assertEquals(new BytesRef("key1.key2\0true"), prefixedField1.binaryValue());
+
+        IndexableField field2 = fields.get(2);
+        assertEquals("field", field2.name());
+        assertEquals(new BytesRef("false"), field2.binaryValue());
+
+        IndexableField prefixedField2 = fields.get(3);
+        assertEquals("field._prefixed", prefixedField2.name());
+        assertEquals(new BytesRef("key1\0false"), prefixedField2.binaryValue());
+
+        IndexableField field3 = fields.get(4);
+        assertEquals("field", field3.name());
+        assertEquals(new BytesRef("other"), field3.binaryValue());
+
+        IndexableField prefixedField3 = fields.get(5);
+        assertEquals("field._prefixed", prefixedField3.name());
+        assertEquals(new BytesRef("key4\0other"), prefixedField3.binaryValue());
     }
 
     public void testNestedObjects() throws Exception {
@@ -104,15 +162,23 @@ public class JsonFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input);
 
         List<IndexableField> fields = parser.parse(xContentParser);
-        assertEquals(2, fields.size());
+        assertEquals(4, fields.size());
 
         IndexableField field1 = fields.get(0);
         assertEquals("field", field1.name());
         assertEquals(new BytesRef("value"), field1.binaryValue());
 
-        IndexableField field2 = fields.get(1);
+        IndexableField prefixedField1 = fields.get(1);
+        assertEquals("field._prefixed", prefixedField1.name());
+        assertEquals(new BytesRef("parent1.key\0value"), prefixedField1.binaryValue());
+
+        IndexableField field2 = fields.get(2);
         assertEquals("field", field2.name());
         assertEquals(new BytesRef("value"), field2.binaryValue());
+
+        IndexableField prefixedField2 = fields.get(3);
+        assertEquals("field._prefixed", prefixedField2.name());
+        assertEquals(new BytesRef("parent2.key\0value"), prefixedField2.binaryValue());
     }
 
     public void testIgnoreAbove() throws Exception {
@@ -142,15 +208,52 @@ public class JsonFieldParserTests extends ESTestCase {
         JsonFieldParser nullValueParser = new JsonFieldParser(fieldType, Integer.MAX_VALUE);
 
         fields = nullValueParser.parse(xContentParser);
-        assertEquals(1, fields.size());
+        assertEquals(2, fields.size());
 
         IndexableField field = fields.get(0);
         assertEquals("field", field.name());
         assertEquals(new BytesRef("placeholder"), field.binaryValue());
+
+        IndexableField prefixedField = fields.get(1);
+        assertEquals("field._prefixed", prefixedField.name());
+        assertEquals(new BytesRef("key\0placeholder"), prefixedField.binaryValue());
+    }
+
+    public void testMalformedJson() throws Exception {
+        String input = "{ \"key\": [true, false }";
+        XContentParser xContentParser = createXContentParser(input);
+
+        expectThrows(JsonParseException.class, () -> parser.parse(xContentParser));
+    }
+
+    public void testEmptyObject() throws Exception {
+        String input = "{}";
+        XContentParser xContentParser = createXContentParser(input);
+
+        List<IndexableField> fields = parser.parse(xContentParser);
+        assertEquals(0, fields.size());
+    }
+
+    public void testReservedCharacters() throws Exception {
+        XContentBuilder input = XContentBuilder.builder(JsonXContent.jsonXContent)
+            .startObject()
+                .field("k\0y", "value")
+            .endObject();
+        XContentParser xContentParser = createXContentParser(input);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parser.parse(xContentParser));
+        assertEquals("Keys in [json] fields cannot contain the reserved character \\0. Offending key: [k\0y].",
+            e.getMessage());
     }
 
     private XContentParser createXContentParser(String input) throws IOException {
         XContentParser xContentParser = createParser(JsonXContent.jsonXContent, input);
+        xContentParser.nextToken();
+        return xContentParser;
+    }
+
+    private XContentParser createXContentParser(XContentBuilder input) throws IOException {
+        XContentParser xContentParser = createParser(input);
         xContentParser.nextToken();
         return xContentParser;
     }

@@ -91,3 +91,7 @@ The previous behavior can be restored by setting `indices.breaker.total.use_real
 ==== `fix` value for `index.shard.check_on_startup` is removed
 
 Deprecated option value `fix` for setting `index.shard.check_on_startup` is not supported.
+
+==== `elasticsearch-translog` is removed
+
+Use the `elasticsearch-shard` tool to remove corrupted translog data.

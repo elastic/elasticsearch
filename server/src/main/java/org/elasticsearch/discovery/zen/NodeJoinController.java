@@ -277,7 +277,7 @@ public class NodeJoinController extends AbstractComponent {
 
             // noop listener, the election finished listener determines result
             tasks.put(JoinTaskExecutor.newBecomeMasterTask(), (source1, e) -> {});
-            tasks.put(JoinTaskExecutor.FINISH_ELECTION_TASK, electionFinishedListener);
+            tasks.put(JoinTaskExecutor.newFinishElectionTask(), electionFinishedListener);
             masterService.submitStateUpdateTasks(source, tasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
         }
 
@@ -285,7 +285,7 @@ public class NodeJoinController extends AbstractComponent {
             innerClose();
             Map<JoinTaskExecutor.Task, ClusterStateTaskListener> tasks = getPendingAsTasks(reason);
             final String source = "zen-disco-election-stop [" + reason + "]";
-            tasks.put(JoinTaskExecutor.FINISH_ELECTION_TASK, electionFinishedListener);
+            tasks.put(JoinTaskExecutor.newFinishElectionTask(), electionFinishedListener);
             masterService.submitStateUpdateTasks(source, tasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
         }
 

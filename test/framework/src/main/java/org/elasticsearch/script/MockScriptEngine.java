@@ -53,18 +53,26 @@ import static java.util.Collections.emptyMap;
  */
 public class MockScriptEngine implements ScriptEngine {
 
+    /** A non-typed compiler for a single custom context */
+    public interface ContextCompiler {
+        Object compile(Function<Map<String, Object>, Object> script, Map<String, String> params);
+    }
+
     public static final String NAME = "mockscript";
 
     private final String type;
     private final Map<String, Function<Map<String, Object>, Object>> scripts;
+    private final Map<ScriptContext<?>, ContextCompiler> contexts;
 
-    public MockScriptEngine(String type, Map<String, Function<Map<String, Object>, Object>> scripts) {
+    public MockScriptEngine(String type, Map<String, Function<Map<String, Object>, Object>> scripts,
+                            Map<ScriptContext<?>, ContextCompiler> contexts) {
         this.type = type;
         this.scripts = Collections.unmodifiableMap(scripts);
+        this.contexts = Collections.unmodifiableMap(contexts);
     }
 
     public MockScriptEngine() {
-        this(NAME, Collections.emptyMap());
+        this(NAME, Collections.emptyMap(), Collections.emptyMap());
     }
 
     @Override
@@ -117,9 +125,9 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(UpdateScript.class)) {
-            UpdateScript.Factory factory = parameters -> new UpdateScript(parameters) {
+            UpdateScript.Factory factory = (parameters, ctx) -> new UpdateScript(parameters, ctx) {
                 @Override
-                public void execute(Map<String, Object> ctx) {
+                public void execute() {
                     final Map<String, Object> vars = new HashMap<>();
                     vars.put("ctx", ctx);
                     vars.put("params", parameters);
@@ -197,6 +205,10 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(ScriptedMetricAggContexts.ReduceScript.class)) {
             ScriptedMetricAggContexts.ReduceScript.Factory factory = mockCompiled::createMetricAggReduceScript;
             return context.factoryClazz.cast(factory);
+        }
+        ContextCompiler compiler = contexts.get(context);
+        if (compiler != null) {
+            return context.factoryClazz.cast(compiler.compile(script, params));
         }
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
     }

@@ -7,7 +7,8 @@ package org.elasticsearch.xpack.sql.expression.function;
 
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.ExpressionId;
-import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.ScorePipe;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -39,6 +40,11 @@ public class ScoreAttribute extends FunctionAttribute {
     @Override
     protected Attribute clone(Location location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
         return new ScoreAttribute(location, name, dataType(), qualifier, nullable, id, synthetic);
+    }
+
+    @Override
+    protected Pipe makePipe() {
+        return new ScorePipe(location(), this);
     }
 
     @Override

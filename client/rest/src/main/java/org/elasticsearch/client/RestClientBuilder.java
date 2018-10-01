@@ -56,6 +56,7 @@ public final class RestClientBuilder {
     private RequestConfigCallback requestConfigCallback;
     private String pathPrefix;
     private NodeSelector nodeSelector = NodeSelector.ANY;
+    private boolean strictDeprecationMode = false;
 
     /**
      * Creates a new builder instance and sets the hosts that the client will send requests to.
@@ -186,6 +187,15 @@ public final class RestClientBuilder {
     }
 
     /**
+     * Whether the REST client should return any response containing at least
+     * one warning header as a failure.
+     */
+    public RestClientBuilder setStrictDeprecationMode(boolean strictDeprecationMode) {
+        this.strictDeprecationMode = strictDeprecationMode;
+        return this;
+    }
+
+    /**
      * Creates a new {@link RestClient} based on the provided configuration.
      */
     public RestClient build() {
@@ -199,7 +209,7 @@ public final class RestClientBuilder {
             }
         });
         RestClient restClient = new RestClient(httpClient, maxRetryTimeout, defaultHeaders, nodes,
-                pathPrefix, failureListener, nodeSelector);
+                pathPrefix, failureListener, nodeSelector, strictDeprecationMode);
         httpClient.start();
         return restClient;
     }

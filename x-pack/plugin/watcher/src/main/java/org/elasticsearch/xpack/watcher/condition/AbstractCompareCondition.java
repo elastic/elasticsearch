@@ -36,7 +36,7 @@ abstract class AbstractCompareCondition implements ExecutableCondition {
     @Override
     public final Result execute(WatchExecutionContext ctx) {
         Map<String, Object> resolvedValues = new HashMap<>();
-        Map<String, Object> model = Variables.createCtxModel(ctx, ctx.payload());
+        Map<String, Object> model = Variables.createCtxParamsMap(ctx, ctx.payload());
         return doExecute(model, resolvedValues);
     }
 

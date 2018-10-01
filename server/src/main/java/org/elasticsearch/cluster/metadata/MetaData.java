@@ -126,7 +126,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     public static final Setting<Integer> SETTING_CLUSTER_MAX_SHARDS_PER_NODE =
-        Setting.intSetting("cluster.shards.max_per_node", 1000, 1, Property.Dynamic, Property.NodeScope);
+        Setting.intSetting("cluster.max_shards_per_node", 1000, 1, Property.Dynamic, Property.NodeScope);
 
     public static final Setting<Boolean> SETTING_READ_ONLY_SETTING =
         Setting.boolSetting("cluster.blocks.read_only", false, Property.Dynamic, Property.NodeScope);
@@ -693,9 +693,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     /**
-     * Gets the total number of active shards from all indices. Includes
+     * Gets the total number of open shards from all indices. Includes
      * replicas, but does not include shards that are part of closed indices.
-     * @return The total number of active shards from all indices.
+     * @return The total number of open shards from all indices.
      */
     public int getTotalOpenIndexShards() {
         return this.totalOpenIndexShards;

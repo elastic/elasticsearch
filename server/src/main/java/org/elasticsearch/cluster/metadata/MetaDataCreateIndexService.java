@@ -592,7 +592,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         validateIndexSettings(request.index(), request.settings(), state, forbidPrivateIndexSettings);
     }
 
-    public void validateIndexSettings(String indexName, final Settings settings, ClusterState clusterState, final boolean forbidPrivateIndexSettings) throws IndexCreationException {
+    public void validateIndexSettings(String indexName, final Settings settings, final ClusterState clusterState,
+                                      final boolean forbidPrivateIndexSettings) throws IndexCreationException {
         List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings);
 
         Optional<String> shardAllocation = checkShardLimit(settings, clusterState, deprecationLogger);
@@ -605,6 +606,14 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
     }
 
+    /**
+     * Checks whether an index can be created without going over the cluster shard limit.
+     *
+     * @param settings The settings of the index to be created.
+     * @param clusterState The current cluster state.
+     * @param deprecationLogger The logger to use to emit a deprecation warning, if appropriate.
+     * @return If present, an error message to be used to reject index creation. If empty, a signal that this operation may be carried out.
+     */
     static Optional<String> checkShardLimit(Settings settings, ClusterState clusterState, DeprecationLogger deprecationLogger) {
         int shardsToCreate = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(settings)
             * (1 + IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings));

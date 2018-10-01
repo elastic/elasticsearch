@@ -591,7 +591,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         int maxShards = counts.getShardsPerNode() * nodesInCluster;
         assertWarnings("In a future major version, this request will fail because this action would add [" +
             totalShards + "] total shards, but this cluster currently has [" + currentShards + "]/[" + maxShards + "] maximum shards open."+
-            " Before upgrading, reduce the number of shards in your cluster or adjust the cluster setting [cluster.shards.max_per_node].");
+            " Before upgrading, reduce the number of shards in your cluster or adjust the cluster setting [cluster.max_shards_per_node].");
         assertFalse(errorMessage.isPresent());
     }
 

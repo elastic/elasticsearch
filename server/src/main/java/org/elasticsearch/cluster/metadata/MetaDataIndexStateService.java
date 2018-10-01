@@ -222,6 +222,15 @@ public class MetaDataIndexStateService extends AbstractComponent {
         });
     }
 
+    /**
+     * Validates whether a list of indices can be opened without going over the cluster shard limit.  Only counts indices which are
+     * currently closed and will be opened, ignores indices which are already open.
+     *
+     * @param currentState The current cluster state.
+     * @param indices The indices which are to be opened.
+     * @param deprecationLogger The logger to use to emit a deprecation warning, if appropriate.
+     * @throws ValidationException If this operation would take the cluster over the limit and enforcement is enabled.
+     */
     static void validateShardLimit(ClusterState currentState, Index[] indices, DeprecationLogger deprecationLogger) {
         int shardsToOpen = Arrays.stream(indices)
             .filter(index -> currentState.metaData().index(index).getState().equals(IndexMetaData.State.CLOSE))
@@ -236,7 +245,6 @@ public class MetaDataIndexStateService extends AbstractComponent {
         }
 
     }
-
 
     private static int getTotalShardCount(ClusterState state, Index index) {
         IndexMetaData indexMetaData = state.metaData().index(index);

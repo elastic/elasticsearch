@@ -159,16 +159,17 @@ public class IndicesService extends AbstractLifecycleComponent
     public static final Setting<TimeValue> INDICES_CACHE_CLEAN_INTERVAL_SETTING =
         Setting.positiveTimeSetting("indices.cache.cleanup_interval", TimeValue.timeValueMinutes(1), Property.NodeScope);
     private static final boolean ENFORCE_SHARD_LIMIT;
+
     static {
-        final String ENFORCE_SHARD_LIMIT_KEY = "es.enforce.shard_limit";
-        final String enforceShardLimitSetting = System.getProperty(ENFORCE_SHARD_LIMIT_KEY);
-        if (enforceShardLimitSetting == null) {
+        final String ENFORCE_SHARD_LIMIT_KEY = "es.enforce_max_shards_per_node";
+        final String enforceMaxShardsPerNode = System.getProperty(ENFORCE_SHARD_LIMIT_KEY);
+        if (enforceMaxShardsPerNode == null) {
             ENFORCE_SHARD_LIMIT = false;
-        } else if ("true".equals(enforceShardLimitSetting)) {
+        } else if ("true".equals(enforceMaxShardsPerNode)) {
             ENFORCE_SHARD_LIMIT = true;
         } else {
             throw new IllegalArgumentException(ENFORCE_SHARD_LIMIT_KEY + " may only be unset or set to [true] but was [" +
-                enforceShardLimitSetting + "]");
+                enforceMaxShardsPerNode + "]");
         }
     }
 

@@ -19,8 +19,9 @@ primary shards of the opened index to be allocated.
 ==== Shard preferences `_primary`, `_primary_first`, `_replica`, and `_replica_first` are removed
 These shard preferences are removed in favour of the `_prefer_nodes` and `_only_nodes` preferences.
 
+[float]
 ==== Cluster-wide shard soft limit
 Clusters now have soft limits on the total number of open shards in the cluster
-based on the number of nodes and the `cluster.shards.max_per_node` cluster
+based on the number of nodes and the `cluster.max_shards_per_node` cluster
 setting, to prevent accidental operations that would destabilize the cluster.
 More information can be found in the <<misc-cluster,documentation for that setting>>.

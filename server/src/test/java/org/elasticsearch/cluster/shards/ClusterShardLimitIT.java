@@ -50,7 +50,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
             }
             fail("should not be able to set negative shards per node");
         } catch (IllegalArgumentException ex) {
-            assertEquals("Failed to parse value [" + negativeShardsPerNode + "] for setting [cluster.shards.max_per_node] must be >= 1",
+            assertEquals("Failed to parse value [" + negativeShardsPerNode + "] for setting [cluster.max_shards_per_node] must be >= 1",
                 ex.getMessage());
         }
     }

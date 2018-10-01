@@ -11,7 +11,7 @@ import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleResponse;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -19,7 +19,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -59,9 +58,10 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
 
         // warm up the caches on every node
         for (NativeRolesStore rolesStore : internalCluster().getInstances(NativeRolesStore.class)) {
-            PlainActionFuture<Collection<RoleDescriptor>> future = new PlainActionFuture<>();
+            PlainActionFuture<RoleRetrievalResult> future = new PlainActionFuture<>();
             rolesStore.getRoleDescriptors(roles, future);
             assertThat(future.actionGet(), notNullValue());
+            assertTrue(future.actionGet().isSuccess());
         }
     }
 

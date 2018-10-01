@@ -67,10 +67,14 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
             listener.onResponse(new GetRolesResponse(roles.toArray(new RoleDescriptor[roles.size()])));
         } else {
             String[] roleNames = rolesToSearchFor.toArray(new String[rolesToSearchFor.size()]);
-            nativeRolesStore.getRoleDescriptors(roleNames, ActionListener.wrap((foundRoles) -> {
-                        roles.addAll(foundRoles);
-                        listener.onResponse(new GetRolesResponse(roles.toArray(new RoleDescriptor[roles.size()])));
-                    }, listener::onFailure));
+            nativeRolesStore.getRoleDescriptors(roleNames, ActionListener.wrap((retrievalResult) -> {
+                if (retrievalResult.isSuccess()) {
+                    roles.addAll(retrievalResult.getDescriptors());
+                    listener.onResponse(new GetRolesResponse(roles.toArray(new RoleDescriptor[roles.size()])));
+                } else {
+                    listener.onFailure(retrievalResult.getFailure());
+                }
+            }, listener::onFailure));
         }
     }
 }

@@ -18,11 +18,13 @@ import org.elasticsearch.xpack.core.security.action.role.GetRolesRequest;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -56,8 +58,8 @@ public class TransportGetRolesActionTests extends ESTestCase {
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
             assert args.length == 2;
-            ActionListener<List<RoleDescriptor>> listener = (ActionListener<List<RoleDescriptor>>) args[1];
-            listener.onResponse(Collections.emptyList());
+            ActionListener<RoleRetrievalResult> listener = (ActionListener<RoleRetrievalResult>) args[1];
+            listener.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
             return null;
         }).when(rolesStore).getRoleDescriptors(aryEq(Strings.EMPTY_ARRAY), any(ActionListener.class));
 
@@ -100,8 +102,8 @@ public class TransportGetRolesActionTests extends ESTestCase {
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
             assert args.length == 2;
-            ActionListener<List<RoleDescriptor>> listener = (ActionListener<List<RoleDescriptor>>) args[1];
-            listener.onResponse(storeRoleDescriptors);
+            ActionListener<RoleRetrievalResult> listener = (ActionListener<RoleRetrievalResult>) args[1];
+            listener.onResponse(RoleRetrievalResult.success(new HashSet<>(storeRoleDescriptors)));
             return null;
         }).when(rolesStore).getRoleDescriptors(aryEq(request.names()), any(ActionListener.class));
 
@@ -161,14 +163,14 @@ public class TransportGetRolesActionTests extends ESTestCase {
             Object[] args = invocation.getArguments();
             assert args.length == 2;
             String[] requestedNames1 = (String[]) args[0];
-            ActionListener<List<RoleDescriptor>> listener = (ActionListener<List<RoleDescriptor>>) args[1];
+            ActionListener<RoleRetrievalResult> listener = (ActionListener<RoleRetrievalResult>) args[1];
             if (requestedNames1.length == 0) {
-                listener.onResponse(storeRoleDescriptors);
+                listener.onResponse(RoleRetrievalResult.success(new HashSet<>(storeRoleDescriptors)));
             } else {
                 List<String> requestedNamesList = Arrays.asList(requestedNames1);
-                listener.onResponse(storeRoleDescriptors.stream()
+                listener.onResponse(RoleRetrievalResult.success(storeRoleDescriptors.stream()
                         .filter(r -> requestedNamesList.contains(r.getName()))
-                        .collect(Collectors.toList()));
+                        .collect(Collectors.toSet())));
             }
             return null;
         }).when(rolesStore).getRoleDescriptors(aryEq(specificStoreNames.toArray(Strings.EMPTY_ARRAY)), any(ActionListener.class));
@@ -216,7 +218,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
             assert args.length == 2;
-            ActionListener<List<RoleDescriptor>> listener = (ActionListener<List<RoleDescriptor>>) args[1];
+            ActionListener<RoleRetrievalResult> listener = (ActionListener<RoleRetrievalResult>) args[1];
             listener.onFailure(e);
             return null;
         }).when(rolesStore).getRoleDescriptors(aryEq(request.names()), any(ActionListener.class));

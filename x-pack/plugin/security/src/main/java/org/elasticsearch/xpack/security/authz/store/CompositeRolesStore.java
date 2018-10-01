@@ -17,7 +17,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -34,6 +33,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterP
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
@@ -51,10 +51,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
-import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
 
@@ -77,8 +78,10 @@ public class CompositeRolesStore extends AbstractComponent {
         writeLock = new ReleasableLock(iterationLock.writeLock());
     }
 
-    public static final Setting<Integer> CACHE_SIZE_SETTING =
-            Setting.intSetting(setting("authz.store.roles.cache.max_size"), 10000, Property.NodeScope);
+    private static final Setting<Integer> CACHE_SIZE_SETTING =
+        Setting.intSetting("xpack.security.authz.store.roles.cache.max_size", 10000, Property.NodeScope);
+    private static final Setting<Integer> NEGATIVE_LOOKUP_CACHE_SIZE_SETTING =
+        Setting.intSetting("xpack.security.authz.store.roles.negative_lookup_cache.max_size", 10000, Property.NodeScope);
 
     private final FileRolesStore fileRolesStore;
     private final NativeRolesStore nativeRolesStore;
@@ -86,14 +89,14 @@ public class CompositeRolesStore extends AbstractComponent {
     private final NativePrivilegeStore privilegeStore;
     private final XPackLicenseState licenseState;
     private final Cache<Set<String>, Role> roleCache;
-    private final Set<String> negativeLookupCache;
+    private final Cache<String, Boolean> negativeLookupCache;
     private final ThreadContext threadContext;
     private final AtomicLong numInvalidation = new AtomicLong();
-    private final List<BiConsumer<Set<String>, ActionListener<Set<RoleDescriptor>>>> customRolesProviders;
+    private final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> customRolesProviders;
 
     public CompositeRolesStore(Settings settings, FileRolesStore fileRolesStore, NativeRolesStore nativeRolesStore,
                                ReservedRolesStore reservedRolesStore, NativePrivilegeStore privilegeStore,
-                               List<BiConsumer<Set<String>, ActionListener<Set<RoleDescriptor>>>> rolesProviders,
+                               List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> rolesProviders,
                                ThreadContext threadContext, XPackLicenseState licenseState) {
         super(settings);
         this.fileRolesStore = fileRolesStore;
@@ -109,7 +112,12 @@ public class CompositeRolesStore extends AbstractComponent {
         }
         this.roleCache = builder.build();
         this.threadContext = threadContext;
-        this.negativeLookupCache = ConcurrentCollections.newConcurrentSet();
+        CacheBuilder<String, Boolean> nlcBuilder = CacheBuilder.builder();
+        final int nlcCacheSize = NEGATIVE_LOOKUP_CACHE_SIZE_SETTING.get(settings);
+        if (cacheSize >= 0) {
+            builder.setMaximumWeight(nlcCacheSize);
+        }
+        this.negativeLookupCache = nlcBuilder.build();
         this.customRolesProviders = Collections.unmodifiableList(rolesProviders);
     }
 
@@ -120,28 +128,39 @@ public class CompositeRolesStore extends AbstractComponent {
         } else {
             final long invalidationCounter = numInvalidation.get();
             roleDescriptors(roleNames, ActionListener.wrap(
-                    descriptors -> {
+                    rolesRetrievalResult -> {
+                        final boolean missingRoles = rolesRetrievalResult.getMissingRoles().isEmpty() == false;
+                        if (missingRoles) {
+                            logger.debug("Could not find roles with names {}", rolesRetrievalResult.getMissingRoles());
+                        }
+
                         final Set<RoleDescriptor> effectiveDescriptors;
                         if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
-                            effectiveDescriptors = descriptors;
+                            effectiveDescriptors = rolesRetrievalResult.getRoleDescriptors();
                         } else {
-                            effectiveDescriptors = descriptors.stream()
+                            effectiveDescriptors = rolesRetrievalResult.getRoleDescriptors().stream()
                                     .filter((rd) -> rd.isUsingDocumentOrFieldLevelSecurity() == false)
                                     .collect(Collectors.toSet());
                         }
                         logger.trace("Building role from descriptors [{}] for names [{}]", effectiveDescriptors, roleNames);
                         buildRoleFromDescriptors(effectiveDescriptors, fieldPermissionsCache, privilegeStore, ActionListener.wrap(role -> {
                             if (role != null) {
-                                try (ReleasableLock ignored = readLock.acquire()) {
-                                    /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold
-                                     * the write lock (fetching stats for instance - which is kinda overkill?) but since we fetching
-                                     * stuff in an async fashion we need to make sure that if the cache got invalidated since we
-                                     * started the request we don't put a potential stale result in the cache, hence the
-                                     * numInvalidation.get() comparison to the number of invalidation when we started. we just try to
-                                     * be on the safe side and don't cache potentially stale results
-                                     */
-                                    if (invalidationCounter == numInvalidation.get()) {
-                                        roleCache.computeIfAbsent(roleNames, (s) -> role);
+                                if (rolesRetrievalResult.hadFailures() == false) {
+                                    try (ReleasableLock ignored = readLock.acquire()) {
+                                        /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold
+                                         * the write lock (fetching stats for instance - which is kinda overkill?) but since we fetching
+                                         * stuff in an async fashion we need to make sure that if the cache got invalidated since we
+                                         * started the request we don't put a potential stale result in the cache, hence the
+                                         * numInvalidation.get() comparison to the number of invalidation when we started. we just try to
+                                         * be on the safe side and don't cache potentially stale results
+                                         */
+                                        if (invalidationCounter == numInvalidation.get()) {
+                                            roleCache.computeIfAbsent(roleNames, (s) -> role);
+                                        }
+                                    }
+
+                                    for (String missingRole : rolesRetrievalResult.getMissingRoles()) {
+                                        negativeLookupCache.computeIfAbsent(missingRole, s -> Boolean.TRUE);
                                     }
                                 }
                             }
@@ -152,86 +171,111 @@ public class CompositeRolesStore extends AbstractComponent {
         }
     }
 
-    private void roleDescriptors(Set<String> roleNames, ActionListener<Set<RoleDescriptor>> roleDescriptorActionListener) {
+    private void roleDescriptors(Set<String> roleNames, ActionListener<RolesRetrievalResult> rolesResultListener) {
         final Set<String> filteredRoleNames = roleNames.stream().filter((s) -> {
-            if (negativeLookupCache.contains(s)) {
+            if (negativeLookupCache.get(s) != null) {
                 logger.debug("Requested role [{}] does not exist (cached)", s);
                 return false;
             } else {
                 return true;
             }
         }).collect(Collectors.toSet());
+        final RolesRetrievalResult retrievalResult = new RolesRetrievalResult();
         final Set<RoleDescriptor> builtInRoleDescriptors = getBuiltInRoleDescriptors(filteredRoleNames);
+        retrievalResult.addDescriptors(builtInRoleDescriptors);
         Set<String> remainingRoleNames = difference(filteredRoleNames, builtInRoleDescriptors);
+
         if (remainingRoleNames.isEmpty()) {
-            roleDescriptorActionListener.onResponse(Collections.unmodifiableSet(builtInRoleDescriptors));
+            rolesResultListener.onResponse(retrievalResult);
         } else {
-            nativeRolesStore.getRoleDescriptors(remainingRoleNames.toArray(Strings.EMPTY_ARRAY), ActionListener.wrap((descriptors) -> {
-                logger.debug(() -> new ParameterizedMessage("Roles [{}] were resolved from the native index store", names(descriptors)));
-                builtInRoleDescriptors.addAll(descriptors);
-                callCustomRoleProvidersIfEnabled(builtInRoleDescriptors, filteredRoleNames, roleDescriptorActionListener);
-            }, e -> {
-                logger.warn("role retrieval failed from the native roles store", e);
-                callCustomRoleProvidersIfEnabled(builtInRoleDescriptors, filteredRoleNames, roleDescriptorActionListener);
-            }));
+            final Set<RoleDescriptor> fileRoleDescriptors = getDescriptorsFromFileStore(remainingRoleNames);
+            retrievalResult.addDescriptors(fileRoleDescriptors);
+            remainingRoleNames = difference(remainingRoleNames, fileRoleDescriptors);
+            if (remainingRoleNames.isEmpty()) {
+                rolesResultListener.onResponse(retrievalResult);
+            } else {
+                loadNativeRoleDescriptors(retrievalResult, rolesResultListener, remainingRoleNames);
+            }
         }
     }
 
-    private void callCustomRoleProvidersIfEnabled(Set<RoleDescriptor> builtInRoleDescriptors, Set<String> filteredRoleNames,
-                                                  ActionListener<Set<RoleDescriptor>> roleDescriptorActionListener) {
-        if (builtInRoleDescriptors.size() != filteredRoleNames.size()) {
-            final Set<String> missing = difference(filteredRoleNames, builtInRoleDescriptors);
-            assert missing.isEmpty() == false : "the missing set should not be empty if the sizes didn't match";
-            if (licenseState.isCustomRoleProvidersAllowed() && !customRolesProviders.isEmpty()) {
-                new IteratingActionListener<>(roleDescriptorActionListener, (rolesProvider, listener) -> {
-                    // resolve descriptors with role provider
-                    rolesProvider.accept(missing, ActionListener.wrap((resolvedDescriptors) -> {
-                        logger.debug(() ->
-                                new ParameterizedMessage("Roles [{}] were resolved by [{}]", names(resolvedDescriptors), rolesProvider));
-                        builtInRoleDescriptors.addAll(resolvedDescriptors);
-                        // remove resolved descriptors from the set of roles still needed to be resolved
-                        for (RoleDescriptor descriptor : resolvedDescriptors) {
-                            missing.remove(descriptor.getName());
-                        }
-                        if (missing.isEmpty()) {
-                            // no more roles to resolve, send the response
-                            listener.onResponse(Collections.unmodifiableSet(builtInRoleDescriptors));
-                        } else {
-                            // still have roles to resolve, keep trying with the next roles provider
-                            listener.onResponse(null);
-                        }
-                    }, listener::onFailure));
-                }, customRolesProviders, threadContext, () -> {
-                    negativeLookupCache.addAll(missing);
-                    return builtInRoleDescriptors;
-                }).run();
+    private void loadNativeRoleDescriptors(RolesRetrievalResult rolesResult, ActionListener<RolesRetrievalResult> listener,
+                                           Set<String> roleNames) {
+        nativeRolesStore.getRoleDescriptors(roleNames.toArray(Strings.EMPTY_ARRAY), ActionListener.wrap((result) -> {
+            if (result.isSuccess()) {
+                final Set<RoleDescriptor> descriptors = result.getDescriptors();
+                logger.debug(
+                    () -> new ParameterizedMessage("Roles [{}] were resolved from the native index store", names(descriptors)));
+                rolesResult.addDescriptors(descriptors);
+                final Set<String> remainingRoles = difference(roleNames, descriptors);
+                if (remainingRoles.isEmpty()) {
+                    listener.onResponse(rolesResult);
+                } else {
+                    callCustomRoleProvidersIfEnabled(rolesResult, remainingRoles, listener);
+                }
             } else {
-                logger.debug(() ->
-                        new ParameterizedMessage("Requested roles [{}] do not exist", Strings.collectionToCommaDelimitedString(missing)));
-                negativeLookupCache.addAll(missing);
-                roleDescriptorActionListener.onResponse(Collections.unmodifiableSet(builtInRoleDescriptors));
+                logger.warn("role retrieval failed from the native roles store", result.getFailure());
+                rolesResult.setUnsuccessful();
+                callCustomRoleProvidersIfEnabled(rolesResult, roleNames, listener);
             }
+        }, listener::onFailure));
+    }
+
+    private void callCustomRoleProvidersIfEnabled(RolesRetrievalResult rolesResult, Set<String> remainingRoleNames,
+                                                  ActionListener<RolesRetrievalResult> resultListener) {
+        if (licenseState.isCustomRoleProvidersAllowed() && customRolesProviders.isEmpty() == false) {
+            final ActionListener<RoleRetrievalResult> descriptorsListener = ActionListener.wrap(ignore -> {
+                    rolesResult.setMissingRoles(remainingRoleNames);
+                    resultListener.onResponse(rolesResult);
+                }, resultListener::onFailure);
+
+            final Predicate<RoleRetrievalResult> iterationPredicate = result -> {
+                if (result.isSuccess()) {
+                    final Set<RoleDescriptor> resolvedDescriptors = result.getDescriptors();
+                    rolesResult.addDescriptors(resolvedDescriptors);
+                    // remove resolved descriptors from the set of roles still needed to be resolved
+                    for (RoleDescriptor descriptor : resolvedDescriptors) {
+                        remainingRoleNames.remove(descriptor.getName());
+                    }
+                } else {
+                    rolesResult.setUnsuccessful();
+                }
+                return remainingRoleNames.isEmpty() == false;
+            };
+
+            new IteratingActionListener<>(descriptorsListener, (rolesProvider, listener) -> {
+                // try to resolve descriptors with role provider
+                rolesProvider.accept(remainingRoleNames, ActionListener.wrap(result -> {
+                    if (result.isSuccess()) {
+                        logger.debug(() -> new ParameterizedMessage("Roles [{}] were resolved by [{}]",
+                            names(result.getDescriptors()), rolesProvider));
+                    } else {
+                        logger.warn(new ParameterizedMessage("role retrieval failed from [{}]", rolesProvider), result.getFailure());
+                    }
+                    listener.onResponse(result);
+                }, listener::onFailure));
+            }, customRolesProviders, threadContext, Function.identity(), iterationPredicate).run();
         } else {
-            roleDescriptorActionListener.onResponse(Collections.unmodifiableSet(builtInRoleDescriptors));
+            rolesResult.setMissingRoles(remainingRoleNames);
+            resultListener.onResponse(rolesResult);
         }
     }
 
     private Set<RoleDescriptor> getBuiltInRoleDescriptors(Set<String> roleNames) {
         final Set<RoleDescriptor> descriptors = reservedRolesStore.roleDescriptors().stream()
                 .filter((rd) -> roleNames.contains(rd.getName()))
-                .collect(Collectors.toCollection(HashSet::new));
+                .collect(Collectors.toSet());
         if (descriptors.size() > 0) {
             logger.debug(() -> new ParameterizedMessage("Roles [{}] are builtin roles", names(descriptors)));
         }
-        final Set<String> difference = difference(roleNames, descriptors);
-        if (difference.isEmpty() == false) {
-            final Set<RoleDescriptor> fileRoles = fileRolesStore.roleDescriptors(difference);
-            logger.debug(() ->
-                    new ParameterizedMessage("Roles [{}] were resolved from [{}]", names(fileRoles), fileRolesStore.getFile()));
-            descriptors.addAll(fileRoles);
-        }
-
         return descriptors;
+    }
+
+    private Set<RoleDescriptor> getDescriptorsFromFileStore(Set<String> roleNames) {
+        final Set<RoleDescriptor> fileRoles = fileRolesStore.roleDescriptors(roleNames);
+        logger.debug(() ->
+            new ParameterizedMessage("Roles [{}] were resolved from [{}]", names(fileRoles), fileRolesStore.getFile()));
+        return fileRoles;
     }
 
     private String names(Collection<RoleDescriptor> descriptors) {
@@ -332,7 +376,7 @@ public class CompositeRolesStore extends AbstractComponent {
 
     public void invalidateAll() {
         numInvalidation.incrementAndGet();
-        negativeLookupCache.clear();
+        negativeLookupCache.invalidateAll();
         try (ReleasableLock ignored = readLock.acquire()) {
             roleCache.invalidateAll();
         }
@@ -351,7 +395,7 @@ public class CompositeRolesStore extends AbstractComponent {
                 }
             }
         }
-        negativeLookupCache.remove(role);
+        negativeLookupCache.invalidate(role);
     }
 
     public void invalidate(Set<String> roles) {
@@ -368,7 +412,7 @@ public class CompositeRolesStore extends AbstractComponent {
             }
         }
 
-        negativeLookupCache.removeAll(roles);
+        roles.forEach(negativeLookupCache::invalidate);
     }
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {
@@ -420,5 +464,40 @@ public class CompositeRolesStore extends AbstractComponent {
                 this.query.addAll(other.query);
             }
         }
+    }
+
+    private static final class RolesRetrievalResult {
+
+        private final Set<RoleDescriptor> roleDescriptors = new HashSet<>();
+        private Set<String> missingRoles = Collections.emptySet();
+        private boolean allSuccessful = true;
+
+        private void addDescriptors(Set<RoleDescriptor> descriptors) {
+            roleDescriptors.addAll(descriptors);
+        }
+
+        private Set<RoleDescriptor> getRoleDescriptors() {
+            return roleDescriptors;
+        }
+
+        private void setUnsuccessful() {
+            allSuccessful = false;
+        }
+
+        private boolean hadFailures() {
+            return allSuccessful == false;
+        }
+
+        private void setMissingRoles(Set<String> missingRoles) {
+            this.missingRoles = missingRoles;
+        }
+
+        private Set<String> getMissingRoles() {
+            return missingRoles;
+        }
+    }
+
+    public static List<Setting<?>> getSettings() {
+        return Arrays.asList(CACHE_SIZE_SETTING, NEGATIVE_LOOKUP_CACHE_SIZE_SETTING);
     }
 }

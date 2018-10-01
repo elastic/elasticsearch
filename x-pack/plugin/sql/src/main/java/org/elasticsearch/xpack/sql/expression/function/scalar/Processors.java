@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringNumericProcessor;
@@ -71,6 +72,7 @@ public final class Processors {
         entries.add(new Entry(Processor.class, LocateFunctionProcessor.NAME, LocateFunctionProcessor::new));
         entries.add(new Entry(Processor.class, ReplaceFunctionProcessor.NAME, ReplaceFunctionProcessor::new));
         entries.add(new Entry(Processor.class, SubstringFunctionProcessor.NAME, SubstringFunctionProcessor::new));
+        entries.add(new Entry(Processor.class, GeoProcessor.NAME, GeoProcessor::new));
         return entries;
     }
 }

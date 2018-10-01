@@ -34,4 +34,6 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   String space(Number)
   String substring(String, int, int)
   String ucase(String)
+  String aswktPoint(Object)
+  String aswktShape(Object)
 }

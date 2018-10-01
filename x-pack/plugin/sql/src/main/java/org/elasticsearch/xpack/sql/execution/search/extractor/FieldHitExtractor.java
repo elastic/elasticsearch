@@ -5,13 +5,16 @@
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -120,6 +123,21 @@ public class FieldHitExtractor implements HitExtractor {
     private Object unwrapMultiValue(Object values) {
         if (values == null) {
             return null;
+        }
+        if (dataType == DataType.GEO_POINT) {
+            try {
+                return GeoUtils.parseGeoPoint(values, true);
+            } catch (ElasticsearchParseException ex) {
+                throw new SqlIllegalArgumentException("Cannot parse geo_point value (returned by [{}])", fieldName);
+            }
+
+        }
+        if (dataType == DataType.GEO_SHAPE) {
+            try {
+                return new GeoShape(values);
+            } catch (IOException ex) {
+                throw new SqlIllegalArgumentException("Cannot read geo_shape value (returned by [{}])", fieldName);
+            }
         }
         if (values instanceof List) {
             List<?> list = (List<?>) values;

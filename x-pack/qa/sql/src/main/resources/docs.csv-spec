@@ -273,7 +273,8 @@ RIGHT           |SCALAR
 RTRIM           |SCALAR         
 SPACE           |SCALAR                  
 SUBSTRING       |SCALAR         
-UCASE           |SCALAR         
+UCASE           |SCALAR
+ST_ASWKT        |SCALAR
 SCORE           |SCORE          
 // end::showFunctions
 ;

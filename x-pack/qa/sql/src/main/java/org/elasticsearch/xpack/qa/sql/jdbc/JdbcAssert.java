@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.qa.sql.jdbc;
 
+import com.vividsolutions.jts.geom.Geometry;
+import com.vividsolutions.jts.io.ParseException;
+import com.vividsolutions.jts.io.WKTReader;
 import org.apache.logging.log4j.Logger;
 import org.relique.jdbc.csv.CsvResultSet;
 
@@ -36,6 +39,7 @@ import static org.junit.Assert.fail;
  */
 public class JdbcAssert {
     private static final Calendar UTC_CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
+    private static final WKTReader wkt = new WKTReader();
 
     public static void assertResultSets(ResultSet expected, ResultSet actual) throws SQLException {
         assertResultSets(expected, actual, null);
@@ -201,8 +205,16 @@ public class JdbcAssert {
                     } else if (type == Types.FLOAT) {
                         assertEquals(msg, (float) expectedObject, (float) actualObject, 1f);
                     } else if (type == Types.OTHER) {
+                        if (expectedObject instanceof Geometry && actualObject instanceof String) {
+                            // We need to convert the actual object to Geometry for comparision
+                            try {
+                                actualObject = wkt.read(actualObject.toString());
+                            } catch (ParseException ex) {
+                                fail(ex.getMessage());
+                            }
+                        }
                         // TODO: For now we will just do toString()-based comparision
-                        assertEquals(msg, expectedObject.toString(), actualObject.toString());
+                        assertEquals(msg, expectedObject, actualObject);
                     }
                     // finally the actual comparison
                     else {

@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Quarter;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.SecondOfMinute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.WeekOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StAswkt;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ACos;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ASin;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ATan;
@@ -181,6 +182,8 @@ public class FunctionRegistry {
             def(Space.class, Space::new),
             def(Substring.class, Substring::new),
             def(UCase.class, UCase::new),
+            // Geo Functions
+            def(StAswkt.class, StAswkt::new),
             // Special
             def(Score.class, Score::new)));
 
@@ -367,7 +370,7 @@ public class FunctionRegistry {
     private interface FunctionBuilder {
         Function build(Location location, List<Expression> children, boolean distinct, TimeZone tz);
     }
-    
+
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     static <T extends Function> FunctionDefinition def(Class<T> function,
             ThreeParametersFunctionBuilder<T> ctorRef, String... aliases) {
@@ -385,11 +388,11 @@ public class FunctionRegistry {
         };
         return def(function, builder, false, aliases);
     }
-    
+
     interface ThreeParametersFunctionBuilder<T> {
         T build(Location location, Expression source, Expression exp1, Expression exp2);
     }
-    
+
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     static <T extends Function> FunctionDefinition def(Class<T> function,
             FourParametersFunctionBuilder<T> ctorRef, String... aliases) {
@@ -404,7 +407,7 @@ public class FunctionRegistry {
         };
         return def(function, builder, false, aliases);
     }
-    
+
     interface FourParametersFunctionBuilder<T> {
         T build(Location location, Expression source, Expression exp1, Expression exp2, Expression exp3);
     }

@@ -18,6 +18,8 @@ dependencies {
   compile project(path: xpackModule('sql:sql-cli'), configuration: 'nodeps')
   compile "org.jline:jline:3.6.0"
   compile "org.orbisgis:h2gis-ext:1.3.2"
+  // TODO: Temporary solution until core removes JTS as a dependency
+  compile "com.vividsolutions:jts-core:1.14.0"
 }
 
 /* disable unit tests because these are all integration tests used

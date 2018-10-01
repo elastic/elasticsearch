@@ -751,6 +751,7 @@ public class IngestServiceTests extends ESTestCase {
         final Processor processor = mock(Processor.class);
         final Processor processorFailure = mock(Processor.class);
         when(processor.getType()).thenReturn("mock");
+        when(processor.getTag()).thenReturn("mockTag");
         when(processorFailure.getType()).thenReturn("failure-mock");
         //avoid returning null and dropping the document
         when(processor.execute(any(IngestDocument.class))).thenReturn( RandomDocumentPicks.randomIngestDocument(random()));
@@ -787,6 +788,10 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(afterFirstRequestStats.getStatsPerPipeline().size(), equalTo(2));
         assertThat(afterFirstRequestStats.getProcessorStatsForPipeline("_id1").size(), equalTo(1));
         assertThat(afterFirstRequestStats.getProcessorStatsForPipeline("_id2").size(), equalTo(1));
+        afterFirstRequestStats.getStatsPerPipeline().get("_id1").v2()
+            .forEach(statsTuple -> assertThat(statsTuple.v1(), equalTo("mock:mockTag")));
+        afterFirstRequestStats.getStatsPerPipeline().get("_id2").v2()
+            .forEach(statsTuple -> assertThat(statsTuple.v1(), equalTo("mock:mockTag")));
         //total
         assertStats(afterFirstRequestStats.getTotalStats(), 1, 0 ,0);
         //pipeline
@@ -858,6 +863,30 @@ public class IngestServiceTests extends ESTestCase {
         assertProcessorStats(1, afterForthRequestStats, "_id1", 2, 0, 0); //carried forward and added from old stats
         assertProcessorStats(0, afterForthRequestStats, "_id2", 1, 0, 0);
     }
+
+    public void testStatName(){
+        Processor processor = mock(Processor.class);
+        String name = randomAlphaOfLength(10);
+        when(processor.getType()).thenReturn(name);
+        assertThat(IngestService.getName(processor), equalTo(name));
+        String tag = randomAlphaOfLength(10);
+        when(processor.getTag()).thenReturn(tag);
+        assertThat(IngestService.getName(processor), equalTo(name + ":" + tag));
+
+        ConditionalProcessor conditionalProcessor = mock(ConditionalProcessor.class);
+        when(conditionalProcessor.getProcessor()).thenReturn(processor);
+        assertThat(IngestService.getName(conditionalProcessor), equalTo(name + ":" + tag));
+
+        PipelineProcessor pipelineProcessor = mock(PipelineProcessor.class);
+        String pipelineName = randomAlphaOfLength(10);
+        when(pipelineProcessor.getPipelineName()).thenReturn(pipelineName);
+        name = PipelineProcessor.TYPE;
+        when(pipelineProcessor.getType()).thenReturn(name);
+        assertThat(IngestService.getName(pipelineProcessor), equalTo(name + ":" + pipelineName));
+        when(pipelineProcessor.getTag()).thenReturn(tag);
+        assertThat(IngestService.getName(pipelineProcessor), equalTo(name + ":" + pipelineName + ":" + tag));
+    }
+
 
     public void testExecuteWithDrop() {
         Map<String, Processor.Factory> factories = new HashMap<>();

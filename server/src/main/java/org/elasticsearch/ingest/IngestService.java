@@ -432,9 +432,8 @@ public class IngestService implements ClusterStateApplier {
         return processorStats;
     }
 
-    private static String getName(Processor processor){
-        String tag = processor.getTag();
-
+    //package private for testing
+    static String getName(Processor processor){
         // conditionals are implemented as wrappers around the real processor, so get the real processor for the correct type for the name
         if(processor instanceof ConditionalProcessor){
             processor = ((ConditionalProcessor) processor).getProcessor();
@@ -447,7 +446,7 @@ public class IngestService implements ClusterStateApplier {
             sb.append(":");
             sb.append(pipelineName);
         }
-
+        String tag = processor.getTag();
         if(tag != null && !tag.isEmpty()){
             sb.append(":");
             sb.append(tag);

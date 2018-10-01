@@ -119,8 +119,7 @@ public final class PutRoleMappingRequest implements Validatable, ToXContentObjec
         builder.field("roles", roles);
         builder.field("rules", rules);
         builder.field("metadata", metadata);
-        builder.endObject();
-        return null;
+        return builder.endObject();
     }
 
 }

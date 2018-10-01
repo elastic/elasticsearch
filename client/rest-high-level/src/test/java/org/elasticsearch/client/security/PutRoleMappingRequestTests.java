@@ -22,9 +22,13 @@ package org.elasticsearch.client.security;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -72,6 +76,33 @@ public class PutRoleMappingRequestTests extends ESTestCase {
             assertThat(putRoleMappingRequest.getRoles(), equalTo(roles));
             assertThat(putRoleMappingRequest.getMetadata(), equalTo((metadata == null) ? Collections.emptyMap() : metadata));
         }
+    }
+
+    public void testPutRoleMappingRequestToXContent() throws IOException {
+        final String name = randomAlphaOfLength(5);
+        final boolean enabled = randomBoolean();
+        final List<String> roles = Collections.singletonList("superuser");
+        final RoleMapperExpression rules = FieldRoleMapperExpression.ofUsername("user");
+        final Map<String, Object> metadata = new HashMap<>();
+        metadata.put("k1", "v1");
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+
+        final PutRoleMappingRequest putRoleMappingRequest = new PutRoleMappingRequest(name, enabled, roles, rules, metadata, refreshPolicy);
+
+        final XContentBuilder builder = XContentFactory.jsonBuilder();
+        putRoleMappingRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        final String output = Strings.toString(builder);
+        final String expected =
+             "{"+
+               "\"enabled\":" + enabled + "," +
+               "\"roles\":[\"superuser\"]," +
+               "\"rules\":{" +
+                   "\"field\":{\"username\":[\"user\"]}" +
+               "}," +
+               "\"metadata\":{\"k1\":\"v1\"}" +
+             "}";
+
+        assertThat(output, equalTo(expected));
     }
 
     public void testEqualsHashCode() {

@@ -133,11 +133,13 @@ public class CoordinatorTests extends ESTestCase {
 
         cluster.stabilise(
             // first wait for all the followers to notice the leader has gone
-            (LEADER_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).millis() + LEADER_CHECK_TIMEOUT_SETTING.get(Settings.EMPTY).millis())
-            * LEADER_CHECK_RETRY_COUNT_SETTING.get(Settings.EMPTY)
-            // then wait for the new leader to notice that the old leader is unresponsive
-            + (FOLLOWER_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).millis() + FOLLOWER_CHECK_TIMEOUT_SETTING.get(Settings.EMPTY).millis())
-            * FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(Settings.EMPTY));
+            (defaultMillis(LEADER_CHECK_INTERVAL_SETTING) + defaultMillis(LEADER_CHECK_TIMEOUT_SETTING))
+                * defaultInt(LEADER_CHECK_RETRY_COUNT_SETTING)
+                // then wait for the new leader to notice that the old leader is unresponsive
+                + (defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING))
+                * defaultInt(FOLLOWER_CHECK_RETRY_COUNT_SETTING)
+                // then wait for the new leader to commit a state without the old leader
+                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
         assertThat(cluster.getAnyLeader().getId(), not(equalTo(originalLeader.getId())));
     }
 
@@ -167,7 +169,7 @@ public class CoordinatorTests extends ESTestCase {
             // wait for the leader to notice that the follower is unresponsive
             (defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING))
                 * defaultInt(FOLLOWER_CHECK_RETRY_COUNT_SETTING)
-                // then commit the new state
+                // then wait for the leader to commit a state without the follower
                 + DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
         assertThat(cluster.getAnyLeader().getId(), equalTo(leader.getId()));
     }

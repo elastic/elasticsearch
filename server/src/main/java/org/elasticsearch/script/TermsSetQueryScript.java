@@ -61,13 +61,10 @@ public abstract class TermsSetQueryScript {
     private final LeafSearchLookup leafLookup;
 
     public TermsSetQueryScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
-        this.params = new ParameterMap(new HashMap<>(params), DEPRECATIONS);
-        if (leafContext == null) {
-            this.leafLookup = null;
-        } else {
-            this.leafLookup = lookup.getLeafSearchLookup(leafContext);
-            this.params.putAll(leafLookup.asMap());
-        }
+        Map<String, Object> parameters = new HashMap<>(params);
+        this.leafLookup = lookup.getLeafSearchLookup(leafContext);
+        parameters.putAll(leafLookup.asMap());
+        this.params = new ParameterMap(parameters, DEPRECATIONS);
     }
 
     protected TermsSetQueryScript() {

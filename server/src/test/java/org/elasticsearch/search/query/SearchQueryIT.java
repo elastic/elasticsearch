@@ -1780,4 +1780,45 @@ public class SearchQueryIT extends ESIntegTestCase {
         DocumentField field = hit.getFields().get("id-alias");
         assertThat(field.getValue().toString(), equalTo("1"));
    }
+
+   public void testJsonField() throws Exception {
+       XContentBuilder mapping = XContentFactory.jsonBuilder()
+           .startObject()
+               .startObject("type")
+                   .startObject("properties")
+                       .startObject("headers")
+                           .field("type", "json")
+                       .endObject()
+                   .endObject()
+           .endObject()
+       .endObject();
+       assertAcked(prepareCreate("test").addMapping("type", mapping));
+
+       XContentBuilder source = XContentFactory.jsonBuilder()
+           .startObject()
+               .startObject("headers")
+                   .field("content-type", "application/json")
+               .endObject()
+           .endObject();
+       IndexRequestBuilder indexRequest = client().prepareIndex("test", "type")
+           .setId("1")
+           .setRouting("custom")
+           .setSource(source);
+       indexRandom(true, false, indexRequest);
+
+       SearchResponse searchResponse = client().prepareSearch()
+           .setQuery(prefixQuery("headers", "application/"))
+           .get();
+       assertHitCount(searchResponse, 1L);
+
+       searchResponse = client().prepareSearch()
+           .setQuery(existsQuery("headers"))
+           .get();
+       assertHitCount(searchResponse, 1L);
+
+       searchResponse = client().prepareSearch()
+           .setQuery(prefixQuery("headers", "content"))
+           .get();
+       assertHitCount(searchResponse, 0L);
+   }
 }

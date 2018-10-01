@@ -40,7 +40,7 @@ public class ExecutablePagerDutyAction extends ExecutableAction<PagerDutyAction>
             throw new IllegalStateException("account [" + action.event.account + "] was not found. perhaps it was deleted");
         }
 
-        Map<String, Object> model = Variables.createCtxModel(ctx, payload);
+        Map<String, Object> model = Variables.createCtxParamsMap(ctx, payload);
         IncidentEvent event = action.event.render(ctx.watch().id(), actionId, templateEngine, model, account.getDefaults());
 
         if (ctx.simulateAction(actionId)) {

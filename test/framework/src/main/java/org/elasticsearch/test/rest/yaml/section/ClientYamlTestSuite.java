@@ -21,6 +21,7 @@ package org.elasticsearch.test.rest.yaml.section;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
@@ -73,9 +74,10 @@ public class ClientYamlTestSuite {
     }
 
     public static ClientYamlTestSuite parse(String api, String suiteName, XContentParser parser) throws IOException {
-        parser.nextToken();
-        assert parser.currentToken() == XContentParser.Token.START_OBJECT : "expected token to be START_OBJECT but was "
-                + parser.currentToken();
+        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+            throw new XContentParseException(parser.getTokenLocation(),
+                    "expected token to be START_OBJECT but was " + parser.currentToken());
+        }
 
         ClientYamlTestSuite restTestSuite = new ClientYamlTestSuite(api, suiteName);
 

@@ -643,7 +643,7 @@ final class RequestConverters {
 
     static Request removeIndexLifecyclePolicy(RemoveIndexLifecyclePolicyRequest setPolicyRequest) {
         String[] indices = setPolicyRequest.indices() == null ? Strings.EMPTY_ARRAY : setPolicyRequest.indices();
-        Request request = new Request(HttpPut.METHOD_NAME,
+        Request request = new Request(HttpDelete.METHOD_NAME,
                 new EndpointBuilder()
                         .addCommaSeparatedPathParts(indices)
                         .addPathPartAsIs("_ilm")

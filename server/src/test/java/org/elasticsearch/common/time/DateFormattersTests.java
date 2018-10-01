@@ -21,6 +21,7 @@ package org.elasticsearch.common.time;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
@@ -54,6 +55,42 @@ public class DateFormattersTests extends ESTestCase {
         assertSameFormat(formatter, 0);
         assertSameFormat(formatter, -1);
         assertSameFormat(formatter, 1);
+    }
+
+    // this is not in the duelling tests, because the epoch second parser in joda time drops the milliseconds after the comma
+    // but is able to parse the rest
+    // as this feature is supported it also makes sense to make it exact
+    public void testEpochSecondParser() {
+        DateFormatter formatter = DateFormatters.forPattern("epoch_second");
+
+        assertThat(Instant.from(formatter.parse("1234.567")).toEpochMilli(), is(1234567L));
+        assertThat(Instant.from(formatter.parse("1234.")).getNano(), is(0));
+        assertThat(Instant.from(formatter.parse("1234.")).getEpochSecond(), is(1234L));
+        assertThat(Instant.from(formatter.parse("1234.1")).getNano(), is(100_000_000));
+        assertThat(Instant.from(formatter.parse("1234.12")).getNano(), is(120_000_000));
+        assertThat(Instant.from(formatter.parse("1234.123")).getNano(), is(123_000_000));
+        assertThat(Instant.from(formatter.parse("1234.1234")).getNano(), is(123_400_000));
+        assertThat(Instant.from(formatter.parse("1234.12345")).getNano(), is(123_450_000));
+        assertThat(Instant.from(formatter.parse("1234.123456")).getNano(), is(123_456_000));
+        assertThat(Instant.from(formatter.parse("1234.1234567")).getNano(), is(123_456_700));
+        assertThat(Instant.from(formatter.parse("1234.12345678")).getNano(), is(123_456_780));
+        assertThat(Instant.from(formatter.parse("1234.123456789")).getNano(), is(123_456_789));
+        DateTimeParseException e = expectThrows(DateTimeParseException.class, () -> formatter.parse("1234.1234567890"));
+        assertThat(e.getMessage(), is("too much granularity after dot [1234.1234567890]"));
+        e = expectThrows(DateTimeParseException.class, () -> formatter.parse("1234.123456789013221"));
+        assertThat(e.getMessage(), is("too much granularity after dot [1234.123456789013221]"));
+        e = expectThrows(DateTimeParseException.class, () -> formatter.parse("abc"));
+        assertThat(e.getMessage(), is("invalid number [abc]"));
+        e = expectThrows(DateTimeParseException.class, () -> formatter.parse("1234.abc"));
+        assertThat(e.getMessage(), is("invalid number [1234.abc]"));
+
+        // different zone, should still yield the same output, as epoch is time zone independent
+        ZoneId zoneId = randomZone();
+        DateFormatter zonedFormatter = formatter.withZone(zoneId);
+
+        assertThatSameDateTime(formatter, zonedFormatter, randomLongBetween(-100_000_000, 100_000_000));
+        assertSameFormat(formatter, randomLongBetween(-100_000_000, 100_000_000));
+        assertThat(formatter.format(Instant.ofEpochSecond(1234, 567_000_000)), is("1234.567"));
     }
 
     public void testEpochMilliParsersWithDifferentFormatters() {

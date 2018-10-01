@@ -452,7 +452,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         runner.runPolicyAfterStateChange(policyName, indexMetaData);
 
-        Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
+        Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ilm-execute-cluster-state-steps"),
                 Mockito.argThat(new ExecuteStepsUpdateTaskMatcher(indexMetaData.getIndex(), policyName, step)));
         Mockito.verifyNoMoreInteractions(clusterService);
     }
@@ -470,7 +470,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         runner.runPolicyAfterStateChange(policyName, indexMetaData);
 
-        Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
+        Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ilm-execute-cluster-state-steps"),
                 Mockito.argThat(new ExecuteStepsUpdateTaskMatcher(indexMetaData.getIndex(), policyName, step)));
         Mockito.verifyNoMoreInteractions(clusterService);
     }

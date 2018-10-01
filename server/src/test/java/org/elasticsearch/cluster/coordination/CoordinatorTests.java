@@ -35,8 +35,10 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider.HostsResolver;
 import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
 import org.elasticsearch.test.ESTestCase;
@@ -62,6 +64,7 @@ import static org.elasticsearch.cluster.coordination.CoordinationStateTests.setV
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.value;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.FOLLOWER;
+import static org.elasticsearch.cluster.coordination.CoordinatorTests.Cluster.DEFAULT_CLUSTER_STATE_UPDATE_DELAY;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING;
@@ -162,9 +165,19 @@ public class CoordinatorTests extends ESTestCase {
 
         cluster.stabilise(
             // wait for the leader to notice that the follower is unresponsive
-            (FOLLOWER_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).millis() + FOLLOWER_CHECK_TIMEOUT_SETTING.get(Settings.EMPTY).millis())
-            * FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(Settings.EMPTY));
+            (defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING))
+                * defaultInt(FOLLOWER_CHECK_RETRY_COUNT_SETTING)
+                // then commit the new state
+                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
         assertThat(cluster.getAnyLeader().getId(), equalTo(leader.getId()));
+    }
+
+    private static long defaultMillis(Setting<TimeValue> setting) {
+        return setting.get(Settings.EMPTY).millis() + Cluster.DEFAULT_DELAY_VARIABILITY;
+    }
+
+    private static int defaultInt(Setting<Integer> setting) {
+        return setting.get(Settings.EMPTY);
     }
 
     private static String nodeIdFromIndex(int nodeIndex) {
@@ -175,6 +188,14 @@ public class CoordinatorTests extends ESTestCase {
 
         static final long DEFAULT_STABILISATION_TIME = 3000L; // TODO use a real stabilisation time - needs fault detection and disruption
         static final long DEFAULT_DELAY_VARIABILITY = 100L;
+
+        // Updating the cluster state involves up to 5 delays:
+        // 1. submit the task to the master service
+        // 2. send PublishRequest
+        // 3. receive PublishResponse
+        // 4. send ApplyCommitRequest
+        // 5. receive ApplyCommitResponse and apply committed state
+        static final long DEFAULT_CLUSTER_STATE_UPDATE_DELAY = 5 * DEFAULT_DELAY_VARIABILITY;
 
         final List<ClusterNode> clusterNodes;
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
@@ -217,9 +238,12 @@ public class CoordinatorTests extends ESTestCase {
             stabilise(DEFAULT_STABILISATION_TIME);
         }
 
-        void stabilise(long stabilisationTime) {
+        void stabilise(long stabiliationDurationMillis) {
             final long stabilisationStartTime = deterministicTaskQueue.getCurrentTimeMillis();
-            while (deterministicTaskQueue.getCurrentTimeMillis() < stabilisationStartTime + stabilisationTime) {
+            final long stabilisationEndTime = stabilisationStartTime + stabiliationDurationMillis;
+            logger.info("--> stabilising until [{}ms]", stabilisationEndTime);
+
+            while (deterministicTaskQueue.getCurrentTimeMillis() < stabilisationEndTime) {
 
                 while (deterministicTaskQueue.hasRunnableTasks()) {
                     try {

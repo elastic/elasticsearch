@@ -1,20 +1,23 @@
 [role="xpack"]
 [testenv="basic"]
-[[ilm-start]]
-=== Start ILM API
+[[ilm-get-status]]
+=== Get ILM Status API
 ++++
-<titleabbrev>Start ILM</titleabbrev>
+<titleabbrev>Get ILM Status</titleabbrev>
 ++++
 
-Start the ILM plugin
+Gets the current status for ILM.
 
 ==== Request
 
-`POST /_ilm/start`
+`POST /_ilm/status`
 
 ==== Description
 
-This API will start the ILM plugin if it is currently stopped.
+This API will return the current status of the ILM plugin. The response contains
+a `operation_mode` field which shows whether the ILM plugin is `STARTED`, `STOPPING`
+or `STOPPED`. This `operation_mode` is controlled by the <<ilm-start, Start ILM>>
+and <<ilm-stop, Stop ILM>> APIs.
 
 ==== Request Parameters
 
@@ -32,7 +35,7 @@ This API will start the ILM plugin if it is currently stopped.
 
 ==== Examples
 
-The following example starts the ILM plugin.
+The following example stops the ILM plugin.
 
 //////////////////////////
 
@@ -61,8 +64,6 @@ PUT _ilm/my_policy
 }
 
 PUT my_index
-
-PUT _ilm/stop
 --------------------------------------------------
 // CONSOLE
 // TEST
@@ -71,7 +72,7 @@ PUT _ilm/stop
 
 [source,js]
 --------------------------------------------------
-PUT _ilm/start
+PUT _ilm/status
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -81,7 +82,7 @@ If the request does not encounter errors, you receive the following result:
 [source,js]
 --------------------------------------------------
 {
-  "acknowledged": true
+  "operation_mode": "STARTED"
 }
 --------------------------------------------------
 // CONSOLE

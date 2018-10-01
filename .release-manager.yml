@@ -1,0 +1,107 @@
+#
+# This file will be generated automatically soon!
+#
+artifacts:
+  buildDir: 'build/distributions'
+  maven:
+    - dir: 'buildSrc', group: 'org.elasticsearch.gradle', name: 'build-tools', oss: true
+    - dir: 'server', group: 'org.elasticsearch', name: 'elasticsearch', oss: true
+    - dir: 'libs/cli', group: 'org.elasticsearch', name: 'elasticsearch-cli', oss: true
+    - dir: 'libs/core', group: 'org.elasticsearch', name: 'elasticsearch-core', oss: true
+    - dir: 'libs/nio', group: 'org.elasticsearch', name: 'elasticsearch-nio', oss: true
+    - dir: 'libs/secure-sm', group: 'org.elasticsearch', name: 'elasticsearch-secure-sm', oss: true
+    - dir: 'libs/x-content', group: 'org.elasticsearch', name: 'elasticsearch-x-content', oss: true
+    - dir: 'rest-api-spec', group: 'org.elasticsearch', name: 'rest-api-spec', oss: true
+
+    - dir: 'client/rest', group: 'org.elasticsearch.client', name: 'elasticsearch-rest-client', oss: true
+    - dir: 'client/sniffer', group: 'org.elasticsearch.client', name: 'elasticsearch-rest-client-sniffer', oss: true
+    - dir: 'client/rest-high-level', group: 'org.elasticsearch.client', name: 'elasticsearch-rest-high-level-client', oss: true
+    - dir: 'client/transport', group: 'org.elasticsearch.client', name: 'transport', oss: true
+
+    # the test framework
+    - dir: 'test/framework', group: 'org.elasticsearch.test', name: 'framework', oss: true
+    - dir: 'test/logger-usage', group: 'org.elasticsearch.test', name: 'logger-usage', oss: true
+    - dir: "test/fixtures/${fixtureDir.name}", group: 'org.elasticsearch.test', name: fixtureDir.name, oss: true
+
+    # distributions used by test framework, which need to be in maven
+    - dir: 'distribution/archives/integ-test-zip'
+      group: 'org.elasticsearch.distribution.integ-test-zip'
+      name: 'elasticsearch'
+      type: 'zip'
+      oss: true
+    - dir: 'distribution/archives/oss-zip'
+      group: 'org.elasticsearch.distribution.zip',
+      name: 'elasticsearch-oss'
+      type: 'zip'
+      oss: true
+    - dir: 'distribution/archives/zip'
+      group: 'org.elasticsearch.distribution.zip'
+      name: 'elasticsearch'
+      type: 'zip'
+
+    # lang-painless
+    - dir: 'modules/lang-painless/spi'
+      group: 'org.elasticsearch.plugin'
+      name: 'elasticsearch-scripting-painless-spi'
+      oss: true
+
+    # xpack client and API jars
+    - dir: 'x-pack/transport-client', group: 'org.elasticsearch.client', name: 'x-pack-transport'
+    - dir: 'x-pack/plugin/core', group: 'org.elasticsearch.plugin', name: 'x-pack-core'
+    - dir: 'x-pack/plugin/security', group: 'org.elasticsearch.plugin', name: 'x-pack-security'
+    - dir: 'x-pack/plugin/sql/jdbc', group: 'org.elasticsearch.plugin', name: 'x-pack-sql-jdbc'
+
+    # transport client plugins
+    - dir: "modules/rank-eval", group: 'org.elasticsearch.plugin', name: "rank-eval-client", oss: true
+    - dir: "modules/transport-netty4", group: 'org.elasticsearch.plugin', name: "transport-netty4-client", oss: true
+    - dir: "modules/percolator", group: 'org.elasticsearch.plugin', name: "percolator-client", oss: true
+    - dir: "modules/aggs-matrix-stats", group: 'org.elasticsearch.plugin', name: "aggs-matrix-stats-client", oss: true
+    - dir: "modules/lang-mustache", group: 'org.elasticsearch.plugin', name: "lang-mustache-client", oss: true
+    - dir: "modules/reindex", group: 'org.elasticsearch.plugin', name: "reindex-client", oss: true
+    - dir: "modules/parent-join", group: 'org.elasticsearch.plugin', name: "parent-join-client", oss: true
+  zip:
+    - dir:'distribution/archives/zip', name: 'elasticsearch'
+    - dir:'distribution/archives/oss-zip', name: 'elasticsearch-oss', oss: true
+    - dir:'distribution/archives/tar', name: 'elasticsearch'
+
+  tar:
+    - dir:'distribution/archives/oss-tar', name: 'elasticsearch-oss', oss: true
+
+  deb:
+    - dir:'distribution/packages/deb', name: 'elasticsearch'
+    - dir:'distribution/packages/oss-deb', name: 'elasticsearch-oss', oss: true
+
+  rpm:
+    - dir:'distribution/packages/rpm', name: 'elasticsearch'
+    - dir:'distribution/packages/oss-rpm', name: 'elasticsearch-oss', oss: true
+
+  javadoc:
+    - dir: 'modules/lang-painless'
+      group: 'org.elasticsearch.painless'
+      name: 'lang-painless'
+      classifier: 'apiJavadoc'
+      oss: true
+
+  plugin:
+    - dir: "plugins/repository-gcs", name: repository-gcs
+    - dir: "plugins/discovery-gce", name: discovery-gce
+    - dir: "plugins/repository-azure", name: repository-azure
+    - dir: "plugins/mapper-murmur3", name: mapper-murmur3
+    - dir: "plugins/discovery-ec2", name: discovery-ec2
+    - dir: "plugins/analysis-kuromoji", name: analysis-kuromoji
+    - dir: "plugins/analysis-phonetic", name: analysis-phonetic
+    - dir: "plugins/mapper-size", name: mapper-size
+    - dir: "plugins/mapper-annotated-text", name: mapper-annotated-text
+    - dir: "plugins/repository-s3", name: repository-s3
+    - dir: "plugins/analysis-smartcn", name: analysis-smartcn
+    - dir: "plugins/analysis-icu", name: analysis-icu
+    - dir: "plugins/ingest-geoip", name: ingest-geoip
+    - dir: "plugins/repository-hdfs", name: repository-hdfs
+    - dir: "plugins/ingest-user-agent", name: ingest-user-agent
+    - dir: "plugins/analysis-stempel", name: analysis-stempel
+    - dir: "plugins/store-smb", name: store-smb
+    - dir: "plugins/analysis-ukrainian", name: analysis-ukrainian
+    - dir: "plugins/analysis-nori", name: analysis-nori
+    - dir: "plugins/ingest-attachment", name: ingest-attachment
+    - dir: "plugins/transport-nio", name: transport-nio
+    - dir: "plugins/discovery-azure-classic", name: discovery-azure-classic

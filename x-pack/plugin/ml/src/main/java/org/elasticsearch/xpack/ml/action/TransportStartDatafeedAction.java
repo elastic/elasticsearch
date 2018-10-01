@@ -35,7 +35,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -48,10 +47,13 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /* This class extends from TransportMasterNodeAction for cluster state observing purposes.
@@ -67,34 +69,30 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private final Client client;
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
+    private final JobConfigProvider jobConfigProvider;
+    private final DatafeedConfigProvider datafeedConfigProvider;
 
     @Inject
     public TransportStartDatafeedAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                         ClusterService clusterService, XPackLicenseState licenseState,
                                         PersistentTasksService persistentTasksService,
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                        Client client) {
+                                        Client client, JobConfigProvider jobConfigProvider, DatafeedConfigProvider datafeedConfigProvider) {
         super(settings, StartDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 StartDatafeedAction.Request::new);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
         this.client = client;
+        this.jobConfigProvider = jobConfigProvider;
+        this.datafeedConfigProvider = datafeedConfigProvider;
     }
 
-    static void validate(String datafeedId, MlMetadata mlMetadata, PersistentTasksCustomMetaData tasks) {
-        DatafeedConfig datafeed = (mlMetadata == null) ? null : mlMetadata.getDatafeed(datafeedId);
-        if (datafeed == null) {
-            throw ExceptionsHelper.missingDatafeedException(datafeedId);
-        }
-        Job job = mlMetadata.getJobs().get(datafeed.getJobId());
-        if (job == null) {
-            throw ExceptionsHelper.missingJobException(datafeed.getJobId());
-        }
-        DatafeedJobValidator.validate(datafeed, job);
-        JobState jobState = MlTasks.getJobState(datafeed.getJobId(), tasks);
+    static void validate(Job job, DatafeedConfig datafeedConfig, PersistentTasksCustomMetaData tasks) {
+        DatafeedJobValidator.validate(datafeedConfig, job);
+        JobState jobState = MlTasks.getJobState(datafeedConfig.getJobId(), tasks);
         if (jobState.isAnyOf(JobState.OPENING, JobState.OPENED) == false) {
-            throw ExceptionsHelper.conflictStatusException("cannot start datafeed [" + datafeedId + "] because job [" + job.getId() +
-                    "] is " + jobState);
+            throw ExceptionsHelper.conflictStatusException("cannot start datafeed [" + datafeedConfig.getId() +
+                    "] because job [" + job.getId() + "] is " + jobState);
         }
     }
 
@@ -114,57 +112,83 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     protected void masterOperation(StartDatafeedAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         StartDatafeedAction.DatafeedParams params = request.getParams();
-        if (licenseState.isMachineLearningAllowed()) {
-
-            ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>> waitForTaskListener =
-                    new ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>>() {
-                        @Override
-                        public void onResponse(PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>
-                                                       persistentTask) {
-                            waitForDatafeedStarted(persistentTask.getId(), params, listener);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            if (e instanceof ResourceAlreadyExistsException) {
-                                logger.debug("datafeed already started", e);
-                                e = new ElasticsearchStatusException("cannot start datafeed [" + params.getDatafeedId() +
-                                        "] because it has already been started", RestStatus.CONFLICT);
-                            }
-                            listener.onFailure(e);
-                        }
-                    };
-
-            // Verify data extractor factory can be created, then start persistent task
-            MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
-            PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            validate(params.getDatafeedId(), mlMetadata, tasks);
-            DatafeedConfig datafeed = mlMetadata.getDatafeed(params.getDatafeedId());
-            Job job = mlMetadata.getJobs().get(datafeed.getJobId());
-
-            if (RemoteClusterLicenseChecker.containsRemoteIndex(datafeed.getIndices())) {
-                final RemoteClusterLicenseChecker remoteClusterLicenseChecker =
-                        new RemoteClusterLicenseChecker(client, XPackLicenseState::isMachineLearningAllowedForOperationMode);
-                remoteClusterLicenseChecker.checkRemoteClusterLicenses(
-                        RemoteClusterLicenseChecker.remoteClusterAliases(datafeed.getIndices()),
-                        ActionListener.wrap(
-                                response -> {
-                                    if (response.isSuccess() == false) {
-                                        listener.onFailure(createUnlicensedError(datafeed.getId(), response));
-                                    } else {
-                                        createDataExtractor(job, datafeed, params, waitForTaskListener);
-                                    }
-                                },
-                                e -> listener.onFailure(
-                                        createUnknownLicenseError(
-                                                datafeed.getId(), RemoteClusterLicenseChecker.remoteIndices(datafeed.getIndices()), e))
-                        ));
-            } else {
-                createDataExtractor(job, datafeed, params, waitForTaskListener);
-            }
-        } else {
+        if (licenseState.isMachineLearningAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
+            return;
         }
+
+        PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+
+        ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>> waitForTaskListener =
+                new ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>>() {
+                    @Override
+                    public void onResponse(PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>
+                                                   persistentTask) {
+                        waitForDatafeedStarted(persistentTask.getId(), params, listener);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (e instanceof ResourceAlreadyExistsException) {
+                            logger.debug("datafeed already started", e);
+                            e = new ElasticsearchStatusException("cannot start datafeed [" + params.getDatafeedId() +
+                                    "] because it has already been started", RestStatus.CONFLICT);
+                        }
+                        listener.onFailure(e);
+                    }
+                };
+
+        // Verify data extractor factory can be created, then start persistent task
+        Consumer<Boolean> createDataExtrator = ok -> {
+                if (RemoteClusterLicenseChecker.containsRemoteIndex(params.getDatafeedConfig().getIndices())) {
+                    final RemoteClusterLicenseChecker remoteClusterLicenseChecker =
+                            new RemoteClusterLicenseChecker(client, XPackLicenseState::isMachineLearningAllowedForOperationMode);
+                    remoteClusterLicenseChecker.checkRemoteClusterLicenses(
+                            RemoteClusterLicenseChecker.remoteClusterAliases(params.getDatafeedConfig().getIndices()),
+                            ActionListener.wrap(
+                                    response -> {
+                                        if (response.isSuccess() == false) {
+                                            listener.onFailure(createUnlicensedError(params.getDatafeedConfig().getId(), response));
+                                        } else {
+                                            createDataExtractor(params.getJob(), params.getDatafeedConfig(), params, waitForTaskListener);
+                                        }
+                                    },
+                                    e -> listener.onFailure(
+                                            createUnknownLicenseError(
+                                                    params.getDatafeedConfig().getId(),
+                                                    RemoteClusterLicenseChecker.remoteIndices(params.getDatafeedConfig().getIndices()), e))
+                            ));
+                } else {
+                    createDataExtractor(params.getJob(), params.getDatafeedConfig(), params, waitForTaskListener);
+                }
+            };
+
+        ActionListener<Job.Builder> jobListener = ActionListener.wrap(
+                jobBuilder -> {
+                    try {
+                        params.setJob(jobBuilder.build());
+                        validate(params.getJob(), params.getDatafeedConfig(), tasks);
+                        createDataExtrator.accept(Boolean.TRUE);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
+                },
+                listener::onFailure
+        );
+
+        ActionListener<DatafeedConfig.Builder> datafeedListener = ActionListener.wrap(
+                datafeedConfig -> {
+                    try {
+                        params.setDatafeedConfig(datafeedConfig.build());
+                        jobConfigProvider.getJob(params.getDatafeedConfig().getJobId(), jobListener);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
+                },
+                listener::onFailure
+        );
+
+        datafeedConfigProvider.getDatafeedConfig(params.getDatafeedId(), datafeedListener);
     }
 
     private void createDataExtractor(Job job, DatafeedConfig datafeed, StartDatafeedAction.DatafeedParams params,
@@ -280,14 +304,15 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         @Override
         public PersistentTasksCustomMetaData.Assignment getAssignment(StartDatafeedAction.DatafeedParams params,
                                                                       ClusterState clusterState) {
-            return new DatafeedNodeSelector(clusterState, resolver, params.getDatafeedId()).selectNode();
+            return new DatafeedNodeSelector(clusterState, resolver, params.getDatafeedConfig()).selectNode();
         }
 
         @Override
         public void validate(StartDatafeedAction.DatafeedParams params, ClusterState clusterState) {
             PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            TransportStartDatafeedAction.validate(params.getDatafeedId(), MlMetadata.getMlMetadata(clusterState), tasks);
-            new DatafeedNodeSelector(clusterState, resolver, params.getDatafeedId()).checkDatafeedTaskCanBeCreated();
+            TransportStartDatafeedAction.validate(params.getJob(), params.getDatafeedConfig(), tasks);
+            new DatafeedNodeSelector(clusterState, resolver, params.getDatafeedConfig())
+                    .checkDatafeedTaskCanBeCreated();
         }
 
         @Override
@@ -296,7 +321,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                      final PersistentTaskState state) {
             DatafeedTask datafeedTask = (DatafeedTask) allocatedPersistentTask;
             datafeedTask.datafeedManager = datafeedManager;
-            datafeedManager.run(datafeedTask,
+            datafeedManager.run(datafeedTask, params.getJob(), params.getDatafeedConfig(),
                     (error) -> {
                         if (error != null) {
                             datafeedTask.markAsFailed(error);

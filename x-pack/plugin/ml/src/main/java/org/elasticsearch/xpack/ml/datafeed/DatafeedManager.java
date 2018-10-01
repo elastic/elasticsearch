@@ -18,9 +18,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
@@ -29,8 +30,6 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
@@ -48,9 +47,9 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.persistent.PersistentTasksService.WaitForPersistentTaskListener;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.persistent.PersistentTasksService.WaitForPersistentTaskListener;
 
 public class DatafeedManager extends AbstractComponent {
 
@@ -77,13 +76,7 @@ public class DatafeedManager extends AbstractComponent {
         clusterService.addListener(taskRunner);
     }
 
-    public void run(TransportStartDatafeedAction.DatafeedTask task, Consumer<Exception> taskHandler) {
-        String datafeedId = task.getDatafeedId();
-        ClusterState state = clusterService.state();
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
-
-        DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
-        Job job = mlMetadata.getJobs().get(datafeed.getJobId());
+    public void run(TransportStartDatafeedAction.DatafeedTask task, Job job, DatafeedConfig datafeed, Consumer<Exception> taskHandler) {
 
         ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(
                 datafeedJob -> {

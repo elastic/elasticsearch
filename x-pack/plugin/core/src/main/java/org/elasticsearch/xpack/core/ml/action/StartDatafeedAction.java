@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -194,6 +195,10 @@ public class StartDatafeedAction
             startTime = in.readVLong();
             endTime = in.readOptionalLong();
             timeout = TimeValue.timeValueMillis(in.readVLong());
+            if (in.getVersion().onOrAfter(Version.CURRENT)) {
+                datafeedConfig = in.readOptionalWriteable(DatafeedConfig::new);
+                job = in.readOptionalWriteable(Job::new);
+            }
         }
 
         DatafeedParams() {
@@ -203,6 +208,8 @@ public class StartDatafeedAction
         private long startTime;
         private Long endTime;
         private TimeValue timeout = TimeValue.timeValueSeconds(20);
+        private DatafeedConfig datafeedConfig;
+        private Job job;
 
         public String getDatafeedId() {
             return datafeedId;
@@ -232,6 +239,22 @@ public class StartDatafeedAction
             this.timeout = timeout;
         }
 
+        public DatafeedConfig getDatafeedConfig() {
+            return datafeedConfig;
+        }
+
+        public void setDatafeedConfig(DatafeedConfig datafeedConfig) {
+            this.datafeedConfig = datafeedConfig;
+        }
+
+        public Job getJob() {
+            return job;
+        }
+
+        public void setJob(Job job) {
+            this.job = job;
+        }
+
         @Override
         public String getWriteableName() {
             return MlTasks.DATAFEED_TASK_NAME;
@@ -248,6 +271,10 @@ public class StartDatafeedAction
             out.writeVLong(startTime);
             out.writeOptionalLong(endTime);
             out.writeVLong(timeout.millis());
+            if (out.getVersion().onOrAfter(Version.CURRENT)) {
+                out.writeOptionalWriteable(datafeedConfig);
+                out.writeOptionalWriteable(job);
+            }
         }
 
         @Override
@@ -265,7 +292,7 @@ public class StartDatafeedAction
 
         @Override
         public int hashCode() {
-            return Objects.hash(datafeedId, startTime, endTime, timeout);
+            return Objects.hash(datafeedId, startTime, endTime, timeout, datafeedConfig, job);
         }
 
         @Override
@@ -280,7 +307,9 @@ public class StartDatafeedAction
             return Objects.equals(datafeedId, other.datafeedId) &&
                     Objects.equals(startTime, other.startTime) &&
                     Objects.equals(endTime, other.endTime) &&
-                    Objects.equals(timeout, other.timeout);
+                    Objects.equals(timeout, other.timeout) &&
+                    Objects.equals(datafeedConfig, other.datafeedConfig) &&
+                    Objects.equals(job, other.job);
         }
     }
 

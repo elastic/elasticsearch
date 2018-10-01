@@ -63,6 +63,12 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         public String toString() {
             return node != null ? node + " " + reason : reason;
         }
+
+        public boolean isBecomeMasterTask() {
+            return reason.equals(BECOME_MASTER_TASK_REASON);
+        }
+
+        private static final String BECOME_MASTER_TASK_REASON = "_BECOME_MASTER_TASK_";
     }
 
     public JoinTaskExecutor(AllocationService allocationService, Logger logger) {
@@ -80,7 +86,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
         if (joiningNodes.size() == 1 && joiningNodes.get(0).equals(FINISH_ELECTION_TASK)) {
             return results.successes(joiningNodes).build(currentState);
-        } else if (currentNodes.getMasterNode() == null && joiningNodes.contains(BECOME_MASTER_TASK)) {
+        } else if (currentNodes.getMasterNode() == null && joiningNodes.stream().anyMatch(Task::isBecomeMasterTask)) {
             assert joiningNodes.contains(FINISH_ELECTION_TASK) : "becoming a master but election is not finished " + joiningNodes;
             // use these joins to try and become the master.
             // Note that we don't have to do any validation of the amount of joining nodes - the commit
@@ -104,7 +110,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         final boolean enforceMajorVersion = currentState.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false;
         // processing any joins
         for (final Task joinTask : joiningNodes) {
-            if (joinTask.equals(BECOME_MASTER_TASK) || joinTask.equals(FINISH_ELECTION_TASK)) {
+            if (joinTask.isBecomeMasterTask() || joinTask.equals(FINISH_ELECTION_TASK)) {
                 // noop
             } else if (currentNodes.nodeExists(joinTask.node())) {
                 logger.debug("received a join request for an existing node [{}]", joinTask.node());
@@ -146,7 +152,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
 
         for (final Task joinTask : joiningNodes) {
-            if (joinTask.equals(BECOME_MASTER_TASK) || joinTask.equals(FINISH_ELECTION_TASK)) {
+            if (joinTask.isBecomeMasterTask() || joinTask.equals(FINISH_ELECTION_TASK)) {
                 // noop
             } else {
                 final DiscoveryNode joiningNode = joinTask.node();
@@ -180,14 +186,13 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         return false;
     }
 
-    /**
-     * a task indicated that the current node should become master, if no current master is known
-     */
-    public static final Task BECOME_MASTER_TASK = new Task(null, "_BECOME_MASTER_TASK_");
+    public static Task newBecomeMasterTask() {
+        return new Task(null, Task.BECOME_MASTER_TASK_REASON);
+    }
 
     /**
      * a task that is used to signal the election is stopped and we should process pending joins.
-     * it may be use in combination with {@link JoinTaskExecutor#BECOME_MASTER_TASK}
+     * it may be use in combination with {@link JoinTaskExecutor#newBecomeMasterTask()}
      */
     public static final Task FINISH_ELECTION_TASK = new Task(null, "_FINISH_ELECTION_");
 

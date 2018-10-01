@@ -276,7 +276,7 @@ public class NodeJoinController extends AbstractComponent {
             final String source = "zen-disco-elected-as-master ([" + tasks.size() + "] nodes joined)";
 
             // noop listener, the election finished listener determines result
-            tasks.put(JoinTaskExecutor.BECOME_MASTER_TASK, (source1, e) -> {});
+            tasks.put(JoinTaskExecutor.newBecomeMasterTask(), (source1, e) -> {});
             tasks.put(JoinTaskExecutor.FINISH_ELECTION_TASK, electionFinishedListener);
             masterService.submitStateUpdateTasks(source, tasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
         }

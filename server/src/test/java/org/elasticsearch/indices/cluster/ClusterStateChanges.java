@@ -232,7 +232,7 @@ public class ClusterStateChanges extends AbstractComponent {
 
     public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
         List<JoinTaskExecutor.Task> joinNodes = new ArrayList<>();
-        joinNodes.add(JoinTaskExecutor.BECOME_MASTER_TASK);
+        joinNodes.add(JoinTaskExecutor.newBecomeMasterTask());
         joinNodes.add(JoinTaskExecutor.FINISH_ELECTION_TASK);
         joinNodes.addAll(nodes.stream().map(node -> new JoinTaskExecutor.Task(node, "dummy reason"))
             .collect(Collectors.toList()));

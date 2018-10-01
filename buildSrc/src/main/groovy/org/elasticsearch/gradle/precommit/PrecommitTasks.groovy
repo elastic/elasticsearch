@@ -19,7 +19,10 @@
 package org.elasticsearch.gradle.precommit
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
+import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
+import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
+import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.plugins.JavaBasePlugin
@@ -109,47 +112,43 @@ class PrecommitTasks {
     }
 
     private static Task configureForbiddenApisCli(Project project) {
-        Task forbiddenApisCli = project.tasks.create('forbiddenApis')
-        project.sourceSets.all { sourceSet ->
-            forbiddenApisCli.dependsOn(
-                project.tasks.create(sourceSet.getTaskName('forbiddenApis', null), ForbiddenApisCliTask) {
-                    ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
-                    dependsOn(buildResources)
-                    it.sourceSet = sourceSet
-                    javaHome = project.runtimeJavaHome
-                    targetCompatibility = project.compilerJavaVersion
-                    bundledSignatures = [
-                       "jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"
-                    ]
-                    signaturesFiles = project.files(
-                            buildResources.copy("forbidden/jdk-signatures.txt"),
-                            buildResources.copy("forbidden/es-all-signatures.txt")
-                    )
-                    suppressAnnotations = ['**.SuppressForbidden']
-                    if (sourceSet.name == 'test') {
-                        signaturesFiles += project.files(
-                                buildResources.copy("forbidden/es-test-signatures.txt"),
-                                buildResources.copy("forbidden/http-signatures.txt")
-                        )
-                    } else {
-                        signaturesFiles += project.files(buildResources.copy("forbidden/es-server-signatures.txt"))
-                    }
-                    dependsOn sourceSet.classesTaskName
-                    classesDirs = sourceSet.output.classesDirs
-                    ext.replaceSignatureFiles = { String... names ->
-                        signaturesFiles = project.files(
-                                names.collect { buildResources.copy("forbidden/${it}.txt") }
-                        )
-                    }
-                    ext.addSignatureFiles = { String... names ->
-                        signaturesFiles += project.files(
-                                names.collect { buildResources.copy("forbidden/${it}.txt") }
-                        )
-                    }
-                }
+        project.pluginManager.apply(ForbiddenApisPlugin)
+        ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
+        project.tasks.withType(CheckForbiddenApis) {
+            dependsOn(buildResources)
+            targetCompatibility = project.runtimeJavaVersion >= JavaVersion.VERSION_1_9 ?
+                    project.runtimeJavaVersion.getMajorVersion() :
+                    project.runtimeJavaVersion
+            bundledSignatures = [
+                    "jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"
+            ]
+            signaturesFiles = project.files(
+                    buildResources.copy("forbidden/jdk-signatures.txt"),
+                    buildResources.copy("forbidden/es-all-signatures.txt")
             )
+            suppressAnnotations = ['**.SuppressForbidden']
+            if (name.endsWith('Test')) {
+                signaturesFiles += project.files(
+                        buildResources.copy("forbidden/es-test-signatures.txt"),
+                        buildResources.copy("forbidden/http-signatures.txt")
+                )
+            } else {
+                signaturesFiles += project.files(buildResources.copy("forbidden/es-server-signatures.txt"))
+            }
+            ext.replaceSignatureFiles = { String... names ->
+                signaturesFiles = project.files(
+                        names.collect { buildResources.copy("forbidden/${it}.txt") }
+                )
+            }
+            ext.addSignatureFiles = { String... names ->
+                signaturesFiles += project.files(
+                        names.collect { buildResources.copy("forbidden/${it}.txt") }
+                )
+            }
         }
-        return forbiddenApisCli
+        Task forbiddenApis =  project.tasks.getByName("forbiddenApis")
+        forbiddenApis.group = ""
+        return forbiddenApis
     }
 
     private static Task configureCheckstyle(Project project) {

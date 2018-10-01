@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.precommit.ForbiddenApisCliTask
+import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 
 /*
  * This project is named sql-cli because it is in the "org.elasticsearch.plugin"
@@ -75,7 +75,7 @@ artifacts  {
 }
 
 
-tasks.withType(ForbiddenApisCliTask) {
+tasks.withType(CheckForbiddenApis) {
     signaturesFiles += files('src/forbidden/cli-signatures.txt')
 }
 

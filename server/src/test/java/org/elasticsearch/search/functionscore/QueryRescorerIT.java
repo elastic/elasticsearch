@@ -156,13 +156,9 @@ public class QueryRescorerIT extends ESIntegTestCase {
 
     public void testMoreDocs() throws Exception {
         Builder builder = Settings.builder();
-        builder.put("index.analysis.analyzer.synonym.tokenizer", "standard");
-        builder.putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
-        builder.put("index.analysis.filter.synonym.type", "synonym");
-        builder.putList("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("field1").field("type", "text").field("analyzer", "whitespace").field("search_analyzer", "synonym")
+                .startObject("field1").field("type", "text").field("analyzer", "whitespace")
                 .endObject().endObject().endObject().endObject();
 
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", mapping)
@@ -234,13 +230,9 @@ public class QueryRescorerIT extends ESIntegTestCase {
     // Tests a rescore window smaller than number of hits:
     public void testSmallRescoreWindow() throws Exception {
         Builder builder = Settings.builder();
-        builder.put("index.analysis.analyzer.synonym.tokenizer", "standard");
-        builder.putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
-        builder.put("index.analysis.filter.synonym.type", "synonym");
-        builder.putList("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("field1").field("type", "text").field("analyzer", "whitespace").field("search_analyzer", "synonym")
+                .startObject("field1").field("type", "text").field("analyzer", "whitespace")
                 .endObject().endObject().endObject().endObject();
 
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", mapping)
@@ -306,13 +298,9 @@ public class QueryRescorerIT extends ESIntegTestCase {
     // Tests a rescorer that penalizes the scores:
     public void testRescorerMadeScoresWorse() throws Exception {
         Builder builder = Settings.builder();
-        builder.put("index.analysis.analyzer.synonym.tokenizer", "standard");
-        builder.putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
-        builder.put("index.analysis.filter.synonym.type", "synonym");
-        builder.putList("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("field1").field("type", "text").field("analyzer", "whitespace").field("search_analyzer", "synonym")
+                .startObject("field1").field("type", "text").field("analyzer", "whitespace")
                 .endObject().endObject().endObject().endObject();
 
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", mapping)

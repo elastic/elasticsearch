@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -407,7 +409,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.get(0)[1], equalTo(64L));
 
         shardChangesRequests.clear();
-        task.innerHandleReadResponse(0L, 63L, new ShardChangesAction.Response(0, 0, 0, new Translog.Operation[0]));
+        task.innerHandleReadResponse(0L, 63L, new ShardChangesAction.Response(0, 0, 0, 100, new Translog.Operation[0]));
 
         assertThat(shardChangesRequests.size(), equalTo(1));
         assertThat(shardChangesRequests.get(0)[0], equalTo(0L));
@@ -675,7 +677,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             new ShardId("leader_index", "", 0),
             maxBatchOperationCount,
             maxConcurrentReadBatches,
-            maxBatchSizeInBytes,
+            new ByteSizeValue(maxBatchSizeInBytes, ByteSizeUnit.BYTES),
             maxConcurrentWriteBatches,
             bufferWriteLimit,
             TimeValue.ZERO,
@@ -714,6 +716,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             @Override
             protected void innerSendBulkShardOperationsRequest(
                     final List<Translog.Operation> operations,
+                    final long maxSeqNoOfUpdates,
                     final Consumer<BulkShardOperationsResponse> handler,
                     final Consumer<Exception> errorHandler) {
                 bulkShardOperationRequests.add(operations);
@@ -749,6 +752,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                         mappingVersions.poll(),
                         leaderGlobalCheckpoints.poll(),
                         maxSeqNos.poll(),
+                        randomNonNegativeLong(),
                         operations
                     );
                     handler.accept(response);
@@ -785,6 +789,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             mappingVersion,
             leaderGlobalCheckPoint,
             leaderGlobalCheckPoint,
+            randomNonNegativeLong(),
             ops.toArray(new Translog.Operation[0])
         );
     }

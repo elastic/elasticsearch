@@ -20,41 +20,31 @@
 package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import joptsimple.OptionParser;
-import joptsimple.OptionSet;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.shard.RemoveCorruptedShardDataCommand;
 import org.elasticsearch.index.shard.RemoveCorruptedShardDataCommandIT;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -91,94 +81,94 @@ public class AllocationIdIT extends ESIntegTestCase {
     }
 
     public void testAllocationIdIsSetAfterRecoveryOnAllocateStalePrimary() throws Exception {
-        /**
+        /*
          * test case to spot the problem if allocation id is adjusted before recovery is done (historyUUID is adjusted):
          *
-         * - start node1 (primary), index some docs, start node2 (replica) all docs are replicated; same historyUUID
-         * - stop node2 (replica)
-         * - corrupt index on node1, drop corrupted parts it with a corruption tool but don't change historyUUID
-         *   (if we start both node1 and node2 no any recovery would be done due to same historyUUID while node1 has less docs than node2)
-         *   after corruption tool it is required AllocateStalePrimary to be called.
+         * - Master node + 2 data nodes
+         * - (1) index some docs
+         * - stop primary (node1)
+         * - (2) index more docs to a formal replica (node2)
+         * - stop node2
          *
-         * we'd like to disrupt the recovery (local) process:
-         * - put a fake corruption marker on node1 to disrupt the recovery
-         * - start node - allocation id is adjusted (*) - recovery failed and historyUUID is not changed
-         * - remove a fake corruption marker from node1 and start it again
-         * - the interruption on recovery has the effect close to AllocateStalePrimary is ignored if a real allocation
-         *   id in (*) is persisted before recovery is done (and historyUUID is changed)
-         * - index is RED as shard allocation id does not match persisted at (*) allocation id (_forced_allocation)
-         * - AllocateStalePrimary has to be called again
-         *   it fails if a shard allocation id at (*) is persisted
-         * - index turns to YELLOW
-         * - start replica -> after (a full) recovery index turns GREEN and all shards have the same number of docs ( numDocs - corrupted )
-         *   no recovery take place if a shard allocation id at (*) is persisted =>
-         *   => nodes are fully in-sync but have diff number of docs
+         * node1 would not be a new primary due to master node state - it is required to run AllocateStalePrimary
+         * - put a corruption marker to node1 to interrupt recovery
+         * - start node1 (shard would not start as it is stale)
+         * - allocate stale primary - allocation id is adjusted (*) - but it fails due to the presence of corruption marker
+         * - stop node1
+         * - stop node0 (master node) to forget about recoverySource (it is stored in a routing table)
+         * - drop a corruption marker
+         * - start node0 (master) and node1
+         *  -> node0 becomes a new primary with the same historyUUID if (*) has a real allocation id
+         *  -> node0 has a RED index if (*) points to a fake shard -> node requires another AllocateStalePrimary
+         * - index same amount of docs to node1 as it was added at (2)
+         *
+         * - node1 and node2 have the same number of docs ( but with different docs )
+         * - bring node2 back
+         * -> no recovery take place if a shard allocation id at (*) is persisted => nodes are fully in-sync but have diff docs
+         * -> due to fake allocation id at (*) AllocateStalePrimary is forced for the 2nd time and a full recovery takes place
          */
-
         // initial set up
         final String indexName = "index42";
-        final String node1 = internalCluster().startNode();
+        String node0 = internalCluster().startMasterOnlyNode();
+        String node1 = internalCluster().startNode();
+        createIndex(indexName);
         final int numDocs = indexDocs(indexName);
-        final IndexSettings indexSettings = getIndexSettings(indexName);
+        final IndexSettings indexSettings = getIndexSettings(indexName, node1);
         final String primaryNodeId = getNodeIdByName(node1);
         final Set<String> allocationIds = getAllocationIds(indexName);
         final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
         final Path indexPath = getIndexPath(node1, shardId);
         assertThat(allocationIds, hasSize(1));
         final Set<String> historyUUIDs = historyUUIDs(node1, indexName);
-        final String node2 = internalCluster().startNode();
+        String node2 = internalCluster().startNode();
         ensureGreen(indexName);
         assertSameDocIdsOnShards();
         // initial set up is done
 
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node1));
+
+        // index more docs to node2 (formal replica)
+        int numExtraDocs = randomIntBetween(10, 100);
+        {
+            IndexRequestBuilder[] builders = new IndexRequestBuilder[numExtraDocs];
+            for (int i = 0; i < builders.length; i++) {
+                builders[i] = client().prepareIndex(indexName, "type").setSource("foo", "bar2");
+            }
+
+            indexRandom(true, false, false, Arrays.asList(builders));
+            flush(indexName);
+            assertHitCount(client(node2).prepareSearch(indexName).setQuery(matchAllQuery()).get(), numDocs + numExtraDocs);
+        }
+
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node2));
-
-        final int expectedNumDocs = corruptIndexAndGetExpectedNumDocs(node1, indexName, numDocs, shardId, indexPath);
-
-        // start nodes in the same order to pick up same data folders; same as node1
-        final String node3 = internalCluster().startNode();
-
-        // there is only _stale_ primary (due to new allocation id)
-        checkNoValidShardCopy(indexName, shardId);
 
         // create fake corrupted marker
         putFakeCorruptionMarker(indexSettings, shardId, indexPath);
 
+        // thanks to master node1 is out of sync
+        node1 = internalCluster().startNode();
+
+        // there is only _stale_ primary
+        checkNoValidShardCopy(indexName, shardId);
+
         // allocate stale primary
-        client().admin().cluster().prepareReroute()
+        client(node1).admin().cluster().prepareReroute()
             .add(new AllocateStalePrimaryAllocationCommand(indexName, 0, primaryNodeId, true))
             .get();
 
-        // no valid shard copy as shard failed due to corruption marker
-        checkNoValidShardCopy(indexName, shardId);
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node1));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node0));
 
-        // restart node1 and remove fake corruption marker to be able to start shard
-        internalCluster().restartNode(node3, new InternalTestCluster.RestartCallback() {
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                try(Store store = new Store(shardId, indexSettings, new SimpleFSDirectory(indexPath), new DummyShardLock(shardId))) {
-                    store.removeCorruptionMarker();
-                }
-                return super.onNodeStopped(nodeName);
-            }
-        });
+        try(Store store = new Store(shardId, indexSettings, new SimpleFSDirectory(indexPath), new DummyShardLock(shardId))) {
+            store.removeCorruptionMarker();
+        }
 
-        // check that allocation id is changed
-        assertBusy(() -> {
-            final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-            final MetaData indexMetaData = clusterState.metaData();
-            final IndexMetaData index = indexMetaData.index(indexName);
-            assertThat(index, notNullValue());
-            final Set<String> newAllocationIds = index.inSyncAllocationIds(0);
-            assertThat(newAllocationIds, hasSize(1));
-            assertThat(newAllocationIds, everyItem(not(isIn(allocationIds))));
-        });
+        node0 = internalCluster().startMasterOnlyNode();
+        node1 = internalCluster().startNode();
 
-        // that we can have in case of put a real (not a fake) allocation id:
-        //
+        // that we can have w/o fake id:
         // ensureYellow(indexName);
-        // Set<String> newHistoryUUIds = historyUUIDs(indexName);
-        // assertThat(newHistoryUUIds, equalTo(historyUUIDs));
+        // assertThat(historyUUIDs(node12, indexName), equalTo(historyUUIDs));
 
         // index has to red: no any shard is allocated (allocation id is a fake id that does not match to anything)
         final ClusterHealthStatus indexHealthStatus = client().admin().cluster()
@@ -192,24 +182,30 @@ public class AllocationIdIT extends ESIntegTestCase {
 
         ensureYellow(indexName);
 
-        // node4 uses same data folder as node2
-        final String node4 = internalCluster().startNode();
+        {
+            IndexRequestBuilder[] builders = new IndexRequestBuilder[numExtraDocs];
+            for (int i = 0; i < builders.length; i++) {
+                builders[i] = client().prepareIndex(indexName, "type").setSource("foo", "bar3");
+            }
 
-        // wait for the replica is fully recovered
+            indexRandom(true, false, false, Arrays.asList(builders));
+            flush(indexName);
+        }
+        assertHitCount(client(node1).prepareSearch(indexName).setQuery(matchAllQuery()).get(), numDocs + numExtraDocs);
+
+        // bring node2 back
+        node2 = internalCluster().startNode();
         ensureGreen(indexName);
 
-        // check that historyUUID is changed
-        assertThat(historyUUIDs(node3, indexName), everyItem(not(isIn(historyUUIDs))));
-        assertThat(historyUUIDs(node4, indexName), everyItem(not(isIn(historyUUIDs))));
+        assertThat(historyUUIDs(node1, indexName), everyItem(not(isIn(historyUUIDs))));
+        assertThat(historyUUIDs(node1, indexName), equalTo(historyUUIDs(node2, indexName)));
 
-        // both primary and replica have the same number of docs
-        assertHitCount(client(node3).prepareSearch(indexName).setQuery(matchAllQuery()).get(), expectedNumDocs);
-        // otherwise - replica has not been recovered and it has more docs than primary
-        assertHitCount(client(node4).prepareSearch(indexName).setQuery(matchAllQuery()).get(), expectedNumDocs);
+        assertHitCount(client(node1).prepareSearch(indexName).setQuery(matchAllQuery()).get(), numDocs + numExtraDocs);
+        assertHitCount(client(node2).prepareSearch(indexName).setQuery(matchAllQuery()).get(), numDocs + numExtraDocs);
         assertSameDocIdsOnShards();
     }
 
-    private int indexDocs(String indexName) throws InterruptedException, ExecutionException {
+    private void createIndex(String indexName) {
         assertAcked(prepareCreate(indexName)
             .setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -218,6 +214,9 @@ public class AllocationIdIT extends ESIntegTestCase {
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
                 .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), true)
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "checksum")));
+    }
+
+    private int indexDocs(String indexName) throws InterruptedException, ExecutionException {
         // index some docs in several segments
         int numDocs = 0;
         for (int k = 0, attempts = randomIntBetween(5, 10); k < attempts; k++) {
@@ -229,7 +228,7 @@ public class AllocationIdIT extends ESIntegTestCase {
 
             numDocs += numExtraDocs;
 
-            indexRandom(false, false, false, Arrays.asList(builders));
+            indexRandom(true, false, false, Arrays.asList(builders));
             flush(indexName);
         }
 
@@ -251,48 +250,6 @@ public class AllocationIdIT extends ESIntegTestCase {
         return primaryNodeId;
     }
 
-    private int corruptIndexAndGetExpectedNumDocs(String nodeName, String indexName, int numDocs,
-                                                  ShardId shardId, Path indexPath) throws Exception {
-        // corrupt index on node restart
-        internalCluster().restartNode(nodeName, new InternalTestCluster.RestartCallback() {
-            @Override
-            public Settings onNodeStopped(String node) throws Exception {
-                CorruptionUtils.corruptIndex(random(), indexPath, false);
-                return super.onNodeStopped(node);
-            }
-        });
-
-        // all shards should be failed due to a corrupted index
-        assertBusy(() -> {
-            final ClusterAllocationExplanation explanation =
-                client().admin().cluster().prepareAllocationExplain()
-                    .setIndex(indexName).setShard(shardId.id()).setPrimary(true)
-                    .get().getExplanation();
-
-            final UnassignedInfo unassignedInfo = explanation.getUnassignedInfo();
-            assertThat(unassignedInfo.getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
-        });
-
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeName));
-
-        // drop corrupted documents from index, but keep the same historyUUID
-        final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand() {
-            @Override
-            protected void addNewHistoryCommit(Directory indexDirectory, Terminal terminal11, boolean updateLocalCheckpoint) {
-                // do not create a new history commit
-            }
-        };
-
-        final OptionParser parser = command.getParser();
-        final Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
-        final OptionSet options = parser.parse("-index", indexName, "-shard-id", Integer.toString(shardId.id()));
-        final MockTerminal terminal = new MockTerminal();
-        terminal.addTextInput("y");
-        command.execute(terminal, options, environment);
-        // grab number of corrupted docs from RemoveCorruptedShardDataCommand output
-        return RemoveCorruptedShardDataCommandIT.getExpectedNumDocs(numDocs, terminal);
-    }
-
     private Path getIndexPath(String nodeName, ShardId shardId) {
         final Set<Path> indexDirs = RemoveCorruptedShardDataCommandIT.getDirs(nodeName, shardId, ShardPath.INDEX_FOLDER_NAME);
         assertThat(indexDirs, hasSize(1));
@@ -305,8 +262,8 @@ public class AllocationIdIT extends ESIntegTestCase {
         return allocationIds;
     }
 
-    private IndexSettings getIndexSettings(String indexName) {
-        final IndicesService indicesService = internalCluster().getInstance(IndicesService.class);
+    private IndexSettings getIndexSettings(String indexName, String nodeName) {
+        final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
         final IndexService indexService = indicesService.indexService(resolveIndex(indexName));
         return indexService.getIndexSettings();
     }

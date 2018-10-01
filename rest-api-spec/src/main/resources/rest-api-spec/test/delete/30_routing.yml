@@ -1,16 +1,21 @@
 ---
 "Routing":
 
+ - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
  - do:
       indices.create:
+          include_type_name: false
           index: test_1
           body:
             settings:
               number_of_shards: 5
  - do:
       index:
+          include_type_name: false
           index:   test_1
-          type:    test
           id:      1
           routing: 5
           body:    { foo: bar }
@@ -18,15 +23,15 @@
  - do:
       catch:      missing
       delete:
+          include_type_name: false
           index:   test_1
-          type:    test
           id:      1
           routing: 4
 
  - do:
       delete:
+          include_type_name: false
           index:   test_1
-          type:    test
           id:      1
           routing: 5
 

@@ -411,7 +411,7 @@ public abstract class PeerFinder extends AbstractComponent {
                     @Override
                     public void handleException(TransportException exp) {
                         peersRequestInFlight = false;
-                        logger.debug(new ParameterizedMessage("{} peers request failed", this), exp);
+                        logger.debug(new ParameterizedMessage("{} peers request failed", Peer.this), exp);
                     }
 
                     @Override

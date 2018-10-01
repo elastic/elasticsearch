@@ -391,7 +391,7 @@ public class IndexLifecycleRunner {
     private void moveToErrorStep(Index index, String policy, StepKey currentStepKey, Exception e) {
         logger.error("policy [" + policy + "] for index [" + index.getName() + "] failed on step [" + currentStepKey
             + "]. Moving to ERROR step.", e);
-        clusterService.submitStateUpdateTask("ilm-move-to-error",
+        clusterService.submitStateUpdateTask("ilm-move-to-error-step",
             new MoveToErrorStepUpdateTask(index, policy, currentStepKey, e, nowSupplier));
     }
 

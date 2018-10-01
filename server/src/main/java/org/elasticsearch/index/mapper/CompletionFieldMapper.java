@@ -501,7 +501,6 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         return context.externalValue().getClass().equals(clazz);
     }
 
-
     /**
      * Acceptable inputs:
      *  "STRING" - interpreted as the field value (input)

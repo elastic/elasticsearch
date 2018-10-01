@@ -154,6 +154,8 @@ public class CoordinatorTests extends ESTestCase {
             // first wait for all the followers to notice the leader has gone
             (defaultMillis(LEADER_CHECK_INTERVAL_SETTING) + defaultMillis(LEADER_CHECK_TIMEOUT_SETTING))
                 * defaultInt(LEADER_CHECK_RETRY_COUNT_SETTING)
+                // then wait for a follower to be promoted to leader
+                + DEFAULT_ELECTION_DELAY
                 // then wait for the new leader to notice that the old leader is unresponsive
                 + (defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING))
                 * defaultInt(FOLLOWER_CHECK_RETRY_COUNT_SETTING)
@@ -229,13 +231,24 @@ public class CoordinatorTests extends ESTestCase {
         // Then a commit of the new leader's first cluster state
         + DEFAULT_CLUSTER_STATE_UPDATE_DELAY;
 
+    private static final long DEFAULT_STABILISATION_TIME =
+        // If leader just blackholed, need to wait for this to be detected
+        (defaultMillis(LEADER_CHECK_INTERVAL_SETTING) + defaultMillis(LEADER_CHECK_TIMEOUT_SETTING))
+            * defaultInt(LEADER_CHECK_RETRY_COUNT_SETTING)
+            // then wait for a follower to be promoted to leader
+            + DEFAULT_ELECTION_DELAY
+            // then wait for the new leader to notice that the old leader is unresponsive
+            + (defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING))
+            * defaultInt(FOLLOWER_CHECK_RETRY_COUNT_SETTING)
+            // then wait for the new leader to commit a state without the old leader
+            + DEFAULT_CLUSTER_STATE_UPDATE_DELAY;
+
     private static String nodeIdFromIndex(int nodeIndex) {
         return "node" + nodeIndex;
     }
 
     class Cluster {
 
-        static final long DEFAULT_STABILISATION_TIME = 3000L; // TODO use a real stabilisation time - needs fault detection and disruption
         static final long DEFAULT_DELAY_VARIABILITY = 100L;
 
         final List<ClusterNode> clusterNodes;

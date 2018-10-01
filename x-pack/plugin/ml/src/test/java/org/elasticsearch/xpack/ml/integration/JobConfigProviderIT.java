@@ -68,18 +68,25 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
 
         assertNull(jobHolder.get());
         assertNotNull(exceptionHolder.get());
-        assertThat(exceptionHolder.get(), instanceOf(ResourceNotFoundException.class));
+        assertEquals(ResourceNotFoundException.class, exceptionHolder.get().getClass());
     }
 
     public void testCheckJobExists() throws InterruptedException {
         AtomicReference<Boolean> jobExistsHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
-        blockingCall(actionListener -> jobConfigProvider.checkJobExists("missing", actionListener), jobExistsHolder, exceptionHolder);
+        boolean throwIfMissing = randomBoolean();
+        blockingCall(actionListener ->
+                jobConfigProvider.jobExists("missing", throwIfMissing, actionListener), jobExistsHolder, exceptionHolder);
 
-        assertNull(jobExistsHolder.get());
-        assertNotNull(exceptionHolder.get());
-        assertThat(exceptionHolder.get(), instanceOf(ResourceNotFoundException.class));
+        if (throwIfMissing) {
+            assertNull(jobExistsHolder.get());
+            assertNotNull(exceptionHolder.get());
+            assertEquals(ResourceNotFoundException.class, exceptionHolder.get().getClass());
+        } else {
+            assertFalse(jobExistsHolder.get());
+            assertNull(exceptionHolder.get());
+        }
 
         AtomicReference<IndexResponse> indexResponseHolder = new AtomicReference<>();
 
@@ -88,7 +95,8 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         blockingCall(actionListener -> jobConfigProvider.putJob(job, actionListener), indexResponseHolder, exceptionHolder);
 
         exceptionHolder.set(null);
-        blockingCall(actionListener -> jobConfigProvider.checkJobExists("existing-job", actionListener), jobExistsHolder, exceptionHolder);
+        blockingCall(actionListener ->
+                jobConfigProvider.jobExists("existing-job", throwIfMissing, actionListener), jobExistsHolder, exceptionHolder);
         assertNull(exceptionHolder.get());
         assertNotNull(jobExistsHolder.get());
         assertTrue(jobExistsHolder.get());
@@ -159,7 +167,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         getJobResponseHolder.set(null);
         blockingCall(actionListener -> jobConfigProvider.getJob(jobId, actionListener), getJobResponseHolder, exceptionHolder);
         assertNull(getJobResponseHolder.get());
-        assertThat(exceptionHolder.get(), instanceOf(ResourceNotFoundException.class));
+        assertEquals(ResourceNotFoundException.class, exceptionHolder.get().getClass());
 
         // Delete deleted job
         deleteJobResponseHolder.set(null);
@@ -167,7 +175,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         blockingCall(actionListener -> jobConfigProvider.deleteJob(jobId, actionListener),
                 deleteJobResponseHolder, exceptionHolder);
         assertNull(deleteJobResponseHolder.get());
-        assertThat(exceptionHolder.get(), instanceOf(ResourceNotFoundException.class));
+        assertEquals(ResourceNotFoundException.class, exceptionHolder.get().getClass());
     }
 
     public void testGetJobs() throws Exception {
@@ -263,7 +271,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
 
         assertNull(jobIdsHolder.get());
         assertNotNull(exceptionHolder.get());
-        assertThat(exceptionHolder.get(), instanceOf(ResourceNotFoundException.class));
+        assertEquals(ResourceNotFoundException.class, exceptionHolder.get().getClass());
         assertThat(exceptionHolder.get().getMessage(), containsString("No known job with id"));
 
         exceptionHolder.set(null);
@@ -278,7 +286,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
 
         assertNull(jobsHolder.get());
         assertNotNull(exceptionHolder.get());
-        assertThat(exceptionHolder.get(), instanceOf(ResourceNotFoundException.class));
+        assertEquals(ResourceNotFoundException.class, exceptionHolder.get().getClass());
         assertThat(exceptionHolder.get().getMessage(), containsString("No known job with id"));
 
         exceptionHolder.set(null);
@@ -315,7 +323,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
                 jobIdsHolder, exceptionHolder);
         assertNull(jobIdsHolder.get());
         assertNotNull(exceptionHolder.get());
-        assertThat(exceptionHolder.get(), instanceOf(ResourceNotFoundException.class));
+        assertEquals(ResourceNotFoundException.class, exceptionHolder.get().getClass());
         assertThat(exceptionHolder.get().getMessage(), equalTo("No known job with id 'missing1,missing2'"));
 
         // Job builders
@@ -344,7 +352,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
                 jobsHolder, exceptionHolder);
         assertNull(jobsHolder.get());
         assertNotNull(exceptionHolder.get());
-        assertThat(exceptionHolder.get(), instanceOf(ResourceNotFoundException.class));
+        assertEquals(ResourceNotFoundException.class, exceptionHolder.get().getClass());
         assertThat(exceptionHolder.get().getMessage(), equalTo("No known job with id 'missing1,missing2'"));
     }
 

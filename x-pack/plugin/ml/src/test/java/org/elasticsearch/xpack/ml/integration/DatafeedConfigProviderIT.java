@@ -108,6 +108,15 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponseHolder.get().getResult());
     }
 
+    public void testGetDatafeedConfig_missing() throws InterruptedException {
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        AtomicReference<DatafeedConfig.Builder> configBuilderHolder = new AtomicReference<>();
+        blockingCall(actionListener -> datafeedConfigProvider.getDatafeedConfig("missing", actionListener),
+                configBuilderHolder, exceptionHolder);
+        assertNull(configBuilderHolder.get());
+        assertEquals(ResourceNotFoundException.class, exceptionHolder.get().getClass());
+    }
+
     public void testMultipleCreateAndDeletes() throws InterruptedException {
         String datafeedId = "df2";
 
@@ -127,7 +136,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
                 indexResponseHolder, exceptionHolder);
         assertNull(indexResponseHolder.get());
         assertThat(exceptionHolder.get(), instanceOf(ResourceAlreadyExistsException.class));
-        assertEquals("A datafeed with Id [df2] already exists", exceptionHolder.get().getMessage());
+        assertEquals("A datafeed with id [df2] already exists", exceptionHolder.get().getMessage());
 
         // delete
         exceptionHolder.set(null);
@@ -142,7 +151,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         blockingCall(actionListener -> datafeedConfigProvider.deleteDatafeedConfig(datafeedId, actionListener),
                 deleteResponseHolder, exceptionHolder);
         assertNull(deleteResponseHolder.get());
-        assertThat(exceptionHolder.get(), instanceOf(ResourceNotFoundException.class));
+        assertEquals(ResourceNotFoundException.class, exceptionHolder.get().getClass());
     }
 
     public void testUpdateWhenApplyingTheUpdateThrows() throws Exception {
@@ -202,7 +211,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
 
         assertNull(datafeedIdsHolder.get());
         assertNotNull(exceptionHolder.get());
-        assertThat(exceptionHolder.get(), IsInstanceOf.instanceOf(ResourceNotFoundException.class));
+        assertEquals(ResourceNotFoundException.class, exceptionHolder.get().getClass());
         assertThat(exceptionHolder.get().getMessage(), containsString("No datafeed with id [*] exists"));
 
         exceptionHolder.set(null);
@@ -217,7 +226,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
 
         assertNull(datafeedsHolder.get());
         assertNotNull(exceptionHolder.get());
-        assertThat(exceptionHolder.get(), IsInstanceOf.instanceOf(ResourceNotFoundException.class));
+        assertEquals(ResourceNotFoundException.class, exceptionHolder.get().getClass());
         assertThat(exceptionHolder.get().getMessage(), containsString("No datafeed with id [*] exists"));
 
         exceptionHolder.set(null);

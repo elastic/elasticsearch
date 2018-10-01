@@ -120,7 +120,7 @@ public class JobManager extends AbstractComponent {
     }
 
     public void jobExists(String jobId, ActionListener<Boolean> listener) {
-        jobConfigProvider.checkJobExists(jobId, listener);
+        jobConfigProvider.jobExists(jobId, true, listener);
     }
 
     /**
@@ -281,7 +281,16 @@ public class JobManager extends AbstractComponent {
                 actionListener::onFailure
         );
 
-        jobResultsProvider.checkForLeftOverDocuments(job, checkForLeftOverDocs);
+        jobConfigProvider.jobExists(job.getId(), false, ActionListener.wrap(
+                jobExists -> {
+                    if (jobExists) {
+                        actionListener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
+                    } else {
+                        jobResultsProvider.checkForLeftOverDocuments(job, checkForLeftOverDocs);
+                    }
+                },
+                actionListener::onFailure
+        ));
     }
 
     public void updateJob(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {

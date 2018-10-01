@@ -458,6 +458,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         for (Mapper mergeWithMapper : mergeWith) {
             Mapper mergeIntoMapper = mappers.get(mergeWithMapper.simpleName());
+            checkEnabledFieldChange(mergeWith, mergeWithMapper, mergeIntoMapper);
+
             Mapper merged;
             if (mergeIntoMapper == null) {
                 // no mapping, simply add it
@@ -467,6 +469,18 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 merged = mergeIntoMapper.merge(mergeWithMapper);
             }
             putMapper(merged);
+        }
+    }
+
+    private static void checkEnabledFieldChange(ObjectMapper mergeWith, Mapper mergeWithMapper, Mapper mergeIntoMapper) {
+        if (mergeIntoMapper instanceof ObjectMapper && mergeWithMapper instanceof ObjectMapper) {
+            final ObjectMapper mergeIntoObjectMapper = (ObjectMapper) mergeIntoMapper;
+            final ObjectMapper mergeWithObjectMapper = (ObjectMapper) mergeWithMapper;
+
+            if (mergeIntoObjectMapper.isEnabled() != mergeWithObjectMapper.isEnabled()) {
+                final String path = mergeWith.fullPath() + "." + mergeWithObjectMapper.simpleName() + ".enabled";
+                throw new MapperException("Can't update attribute for type [" + path + "] in index mapping");
+            }
         }
     }
 

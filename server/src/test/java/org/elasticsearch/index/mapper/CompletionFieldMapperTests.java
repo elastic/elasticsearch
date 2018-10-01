@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.index.mapper;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.suggest.document.CompletionAnalyzer;
@@ -33,6 +36,7 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -43,11 +47,19 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.hamcrest.FeatureMatcher;
+import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
+import org.hamcrest.core.CombinableMatcher;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.array;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -215,8 +227,20 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
             XContentType.JSON));
 
         ParseContext.Document indexableFields = parsedDocument.rootDoc();
-        assertThat(indexableFields.getFields("keywordfield"), arrayWithSize(6));
-        assertFieldsOfType(indexableFields.getFields("keywordfield.subsuggest"), ContextSuggestField.class, 3);
+
+        assertThat(indexableFields.getFields("keywordfield"), array(
+            keywordField("key1"),
+            sortedSetDocValuesField("key1"),
+            keywordField("key2"),
+            sortedSetDocValuesField("key2"),
+            keywordField("key3"),
+            sortedSetDocValuesField("key3")
+        ));
+        assertThat(indexableFields.getFields("keywordfield.subsuggest"), array(
+            contextSuggestField("key1"),
+            contextSuggestField("key2"),
+            contextSuggestField("key3")
+        ));
     }
 
     public void testCompletionWithContextAndSubCompletion() throws Exception {
@@ -263,8 +287,15 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
             XContentType.JSON));
 
         ParseContext.Document indexableFields = parsedDocument.rootDoc();
-        assertFieldsOfType(indexableFields.getFields("suggest"), ContextSuggestField.class, 2);
-        assertFieldsOfType(indexableFields.getFields("suggest.subsuggest"), ContextSuggestField.class, 2);
+        //TODO how to assert about context?
+        assertThat(indexableFields.getFields("suggest"), array(
+            contextSuggestField("timmy"),
+            contextSuggestField("starbucks")
+        ));
+        assertThat(indexableFields.getFields("suggest.subsuggest"), array(
+            contextSuggestField("timmy"),
+            contextSuggestField("starbucks")
+        ));
     }
 
     public void testCompletionWithContextAndSubCompletionIndexByPath() throws Exception {
@@ -300,14 +331,20 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         ParsedDocument parsedDocument = defaultMapper.parse(SourceToParse.source("test", "type1", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                     .startObject()
-                    .array("suggest", "starbucks","timmy")
+                    .array("suggest", "timmy","starbucks")
                     .array("cat","cafe","food")
                     .endObject()),
             XContentType.JSON));
 
         ParseContext.Document indexableFields = parsedDocument.rootDoc();
-        assertFieldsOfType(indexableFields.getFields("suggest"), ContextSuggestField.class, 2);
-        assertFieldsOfType(indexableFields.getFields("suggest.subsuggest"), ContextSuggestField.class, 2);
+        assertThat(indexableFields.getFields("suggest"), array(
+            contextSuggestField("timmy"),
+            contextSuggestField("starbucks")
+        ));
+        assertThat(indexableFields.getFields("suggest.subsuggest"), array(
+            contextSuggestField("timmy"),
+            contextSuggestField("starbucks")
+        ));
     }
 
 
@@ -329,24 +366,27 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         ParsedDocument parsedDocument = defaultMapper.parse(SourceToParse.source("test", "type1", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                     .startObject()
-                    .field("geofield", "41.12,-71.34")
+                    .field("geofield", "drm3btev3e86")//"41.12,-71.34"
                     .endObject()),
             XContentType.JSON));
 
         ParseContext.Document indexableFields = parsedDocument.rootDoc();
+        //TODO how to assert about geofields?
         assertThat(indexableFields.getFields("geofield"), arrayWithSize(2));
-        assertSuggestFields(indexableFields.getFields("geofield.analyzed"), 1);
+        assertThat(indexableFields.getFields("geofield.analyzed"), array(
+            suggestField("drm3btev3e86")
+        ));
     }
 
     public void testCompletionTypeWithSubCompletionFieldAndStringInsert() throws Exception {
         String mapping = Strings.toString(jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("completion")
-            .field("type", "completion")
-            .startObject("fields")
-            .startObject("analyzed")
-            .field("type", "completion")
-            .endObject()
-            .endObject()
+            .startObject("properties").startObject("suggest")
+                .field("type", "completion")
+                .startObject("fields")
+                    .startObject("subsuggest")
+                    .field("type", "completion")
+                    .endObject()
+                .endObject()
             .endObject().endObject()
             .endObject().endObject()
         );
@@ -356,13 +396,17 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         ParsedDocument parsedDocument = defaultMapper.parse(SourceToParse.source("test", "type1", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                     .startObject()
-                    .field("completion", "suggestion")
+                    .field("suggest", "suggestion")
                     .endObject()),
             XContentType.JSON));
 
         ParseContext.Document indexableFields = parsedDocument.rootDoc();
-        assertSuggestFields(indexableFields.getFields("completion"), 1);
-        assertThat(indexableFields.getFields("completion.analyzed"), arrayWithSize(1));
+        assertThat(indexableFields.getFields("suggest"), array(
+            suggestField("suggestion")
+        ));
+        assertThat(indexableFields.getFields("suggest.subsuggest"), array(
+            suggestField("suggestion")
+        ));
     }
 
     public void testCompletionTypeWithSubCompletionFieldAndObjectInsert() throws Exception {
@@ -391,6 +435,16 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
             XContentType.JSON));
 
         ParseContext.Document indexableFields = parsedDocument.rootDoc();
+        //TODO how to assert about weight?
+        assertThat(indexableFields.getFields("completion"), array(
+            suggestField("New York"),
+            suggestField("NY")
+        ));
+        assertThat(indexableFields.getFields("completion.analyzed"), array(
+            suggestField("New York"),
+            suggestField("NY")
+        ));
+
         assertSuggestFields(indexableFields.getFields("completion"), 2);
         assertThat(indexableFields.getFields("completion.analyzed"), arrayWithSize(2));
     }
@@ -421,8 +475,17 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
             XContentType.JSON));
 
         ParseContext.Document indexableFields = parsedDocument.rootDoc();
-        assertSuggestFields(indexableFields.getFields("completion"), 2);
-        assertThat(indexableFields.getFields("completion.analyzed"), arrayWithSize(4));
+        //TODO how to assert about weight?
+        assertThat(indexableFields.getFields("completion"), array(
+            suggestField("New York"),
+            suggestField("NY")
+        ));
+        assertThat(indexableFields.getFields("completion.analyzed"), array(
+            keywordField("New York"),
+            sortedSetDocValuesField("New York"),
+            keywordField("NY"),
+            sortedSetDocValuesField("NY")
+        ));
     }
 
     public void testCompletionTypeWithSubKeywordFieldAndStringInsert() throws Exception {
@@ -448,8 +511,13 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
             XContentType.JSON));
 
         ParseContext.Document indexableFields = parsedDocument.rootDoc();
-        assertSuggestFields(indexableFields.getFields("completion"), 1);
-        assertThat(indexableFields.getFields("completion.analyzed"), arrayWithSize(2));
+        assertThat(indexableFields.getFields("completion"), array(
+            suggestField("suggestion")
+        ));
+        assertThat(indexableFields.getFields("completion.analyzed"), array(
+            keywordField("suggestion"),
+            sortedSetDocValuesField("suggestion")
+        ));
     }
 
     public void testParsingMultiValued() throws Exception {
@@ -469,7 +537,10 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject()),
                 XContentType.JSON));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
-        assertSuggestFields(fields, 2);
+        assertThat(fields, array(
+            suggestField("suggestion1"),
+            suggestField("suggestion2")
+        ));
     }
 
     public void testParsingWithWeight() throws Exception {
@@ -492,7 +563,9 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject()),
                 XContentType.JSON));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
-        assertSuggestFields(fields, 1);
+        assertThat(fields, array(
+            suggestField("suggestion")
+        ));
     }
 
     public void testParsingMultiValueWithWeight() throws Exception {
@@ -515,7 +588,11 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject()),
                 XContentType.JSON));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
-        assertSuggestFields(fields, 3);
+        assertThat(fields, array(
+            suggestField("suggestion1"),
+            suggestField("suggestion2"),
+            suggestField("suggestion3")
+        ));
     }
 
     public void testParsingWithGeoFieldAlias() throws Exception {
@@ -588,7 +665,11 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject()),
                 XContentType.JSON));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
-        assertSuggestFields(fields, 3);
+        assertThat(fields, array(
+            suggestField("suggestion1"),
+            suggestField("suggestion2"),
+            suggestField("suggestion3")
+        ));
     }
 
     public void testParsingMixed() throws Exception {
@@ -621,7 +702,14 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject()),
                 XContentType.JSON));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
-        assertSuggestFields(fields, 6);
+        assertThat(fields, array(
+            suggestField("suggestion1"),
+            suggestField("suggestion2"),
+            suggestField("suggestion3"),
+            suggestField("suggestion4"),
+            suggestField("suggestion5"),
+            suggestField("suggestion6")
+        ));
     }
 
     public void testNonContextEnabledParsingWithContexts() throws Exception {
@@ -803,4 +891,45 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
+
+    private Matcher<IndexableField> suggestField(String value) {
+        return Matchers.allOf(hasProperty(IndexableField::stringValue, equalTo(value)),
+            Matchers.instanceOf(SuggestField.class));
+    }
+
+    private Matcher<IndexableField> contextSuggestField(String value) {
+        return Matchers.allOf(hasProperty(IndexableField::stringValue, equalTo(value)),
+            Matchers.instanceOf(ContextSuggestField.class));
+    }
+
+    private CombinableMatcher<IndexableField> sortedSetDocValuesField(String value) {
+        return Matchers.both(hasProperty(IndexableField::binaryValue, equalTo(new BytesRef(value))))
+            .and(Matchers.instanceOf(SortedSetDocValuesField.class));
+    }
+
+    private CombinableMatcher<IndexableField> keywordField(String value) {
+        return Matchers.both(hasProperty(IndexableField::binaryValue, equalTo(new BytesRef(value))))
+            .and(hasProperty(IndexableField::fieldType, Matchers.instanceOf(KeywordFieldMapper.KeywordFieldType.class)));
+    }
+
+    private <T, V> Matcher<T> hasProperty(Function<? super T, ? extends V> property, Matcher<V> valueMatcher) {
+        return new FeatureMatcher<T, V>(valueMatcher, "object with", property.toString()) {
+            @Override
+            protected V featureValueOf(T actual) {
+                return property.apply(actual);
+            }
+        };
+    }
+
+    private Matcher<IndexableField> contextSuggestField(String value ,Matcher<IndexableField> contextMatcher) {
+        return Matchers.allOf(hasProperty(IndexableField::stringValue, equalTo(value)),
+            Matchers.instanceOf(ContextSuggestField.class),
+            contextMatcher
+        );
+    }
+
+    private Matcher<IndexableField> withContext(Map<String, Set<String>> contexts) {
+        return null;
+    }
+
 }

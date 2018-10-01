@@ -92,7 +92,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         if (joiningNodes.size() == 1 && joiningNodes.get(0).isFinishElectionTask()) {
             return results.successes(joiningNodes).build(currentState);
         } else if (currentNodes.getMasterNode() == null && joiningNodes.stream().anyMatch(Task::isBecomeMasterTask)) {
-            assert joiningNodes.stream().anyMatch(Task::isFinishElectionTask) : "becoming a master but election is not finished " + joiningNodes;
+            assert joiningNodes.stream().anyMatch(Task::isFinishElectionTask)
+                : "becoming a master but election is not finished " + joiningNodes;
             // use these joins to try and become the master.
             // Note that we don't have to do any validation of the amount of joining nodes - the commit
             // during the cluster state publishing guarantees that we have enough

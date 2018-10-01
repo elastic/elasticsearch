@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.mockito.internal.util.collections.Sets;
+import org.apache.lucene.util.Constants;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -57,6 +58,8 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
     }
 
     public void testShrinking() throws Exception {
+        assumeFalse("AwaitsFix(bugUrl = \"https://github.com/elastic/elasticsearch/issues/33857\")", Constants.WINDOWS);
+
         // creates random routing groups and repeatedly halves the index until it is down to 1 shard
         // verifying that the count is correct for each shrunken index
         final int partitionSize = 3;

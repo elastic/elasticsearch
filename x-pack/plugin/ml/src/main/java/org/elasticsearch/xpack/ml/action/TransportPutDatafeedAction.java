@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDatafeedAction.Request, PutDatafeedAction.Response> {
@@ -177,7 +178,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
     }
 
     private void checkJobDoesNotHaveADatafeed(String jobId, ActionListener<Boolean> listener) {
-        datafeedConfigProvider.findDatafeedForJobId(jobId, ActionListener.wrap(
+        datafeedConfigProvider.findDatafeedsForJobIds(Collections.singletonList(jobId), ActionListener.wrap(
                 datafeedIds -> {
                     if (datafeedIds.isEmpty()) {
                         listener.onResponse(Boolean.TRUE);

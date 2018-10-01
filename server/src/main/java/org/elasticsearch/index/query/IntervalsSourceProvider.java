@@ -7,7 +7,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchesIterator;
-import org.apache.lucene.search.MatchesUtils;
 import org.apache.lucene.search.intervals.IntervalIterator;
 import org.apache.lucene.search.intervals.Intervals;
 import org.apache.lucene.search.intervals.IntervalsSource;
@@ -244,6 +243,55 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         public static Match fromXContent(XContentParser parser) throws IOException {
             return PARSER.apply(parser, null);
+        }
+    }
+
+    public static class Block extends IntervalsSourceProvider {
+
+        public static final String NAME = "block";
+
+        private final List<IntervalsSourceProvider> subSources;
+
+        public Block(List<IntervalsSourceProvider> subSources) {
+            this.subSources = subSources;
+        }
+
+        public Block(StreamInput in) throws IOException {
+            this.subSources = in.readNamedWriteableList(IntervalsSourceProvider.class);
+        }
+
+        @Override
+        public IntervalsSource getSource(MappedFieldType fieldType) throws IOException {
+            List<IntervalsSource> sources = new ArrayList<>();
+            for (IntervalsSourceProvider provider : subSources) {
+                sources.add(provider.getSource(fieldType));
+            }
+            return Intervals.phrase(sources.toArray(new IntervalsSource[0]));
+        }
+
+        @Override
+        public int hashCode() {
+            return 0;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return false;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeNamedWriteableList(subSources);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return null;
         }
     }
 

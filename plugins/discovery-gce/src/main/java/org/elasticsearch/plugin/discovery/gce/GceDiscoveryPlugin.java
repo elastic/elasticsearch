@@ -51,7 +51,7 @@ import java.util.function.Supplier;
 
 public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Closeable {
 
-    /** Determines whether settings those reroutes GCE call should be allowed. */
+    /** Determines whether settings those reroutes GCE call should be allowed (for testing purposes only). */
     private static final boolean ALLOW_REROUTE_GCE_SETTINGS =
         Booleans.parseBoolean(System.getProperty("es.allow_reroute_gce_settings", "false"));
 

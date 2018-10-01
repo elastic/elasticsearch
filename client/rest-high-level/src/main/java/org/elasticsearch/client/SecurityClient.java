@@ -81,7 +81,7 @@ public final class SecurityClient {
      * @return the response from the put role mapping call
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public PutRoleMappingResponse putRoleMapping(PutRoleMappingRequest request, RequestOptions options) throws IOException {
+    public PutRoleMappingResponse putRoleMapping(final PutRoleMappingRequest request, final RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::putRoleMapping, options,
                 PutRoleMappingResponse::fromXContent, emptySet());
     }
@@ -94,8 +94,8 @@ public final class SecurityClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void putRoleMappingAsync(PutRoleMappingRequest request, RequestOptions options,
-            ActionListener<PutRoleMappingResponse> listener) {
+    public void putRoleMappingAsync(final PutRoleMappingRequest request, final RequestOptions options,
+            final ActionListener<PutRoleMappingResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::putRoleMapping, options,
                 PutRoleMappingResponse::fromXContent, listener, emptySet());
     }

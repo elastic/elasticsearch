@@ -21,6 +21,8 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -39,15 +41,22 @@ public final class PutRoleMappingRequest implements Validatable, ToXContentObjec
     private boolean enabled;
     private List<String> roles;
     private RoleMapperExpression rules;
-    private Map<String, Object> metadata;
-    private RefreshPolicy refreshPolicy;
+
+    @Nullable private Map<String, Object> metadata;
+    @Nullable private RefreshPolicy refreshPolicy;
 
     public PutRoleMappingRequest(final String name, final boolean enabled, final List<String> roles, final RoleMapperExpression rules,
-            final Map<String, Object> metadata, final RefreshPolicy refreshPolicy) {
+            @Nullable final Map<String, Object> metadata, @Nullable final RefreshPolicy refreshPolicy) {
         super();
-        this.name = Objects.requireNonNull(name, "role-mapping name is missing");
+        if (Strings.hasText(name) == false) {
+            throw new IllegalArgumentException("role-mapping name is missing");
+        }
+        this.name = name;
         this.enabled = enabled;
-        this.roles = Collections.unmodifiableList(Objects.requireNonNull(roles, "role-mapping roles are missing"));
+        if (roles == null || roles.isEmpty()) {
+            throw new IllegalArgumentException("role-mapping roles are missing");
+        }
+        this.roles = Collections.unmodifiableList(roles);
         this.rules = Objects.requireNonNull(rules, "role-mapping rules are missing");
         this.metadata = (metadata == null) ? Collections.emptyMap() : metadata;
         this.refreshPolicy = (refreshPolicy == null) ? RefreshPolicy.getDefault() : refreshPolicy;
@@ -63,6 +72,10 @@ public final class PutRoleMappingRequest implements Validatable, ToXContentObjec
 
     public List<String> getRoles() {
         return roles;
+    }
+
+    public RoleMapperExpression getRules() {
+        return rules;
     }
 
     public Map<String, Object> getMetadata() {

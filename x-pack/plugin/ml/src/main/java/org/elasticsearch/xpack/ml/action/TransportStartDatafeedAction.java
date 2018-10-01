@@ -304,14 +304,14 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         @Override
         public PersistentTasksCustomMetaData.Assignment getAssignment(StartDatafeedAction.DatafeedParams params,
                                                                       ClusterState clusterState) {
-            return new DatafeedNodeSelector(clusterState, resolver, params.getDatafeedId(), params.getDatafeedConfig()).selectNode();
+            return new DatafeedNodeSelector(clusterState, resolver, params.getDatafeedConfig()).selectNode();
         }
 
         @Override
         public void validate(StartDatafeedAction.DatafeedParams params, ClusterState clusterState) {
             PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
             TransportStartDatafeedAction.validate(params.getJob(), params.getDatafeedConfig(), tasks);
-            new DatafeedNodeSelector(clusterState, resolver, params.getDatafeedId(), params.getDatafeedConfig())
+            new DatafeedNodeSelector(clusterState, resolver, params.getDatafeedConfig())
                     .checkDatafeedTaskCanBeCreated();
         }
 

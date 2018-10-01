@@ -316,8 +316,8 @@ public class MetaDataStateFormatTests extends ESTestCase {
         DummyState initialState = writeAndReadStateSuccessfully(format, path);
 
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
-            format.failOnMethods(Format.FAIL_CREATE_OUTPUT_FILE, Format.FAIL_WRITE_TO_OUTPUT_FILE, Format.FAIL_FSYNC_TMP_FILE,
-                    Format.FAIL_RENAME_TMP_FILE);
+            format.failOnMethods(Format.FAIL_DELETE_TMP_FILE, Format.FAIL_CREATE_OUTPUT_FILE, Format.FAIL_WRITE_TO_OUTPUT_FILE,
+                    Format.FAIL_FSYNC_TMP_FILE, Format.FAIL_RENAME_TMP_FILE);
             DummyState newState = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
                     randomDouble(), randomBoolean());
             expectThrows(IOException.class, () -> format.write(newState, path));
@@ -344,24 +344,6 @@ public class MetaDataStateFormatTests extends ESTestCase {
             expectThrows(IOException.class, () -> format.write(newState, path));
             format.noFailures();
             assertTrue(possibleStates.contains(format.loadLatestState(logger, NamedXContentRegistry.EMPTY, path)));
-        }
-
-        writeAndReadStateSuccessfully(format, path);
-    }
-
-    public void testFailDeleteTmpStateFile() throws IOException {
-        Path path = createTempDir();
-        Format format = new Format("foo-");
-
-        writeAndReadStateSuccessfully(format, path);
-
-        for (int i = 0; i < randomIntBetween(1, 5); i++) {
-            format.failOnMethods(Format.FAIL_DELETE_TMP_FILE);
-            DummyState newState = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
-                    randomDouble(), randomBoolean());
-            expectThrows(IOException.class, () -> format.write(newState, path));
-            format.noFailures();
-            assertEquals(newState, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, path));
         }
 
         writeAndReadStateSuccessfully(format, path);

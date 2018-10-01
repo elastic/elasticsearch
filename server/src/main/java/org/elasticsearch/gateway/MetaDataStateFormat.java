@@ -70,7 +70,6 @@ public abstract class MetaDataStateFormat<T> {
     private static final int STATE_FILE_VERSION = 1;
     private final String prefix;
     private final Pattern stateFilePattern;
-    private final Pattern stateAndTmpFilePattern;
 
     private static final Logger logger = Loggers.getLogger(MetaDataStateFormat.class);
 
@@ -80,8 +79,6 @@ public abstract class MetaDataStateFormat<T> {
     protected MetaDataStateFormat(String prefix) {
         this.prefix = prefix;
         this.stateFilePattern = Pattern.compile(Pattern.quote(prefix) + "(\\d+)(" + MetaDataStateFormat.STATE_FILE_EXTENSION + ")?");
-        this.stateAndTmpFilePattern =
-                Pattern.compile(Pattern.quote(prefix) + "(\\d+)(" + MetaDataStateFormat.STATE_FILE_EXTENSION + ")?(\\.tmp)?");
     }
 
     private static void deleteFileIfExists(Path stateLocation, Directory directory, String fileName) throws IOException {
@@ -96,6 +93,7 @@ public abstract class MetaDataStateFormat<T> {
     private void writeStateToFirstLocation(final T state, Path stateLocation, Directory stateDir, String fileName, String tmpFileName)
             throws IOException {
         try {
+            deleteFileIfExists(stateLocation, stateDir, tmpFileName);
             try (IndexOutput out = stateDir.createOutput(tmpFileName, IOContext.DEFAULT)) {
                 CodecUtil.writeHeader(out, STATE_FILE_CODEC, STATE_FILE_VERSION);
                 out.writeInt(FORMAT.index());
@@ -129,6 +127,7 @@ public abstract class MetaDataStateFormat<T> {
             throws IOException {
         try (Directory extraStateDir = newDirectory(extraStateLocation)) {
             try {
+                deleteFileIfExists(extraStateLocation, extraStateDir, tmpFileName);
                 extraStateDir.copyFrom(srcStateDir, fileName, tmpFileName, IOContext.DEFAULT);
                 extraStateDir.sync(Collections.singleton(tmpFileName));
                 extraStateDir.rename(tmpFileName, fileName);
@@ -159,7 +158,7 @@ public abstract class MetaDataStateFormat<T> {
         if (locations.length <= 0) {
             throw new IllegalArgumentException("One or more locations required");
         }
-        final long maxStateId = findMaxStateId(prefix, true, locations) + 1;
+        final long maxStateId = findMaxStateId(prefix, locations) + 1;
         assert maxStateId >= 0 : "maxStateId must be positive but was: [" + maxStateId + "]";
 
         final String fileName = prefix + maxStateId + STATE_FILE_EXTENSION;
@@ -242,23 +241,21 @@ public abstract class MetaDataStateFormat<T> {
     }
 
     /**
-     * Finds state file (or temp file) with maximum id.
+     * Finds state file with maximum id.
      *
      * @param prefix    - filename prefix
-     * @param includeTmpFiles - whether to include tmp files
      * @param locations - paths to directories with state folder
-     * @return maximum id of state file or temp file, or -1 if no such files are found
+     * @return maximum id of state file or -1 if no such files are found
      * @throws IOException
      */
-    private long findMaxStateId(final String prefix, boolean includeTmpFiles, Path... locations) throws IOException {
+    private long findMaxStateId(final String prefix, Path... locations) throws IOException {
         long maxId = -1;
         for (Path dataLocation : locations) {
             final Path resolve = dataLocation.resolve(STATE_DIR_NAME);
             if (Files.exists(resolve)) {
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(resolve, prefix + "*")) {
                     for (Path stateFile : stream) {
-                        final Pattern pattern = includeTmpFiles ? stateAndTmpFilePattern : stateFilePattern;
-                        final Matcher matcher = pattern.matcher(stateFile.getFileName().toString());
+                        final Matcher matcher = stateFilePattern.matcher(stateFile.getFileName().toString());
                         if (matcher.matches()) {
                             final long id = Long.parseLong(matcher.group(1));
                             maxId = Math.max(maxId, id);
@@ -297,7 +294,7 @@ public abstract class MetaDataStateFormat<T> {
      * @return the latest state or <code>null</code> if no state was found.
      */
     public T loadLatestState(Logger logger, NamedXContentRegistry namedXContentRegistry, Path... dataLocations) throws IOException {
-        long maxStateId = findMaxStateId(prefix, false, dataLocations);
+        long maxStateId = findMaxStateId(prefix, dataLocations);
         List<Path> stateFiles = findStateFilesByGeneration(maxStateId, dataLocations);
 
         final List<Throwable> exceptions = new ArrayList<>();

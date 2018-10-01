@@ -32,8 +32,11 @@ setup:
 
 ---
 "Basic test for alias wildcard inclusion":
-
+  - skip:
+      features: node_selector
   - do:
+      node_selector:
+        version: "6.99.99 - "
       indices.get_alias:
         name: "test_alias_a*"
 
@@ -46,6 +49,8 @@ setup:
   - is_false: test_index_b1.aliases.test_alias_b1
 
   - do:
+      node_selector:
+        version: "6.99.99 - "
       indices.get_alias:
         name: "test_alias_b*"
 
@@ -59,8 +64,11 @@ setup:
 
 ---
 "Test for alias wildcard inclusion and simple exclusion":
-
+  - skip:
+      features: node_selector
   - do:
+      node_selector:
+        version: "6.99.99 - "
       indices.get_alias:
         name: "test_alias_a*,-test_alias_ab1"
 
@@ -73,6 +81,8 @@ setup:
   - is_false: test_index_b1.aliases.test_alias_b1
 
   - do:
+      node_selector:
+        version: "6.99.99 - "
       indices.get_alias:
         name: "test_alias_a*,-test_alias_ab1,-test_alias_a1"
 
@@ -85,6 +95,8 @@ setup:
   - is_false: test_index_b1.aliases.test_alias_b1
 
   - do:
+      node_selector:
+        version: "6.99.99 - "
       indices.get_alias:
         name: "test_alias_a*,-test_alias_ab1,-test_alias_a"
 
@@ -98,8 +110,11 @@ setup:
 
 ---
 "Test for alias wildcard inclusion and wildcard exclusion":
-
+  - skip:
+      features: node_selector
   - do:
+      node_selector:
+        version: "6.99.99 - "
       indices.get_alias:
         name: "test_alias_*,-test_alias_b*"
 
@@ -112,6 +127,8 @@ setup:
   - is_false: test_index_b1.aliases.test_alias_b
 
   - do:
+      node_selector:
+        version: "6.99.99 - "
       indices.get_alias:
         name: "test_alias_*,-test_alias_a*"
 
@@ -125,8 +142,11 @@ setup:
 
 ---
 "Test for wildcard exclusion then inclusion":
-
+  - skip:
+      features: node_selector
   - do:
+      node_selector:
+        version: "6.99.99 - "
       indices.get_alias:
         name: "test_alias_*,-test_alias_a*,test_alias_ab1"
 
@@ -140,8 +160,11 @@ setup:
 
 ---
 "Test multiple wildcard exclusion":
-
+  - skip:
+      features: node_selector
   - do:
+      node_selector:
+        version: "6.99.99 - "
       indices.get_alias:
         name: "test_alias_*,-test_alias_a*,test_alias_ab1,-test_alias_b*"
 
@@ -155,8 +178,11 @@ setup:
 
 ---
 "Test wildcard complete exclusion":
-
+  - skip:
+      features: node_selector
   - do:
+      node_selector:
+        version: "6.99.99 - "
       indices.get_alias:
         name: "test_alias_a*,test_alias_b,-test_alias_*"
 
@@ -164,7 +190,11 @@ setup:
 
 ---
 "Test non-existent alias returns 404":
+  - skip:
+      features: node_selector
   - do:
+      node_selector:
+        version: "6.99.99 - "
       catch: missing
       indices.get_alias:
         name: test_alias_*,non-existent,test_alias_b1,-test_alias_b*

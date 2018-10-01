@@ -90,7 +90,7 @@ public class CoordinatorTests extends ESTestCase {
 
         logger.info("--> submitting value [{}] to [{}]", finalValue, leader);
         leader.submitValue(finalValue);
-        cluster.stabilise(); // TODO this should only need a short stabilisation
+        cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
 
         for (final ClusterNode clusterNode : cluster.clusterNodes) {
             final String nodeId = clusterNode.getId();

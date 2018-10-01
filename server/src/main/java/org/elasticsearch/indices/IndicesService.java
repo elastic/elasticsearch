@@ -158,15 +158,15 @@ public class IndicesService extends AbstractLifecycleComponent
     public static final String INDICES_SHARDS_CLOSED_TIMEOUT = "indices.shards_closed_timeout";
     public static final Setting<TimeValue> INDICES_CACHE_CLEAN_INTERVAL_SETTING =
         Setting.positiveTimeSetting("indices.cache.cleanup_interval", TimeValue.timeValueMinutes(1), Property.NodeScope);
-    private static final boolean ENFORCE_SHARD_LIMIT;
+    private static final boolean ENFORCE_MAX_SHARDS_PER_NODE;
 
     static {
         final String ENFORCE_SHARD_LIMIT_KEY = "es.enforce_max_shards_per_node";
         final String enforceMaxShardsPerNode = System.getProperty(ENFORCE_SHARD_LIMIT_KEY);
         if (enforceMaxShardsPerNode == null) {
-            ENFORCE_SHARD_LIMIT = false;
+            ENFORCE_MAX_SHARDS_PER_NODE = false;
         } else if ("true".equals(enforceMaxShardsPerNode)) {
-            ENFORCE_SHARD_LIMIT = true;
+            ENFORCE_MAX_SHARDS_PER_NODE = true;
         } else {
             throw new IllegalArgumentException(ENFORCE_SHARD_LIMIT_KEY + " may only be unset or set to [true] but was [" +
                 enforceMaxShardsPerNode + "]");
@@ -1366,9 +1366,8 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * Checks to see if an operation can be performed without taking the cluster
-     * over the cluster-wide shard limit. Adds a deprecation warning or returns
-     * an error message as appropriate
+     * Checks to see if an operation can be performed without taking the cluster over the cluster-wide shard limit. Adds a deprecation
+     * warning or returns an error message as appropriate
      *
      * @param newShards         The number of shards to be added by this operation
      * @param state             The current cluster state
@@ -1392,7 +1391,7 @@ public class IndicesService extends AbstractLifecycleComponent
         if ((currentOpenShards + newShards) > maxShardsInCluster) {
             String errorMessage = "this action would add [" + newShards + "] total shards, but this cluster currently has [" +
                 currentOpenShards + "]/[" + maxShardsInCluster + "] maximum shards open";
-            if (ENFORCE_SHARD_LIMIT) {
+            if (ENFORCE_MAX_SHARDS_PER_NODE) {
                 return Optional.of(errorMessage);
             } else {
                 deprecationLogger.deprecated("In a future major version, this request will fail because {}. Before upgrading, " +

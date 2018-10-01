@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.elasticsearch.script.IngestConditionalScript;
 import org.elasticsearch.script.Script;
@@ -42,12 +44,20 @@ public class ConditionalProcessor extends AbstractProcessor {
     private final ScriptService scriptService;
 
     private final Processor processor;
+    private final IngestMetric metric;
+    private final Clock clock;
 
-    ConditionalProcessor(String tag, Script script, ScriptService scriptService, Processor processor) {
+   ConditionalProcessor(String tag, Script script, ScriptService scriptService, Processor processor) {
+      this(tag, script, scriptService, processor, Clock.systemUTC());
+    }
+
+    ConditionalProcessor(String tag, Script script, ScriptService scriptService, Processor processor, Clock clock) {
         super(tag);
         this.condition = script;
         this.scriptService = scriptService;
         this.processor = processor;
+        this.metric = new IngestMetric();
+        this.clock = clock;
     }
 
     @Override
@@ -55,9 +65,28 @@ public class ConditionalProcessor extends AbstractProcessor {
         IngestConditionalScript script =
             scriptService.compile(condition, IngestConditionalScript.CONTEXT).newInstance(condition.getParams());
         if (script.execute(new UnmodifiableIngestData(ingestDocument.getSourceAndMetadata()))) {
-            return processor.execute(ingestDocument);
+            // Only record metric if the script evaluates to true
+            long startTimeInMillis = clock.millis();
+            try {
+                metric.preIngest();
+                return processor.execute(ingestDocument);
+            } catch (Exception e) {
+                metric.ingestFailed();
+                throw e;
+            } finally {
+                long ingestTimeInMillis = clock.millis() - startTimeInMillis;
+                metric.postIngest(ingestTimeInMillis);
+            }
         }
         return ingestDocument;
+    }
+
+    Processor getProcessor() {
+        return processor;
+    }
+
+    IngestMetric getMetric() {
+        return metric;
     }
 
     @Override

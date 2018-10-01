@@ -19,19 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -49,6 +36,7 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -60,6 +48,19 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * Holder class for several ingest related services.
@@ -262,9 +263,50 @@ public class IngestService implements ClusterStateApplier {
                 Pipeline originalPipeline = originalPipelines.get(id);
                 if (originalPipeline != null) {
                     pipeline.getMetrics().add(originalPipeline.getMetrics());
+                    List<Tuple<Processor, IngestMetric>> oldPerProcessMetrics = new ArrayList<>();
+                    List<Tuple<Processor, IngestMetric>> newPerProcessMetrics = new ArrayList<>();
+                    getProcessorMetrics(originalPipeline.getCompoundProcessor(), oldPerProcessMetrics);
+                    getProcessorMetrics(pipeline.getCompoundProcessor(), newPerProcessMetrics);
+                    //Best attempt to populate new processor metrics using a parallel array of the old metrics. This is not ideal since
+                    //the per processor metrics may get reset when the arrays don't match. However, to get to an ideal model, unique and
+                    //consistent id's per processor and/or semantic equals for each processor will be needed.
+                    if(newPerProcessMetrics.size() == oldPerProcessMetrics.size()) {
+                        Iterator<Tuple<Processor, IngestMetric>> oldMetricsIterator = oldPerProcessMetrics.iterator();
+                        for (Tuple<Processor, IngestMetric> compositeMetric : newPerProcessMetrics) {
+                            String type = compositeMetric.v1().getType();
+                            IngestMetric metric = compositeMetric.v2();
+                            if (oldMetricsIterator.hasNext()) {
+                                Tuple<Processor, IngestMetric> oldCompositeMetric = oldMetricsIterator.next();
+                                String oldType = oldCompositeMetric.v1().getType();
+                                IngestMetric oldMetric = oldCompositeMetric.v2();
+                                if (type.equals(oldType)) {
+                                    metric.add(oldMetric);
+                                }
+                            }
+                        }
+                    }
                 }
             });
         }
+    }
+
+    static List<Tuple<Processor, IngestMetric>> getProcessorMetrics(CompoundProcessor compoundProcessor,
+                                                                    List<Tuple<Processor, IngestMetric>> processorStats) {
+        //only surface the top level non-failure processors, on-failure processor times will be included in the top level non-failure
+        for (Tuple<Processor, IngestMetric> processorWithMetric : compoundProcessor.getProcessorsWithMetrics()) {
+            Processor processor = processorWithMetric.v1();
+            IngestMetric metric = processorWithMetric.v2();
+            if (processor instanceof CompoundProcessor) {
+                getProcessorMetrics((CompoundProcessor) processor, processorStats);
+            } else {
+                //Prefer the conditional's metric since it only includes metrics when the conditional evaluated to true.
+                if (processor instanceof ConditionalProcessor) {
+                    metric = ((ConditionalProcessor) processor).getMetric();
+                }
+                processorStats.add(new Tuple<>(processor, metric));
+            }
+        }
+        return processorStats;
     }
 
     private static Pipeline substitutePipeline(String id, ElasticsearchParseException e) {
@@ -371,11 +413,47 @@ public class IngestService implements ClusterStateApplier {
     }
 
     public IngestStats stats() {
-
-        Map<String, IngestStats.Stats> statsPerPipeline =
-            pipelines.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, v -> v.getValue().getMetrics().createStats()));
+        //This is a map of a pipelineId to a it's owns pipeline stats and then a List of all its processor stats.
+        //Each processor stat has a name (see getName) and the stats associated to that processor
+        Map<String, Tuple<IngestStats.Stats, List<Tuple<String, IngestStats.Stats>>>> statsPerPipeline = new HashMap<>(pipelines.size());
+        pipelines.forEach((id, pipeline) -> {
+            CompoundProcessor rootProcessor = pipeline.getCompoundProcessor();
+            List<Tuple<String, IngestStats.Stats>> processorStats = new ArrayList<>();
+            statsPerPipeline.put(id, new Tuple<>(pipeline.getMetrics().createStats(), getProcessorStats(rootProcessor, processorStats)));
+        });
 
         return new IngestStats(totalMetrics.createStats(), statsPerPipeline);
+    }
+
+    public static List<Tuple<String, IngestStats.Stats>> getProcessorStats(CompoundProcessor rootProcessor, List<Tuple<String, IngestStats.Stats>> processorStats){
+        List<Tuple<Processor, IngestMetric>> processorMetrics = new ArrayList<>();
+        getProcessorMetrics(rootProcessor, processorMetrics);
+        processorMetrics.forEach(t -> processorStats.add(new Tuple<>(getName(t.v1()), t.v2().createStats())));
+        return processorStats;
+    }
+
+    private static String getName(Processor processor){
+        String tag = processor.getTag();
+
+        // conditionals are implemented as wrappers around the real processor, so get the real processor for the correct type for the name
+        if(processor instanceof ConditionalProcessor){
+            processor = ((ConditionalProcessor) processor).getProcessor();
+        }
+        StringBuilder sb = new StringBuilder(5);
+        sb.append(processor.getType());
+
+        if(processor instanceof PipelineProcessor){
+            String pipelineName = ((PipelineProcessor) processor).getPipelineName();
+            sb.append(":");
+            sb.append(pipelineName);
+        }
+
+        if(tag != null && !tag.isEmpty()){
+            sb.append(":");
+            sb.append(tag);
+        }
+
+        return sb.toString();
     }
 
     private void innerExecute(IndexRequest indexRequest, Pipeline pipeline, Consumer<IndexRequest> itemDroppedHandler) throws Exception {

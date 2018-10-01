@@ -63,6 +63,7 @@ import java.util.function.Consumer;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -746,16 +747,22 @@ public class IngestServiceTests extends ESTestCase {
         verify(completionHandler, times(1)).accept(null);
     }
 
-    public void testStats() {
+    public void testStats() throws Exception {
         final Processor processor = mock(Processor.class);
-        IngestService ingestService = createWithProcessors(Collections.singletonMap(
-            "mock", (factories, tag, config) -> processor));
+        final Processor processorFailure = mock(Processor.class);
+        when(processor.getType()).thenReturn("mock");
+        when(processorFailure.getType()).thenReturn("failure-mock");
+        //avoid returning null and dropping the document
+        when(processor.execute(any(IngestDocument.class))).thenReturn( RandomDocumentPicks.randomIngestDocument(random()));
+        when(processorFailure.execute(any(IngestDocument.class))).thenThrow(new RuntimeException("error"));
+        Map<String, Processor.Factory> map = new HashMap<>(2);
+        map.put("mock", (factories, tag, config) -> processor);
+        map.put("failure-mock", (factories, tag, config) -> processorFailure);
+        IngestService ingestService = createWithProcessors(map);
+
         final IngestStats initialStats = ingestService.stats();
         assertThat(initialStats.getStatsPerPipeline().size(), equalTo(0));
-        assertThat(initialStats.getTotalStats().getIngestCount(), equalTo(0L));
-        assertThat(initialStats.getTotalStats().getIngestCurrent(), equalTo(0L));
-        assertThat(initialStats.getTotalStats().getIngestFailedCount(), equalTo(0L));
-        assertThat(initialStats.getTotalStats().getIngestTimeInMillis(), equalTo(0L));
+        assertStats(initialStats.getTotalStats(), 0, 0, 0);
 
         PutPipelineRequest putRequest = new PutPipelineRequest("_id1",
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"), XContentType.JSON);
@@ -769,7 +776,6 @@ public class IngestServiceTests extends ESTestCase {
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
-
         @SuppressWarnings("unchecked") final BiConsumer<IndexRequest, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked") final Consumer<Exception> completionHandler = mock(Consumer.class);
 
@@ -779,17 +785,31 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
         final IngestStats afterFirstRequestStats = ingestService.stats();
         assertThat(afterFirstRequestStats.getStatsPerPipeline().size(), equalTo(2));
-        assertThat(afterFirstRequestStats.getStatsPerPipeline().get("_id1").getIngestCount(), equalTo(1L));
-        assertThat(afterFirstRequestStats.getStatsPerPipeline().get("_id2").getIngestCount(), equalTo(0L));
-        assertThat(afterFirstRequestStats.getTotalStats().getIngestCount(), equalTo(1L));
+        assertThat(afterFirstRequestStats.getProcessorStatsForPipeline("_id1").size(), equalTo(1));
+        assertThat(afterFirstRequestStats.getProcessorStatsForPipeline("_id2").size(), equalTo(1));
+        //total
+        assertStats(afterFirstRequestStats.getTotalStats(), 1, 0 ,0);
+        //pipeline
+        assertPipelineStats(afterFirstRequestStats, "_id1", 1, 0, 0);
+        assertPipelineStats(afterFirstRequestStats, "_id2", 0, 0, 0);
+        //processor
+        assertProcessorStats(0, afterFirstRequestStats, "_id1", 1, 0, 0);
+        assertProcessorStats(0, afterFirstRequestStats, "_id2", 0, 0, 0);
 
         indexRequest.setPipeline("_id2");
         ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
         final IngestStats afterSecondRequestStats = ingestService.stats();
         assertThat(afterSecondRequestStats.getStatsPerPipeline().size(), equalTo(2));
-        assertThat(afterSecondRequestStats.getStatsPerPipeline().get("_id1").getIngestCount(), equalTo(1L));
-        assertThat(afterSecondRequestStats.getStatsPerPipeline().get("_id2").getIngestCount(), equalTo(1L));
-        assertThat(afterSecondRequestStats.getTotalStats().getIngestCount(), equalTo(2L));
+        assertThat(afterFirstRequestStats.getProcessorStatsForPipeline("_id1").size(), equalTo(1));
+        assertThat(afterFirstRequestStats.getProcessorStatsForPipeline("_id2").size(), equalTo(1));
+        //total
+        assertStats(afterSecondRequestStats.getTotalStats(), 2, 0 ,0);
+        //pipeline
+        assertPipelineStats(afterSecondRequestStats, "_id1", 1, 0, 0);
+        assertPipelineStats(afterSecondRequestStats, "_id2", 1, 0, 0);
+        //processor
+        assertProcessorStats(0, afterSecondRequestStats, "_id1", 1, 0, 0);
+        assertProcessorStats(0, afterSecondRequestStats, "_id2", 1, 0, 0);
 
         //update cluster state and ensure that new stats are added to old stats
         putRequest = new PutPipelineRequest("_id1",
@@ -801,10 +821,42 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
         final IngestStats afterThirdRequestStats = ingestService.stats();
         assertThat(afterThirdRequestStats.getStatsPerPipeline().size(), equalTo(2));
-        assertThat(afterThirdRequestStats.getStatsPerPipeline().get("_id1").getIngestCount(), equalTo(2L));
-        assertThat(afterThirdRequestStats.getStatsPerPipeline().get("_id2").getIngestCount(), equalTo(1L));
-        assertThat(afterThirdRequestStats.getTotalStats().getIngestCount(), equalTo(3L));
+        assertThat(afterThirdRequestStats.getProcessorStatsForPipeline("_id1").size(), equalTo(2));
+        assertThat(afterThirdRequestStats.getProcessorStatsForPipeline("_id2").size(), equalTo(1));
+        //total
+        assertStats(afterThirdRequestStats.getTotalStats(), 3, 0 ,0);
+        //pipeline
+        assertPipelineStats(afterThirdRequestStats, "_id1", 2, 0, 0);
+        assertPipelineStats(afterThirdRequestStats, "_id2", 1, 0, 0);
+        //The number of processors for the "id1" pipeline changed, so the per-processor metrics are not carried forward. This is
+        //due to the parallel array's used to identify which metrics to carry forward. With out unique ids or semantic equals for each
+        //processor, parallel arrays are the best option for of carrying forward metrics between pipeline changes. However, in some cases,
+        //like this one it may not readily obvious why the metrics were not carried forward.
+        assertProcessorStats(0, afterThirdRequestStats, "_id1", 1, 0, 0);
+        assertProcessorStats(1, afterThirdRequestStats, "_id1", 1, 0, 0);
+        assertProcessorStats(0, afterThirdRequestStats, "_id2", 1, 0, 0);
 
+        //test a failure, and that the processor stats are added from the old stats
+        putRequest = new PutPipelineRequest("_id1",
+            new BytesArray("{\"processors\": [{\"failure-mock\" : { \"on_failure\": [{\"mock\" : {}}]}}, {\"mock\" : {}}]}"), XContentType.JSON);
+        previousClusterState = clusterState;
+        clusterState = IngestService.innerPut(putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        indexRequest.setPipeline("_id1");
+        ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
+        final IngestStats afterForthRequestStats = ingestService.stats();
+        assertThat(afterForthRequestStats.getStatsPerPipeline().size(), equalTo(2));
+        assertThat(afterForthRequestStats.getProcessorStatsForPipeline("_id1").size(), equalTo(2));
+        assertThat(afterForthRequestStats.getProcessorStatsForPipeline("_id2").size(), equalTo(1));
+        //total
+        assertStats(afterForthRequestStats.getTotalStats(), 4, 0 ,0);
+        //pipeline
+        assertPipelineStats(afterForthRequestStats, "_id1", 3, 0, 0);
+        assertPipelineStats(afterForthRequestStats, "_id2", 1, 0, 0);
+        //processor
+        assertProcessorStats(0, afterForthRequestStats, "_id1", 1, 1, 0); //not carried forward since type changed
+        assertProcessorStats(1, afterForthRequestStats, "_id1", 2, 0, 0); //carried forward and added from old stats
+        assertProcessorStats(0, afterForthRequestStats, "_id2", 1, 0, 0);
     }
 
     public void testExecuteWithDrop() {
@@ -934,5 +986,20 @@ public class IngestServiceTests extends ESTestCase {
             }
             return false;
         }
+    }
+
+    private void assertProcessorStats(int processor, IngestStats stats, String pipelineId, long count, long failed, long time) {
+        assertStats(stats.getProcessorStatsForPipeline(pipelineId).get(processor).v2(), count, failed, time);
+    }
+
+    private void assertPipelineStats(IngestStats stats, String pipelineId, long count, long failed, long time) {
+        assertStats(stats.getStatsForPipeline(pipelineId), count, failed, time);
+    }
+
+    private void assertStats(IngestStats.Stats stats, long count, long failed, long time) {
+        assertThat(stats.getIngestCount(), equalTo(count));
+        assertThat(stats.getIngestCurrent(), equalTo(0L));
+        assertThat(stats.getIngestFailedCount(), equalTo(failed));
+        assertThat(stats.getIngestTimeInMillis(), greaterThanOrEqualTo(time));
     }
 }

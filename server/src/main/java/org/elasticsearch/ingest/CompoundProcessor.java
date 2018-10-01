@@ -20,12 +20,16 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.metrics.Metric;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -40,16 +44,32 @@ public class CompoundProcessor implements Processor {
     private final boolean ignoreFailure;
     private final List<Processor> processors;
     private final List<Processor> onFailureProcessors;
+    private final List<Tuple<Processor, IngestMetric>> processorsWithMetrics;
+    private final Clock clock;
+
+    CompoundProcessor(Clock clock, Processor... processor) {
+        this(false, Arrays.asList(processor), Collections.emptyList(), clock);
+    }
 
     public CompoundProcessor(Processor... processor) {
         this(false, Arrays.asList(processor), Collections.emptyList());
     }
 
     public CompoundProcessor(boolean ignoreFailure, List<Processor> processors, List<Processor> onFailureProcessors) {
+        this(ignoreFailure, processors, onFailureProcessors, Clock.systemUTC());
+    }
+    CompoundProcessor(boolean ignoreFailure, List<Processor> processors, List<Processor> onFailureProcessors, Clock clock) {
         super();
         this.ignoreFailure = ignoreFailure;
         this.processors = processors;
         this.onFailureProcessors = onFailureProcessors;
+        this.clock = clock;
+        processorsWithMetrics = new ArrayList<>(processors.size());
+        processors.forEach(p -> processorsWithMetrics.add(new Tuple<>(p, new IngestMetric())));
+    }
+
+    List<Tuple<Processor, IngestMetric>> getProcessorsWithMetrics() {
+        return processorsWithMetrics;
     }
 
     public boolean isIgnoreFailure() {
@@ -94,12 +114,17 @@ public class CompoundProcessor implements Processor {
 
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        for (Processor processor : processors) {
+        for (Tuple<Processor, IngestMetric> processorWithMetric : processorsWithMetrics) {
+            Processor processor = processorWithMetric.v1();
+            IngestMetric metric = processorWithMetric.v2();
+            long startTimeInMillis = clock.millis();
             try {
+                metric.preIngest();
                 if (processor.execute(ingestDocument) == null) {
                     return null;
                 }
             } catch (Exception e) {
+                metric.ingestFailed();
                 if (ignoreFailure) {
                     continue;
                 }
@@ -112,10 +137,14 @@ public class CompoundProcessor implements Processor {
                     executeOnFailure(ingestDocument, compoundProcessorException);
                     break;
                 }
+            } finally {
+                long ingestTimeInMillis = clock.millis() - startTimeInMillis;
+                metric.postIngest(ingestTimeInMillis);
             }
         }
         return ingestDocument;
     }
+
 
     void executeOnFailure(IngestDocument ingestDocument, ElasticsearchException exception) throws Exception {
         try {

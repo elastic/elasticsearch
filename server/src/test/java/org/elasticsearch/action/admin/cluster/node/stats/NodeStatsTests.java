@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.node.stats;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.discovery.DiscoveryStats;
@@ -53,7 +54,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
 public class NodeStatsTests extends ESTestCase {
-
     public void testSerialization() throws IOException {
         NodeStats nodeStats = createNodeStats();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -272,13 +272,29 @@ public class NodeStatsTests extends ESTestCase {
                     assertEquals(totalStats.getIngestFailedCount(), deserializedIngestStats.getTotalStats().getIngestFailedCount());
                     assertEquals(totalStats.getIngestTimeInMillis(), deserializedIngestStats.getTotalStats().getIngestTimeInMillis());
                     assertEquals(ingestStats.getStatsPerPipeline().size(), deserializedIngestStats.getStatsPerPipeline().size());
-                    for (Map.Entry<String, IngestStats.Stats> entry : ingestStats.getStatsPerPipeline().entrySet()) {
-                        IngestStats.Stats stats = entry.getValue();
-                        IngestStats.Stats deserializedStats = deserializedIngestStats.getStatsPerPipeline().get(entry.getKey());
-                        assertEquals(stats.getIngestFailedCount(), deserializedStats.getIngestFailedCount());
-                        assertEquals(stats.getIngestTimeInMillis(), deserializedStats.getIngestTimeInMillis());
-                        assertEquals(stats.getIngestCurrent(), deserializedStats.getIngestCurrent());
-                        assertEquals(stats.getIngestCount(), deserializedStats.getIngestCount());
+                    for (Map.Entry<String, Tuple<IngestStats.Stats, List<Tuple<String, IngestStats.Stats>>>> entry :
+                        ingestStats.getStatsPerPipeline().entrySet()) {
+                        String pipelineName = entry.getKey();
+                        IngestStats.Stats pipelineStats = entry.getValue().v1();
+                        IngestStats.Stats deserializedPipelineStats = deserializedIngestStats.getStatsForPipeline(pipelineName);
+                        assertEquals(pipelineStats.getIngestFailedCount(), deserializedPipelineStats.getIngestFailedCount());
+                        assertEquals(pipelineStats.getIngestTimeInMillis(), deserializedPipelineStats.getIngestTimeInMillis());
+                        assertEquals(pipelineStats.getIngestCurrent(), deserializedPipelineStats.getIngestCurrent());
+                        assertEquals(pipelineStats.getIngestCount(), deserializedPipelineStats.getIngestCount());
+                        List<Tuple<String, IngestStats.Stats>> processorStats = entry.getValue().v2();
+                        List<Tuple<String, IngestStats.Stats>> deserializedProcessorStats =
+                            deserializedIngestStats.getProcessorStatsForPipeline(pipelineName);
+                        Iterator<Tuple<String, IngestStats.Stats>> it = deserializedProcessorStats.iterator();
+                        for(Tuple<String, IngestStats.Stats> processorTuple : processorStats){
+                            Tuple<String, IngestStats.Stats> deserializedTuple = it.next();
+                            assertEquals(processorTuple.v1(), deserializedTuple.v1());
+                            IngestStats.Stats pStats = processorTuple.v2();
+                            IngestStats.Stats dStats = deserializedTuple.v2();
+                            assertEquals(pStats.getIngestFailedCount(), dStats.getIngestFailedCount());
+                            assertEquals(pStats.getIngestTimeInMillis(), dStats.getIngestTimeInMillis());
+                            assertEquals(pStats.getIngestCurrent(), dStats.getIngestCurrent());
+                            assertEquals(pStats.getIngestCount(), dStats.getIngestCount());
+                        }
                     }
                 }
                 AdaptiveSelectionStats adaptiveStats = nodeStats.getAdaptiveSelectionStats();
@@ -430,11 +446,19 @@ public class NodeStatsTests extends ESTestCase {
             IngestStats.Stats totalStats = new IngestStats.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
                     randomNonNegativeLong());
 
-            int numStatsPerPipeline = randomIntBetween(0, 10);
-            Map<String, IngestStats.Stats> statsPerPipeline = new HashMap<>();
-            for (int i = 0; i < numStatsPerPipeline; i++) {
-                statsPerPipeline.put(randomAlphaOfLengthBetween(3, 10), new IngestStats.Stats(randomNonNegativeLong(),
-                        randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()));
+            int numPipelines = randomIntBetween(0, 10);
+            Map<String, Tuple<IngestStats.Stats, List<Tuple<String, IngestStats.Stats>>>> statsPerPipeline = new HashMap<>(numPipelines);
+            int numProcessors = randomIntBetween(0, 10);
+            List<Tuple<String, IngestStats.Stats>> processorsStats = new ArrayList<>(numProcessors);
+            for (int i = 0; i < numPipelines; i++) {
+                for (int j =0; j < numProcessors;j++){
+                    IngestStats.Stats processorStats = new IngestStats.Stats(randomNonNegativeLong(), randomNonNegativeLong(),
+                        randomNonNegativeLong(), randomNonNegativeLong());
+                    processorsStats.add(new Tuple<>(randomAlphaOfLengthBetween(3, 10), processorStats));
+                }
+                IngestStats.Stats pipelineStats = new IngestStats.Stats(randomNonNegativeLong(), randomNonNegativeLong(),
+                    randomNonNegativeLong(), randomNonNegativeLong());
+                statsPerPipeline.put(randomAlphaOfLengthBetween(3, 10), new Tuple<>(pipelineStats, processorsStats));
             }
             ingestStats = new IngestStats(totalStats, statsPerPipeline);
         }

@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
@@ -148,8 +149,6 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
             state = cluster.createIndex(state, request);
             assertTrue(state.metaData().hasIndex(name));
         }
-
-        ClusterState previousState = state;
 
         logger.info("--> starting shards");
         state = cluster.applyStartedShards(state, state.getRoutingNodes().shardsWithState(INITIALIZING));

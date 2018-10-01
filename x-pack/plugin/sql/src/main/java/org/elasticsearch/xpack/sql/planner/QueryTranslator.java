@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.BinaryExpression;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.ExpressionId;
 import org.elasticsearch.xpack.sql.expression.Expressions;
@@ -18,7 +17,6 @@ import org.elasticsearch.xpack.sql.expression.UnaryExpression;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundNumericAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
@@ -31,28 +29,27 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Stats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.Params;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.expression.predicate.And;
-import org.elasticsearch.xpack.sql.expression.predicate.BinaryComparison;
-import org.elasticsearch.xpack.sql.expression.predicate.Equals;
-import org.elasticsearch.xpack.sql.expression.predicate.GreaterThan;
-import org.elasticsearch.xpack.sql.expression.predicate.GreaterThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.BinaryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
-import org.elasticsearch.xpack.sql.expression.predicate.LessThan;
-import org.elasticsearch.xpack.sql.expression.predicate.LessThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.Or;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
-import org.elasticsearch.xpack.sql.expression.regex.Like;
-import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
-import org.elasticsearch.xpack.sql.expression.regex.RLike;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.AndAggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.AvgAgg;
@@ -85,24 +82,19 @@ import org.elasticsearch.xpack.sql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.Check;
 import org.elasticsearch.xpack.sql.util.ReflectionUtils;
 
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import static java.lang.String.format;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.expression.Foldables.doubleValuesOf;
 import static org.elasticsearch.xpack.sql.expression.Foldables.stringValueOf;
 import static org.elasticsearch.xpack.sql.expression.Foldables.valueOf;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
 
 abstract class QueryTranslator {
 
@@ -402,10 +394,10 @@ abstract class QueryTranslator {
 
     // TODO: need to optimize on ngram
     // TODO: see whether escaping is needed
-    static class Likes extends ExpressionTranslator<BinaryExpression> {
+    static class Likes extends ExpressionTranslator<BinaryPredicate> {
 
         @Override
-        protected QueryTranslation asQuery(BinaryExpression e, boolean onAggs) {
+        protected QueryTranslation asQuery(BinaryPredicate e, boolean onAggs) {
             Query q = null;
             boolean inexact = true;
             String target = null;
@@ -415,7 +407,7 @@ abstract class QueryTranslator {
                 inexact = fa.isInexact();
                 target = nameOf(inexact ? fa : fa.exactAttribute());
             } else {
-                throw new SqlIllegalArgumentException("Scalar function ({}) not allowed (yet) as arguments for LIKE", 
+                throw new SqlIllegalArgumentException("Scalar function ({}) not allowed (yet) as arguments for LIKE",
                         Expressions.name(e.left()));
             }
 
@@ -467,10 +459,10 @@ abstract class QueryTranslator {
         }
     }
 
-    static class BinaryLogic extends ExpressionTranslator<BinaryExpression> {
+    static class BinaryLogic extends ExpressionTranslator<BinaryPredicate> {
 
         @Override
-        protected QueryTranslation asQuery(BinaryExpression e, boolean onAggs) {
+        protected QueryTranslation asQuery(BinaryPredicate e, boolean onAggs) {
             if (e instanceof And) {
                 return and(e.location(), toQuery(e.left(), onAggs), toQuery(e.right(), onAggs));
             }
@@ -486,7 +478,7 @@ abstract class QueryTranslator {
 
         @Override
         protected QueryTranslation asQuery(Not not, boolean onAggs) {
-            QueryTranslation translation = toQuery(not.child(), onAggs);
+            QueryTranslation translation = toQuery(not.field(), onAggs);
             return new QueryTranslation(not(translation.query), translation.aggFilter);
         }
     }
@@ -520,60 +512,26 @@ abstract class QueryTranslator {
                 AggFilter aggFilter = null;
 
                 Attribute at = ne.toAttribute();
-
-                // scalar function can appear in both WHERE and HAVING so handle it first
-                // in both cases the function script is used - script-query/query for the former, bucket-selector/aggFilter for the latter
-
-                if (at instanceof ScalarFunctionAttribute) {
-                    ScalarFunctionAttribute sfa = (ScalarFunctionAttribute) at;
-                    ScriptTemplate scriptTemplate = sfa.script();
-
-                    String template = formatTemplate(format(Locale.ROOT, "%s %s {}", scriptTemplate.template(), bc.symbol()));
-                    // no need to bind the wrapped/target agg - it is already available through the nested script
-                    // (needed to create the script itself)
-                    Params params = paramsBuilder().script(scriptTemplate.params()).variable(valueOf(bc.right())).build();
-                    ScriptTemplate script = new ScriptTemplate(template, params, DataType.BOOLEAN);
-                    if (onAggs) {
-                        aggFilter = new AggFilter(at.id().toString(), script);
-                    }
-                    else {
-                        query = new ScriptQuery(at.location(), script);
-                    }
-                }
-
                 //
                 // Agg context means HAVING -> PipelineAggs
                 //
-                else if (onAggs) {
-                    String template = null;
-                    Params params = null;
-
-                    // agg function
-                    if (at instanceof AggregateFunctionAttribute) {
-                        AggregateFunctionAttribute fa = (AggregateFunctionAttribute) at;
-
-                        // TODO: handle case where both sides of the comparison are functions
-                        template = formatTemplate(format(Locale.ROOT, "{} %s {}", bc.symbol()));
-
-                        // bind the agg and the variable to the script
-                        params = paramsBuilder().agg(fa).variable(valueOf(bc.right())).build();
-                    }
-
-                    aggFilter = new AggFilter(at.id().toString(), new ScriptTemplate(template, params, DataType.BOOLEAN));
+                ScriptTemplate script = bc.asScript();
+                if (onAggs) {
+                    aggFilter = new AggFilter(at.id().toString(), script);
                 }
-
-                //
-                // No Agg context means WHERE clause
-                //
                 else {
+                    // query directly on the field
                     if (at instanceof FieldAttribute) {
                         query = wrapIfNested(translateQuery(bc), ne);
+                    } else {
+                        query = new ScriptQuery(at.location(), script);
                     }
                 }
-
                 return new QueryTranslation(query, aggFilter);
             }
-
+            //
+            // if the code gets here it's a bug
+            //
             else {
                 throw new UnsupportedOperationException("No idea how to translate " + bc.left());
             }
@@ -618,92 +576,34 @@ abstract class QueryTranslator {
 
         @Override
         protected QueryTranslation asQuery(Range r, boolean onAggs) {
-            Object lower = valueOf(r.lower());
-            Object upper = valueOf(r.upper());
-
             Expression e = r.value();
-
-
+            
             if (e instanceof NamedExpression) {
-                NamedExpression ne = (NamedExpression) e;
-
                 Query query = null;
                 AggFilter aggFilter = null;
 
-                Attribute at = ne.toAttribute();
+                //
+                // Agg context means HAVING -> PipelineAggs
+                //
+                ScriptTemplate script = r.asScript();
+                Attribute at = ((NamedExpression) e).toAttribute();
 
-                // scalar function can appear in both WHERE and HAVING so handle it first
-                // in both cases the function script is used - script-query/query for the former, bucket-selector/aggFilter
-                // for the latter
-
-                if (at instanceof ScalarFunctionAttribute) {
-                    ScalarFunctionAttribute sfa = (ScalarFunctionAttribute) at;
-                    ScriptTemplate scriptTemplate = sfa.script();
-
-                    String template = formatTemplate(format(Locale.ROOT, "({} %s %s) && (%s %s {})",
-                            r.includeLower() ? "<=" : "<",
-                                    scriptTemplate.template(),
-                                    scriptTemplate.template(),
-                                    r.includeUpper() ? "<=" : "<"));
-
-                    // no need to bind the wrapped/target - it is already available through the nested script (needed to
-                    // create the script itself)
-                    Params params = paramsBuilder().variable(lower)
-                            .script(scriptTemplate.params())
-                            .script(scriptTemplate.params())
-                            .variable(upper)
-                            .build();
-
-                    ScriptTemplate script = new ScriptTemplate(template, params, DataType.BOOLEAN);
-
-                    if (onAggs) {
-                        aggFilter = new AggFilter(at.id().toString(), script);
+                if (onAggs) {
+                    aggFilter = new AggFilter(at.id().toString(), script);
+                } else {
+                    // typical range; no scripting involved
+                    if (at instanceof FieldAttribute) {
+                        RangeQuery rangeQuery = new RangeQuery(r.location(), nameOf(r.value()), valueOf(r.lower()), r.includeLower(),
+                                valueOf(r.upper()), r.includeUpper(), dateFormat(r.value()));
+                        query = wrapIfNested(rangeQuery, r.value());
                     }
+                    // scripted query
                     else {
                         query = new ScriptQuery(at.location(), script);
                     }
                 }
-
-                //
-                // HAVING
-                //
-                else if (onAggs) {
-                    String template = null;
-                    Params params = null;
-
-                    // agg function
-                    if (at instanceof AggregateFunctionAttribute) {
-                        AggregateFunctionAttribute fa = (AggregateFunctionAttribute) at;
-
-                        template = formatTemplate(format(Locale.ROOT, "{} %s {} && {} %s {}",
-                                r.includeLower() ? "<=" : "<",
-                                        r.includeUpper() ? "<=" : "<"));
-
-                        params = paramsBuilder().variable(lower)
-                                .agg(fa)
-                                .agg(fa)
-                                .variable(upper)
-                                .build();
-
-                    }
-                    aggFilter = new AggFilter(((NamedExpression) r.value()).id().toString(),
-                            new ScriptTemplate(template, params, DataType.BOOLEAN));
-                }
-                //
-                // WHERE
-                //
-                else {
-                    // typical range
-                    if (at instanceof FieldAttribute) {
-                        RangeQuery rangeQuery = new RangeQuery(r.location(), nameOf(r.value()),
-                                valueOf(r.lower()), r.includeLower(), valueOf(r.upper()), r.includeUpper(), dateFormat(r.value()));
-                        query = wrapIfNested(rangeQuery, r.value());
-                    }
-                }
-
                 return new QueryTranslation(query, aggFilter);
-            }
-            else {
+            } else {
                 throw new SqlIllegalArgumentException("No idea how to translate " + e);
             }
         }

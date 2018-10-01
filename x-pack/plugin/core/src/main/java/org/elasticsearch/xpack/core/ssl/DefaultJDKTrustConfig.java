@@ -82,7 +82,7 @@ class DefaultJDKTrustConfig extends TrustConfig {
     /**
      * Merges the default trust configuration with the provided {@link TrustConfig}
      * @param trustConfig the trust configuration to merge with
-     * @param trustStorePassword he password for the default jdk truststore. It applies only to PKCS#11 tokens
+     * @param trustStorePassword the password for the default jdk truststore. It applies only to PKCS#11 tokens
      * @return a {@link TrustConfig} that represents a combination of both trust configurations
      */
     static TrustConfig merge(TrustConfig trustConfig, SecureString trustStorePassword) {

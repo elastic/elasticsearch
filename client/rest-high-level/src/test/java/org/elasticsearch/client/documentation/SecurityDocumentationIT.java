@@ -43,7 +43,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             //tag::put-user-execute
-            char[] password = new char[] { 'p', 'a', 's', 's', 'w', 'o', 'r', 'd' };
+            char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
             PutUserRequest request =
                 new PutUserRequest("example", password, Collections.singletonList("superuser"), null, null, true, null, RefreshPolicy.NONE);
             PutUserResponse response = client.security().putUser(request, RequestOptions.DEFAULT);
@@ -57,7 +57,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            char[] password = new char[] { 'p', 'a', 's', 's', 'w', 'o', 'r', 'd' };
+            char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
             PutUserRequest request = new PutUserRequest("example2", password, Collections.singletonList("superuser"), null, null, true,
                 null, RefreshPolicy.NONE);
             // tag::put-user-execute-listener
@@ -170,7 +170,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::disable-user-execute-async
             client.security().disableUserAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::disable-user-execute-async
-            // end::x-pack-put-user-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
@@ -213,9 +212,9 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
-            //tag::x-pack-put-user-execute-async
+            //tag::change-password-execute-async
             client.security().changePasswordAsync(request, RequestOptions.DEFAULT, listener); // <1>
-            //end::x-pack-put-user-execute-async
+            //end::change-password-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

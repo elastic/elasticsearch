@@ -25,7 +25,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
@@ -33,12 +32,18 @@ import java.util.Objects;
 /**
  * Request object to change the password of a user of a native realm or a built-in user.
  */
-public final class ChangePasswordRequest implements Validatable, Closeable, ToXContentObject {
+public final class ChangePasswordRequest implements Validatable, ToXContentObject {
 
     private final String username;
     private final char[] password;
     private final RefreshPolicy refreshPolicy;
 
+    /**
+     * @param username      The username of the user whose password should be changed or null for the current user.
+     * @param password      The new password. The password array is not cleared by the {@link ChangePasswordRequest} object so the
+     *                      calling code must clear it after handling the response.
+     * @param refreshPolicy The refresh policy for the request.
+     */
     public ChangePasswordRequest(@Nullable String username, char[] password, RefreshPolicy refreshPolicy) {
         this.username = username;
         this.password = Objects.requireNonNull(password, "password is required");
@@ -58,15 +63,7 @@ public final class ChangePasswordRequest implements Validatable, Closeable, ToXC
     }
 
     @Override
-    public void close() throws IOException {
-        if (password != null) {
-            Arrays.fill(password, '\u0000');
-        }
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
         byte[] charBytes = CharArrays.toUtf8Bytes(password);
         try {
             return builder.startObject()

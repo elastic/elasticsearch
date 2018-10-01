@@ -224,7 +224,7 @@ Time values can also be specified via abbreviations supported by <<time-units,ti
 Note that fractional time values are not supported, but you can address this by shifting to another
 time unit (e.g., `1.5h` could instead be specified as `90m`).
 
-====== Format
+*Format*
 
 Internally, a date is represented as a 64 bit number representing a timestamp in milliseconds-since-the-epoch.
 These timestamps are returned as the bucket keys. It is possible to return a formatted date string instead using
@@ -257,7 +257,7 @@ GET /_search
 
 <1> Supports expressive date <<date-format-pattern,format pattern>>
 
-====== Time Zone
+*Time Zone*
 
 Date-times are stored in Elasticsearch in UTC.  By default, all bucketing and
 rounding is also done in UTC. The `time_zone` parameter can be used to indicate

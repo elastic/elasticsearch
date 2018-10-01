@@ -410,9 +410,14 @@ public abstract class Rounding implements Writeable {
             Rounding rounding;
             byte id = in.readByte();
             switch (id) {
-                case TimeUnitRounding.ID: rounding = new TimeUnitRounding(in); break;
-                case TimeIntervalRounding.ID: rounding = new TimeIntervalRounding(in); break;
-                default: throw new ElasticsearchException("unknown rounding id [" + id + "]");
+                case TimeUnitRounding.ID:
+                    rounding = new TimeUnitRounding(in);
+                    break;
+                case TimeIntervalRounding.ID:
+                    rounding = new TimeIntervalRounding(in);
+                    break;
+                default:
+                    throw new ElasticsearchException("unknown rounding id [" + id + "]");
             }
             return rounding;
         }

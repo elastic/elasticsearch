@@ -4,8 +4,8 @@
 ---
 "annotated highlighter on annotated text":
   - skip:
-      version: " - 6.99.99"
-      reason: Annotated text type introduced in 7.0.0-alpha1
+      version: " - 6.4.99"
+      reason: Annotated text type introduced in 6.5.0
 
   - do:
       indices.create:

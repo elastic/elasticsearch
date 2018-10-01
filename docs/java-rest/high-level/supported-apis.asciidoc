@@ -2,23 +2,26 @@
 
 == Document APIs
 
+:upid: {mainid}-document
+:doc-tests-file: {doc-tests}/CRUDDocumentationIT.java
+
 The Java High Level REST Client supports the following Document APIs:
 
 [[single-doc]]
 Single document APIs::
-* <<java-rest-high-document-index>>
-* <<java-rest-high-document-get>>
-* <<java-rest-high-document-delete>>
-* <<java-rest-high-document-update>>
+* <<{upid}-index>>
+* <<{upid}-get>>
+* <<{upid}-delete>>
+* <<{upid}-update>>
 
 [[multi-doc]]
 Multi-document APIs::
-* <<java-rest-high-document-bulk>>
-* <<java-rest-high-document-multi-get>>
-* <<java-rest-high-document-reindex>>
-* <<java-rest-high-document-update-by-query>>
-* <<java-rest-high-document-delete-by-query>>
-* <<java-rest-high-document-reindex-rethrottle>>
+* <<{upid}-bulk>>
+* <<{upid}-multi-get>>
+* <<{upid}-reindex>>
+* <<{upid}-update-by-query>>
+* <<{upid}-delete-by-query>>
+* <<{upid}-reindex-rethrottle>>
 
 include::document/index.asciidoc[]
 include::document/get.asciidoc[]
@@ -34,20 +37,21 @@ include::document/reindex-rethrottle.asciidoc[]
 
 == Search APIs
 
-The Java High Level REST Client supports the following Search APIs:
-
-* <<java-rest-high-search>>
-* <<java-rest-high-search-scroll>>
-* <<java-rest-high-clear-scroll>>
-* <<java-rest-high-search-template>>
-* <<java-rest-high-multi-search-template>>
-* <<java-rest-high-multi-search>>
-* <<java-rest-high-field-caps>>
-* <<java-rest-high-rank-eval>>
-* <<java-rest-high-explain>>
-
 :upid: {mainid}
 :doc-tests-file: {doc-tests}/SearchDocumentationIT.java
+
+The Java High Level REST Client supports the following Search APIs:
+
+* <<{upid}-search>>
+* <<{upid}-search-scroll>>
+* <<{upid}-clear-scroll>>
+* <<{upid}-search-template>>
+* <<{upid}-multi-search-template>>
+* <<{upid}-multi-search>>
+* <<{upid}-field-caps>>
+* <<{upid}-rank-eval>>
+* <<{upid}-explain>>
+
 include::search/search.asciidoc[]
 include::search/scroll.asciidoc[]
 include::search/multi-search.asciidoc[]

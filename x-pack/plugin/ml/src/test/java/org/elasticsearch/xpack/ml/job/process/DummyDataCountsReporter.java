@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.process;
 
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -27,9 +26,9 @@ class DummyDataCountsReporter extends DataCountsReporter {
 
     int logStatusCallCount = 0;
 
-    DummyDataCountsReporter(ClusterService clusterService) {
+    DummyDataCountsReporter() {
         super(Settings.EMPTY, createJob(), new DataCounts("DummyJobId"),
-                mock(JobDataCountsPersister.class), clusterService);
+                mock(JobDataCountsPersister.class));
     }
 
     /**

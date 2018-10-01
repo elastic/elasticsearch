@@ -108,18 +108,18 @@ public class MetricConfig implements Writeable, ToXContentObject {
         Map<String, FieldCapabilities> fieldCaps = fieldCapsResponse.get(field);
         if (fieldCaps != null && fieldCaps.isEmpty() == false) {
             fieldCaps.forEach((key, value) -> {
-                if (RollupField.NUMERIC_FIELD_MAPPER_TYPES.contains(key)) {
+                if (RollupField.NUMERIC_FIELD_MAPPER_TYPES.contains(key) || RollupField.DATE_FIELD_MAPPER_TYPE.equals(key)) {
                     if (value.isAggregatable() == false) {
                         validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
                                 "but is not.");
                     }
                 } else {
-                    validationException.addValidationError("The field referenced by a metric group must be a [numeric] type, but found " +
-                            fieldCaps.keySet().toString() + " for field [" + field + "]");
+                    validationException.addValidationError("The field referenced by a metric group must be a [numeric] or [date] type, " +
+                        "but found " + fieldCaps.keySet().toString() + " for field [" + field + "]");
                 }
             });
         } else {
-            validationException.addValidationError("Could not find a [numeric] field with name [" + field + "] in any of the " +
+            validationException.addValidationError("Could not find a [numeric] or [date] field with name [" + field + "] in any of the " +
                     "indices matching the index pattern.");
         }
     }

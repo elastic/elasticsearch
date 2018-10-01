@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.rollup;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
@@ -46,6 +47,8 @@ public class RollupField {
         types.add("scaled_float"); // have to add manually since scaled_float is in a module
         NUMERIC_FIELD_MAPPER_TYPES = types;
     }
+
+    public static final String DATE_FIELD_MAPPER_TYPE = DateFieldMapper.CONTENT_TYPE;
 
     /**
      * Format to the appropriate Rollup field name convention

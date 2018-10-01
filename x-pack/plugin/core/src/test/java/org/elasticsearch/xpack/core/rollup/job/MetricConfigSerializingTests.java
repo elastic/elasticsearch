@@ -45,8 +45,8 @@ public class MetricConfigSerializingTests extends AbstractSerializingTestCase<Me
 
         MetricConfig config = new MetricConfig("my_field", singletonList("max"));
         config.validateMappings(responseMap, e);
-        assertThat(e.validationErrors().get(0), equalTo("Could not find a [numeric] field with name [my_field] in any of the " +
-                "indices matching the index pattern."));
+        assertThat(e.validationErrors().get(0), equalTo("Could not find a [numeric] or [date] field with name [my_field] in any" +
+            " of the indices matching the index pattern."));
     }
 
     public void testValidateNomatchingField() {
@@ -59,8 +59,8 @@ public class MetricConfigSerializingTests extends AbstractSerializingTestCase<Me
 
         MetricConfig config = new MetricConfig("my_field", singletonList("max"));
         config.validateMappings(responseMap, e);
-        assertThat(e.validationErrors().get(0), equalTo("Could not find a [numeric] field with name [my_field] in any of the " +
-                "indices matching the index pattern."));
+        assertThat(e.validationErrors().get(0), equalTo("Could not find a [numeric] or [date] field with name [my_field] in any" +
+            " of the indices matching the index pattern."));
     }
 
     public void testValidateFieldWrongType() {
@@ -73,8 +73,8 @@ public class MetricConfigSerializingTests extends AbstractSerializingTestCase<Me
 
         MetricConfig config = new MetricConfig("my_field", singletonList("max"));
         config.validateMappings(responseMap, e);
-        assertThat(e.validationErrors().get(0), equalTo("The field referenced by a metric group must be a [numeric] type, " +
-                "but found [keyword] for field [my_field]"));
+        assertThat(e.validationErrors().get(0), equalTo("The field referenced by a metric group must be a [numeric] or [date] type," +
+            " but found [keyword] for field [my_field]"));
     }
 
     public void testValidateFieldMatchingNotAggregatable() {
@@ -150,6 +150,13 @@ public class MetricConfigSerializingTests extends AbstractSerializingTestCase<Me
         fieldCaps = mock(FieldCapabilities.class);
         when(fieldCaps.isAggregatable()).thenReturn(true);
         responseMap.put("my_field", Collections.singletonMap("integer", fieldCaps));
+        config = new MetricConfig("my_field", singletonList("max"));
+        config.validateMappings(responseMap, e);
+        assertThat(e.validationErrors().size(), equalTo(0));
+
+        fieldCaps = mock(FieldCapabilities.class);
+        when(fieldCaps.isAggregatable()).thenReturn(true);
+        responseMap.put("my_field", Collections.singletonMap("date", fieldCaps));
         config = new MetricConfig("my_field", singletonList("max"));
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().size(), equalTo(0));

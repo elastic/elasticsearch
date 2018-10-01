@@ -48,10 +48,10 @@ public class TransportFindFileStructureAction
 
     private FindFileStructureAction.Response buildFileStructureResponse(FindFileStructureAction.Request request) throws Exception {
 
-        FileStructureFinderManager structureFinderManager = new FileStructureFinderManager();
+        FileStructureFinderManager structureFinderManager = new FileStructureFinderManager(threadPool.scheduler());
 
         FileStructureFinder fileStructureFinder = structureFinderManager.findFileStructure(request.getLinesToSample(),
-            request.getSample().streamInput(), new FileStructureOverrides(request));
+            request.getSample().streamInput(), new FileStructureOverrides(request), request.getTimeout());
 
         return new FindFileStructureAction.Response(fileStructureFinder.getStructure());
     }

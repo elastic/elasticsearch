@@ -19,13 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -33,6 +26,14 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
@@ -52,7 +53,8 @@ public class ConditionalProcessorTests extends ESTestCase {
                     Script.DEFAULT_SCRIPT_LANG,
                     Collections.singletonMap(
                         scriptName, ctx -> trueValue.equals(ctx.get(conditionalField))
-                    )
+                    ),
+                    Collections.emptyMap()
                 )
             ),
             new HashMap<>(ScriptModule.CORE_CONTEXTS)
@@ -120,7 +122,8 @@ public class ConditionalProcessorTests extends ESTestCase {
                             }
                             return false;
                         }
-                    )
+                    ),
+                    Collections.emptyMap()
                 )
             ),
             new HashMap<>(ScriptModule.CORE_CONTEXTS)

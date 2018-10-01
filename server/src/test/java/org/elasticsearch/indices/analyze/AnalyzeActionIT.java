@@ -121,54 +121,6 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(analyzeResponse.getTokens().get(0).getPositionLength(), equalTo(1));
     }
 
-    public void testAnalyzeWithNonDefaultPostionLength() throws Exception {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-            .setSettings(Settings.builder().put(indexSettings())
-                .put("index.analysis.filter.syns.type", "synonym")
-                .putList("index.analysis.filter.syns.synonyms", "wtf, what the fudge")
-                .put("index.analysis.analyzer.custom_syns.tokenizer", "standard")
-                .putList("index.analysis.analyzer.custom_syns.filter", "lowercase", "syns")));
-        ensureGreen();
-
-        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("say what the fudge").setIndex("test").setAnalyzer("custom_syns").get();
-        assertThat(analyzeResponse.getTokens().size(), equalTo(5));
-
-        AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(0);
-        assertThat(token.getTerm(), equalTo("say"));
-        assertThat(token.getPosition(), equalTo(0));
-        assertThat(token.getStartOffset(), equalTo(0));
-        assertThat(token.getEndOffset(), equalTo(3));
-        assertThat(token.getPositionLength(), equalTo(1));
-
-        token = analyzeResponse.getTokens().get(1);
-        assertThat(token.getTerm(), equalTo("what"));
-        assertThat(token.getPosition(), equalTo(1));
-        assertThat(token.getStartOffset(), equalTo(4));
-        assertThat(token.getEndOffset(), equalTo(8));
-        assertThat(token.getPositionLength(), equalTo(1));
-
-        token = analyzeResponse.getTokens().get(2);
-        assertThat(token.getTerm(), equalTo("wtf"));
-        assertThat(token.getPosition(), equalTo(1));
-        assertThat(token.getStartOffset(), equalTo(4));
-        assertThat(token.getEndOffset(), equalTo(18));
-        assertThat(token.getPositionLength(), equalTo(3));
-
-        token = analyzeResponse.getTokens().get(3);
-        assertThat(token.getTerm(), equalTo("the"));
-        assertThat(token.getPosition(), equalTo(2));
-        assertThat(token.getStartOffset(), equalTo(9));
-        assertThat(token.getEndOffset(), equalTo(12));
-        assertThat(token.getPositionLength(), equalTo(1));
-
-        token = analyzeResponse.getTokens().get(4);
-        assertThat(token.getTerm(), equalTo("fudge"));
-        assertThat(token.getPosition(), equalTo(3));
-        assertThat(token.getStartOffset(), equalTo(13));
-        assertThat(token.getEndOffset(), equalTo(18));
-        assertThat(token.getPositionLength(), equalTo(1));
-    }
-
     public void testAnalyzerWithFieldOrTypeTests() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen();

@@ -39,6 +39,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -122,6 +123,9 @@ public class JobConfigProvider extends AbstractComponent {
      * If the job is missing a {@code ResourceNotFoundException} is returned
      * via the listener.
      *
+     * If the .ml-config index does not exist it is treated as a missing job
+     * error.
+     *
      * @param jobId The job ID
      * @param jobListener Job listener
      */
@@ -143,7 +147,11 @@ public class JobConfigProvider extends AbstractComponent {
 
             @Override
             public void onFailure(Exception e) {
-                jobListener.onFailure(e);
+                if (e.getClass() == IndexNotFoundException.class) {
+                    jobListener.onFailure(ExceptionsHelper.missingJobException(jobId));
+                } else {
+                    jobListener.onFailure(e);
+                }
             }
         }, client::get);
     }
@@ -368,14 +376,19 @@ public class JobConfigProvider extends AbstractComponent {
 
     /**
      * Check a job exists. A job exists if it has a configuration document.
+     * If the .ml-config index does not exist it is treated as a missing job
+     * error.
      *
-     * If the job does not exist a ResourceNotFoundException is returned to the listener,
-     * FALSE will never be returned only TRUE or ResourceNotFoundException
+     * Depending on the value of {@code errorIfMissing} if the job does not
+     * exist a ResourceNotFoundException is returned to the listener,
+     * otherwise false is returned in the response.
      *
-     * @param jobId     The jobId to check
-     * @param listener  Exists listener
+     * @param jobId             The jobId to check
+     * @param errorIfMissing    If true and the job is missing the listener fails with
+     *                          a ResourceNotFoundException else false is returned.
+     * @param listener          Exists listener
      */
-    public void checkJobExists(String jobId, ActionListener<Boolean> listener) {
+    public void jobExists(String jobId, boolean errorIfMissing, ActionListener<Boolean> listener) {
         GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(),
                 ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId));
         getRequest.fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE);
@@ -384,7 +397,11 @@ public class JobConfigProvider extends AbstractComponent {
             @Override
             public void onResponse(GetResponse getResponse) {
                 if (getResponse.isExists() == false) {
-                    listener.onFailure(ExceptionsHelper.missingJobException(jobId));
+                    if (errorIfMissing) {
+                        listener.onFailure(ExceptionsHelper.missingJobException(jobId));
+                    } else {
+                        listener.onResponse(Boolean.FALSE);
+                    }
                 } else {
                     listener.onResponse(Boolean.TRUE);
                 }
@@ -392,7 +409,15 @@ public class JobConfigProvider extends AbstractComponent {
 
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(e);
+                if (e.getClass() == IndexNotFoundException.class) {
+                    if (errorIfMissing) {
+                        listener.onFailure(ExceptionsHelper.missingJobException(jobId));
+                    } else {
+                        listener.onResponse(Boolean.FALSE);
+                    }
+                } else {
+                    listener.onFailure(e);
+                }
             }
         });
     }

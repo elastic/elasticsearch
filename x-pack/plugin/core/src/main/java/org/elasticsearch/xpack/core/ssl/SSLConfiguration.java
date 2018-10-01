@@ -229,9 +229,8 @@ public final class SSLConfiguration {
             return new PEMTrustConfig(caPaths);
         } else if (trustStorePath != null || trustStoreType.equalsIgnoreCase("pkcs11")) {
             String trustStoreAlgorithm = SETTINGS_PARSER.truststoreAlgorithm.get(settings);
-            try (SecureString trustStorePassword = SETTINGS_PARSER.truststorePassword.get(settings)) {
-                return new StoreTrustConfig(trustStorePath, trustStoreType, trustStorePassword, trustStoreAlgorithm);
-            }
+            SecureString trustStorePassword = SETTINGS_PARSER.truststorePassword.get(settings);
+            return new StoreTrustConfig(trustStorePath, trustStoreType, trustStorePassword, trustStoreAlgorithm);
         } else if (global == null && System.getProperty("javax.net.ssl.trustStore") != null
             && System.getProperty("javax.net.ssl.trustStore").equals("NONE") == false) {
             try (SecureString truststorePassword = new SecureString(System.getProperty("javax.net.ssl.trustStorePassword", ""))) {

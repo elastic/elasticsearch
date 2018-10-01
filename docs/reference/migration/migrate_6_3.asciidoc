@@ -7,7 +7,8 @@
 This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 6.3.
 
-* <<breaking_63_api_changes>> 
+* <<breaking_63_api_changes>>
+* <<breaking_63_packaging_changes>>
 * <<breaking_63_plugins_changes>>
 * <<breaking_63_settings_changes>>
 

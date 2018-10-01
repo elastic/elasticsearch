@@ -70,7 +70,7 @@ public class QuotingTests extends ESTestCase {
         String name = "@timestamp";
         ParsingException ex = expectThrows(ParsingException.class, () ->
             new SqlParser().createExpression(quote + name + quote));
-        assertThat(ex.getMessage(), equalTo("line 1:1: backquoted indetifiers not supported; please use double quotes instead"));
+        assertThat(ex.getMessage(), equalTo("line 1:1: backquoted identifiers not supported; please use double quotes instead"));
     }
 
     public void testQuotedAttributeAndQualifier() {
@@ -92,7 +92,7 @@ public class QuotingTests extends ESTestCase {
         String name = "@timestamp";
         ParsingException ex = expectThrows(ParsingException.class, () ->
             new SqlParser().createExpression(quote + qualifier + quote + "." + quote + name + quote));
-        assertThat(ex.getMessage(), equalTo("line 1:1: backquoted indetifiers not supported; please use double quotes instead"));
+        assertThat(ex.getMessage(), equalTo("line 1:1: backquoted identifiers not supported; please use double quotes instead"));
     }
 
     public void testGreedyQuoting() {

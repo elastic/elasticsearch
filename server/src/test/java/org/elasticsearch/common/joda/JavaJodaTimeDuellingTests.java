@@ -71,6 +71,8 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
     public void testDuellingFormatsValidParsing() {
         assertSameDate("1522332219", "epoch_second");
+        assertSameDate("1522332219.", "epoch_second");
+        assertSameDate("1522332219.0", "epoch_second");
         assertSameDate("0", "epoch_second");
         assertSameDate("1", "epoch_second");
         assertSameDate("-1", "epoch_second");

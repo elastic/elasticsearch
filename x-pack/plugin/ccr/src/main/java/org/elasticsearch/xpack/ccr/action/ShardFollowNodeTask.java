@@ -6,18 +6,26 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
@@ -47,7 +55,7 @@ import java.util.stream.Collectors;
 public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private static final int DELAY_MILLIS = 50;
-    private static final Logger LOGGER = Loggers.getLogger(ShardFollowNodeTask.class);
+    private static final Logger LOGGER = LogManager.getLogger(ShardFollowNodeTask.class);
 
     private final String leaderIndex;
     private final ShardFollowTask params;
@@ -56,6 +64,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private long leaderGlobalCheckpoint;
     private long leaderMaxSeqNo;
+    private long leaderMaxSeqNoOfUpdatesOrDeletes = SequenceNumbers.UNASSIGNED_SEQ_NO;
     private long lastRequestedSeqNo;
     private long followerGlobalCheckpoint = 0;
     private long followerMaxSeqNo = 0;
@@ -194,14 +203,14 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 Translog.Operation op = buffer.remove();
                 ops.add(op);
                 sumEstimatedSize += op.estimateSize();
-                if (sumEstimatedSize > params.getMaxBatchSizeInBytes()) {
+                if (sumEstimatedSize > params.getMaxBatchSize().getBytes()) {
                     break;
                 }
             }
             numConcurrentWrites++;
             LOGGER.trace("{}[{}] write [{}/{}] [{}]", params.getFollowShardId(), numConcurrentWrites, ops.get(0).seqNo(),
                 ops.get(ops.size() - 1).seqNo(), ops.size());
-            sendBulkShardOperationsRequest(ops);
+            sendBulkShardOperationsRequest(ops, leaderMaxSeqNoOfUpdatesOrDeletes, new AtomicInteger(0));
         }
     }
 
@@ -262,6 +271,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         onOperationsFetched(response.getOperations());
         leaderGlobalCheckpoint = Math.max(leaderGlobalCheckpoint, response.getGlobalCheckpoint());
         leaderMaxSeqNo = Math.max(leaderMaxSeqNo, response.getMaxSeqNo());
+        leaderMaxSeqNoOfUpdatesOrDeletes = SequenceNumbers.max(leaderMaxSeqNoOfUpdatesOrDeletes, response.getMaxSeqNoOfUpdatesOrDeletes());
         final long newFromSeqNo;
         if (response.getOperations().length == 0) {
             newFromSeqNo = from;
@@ -291,13 +301,11 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
     }
 
-    private void sendBulkShardOperationsRequest(List<Translog.Operation> operations) {
-        sendBulkShardOperationsRequest(operations, new AtomicInteger(0));
-    }
-
-    private void sendBulkShardOperationsRequest(List<Translog.Operation> operations, AtomicInteger retryCounter) {
+    private void sendBulkShardOperationsRequest(List<Translog.Operation> operations, long leaderMaxSeqNoOfUpdatesOrDeletes,
+                                                AtomicInteger retryCounter) {
+        assert leaderMaxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "mus is not replicated";
         final long startTime = relativeTimeProvider.getAsLong();
-        innerSendBulkShardOperationsRequest(operations,
+        innerSendBulkShardOperationsRequest(operations, leaderMaxSeqNoOfUpdatesOrDeletes,
                 response -> {
                     synchronized (ShardFollowNodeTask.this) {
                         totalIndexTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
@@ -311,7 +319,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                         totalIndexTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
                         numberOfFailedBulkOperations++;
                     }
-                    handleFailure(e, retryCounter, () -> sendBulkShardOperationsRequest(operations, retryCounter));
+                    handleFailure(e, retryCounter,
+                        () -> sendBulkShardOperationsRequest(operations, leaderMaxSeqNoOfUpdatesOrDeletes, retryCounter));
                 }
         );
     }
@@ -374,17 +383,29 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         return Math.min(backOffDelay, maxRetryDelayInMillis);
     }
 
-    private static boolean shouldRetry(Exception e) {
-        return NetworkExceptionHelper.isConnectException(e) ||
-            NetworkExceptionHelper.isCloseConnectionException(e) ||
-            TransportActions.isShardNotAvailableException(e);
+    static boolean shouldRetry(Exception e) {
+        if (NetworkExceptionHelper.isConnectException(e)) {
+            return true;
+        } else if (NetworkExceptionHelper.isCloseConnectionException(e)) {
+            return true;
+        }
+
+        final Throwable actual = ExceptionsHelper.unwrapCause(e);
+        return actual instanceof ShardNotFoundException ||
+            actual instanceof IllegalIndexShardStateException ||
+            actual instanceof NoShardAvailableActionException ||
+            actual instanceof UnavailableShardsException ||
+            actual instanceof AlreadyClosedException ||
+            actual instanceof ElasticsearchSecurityException || // If user does not have sufficient privileges
+            actual instanceof ClusterBlockException || // If leader index is closed or no elected master
+            actual instanceof IndexClosedException; // If follow index is closed
     }
 
     // These methods are protected for testing purposes:
     protected abstract void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler);
 
-    protected abstract void innerSendBulkShardOperationsRequest(
-            List<Translog.Operation> operations, Consumer<BulkShardOperationsResponse> handler, Consumer<Exception> errorHandler);
+    protected abstract void innerSendBulkShardOperationsRequest(List<Translog.Operation> operations, long leaderMaxSeqNoOfUpdatesOrDeletes,
+                                    Consumer<BulkShardOperationsResponse> handler, Consumer<Exception> errorHandler);
 
     protected abstract void innerSendShardChangesRequest(long from, int maxOperationCount, Consumer<ShardChangesAction.Response> handler,
                                                          Consumer<Exception> errorHandler);

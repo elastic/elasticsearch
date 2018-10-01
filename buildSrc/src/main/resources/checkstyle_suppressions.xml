@@ -21,6 +21,34 @@
     configuration of classes that aren't in packages. -->
   <suppress files="test[/\\]framework[/\\]src[/\\]test[/\\]java[/\\]Dummy.java" checks="PackageDeclaration" />
 
+  <!--
+    Truly temporary suppressions suppression of snippets included in
+    documentation that are so wide that they scroll.
+  -->
+  <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]CRUDDocumentationIT.java" id="SnippetLength" />
+  <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]ClusterClientDocumentationIT.java" id="SnippetLength" />
+  <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]GraphDocumentationIT.java" id="SnippetLength" />
+  <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]IndicesClientDocumentationIT.java" id="SnippetLength" />
+  <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]IngestClientDocumentationIT.java" id="SnippetLength" />
+  <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]LicensingDocumentationIT.java" id="SnippetLength" />
+  <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]MigrationDocumentationIT.java" id="SnippetLength" />
+  <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]MigrationClientDocumentationIT.java" id="SnippetLength" />
+  <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]MiscellaneousDocumentationIT.java" id="SnippetLength" />
+  <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]MlClientDocumentationIT.java" id="SnippetLength" />
+  <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]RollupDocumentationIT.java" id="SnippetLength" />
+  <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]SearchDocumentationIT.java" id="SnippetLength" />
+  <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]SecurityDocumentationIT.java" id="SnippetLength" />
+  <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]SnapshotClientDocumentationIT.java" id="SnippetLength" />
+  <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]StoredScriptsDocumentationIT.java" id="SnippetLength" />
+  <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]TasksClientDocumentationIT.java" id="SnippetLength" />
+  <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]WatcherDocumentationIT.java" id="SnippetLength" />
+  <!--
+    This one is in plugins/examples/script-expert-scoring but we need to
+    suppress it like this because we build that project twice, once in for
+    real and once as a test for our build system. -->
+  <suppress files="src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]example[/\\]expertscript[/\\]ExpertScriptPlugin.java" id="SnippetLength" />
+  <suppress files="modules[/\\]reindex[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]ReindexDocumentationIT.jav" id="SnippetLength" />
+
   <!-- Hopefully temporary suppression of LineLength on files that don't pass it. We should remove these when we the
     files start to pass. -->
   <suppress files="client[/\\]rest[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]HeapBufferedAsyncResponseConsumerTests.java" checks="LineLength" />

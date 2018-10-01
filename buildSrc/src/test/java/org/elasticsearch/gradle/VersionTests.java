@@ -44,16 +44,12 @@ public class VersionTests extends GradleUnitTestCase {
         assertTrue("1.10.20 is not interpreted as before 2.0.0",
             Version.fromString("1.10.20").before("2.0.0")
         );
-        assertTrue("7.0.0-alpha1 is not interpreted as before 7.0.0-alpha2",
-            Version.fromString("7.0.0-alpha1").before("7.0.0-alpha2")
-        );
         assertTrue("7.0.0-alpha1 should be equal to 7.0.0-alpha1",
             Version.fromString("7.0.0-alpha1").equals(Version.fromString("7.0.0-alpha1"))
         );
         assertTrue("7.0.0-SNAPSHOT should be equal to 7.0.0-SNAPSHOT",
             Version.fromString("7.0.0-SNAPSHOT").equals(Version.fromString("7.0.0-SNAPSHOT"))
         );
-        assertEquals(Version.fromString("5.2.1-SNAPSHOT"), Version.fromString("5.2.1-SNAPSHOT"));
     }
 
     public void testCollections() {
@@ -89,51 +85,10 @@ public class VersionTests extends GradleUnitTestCase {
             new Version(7, 0, 0, "", true)
         ));
 
-        // snapshot is not taken into account TODO inconsistent with equals
         assertEquals(
             0,
-            new Version(7, 0, 0, "", false).compareTo(
-            new Version(7, 0, 0, null, true))
-        );
-        // without sufix is smaller than with TODO
-        assertOrder(
-            new Version(7, 0, 0, null, false),
-            new Version(7, 0, 0, "-alpha1", false)
-        );
-        // numbered sufix
-        assertOrder(
-            new Version(7, 0, 0, "-alpha1", false),
-            new Version(7, 0, 0, "-alpha2", false)
-        );
-        // ranked sufix
-        assertOrder(
-            new Version(7, 0, 0, "-alpha8", false),
-            new Version(7, 0, 0, "-rc1", false)
-        );
-        // ranked sufix
-        assertOrder(
-            new Version(7, 0, 0, "-alpha8", false),
-            new Version(7, 0, 0, "-beta1", false)
-        );
-        // ranked sufix
-        assertOrder(
-            new Version(7, 0, 0, "-beta8", false),
-            new Version(7, 0, 0, "-rc1", false)
-        );
-        // major takes precedence
-        assertOrder(
-            new Version(6, 10, 10, "-alpha8", true),
-            new Version(7, 0, 0, "-alpha2", false)
-        );
-        // then minor
-        assertOrder(
-            new Version(7, 0, 10, "-alpha8", true),
-            new Version(7, 1, 0, "-alpha2", false)
-        );
-        // then revision
-        assertOrder(
-            new Version(7, 1, 0, "-alpha8", true),
-            new Version(7, 1, 10, "-alpha2", false)
+            new Version(7, 0, 0, "-alpha1", false).compareTo(
+            new Version(7, 0, 0, "", true))
         );
     }
 
@@ -147,18 +102,6 @@ public class VersionTests extends GradleUnitTestCase {
         expectedEx.expect(IllegalArgumentException.class);
         expectedEx.expectMessage("Invalid version format");
         Version.fromString("foo.bar.baz");
-    }
-
-    public void testExceptionSuffixNumber() {
-        expectedEx.expect(IllegalArgumentException.class);
-        expectedEx.expectMessage("Invalid suffix");
-        new Version(7, 1, 1, "-alpha", true);
-    }
-
-    public void testExceptionSuffix() {
-        expectedEx.expect(IllegalArgumentException.class);
-        expectedEx.expectMessage("Suffix must contain one of:");
-        new Version(7, 1, 1, "foo1", true);
     }
 
     private void assertOrder(Version smaller, Version bigger) {

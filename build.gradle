@@ -138,7 +138,7 @@ task verifyVersions {
     }
     // Read the list from maven central
     new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
-      bwcVersions.compareToAuthoritive(
+      bwcVersions.compareToAuthoritative(
               new XmlParser().parse(s)
                       .versioning.versions.version
                       .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }

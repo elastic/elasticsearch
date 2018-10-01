@@ -18,39 +18,39 @@
  */
 package org.elasticsearch.gradle;
 
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptySortedSet;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableList;
 
 /**
  * Parse the Java source file containing the versions declarations and use the known rules to figure out which are all
  * the version the current one is wire and index compatible with.
  * On top of this, figure out which of these are unreleased and provide the branch they can be built from.
- *
+ * <p>
  * Note that in this context, currentVersion is the unreleased version this build operates on.
  * At any point in time there will surely be four such unreleased versions being worked on,
  * thus currentVersion will be one of these:
- *    - the unreleased <b>major</b>, a+1.0.0 on the `master` branch
- *    - the unreleased <b>minor</b>,  a.b.0 ( b != 0) on the `a.x` branch
- *    - the unreleased <b>maintenance</b>, a.b.c (c != 0) on the `a.b` branch
- *    - the unreleased <b>bugfix</b>, a-1.d.e ( d != 0, e != 0) on the `(a-1).d` branch
+ * - the unreleased <b>major</b>, a+1.0.0 on the `master` branch
+ * - the unreleased <b>minor</b>,  a.b.0 ( b != 0) on the `a.x` branch
+ * - the unreleased <b>maintenance</b>, a.b.c (c != 0) on the `a.b` branch
+ * - the unreleased <b>bugfix</b>, a-1.d.e ( d != 0, e != 0) on the `(a-1).d` branch
  * In addition to these, there will be a fifth one when a minor reaches feature freeze, we call this the <i>staged</i>
  * version:
- *    - the unreleased <b>staged</b>, a.b-2.0 (b > 2) on the `a.(b-2)` branch
+ * - the unreleased <b>staged</b>, a.b-2.0 (b > 2) on the `a.(b-2)` branch
  * Each build is only concerned with possible unreleased versions before it, as those are the ones that need to be tested
  * for backwards compatibility. We never look forward, and don't add forward facing version number to branches of previous
  * version.
- *
+ * <p>
  * The build know the current version, and we parse server code to find the rest making sure that these match.
  * We can reliably figure out which the unreleased versions are due to the convention of always adding the next unreleased
  * version number to server in all branches when a version is released.
@@ -62,16 +62,16 @@ public class VersionCollection {
     private static final Pattern LINE_PATTERN = Pattern.compile(
         "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)? .*"
     );
-    private final SortedSet<Version> versions = new TreeSet<>();
-    private Version currentVersion;
-    private Map<Integer, SortedSet<Version>> groupByMajor;
+
+    private final Version currentVersion;
+    private final Map<Integer, List<Version>> groupByMajor;
 
     public class UnreleasedVersionDescription {
         private final Version version;
         private final String branch;
         private final String gradleProjectName;
 
-        public UnreleasedVersionDescription(Version version, String branch, String gradleProjectName) {
+        UnreleasedVersionDescription(Version version, String branch, String gradleProjectName) {
             this.version = version;
             this.branch = branch;
             this.gradleProjectName = gradleProjectName;
@@ -95,7 +95,7 @@ public class VersionCollection {
     }
 
     protected VersionCollection(List<String> versionLines, Version currentVersionProperty) {
-        versionLines.stream()
+        groupByMajor = versionLines.stream()
             .map(LINE_PATTERN::matcher)
             .filter(Matcher::matches)
             .map(match -> new Version(
@@ -106,49 +106,48 @@ public class VersionCollection {
                 false
             ))
             .filter(version -> version.getSuffix().isEmpty() || version.equals(currentVersionProperty))
-            .forEach(version -> {
-                if (versions.add(version) == false) {
-                    throw new IllegalStateException("Found duplicate while parsing all versions: " + version);
-                }
-            });
-        if (versions.isEmpty()) {
+            .collect(Collectors.groupingBy(Version::getMajor, Collectors.toList()));
+
+        if (groupByMajor.isEmpty()) {
             throw new IllegalArgumentException("Could not parse any versions");
         }
+
+        currentVersion = getLatestVersionByKey(
+            groupByMajor,
+            groupByMajor.keySet().stream().max(Integer::compareTo)
+                .orElseThrow(() -> new IllegalStateException("Unexpected number of versions in collection"))
+        );
 
         assertCurrentVersionMatchesParsed(currentVersionProperty);
 
         assertNoOlderThanTwoMajors();
 
-        // group by needed by getUnreleased()
-        groupByMajor = versions.stream()
-            .collect(Collectors.groupingBy(Version::getMajor, Collectors.toCollection(TreeSet::new)));
-        getUnreleased().stream()
+        markUnreleasedAsSnapshot();
+    }
+
+    private void markUnreleasedAsSnapshot() {
+        getUnreleased()
             .forEach(unreleased -> {
-                versions.remove(unreleased);
-                versions.add(
+                groupByMajor.get(unreleased.getMajor()).remove(unreleased);
+                groupByMajor.get(unreleased.getMajor()).add(
                     new Version(
                         unreleased.getMajor(), unreleased.getMinor(), unreleased.getRevision(),
                         unreleased.getSuffix(), true
                     )
                 );
             });
-        // get the groups with the snapshot versions
-        groupByMajor = versions.stream()
-            .collect(Collectors.groupingBy(Version::getMajor, Collectors.toCollection(TreeSet::new)));
     }
 
     private void assertNoOlderThanTwoMajors() {
-        SortedSet<Version> versionsMoreThanTowMajorsAgo = versions
-            .headSet(new Version(currentVersion.getMajor() - 1, 0, 0, "", false));
-        if (versionsMoreThanTowMajorsAgo.isEmpty() == false) {
+        Set<Integer> majors = groupByMajor.keySet();
+        if (majors.size() != 2) {
             throw new IllegalStateException(
-                "Found unexpected parsed versions, more than two majors ago: " + versionsMoreThanTowMajorsAgo
+                "Expected exactly 2 majors in parsed versions but found: " + majors
             );
         }
     }
 
     private void assertCurrentVersionMatchesParsed(Version currentVersionProperty) {
-        currentVersion = versions.last();
         if (currentVersionProperty.equals(currentVersion) == false) {
             throw new IllegalStateException(
                 "Parsed versions latest version does not match the one configured in build properties. " +
@@ -174,20 +173,20 @@ public class VersionCollection {
         if (version.equals(currentVersion)) {
             throw new IllegalArgumentException("The Gradle project to build " + version + " is the current build.");
         }
-        Map<Integer, SortedSet<Version>> releasedMajorGroupedByMinor = getReleasedMajorGroupedByMinor();
+        Map<Integer, List<Version>> releasedMajorGroupedByMinor = getReleasedMajorGroupedByMinor();
 
         if (version.getRevision() == 0) {
             if (releasedMajorGroupedByMinor
-                    .get(releasedMajorGroupedByMinor.keySet().stream().max(Integer::compareTo).orElse(0))
-                    .contains(version)) {
+                .get(releasedMajorGroupedByMinor.keySet().stream().max(Integer::compareTo).orElse(0))
+                .contains(version)) {
                 return "minor";
             } else {
                 return "staged";
             }
         } else {
             if (releasedMajorGroupedByMinor
-                    .getOrDefault(version.getMinor(), emptySortedSet())
-                    .contains(version)) {
+                .getOrDefault(version.getMinor(), emptyList())
+                .contains(version)) {
                 return "maintenance";
             } else {
                 return "bugfix";
@@ -201,63 +200,69 @@ public class VersionCollection {
                 return version.getMajor() + ".x";
             case "staged":
             case "maintenance":
-            case "bugfix": return version.getMajor() + "." + version.getMinor();
-            default: throw new IllegalStateException("Unexpected Gradle project name");
+            case "bugfix":
+                return version.getMajor() + "." + version.getMinor();
+            default:
+                throw new IllegalStateException("Unexpected Gradle project name");
         }
     }
 
-    public SortedSet<Version> getUnreleased() {
-        SortedSet<Version> unreleased = new TreeSet<>();
+    public List<Version> getUnreleased() {
+        List<Version> unreleased = new ArrayList<>();
         // The current version is being worked, is always unreleased
         unreleased.add(currentVersion);
 
         // the tip of the previous major is unreleased for sure, be it a minor or a bugfix
-        unreleased.add(groupByMajor.get(currentVersion.getMajor() - 1).last());
+        unreleased.add(getLatestVersionByKey(this.groupByMajor, currentVersion.getMajor() - 1));
 
-        final Map<Integer, SortedSet<Version>> groupByMinor = getReleasedMajorGroupedByMinor();
-
+        final Map<Integer, List<Version>> groupByMinor = getReleasedMajorGroupedByMinor();
         int greatestMinor = groupByMinor.keySet().stream().max(Integer::compareTo).orElse(0);
+
         // the last bugfix for this minor series is always unreleased
-        unreleased.add(groupByMinor.get(greatestMinor).last());
+        unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor));
 
         if (groupByMinor.get(greatestMinor).size() == 1) {
-            if (groupByMinor.getOrDefault(greatestMinor - 1, emptySortedSet()).size() == 1) {
+            // we found an unreleased minor
+            unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor - 1));
+            if (groupByMinor.getOrDefault(greatestMinor - 1, emptyList()).size() == 1) {
                 // we found that the previous minor is staged but not yet released
-                unreleased.add(groupByMinor.get(greatestMinor - 1).last());
                 // in this case, the minor before that has a bugfix
-                unreleased.add(groupByMinor.get(greatestMinor - 2).last());
-            } else {
-                // turns out this is an unreleased minor x.y.0, that means the previous minor has an unreleased bugfix
-                unreleased.add(groupByMinor.get(greatestMinor - 1).last());
+                unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor - 2));
             }
         }
 
-        return unreleased;
+        return unmodifiableList(
+            unreleased.stream()
+                .sorted()
+                .distinct()
+                .collect(Collectors.toList())
+        );
     }
 
-    private Map<Integer, SortedSet<Version>> getReleasedMajorGroupedByMinor() {
-        SortedSet<Version> currentMajorVersions = groupByMajor.get(currentVersion.getMajor());
-        SortedSet<Version> previousMajorVersions = groupByMajor.get(currentVersion.getMajor() - 1);
+    private Version getLatestVersionByKey(Map<Integer, List<Version>> groupByMajor, int key) {
+        return groupByMajor.getOrDefault(key, emptyList()).stream()
+            .max(Version::compareTo)
+            .orElseThrow(() -> new IllegalStateException("Unexpected number of versions in collection"));
+    }
 
-        final Map<Integer, SortedSet<Version>> groupByMinor;
+    private Map<Integer, List<Version>> getReleasedMajorGroupedByMinor() {
+        List<Version> currentMajorVersions = groupByMajor.get(currentVersion.getMajor());
+        List<Version> previousMajorVersions = groupByMajor.get(currentVersion.getMajor() - 1);
+
+        final Map<Integer, List<Version>> groupByMinor;
         if (currentMajorVersions.size() == 1) {
             // Current is an unreleased major: x.0.0 so we have to look for other unreleased versions in the previous major
             groupByMinor = previousMajorVersions.stream()
-                .collect(Collectors.groupingBy(Version::getMinor, Collectors.toCollection(TreeSet::new)));
+                .collect(Collectors.groupingBy(Version::getMinor, Collectors.toList()));
         } else {
             groupByMinor = currentMajorVersions.stream()
-                .collect(Collectors.groupingBy(Version::getMinor, Collectors.toCollection(TreeSet::new)));
+                .collect(Collectors.groupingBy(Version::getMinor, Collectors.toList()));
         }
         return groupByMinor;
     }
 
-    public void compareToAuthoritive(List<Version> authoritativeReleasedVersions) {
-        compareToAuthoritive(new HashSet<>(authoritativeReleasedVersions));
-    }
-
-    public void compareToAuthoritive(Set<Version> authoritativeReleasedVersions) {
-
-        Set<Version> notReallyReleased = new TreeSet<>(getReleased());
+    public void compareToAuthoritative(List<Version> authoritativeReleasedVersions) {
+        Set<Version> notReallyReleased = new HashSet<>(getReleased());
         notReallyReleased.removeAll(authoritativeReleasedVersions);
         if (notReallyReleased.isEmpty() == false) {
             throw new IllegalStateException(
@@ -266,7 +271,7 @@ public class VersionCollection {
             );
         }
 
-        Set<Version> incorrectlyConsideredUnreleased = new TreeSet<>(authoritativeReleasedVersions);
+        Set<Version> incorrectlyConsideredUnreleased = new HashSet<>(authoritativeReleasedVersions);
         incorrectlyConsideredUnreleased.retainAll(getUnreleased());
         if (incorrectlyConsideredUnreleased.isEmpty() == false) {
             throw new IllegalStateException(
@@ -278,41 +283,49 @@ public class VersionCollection {
         }
     }
 
-    private SortedSet<Version> getReleased() {
-        TreeSet<Version> released = new TreeSet<>(this.versions);
-        released.removeAll(getUnreleased());
-        return released;
+    private List<Version> getReleased() {
+        List<Version> unreleased = getUnreleased();
+        return groupByMajor.values().stream()
+            .flatMap(Collection::stream)
+            .filter(each -> unreleased.contains(each) == false)
+            .sorted()
+            .collect(Collectors.toList());
     }
 
-    public SortedSet<Version> getIndexCompatible() {
-        return Collections.unmodifiableSortedSet(
-            versions
-                .tailSet(new Version(currentVersion.getMajor() - 1, 0, 0))
-                .headSet(currentVersion)
+    public List<Version> getIndexCompatible() {
+        return unmodifiableList(
+            groupByMajor.values().stream()
+                .flatMap(Collection::stream)
+                .filter(version -> version.equals(currentVersion) == false)
+                .sorted()
+                .collect(Collectors.toList())
         );
     }
 
-    public SortedSet<Version> getWireCompatible() {
-        final Version lastPrevMajor = versions
-            .headSet(new Version(currentVersion.getMajor(), 0, 0))
-            .last();
-        return Collections.unmodifiableSortedSet(
-            versions
-                .tailSet(new Version(lastPrevMajor.getMajor(), lastPrevMajor.getMinor(), 0))
-                .headSet(currentVersion)
+    public List<Version> getWireCompatible() {
+        Version lastPreviousMinor = getLatestVersionByKey(groupByMajor, currentVersion.getMajor() - 1);
+        Version firstPreviousMinor = new Version(lastPreviousMinor.getMajor(), lastPreviousMinor.getMinor(), 0);
+        return unmodifiableList(
+            groupByMajor.values()
+                .stream()
+                .flatMap(Collection::stream)
+                .filter(version -> version.compareTo(firstPreviousMinor) >= 0)
+                .filter(version -> version.equals(currentVersion) == false)
+                .sorted()
+                .collect(Collectors.toList())
         );
     }
 
-    public SortedSet<Version> getUnreleasedIndexCompatible() {
-        SortedSet<Version> unreleasedIndexCompatible = new TreeSet<>(getIndexCompatible());
+    public List<Version> getUnreleasedIndexCompatible() {
+        List<Version> unreleasedIndexCompatible = new ArrayList<>(getIndexCompatible());
         unreleasedIndexCompatible.retainAll(getUnreleased());
-        return Collections.unmodifiableSortedSet(unreleasedIndexCompatible);
+        return unmodifiableList(unreleasedIndexCompatible);
     }
 
-    public SortedSet<Version> getUnreleasedWireCompatible() {
-        SortedSet<Version> unreleasedWireCompatible = new TreeSet<>(getWireCompatible());
+    public List<Version> getUnreleasedWireCompatible() {
+        List<Version> unreleasedWireCompatible = new ArrayList<>(getWireCompatible());
         unreleasedWireCompatible.retainAll(getUnreleased());
-        return Collections.unmodifiableSortedSet(unreleasedWireCompatible);
+        return unmodifiableList(unreleasedWireCompatible);
     }
 
 }

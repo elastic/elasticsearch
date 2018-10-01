@@ -46,7 +46,7 @@ import static java.util.Collections.unmodifiableList;
  * - the unreleased <b>bugfix</b>, a-1.d.e ( d != 0, e != 0) on the `(a-1).d` branch
  * In addition to these, there will be a fifth one when a minor reaches feature freeze, we call this the <i>staged</i>
  * version:
- * - the unreleased <b>staged</b>, a.b-2.0 (b > 2) on the `a.(b-2)` branch
+ * - the unreleased <b>staged</b>, a.b-2.0 (b &gt; 2) on the `a.(b-2)` branch
  * Each build is only concerned with possible unreleased versions before it, as those are the ones that need to be tested
  * for backwards compatibility. We never look forward, and don't add forward facing version number to branches of previous
  * version.

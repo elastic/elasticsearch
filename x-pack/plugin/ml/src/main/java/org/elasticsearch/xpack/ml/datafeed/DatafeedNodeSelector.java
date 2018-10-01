@@ -28,18 +28,13 @@ public class DatafeedNodeSelector {
     private static final Logger LOGGER = Loggers.getLogger(DatafeedNodeSelector.class);
 
     private final DatafeedConfig datafeed;
-    private final String datafeedId;
     private final PersistentTasksCustomMetaData.PersistentTask<?> jobTask;
     private final ClusterState clusterState;
     private final IndexNameExpressionResolver resolver;
 
-    // TODO The datafeed config may be null because of streaming the
-    // DatafeedParams in a mixed cluster state
-    public DatafeedNodeSelector(ClusterState clusterState, IndexNameExpressionResolver resolver, String datafeedId,
-                                @Nullable DatafeedConfig datafeed) {
+    public DatafeedNodeSelector(ClusterState clusterState, IndexNameExpressionResolver resolver, DatafeedConfig datafeed) {
         PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         this.datafeed = datafeed;
-        this.datafeedId = datafeedId;
         this.jobTask = MlTasks.getJobTask(datafeed.getJobId(), tasks);
         this.clusterState = Objects.requireNonNull(clusterState);
         this.resolver = Objects.requireNonNull(resolver);
@@ -48,7 +43,8 @@ public class DatafeedNodeSelector {
     public void checkDatafeedTaskCanBeCreated() {
         AssignmentFailure assignmentFailure = checkAssignment();
         if (assignmentFailure != null && assignmentFailure.isCriticalForTaskCreation) {
-            String msg = "No node found to start datafeed [" + datafeedId + "], allocation explanation [" + assignmentFailure.reason + "]";
+            String msg = "No node found to start datafeed [" + datafeed.getId() + "], " +
+                    "allocation explanation [" + assignmentFailure.reason + "]";
             LOGGER.debug(msg);
             throw ExceptionsHelper.conflictStatusException(msg);
         }

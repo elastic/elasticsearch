@@ -41,7 +41,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.BucketAggregationScript;
 import org.elasticsearch.script.BucketAggregationSelectorScript;
 import org.elasticsearch.script.ClassPermission;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
@@ -111,9 +110,6 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
         });
         if (context.instanceClazz.equals(SearchScript.class)) {
             SearchScript.Factory factory = (p, lookup) -> newSearchScript(expr, lookup, p);
-            return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(ExecutableScript.class)) {
-            ExecutableScript.Factory factory = (p) -> new ExpressionExecutableScript(expr, p);
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(BucketAggregationScript.class)) {
             return context.factoryClazz.cast(newBucketAggregationScriptFactory(expr));

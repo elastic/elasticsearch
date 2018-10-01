@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -675,7 +677,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             new ShardId("leader_index", "", 0),
             maxBatchOperationCount,
             maxConcurrentReadBatches,
-            maxBatchSizeInBytes,
+            new ByteSizeValue(maxBatchSizeInBytes, ByteSizeUnit.BYTES),
             maxConcurrentWriteBatches,
             bufferWriteLimit,
             TimeValue.ZERO,

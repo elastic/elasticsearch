@@ -22,10 +22,10 @@ public class SimpleExampleTestCase extends JdbcIntegrationTestCase {
             // tag::simple_example
             try (Statement statement = connection.createStatement();
                     ResultSet results = statement.executeQuery(
-                          "  SELECT name, page_count"
-                        + "    FROM library"
-                        + "ORDER BY page_count DESC"
-                        + "   LIMIT 1")) {
+                          "   SELECT name, page_count"
+                        + "     FROM library"
+                        + " ORDER BY page_count DESC"
+                        + "    LIMIT 1")) {
                 assertTrue(results.next());
                 assertEquals("Don Quixote", results.getString(1));
                 assertEquals(1072, results.getInt(2));

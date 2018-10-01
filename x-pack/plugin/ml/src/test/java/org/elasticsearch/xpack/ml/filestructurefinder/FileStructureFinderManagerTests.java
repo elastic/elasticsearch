@@ -157,16 +157,16 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
                     // Expected if timeout occurs and the input stream is closed before junk generation is complete
                 }
             });
-            junkProducer.start();
 
             try (InputStream bigInput = new PipedInputStream(generator)) {
+
+                junkProducer.start();
 
                 ElasticsearchTimeoutException e = expectThrows(ElasticsearchTimeoutException.class,
                     () -> structureFinderManager.findFileStructure(explanation, linesOfJunk - 1, bigInput, EMPTY_OVERRIDES, timeout));
 
                 assertThat(e.getMessage(), startsWith("Aborting structure analysis during ["));
                 assertThat(e.getMessage(), endsWith("] as it has taken longer than the timeout of [" + timeout + "]"));
-                explanation.add(e.getMessage());
             }
 
             // This shouldn't take anything like 10 seconds, but VMs can stall so it's best to

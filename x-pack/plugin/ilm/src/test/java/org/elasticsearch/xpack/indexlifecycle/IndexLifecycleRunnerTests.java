@@ -137,7 +137,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         runner.runPolicy(policyName, indexMetaData, null, randomBoolean());
 
-        Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
+        Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ilm-execute-cluster-state-steps"),
                 Mockito.argThat(new ExecuteStepsUpdateTaskMatcher(indexMetaData.getIndex(), policyName, step)));
         Mockito.verifyNoMoreInteractions(clusterService);
     }
@@ -155,7 +155,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         runner.runPolicy(policyName, indexMetaData, null, randomBoolean());
 
-        Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
+        Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ilm-execute-cluster-state-steps"),
                 Mockito.argThat(new ExecuteStepsUpdateTaskMatcher(indexMetaData.getIndex(), policyName, step)));
         Mockito.verifyNoMoreInteractions(clusterService);
     }
@@ -174,7 +174,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicy(policyName, indexMetaData, null, false);
 
         assertEquals(1, step.getExecuteCount());
-        Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
+        Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ilm-move-to-step"),
                 Mockito.argThat(new MoveToNextStepUpdateTaskMatcher(indexMetaData.getIndex(), policyName, stepKey, null)));
         Mockito.verifyNoMoreInteractions(clusterService);
     }
@@ -229,7 +229,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicy(policyName, indexMetaData, null, false);
 
         assertEquals(1, step.getExecuteCount());
-        Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
+        Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ilm-move-to-error-step"),
                 Mockito.argThat(new MoveToErrorStepUpdateTaskMatcher(indexMetaData.getIndex(), policyName, stepKey, expectedException)));
         Mockito.verifyNoMoreInteractions(clusterService);
     }
@@ -266,7 +266,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicy(policyName, indexMetaData, null, false);
 
         assertEquals(1, step.getExecuteCount());
-        Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
+        Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ilm-move-to-step"),
                 Mockito.argThat(new MoveToNextStepUpdateTaskMatcher(indexMetaData.getIndex(), policyName, stepKey, null)));
         Mockito.verifyNoMoreInteractions(clusterService);
     }
@@ -287,7 +287,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicy(policyName, indexMetaData, null, false);
 
         assertEquals(1, step.getExecuteCount());
-        Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
+        Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ilm-set-step-info"),
                 Mockito.argThat(new SetStepInfoUpdateTaskMatcher(indexMetaData.getIndex(), policyName, stepKey, stepInfo)));
         Mockito.verifyNoMoreInteractions(clusterService);
     }
@@ -326,7 +326,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicy(policyName, indexMetaData, null, false);
 
         assertEquals(1, step.getExecuteCount());
-        Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
+        Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ilm-move-to-error-step"),
                 Mockito.argThat(new MoveToErrorStepUpdateTaskMatcher(indexMetaData.getIndex(), policyName, stepKey, expectedException)));
         Mockito.verifyNoMoreInteractions(clusterService);
     }

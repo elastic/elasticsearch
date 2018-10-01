@@ -154,7 +154,7 @@ public class AuthorizationService extends AbstractComponent {
                 auditTrail.accessGranted(authentication, action, request, new String[] { SystemUser.ROLE_NAME });
                 return;
             }
-            throw denial(authentication, action, originalRequest, new String[] { SystemUser.ROLE_NAME });
+            throw denial(authentication, action, request, new String[] { SystemUser.ROLE_NAME });
         }
 
         // get the roles of the authenticated user, which may be different than the effective

@@ -37,6 +37,9 @@ class JavaDateFormatter implements DateFormatter {
     private final DateTimeFormatter[] parsers;
 
     JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter... parsers) {
+        if (printer == null) {
+            throw new IllegalArgumentException("printer may not be null");
+        }
         long distinctZones = Arrays.stream(parsers).map(DateTimeFormatter::getZone).distinct().count();
         if (distinctZones > 1) {
             throw new IllegalArgumentException("formatters must have the same time zone");

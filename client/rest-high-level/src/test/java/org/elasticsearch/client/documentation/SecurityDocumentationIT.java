@@ -190,7 +190,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             //end::change-password-execute
 
             assertNotNull(response);
-
         }
         {
             //tag::change-password-execute-listener

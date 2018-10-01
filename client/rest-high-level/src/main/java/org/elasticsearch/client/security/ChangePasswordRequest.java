@@ -41,7 +41,7 @@ public final class ChangePasswordRequest implements Validatable, ToXContentObjec
     /**
      * @param username      The username of the user whose password should be changed or null for the current user.
      * @param password      The new password. The password array is not cleared by the {@link ChangePasswordRequest} object so the
-     *                      calling code must clear it after handling the response.
+     *                      calling code must clear it after receiving the response.
      * @param refreshPolicy The refresh policy for the request.
      */
     public ChangePasswordRequest(@Nullable String username, char[] password, RefreshPolicy refreshPolicy) {

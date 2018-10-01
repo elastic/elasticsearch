@@ -20,6 +20,7 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -27,7 +28,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -45,7 +45,7 @@ import static org.junit.Assert.assertTrue;
 
 
 public final class CorruptionUtils {
-    private static Logger logger = ESLoggerFactory.getLogger("test");
+    private static final Logger logger = LogManager.getLogger(CorruptionUtils.class);
     private CorruptionUtils() {}
 
     public static void corruptIndex(Random random, Path indexPath, boolean corruptSegments) throws IOException {
@@ -78,24 +78,19 @@ public final class CorruptionUtils {
                 checksumBeforeCorruption = CodecUtil.retrieveChecksum(input);
             }
             try (FileChannel raf = FileChannel.open(fileToCorrupt, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
-                // read
-                raf.position(random.nextInt((int) Math.min(Integer.MAX_VALUE, raf.size())));
-                long filePointer = raf.position();
-                ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
-                raf.read(bb);
-                bb.flip();
+                long maxPosition = raf.size();
 
-                // corrupt
-                byte oldValue = bb.get(0);
-                byte newValue = (byte) (oldValue + 1);
-                bb.put(0, newValue);
-
-                // rewrite
-                raf.position(filePointer);
-                raf.write(bb);
-                logger.info("Corrupting file --  flipping at position {} from {} to {} file: {}", filePointer,
-                        Integer.toHexString(oldValue), Integer.toHexString(newValue), fileToCorrupt.getFileName());
+                if (fileToCorrupt.getFileName().toString().endsWith(".cfs") && maxPosition > 4) {
+                    // TODO: it is known that Lucene does not check the checksum of CFS file (CompoundFileS, like an archive)
+                    // see note at https://github.com/elastic/elasticsearch/pull/33911
+                    // so far, don't corrupt crc32 part of checksum (last 4 bytes) of cfs file
+                    // checksum is 8 bytes: first 4 bytes have to be zeros, while crc32 value is not verified
+                    maxPosition -= 4;
+                }
+                final int position = random.nextInt((int) Math.min(Integer.MAX_VALUE, maxPosition));
+                corruptAt(fileToCorrupt, raf, position);
             }
+
             long checksumAfterCorruption;
             long actualChecksumAfterCorruption;
             try (ChecksumIndexInput input = dir.openChecksumInput(fileToCorrupt.getFileName().toString(), IOContext.DEFAULT)) {
@@ -118,6 +113,26 @@ public final class CorruptionUtils {
                             || actualChecksumAfterCorruption != checksumBeforeCorruption); // checksum corrupted
             assertThat("no file corrupted", fileToCorrupt, notNullValue());
         }
+    }
+
+    static void corruptAt(Path path, FileChannel channel, int position) throws IOException {
+        // read
+        channel.position(position);
+        long filePointer = channel.position();
+        ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
+        channel.read(bb);
+        bb.flip();
+
+        // corrupt
+        byte oldValue = bb.get(0);
+        byte newValue = (byte) (oldValue + 1);
+        bb.put(0, newValue);
+
+        // rewrite
+        channel.position(filePointer);
+        channel.write(bb);
+        logger.info("Corrupting file --  flipping at position {} from {} to {} file: {}", filePointer,
+                Integer.toHexString(oldValue), Integer.toHexString(newValue), path.getFileName());
     }
 
 

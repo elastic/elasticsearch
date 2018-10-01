@@ -62,10 +62,20 @@ public class Loggers {
     }
 
     public static Logger getLogger(Class<?> clazz, Index index, String... prefixes) {
-        return getLogger(clazz, Settings.EMPTY, asArrayList(Loggers.SPACE, index.getName(), prefixes).toArray(new String[0]));
+        return getLogger(clazz, asArrayList(Loggers.SPACE, index.getName(), prefixes).toArray(new String[0]));
     }
 
+    /**
+     * Get a logger.
+     * @deprecated prefer {@link #getLogger(Class, String...)} or {@link LogManager#getLogger}
+     *     as the Settings is no longer needed
+     */
+    @Deprecated
     public static Logger getLogger(Class<?> clazz, Settings settings, String... prefixes) {
+        return ESLoggerFactory.getLogger(formatPrefix(prefixes), clazz);
+    }
+
+    public static Logger getLogger(Class<?> clazz, String... prefixes) {
         return ESLoggerFactory.getLogger(formatPrefix(prefixes), clazz);
     }
 
@@ -83,7 +93,7 @@ public class Loggers {
      */
     @Deprecated
     public static Logger getLogger(String s) {
-        return ESLoggerFactory.getLogger(s);
+        return LogManager.getLogger(s);
     }
 
     /**

@@ -23,35 +23,34 @@ import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Add;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Div;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mod;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mul;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Neg;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Sub;
 import org.elasticsearch.xpack.sql.expression.predicate.And;
-import org.elasticsearch.xpack.sql.expression.predicate.Equals;
-import org.elasticsearch.xpack.sql.expression.predicate.GreaterThan;
-import org.elasticsearch.xpack.sql.expression.predicate.GreaterThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.In;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
-import org.elasticsearch.xpack.sql.expression.predicate.LessThan;
-import org.elasticsearch.xpack.sql.expression.predicate.LessThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.Or;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
-import org.elasticsearch.xpack.sql.expression.regex.Like;
-import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
-import org.elasticsearch.xpack.sql.expression.regex.RLike;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Neg;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticBinaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastExpressionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastTemplateContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ColumnReferenceContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ComparisonContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DateEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DecimalLiteralContext;
@@ -140,11 +139,6 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     public Expression visitStar(StarContext ctx) {
         return new UnresolvedStar(source(ctx), ctx.qualifiedName() != null ?
                 new UnresolvedAttribute(source(ctx.qualifiedName()), visitQualifiedName(ctx.qualifiedName())) : null);
-    }
-
-    @Override
-    public Object visitColumnReference(ColumnReferenceContext ctx) {
-        return new UnresolvedAttribute(source(ctx), visitIdentifier(ctx.identifier()));
     }
 
     @Override

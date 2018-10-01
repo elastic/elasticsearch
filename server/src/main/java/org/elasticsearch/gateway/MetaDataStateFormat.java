@@ -71,6 +71,7 @@ public abstract class MetaDataStateFormat<T> {
     private static final int STATE_FILE_VERSION = 1;
     private final String prefix;
     private final Pattern stateFilePattern;
+    private final Pattern stateAndTmpFilePattern;
 
     private static final Logger logger = Loggers.getLogger(MetaDataStateFormat.class);
 
@@ -80,6 +81,8 @@ public abstract class MetaDataStateFormat<T> {
     protected MetaDataStateFormat(String prefix) {
         this.prefix = prefix;
         this.stateFilePattern = Pattern.compile(Pattern.quote(prefix) + "(\\d+)(" + MetaDataStateFormat.STATE_FILE_EXTENSION + ")?");
+        this.stateAndTmpFilePattern =
+                Pattern.compile(Pattern.quote(prefix) + "(\\d+)(" + MetaDataStateFormat.STATE_FILE_EXTENSION + ")?(\\.tmp)?");
     }
 
     private static void deleteFileIfExists(Path stateLocation, Directory directory, String fileName) throws IOException {
@@ -239,14 +242,22 @@ public abstract class MetaDataStateFormat<T> {
         }
     }
 
-    long findMaxStateId(final String prefix, Path... locations) throws IOException {
+    /**
+     * Finds state file (or temp file) with maximum id.
+     *
+     * @param prefix    - filename prefix
+     * @param locations - paths to directories with state folder
+     * @return maximum id of state file or temp file, or -1 if no such files are found
+     * @throws IOException
+     */
+    private long findMaxStateId(final String prefix, Path... locations) throws IOException {
         long maxId = -1;
         for (Path dataLocation : locations) {
             final Path resolve = dataLocation.resolve(STATE_DIR_NAME);
             if (Files.exists(resolve)) {
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(resolve, prefix + "*")) {
                     for (Path stateFile : stream) {
-                        final Matcher matcher = stateFilePattern.matcher(stateFile.getFileName().toString());
+                        final Matcher matcher = stateAndTmpFilePattern.matcher(stateFile.getFileName().toString());
                         if (matcher.matches()) {
                             final long id = Long.parseLong(matcher.group(1));
                             maxId = Math.max(maxId, id);

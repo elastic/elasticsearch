@@ -13,13 +13,13 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.indexlifecycle.action.RemovePolicyForIndexAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.RemoveIndexLifecyclePolicyAction;
 
 import java.io.IOException;
 
-public class RestRemovePolicyForIndexAction extends BaseRestHandler {
+public class RestRemoveIndexLifecyclePolicyAction extends BaseRestHandler {
 
-    public RestRemovePolicyForIndexAction(Settings settings, RestController controller) {
+    public RestRemoveIndexLifecyclePolicyAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.DELETE, "/{index}/_ilm", this);
     }
@@ -32,9 +32,10 @@ public class RestRemovePolicyForIndexAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String[] indexes = Strings.splitStringByCommaToArray(restRequest.param("index"));
-        RemovePolicyForIndexAction.Request changePolicyRequest = new RemovePolicyForIndexAction.Request(indexes);
+        RemoveIndexLifecyclePolicyAction.Request changePolicyRequest = new RemoveIndexLifecyclePolicyAction.Request(indexes);
         changePolicyRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", changePolicyRequest.masterNodeTimeout()));
 
-        return channel -> client.execute(RemovePolicyForIndexAction.INSTANCE, changePolicyRequest, new RestToXContentListener<>(channel));
+        return channel ->
+                client.execute(RemoveIndexLifecyclePolicyAction.INSTANCE, changePolicyRequest, new RestToXContentListener<>(channel));
     }
 }

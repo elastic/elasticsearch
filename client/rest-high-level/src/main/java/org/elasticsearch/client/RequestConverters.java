@@ -54,6 +54,7 @@ import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.StartILMRequest;
 import org.elasticsearch.client.indexlifecycle.StopILMRequest;
@@ -634,6 +635,19 @@ final class RequestConverters {
                 .addPathPartAsIs("_ilm")
                 .addPathPart(setPolicyRequest.policy())
             .build());
+        Params params = new Params(request);
+        params.withIndicesOptions(setPolicyRequest.indicesOptions());
+        params.withMasterTimeout(setPolicyRequest.masterNodeTimeout());
+        return request;
+    }
+
+    static Request removeIndexLifecyclePolicy(RemoveIndexLifecyclePolicyRequest setPolicyRequest) {
+        String[] indices = setPolicyRequest.indices() == null ? Strings.EMPTY_ARRAY : setPolicyRequest.indices();
+        Request request = new Request(HttpPut.METHOD_NAME,
+                new EndpointBuilder()
+                        .addCommaSeparatedPathParts(indices)
+                        .addPathPartAsIs("_ilm")
+                        .build());
         Params params = new Params(request);
         params.withIndicesOptions(setPolicyRequest.indicesOptions());
         params.withMasterTimeout(setPolicyRequest.masterNodeTimeout());

@@ -20,20 +20,20 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.indexlifecycle.action.RemovePolicyForIndexAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.RemovePolicyForIndexAction.Request;
-import org.elasticsearch.xpack.core.indexlifecycle.action.RemovePolicyForIndexAction.Response;
+import org.elasticsearch.xpack.core.indexlifecycle.action.RemoveIndexLifecyclePolicyAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.RemoveIndexLifecyclePolicyAction.Request;
+import org.elasticsearch.xpack.core.indexlifecycle.action.RemoveIndexLifecyclePolicyAction.Response;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunner;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class TransportRemovePolicyForIndexAction extends TransportMasterNodeAction<Request, Response> {
+public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNodeAction<Request, Response> {
 
     @Inject
-    public TransportRemovePolicyForIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportRemoveIndexLifecyclePolicyAction(Settings settings, TransportService transportService, ClusterService clusterService,
             ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, RemovePolicyForIndexAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(settings, RemoveIndexLifecyclePolicyAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, Request::new);
     }
 

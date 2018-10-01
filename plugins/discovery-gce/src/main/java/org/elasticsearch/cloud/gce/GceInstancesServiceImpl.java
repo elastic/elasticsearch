@@ -235,7 +235,7 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
     }
 
     @Override
-    public String project() {
+    public String projectId() {
         return project;
     }
 

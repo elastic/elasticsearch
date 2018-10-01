@@ -171,7 +171,7 @@ public class GceDiscoverTests extends ESIntegTestCase {
                 }
 
                 @Override
-                public String project() {
+                public String projectId() {
                     return PROJECT_SETTING.get(settings);
                 }
 

@@ -274,7 +274,7 @@ public class GceDiscoveryTests extends ESTestCase {
     public void testMetadataServerValues() {
         Settings nodeSettings = Settings.EMPTY;
         mock = new GceInstancesServiceMock(nodeSettings);
-        assertThat(mock.project(), not(projectName));
+        assertThat(mock.projectId(), not(projectName));
 
         List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
         assertThat(dynamicHosts, hasSize(1));

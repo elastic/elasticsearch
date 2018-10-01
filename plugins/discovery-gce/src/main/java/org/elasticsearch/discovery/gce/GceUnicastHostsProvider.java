@@ -79,7 +79,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
         this.networkService = networkService;
 
         this.refreshInterval = GceInstancesService.REFRESH_SETTING.get(settings);
-        this.project = gceInstancesService.project();
+        this.project = gceInstancesService.projectId();
         this.zones = gceInstancesService.zones();
 
         this.tags = TAGS_SETTING.get(settings);

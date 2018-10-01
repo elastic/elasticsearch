@@ -449,8 +449,7 @@ public class ShardChangesIT extends ESIntegTestCase {
     }
 
     public void testUnfollowNonExistingIndex() {
-        PauseFollowAction.Request unfollowRequest = new PauseFollowAction.Request();
-        unfollowRequest.setFollowIndex("non-existing-index");
+        PauseFollowAction.Request unfollowRequest = new PauseFollowAction.Request("non-existing-index");
         expectThrows(IllegalArgumentException.class, () -> client().execute(PauseFollowAction.INSTANCE, unfollowRequest).actionGet());
     }
 
@@ -719,8 +718,7 @@ public class ShardChangesIT extends ESIntegTestCase {
 
     private void unfollowIndex(String... indices) throws Exception {
         for (String index : indices) {
-            final PauseFollowAction.Request unfollowRequest = new PauseFollowAction.Request();
-            unfollowRequest.setFollowIndex(index);
+            final PauseFollowAction.Request unfollowRequest = new PauseFollowAction.Request(index);
             client().execute(PauseFollowAction.INSTANCE, unfollowRequest).get();
         }
         ensureNoCcrTasks();

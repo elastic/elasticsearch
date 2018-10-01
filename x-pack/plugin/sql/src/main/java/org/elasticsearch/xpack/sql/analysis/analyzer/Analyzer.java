@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.ArithmeticFunction;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.EsRelation;
@@ -1007,8 +1007,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             // BinaryOperations are ignored as they are pushed down to ES
             // and casting (and thus Aliasing when folding) gets in the way
 
-            if (e instanceof ArithmeticFunction) {
-                ArithmeticFunction f = (ArithmeticFunction) e;
+            if (e instanceof ArithmeticOperation) {
+                ArithmeticOperation f = (ArithmeticOperation) e;
                 left = f.left();
                 right = f.right();
             }

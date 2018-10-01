@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.monitoring.collector.ccr;
 
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -51,10 +50,10 @@ public final class CcrStatsCollector extends AbstractCcrCollector {
         long interval,
         MonitoringDoc.Node node) throws Exception {
 
-        final CcrStatsAction.StatsRequest request = new CcrStatsAction.StatsRequest();
-        request.setIndices(getCollectionIndices());
-        request.setIndicesOptions(IndicesOptions.lenientExpandOpen());
-        final CcrStatsAction.StatsResponses responses = ccrClient.stats(request).actionGet(getCollectionTimeout());
+
+            final CcrStatsAction.StatsRequest request = new CcrStatsAction.StatsRequest();
+            request.setIndices(getCollectionIndices());
+            final CcrStatsAction.StatsResponses responses = ccrClient.stats(request).actionGet(getCollectionTimeout());
 
         return responses
             .getStatsResponses()

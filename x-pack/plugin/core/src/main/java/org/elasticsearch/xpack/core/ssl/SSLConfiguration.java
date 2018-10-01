@@ -206,7 +206,7 @@ public final class SSLConfiguration {
     private static TrustConfig createTrustConfig(Settings settings, KeyConfig keyConfig, SSLConfiguration global) {
         final TrustConfig trustConfig = createCertChainTrustConfig(settings, keyConfig, global);
         return SETTINGS_PARSER.trustRestrictionsPath.get(settings)
-                .map(path -> (TrustConfig) new RestrictedTrustConfig(settings, path, trustConfig))
+                .map(path -> (TrustConfig) new RestrictedTrustConfig(path, trustConfig))
                 .orElse(trustConfig);
     }
 

@@ -14,7 +14,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -29,14 +28,18 @@ public class DatafeedNodeSelector {
     private static final Logger LOGGER = Loggers.getLogger(DatafeedNodeSelector.class);
 
     private final DatafeedConfig datafeed;
+    private final String datafeedId;
     private final PersistentTasksCustomMetaData.PersistentTask<?> jobTask;
     private final ClusterState clusterState;
     private final IndexNameExpressionResolver resolver;
 
-    public DatafeedNodeSelector(ClusterState clusterState, IndexNameExpressionResolver resolver, String datafeedId) {
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
+    // TODO The datafeed config may be null because of streaming the
+    // DatafeedParams in a mixed cluster state
+    public DatafeedNodeSelector(ClusterState clusterState, IndexNameExpressionResolver resolver, String datafeedId,
+                                @Nullable DatafeedConfig datafeed) {
         PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        this.datafeed = mlMetadata.getDatafeed(datafeedId);
+        this.datafeed = datafeed;
+        this.datafeedId = datafeedId;
         this.jobTask = MlTasks.getJobTask(datafeed.getJobId(), tasks);
         this.clusterState = Objects.requireNonNull(clusterState);
         this.resolver = Objects.requireNonNull(resolver);
@@ -45,8 +48,7 @@ public class DatafeedNodeSelector {
     public void checkDatafeedTaskCanBeCreated() {
         AssignmentFailure assignmentFailure = checkAssignment();
         if (assignmentFailure != null && assignmentFailure.isCriticalForTaskCreation) {
-            String msg = "No node found to start datafeed [" + datafeed.getId() + "], allocation explanation [" + assignmentFailure.reason
-                    + "]";
+            String msg = "No node found to start datafeed [" + datafeedId + "], allocation explanation [" + assignmentFailure.reason + "]";
             LOGGER.debug(msg);
             throw ExceptionsHelper.conflictStatusException(msg);
         }
@@ -64,7 +66,7 @@ public class DatafeedNodeSelector {
     @Nullable
     private AssignmentFailure checkAssignment() {
         PriorityFailureCollector priorityFailureCollector = new PriorityFailureCollector();
-        priorityFailureCollector.add(verifyIndicesActive(datafeed));
+        priorityFailureCollector.add(verifyIndicesActive());
 
         JobTaskState jobTaskState = null;
         JobState jobState = JobState.CLOSED;
@@ -75,13 +77,14 @@ public class DatafeedNodeSelector {
 
         if (jobState.isAnyOf(JobState.OPENING, JobState.OPENED) == false) {
             // lets try again later when the job has been opened:
-            String reason = "cannot start datafeed [" + datafeed.getId() + "], because job's [" + datafeed.getJobId() +
+            String reason = "cannot start datafeed [" + datafeed.getId() + "], because the job's [" + datafeed.getJobId() +
                     "] state is [" + jobState +  "] while state [" + JobState.OPENED + "] is required";
             priorityFailureCollector.add(new AssignmentFailure(reason, true));
         }
 
         if (jobTaskState != null && jobTaskState.isStatusStale(jobTask)) {
-            String reason = "cannot start datafeed [" + datafeed.getId() + "], job [" + datafeed.getJobId() + "] state is stale";
+            String reason = "cannot start datafeed [" + datafeed.getId() + "], because the job's [" + datafeed.getJobId() +
+                    "] state is stale";
             priorityFailureCollector.add(new AssignmentFailure(reason, true));
         }
 
@@ -89,7 +92,7 @@ public class DatafeedNodeSelector {
     }
 
     @Nullable
-    private AssignmentFailure verifyIndicesActive(DatafeedConfig datafeed) {
+    private AssignmentFailure verifyIndicesActive() {
         List<String> indices = datafeed.getIndices();
         for (String index : indices) {
 

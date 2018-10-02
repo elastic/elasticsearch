@@ -47,6 +47,7 @@ import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStat
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matcher;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -88,6 +89,11 @@ import static org.hamcrest.Matchers.not;
 
 @TestLogging("org.elasticsearch.cluster.coordination:TRACE,org.elasticsearch.discovery:TRACE")
 public class CoordinatorTests extends ESTestCase {
+
+    @Before
+    public void resetPortCounterBeforeEachTest() {
+        resetPortCounter();
+    }
 
     public void testCanUpdateClusterStateAfterStabilisation() {
         final Cluster cluster = new Cluster(randomIntBetween(1, 5));

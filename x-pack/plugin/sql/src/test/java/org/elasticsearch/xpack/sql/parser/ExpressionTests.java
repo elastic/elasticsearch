@@ -9,8 +9,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Neg;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.sql.type.DataType;
+
+import static org.hamcrest.core.StringStartsWith.startsWith;
 
 public class ExpressionTests extends ESTestCase {
 
@@ -22,7 +27,6 @@ public class ExpressionTests extends ESTestCase {
         UnresolvedFunction uf = (UnresolvedFunction) lt;
         assertEquals("LEFT", uf.functionName());
     }
-
 
     public void testLiteralBoolean() {
         Expression lt = parser.createExpression("TRUE");
@@ -126,5 +130,30 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(Mul.class, expr.getClass());
         Mul mul = (Mul) expr;
         assertEquals("(PI) * 2", mul.name());
+    }
+
+    public void testComplexArithmetic() {
+        Expression expr = parser.createExpression("-(((a-2)-(-3))+b)");
+        assertEquals(Neg.class, expr.getClass());
+        Neg neg = (Neg) expr;
+        assertThat(neg.name(), startsWith("-(((a) - 2) - -3) + (b)#"));
+        assertEquals(1, neg.children().size());
+        assertEquals(Add.class, neg.children().get(0).getClass());
+        Add add = (Add) neg.children().get(0);
+        assertEquals("(((a) - 2) - -3) + (b)", add.name());
+        assertEquals(2, add.children().size());
+        assertEquals("?b", add.children().get(1).toString());
+        assertEquals(Sub.class, add.children().get(0).getClass());
+        Sub sub1 = (Sub) add.children().get(0);
+        assertEquals("((a) - 2) - -3", sub1.name());
+        assertEquals(2, sub1.children().size());
+        assertEquals(Literal.class, sub1.children().get(1).getClass());
+        assertEquals("-3", ((Literal) sub1.children().get(1)).name());
+        assertEquals(Sub.class, sub1.children().get(0).getClass());
+        Sub sub2 = (Sub) sub1.children().get(0);
+        assertEquals(2, sub2.children().size());
+        assertEquals("?a", sub2.children().get(0).toString());
+        assertEquals(Literal.class, sub2.children().get(1).getClass());
+        assertEquals("2", ((Literal) sub2.children().get(1)).name());
     }
 }

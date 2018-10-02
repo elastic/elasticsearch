@@ -72,7 +72,7 @@ PUT my_index
 
 [source,js]
 --------------------------------------------------
-PUT _ilm/status
+GET _ilm/status
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -82,7 +82,7 @@ If the request does not encounter errors, you receive the following result:
 [source,js]
 --------------------------------------------------
 {
-  "operation_mode": "STARTED"
+  "operation_mode": "RUNNING"
 }
 --------------------------------------------------
 // CONSOLE

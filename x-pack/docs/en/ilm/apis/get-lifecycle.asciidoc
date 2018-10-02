@@ -110,4 +110,4 @@ If the request does not encounter errors, you receive the following result:
 }
 --------------------------------------------------
 // CONSOLE
-// TESTRESPONSE
+// TESTRESPONSE[s/"modified_date": 82392349/"modified_date": $body.my_policy.modified_date/]

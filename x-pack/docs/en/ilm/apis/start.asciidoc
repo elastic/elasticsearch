@@ -62,7 +62,7 @@ PUT _ilm/my_policy
 
 PUT my_index
 
-PUT _ilm/stop
+POST _ilm/stop
 --------------------------------------------------
 // CONSOLE
 // TEST
@@ -71,7 +71,7 @@ PUT _ilm/stop
 
 [source,js]
 --------------------------------------------------
-PUT _ilm/start
+POST _ilm/start
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

@@ -40,45 +40,11 @@ policy back to the step where the error occurred and attempt to re-execute it.
 
 The following example retries the policy for index `my_index`.
 
-//////////////////////////
-
 [source,js]
 --------------------------------------------------
-PUT _ilm/my_policy
-{
-  "policy": {
-    "phases": {
-      "warm": {
-        "minimum_age": "10d",
-        "actions": {
-          "forcemerge": {
-            "max_num_segments": 1
-          }
-        }
-      },
-      "delete": {
-        "minimum_age": "30d",
-        "actions": {
-          "delete": {}
-        }
-      }
-    }
-  }
-}
-
-PUT my_index
+POST my_index/_ilm/retry
 --------------------------------------------------
-// CONSOLE
-// TEST
-
-//////////////////////////
-
-[source,js]
---------------------------------------------------
-PUT my_index/_ilm/retry
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
+// NOTCONSOLE
 
 If the request does not encounter errors, you receive the following result:
 
@@ -88,5 +54,4 @@ If the request does not encounter errors, you receive the following result:
   "acknowledged": true
 }
 --------------------------------------------------
-// CONSOLE
-// TESTRESPONSE
+// NOTCONSOLE

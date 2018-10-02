@@ -88,7 +88,8 @@ If the request does not encounter errors, you receive the following result:
 [source,js]
 --------------------------------------------------
 {
-  "acknowledged": true
+  "has_failures" : false,
+  "failed_indexes" : []
 }
 --------------------------------------------------
 // CONSOLE

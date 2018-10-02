@@ -91,12 +91,12 @@ POST _ilm/move/my_index
   "current_step": {
     "phase": "new",
     "action": "complete",
-    "step": "complete"
+    "name": "complete"
   },
   "next_step": {
     "phase": "warm",
     "action": "forcemerge",
-    "step": "forcemerge"
+    "name": "forcemerge"
   }
 }
 --------------------------------------------------

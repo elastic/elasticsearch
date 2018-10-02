@@ -73,7 +73,7 @@ PUT my_index
 
 [source,js]
 --------------------------------------------------
-PUT _ilm/stop
+POST _ilm/stop
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

@@ -23,29 +23,29 @@ import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Add;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Div;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mod;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mul;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Neg;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Sub;
 import org.elasticsearch.xpack.sql.expression.predicate.And;
-import org.elasticsearch.xpack.sql.expression.predicate.Equals;
-import org.elasticsearch.xpack.sql.expression.predicate.GreaterThan;
-import org.elasticsearch.xpack.sql.expression.predicate.GreaterThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.In;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
-import org.elasticsearch.xpack.sql.expression.predicate.LessThan;
-import org.elasticsearch.xpack.sql.expression.predicate.LessThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.Or;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
-import org.elasticsearch.xpack.sql.expression.regex.Like;
-import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
-import org.elasticsearch.xpack.sql.expression.regex.RLike;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Neg;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticBinaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanLiteralContext;
@@ -286,6 +286,9 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             case SqlBaseParser.PLUS:
                 return value;
             case SqlBaseParser.MINUS:
+                if (value instanceof Literal) { // Minus already processed together with literal number
+                    return value;
+                }
                 return new Neg(source(ctx.operator), value);
             default:
                 throw new ParsingException(loc, "Unknown arithemtic {}", ctx.operator.getText());
@@ -483,38 +486,40 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Literal visitDecimalLiteral(DecimalLiteralContext ctx) {
+        String ctxText = (hasMinusFromParent(ctx) ? "-" : "") + ctx.getText();
         double value;
         try {
-            value = Double.parseDouble(ctx.getText());
+            value = Double.parseDouble(ctxText);
         } catch (NumberFormatException nfe) {
-            throw new ParsingException(source(ctx), "Cannot parse number [{}]", ctx.getText());
+            throw new ParsingException(source(ctx), "Cannot parse number [{}]", ctxText);
         }
         if (Double.isInfinite(value)) {
-            throw new ParsingException(source(ctx), "Number [{}] is too large", ctx.getText());
+            throw new ParsingException(source(ctx), "Number [{}] is too large", ctxText);
         }
         if (Double.isNaN(value)) {
-            throw new ParsingException(source(ctx), "[{}] cannot be parsed as a number (NaN)", ctx.getText());
+            throw new ParsingException(source(ctx), "[{}] cannot be parsed as a number (NaN)", ctxText);
         }
         return new Literal(source(ctx), Double.valueOf(value), DataType.DOUBLE);
     }
 
     @Override
     public Literal visitIntegerLiteral(IntegerLiteralContext ctx) {
+        String ctxText = (hasMinusFromParent(ctx) ? "-" : "") + ctx.getText();
         long value;
         try {
-            value = Long.parseLong(ctx.getText());
+            value = Long.parseLong(ctxText);
         } catch (NumberFormatException nfe) {
             try {
-                BigInteger bi = new BigInteger(ctx.getText());
+                BigInteger bi = new BigInteger(ctxText);
                 try {
                     bi.longValueExact();
                 } catch (ArithmeticException ae) {
-                    throw new ParsingException(source(ctx), "Number [{}] is too large", ctx.getText());
+                    throw new ParsingException(source(ctx), "Number [{}] is too large", ctxText);
                 }
             } catch (NumberFormatException ex) {
                 // parsing fails, go through
             }
-            throw new ParsingException(source(ctx), "Cannot parse number [{}]", ctx.getText());
+            throw new ParsingException(source(ctx), "Cannot parse number [{}]", ctxText);
         }
 
         DataType type = DataType.LONG;
@@ -680,5 +685,22 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
 
         return new Literal(source(ctx), string, DataType.KEYWORD);
+    }
+
+    private boolean hasMinusFromParent(SqlBaseParser.NumberContext ctx) {
+        ParserRuleContext parentCtx = ctx.getParent();
+        if (parentCtx != null && parentCtx instanceof SqlBaseParser.NumericLiteralContext) {
+            parentCtx = parentCtx.getParent();
+            if (parentCtx != null && parentCtx instanceof SqlBaseParser.ConstantDefaultContext) {
+                parentCtx = parentCtx.getParent();
+                if (parentCtx != null && parentCtx instanceof SqlBaseParser.ValueExpressionDefaultContext) {
+                    parentCtx = parentCtx.getParent();
+                    if (parentCtx != null && parentCtx instanceof SqlBaseParser.ArithmeticUnaryContext) {
+                        return ((ArithmeticUnaryContext) parentCtx).MINUS() != null;
+                    }
+                }
+            }
+        }
+        return false;
     }
 }

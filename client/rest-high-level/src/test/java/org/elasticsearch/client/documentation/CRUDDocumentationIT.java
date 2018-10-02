@@ -902,19 +902,26 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         TaskId taskId = new TaskId("oTUltX4IQMOUUVeiohTt8A:124");
         {
             // tag::rethrottle-disable-request
-            RethrottleRequest rethrottleRequest = new RethrottleRequest(taskId); // <1>
-            client.reindexRethrottle(rethrottleRequest, RequestOptions.DEFAULT);
+            RethrottleRequest request = new RethrottleRequest(taskId); // <1>
             // end::rethrottle-disable-request
         }
 
         {
             // tag::rethrottle-request
-            RethrottleRequest rethrottleRequest = new RethrottleRequest(taskId, 100.0f); // <1>
-            client.reindexRethrottle(rethrottleRequest, RequestOptions.DEFAULT);
+            RethrottleRequest request = new RethrottleRequest(taskId, 100.0f); // <1>
             // end::rethrottle-request
         }
 
-        // tag::rethrottle-request-async
+        {
+            RethrottleRequest request = new RethrottleRequest(taskId);
+            // tag::rethrottle-request-execution
+            client.reindexRethrottle(request, RequestOptions.DEFAULT);       // <1>
+            client.updateByQueryRethrottle(request, RequestOptions.DEFAULT); // <2>
+            client.deleteByQueryRethrottle(request, RequestOptions.DEFAULT); // <3>
+            // end::rethrottle-request-execution
+        }
+
+        // tag::rethrottle-request-async-listener
         ActionListener<ListTasksResponse> listener = new ActionListener<ListTasksResponse>() {
             @Override
             public void onResponse(ListTasksResponse response) {
@@ -926,15 +933,17 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 // <2>
             }
         };
-        // end::rethrottle-request-async
+        // end::rethrottle-request-async-listener
 
         // Replace the empty listener by a blocking listener in test
-        final CountDownLatch latch = new CountDownLatch(1);
+        final CountDownLatch latch = new CountDownLatch(3);
         listener = new LatchedActionListener<>(listener, latch);
 
-        RethrottleRequest rethrottleRequest = new RethrottleRequest(taskId);
+        RethrottleRequest request = new RethrottleRequest(taskId);
         // tag::rethrottle-execute-async
-        client.reindexRethrottleAsync(rethrottleRequest, RequestOptions.DEFAULT, listener); // <1>
+        client.reindexRethrottleAsync(request, RequestOptions.DEFAULT, listener);       // <1>
+        client.updateByQueryRethrottleAsync(request, RequestOptions.DEFAULT, listener); // <2>
+        client.deleteByQueryRethrottleAsync(request, RequestOptions.DEFAULT, listener); // <3>
         // end::rethrottle-execute-async
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }

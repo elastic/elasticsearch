@@ -1,10 +1,10 @@
 {
-  "reindex_rethrottle": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-reindex.html",
+  "update_by_query_rethrottle": {
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html",
     "methods": ["POST"],
     "url": {
-      "path": "/_reindex/{task_id}/_rethrottle",
-      "paths": ["/_reindex/{task_id}/_rethrottle"],
+      "path": "/_update_by_query/{task_id}/_rethrottle",
+      "paths": ["/_update_by_query/{task_id}/_rethrottle"],
       "parts": {
         "task_id": {
           "type": "string",

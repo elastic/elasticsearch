@@ -1,15 +1,15 @@
-[[java-rest-high-document-reindex-rethrottle]]
-=== Reindex Rethrottle API
+[[java-rest-high-document-rethrottle]]
+=== Rethrottle API
 
-[[java-rest-high-document-reindex-rethrottle-request]]
-==== Reindex Rethrolle Request
+[[java-rest-high-document-rethrottle-request]]
+==== Rethrottle Request
 
-A `RethrottleRequest` can be used to change existing throttling on a runnind
-reindex task or disable it entirely. It requires the task Id of the reindex 
-task to change.
+A `RethrottleRequest` can be used to change the current throttling on a running
+reindex, update-by-query or delete-by-query task or to disable throttling of
+the task entirely. It requires the task Id of the task to change.
 
 In its simplest form, you can use it to disable throttling of a running
-reindex task using the following:
+task using the following:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -26,7 +26,19 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[rethrottle-request]
 --------------------------------------------------
 <1> Request to change the throttling of a task to 100 requests per second
 
-[[java-rest-high-document-reindex-rethrottle-async]]
+The rethrottling request can be executed by using one of the three appropriate
+methods depending on whether a reindex, update-by-query or delete-by-query task
+should be rethrottled:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[rethrottle-request-execution]
+--------------------------------------------------
+<1> Execute reindex rethrottling request
+<2> The same for update-by-query
+<3> The same for delete-by-query
+
+[[java-rest-high-document-rethrottle-async]]
 ==== Asynchronous Execution
 
 The asynchronous execution of a rethrottle request requires both the `RethrottleRequest`
@@ -37,8 +49,9 @@ method:
 --------------------------------------------------
 include-tagged::{doc-tests}/CRUDDocumentationIT.java[rethrottle-execute-async]
 --------------------------------------------------
-<1> The RethrottleRequest to execute and the ActionListener to use when the 
-execution completes 
+<1> Execute reindex rethrottling asynchronously
+<2> The same for update-by-query
+<3> The same for delete-by-query
 
 The asynchronous method does not block and returns immediately.
 Once it is completed the `ActionListener` is called back using the `onResponse` method
@@ -47,12 +60,12 @@ it failed. A typical listener looks like this:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[rethrottle-request-async]
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[rethrottle-request-async-listener]
 --------------------------------------------------
 <1> Code executed when the request is successfully completed
 <2> Code executed when the request fails with an exception
 
-[[java-rest-high-document-reindex-retrottle-response]]
+[[java-rest-high-document-retrottle-response]]
 ==== Rethrottle Response
 
 Rethrottling returns the task that has been rethrottled in the form of a 

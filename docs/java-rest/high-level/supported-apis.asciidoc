@@ -33,7 +33,7 @@ include::document/multi-get.asciidoc[]
 include::document/reindex.asciidoc[]
 include::document/update-by-query.asciidoc[]
 include::document/delete-by-query.asciidoc[]
-include::document/reindex-rethrottle.asciidoc[]
+include::document/rethrottle.asciidoc[]
 
 == Search APIs
 

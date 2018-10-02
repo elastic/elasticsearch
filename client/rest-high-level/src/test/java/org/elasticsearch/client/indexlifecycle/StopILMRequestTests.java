@@ -19,23 +19,22 @@
 
 package org.elasticsearch.client.indexlifecycle;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
-public class StopILMRequestTests extends AbstractStreamableTestCase<StopILMRequest> {
+public class StopILMRequestTests extends ESTestCase {
 
-    @Override
-    protected StopILMRequest createBlankInstance() {
-        return new StopILMRequest();
-    }
-
-    @Override
     protected StopILMRequest createTestInstance() {
         return new StopILMRequest();
     }
 
     public void testValidate() {
         StopILMRequest request = createTestInstance();
-        assertNull(request.validate());
+        assertFalse(request.validate().isPresent());
+    }
+
+    public void testEqualsAndHashcode() {
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(), (original) -> createTestInstance());
     }
 
 }

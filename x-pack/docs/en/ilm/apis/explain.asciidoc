@@ -47,6 +47,7 @@ The following example retrieves the lifecycle state for the index `my_index`:
 
 [source,js]
 --------------------------------------------------
+
 PUT _ilm/my_policy
 {
   "policy": {
@@ -86,15 +87,30 @@ PUT my_index
 GET my_index/_ilm/explain
 --------------------------------------------------
 // CONSOLE
-// TEST
+// TEST[continued]
 
 If the request does not encounter errors, you receive the following result:
 
 [source,js]
 --------------------------------------------------
 {
-  "This needs to be": "populated"
+  "my_index": {
+    "index": "my_index",
+    "managed": true,
+    "policy": "my_policy",
+    "skip": false,
+    "lifecycle_date": 1538475653281,
+    "phase": "new",
+    "phase_time": 1538475653317,
+    "action": "complete",
+    "action_time": 1538475653317,
+    "step": "complete",
+    "step_time": 1538475653317
+  }
 }
 --------------------------------------------------
 // CONSOLE
-// TESTRESPONSE
+// TESTRESPONSE[s/"lifecycle_date": 1538475653281/"lifecycle_date": $body.my_index.lifecycle_date/]
+// TESTRESPONSE[s/"phase_time": 1538475653317/"phase_time": $body.my_index.phase_time/]
+// TESTRESPONSE[s/"action_time": 1538475653317/"action_time": $body.my_index.action_time/]
+// TESTRESPONSE[s/"step_time": 1538475653317/"step_time": $body.my_index.step_time/]

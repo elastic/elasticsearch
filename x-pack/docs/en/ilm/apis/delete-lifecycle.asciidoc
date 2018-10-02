@@ -75,7 +75,7 @@ PUT _ilm/my_policy
 DELETE _ilm/my_policy
 --------------------------------------------------
 // CONSOLE
-// TEST
+// TEST[continued]
 
 If the request does not encounter errors, you receive the following result:
 

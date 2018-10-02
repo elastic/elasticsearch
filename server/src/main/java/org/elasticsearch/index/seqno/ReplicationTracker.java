@@ -402,7 +402,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             final long globalCheckpoint,
             final LongConsumer onGlobalCheckpointUpdated) {
         super(shardId, indexSettings);
-        assert globalCheckpoint >= SequenceNumbers.UNASSIGNED_SEQ_NO : "illegal initial global checkpoint: " + globalCheckpoint;
+        assert globalCheckpoint >= SequenceNumbers.NO_OPS_PERFORMED : "illegal initial global checkpoint: " + globalCheckpoint;
         this.shardAllocationId = allocationId;
         this.primaryMode = false;
         this.handoffInProgress = false;

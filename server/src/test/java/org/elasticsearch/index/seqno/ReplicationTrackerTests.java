@@ -65,7 +65,7 @@ public class ReplicationTrackerTests extends ESTestCase {
     
     public void testEmptyShards() {
         final ReplicationTracker tracker = newTracker(AllocationId.newInitializing());
-        assertThat(tracker.getGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
+        assertThat(tracker.getGlobalCheckpoint(), equalTo(NO_OPS_PERFORMED));
     }
 
     private Map<AllocationId, Long> randomAllocationsWithLocalCheckpoints(int min, int max) {
@@ -124,7 +124,7 @@ public class ReplicationTrackerTests extends ESTestCase {
 
         final AllocationId primaryId = active.iterator().next();
         final ReplicationTracker tracker = newTracker(primaryId);
-        assertThat(tracker.getGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
+        assertThat(tracker.getGlobalCheckpoint(), equalTo(NO_OPS_PERFORMED));
 
         logger.info("--> using allocations");
         allocations.keySet().forEach(aId -> {
@@ -259,8 +259,8 @@ public class ReplicationTrackerTests extends ESTestCase {
                 .forEach(e -> updateLocalCheckpoint(tracker, e.getKey().getId(), e.getValue()));
 
         if (missingActiveID.equals(primaryId) == false) {
-            assertThat(tracker.getGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
-            assertThat(updatedGlobalCheckpoint.get(), equalTo(UNASSIGNED_SEQ_NO));
+            assertThat(tracker.getGlobalCheckpoint(), equalTo(NO_OPS_PERFORMED));
+            assertThat(updatedGlobalCheckpoint.get(), equalTo(NO_OPS_PERFORMED));
         }
         // now update all knowledge of all shards
         assigned.forEach((aid, localCP) -> updateLocalCheckpoint(tracker, aid.getId(), localCP));
@@ -425,14 +425,14 @@ public class ReplicationTrackerTests extends ESTestCase {
         thread.join();
     }
     
-    private AtomicLong updatedGlobalCheckpoint = new AtomicLong(UNASSIGNED_SEQ_NO);
+    private AtomicLong updatedGlobalCheckpoint = new AtomicLong(NO_OPS_PERFORMED);
 
     private ReplicationTracker newTracker(final AllocationId allocationId) {
         return new ReplicationTracker(
                 new ShardId("test", "_na_", 0),
                 allocationId.getId(),
                 IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
-                UNASSIGNED_SEQ_NO,
+                NO_OPS_PERFORMED,
                 updatedGlobalCheckpoint::set);
     }
 
@@ -710,9 +710,9 @@ public class ReplicationTrackerTests extends ESTestCase {
         final AllocationId primaryAllocationId = clusterState.routingTable.primaryShard().allocationId();
         final LongConsumer onUpdate = updatedGlobalCheckpoint -> {};
         ReplicationTracker oldPrimary =
-                new ReplicationTracker(shardId, primaryAllocationId.getId(), indexSettings, UNASSIGNED_SEQ_NO, onUpdate);
+                new ReplicationTracker(shardId, primaryAllocationId.getId(), indexSettings, NO_OPS_PERFORMED, onUpdate);
         ReplicationTracker newPrimary =
-                new ReplicationTracker(shardId, primaryAllocationId.getRelocationId(), indexSettings, UNASSIGNED_SEQ_NO, onUpdate);
+                new ReplicationTracker(shardId, primaryAllocationId.getRelocationId(), indexSettings, NO_OPS_PERFORMED, onUpdate);
 
         Set<String> allocationIds = new HashSet<>(Arrays.asList(oldPrimary.shardAllocationId, newPrimary.shardAllocationId));
 

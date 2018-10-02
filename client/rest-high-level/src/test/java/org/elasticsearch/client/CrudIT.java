@@ -901,7 +901,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                         .add(new IndexRequest(sourceIndex, "type", "2")
                             .source(Collections.singletonMap("foo", 2), XContentType.JSON))
                         .add(new IndexRequest(sourceIndex, "type", "3")
-                                .source(Collections.singletonMap("foo", 3), XContentType.JSON))
+                            .source(Collections.singletonMap("foo", 3), XContentType.JSON))
                         .setRefreshPolicy(RefreshPolicy.IMMEDIATE),
                     RequestOptions.DEFAULT
                 ).status()

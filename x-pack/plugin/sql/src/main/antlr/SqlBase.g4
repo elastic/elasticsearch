@@ -454,7 +454,7 @@ DIGIT_IDENTIFIER
     ;
 
 TABLE_IDENTIFIER
-    : (LETTER | DIGIT | '_' | '@' | ASTERISK)+
+    : (LETTER | DIGIT | '_')+
     ;
 
 QUOTED_IDENTIFIER

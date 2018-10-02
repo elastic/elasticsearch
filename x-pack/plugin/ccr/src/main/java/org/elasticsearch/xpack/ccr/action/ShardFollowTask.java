@@ -11,6 +11,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -45,7 +46,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     static final ParseField HEADERS = new ParseField("headers");
     public static final ParseField MAX_BATCH_OPERATION_COUNT = new ParseField("max_batch_operation_count");
     public static final ParseField MAX_CONCURRENT_READ_BATCHES = new ParseField("max_concurrent_read_batches");
-    public static final ParseField MAX_BATCH_SIZE_IN_BYTES = new ParseField("max_batch_size_in_bytes");
+    public static final ParseField MAX_BATCH_SIZE = new ParseField("max_batch_size");
     public static final ParseField MAX_CONCURRENT_WRITE_BATCHES = new ParseField("max_concurrent_write_batches");
     public static final ParseField MAX_WRITE_BUFFER_SIZE = new ParseField("max_write_buffer_size");
     public static final ParseField MAX_RETRY_DELAY = new ParseField("max_retry_delay");
@@ -55,7 +56,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<ShardFollowTask, Void> PARSER = new ConstructingObjectParser<>(NAME,
             (a) -> new ShardFollowTask((String) a[0], new ShardId((String) a[1], (String) a[2], (int) a[3]),
-                    new ShardId((String) a[4], (String) a[5], (int) a[6]), (int) a[7], (int) a[8], (long) a[9],
+                    new ShardId((String) a[4], (String) a[5], (int) a[6]), (int) a[7], (int) a[8], (ByteSizeValue) a[9],
                 (int) a[10], (int) a[11], (TimeValue) a[12], (TimeValue) a[13], (String) a[14], (Map<String, String>) a[15]));
 
     static {
@@ -68,7 +69,11 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), LEADER_SHARD_SHARDID_FIELD);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_BATCH_OPERATION_COUNT);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_CONCURRENT_READ_BATCHES);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), MAX_BATCH_SIZE_IN_BYTES);
+        PARSER.declareField(
+                ConstructingObjectParser.constructorArg(),
+                (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_BATCH_SIZE.getPreferredName()),
+                MAX_BATCH_SIZE,
+                ObjectParser.ValueType.STRING);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_CONCURRENT_WRITE_BATCHES);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_WRITE_BUFFER_SIZE);
         PARSER.declareField(ConstructingObjectParser.constructorArg(),
@@ -86,7 +91,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     private final ShardId leaderShardId;
     private final int maxBatchOperationCount;
     private final int maxConcurrentReadBatches;
-    private final long maxBatchSizeInBytes;
+    private final ByteSizeValue maxBatchSize;
     private final int maxConcurrentWriteBatches;
     private final int maxWriteBufferSize;
     private final TimeValue maxRetryDelay;
@@ -100,7 +105,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
             final ShardId leaderShardId,
             final int maxBatchOperationCount,
             final int maxConcurrentReadBatches,
-            final long maxBatchSizeInBytes,
+            final ByteSizeValue maxBatchSize,
             final int maxConcurrentWriteBatches,
             final int maxWriteBufferSize,
             final TimeValue maxRetryDelay,
@@ -112,7 +117,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         this.leaderShardId = leaderShardId;
         this.maxBatchOperationCount = maxBatchOperationCount;
         this.maxConcurrentReadBatches = maxConcurrentReadBatches;
-        this.maxBatchSizeInBytes = maxBatchSizeInBytes;
+        this.maxBatchSize = maxBatchSize;
         this.maxConcurrentWriteBatches = maxConcurrentWriteBatches;
         this.maxWriteBufferSize = maxWriteBufferSize;
         this.maxRetryDelay = maxRetryDelay;
@@ -127,7 +132,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         this.leaderShardId = ShardId.readShardId(in);
         this.maxBatchOperationCount = in.readVInt();
         this.maxConcurrentReadBatches = in.readVInt();
-        this.maxBatchSizeInBytes = in.readVLong();
+        this.maxBatchSize = new ByteSizeValue(in);
         this.maxConcurrentWriteBatches = in.readVInt();
         this.maxWriteBufferSize = in.readVInt();
         this.maxRetryDelay = in.readTimeValue();
@@ -164,8 +169,8 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         return maxWriteBufferSize;
     }
 
-    public long getMaxBatchSizeInBytes() {
-        return maxBatchSizeInBytes;
+    public ByteSizeValue getMaxBatchSize() {
+        return maxBatchSize;
     }
 
     public TimeValue getMaxRetryDelay() {
@@ -200,7 +205,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         leaderShardId.writeTo(out);
         out.writeVLong(maxBatchOperationCount);
         out.writeVInt(maxConcurrentReadBatches);
-        out.writeVLong(maxBatchSizeInBytes);
+        maxBatchSize.writeTo(out);
         out.writeVInt(maxConcurrentWriteBatches);
         out.writeVInt(maxWriteBufferSize);
         out.writeTimeValue(maxRetryDelay);
@@ -227,7 +232,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         builder.field(LEADER_SHARD_SHARDID_FIELD.getPreferredName(), leaderShardId.id());
         builder.field(MAX_BATCH_OPERATION_COUNT.getPreferredName(), maxBatchOperationCount);
         builder.field(MAX_CONCURRENT_READ_BATCHES.getPreferredName(), maxConcurrentReadBatches);
-        builder.field(MAX_BATCH_SIZE_IN_BYTES.getPreferredName(), maxBatchSizeInBytes);
+        builder.field(MAX_BATCH_SIZE.getPreferredName(), maxBatchSize.getStringRep());
         builder.field(MAX_CONCURRENT_WRITE_BATCHES.getPreferredName(), maxConcurrentWriteBatches);
         builder.field(MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxWriteBufferSize);
         builder.field(MAX_RETRY_DELAY.getPreferredName(), maxRetryDelay.getStringRep());
@@ -248,7 +253,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
                 maxBatchOperationCount == that.maxBatchOperationCount &&
                 maxConcurrentReadBatches == that.maxConcurrentReadBatches &&
                 maxConcurrentWriteBatches == that.maxConcurrentWriteBatches &&
-                maxBatchSizeInBytes == that.maxBatchSizeInBytes &&
+                maxBatchSize.equals(that.maxBatchSize) &&
                 maxWriteBufferSize == that.maxWriteBufferSize &&
                 Objects.equals(maxRetryDelay, that.maxRetryDelay) &&
                 Objects.equals(pollTimeout, that.pollTimeout) &&
@@ -259,19 +264,18 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     @Override
     public int hashCode() {
         return Objects.hash(
-            leaderClusterAlias,
-            followShardId,
-            leaderShardId,
-            maxBatchOperationCount,
-            maxConcurrentReadBatches,
-            maxConcurrentWriteBatches,
-            maxBatchSizeInBytes,
-            maxWriteBufferSize,
-            maxRetryDelay,
-            pollTimeout,
-            recordedLeaderIndexHistoryUUID,
-            headers
-        );
+                leaderClusterAlias,
+                followShardId,
+                leaderShardId,
+                maxBatchOperationCount,
+                maxConcurrentReadBatches,
+                maxConcurrentWriteBatches,
+                maxBatchSize,
+                maxWriteBufferSize,
+                maxRetryDelay,
+                pollTimeout,
+                recordedLeaderIndexHistoryUUID,
+                headers);
     }
 
     public String toString() {

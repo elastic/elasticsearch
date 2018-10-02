@@ -114,6 +114,10 @@ public class JsonFieldParser {
             if (value != null) {
                 addField(path, currentName, value, fields);
             }
+        } else {
+            // Note that we throw an exception here just to be safe. We don't actually expect to reach
+            // this case, since XContentParser verifies that the input is well-formed as it parses.
+            throw new IllegalArgumentException("Encountered unexpected token [" + token.toString() + "].");
         }
     }
 

@@ -682,7 +682,6 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             bufferWriteLimit,
             TimeValue.ZERO,
             TimeValue.ZERO,
-            "uuid",
             Collections.emptyMap()
         );
 

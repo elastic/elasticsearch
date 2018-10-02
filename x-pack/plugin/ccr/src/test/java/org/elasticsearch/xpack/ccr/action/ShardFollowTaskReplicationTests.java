@@ -261,9 +261,9 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             between(1, 4), 10240,
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueMillis(10),
-            leaderGroup.getPrimary().getHistoryUUID(),
             Collections.emptyMap()
         );
+        final String recordedLeaderIndexHistoryUUID = leaderGroup.getPrimary().getHistoryUUID();
 
         BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> threadPool.schedule(delay, ThreadPool.Names.GENERIC, task);
         AtomicBoolean stopped = new AtomicBoolean(false);
@@ -322,7 +322,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                                 return;
                             }
                             Translog.Operation[] ops = ShardChangesAction.getOperations(indexShard, seqNoStats.getGlobalCheckpoint(), from,
-                                maxOperationCount, params.getRecordedLeaderIndexHistoryUUID(), params.getMaxBatchSize());
+                                maxOperationCount, recordedLeaderIndexHistoryUUID, params.getMaxBatchSize());
                             // hard code mapping version; this is ok, as mapping updates are not tested here
                             final ShardChangesAction.Response response = new ShardChangesAction.Response(
                                 1L,

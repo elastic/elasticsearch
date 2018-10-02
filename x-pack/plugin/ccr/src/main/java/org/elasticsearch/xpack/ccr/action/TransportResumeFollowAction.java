@@ -192,12 +192,9 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         for (int i = 0; i < numShards; i++) {
             final int shardId = i;
             String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
-            Map<String, String> ccrIndexMetadata = followIndexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
-            String[] recordedLeaderShardHistoryUUIDs = extractLeaderShardHistoryUUIDs(ccrIndexMetadata);
-            String recordedLeaderShardHistoryUUID = recordedLeaderShardHistoryUUIDs[shardId];
 
             final ShardFollowTask shardFollowTask = createShardFollowTask(shardId, clusterNameAlias, request,
-                leaderIndexMetadata, followIndexMetadata, recordedLeaderShardHistoryUUID, filteredHeaders);
+                leaderIndexMetadata, followIndexMetadata, filteredHeaders);
             persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask,
                     new ActionListener<PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask>>() {
                         @Override
@@ -311,7 +308,6 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         ResumeFollowAction.Request request,
         IndexMetaData leaderIndexMetadata,
         IndexMetaData followIndexMetadata,
-        String recordedLeaderShardHistoryUUID,
         Map<String, String> filteredHeaders
     ) {
         int maxBatchOperationCount;
@@ -363,12 +359,11 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             maxWriteBufferSize,
             maxRetryDelay,
             pollTimeout,
-            recordedLeaderShardHistoryUUID,
             filteredHeaders
         );
     }
 
-    private static String[] extractLeaderShardHistoryUUIDs(Map<String, String> ccrIndexMetaData) {
+    static String[] extractLeaderShardHistoryUUIDs(Map<String, String> ccrIndexMetaData) {
         String historyUUIDs = ccrIndexMetaData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS);
         if (historyUUIDs == null) {
             throw new IllegalArgumentException("leader index shard UUIDs are missing");

@@ -40,7 +40,7 @@ public class VariablesTests extends ESTestCase {
                 .metadata(metatdata)
                 .buildMock();
 
-        Map<String, Object> model = Variables.createCtxModel(ctx, payload);
+        Map<String, Object> model = Variables.createCtxParamsMap(ctx, payload);
         assertThat(model, notNullValue());
         assertThat(model.size(), is(1));
 

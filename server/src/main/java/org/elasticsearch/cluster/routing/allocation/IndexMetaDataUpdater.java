@@ -177,6 +177,11 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
             inSyncAllocationIds.addAll(updates.addedAllocationIds);
             inSyncAllocationIds.removeAll(updates.removedAllocationIds);
 
+            assert oldInSyncAllocationIds.contains(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID) == false
+                || inSyncAllocationIds.size() == 1
+                    && inSyncAllocationIds.contains(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID) == false :
+                "fake allocation id has to be removed, inSyncAllocationIds:" + inSyncAllocationIds;
+
             // Prevent set of inSyncAllocationIds to grow unboundedly. This can happen for example if we don't write to a primary
             // but repeatedly shut down nodes that have active replicas.
             // We use number_of_replicas + 1 (= possible active shard copies) to bound the inSyncAllocationIds set

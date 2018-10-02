@@ -295,10 +295,12 @@ The Java High Level REST Client supports the following Security APIs:
 * <<java-rest-high-security-put-user>>
 * <<java-rest-high-security-enable-user>>
 * <<java-rest-high-security-disable-user>>
+* <<java-rest-high-security-change-password>>
 
 include::security/put-user.asciidoc[]
 include::security/enable-user.asciidoc[]
 include::security/disable-user.asciidoc[]
+include::security/change-password.asciidoc[]
 
 == Watcher APIs
 
@@ -309,16 +311,6 @@ The Java High Level REST Client supports the following Watcher APIs:
 
 include::watcher/put-watch.asciidoc[]
 include::watcher/delete-watch.asciidoc[]
-
-== Security APIs
-
-The Java High Level REST Client supports the following Security APIs:
-
-* <<java-rest-high-x-pack-security-put-user>>
-* <<java-rest-high-change-password-user>>
-
-include::x-pack/security/put-user.asciidoc[]
-include::security/change-password.asciidoc[]
 
 == Graph APIs
 

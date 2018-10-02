@@ -188,6 +188,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             logger.trace("handlePublishRequest: handling [{}] from [{}]", publishRequest, sourceNode);
 
             if (sourceNode.equals(getLocalNode()) && (mode != LEADER || getCurrentTerm() != publishRequest.getAcceptedState().term())) {
+                // Rare case in which we stood down as leader between starting this publication and receiving it ourselves. The publication
+                // is already failed so there is no point in proceeding.
                 throw new CoordinationStateRejectedException("no longer leading this publication's term: " + publishRequest);
             }
 

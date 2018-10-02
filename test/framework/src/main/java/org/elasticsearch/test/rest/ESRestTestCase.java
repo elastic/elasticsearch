@@ -52,8 +52,11 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import javax.net.ssl.SSLContext;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyManagementException;
@@ -172,9 +175,13 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     @After
     public final void cleanUpCluster() throws Exception {
+        boolean hasXPack = hasXPack();
         if (preserveClusterUponCompletion() == false) {
-            wipeCluster();
+            wipeCluster(hasXPack);
             waitForClusterStateUpdatesToFinish();
+            if (hasXPack) {
+                waitForPendingRollupTasks();
+            }
             logIfThereAreRunningTasks();
         }
     }
@@ -263,7 +270,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         return false;
     }
 
-    private void wipeCluster() throws IOException {
+    private void wipeCluster(boolean hasXPack) throws IOException {
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
             try {
@@ -278,7 +285,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         // wipe index templates
         if (preserveTemplatesUponCompletion() == false) {
-            if (hasXPack()) {
+            if (hasXPack) {
                 /*
                  * Delete only templates that xpack doesn't automatically
                  * recreate. Deleting them doesn't hurt anything, but it
@@ -309,6 +316,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         // wipe cluster settings
         if (preserveClusterSettings() == false) {
             wipeClusterSettings();
+        }
+
+        if (hasXPack) {
+            wipeRollupJobs();
         }
     }
 
@@ -370,6 +381,56 @@ public abstract class ESRestTestCase extends ESTestCase {
             request.setJsonEntity(Strings.toString(clearCommand));
             adminClient().performRequest(request);
         }
+    }
+
+    private void wipeRollupJobs() throws IOException {
+        Response response = adminClient().performRequest(new Request("GET", "/_xpack/rollup/job/_all"));
+        Map<String, Object> jobs = entityAsMap(response);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> jobConfigs =
+                (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobs);
+
+        if (jobConfigs == null) {
+            return;
+        }
+
+        for (Map<String, Object> jobConfig : jobConfigs) {
+            @SuppressWarnings("unchecked")
+            String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
+            Request request = new Request("DELETE", "/_xpack/rollup/job/" + jobId);
+            request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
+            logger.debug("deleting rollup job [{}]", jobId);
+            adminClient().performRequest(request);
+        }
+    }
+
+    private void waitForPendingRollupTasks() throws Exception {
+        assertBusy(() -> {
+            try {
+                Request request = new Request("GET", "/_cat/tasks");
+                request.addParameter("detailed", "true");
+                Response response = adminClient().performRequest(request);
+
+                try (BufferedReader responseReader = new BufferedReader(
+                        new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8))) {
+                    int activeTasks = 0;
+                    String line;
+                    StringBuilder tasksListString = new StringBuilder();
+                    while ((line = responseReader.readLine()) != null) {
+
+                        // We only care about Rollup jobs, otherwise this fails too easily due to unrelated tasks
+                        if (line.startsWith("xpack/rollup/job") == true) {
+                            activeTasks++;
+                            tasksListString.append(line).append('\n');
+                        }
+                    }
+                    assertEquals(activeTasks + " active tasks found:\n" + tasksListString, 0, activeTasks);
+                }
+            } catch (IOException e) {
+                // Throw an assertion error so we retry
+                throw new AssertionError("Error getting active tasks list", e);
+            }
+        });
     }
 
     /**

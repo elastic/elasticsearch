@@ -170,8 +170,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
             }
         });
 
-        // TODO when we move cleaning rollup into ESTestCase we can randomly choose the _all version of this request
-        GetRollupJobRequest getRollupJobRequest = new GetRollupJobRequest(id);
+        GetRollupJobRequest getRollupJobRequest = randomBoolean() ? new GetRollupJobRequest() : new GetRollupJobRequest(id);
         GetRollupJobResponse getResponse = execute(getRollupJobRequest, rollupClient::getRollupJob, rollupClient::getRollupJobAsync);
         assertThat(getResponse.getJobs(), hasSize(1));
         JobWrapper job = getResponse.getJobs().get(0);

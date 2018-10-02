@@ -120,12 +120,6 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
         return testName != null && (testName.contains("ml/") || testName.contains("ml\\"));
     }
 
-    @Override
-    protected boolean isRollupTest() {
-        String testName = getTestName();
-        return testName != null && (testName.contains("rollup/") || testName.contains("rollup\\"));
-    }
-
     /**
      * Deletes users after every test just in case any test adds any.
      */

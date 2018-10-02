@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
-import org.elasticsearch.xpack.core.rollup.RollupRestTestStateCleaner;
 import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
 import org.junit.After;
 import org.junit.Before;
@@ -261,17 +260,6 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
     }
 
     /**
-     * Delete any left over rollup jobs
-     *
-     * Also reuses the pending-task logic from Ml... should refactor to shared location
-     */
-    private void clearRollupState() throws Exception {
-        if (isRollupTest()) {
-            RollupRestTestStateCleaner.clearRollupMetadata(adminClient());
-        }
-    }
-
-    /**
      * Executes an API call using the admin context, waiting for it to succeed.
      */
     private void awaitCallApi(String apiName,
@@ -329,11 +317,6 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
     protected boolean isMachineLearningTest() {
         String testName = getTestName();
         return testName != null && (testName.contains("=ml/") || testName.contains("=ml\\"));
-    }
-
-    protected boolean isRollupTest() {
-        String testName = getTestName();
-        return testName != null && (testName.contains("=rollup/") || testName.contains("=rollup\\"));
     }
 
     /**

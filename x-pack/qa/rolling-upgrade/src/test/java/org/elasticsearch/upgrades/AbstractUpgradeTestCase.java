@@ -24,17 +24,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
             basicAuthHeaderValue("test_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
 
     @Override
-    protected boolean preserveIndicesUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveReposUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveTemplatesUponCompletion() {
+    protected boolean preserveClusterUponCompletion() {
         return true;
     }
 

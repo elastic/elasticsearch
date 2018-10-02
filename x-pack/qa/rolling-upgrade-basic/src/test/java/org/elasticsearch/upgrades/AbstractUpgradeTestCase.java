@@ -10,17 +10,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
     @Override
-    protected boolean preserveIndicesUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveReposUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveTemplatesUponCompletion() {
+    protected boolean preserveClusterUponCompletion() {
         return true;
     }
 

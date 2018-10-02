@@ -98,6 +98,8 @@ public class IndexLifecycleService extends AbstractComponent
                 return;
             }
 
+            boolean safeToStop = true; // true until proven false by a run policy
+
             // If we just became master, we need to kick off any async actions that
             // may have not been run due to master rollover
             for (ObjectCursor<IndexMetaData> cursor : clusterState.metaData().indices().values()) {
@@ -113,7 +115,11 @@ public class IndexLifecycleService extends AbstractComponent
                         continue;
                     }
                     lifecycleRunner.maybeRunAsyncAction(clusterState, idxMeta, policyName, stepKey);
+                    safeToStop = false; // proven false!
                 }
+            }
+            if (safeToStop && OperationMode.STOPPING == currentMode) {
+                submitOperationModeUpdate(OperationMode.STOPPED);
             }
         }
     }

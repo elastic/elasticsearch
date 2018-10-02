@@ -4,6 +4,8 @@ setup:
         index: test
         body:
           settings:
+            index:
+              number_of_shards: 1     # keep scoring stable
             analysis:
               filter:
                 syns:

@@ -48,7 +48,6 @@ import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
@@ -106,6 +105,7 @@ import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
+import org.elasticsearch.xpack.watcher.condition.WatcherConditionScript;
 import org.elasticsearch.xpack.watcher.execution.AsyncTriggerEventConsumer;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.InternalWatchExecutor;
@@ -152,6 +152,7 @@ import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.transform.script.ScriptTransform;
 import org.elasticsearch.xpack.watcher.transform.script.ScriptTransformFactory;
+import org.elasticsearch.xpack.watcher.transform.script.WatcherTransformScript;
 import org.elasticsearch.xpack.watcher.transform.search.SearchTransform;
 import org.elasticsearch.xpack.watcher.transform.search.SearchTransformFactory;
 import org.elasticsearch.xpack.watcher.transport.actions.ack.TransportAckWatchAction;
@@ -225,9 +226,6 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
     public static final ScriptContext<SearchScript.Factory> SCRIPT_SEARCH_CONTEXT =
         new ScriptContext<>("xpack", SearchScript.Factory.class);
-    // TODO: remove this context when each xpack script use case has their own contexts
-    public static final ScriptContext<ExecutableScript.Factory> SCRIPT_EXECUTABLE_CONTEXT
-        = new ScriptContext<>("xpack_executable", ExecutableScript.Factory.class);
     public static final ScriptContext<TemplateScript.Factory> SCRIPT_TEMPLATE_CONTEXT
         = new ScriptContext<>("xpack_template", TemplateScript.Factory.class);
 
@@ -673,7 +671,8 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
     @Override
     public List<ScriptContext<?>> getContexts() {
-        return Arrays.asList(Watcher.SCRIPT_SEARCH_CONTEXT, Watcher.SCRIPT_EXECUTABLE_CONTEXT, Watcher.SCRIPT_TEMPLATE_CONTEXT);
+        return Arrays.asList(Watcher.SCRIPT_SEARCH_CONTEXT, WatcherTransformScript.CONTEXT,
+            WatcherConditionScript.CONTEXT, Watcher.SCRIPT_TEMPLATE_CONTEXT);
     }
 
     @Override

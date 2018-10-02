@@ -19,6 +19,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
@@ -56,7 +58,7 @@ import java.util.stream.Collectors;
 
 public class TransportResumeFollowAction extends HandledTransportAction<ResumeFollowAction.Request, AcknowledgedResponse> {
 
-    static final long DEFAULT_MAX_BATCH_SIZE_IN_BYTES = Long.MAX_VALUE;
+    static final ByteSizeValue DEFAULT_MAX_BATCH_SIZE = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
     private static final TimeValue DEFAULT_MAX_RETRY_DELAY = new TimeValue(500);
     private static final int DEFAULT_MAX_CONCURRENT_WRITE_BATCHES = 1;
     private static final int DEFAULT_MAX_WRITE_BUFFER_SIZE = 10240;
@@ -124,10 +126,16 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         if (leaderIndexMetadata == null) {
             throw new IndexNotFoundException(request.getFollowerIndex());
         }
-        ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, leaderIndexMetadata, listener::onFailure, historyUUIDs -> {
-            try {
-                start(request, null, leaderIndexMetadata, followerIndexMetadata, historyUUIDs, listener);
-            } catch (final IOException e) {
+        ccrLicenseChecker.hasPrivilegesToFollowIndices(client, new String[] {request.getLeaderIndex()}, e -> {
+            if (e == null) {
+                ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, leaderIndexMetadata, listener::onFailure, historyUUIDs -> {
+                    try {
+                        start(request, null, leaderIndexMetadata, followerIndexMetadata, historyUUIDs, listener);
+                    } catch (final IOException ioe) {
+                        listener.onFailure(ioe);
+                    }
+                });
+            } else {
                 listener.onFailure(e);
             }
         });
@@ -184,12 +192,9 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         for (int i = 0; i < numShards; i++) {
             final int shardId = i;
             String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
-            Map<String, String> ccrIndexMetadata = followIndexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
-            String[] recordedLeaderShardHistoryUUIDs = extractIndexShardHistoryUUIDs(ccrIndexMetadata);
-            String recordedLeaderShardHistoryUUID = recordedLeaderShardHistoryUUIDs[shardId];
 
-            final ShardFollowTask shardFollowTask =  createShardFollowTask(shardId, clusterNameAlias, request,
-                leaderIndexMetadata, followIndexMetadata, recordedLeaderShardHistoryUUID, filteredHeaders);
+            final ShardFollowTask shardFollowTask = createShardFollowTask(shardId, clusterNameAlias, request,
+                leaderIndexMetadata, followIndexMetadata, filteredHeaders);
             persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask,
                     new ActionListener<PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask>>() {
                         @Override
@@ -255,7 +260,7 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
                     "] as leader index but instead reference [" + recordedLeaderIndexUUID + "] as leader index");
         }
 
-        String[] recordedHistoryUUIDs = extractIndexShardHistoryUUIDs(ccrIndexMetadata);
+        String[] recordedHistoryUUIDs = extractLeaderShardHistoryUUIDs(ccrIndexMetadata);
         assert recordedHistoryUUIDs.length == leaderIndexHistoryUUID.length;
         for (int i = 0; i < leaderIndexHistoryUUID.length; i++) {
             String recordedLeaderIndexHistoryUUID = recordedHistoryUUIDs[i];
@@ -303,7 +308,6 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         ResumeFollowAction.Request request,
         IndexMetaData leaderIndexMetadata,
         IndexMetaData followIndexMetadata,
-        String recordedLeaderShardHistoryUUID,
         Map<String, String> filteredHeaders
     ) {
         int maxBatchOperationCount;
@@ -320,11 +324,11 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             maxConcurrentReadBatches = DEFAULT_MAX_CONCURRENT_READ_BATCHES;
         }
 
-        long maxOperationSizeInBytes;
-        if (request.getMaxOperationSizeInBytes() != null) {
-            maxOperationSizeInBytes = request.getMaxOperationSizeInBytes();
+        ByteSizeValue maxBatchSize;
+        if (request.getMaxBatchSize() != null) {
+            maxBatchSize = request.getMaxBatchSize();
         } else {
-            maxOperationSizeInBytes = DEFAULT_MAX_BATCH_SIZE_IN_BYTES;
+            maxBatchSize = DEFAULT_MAX_BATCH_SIZE;
         }
 
         int maxConcurrentWriteBatches;
@@ -350,18 +354,21 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             new ShardId(leaderIndexMetadata.getIndex(), shardId),
             maxBatchOperationCount,
             maxConcurrentReadBatches,
-            maxOperationSizeInBytes,
+            maxBatchSize,
             maxConcurrentWriteBatches,
             maxWriteBufferSize,
             maxRetryDelay,
             pollTimeout,
-            recordedLeaderShardHistoryUUID,
             filteredHeaders
         );
     }
 
-    private static String[] extractIndexShardHistoryUUIDs(Map<String, String> ccrIndexMetaData) {
+    static String[] extractLeaderShardHistoryUUIDs(Map<String, String> ccrIndexMetaData) {
         String historyUUIDs = ccrIndexMetaData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS);
+        if (historyUUIDs == null) {
+            throw new IllegalArgumentException("leader index shard UUIDs are missing");
+        }
+
         return historyUUIDs.split(",");
     }
 

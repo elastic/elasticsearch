@@ -106,11 +106,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             }
         };
 
-        IndexMetaData followIndexMetaData = clusterService.state().metaData().index(params.getFollowShardId().getIndex());
-        Map<String, String> ccrIndexMetadata = followIndexMetaData.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
-        String[] recordedLeaderShardHistoryUUIDs = extractLeaderShardHistoryUUIDs(ccrIndexMetadata);
-        final String recordedLeaderShardHistoryUUID = recordedLeaderShardHistoryUUIDs[params.getLeaderShardId().id()];
-
+        final String recordedLeaderShardHistoryUUID = getLeaderShardHistoryUUID(params);
         return new ShardFollowNodeTask(id, type, action, getDescription(taskInProgress), parentTaskId, headers, params,
             scheduler, System::nanoTime) {
 
@@ -171,6 +167,13 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 leaderClient.execute(ShardChangesAction.INSTANCE, request, ActionListener.wrap(handler::accept, errorHandler));
             }
         };
+    }
+
+    private String getLeaderShardHistoryUUID(ShardFollowTask params) {
+        IndexMetaData followIndexMetaData = clusterService.state().metaData().index(params.getFollowShardId().getIndex());
+        Map<String, String> ccrIndexMetadata = followIndexMetaData.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
+        String[] recordedLeaderShardHistoryUUIDs = extractLeaderShardHistoryUUIDs(ccrIndexMetadata);
+        return recordedLeaderShardHistoryUUIDs[params.getLeaderShardId().id()];
     }
 
     interface FollowerStatsInfoHandler {

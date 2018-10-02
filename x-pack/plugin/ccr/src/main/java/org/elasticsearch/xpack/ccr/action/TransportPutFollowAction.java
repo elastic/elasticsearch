@@ -132,7 +132,7 @@ public final class TransportPutFollowAction
         };
         ccrLicenseChecker.hasPrivilegesToFollowIndices(client, new String[] {leaderIndex}, e -> {
             if (e == null) {
-                ccrLicenseChecker.fetchHistoryUUIDs(client, leaderIndexMetadata, listener::onFailure, historyUUIDhandler);
+                ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, leaderIndexMetadata, listener::onFailure, historyUUIDhandler);
             } else {
                 listener.onFailure(e);
             }
@@ -174,7 +174,7 @@ public final class TransportPutFollowAction
                 listener::onFailure);
         // Can't use create index api here, because then index templates can alter the mappings / settings.
         // And index templates could introduce settings / mappings that are incompatible with the leader index.
-        clusterService.submitStateUpdateTask("create_follow_index", new AckedClusterStateUpdateTask<Boolean>(request, handler) {
+        clusterService.submitStateUpdateTask("create_following_index", new AckedClusterStateUpdateTask<Boolean>(request, handler) {
 
             @Override
             protected Boolean newResponse(final boolean acknowledged) {

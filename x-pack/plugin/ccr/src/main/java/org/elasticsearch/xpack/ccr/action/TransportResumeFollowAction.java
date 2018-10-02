@@ -128,7 +128,7 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         }
         ccrLicenseChecker.hasPrivilegesToFollowIndices(client, new String[] {request.getLeaderIndex()}, e -> {
             if (e == null) {
-                ccrLicenseChecker.fetchHistoryUUIDs(client, leaderIndexMetadata, listener::onFailure, historyUUIDs -> {
+                ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, leaderIndexMetadata, listener::onFailure, historyUUIDs -> {
                     try {
                         start(request, null, leaderIndexMetadata, followerIndexMetadata, historyUUIDs, listener);
                     } catch (final IOException ioe) {

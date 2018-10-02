@@ -67,6 +67,69 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         return provider;
     }
 
+    public static IntervalsSource disjunction(List<IntervalsSource> subSources) {
+        List<IntervalsSource> rewritten = new ArrayList<>();
+        for (IntervalsSource source : subSources) {
+            if (source instanceof DisjunctionIntervalsSource) {
+                rewritten.addAll(((DisjunctionIntervalsSource) source).subSources);
+            }
+            else {
+                rewritten.add(source);
+            }
+        }
+        if (rewritten.size() == 0) {
+            return NO_INTERVALS;
+        }
+        if (rewritten.size() == 1) {
+            return rewritten.get(0);
+        }
+        return new DisjunctionIntervalsSource(rewritten);
+    }
+
+    public static class DisjunctionIntervalsSource extends IntervalsSource {
+
+        private final List<IntervalsSource> subSources;
+        private final IntervalsSource delegate;
+
+        public DisjunctionIntervalsSource(List<IntervalsSource> subSources) {
+            this.subSources = subSources;
+            this.delegate = Intervals.or(subSources.toArray(new IntervalsSource[]{}));
+        }
+
+        @Override
+        public IntervalIterator intervals(String field, LeafReaderContext ctx) throws IOException {
+            return delegate.intervals(field, ctx);
+        }
+
+        @Override
+        public MatchesIterator matches(String field, LeafReaderContext ctx, int doc) throws IOException {
+            return delegate.matches(field, ctx, doc);
+        }
+
+        @Override
+        public void extractTerms(String field, Set<Term> terms) {
+            delegate.extractTerms(field, terms);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            DisjunctionIntervalsSource that = (DisjunctionIntervalsSource) o;
+            return Objects.equals(delegate, that.delegate);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(delegate);
+        }
+
+        @Override
+        public String toString() {
+            return delegate.toString();
+        }
+    }
+
     public static final IntervalsSource NO_INTERVALS = new IntervalsSource() {
 
         @Override
@@ -246,17 +309,17 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
     }
 
-    public static class Block extends IntervalsSourceProvider {
+    public static class Disjunction extends IntervalsSourceProvider {
 
-        public static final String NAME = "block";
+        public static final String NAME = "or";
 
         private final List<IntervalsSourceProvider> subSources;
 
-        public Block(List<IntervalsSourceProvider> subSources) {
+        public Disjunction(List<IntervalsSourceProvider> subSources) {
             this.subSources = subSources;
         }
 
-        public Block(StreamInput in) throws IOException {
+        public Disjunction(StreamInput in) throws IOException {
             this.subSources = in.readNamedWriteableList(IntervalsSourceProvider.class);
         }
 
@@ -266,7 +329,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             for (IntervalsSourceProvider provider : subSources) {
                 sources.add(provider.getSource(fieldType));
             }
-            return Intervals.phrase(sources.toArray(new IntervalsSource[0]));
+            return disjunction(sources);
         }
 
         @Override
@@ -291,7 +354,29 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return null;
+            builder.startObject();
+            builder.startObject(NAME);
+            builder.startArray("sources");
+            for (IntervalsSourceProvider provider : subSources) {
+                provider.toXContent(builder, params);
+            }
+            builder.endArray();
+            builder.endObject();
+            return builder.endObject();
+        }
+
+        @SuppressWarnings("unchecked")
+        static final ConstructingObjectParser<Disjunction, Void> PARSER = new ConstructingObjectParser<>(NAME,
+            args -> {
+                List<IntervalsSourceProvider> subSources = (List<IntervalsSourceProvider>)args[0];
+                return new Disjunction(subSources);
+            });
+        static {
+            PARSER.declareObjectArray(constructorArg(), (p, c) -> IntervalsSourceProvider.fromXContent(p), new ParseField("sources"));
+        }
+
+        public static Disjunction fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null);
         }
     }
 
@@ -310,10 +395,10 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 IntervalsSource getSource(List<IntervalsSource> subSources) {
                     return Intervals.unordered(subSources.toArray(new IntervalsSource[0]));
                 }
-            }, OR {
+            }, BLOCK {
                 @Override
                 IntervalsSource getSource(List<IntervalsSource> subSources) {
-                    return Intervals.or(subSources.toArray(new IntervalsSource[0]));
+                    return Intervals.phrase(subSources.toArray(new IntervalsSource[0]));
                 }
             };
 

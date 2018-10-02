@@ -807,6 +807,8 @@ public class SearchModule {
     private void registerIntervalsSourceProviders(List<SearchPlugin> plugins) {
         registerIntervalsSourceProvider(new SearchPlugin.IntervalSpec<>(IntervalsSourceProvider.Match.NAME,
             IntervalsSourceProvider.Match::new, IntervalsSourceProvider.Match::fromXContent));
+        registerIntervalsSourceProvider(new SearchPlugin.IntervalSpec<>(IntervalsSourceProvider.Disjunction.NAME,
+            IntervalsSourceProvider.Disjunction::new, IntervalsSourceProvider.Disjunction::fromXContent));
         registerIntervalsSourceProvider(new SearchPlugin.IntervalSpec<>(IntervalsSourceProvider.Combine.NAME,
             IntervalsSourceProvider.Combine::new, IntervalsSourceProvider.Combine::fromXContent));
         registerIntervalsSourceProvider(new SearchPlugin.IntervalSpec<>(IntervalsSourceProvider.Relate.NAME,

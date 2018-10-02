@@ -24,7 +24,6 @@ import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 
 import java.util.Locale;
-import java.util.Optional;
 
 /**
  * A request to explicitly acknowledge a watch.
@@ -35,29 +34,13 @@ public class AckWatchRequest implements Validatable {
     private final String[] actionIds;
 
     public AckWatchRequest(String watchId, String... actionIds) {
+        validateIds(watchId, actionIds);
         this.watchId = watchId;
         this.actionIds = actionIds;
     }
 
-    /**
-     * @return The ID of the watch to be acked.
-     */
-    public String getWatchId() {
-        return watchId;
-    }
-
-    /**
-     * @return The IDs of the actions to be acked. If omitted,
-     * all actions for the given watch will be acknowledged.
-     */
-    public String[] getActionIds() {
-        return actionIds;
-    }
-
-    @Override
-    public Optional<ValidationException> validate() {
+    private void validateIds(String watchId, String... actionIds) {
         ValidationException exception = new ValidationException();
-
         if (watchId == null) {
             exception.addValidationError("watch id is missing");
         } else if (PutWatchRequest.isValidId(watchId) == false) {
@@ -75,9 +58,24 @@ public class AckWatchRequest implements Validatable {
             }
         }
 
-        return !exception.validationErrors().isEmpty()
-            ? Optional.of(exception)
-            : Optional.empty();
+        if (!exception.validationErrors().isEmpty()) {
+            throw exception;
+        }
+    }
+
+    /**
+     * @return The ID of the watch to be acked.
+     */
+    public String getWatchId() {
+        return watchId;
+    }
+
+    /**
+     * @return The IDs of the actions to be acked. If omitted,
+     * all actions for the given watch will be acknowledged.
+     */
+    public String[] getActionIds() {
+        return actionIds;
     }
 
     @Override

@@ -36,15 +36,15 @@ import static org.hamcrest.Matchers.notNullValue;
 public class WatchRequestValidationTests extends ESTestCase {
 
     public void testAcknowledgeWatchInvalidWatchId()  {
-        Optional<ValidationException> e = new AckWatchRequest("id with whitespaces").validate();
-        assertTrue(e.isPresent());
-        assertThat(e.get().validationErrors(), hasItem("watch id contains whitespace"));
+        ValidationException e = expectThrows(ValidationException.class,
+            () ->  new AckWatchRequest("id with whitespaces"));
+        assertThat(e.validationErrors(), hasItem("watch id contains whitespace"));
     }
 
     public void testAcknowledgeWatchInvalidActionId() {
-        Optional<ValidationException> e = new AckWatchRequest("_id", "action id with whitespaces").validate();
-        assertTrue(e.isPresent());
-        assertThat(e.get().validationErrors(), hasItem("action id [action id with whitespaces] contains whitespace"));
+        ValidationException e = expectThrows(ValidationException.class,
+            () -> new AckWatchRequest("_id", "action id with whitespaces"));
+        assertThat(e.validationErrors(), hasItem("action id [action id with whitespaces] contains whitespace"));
     }
 
     public void testAcknowledgeWatchNullActionArray() {
@@ -55,9 +55,9 @@ public class WatchRequestValidationTests extends ESTestCase {
     }
 
     public void testAcknowledgeWatchNullActionId() {
-        Optional<ValidationException> e = new AckWatchRequest("_id", new String[] {null}).validate();
-        assertTrue(e.isPresent());
-        assertThat(e.get().validationErrors(), hasItem("action id may not be null"));
+        ValidationException e = expectThrows(ValidationException.class,
+            () ->  new AckWatchRequest("_id", new String[] {null}));
+        assertThat(e.validationErrors(), hasItem("action id may not be null"));
     }
 
     public void testDeleteWatchInvalidWatchId() {

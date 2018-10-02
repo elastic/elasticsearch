@@ -37,7 +37,6 @@ public final class PutRoleMappingResponse {
     private boolean created;
 
     public PutRoleMappingResponse(boolean created) {
-        super();
         this.created = created;
     }
 

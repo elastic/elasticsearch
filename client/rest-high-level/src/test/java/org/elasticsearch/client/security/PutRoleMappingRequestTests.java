@@ -29,10 +29,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -128,18 +130,28 @@ public class PutRoleMappingRequestTests extends ESTestCase {
     }
 
     private static PutRoleMappingRequest mutateTestItem(PutRoleMappingRequest original) {
-        switch (randomIntBetween(0, 2)) {
+        switch (randomIntBetween(0, 4)) {
         case 0:
             return new PutRoleMappingRequest(randomAlphaOfLength(5), original.isEnabled(), original.getRoles(), original.getRules(),
                     original.getMetadata(), original.getRefreshPolicy());
         case 1:
-            return new PutRoleMappingRequest(original.getName(), !original.isEnabled(), original.getRoles(), original.getRules(), original
-                    .getMetadata(), original.getRefreshPolicy());
+            return new PutRoleMappingRequest(original.getName(), !original.isEnabled(), original.getRoles(), original.getRules(),
+                    original.getMetadata(), original.getRefreshPolicy());
         case 2:
-            return new PutRoleMappingRequest(original.getName(), original.isEnabled(), original.getRoles(), FieldRoleMapperExpression
-                    .ofGroups("group"), original.getMetadata(), original.getRefreshPolicy());
+            return new PutRoleMappingRequest(original.getName(), original.isEnabled(), original.getRoles(),
+                    FieldRoleMapperExpression.ofGroups("group"), original.getMetadata(), original.getRefreshPolicy());
+        case 3:
+            return new PutRoleMappingRequest(original.getName(), original.isEnabled(), original.getRoles(), original.getRules(),
+                    Collections.emptyMap(), original.getRefreshPolicy());
+        case 4:
+            List<RefreshPolicy> values = Arrays.stream(RefreshPolicy.values())
+                                                .filter(rp -> rp != original.getRefreshPolicy())
+                                                .collect(Collectors.toList());
+            return new PutRoleMappingRequest(original.getName(), original.isEnabled(), original.getRoles(), original.getRules(), original
+                    .getMetadata(), randomFrom(values));
         default:
-            throw new IllegalArgumentException("unknown option");
+            return new PutRoleMappingRequest(randomAlphaOfLength(5), original.isEnabled(), original.getRoles(), original.getRules(),
+                    original.getMetadata(), original.getRefreshPolicy());
         }
     }
 

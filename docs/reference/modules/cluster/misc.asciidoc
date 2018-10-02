@@ -43,11 +43,11 @@ PUT /_cluster/settings
 -------------------------------
 // CONSOLE
 
-NOTE: User-defined cluster metadata is not intended to store sensitive or
+IMPORTANT: User-defined cluster metadata is not intended to store sensitive or
 confidential information. Any information stored in user-defined cluster
 metadata will be viewable by anyone with access to the
 <<cluster-get-settings,Cluster Get Settings>> API, and is recorded in the
-Elasticsearch logs.
+{es} logs.
 
 [[cluster-max-tombstones]]
 ==== Index Tombstones

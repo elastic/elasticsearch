@@ -174,7 +174,7 @@ public final class TransportPutFollowAction
                 listener::onFailure);
         // Can't use create index api here, because then index templates can alter the mappings / settings.
         // And index templates could introduce settings / mappings that are incompatible with the leader index.
-        clusterService.submitStateUpdateTask("follow_index_action", new AckedClusterStateUpdateTask<Boolean>(request, handler) {
+        clusterService.submitStateUpdateTask("create_following_index", new AckedClusterStateUpdateTask<Boolean>(request, handler) {
 
             @Override
             protected Boolean newResponse(final boolean acknowledged) {

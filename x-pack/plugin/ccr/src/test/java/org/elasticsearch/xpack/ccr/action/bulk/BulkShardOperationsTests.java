@@ -59,7 +59,8 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
         }
 
         final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> result =
-            TransportBulkShardOperationsAction.shardOperationOnPrimary(followerPrimary.shardId(), operations,
+            TransportBulkShardOperationsAction.shardOperationOnPrimary(followerPrimary.shardId(), followerPrimary.getHistoryUUID(),
+                    operations,
                 numOps - 1, followerPrimary, logger);
 
         try (Translog.Snapshot snapshot = followerPrimary.getHistoryOperations("test", 0)) {

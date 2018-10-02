@@ -39,7 +39,7 @@ public class JsonFieldParser {
     private final MappedFieldType fieldType;
     private final int ignoreAbove;
 
-    private final String fieldName;
+    private final String rootFieldName;
     private final String prefixedFieldName;
 
     JsonFieldParser(MappedFieldType fieldType,
@@ -47,7 +47,7 @@ public class JsonFieldParser {
         this.fieldType = fieldType;
         this.ignoreAbove = ignoreAbove;
 
-        this.fieldName = fieldType.name();
+        this.rootFieldName = fieldType.name();
         this.prefixedFieldName = fieldType.name() + JsonFieldMapper.PREFIXED_FIELD_SUFFIX;
     }
 
@@ -136,8 +136,8 @@ public class JsonFieldParser {
                 + " Offending key: [" + key + "].");
         }
         String prefixedValue = createPrefixedValue(key, value);
-        
-        fields.add(new Field(fieldName, new BytesRef(value), fieldType));
+
+        fields.add(new Field(rootFieldName, new BytesRef(value), fieldType));
         fields.add(new Field(prefixedFieldName, new BytesRef(prefixedValue), fieldType));
     }
 

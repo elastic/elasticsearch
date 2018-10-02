@@ -27,6 +27,10 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.rollup.GetRollupJobRequest;
+import org.elasticsearch.client.rollup.GetRollupJobResponse;
+import org.elasticsearch.client.rollup.GetRollupJobResponse.IndexerState;
+import org.elasticsearch.client.rollup.GetRollupJobResponse.JobWrapper;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobResponse;
 import org.elasticsearch.client.rollup.job.config.DateHistogramGroupConfig;
@@ -50,6 +54,13 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.lessThan;
 
 public class RollupIT extends ESRestHighLevelClientTestCase {
 
@@ -57,7 +68,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         SumAggregationBuilder.NAME, AvgAggregationBuilder.NAME, ValueCountAggregationBuilder.NAME);
 
     @SuppressWarnings("unchecked")
-    public void testPutRollupJob() throws Exception {
+    public void testPutAndGetRollupJob() throws Exception {
         double sum = 0.0d;
         int max = Integer.MIN_VALUE;
         int min = Integer.MAX_VALUE;
@@ -90,7 +101,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
 
         BulkResponse bulkResponse = highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);
         assertEquals(RestStatus.OK, bulkResponse.status());
-        if (bulkResponse.hasFailures())     {
+        if (bulkResponse.hasFailures()) {
             for (BulkItemResponse itemResponse : bulkResponse.getItems()) {
                 if (itemResponse.isFailed()) {
                     logger.fatal(itemResponse.getFailureMessage());
@@ -158,5 +169,26 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
                 }
             }
         });
+
+        // TODO when we move cleaning rollup into ESTestCase we can randomly choose the _all version of this request
+        GetRollupJobRequest getRollupJobRequest = new GetRollupJobRequest(id);
+        GetRollupJobResponse getResponse = execute(getRollupJobRequest, rollupClient::getRollupJob, rollupClient::getRollupJobAsync);
+        assertThat(getResponse.getJobs(), hasSize(1));
+        JobWrapper job = getResponse.getJobs().get(0);
+        assertEquals(putRollupJobRequest.getConfig(), job.getJob());
+        assertThat(job.getStats().getNumPages(), lessThan(10L));
+        assertEquals(numDocs, job.getStats().getNumDocuments());
+        assertThat(job.getStats().getNumInvocations(), greaterThan(0L));
+        assertEquals(1, job.getStats().getOutputDocuments());
+        assertThat(job.getStatus().getState(), either(equalTo(IndexerState.STARTED)).or(equalTo(IndexerState.INDEXING)));
+        assertThat(job.getStatus().getCurrentPosition(), hasKey("date.date_histogram"));
+        assertEquals(true, job.getStatus().getUpgradedDocumentId());
+    }
+
+    public void testGetMissingRollupJob() throws Exception {
+        GetRollupJobRequest getRollupJobRequest = new GetRollupJobRequest("missing");
+        RollupClient rollupClient = highLevelClient().rollup();
+        GetRollupJobResponse getResponse = execute(getRollupJobRequest, rollupClient::getRollupJob, rollupClient::getRollupJobAsync);
+        assertThat(getResponse.getJobs(), empty());
     }
 }

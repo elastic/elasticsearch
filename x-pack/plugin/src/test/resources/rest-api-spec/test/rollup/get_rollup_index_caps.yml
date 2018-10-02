@@ -292,8 +292,8 @@ setup:
 "Verify job caps by rollup index comma delimited list":
 
 - skip:
-    version: " - 6.99.99"
-    reason: "comma delimited index support was fixed in 7.0"
+    version: " - 6.4.99"
+    reason: "comma delimited index support was fixed in 6.5"
 
 - do:
     headers:

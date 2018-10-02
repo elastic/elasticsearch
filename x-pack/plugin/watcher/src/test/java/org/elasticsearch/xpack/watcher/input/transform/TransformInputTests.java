@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher.input.transform;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;

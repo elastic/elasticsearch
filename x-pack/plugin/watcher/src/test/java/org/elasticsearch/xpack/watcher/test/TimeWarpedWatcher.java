@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.test;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
@@ -29,13 +30,14 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 public class TimeWarpedWatcher extends LocalStateCompositeXPackPlugin {
+    private static final Logger logger = LogManager.getLogger(TimeWarpedWatcher.class);
 
     // use a single clock across all nodes using this plugin, this lets keep it static
     private static final ClockMock clock = new ClockMock();
 
     public TimeWarpedWatcher(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
-        LogManager.getLogger(TimeWarpedWatcher.class).info("using time warped watchers plugin");
+        logger.info("using time warped watchers plugin");
 
         TimeWarpedWatcher thisVar = this;
 

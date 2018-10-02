@@ -231,7 +231,7 @@ public class WatcherServiceTests extends ESTestCase {
         Watch watch = mock(Watch.class);
         when(watch.trigger()).thenReturn(trigger);
         when(watch.condition()).thenReturn(InternalAlwaysCondition.INSTANCE);
-    ExecutableNoneInput noneInput = new ExecutableNoneInput();
+        ExecutableNoneInput noneInput = new ExecutableNoneInput();
         when(watch.input()).thenReturn(noneInput);
 
         triggerService.add(watch);

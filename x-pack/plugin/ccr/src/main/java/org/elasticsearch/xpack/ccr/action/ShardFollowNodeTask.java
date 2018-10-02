@@ -62,6 +62,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private final BiConsumer<TimeValue, Runnable> scheduler;
     private final LongSupplier relativeTimeProvider;
 
+    private String followerHistoryUUID;
     private long leaderGlobalCheckpoint;
     private long leaderMaxSeqNo;
     private long leaderMaxSeqNoOfUpdatesOrDeletes = SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -110,15 +111,17 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     void start(
-            final long leaderGlobalCheckpoint,
-            final long leaderMaxSeqNo,
-            final long followerGlobalCheckpoint,
-            final long followerMaxSeqNo) {
+        final String followerHistoryUUID,
+        final long leaderGlobalCheckpoint,
+        final long leaderMaxSeqNo,
+        final long followerGlobalCheckpoint,
+        final long followerMaxSeqNo) {
         /*
          * While this should only ever be called once and before any other threads can touch these fields, we use synchronization here to
          * avoid the need to declare these fields as volatile. That is, we are ensuring thesefields are always accessed under the same lock.
          */
         synchronized (this) {
+            this.followerHistoryUUID = followerHistoryUUID;
             this.leaderGlobalCheckpoint = leaderGlobalCheckpoint;
             this.leaderMaxSeqNo = leaderMaxSeqNo;
             this.followerGlobalCheckpoint = followerGlobalCheckpoint;
@@ -305,7 +308,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                                                 AtomicInteger retryCounter) {
         assert leaderMaxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "mus is not replicated";
         final long startTime = relativeTimeProvider.getAsLong();
-        innerSendBulkShardOperationsRequest(operations, leaderMaxSeqNoOfUpdatesOrDeletes,
+        innerSendBulkShardOperationsRequest(followerHistoryUUID, operations, leaderMaxSeqNoOfUpdatesOrDeletes,
                 response -> {
                     synchronized (ShardFollowNodeTask.this) {
                         totalIndexTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
@@ -404,8 +407,11 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     // These methods are protected for testing purposes:
     protected abstract void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler);
 
-    protected abstract void innerSendBulkShardOperationsRequest(List<Translog.Operation> operations, long leaderMaxSeqNoOfUpdatesOrDeletes,
-                                    Consumer<BulkShardOperationsResponse> handler, Consumer<Exception> errorHandler);
+    protected abstract void innerSendBulkShardOperationsRequest(String followerHistoryUUID,
+                                                                List<Translog.Operation> operations,
+                                                                long leaderMaxSeqNoOfUpdatesOrDeletes,
+                                                                Consumer<BulkShardOperationsResponse> handler,
+                                                                Consumer<Exception> errorHandler);
 
     protected abstract void innerSendShardChangesRequest(long from, int maxOperationCount, Consumer<ShardChangesAction.Response> handler,
                                                          Consumer<Exception> errorHandler);

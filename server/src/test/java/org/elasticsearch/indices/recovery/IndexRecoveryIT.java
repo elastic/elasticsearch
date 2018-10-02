@@ -246,7 +246,6 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         validateIndexRecoveryState(nodeBRecoveryState.getIndex());
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/32686")
     @TestLogging(
             "_root:DEBUG,"
                     + "org.elasticsearch.cluster.service:TRACE,"

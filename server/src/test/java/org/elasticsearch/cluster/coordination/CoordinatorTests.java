@@ -259,7 +259,7 @@ public class CoordinatorTests extends ESTestCase {
 
     private static final int ELECTION_RETRIES = 10;
 
-    // The time it takes to
+    // The time it takes to complete an election
     private static final long DEFAULT_ELECTION_DELAY
         // Pinging all peers twice should be enough to discover all nodes
         = defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2

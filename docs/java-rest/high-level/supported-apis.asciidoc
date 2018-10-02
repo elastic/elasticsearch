@@ -285,8 +285,10 @@ include::migration/get-assistance.asciidoc[]
 The Java High Level REST Client supports the following Rollup APIs:
 
 * <<java-rest-high-x-pack-rollup-put-job>>
+* <<java-rest-high-x-pack-rollup-get-job>>
 
 include::rollup/put_job.asciidoc[]
+include::rollup/get_job.asciidoc[]
 
 == Security APIs
 
@@ -295,10 +297,12 @@ The Java High Level REST Client supports the following Security APIs:
 * <<java-rest-high-security-put-user>>
 * <<java-rest-high-security-enable-user>>
 * <<java-rest-high-security-disable-user>>
+* <<java-rest-high-security-change-password>>
 
 include::security/put-user.asciidoc[]
 include::security/enable-user.asciidoc[]
 include::security/disable-user.asciidoc[]
+include::security/change-password.asciidoc[]
 
 == Watcher APIs
 

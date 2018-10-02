@@ -52,8 +52,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -65,6 +67,7 @@ import static org.elasticsearch.cluster.coordination.CoordinationStateTests.setV
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.value;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.FOLLOWER;
+import static org.elasticsearch.cluster.coordination.Coordinator.Mode.LEADER;
 import static org.elasticsearch.cluster.coordination.CoordinatorTests.Cluster.DEFAULT_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_BACK_OFF_TIME_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING;
@@ -88,6 +91,7 @@ public class CoordinatorTests extends ESTestCase {
 
     public void testCanUpdateClusterStateAfterStabilisation() {
         final Cluster cluster = new Cluster(randomIntBetween(1, 5));
+        cluster.runRandomly();
         cluster.stabilise();
 
         final ClusterNode leader = cluster.getAnyLeader();
@@ -106,6 +110,7 @@ public class CoordinatorTests extends ESTestCase {
 
     public void testNodesJoinAfterStableCluster() {
         final Cluster cluster = new Cluster(randomIntBetween(1, 5));
+        cluster.runRandomly();
         cluster.stabilise();
 
         final long currentTerm = cluster.getAnyLeader().coordinator.getCurrentTerm();
@@ -125,6 +130,7 @@ public class CoordinatorTests extends ESTestCase {
 
     public void testLeaderDisconnectionDetectedQuickly() {
         final Cluster cluster = new Cluster(randomIntBetween(3, 5));
+        cluster.runRandomly();
         cluster.stabilise();
 
         final ClusterNode originalLeader = cluster.getAnyLeader();
@@ -153,13 +159,14 @@ public class CoordinatorTests extends ESTestCase {
                 + DEFAULT_DELAY_VARIABILITY
                 // then wait for the removal to be committed
                 + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
-            ));
+        ));
 
         assertThat(cluster.getAnyLeader().getId(), not(equalTo(originalLeader.getId())));
     }
 
     public void testUnresponsiveLeaderDetectedEventually() {
         final Cluster cluster = new Cluster(randomIntBetween(3, 5));
+        cluster.runRandomly();
         cluster.stabilise();
 
         final ClusterNode originalLeader = cluster.getAnyLeader();
@@ -189,6 +196,7 @@ public class CoordinatorTests extends ESTestCase {
 
     public void testFollowerDisconnectionDetectedQuickly() {
         final Cluster cluster = new Cluster(randomIntBetween(3, 5));
+        cluster.runRandomly();
         cluster.stabilise();
 
         final ClusterNode leader = cluster.getAnyLeader();
@@ -220,6 +228,7 @@ public class CoordinatorTests extends ESTestCase {
 
     public void testUnresponsiveFollowerDetectedEventually() {
         final Cluster cluster = new Cluster(randomIntBetween(3, 5));
+        cluster.runRandomly();
         cluster.stabilise();
 
         final ClusterNode leader = cluster.getAnyLeader();
@@ -289,6 +298,7 @@ public class CoordinatorTests extends ESTestCase {
 
     class Cluster {
 
+        static final long EXTREME_DELAY_VARIABILITY = 10000L;
         static final long DEFAULT_DELAY_VARIABILITY = 100L;
 
         final List<ClusterNode> clusterNodes;
@@ -299,6 +309,7 @@ public class CoordinatorTests extends ESTestCase {
 
         private final Set<String> disconnectedNodes = new HashSet<>();
         private final Set<String> blackholedNodes = new HashSet<>();
+        private final Map<Long, ClusterState> committedStatesByVersion = new HashMap<>();
 
         Cluster(int initialNodeCount) {
             deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
@@ -325,6 +336,100 @@ public class CoordinatorTests extends ESTestCase {
             for (int i = 0; i < newNodesCount; i++) {
                 final ClusterNode clusterNode = new ClusterNode(nodeSizeAtStart + i);
                 clusterNodes.add(clusterNode);
+            }
+        }
+
+        void runRandomly() {
+
+            final int randomSteps = scaledRandomIntBetween(10, 10000);
+            logger.info("--> start of safety phase of at least [{}] steps", randomSteps);
+
+            deterministicTaskQueue.setExecutionDelayVariabilityMillis(EXTREME_DELAY_VARIABILITY);
+            int step = 0;
+            long finishTime = -1;
+
+            while (finishTime == -1 || deterministicTaskQueue.getCurrentTimeMillis() <= finishTime) {
+                step++;
+                if (randomSteps <= step && finishTime == -1) {
+                    finishTime = deterministicTaskQueue.getLatestDeferredExecutionTime();
+                    deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
+                    logger.debug("----> [runRandomly {}] reducing delay variability and running until [{}]", step, finishTime);
+                }
+
+                try {
+                    if (rarely()) {
+                        final ClusterNode clusterNode = getAnyNodePreferringLeaders();
+                        final int newValue = randomInt();
+                        logger.debug("----> [runRandomly {}] proposing new value [{}] to [{}]", step, newValue, clusterNode.getId());
+                        clusterNode.submitValue(newValue);
+                    } else if (rarely()) {
+                        final ClusterNode clusterNode = getAnyNode();
+                        logger.debug("----> [runRandomly {}] forcing {} to become candidate", step, clusterNode.getId());
+                        synchronized (clusterNode.coordinator.mutex) {
+                            clusterNode.coordinator.becomeCandidate("runRandomly");
+                        }
+                    } else if (rarely()) {
+                        final ClusterNode clusterNode = getAnyNode();
+                        final String id = clusterNode.getId();
+                        disconnectedNodes.remove(id);
+                        blackholedNodes.remove(id);
+
+                        switch (randomInt(2)) {
+                            case 0:
+                                logger.debug("----> [runRandomly {}] connecting", step, id);
+                                break;
+                            case 1:
+                                logger.debug("----> [runRandomly {}] disconnecting", step, id);
+                                disconnectedNodes.add(id);
+                                break;
+                            case 2:
+                                logger.debug("----> [runRandomly {}] blackholing", step, id);
+                                blackholedNodes.add(id);
+                                break;
+                        }
+                    } else {
+                        if (deterministicTaskQueue.hasDeferredTasks() && randomBoolean()) {
+                            deterministicTaskQueue.advanceTime();
+                        } else if (deterministicTaskQueue.hasRunnableTasks()) {
+                            deterministicTaskQueue.runRandomTask();
+                        }
+                    }
+
+                    // TODO other random steps:
+                    // - reboot a node
+                    // - abdicate leadership
+                    // - bootstrap
+
+                } catch (CoordinationStateRejectedException ignored) {
+                    // This is ok: it just means a message couldn't currently be handled.
+                }
+
+                assertConsistentStates();
+            }
+
+            disconnectedNodes.clear();
+            blackholedNodes.clear();
+        }
+
+        private void assertConsistentStates() {
+            for (final ClusterNode clusterNode : clusterNodes) {
+                clusterNode.coordinator.invariant();
+            }
+            updateCommittedStates();
+        }
+
+        private void updateCommittedStates() {
+            for (final ClusterNode clusterNode : clusterNodes) {
+                Optional<ClusterState> committedState = clusterNode.coordinator.getLastCommittedState();
+                if (committedState.isPresent()) {
+                    ClusterState storedState = committedStatesByVersion.get(committedState.get().getVersion());
+                    if (storedState == null) {
+                        committedStatesByVersion.put(committedState.get().getVersion(), committedState.get());
+                    } else {
+                        assertEquals("expected " + committedState.get() + " but got " + storedState,
+                            value(committedState.get()), value(storedState));
+                    }
+                }
             }
         }
 
@@ -428,12 +533,26 @@ public class CoordinatorTests extends ESTestCase {
             return connectionStatus;
         }
 
+        ClusterNode getAnyNode() {
+            return getAnyNodeExcept();
+        }
+
         ClusterNode getAnyNodeExcept(ClusterNode... clusterNodes) {
             Set<String> forbiddenIds = Arrays.stream(clusterNodes).map(ClusterNode::getId).collect(Collectors.toSet());
             List<ClusterNode> acceptableNodes
                 = this.clusterNodes.stream().filter(n -> forbiddenIds.contains(n.getId()) == false).collect(Collectors.toList());
             assert acceptableNodes.isEmpty() == false;
             return randomFrom(acceptableNodes);
+        }
+
+        ClusterNode getAnyNodePreferringLeaders() {
+            for (int i = 0; i < 3; i++) {
+                ClusterNode clusterNode = getAnyNode();
+                if (clusterNode.coordinator.getMode() == LEADER) {
+                    return clusterNode;
+                }
+            }
+            return getAnyNode();
         }
 
         class ClusterNode extends AbstractComponent {
@@ -538,7 +657,7 @@ public class CoordinatorTests extends ESTestCase {
             }
 
             boolean isLeader() {
-                return coordinator.getMode() == Coordinator.Mode.LEADER;
+                return coordinator.getMode() == LEADER;
             }
 
             void submitValue(final long value) {

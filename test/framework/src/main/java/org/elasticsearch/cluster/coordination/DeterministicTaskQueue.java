@@ -50,6 +50,7 @@ public class DeterministicTaskQueue extends AbstractComponent {
     private long currentTimeMillis;
     private long nextDeferredTaskExecutionTimeMillis = Long.MAX_VALUE;
     private long executionDelayVariabilityMillis;
+    private long latestDeferredExecutionTime;
 
     public DeterministicTaskQueue(Settings settings, Random random) {
         super(settings);
@@ -149,6 +150,7 @@ public class DeterministicTaskQueue extends AbstractComponent {
 
     private void scheduleDeferredTask(DeferredTask deferredTask) {
         nextDeferredTaskExecutionTimeMillis = Math.min(nextDeferredTaskExecutionTimeMillis, deferredTask.getExecutionTimeMillis());
+        latestDeferredExecutionTime = Math.max(latestDeferredExecutionTime, deferredTask.getExecutionTimeMillis());
         deferredTasks.add(deferredTask);
     }
 
@@ -161,6 +163,7 @@ public class DeterministicTaskQueue extends AbstractComponent {
 
         logger.trace("advanceTime: from [{}ms] to [{}ms]", currentTimeMillis, nextDeferredTaskExecutionTimeMillis);
         currentTimeMillis = nextDeferredTaskExecutionTimeMillis;
+        assert currentTimeMillis <= latestDeferredExecutionTime : latestDeferredExecutionTime + " < " + currentTimeMillis;
 
         nextDeferredTaskExecutionTimeMillis = Long.MAX_VALUE;
         List<DeferredTask> remainingDeferredTasks = new ArrayList<>();
@@ -416,6 +419,10 @@ public class DeterministicTaskQueue extends AbstractComponent {
                 throw new UnsupportedOperationException();
             }
         };
+    }
+
+    public long getLatestDeferredExecutionTime() {
+        return latestDeferredExecutionTime;
     }
 
     private static class DeferredTask {

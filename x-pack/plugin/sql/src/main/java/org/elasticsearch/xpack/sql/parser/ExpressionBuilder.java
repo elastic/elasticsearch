@@ -689,11 +689,17 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     private boolean hasMinusFromParent(SqlBaseParser.NumberContext ctx) {
         ParserRuleContext parentCtx = ctx.getParent();
-        while (parentCtx != null) {
-            if (parentCtx instanceof ArithmeticUnaryContext) {
-                return ((ArithmeticUnaryContext) parentCtx).MINUS() != null;
-            }
+        if (parentCtx != null && parentCtx instanceof SqlBaseParser.NumericLiteralContext) {
             parentCtx = parentCtx.getParent();
+            if (parentCtx != null && parentCtx instanceof SqlBaseParser.ConstantDefaultContext) {
+                parentCtx = parentCtx.getParent();
+                if (parentCtx != null && parentCtx instanceof SqlBaseParser.ValueExpressionDefaultContext) {
+                    parentCtx = parentCtx.getParent();
+                    if (parentCtx != null && parentCtx instanceof SqlBaseParser.ArithmeticUnaryContext) {
+                        return ((ArithmeticUnaryContext) parentCtx).MINUS() != null;
+                    }
+                }
+            }
         }
         return false;
     }

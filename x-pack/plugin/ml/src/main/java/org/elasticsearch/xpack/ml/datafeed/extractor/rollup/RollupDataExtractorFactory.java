@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationData
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -80,25 +81,12 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
             .collect(Collectors.toSet());
 
         AggregationValidator aggregationValidator = new AggregationValidator(datafeed, rollupJobConfigs);
-
-        String histogramError = aggregationValidator.validateDatafeedHistogramAgg();
-        if (histogramError != null) {
-            listener.onFailure(new IllegalArgumentException(histogramError));
-            return;
+        List<String> validationErrors = aggregationValidator.validate();
+        if (validationErrors.isEmpty() == false) {
+            listener.onFailure(new IllegalArgumentException(Strings.collectionToDelimitedString(validationErrors, " ")));
+        } else {
+            listener.onResponse(new RollupDataExtractorFactory(client, datafeed, job));
         }
-
-        String intervalError = aggregationValidator.validateIntervals();
-        if (intervalError != null) {
-            listener.onFailure(new IllegalArgumentException(intervalError));
-            return;
-        }
-        String aggregationError = aggregationValidator.validateAggregations();
-        if (aggregationError != null) {
-            listener.onFailure(new IllegalArgumentException(aggregationError));
-            return;
-        }
-
-        listener.onResponse(new RollupDataExtractorFactory(client, datafeed, job));
     }
 
     /**
@@ -106,20 +94,18 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
      */
     private static class AggregationValidator {
 
-        final private AggregationBuilder datafeedHistogramAggregation;
-        final long datafeedInterval;
-        final String timeField;
-        List<AggregationBuilder> datafeedAggregations;
-        final Set<RollupJobConfig> rollupJobConfigs;
-        final Set<String> supportedTerms;
-        final Set<String> supportedMetrics;
-        final List<String> aggregationErrors = new ArrayList<>();
+        private final AggregationBuilder datafeedHistogramAggregation;
+        private final long datafeedInterval;
+        private final Collection<AggregationBuilder> datafeedAggregations;
+        private final Set<RollupJobConfig> rollupJobConfigs;
+        private final Set<String> supportedTerms;
+        private final Set<String> supportedMetrics;
+        private List<String> aggregationErrors = new ArrayList<>();
 
-        private AggregationValidator(DatafeedConfig datafeed, Set<RollupJobConfig> rollupJobConfigs) {
+        AggregationValidator(DatafeedConfig datafeed, Set<RollupJobConfig> rollupJobConfigs) {
             // Has to be a date_histogram for aggregation
             datafeedHistogramAggregation = getHistogramAggregation(datafeed.getAggregations().getAggregatorFactories());
             datafeedInterval = getHistogramIntervalMillis(datafeedHistogramAggregation);
-            timeField = ((ValuesSourceAggregationBuilder) datafeedHistogramAggregation).field();
             datafeedAggregations = datafeed.getAggregations().getAggregatorFactories();
             this.rollupJobConfigs = rollupJobConfigs;
             List<Set<String>> metricSets = new ArrayList<>();
@@ -147,44 +133,47 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
             });
         }
 
-        private String validateDatafeedHistogramAgg() {
-            if (datafeedHistogramAggregation instanceof DateHistogramAggregationBuilder) {
-                return null;
-            }
-            return "Rollup requires that the datafeed configuration use a [date_histogram] aggregation," +
-                " not a [histogram] aggregation over the time field.";
+        List<String> validate() {
+            List<String> validationErrors = new ArrayList<>();
+            aggregationErrors = new ArrayList<>();
+            validateDatafeedHistogramAgg(validationErrors);
+            validateIntervals(validationErrors);
+            validateAggregations(validationErrors);
+            return validationErrors;
         }
 
-        private String validateIntervals() {
+        private void validateDatafeedHistogramAgg(List<String> validationErrors) {
+            if ((datafeedHistogramAggregation instanceof DateHistogramAggregationBuilder) == false) {
+                validationErrors.add("Rollup requires that the datafeed configuration use a [date_histogram] aggregation," +
+                    " not a [histogram] aggregation over the time field.");
+            }
+        }
+
+        private void validateIntervals(List<String> validationErrors) {
             for (RollupJobConfig rollupJobConfig : rollupJobConfigs) {
                 long interval = validateAndGetCalendarInterval(rollupJobConfig.getGroupConfig()
                     .getDateHistogram()
                     .getInterval()
                     .toString());
                 if (datafeedInterval % interval > 0) {
-                    return "Rollup Job [" + rollupJobConfig.getId() + "] has an interval that is not a multiple of the dataframe interval";
+                    validationErrors.add(
+                        "Rollup Job [" + rollupJobConfig.getId() + "] has an interval that is not a multiple of the dataframe interval.");
                 }
             }
-            return null;
         }
 
-        private String validateAggregations() {
-            verifyAggregationsHelper(datafeedAggregations, false);
-            if (aggregationErrors.isEmpty()) {
-                return null;
+        private void validateAggregations(List<String> validationErrors) {
+            verifyAggregationsHelper(datafeedAggregations);
+            if (aggregationErrors.isEmpty() == false) {
+                validationErrors.add("Rollup indexes do not support the following aggregations: " +
+                    Strings.collectionToCommaDelimitedString(aggregationErrors) + ".");
             }
-            return "Rollup indexes do not support: " + Strings.collectionToCommaDelimitedString(aggregationErrors);
         }
 
-        private void verifyAggregationsHelper(final List<AggregationBuilder> datafeedAggregations, final boolean parentIsHistogram) {
+        private void verifyAggregationsHelper(final Collection<AggregationBuilder> datafeedAggregations) {
             for (AggregationBuilder aggregationBuilder : datafeedAggregations) {
                 String type = aggregationBuilder.getType();
                 String field = ((ValuesSourceAggregationBuilder) aggregationBuilder).field();
-                // The required max Time field for the base histogram
-                if (parentIsHistogram && field.equals(timeField) && type.equals("max")) {
-                    continue;
-                }
-                // what about buckets?
                 if ((aggregationBuilder instanceof HistogramAggregationBuilder ||
                     aggregationBuilder instanceof DateHistogramAggregationBuilder) == false) {
                     if (aggregationBuilder instanceof TermsAggregationBuilder) {
@@ -197,7 +186,7 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
                         }
                     }
                 }
-                verifyAggregationsHelper(aggregationBuilder.getSubAggregations(), aggregationBuilder.equals(datafeedHistogramAggregation));
+                verifyAggregationsHelper(aggregationBuilder.getSubAggregations());
             }
         }
     }

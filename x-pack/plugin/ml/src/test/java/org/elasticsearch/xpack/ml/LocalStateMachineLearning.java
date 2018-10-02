@@ -5,15 +5,30 @@
  */
 package org.elasticsearch.xpack.ml;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.security.Security;
 
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+
 
 public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
 
@@ -50,6 +65,34 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
             @Override
             protected XPackLicenseState getLicenseState() { return thisVar.getLicenseState(); }
         });
+        plugins.add(new MockedRollupPlugin());
+
     }
-}
+
+    public static class MockedRollupPlugin extends Plugin implements ActionPlugin {
+
+        @Override
+        public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+            return Arrays.asList(
+                new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, MockedRollupIndexCapsTransport.class)
+            );
+        }
+
+        public static class MockedRollupIndexCapsTransport
+            extends TransportAction<GetRollupIndexCapsAction.Request, GetRollupIndexCapsAction.Response> {
+
+            @Inject
+            public MockedRollupIndexCapsTransport(Settings settings, TransportService transportService) {
+                super(settings, GetRollupIndexCapsAction.NAME, new ActionFilters(new HashSet<>()), transportService.getTaskManager());
+            }
+
+            @Override
+            protected void doExecute(Task task,
+                                     GetRollupIndexCapsAction.Request request,
+                                     ActionListener<GetRollupIndexCapsAction.Response> listener) {
+                listener.onResponse(new GetRollupIndexCapsAction.Response());
+            }
+        }
+    }
+    }
 

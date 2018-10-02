@@ -146,6 +146,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         // test that license restricted apis do now work
         Settings settings = internalCluster().transportClient().settings();
         try (TransportClient client = new TestXPackTransportClient(settings, LocalStateMachineLearning.class)) {
+
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
             new MachineLearningClient(client).putJob(new PutJobAction.Request(createJob(jobId)), putJobListener);

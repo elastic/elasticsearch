@@ -59,12 +59,15 @@ public interface DataExtractorFactory {
             listener::onFailure
         );
 
-        ClientHelper.<GetRollupIndexCapsAction.Response> executeWithHeaders(datafeed.getHeaders(), ClientHelper.ML_ORIGIN, client, () -> {
-            client.execute(GetRollupIndexCapsAction.INSTANCE,
-                new GetRollupIndexCapsAction.Request(datafeed.getIndices().toArray(new String[datafeed.getIndices().size()])),
-                    getRollupIndexCapsActionHandler);
-            // This response gets discarded - the listener handles the real response
-            return null;
-        });
+        GetRollupIndexCapsAction.Request request =
+            new GetRollupIndexCapsAction.Request(datafeed.getIndices().toArray(new String[datafeed.getIndices().size()]));
+
+        ClientHelper.<GetRollupIndexCapsAction.Request, GetRollupIndexCapsAction.Response, GetRollupIndexCapsAction.RequestBuilder>
+            executeAsyncWithOrigin(
+                client,
+                ClientHelper.ML_ORIGIN,
+                GetRollupIndexCapsAction.INSTANCE,
+                request,
+                getRollupIndexCapsActionHandler);
     }
 }

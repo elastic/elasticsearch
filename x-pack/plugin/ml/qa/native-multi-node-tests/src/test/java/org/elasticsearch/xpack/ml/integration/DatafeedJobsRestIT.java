@@ -31,6 +31,7 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.rollup.RollupRestTestStateCleaner.clearRollupMetadata;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -736,16 +737,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":2"));
         assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":2"));
 
-        client().performRequest(new Request("POST", "/_xpack/rollup/job/" + rollupJobId + "/_stop"));
-        assertBusy(() -> {
-            Response getRollup = client().performRequest(new Request("GET", "/_xpack/rollup/job/" + rollupJobId));
-            assertThat(EntityUtils.toString(getRollup.getEntity()), containsString("\"job_state\":\"stopped\""));
-        });
-        client().performRequest(new Request("DELETE", "/_xpack/rollup/job/" + rollupJobId));
-        assertBusy(() -> {
-            Response getRollup = client().performRequest(new Request("GET", "/_xpack/rollup/job/" + rollupJobId));
-            assertThat(EntityUtils.toString(getRollup.getEntity()), equalTo("{\"jobs\":[]}"));
-        });
+        clearRollupMetadata(adminClient());
     }
 
     public void testRealtime() throws Exception {

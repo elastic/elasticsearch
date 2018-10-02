@@ -45,6 +45,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Matchers.any;
@@ -205,7 +206,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         MaxAggregationBuilder myField = AggregationBuilders.max("myField").field("myField");
         TermsAggregationBuilder myTerm = AggregationBuilders.terms("termAgg").field("termField").subAggregation(myField);
         datafeedConfig.setAggregations(AggregatorFactories.builder().addAggregator(
-            AggregationBuilders.histogram("time").interval(600_000).subAggregation(maxTime).subAggregation(myTerm).field("time")));
+            AggregationBuilders.dateHistogram("time").interval(600_000).subAggregation(maxTime).subAggregation(myTerm).field("time")));
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
             dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(RollupDataExtractorFactory.class)),
             e -> fail()
@@ -225,7 +226,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         MaxAggregationBuilder myField = AggregationBuilders.max("myField").field("myField");
         TermsAggregationBuilder myTerm = AggregationBuilders.terms("termAgg").field("termField").subAggregation(myField);
         datafeedConfig.setAggregations(AggregatorFactories.builder().addAggregator(
-            AggregationBuilders.histogram("time").interval(600_000).subAggregation(maxTime).subAggregation(myTerm).field("time")));
+            AggregationBuilders.dateHistogram("time").interval(600_000).subAggregation(maxTime).subAggregation(myTerm).field("time")));
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
             dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class)),
             e -> fail()
@@ -265,11 +266,12 @@ public class DataExtractorFactoryTests extends ESTestCase {
         MaxAggregationBuilder myField = AggregationBuilders.max("myField").field("myField");
         TermsAggregationBuilder myTerm = AggregationBuilders.terms("termAgg").field("termField").subAggregation(myField);
         datafeedConfig.setAggregations(AggregatorFactories.builder().addAggregator(
-            AggregationBuilders.histogram("time").interval(600_000).subAggregation(maxTime).subAggregation(myTerm).field("time")));
+            AggregationBuilders.dateHistogram("time").interval(600_000).subAggregation(maxTime).subAggregation(myTerm).field("time")));
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
             dataExtractorFactory -> fail(),
             e -> {
-                assertThat(e.getMessage(), equalTo("Rollup Job [rollupJob1] has an interval that is not a multiple of the dataframe interval"));
+                assertThat(e.getMessage(),
+                    containsString("Rollup Job [rollupJob1] has an interval that is not a multiple of the dataframe interval"));
                 assertThat(e, instanceOf(IllegalArgumentException.class));
             }
         );
@@ -288,11 +290,12 @@ public class DataExtractorFactoryTests extends ESTestCase {
         MaxAggregationBuilder myField = AggregationBuilders.max("myField").field("myField");
         TermsAggregationBuilder myTerm = AggregationBuilders.terms("termAgg").field("termField").subAggregation(myField);
         datafeedConfig.setAggregations(AggregatorFactories.builder().addAggregator(
-            AggregationBuilders.histogram("time").interval(600_000).subAggregation(maxTime).subAggregation(myTerm).field("time")));
+            AggregationBuilders.dateHistogram("time").interval(600_000).subAggregation(maxTime).subAggregation(myTerm).field("time")));
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
             dataExtractorFactory -> fail(),
             e -> {
-                assertThat(e.getMessage(), equalTo("Rollup indexes do not support: terms aggregation for term [termField]"));
+                assertThat(e.getMessage(),
+                    containsString("terms aggregation for term [termField]"));
                 assertThat(e, instanceOf(IllegalArgumentException.class));
             }
         );
@@ -311,11 +314,11 @@ public class DataExtractorFactoryTests extends ESTestCase {
         MaxAggregationBuilder myField = AggregationBuilders.max("myField").field("otherField");
         TermsAggregationBuilder myTerm = AggregationBuilders.terms("termAgg").field("termField").subAggregation(myField);
         datafeedConfig.setAggregations(AggregatorFactories.builder().addAggregator(
-            AggregationBuilders.histogram("time").interval(600_000).subAggregation(maxTime).subAggregation(myTerm).field("time")));
+            AggregationBuilders.dateHistogram("time").interval(600_000).subAggregation(maxTime).subAggregation(myTerm).field("time")));
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
             dataExtractorFactory -> fail(),
             e -> {
-                assertThat(e.getMessage(), equalTo("Rollup indexes do not support: metric [max] for field [otherField]"));
+                assertThat(e.getMessage(), containsString("metric [max] for field [otherField]"));
                 assertThat(e, instanceOf(IllegalArgumentException.class));
             }
         );
@@ -323,7 +326,8 @@ public class DataExtractorFactoryTests extends ESTestCase {
     }
 
     private void givenAggregatableRollup(String field, String type, int minuteInterval, String... groupByTerms) {
-        List<MetricConfig> metricConfigs = Arrays.asList(new MetricConfig(field, Arrays.asList(type)));
+        List<MetricConfig> metricConfigs = Arrays.asList(new MetricConfig(field, Arrays.asList(type)),
+            new MetricConfig("time", Arrays.asList("max")));
         TermsGroupConfig termsGroupConfig = null;
         if (groupByTerms.length > 0) {
             termsGroupConfig = new TermsGroupConfig(groupByTerms);
@@ -333,7 +337,8 @@ public class DataExtractorFactoryTests extends ESTestCase {
             "myIndex_rollup",
             "*/30 * * * * ?",
             300,
-            new GroupConfig(new DateHistogramGroupConfig("@timestamp", DateHistogramInterval.minutes(minuteInterval)), null, termsGroupConfig),
+            new GroupConfig(
+                new DateHistogramGroupConfig("@timestamp", DateHistogramInterval.minutes(minuteInterval)), null, termsGroupConfig),
             metricConfigs,
             null);
         RollupJobCaps rollupJobCaps = new RollupJobCaps(rollupJobConfig);

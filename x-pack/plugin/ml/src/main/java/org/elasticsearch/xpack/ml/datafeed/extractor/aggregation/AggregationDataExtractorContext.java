@@ -15,17 +15,17 @@ import java.util.Set;
 
 public class AggregationDataExtractorContext {
 
-    final public String jobId;
-    final public String timeField;
-    final public Set<String> fields;
-    final public String[] indices;
-    final public String[] types;
-    final public QueryBuilder query;
-    final public AggregatorFactories.Builder aggs;
-    final public long start;
-    final public long end;
-    final public boolean includeDocCount;
-    final public Map<String, String> headers;
+    public final String jobId;
+    public final String timeField;
+    public final Set<String> fields;
+    public final String[] indices;
+    public final String[] types;
+    public final QueryBuilder query;
+    public final AggregatorFactories.Builder aggs;
+    public final long start;
+    public final long end;
+    public final boolean includeDocCount;
+    public final Map<String, String> headers;
 
     public AggregationDataExtractorContext(String jobId, String timeField, Set<String> fields, List<String> indices, List<String> types,
                                     QueryBuilder query, AggregatorFactories.Builder aggs, long start, long end, boolean includeDocCount,

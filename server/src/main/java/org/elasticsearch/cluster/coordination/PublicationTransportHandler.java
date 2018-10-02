@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,7 +30,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 public class PublicationTransportHandler {
@@ -41,7 +42,8 @@ public class PublicationTransportHandler {
 
     public PublicationTransportHandler(TransportService transportService,
                                        Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest,
-                                       Consumer<ApplyCommitRequest> handleApplyCommit) {
+                                       BiConsumer<ApplyCommitRequest, ActionListener<Void>> handleApplyCommit,
+                                       Logger logger) {
         this.transportService = transportService;
 
         transportService.registerRequestHandler(PUBLISH_STATE_ACTION_NAME, ThreadPool.Names.GENERIC, false, false,
@@ -50,10 +52,27 @@ public class PublicationTransportHandler {
 
         transportService.registerRequestHandler(COMMIT_STATE_ACTION_NAME, ThreadPool.Names.GENERIC, false, false,
             ApplyCommitRequest::new,
-            (request, channel, task) -> {
-                handleApplyCommit.accept(request);
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
-            });
+            (request, channel, task) -> handleApplyCommit.accept(request, new ActionListener<Void>() {
+
+                @Override
+                public void onResponse(Void aVoid) {
+                    try {
+                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                    } catch (IOException e) {
+                        logger.debug("failed to send response on commit", e);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        channel.sendResponse(e);
+                    } catch (IOException ie) {
+                        e.addSuppressed(ie);
+                        logger.debug("failed to send response on commit", e);
+                    }
+                }
+            }));
     }
 
     public void sendPublishRequest(DiscoveryNode destination, PublishRequest publishRequest,

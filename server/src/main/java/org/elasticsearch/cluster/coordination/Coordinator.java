@@ -22,6 +22,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -30,6 +31,8 @@ import org.elasticsearch.cluster.coordination.JoinHelper.InitialJoinAccumulator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.service.ClusterApplier;
+import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -39,6 +42,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -60,6 +64,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_WRITES;
+import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+
 public class Coordinator extends AbstractLifecycleComponent implements Discovery {
 
     // the timeout for the publication of each value
@@ -77,6 +84,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     final Object mutex = new Object();
     final SetOnce<CoordinationState> coordinationState = new SetOnce<>(); // initialized on start-up (see doStart)
     private volatile Optional<ClusterState> lastCommittedState = Optional.empty();
+    private volatile ClusterState applierState; // the state that should be exposed to the cluster state applier
 
     private final PeerFinder peerFinder;
     private final PreVoteCollector preVoteCollector;
@@ -86,6 +94,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final PublicationTransportHandler publicationHandler;
     private final LeaderChecker leaderChecker;
     private final FollowersChecker followersChecker;
+    private final ClusterApplier clusterApplier;
     @Nullable
     private Releasable electionScheduler;
     @Nullable
@@ -102,7 +111,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     public Coordinator(Settings settings, TransportService transportService, AllocationService allocationService,
                        MasterService masterService, Supplier<CoordinationState.PersistedState> persistedStateSupplier,
-                       UnicastHostsProvider unicastHostsProvider, Random random) {
+                       UnicastHostsProvider unicastHostsProvider, ClusterApplier clusterApplier, Random random) {
         super(settings);
         this.transportService = transportService;
         this.masterService = masterService;
@@ -118,10 +127,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         configuredHostsResolver = new UnicastConfiguredHostsResolver(settings, transportService, unicastHostsProvider);
         this.peerFinder = new CoordinatorPeerFinder(settings, transportService,
             new HandshakingTransportAddressConnector(settings, transportService), configuredHostsResolver);
-        this.publicationHandler = new PublicationTransportHandler(transportService, this::handlePublishRequest, this::handleApplyCommit);
+        this.publicationHandler = new PublicationTransportHandler(transportService, this::handlePublishRequest, this::handleApplyCommit,
+            logger);
         this.leaderChecker = new LeaderChecker(settings, transportService, getOnLeaderFailure());
         this.followersChecker = new FollowersChecker(settings, transportService, this::onFollowerCheckRequest, this::onFollowerFailure);
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
+        this.clusterApplier = clusterApplier;
         masterService.setClusterStateSupplier(this::getStateForMasterService);
     }
 
@@ -167,13 +178,31 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
-    private void handleApplyCommit(ApplyCommitRequest applyCommitRequest) {
+    private void handleApplyCommit(ApplyCommitRequest applyCommitRequest, ActionListener<Void> applyListener) {
         synchronized (mutex) {
             logger.trace("handleApplyCommit: applying commit {}", applyCommitRequest);
 
             coordinationState.get().handleCommit(applyCommitRequest);
             lastCommittedState = Optional.of(coordinationState.get().getLastAcceptedState());
-            // TODO: send to applier
+            applierState = mode == Mode.CANDIDATE ? clusterStateWithNoMasterBlock(lastCommittedState.get()) : lastCommittedState.get();
+            if (applyCommitRequest.getSourceNode().equals(getLocalNode())) {
+                // master node applies the committed state at the end of the publication process, not here.
+                applyListener.onResponse(null);
+            } else {
+                clusterApplier.onNewClusterState(applyCommitRequest.toString(), () -> applierState,
+                    new ClusterApplyListener() {
+
+                        @Override
+                        public void onFailure(String source, Exception e) {
+                            applyListener.onFailure(e);
+                        }
+
+                        @Override
+                        public void onSuccess(String source) {
+                            applyListener.onResponse(null);
+                        }
+                    });
+            }
         }
     }
 
@@ -299,6 +328,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
             followersChecker.clearCurrentNodes();
             followersChecker.updateFastResponseState(getCurrentTerm(), mode);
+
+            if (applierState.nodes().getMasterNodeId() != null) {
+                applierState = clusterStateWithNoMasterBlock(applierState);
+                clusterApplier.onNewClusterState("becoming candidate: " + method, () -> applierState, (source, e) -> {
+                });
+            }
         }
 
         preVoteCollector.update(getPreVoteResponse(), null);
@@ -385,10 +420,20 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     @Override
     protected void doStart() {
-        CoordinationState.PersistedState persistedState = persistedStateSupplier.get();
-        coordinationState.set(new CoordinationState(settings, getLocalNode(), persistedState));
-        peerFinder.setCurrentTerm(getCurrentTerm());
-        configuredHostsResolver.start();
+        synchronized (mutex) {
+            CoordinationState.PersistedState persistedState = persistedStateSupplier.get();
+            coordinationState.set(new CoordinationState(settings, getLocalNode(), persistedState));
+            peerFinder.setCurrentTerm(getCurrentTerm());
+            configuredHostsResolver.start();
+            ClusterState initialState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
+                .blocks(ClusterBlocks.builder()
+                    .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
+                    .addGlobalBlock(NO_MASTER_BLOCK_WRITES))
+                .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()))
+                .build();
+            applierState = initialState;
+            clusterApplier.setInitialState(initialState);
+        }
     }
 
     @Override
@@ -419,6 +464,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             assert peerFinder.getCurrentTerm() == getCurrentTerm();
             assert followersChecker.getFastResponseState().term == getCurrentTerm() : followersChecker.getFastResponseState();
             assert followersChecker.getFastResponseState().mode == getMode() : followersChecker.getFastResponseState();
+            if (lastCommittedState.isPresent()) {
+                assert applierState != null;
+                assert lastCommittedState.get().term() == applierState.term();
+                assert lastCommittedState.get().version() == applierState.version();
+            }
+            assert mode != Mode.CANDIDATE || applierState.nodes().getMasterNodeId() == null;
+            assert (applierState.nodes().getMasterNodeId() == null) == applierState.blocks().hasGlobalBlock(NO_MASTER_BLOCK_WRITES.id());
             if (mode == Mode.LEADER) {
                 final boolean becomingMaster = getStateForMasterService().term() != getCurrentTerm();
 
@@ -524,7 +576,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 "NO_MASTER_BLOCK should only be added by Coordinator";
             // TODO: allow dynamically configuring NO_MASTER_BLOCK_ALL
             final ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(clusterState.blocks()).addGlobalBlock(
-                DiscoverySettings.NO_MASTER_BLOCK_WRITES).build();
+                NO_MASTER_BLOCK_WRITES).build();
             final DiscoveryNodes discoveryNodes = new DiscoveryNodes.Builder(clusterState.nodes()).masterNodeId(null).build();
             return ClusterState.builder(clusterState).blocks(clusterBlocks).nodes(discoveryNodes).build();
         } else {
@@ -593,42 +645,68 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 final Publication publication = new Publication(settings, publishRequest, wrappedAckListener,
                     transportService.getThreadPool()::relativeTimeInMillis) {
 
+                    final Publication thisPublication = this;
+
+                    private void failPublicationAndPossiblyBecomeCandidate(String reason) {
+                        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+
+                        assert currentPublication.get() == this;
+                        currentPublication = Optional.empty();
+
+                        // check if node has not already switched modes (by bumping term)
+                        if (mode == Mode.LEADER && publishRequest.getAcceptedState().term() == getCurrentTerm()) {
+                            becomeCandidate(reason);
+                        }
+                    }
+
                     @Override
                     protected void onCompletion(boolean committed) {
                         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
                         assert currentPublication.get() == this;
-                        currentPublication = Optional.empty();
-                        updateMaxTermSeen(getCurrentTerm()); // triggers term bump if new term was found during publication
 
                         localNodeAckEvent.addListener(new ActionListener<Void>() {
                             @Override
                             public void onResponse(Void ignore) {
                                 assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-                                assert coordinationState.get().getLastAcceptedTerm() == publishRequest.getAcceptedState().term()
-                                    && coordinationState.get().getLastAcceptedVersion() == publishRequest.getAcceptedState().version()
-                                    : "onPossibleCompletion: term or version mismatch when publishing [" + this
-                                    + "]: current version is now [" + coordinationState.get().getLastAcceptedVersion()
-                                    + "] in term [" + coordinationState.get().getLastAcceptedTerm() + "]";
                                 assert committed;
 
-                                // TODO: send to applier
-                                ackListener.onNodeAck(getLocalNode(), null);
-                                publishListener.onResponse(null);
+                                clusterApplier.onNewClusterState(thisPublication.toString(), () -> applierState,
+                                    new ClusterApplyListener() {
+                                        @Override
+                                        public void onFailure(String source, Exception e) {
+                                            synchronized (mutex) {
+                                                failPublicationAndPossiblyBecomeCandidate("clusterApplier#onNewClusterState");
+                                            }
+                                            ackListener.onNodeAck(getLocalNode(), e);
+                                            publishListener.onFailure(e);
+                                        }
+
+                                        @Override
+                                        public void onSuccess(String source) {
+                                            synchronized (mutex) {
+                                                assert currentPublication.get() == thisPublication;
+                                                currentPublication = Optional.empty();
+                                                // trigger term bump if new term was found during publication
+                                                updateMaxTermSeen(getCurrentTerm());
+                                            }
+
+                                            ackListener.onNodeAck(getLocalNode(), null);
+                                            publishListener.onResponse(null);
+                                        }
+                                    });
                             }
 
                             @Override
                             public void onFailure(Exception e) {
                                 assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-                                if (publishRequest.getAcceptedState().term() == coordinationState.get().getCurrentTerm() &&
-                                    publishRequest.getAcceptedState().version() == coordinationState.get().getLastPublishedVersion()) {
-                                    becomeCandidate("Publication.onCompletion(false)");
-                                }
+                                failPublicationAndPossiblyBecomeCandidate("Publication.onCompletion(false)");
+
                                 FailedToCommitClusterStateException exception = new FailedToCommitClusterStateException(
                                     "publication failed", e);
                                 ackListener.onNodeAck(getLocalNode(), exception); // other nodes have acked, but not the master.
                                 publishListener.onFailure(exception);
                             }
-                        }, transportService.getThreadPool().generic());
+                        }, EsExecutors.newDirectExecutorService());
                     }
 
                     @Override
@@ -667,8 +745,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     }
                 };
 
-                assert currentPublication.isPresent() == false
-                    : "[" + currentPublication.get() + "] in progress, cannot start [" + publication + ']';
                 currentPublication = Optional.of(publication);
 
                 transportService.getThreadPool().schedule(publishTimeout, Names.GENERIC, new Runnable() {
@@ -717,7 +793,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         if (currentPublication.isPresent()) {
             currentPublication.get().onTimeout();
-            assert currentPublication.isPresent() == false;
         }
     }
 

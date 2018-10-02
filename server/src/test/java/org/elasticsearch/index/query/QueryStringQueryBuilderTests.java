@@ -1393,6 +1393,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testCrossFields() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         final QueryShardContext context = createShardContext();
         context.getIndexSettings().updateIndexMetaData(
             newIndexMeta("index", context.getIndexSettings().getSettings(),

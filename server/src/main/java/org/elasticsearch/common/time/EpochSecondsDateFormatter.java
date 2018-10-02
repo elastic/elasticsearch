@@ -61,6 +61,7 @@ public class EpochSecondsDateFormatter implements DateFormatter {
     }
 
     @Override
+<<<<<<< HEAD
     public DateFormatter withZone(ZoneId zoneId) {
         return this;
     }
@@ -71,6 +72,8 @@ public class EpochSecondsDateFormatter implements DateFormatter {
     }
 
     @Override
+=======
+>>>>>>> master
     public String format(TemporalAccessor accessor) {
         Instant instant = Instant.from(accessor);
         if (instant.getNano() != 0) {
@@ -92,6 +95,25 @@ public class EpochSecondsDateFormatter implements DateFormatter {
     @Override
     public ZoneId getZone() {
         return ZoneOffset.UTC;
+<<<<<<< HEAD
+=======
+    }
+
+    @Override
+    public DateFormatter withZone(ZoneId zoneId) {
+        if (zoneId.equals(ZoneOffset.UTC) == false) {
+            throw new IllegalArgumentException(pattern() + " date formatter can only be in zone offset UTC");
+        }
+        return this;
+    }
+
+    @Override
+    public DateFormatter withLocale(Locale locale) {
+        if (Locale.ROOT.equals(locale) == false) {
+            throw new IllegalArgumentException(pattern() + " date formatter can only be in locale ROOT");
+        }
+        return this;
+>>>>>>> master
     }
 
     @Override

@@ -47,7 +47,6 @@ public final class PutRoleMappingRequest implements Validatable, ToXContentObjec
 
     public PutRoleMappingRequest(final String name, final boolean enabled, final List<String> roles, final RoleMapperExpression rules,
             @Nullable final Map<String, Object> metadata, @Nullable final RefreshPolicy refreshPolicy) {
-        super();
         if (Strings.hasText(name) == false) {
             throw new IllegalArgumentException("role-mapping name is missing");
         }

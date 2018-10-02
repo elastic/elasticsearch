@@ -28,7 +28,6 @@ import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalField;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * This is a special formatter to parse the milliseconds since the epoch.

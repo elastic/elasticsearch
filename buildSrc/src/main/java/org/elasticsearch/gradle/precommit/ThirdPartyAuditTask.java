@@ -20,12 +20,12 @@ package org.elasticsearch.gradle.precommit;
 
 import org.apache.commons.io.output.NullOutputStream;
 import org.elasticsearch.gradle.JdkJarHellCheck;
-import org.elasticsearch.test.NamingConventionsCheck;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.FileTree;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
@@ -47,6 +47,7 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class ThirdPartyAuditTask extends DefaultTask {
 
@@ -171,19 +172,30 @@ public class ThirdPartyAuditTask extends DefaultTask {
         File jarExpandDir = getJarExpandDir();
         // We need to clean up to make sure old dependencies don't linger
         getProject().delete(jarExpandDir);
-        jars.forEach(jar ->
+
+        jars.forEach(jar -> {
+            FileTree jarFiles = getProject().zipTree(jar);
             getProject().copy(spec -> {
+                spec.from(jarFiles);
+                spec.into(jarExpandDir);
+                // exclude classes from multi release jars
+                spec.exclude("META-INF/versions/**");
+            });
+            // The order is important, we iterate here so we don't depend on the order in which Gradle executes the spec
+            IntStream.rangeClosed(
+                Integer.parseInt(JavaVersion.VERSION_1_9.getMajorVersion()),
+                Integer.parseInt(targetCompatibility.getMajorVersion())
+            ).forEach(majorVersion -> getProject().copy(spec -> {
                 spec.from(getProject().zipTree(jar));
                 spec.into(jarExpandDir);
-                // Exclude classes for multi release jars above target
-                for (int i = Integer.parseInt(targetCompatibility.getMajorVersion()) + 1;
-                     i <= Integer.parseInt(JavaVersion.VERSION_HIGHER.getMajorVersion());
-                     i++
-                ) {
-                  spec.exclude("META-INF/versions/" + i + "/**");
-                }
-            })
-        );
+                // exclude classes from multi release jars
+                String metaInfPrefix = "META-INF/versions/" + majorVersion;
+                spec.include(metaInfPrefix + "/**");
+                // Drop the version specific prefix
+                spec.eachFile(details -> details.setPath(details.getPath().replace(metaInfPrefix, "")));
+                spec.setIncludeEmptyDirs(false);
+            }));
+        });
     }
 
     private void assertNoJarHell(Set<String> jdkJarHellClasses) {
@@ -276,9 +288,9 @@ public class ThirdPartyAuditTask extends DefaultTask {
     private Set<String> runJdkJarHellCheck() throws IOException {
         ByteArrayOutputStream standardOut = new ByteArrayOutputStream();
         ExecResult execResult = getProject().javaexec(spec -> {
-            URL location = NamingConventionsCheck.class.getProtectionDomain().getCodeSource().getLocation();
+            URL location = JdkJarHellCheck.class.getProtectionDomain().getCodeSource().getLocation();
             if (location.getProtocol().equals("file") == false) {
-                throw new GradleException("Unexpected location for NamingConventionCheck class: " + location);
+                throw new GradleException("Unexpected location for JdkJarHellCheck class: " + location);
             }
             try {
                 spec.classpath(

@@ -3,7 +3,7 @@
 "Search by suggestion and by keyword sub-field should work":
 
   - skip:
-      version: " - 6.99.99"
+      version: " - 6.4.99"
       reason:  "Search by suggestion with multi-fields was introduced 7.0.0"
 
   - do:
@@ -66,7 +66,7 @@
 "Search by suggestion on sub field should work":
 
   - skip:
-      version: " - 6.99.99"
+      version: " - 6.4.99"
       reason:  "Search by suggestion with multi-fields was introduced 7.0.0"
 
   - do:
@@ -118,7 +118,7 @@
 "Search by suggestion on sub field with context should work":
 
   - skip:
-      version: " - 6.99.99"
+      version: " - 6.4.99"
       reason:  "Search by suggestion with multi-fields was introduced 7.0.0"
 
   - do:
@@ -189,7 +189,7 @@
 "Search by suggestion on sub field with weight should work":
 
   - skip:
-      version: " - 6.99.99"
+      version: " - 6.4.99"
       reason:  "Search by suggestion with multi-fields was introduced 7.0.0"
 
   - do:
@@ -247,7 +247,7 @@
 "Search by suggestion on geofield-hash on sub field should work":
 
   - skip:
-      version: " - 6.99.99"
+      version: " - 6.4.99"
       reason:  "Search by suggestion with multi-fields was introduced 7.0.0"
 
   - do:

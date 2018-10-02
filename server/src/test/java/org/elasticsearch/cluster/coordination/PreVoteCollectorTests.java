@@ -68,7 +68,7 @@ public class PreVoteCollectorTests extends ESTestCase {
     @Before
     public void createObjects() {
         Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
-        deterministicTaskQueue = new DeterministicTaskQueue(settings);
+        deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
         final MockTransport mockTransport = new MockTransport() {
             @Override
             protected void onSendRequest(final long requestId, final String action, final TransportRequest request,
@@ -128,7 +128,7 @@ public class PreVoteCollectorTests extends ESTestCase {
     }
 
     private void runCollector() {
-        deterministicTaskQueue.runAllRunnableTasks(random());
+        deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(deterministicTaskQueue.hasDeferredTasks());
         assertFalse(deterministicTaskQueue.hasRunnableTasks());
     }
@@ -275,7 +275,7 @@ public class PreVoteCollectorTests extends ESTestCase {
                 }
             });
 
-        deterministicTaskQueue.runAllRunnableTasks(random());
+        deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(deterministicTaskQueue.hasDeferredTasks());
 
         final PreVoteResponse response = responseRef.get();

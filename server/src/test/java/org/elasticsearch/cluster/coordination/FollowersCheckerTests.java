@@ -68,7 +68,7 @@ public class FollowersCheckerTests extends ESTestCase {
         final DiscoveryNodes[] discoveryNodesHolder
             = new DiscoveryNodes[]{DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build()};
 
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings);
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
 
         final Set<DiscoveryNode> checkedNodes = new HashSet<>();
         final AtomicInteger checkCount = new AtomicInteger();
@@ -98,7 +98,7 @@ public class FollowersCheckerTests extends ESTestCase {
         });
 
         followersChecker.setCurrentNodes(discoveryNodesHolder[0]);
-        deterministicTaskQueue.runAllTasks(random());
+        deterministicTaskQueue.runAllTasks();
 
         assertThat(checkedNodes, empty());
         assertThat(followersChecker.getFaultyNodes(), empty());
@@ -107,7 +107,7 @@ public class FollowersCheckerTests extends ESTestCase {
         followersChecker.setCurrentNodes(discoveryNodesHolder[0] = DiscoveryNodes.builder(discoveryNodesHolder[0]).add(otherNode1).build());
         while (checkCount.get() < 10) {
             if (deterministicTaskQueue.hasRunnableTasks()) {
-                deterministicTaskQueue.runRandomTask(random());
+                deterministicTaskQueue.runRandomTask();
             } else {
                 deterministicTaskQueue.advanceTime();
             }
@@ -121,7 +121,7 @@ public class FollowersCheckerTests extends ESTestCase {
         followersChecker.setCurrentNodes(discoveryNodesHolder[0] = DiscoveryNodes.builder(discoveryNodesHolder[0]).add(otherNode2).build());
         while (checkCount.get() < 10) {
             if (deterministicTaskQueue.hasRunnableTasks()) {
-                deterministicTaskQueue.runRandomTask(random());
+                deterministicTaskQueue.runRandomTask();
             } else {
                 deterministicTaskQueue.advanceTime();
             }
@@ -135,7 +135,7 @@ public class FollowersCheckerTests extends ESTestCase {
             = DiscoveryNodes.builder(discoveryNodesHolder[0]).remove(otherNode1).build());
         while (checkCount.get() < 10) {
             if (deterministicTaskQueue.hasRunnableTasks()) {
-                deterministicTaskQueue.runRandomTask(random());
+                deterministicTaskQueue.runRandomTask();
             } else {
                 deterministicTaskQueue.advanceTime();
             }
@@ -145,7 +145,7 @@ public class FollowersCheckerTests extends ESTestCase {
 
         checkedNodes.clear();
         followersChecker.clearCurrentNodes();
-        deterministicTaskQueue.runAllTasks(random());
+        deterministicTaskQueue.runAllTasks();
         assertThat(checkedNodes, empty());
     }
 
@@ -225,7 +225,7 @@ public class FollowersCheckerTests extends ESTestCase {
         final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getName()).put(testSettings).build();
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings);
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
 
         final MockTransport mockTransport = new MockTransport() {
             @Override
@@ -276,41 +276,41 @@ public class FollowersCheckerTests extends ESTestCase {
             if (deterministicTaskQueue.hasRunnableTasks() == false) {
                 deterministicTaskQueue.advanceTime();
             }
-            deterministicTaskQueue.runAllRunnableTasks(random());
+            deterministicTaskQueue.runAllRunnableTasks();
         }
         assertThat(deterministicTaskQueue.getCurrentTimeMillis(), equalTo(expectedFailureTime));
         assertThat(followersChecker.getFaultyNodes(), contains(otherNode));
 
-        deterministicTaskQueue.runAllTasks(random()); // checks it does not continue checking a failed node
+        deterministicTaskQueue.runAllTasks();
 
         // add another node and see that it schedules checks for this new node but keeps on considering the old one faulty
         final DiscoveryNode otherNode2 = new DiscoveryNode("other-node-2", buildNewFakeTransportAddress(), Version.CURRENT);
         discoveryNodes = DiscoveryNodes.builder(discoveryNodes).add(otherNode2).build();
         followersChecker.setCurrentNodes(discoveryNodes);
-        deterministicTaskQueue.runAllRunnableTasks(random());
+        deterministicTaskQueue.runAllRunnableTasks();
         deterministicTaskQueue.advanceTime();
-        deterministicTaskQueue.runAllRunnableTasks(random());
+        deterministicTaskQueue.runAllRunnableTasks();
         assertThat(followersChecker.getFaultyNodes(), contains(otherNode));
 
         // remove the faulty node and see that it is removed
         discoveryNodes = DiscoveryNodes.builder(discoveryNodes).remove(otherNode).build();
         followersChecker.setCurrentNodes(discoveryNodes);
         assertThat(followersChecker.getFaultyNodes(), empty());
-        deterministicTaskQueue.runAllRunnableTasks(random());
+        deterministicTaskQueue.runAllRunnableTasks();
         deterministicTaskQueue.advanceTime();
-        deterministicTaskQueue.runAllRunnableTasks(random());
+        deterministicTaskQueue.runAllRunnableTasks();
 
         // remove the working node and see that everything eventually stops
         discoveryNodes = DiscoveryNodes.builder(discoveryNodes).remove(otherNode2).build();
         followersChecker.setCurrentNodes(discoveryNodes);
-        deterministicTaskQueue.runAllTasks(random());
+        deterministicTaskQueue.runAllTasks();
 
         // add back the faulty node afresh and see that it fails again
         discoveryNodes = DiscoveryNodes.builder(discoveryNodes).add(otherNode).build();
         followersChecker.setCurrentNodes(discoveryNodes);
         nodeFailed.set(false);
         assertThat(followersChecker.getFaultyNodes(), empty());
-        deterministicTaskQueue.runAllTasks(random());
+        deterministicTaskQueue.runAllTasks();
         assertTrue(nodeFailed.get());
         assertThat(followersChecker.getFaultyNodes(), contains(otherNode));
     }
@@ -333,7 +333,7 @@ public class FollowersCheckerTests extends ESTestCase {
         final DiscoveryNode leader = new DiscoveryNode("leader", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode follower = new DiscoveryNode("follower", buildNewFakeTransportAddress(), Version.CURRENT);
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), follower.getName()).build();
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings);
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
 
         final MockTransport mockTransport = new MockTransport() {
             @Override
@@ -368,7 +368,7 @@ public class FollowersCheckerTests extends ESTestCase {
 
             final ExpectsSuccess expectsSuccess = new ExpectsSuccess();
             transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(term, leader), expectsSuccess);
-            deterministicTaskQueue.runAllTasks(random());
+            deterministicTaskQueue.runAllTasks();
             assertTrue(expectsSuccess.succeeded());
             assertFalse(calledCoordinator.get());
         }
@@ -398,7 +398,7 @@ public class FollowersCheckerTests extends ESTestCase {
                         return Names.SAME;
                     }
                 });
-            deterministicTaskQueue.runAllTasks(random());
+            deterministicTaskQueue.runAllTasks();
             assertFalse(calledCoordinator.get());
             assertThat(receivedException.get(), not(nullValue()));
         }
@@ -412,7 +412,7 @@ public class FollowersCheckerTests extends ESTestCase {
             final ExpectsSuccess expectsSuccess = new ExpectsSuccess();
             transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME,
                 new FollowerCheckRequest(leaderTerm, leader), expectsSuccess);
-            deterministicTaskQueue.runAllTasks(random());
+            deterministicTaskQueue.runAllTasks();
             assertTrue(expectsSuccess.succeeded());
             assertTrue(calledCoordinator.get());
             calledCoordinator.set(false);
@@ -425,7 +425,7 @@ public class FollowersCheckerTests extends ESTestCase {
 
             final ExpectsSuccess expectsSuccess = new ExpectsSuccess();
             transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(term, leader), expectsSuccess);
-            deterministicTaskQueue.runAllTasks(random());
+            deterministicTaskQueue.runAllTasks();
             assertTrue(expectsSuccess.succeeded());
             assertTrue(calledCoordinator.get());
             calledCoordinator.set(false);
@@ -457,7 +457,7 @@ public class FollowersCheckerTests extends ESTestCase {
                         return Names.SAME;
                     }
                 });
-            deterministicTaskQueue.runAllTasks(random());
+            deterministicTaskQueue.runAllTasks();
             assertTrue(calledCoordinator.get());
             assertThat(receivedException.get(), not(nullValue()));
             assertThat(receivedException.get().getRootCause().getMessage(), equalTo(exceptionMessage));

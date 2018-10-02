@@ -45,43 +45,38 @@ import java.util.function.Function;
 public class DeterministicTaskQueue extends AbstractComponent {
 
     private final List<Runnable> runnableTasks = new ArrayList<>();
+    private final Random random;
     private List<DeferredTask> deferredTasks = new ArrayList<>();
     private long currentTimeMillis;
     private long nextDeferredTaskExecutionTimeMillis = Long.MAX_VALUE;
+    private long executionDelayVariabilityMillis;
 
-    public DeterministicTaskQueue(Settings settings) {
+    public DeterministicTaskQueue(Settings settings, Random random) {
         super(settings);
+        this.random = random;
     }
 
-    public void runAllTasks() {
-        while (true) {
-            runAllRunnableTasks();
-            if (hasDeferredTasks()) {
-                advanceTime();
-            } else {
-                break;
-            }
-        }
+    public long getExecutionDelayVariabilityMillis() {
+        return executionDelayVariabilityMillis;
+    }
+
+    public void setExecutionDelayVariabilityMillis(long executionDelayVariabilityMillis) {
+        assert executionDelayVariabilityMillis >= 0 : executionDelayVariabilityMillis;
+        this.executionDelayVariabilityMillis = executionDelayVariabilityMillis;
     }
 
     public void runAllRunnableTasks() {
         while (hasRunnableTasks()) {
-            runNextTask();
+            runRandomTask();
         }
     }
 
-    public void runAllRunnableTasks(Random random) {
-        while (hasRunnableTasks()) {
-            runRandomTask(random);
-        }
-    }
-
-    public void runAllTasks(Random random) {
+    public void runAllTasks() {
         while (hasDeferredTasks() || hasRunnableTasks()) {
             if (hasDeferredTasks() && random.nextBoolean()) {
                 advanceTime();
             } else if (hasRunnableTasks()) {
-                runRandomTask(random);
+                runRandomTask();
             }
         }
     }
@@ -108,17 +103,9 @@ public class DeterministicTaskQueue extends AbstractComponent {
     }
 
     /**
-     * Runs the first runnable task.
-     */
-    public void runNextTask() {
-        assert hasRunnableTasks();
-        runTask(0);
-    }
-
-    /**
      * Runs an arbitrary runnable task.
      */
-    public void runRandomTask(final Random random) {
+    public void runRandomTask() {
         assert hasRunnableTasks();
         runTask(RandomNumbers.randomIntBetween(random, 0, runnableTasks.size() - 1));
     }
@@ -133,23 +120,36 @@ public class DeterministicTaskQueue extends AbstractComponent {
      * Schedule a task for immediate execution.
      */
     public void scheduleNow(final Runnable task) {
-        logger.trace("scheduleNow: adding runnable {}", task);
-        runnableTasks.add(task);
+        if (executionDelayVariabilityMillis > 0 && random.nextBoolean()) {
+            final long executionDelay = RandomNumbers.randomLongBetween(random, 1, executionDelayVariabilityMillis);
+            final DeferredTask deferredTask = new DeferredTask(currentTimeMillis + executionDelay, task);
+            logger.trace("scheduleNow: delaying [{}ms], scheduling {}", executionDelay, deferredTask);
+            scheduleDeferredTask(deferredTask);
+        } else {
+            logger.trace("scheduleNow: adding runnable {}", task);
+            runnableTasks.add(task);
+        }
     }
 
     /**
      * Schedule a task for future execution.
      */
     public void scheduleAt(final long executionTimeMillis, final Runnable task) {
-        if (executionTimeMillis <= currentTimeMillis) {
+        final long extraDelayMillis = RandomNumbers.randomLongBetween(random, 0, executionDelayVariabilityMillis);
+        final long actualExecutionTimeMillis = executionTimeMillis + extraDelayMillis;
+        if (actualExecutionTimeMillis <= currentTimeMillis) {
             logger.trace("scheduleAt: [{}ms] is not in the future, adding runnable {}", executionTimeMillis, task);
             runnableTasks.add(task);
         } else {
-            final DeferredTask deferredTask = new DeferredTask(executionTimeMillis, task);
-            logger.trace("scheduleAt: adding {}", deferredTask);
-            nextDeferredTaskExecutionTimeMillis = Math.min(nextDeferredTaskExecutionTimeMillis, executionTimeMillis);
-            deferredTasks.add(deferredTask);
+            final DeferredTask deferredTask = new DeferredTask(actualExecutionTimeMillis, task);
+            logger.trace("scheduleAt: adding {} with extra delay of [{}ms]", deferredTask, extraDelayMillis);
+            scheduleDeferredTask(deferredTask);
         }
+    }
+
+    private void scheduleDeferredTask(DeferredTask deferredTask) {
+        nextDeferredTaskExecutionTimeMillis = Math.min(nextDeferredTaskExecutionTimeMillis, deferredTask.getExecutionTimeMillis());
+        deferredTasks.add(deferredTask);
     }
 
     /**

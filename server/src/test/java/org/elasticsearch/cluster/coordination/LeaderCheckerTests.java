@@ -93,7 +93,7 @@ public class LeaderCheckerTests extends ESTestCase {
         final Settings settings = settingsBuilder.build();
         logger.info("--> using {}", settings);
 
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings);
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
         final MockTransport mockTransport = new MockTransport() {
 
             int consecutiveFailedRequestsCount;
@@ -149,13 +149,13 @@ public class LeaderCheckerTests extends ESTestCase {
             final long maxCheckCount = randomLongBetween(2, 1000);
             logger.info("--> checking that no failure is detected in {} checks", maxCheckCount);
             while (checkCount.get() < maxCheckCount) {
-                deterministicTaskQueue.runAllRunnableTasks(random());
+                deterministicTaskQueue.runAllRunnableTasks();
                 deterministicTaskQueue.advanceTime();
             }
         }
 
         logger.info("--> running remaining tasks");
-        deterministicTaskQueue.runAllTasks(random());
+        deterministicTaskQueue.runAllTasks();
         assertFalse(leaderFailed.get());
 
         logger.info("--> creating second checker");
@@ -164,11 +164,11 @@ public class LeaderCheckerTests extends ESTestCase {
             final long maxCheckCount = randomLongBetween(2, 1000);
             logger.info("--> checking again that no failure is detected in {} checks", maxCheckCount);
             while (checkCount.get() < maxCheckCount) {
-                deterministicTaskQueue.runAllRunnableTasks(random());
+                deterministicTaskQueue.runAllRunnableTasks();
                 deterministicTaskQueue.advanceTime();
             }
 
-            deterministicTaskQueue.runAllRunnableTasks(random());
+            deterministicTaskQueue.runAllRunnableTasks();
 
             final long failureTime = deterministicTaskQueue.getCurrentTimeMillis();
             allResponsesFail.set(true);
@@ -176,7 +176,7 @@ public class LeaderCheckerTests extends ESTestCase {
 
             while (leaderFailed.get() == false) {
                 deterministicTaskQueue.advanceTime();
-                deterministicTaskQueue.runAllRunnableTasks(random());
+                deterministicTaskQueue.runAllRunnableTasks();
             }
 
             assertThat(deterministicTaskQueue.getCurrentTimeMillis() - failureTime,
@@ -197,7 +197,7 @@ public class LeaderCheckerTests extends ESTestCase {
         final Response[] responseHolder = new Response[]{Response.SUCCESS};
 
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getId()).build();
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings);
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
         final MockTransport mockTransport = new MockTransport() {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
@@ -239,38 +239,38 @@ public class LeaderCheckerTests extends ESTestCase {
 
         try (Releasable ignored = leaderChecker.startLeaderChecker(leader)) {
             while (deterministicTaskQueue.getCurrentTimeMillis() < 10 * LEADER_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).millis()) {
-                deterministicTaskQueue.runAllRunnableTasks(random());
+                deterministicTaskQueue.runAllRunnableTasks();
                 deterministicTaskQueue.advanceTime();
             }
 
-            deterministicTaskQueue.runAllRunnableTasks(random());
+            deterministicTaskQueue.runAllRunnableTasks();
             assertFalse(leaderFailed.get());
 
             responseHolder[0] = Response.REMOTE_ERROR;
 
             deterministicTaskQueue.advanceTime();
-            deterministicTaskQueue.runAllRunnableTasks(random());
+            deterministicTaskQueue.runAllRunnableTasks();
 
             assertTrue(leaderFailed.get());
         }
 
-        deterministicTaskQueue.runAllTasks(random());
+        deterministicTaskQueue.runAllTasks();
         leaderFailed.set(false);
         responseHolder[0] = Response.SUCCESS;
 
         try (Releasable ignored = leaderChecker.startLeaderChecker(leader)) {
             while (deterministicTaskQueue.getCurrentTimeMillis() < 10 * LEADER_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).millis()) {
-                deterministicTaskQueue.runAllRunnableTasks(random());
+                deterministicTaskQueue.runAllRunnableTasks();
                 deterministicTaskQueue.advanceTime();
             }
 
-            deterministicTaskQueue.runAllRunnableTasks(random());
+            deterministicTaskQueue.runAllRunnableTasks();
             assertFalse(leaderFailed.get());
 
             responseHolder[0] = Response.DIRECT_ERROR;
 
             deterministicTaskQueue.advanceTime();
-            deterministicTaskQueue.runAllRunnableTasks(random());
+            deterministicTaskQueue.runAllRunnableTasks();
 
             assertTrue(leaderFailed.get());
         }
@@ -280,7 +280,7 @@ public class LeaderCheckerTests extends ESTestCase {
         final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getId()).build();
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings);
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
         final CapturingTransport capturingTransport = new CapturingTransport();
 
         final TransportService transportService = capturingTransport.createTransportService(settings,
@@ -298,7 +298,7 @@ public class LeaderCheckerTests extends ESTestCase {
 
             final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
-            deterministicTaskQueue.runAllTasks(random());
+            deterministicTaskQueue.runAllTasks();
 
             assertFalse(handler.successfulResponseReceived);
             assertThat(handler.transportException.getRootCause(), instanceOf(CoordinationStateRejectedException.class));
@@ -311,7 +311,7 @@ public class LeaderCheckerTests extends ESTestCase {
 
             final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
-            deterministicTaskQueue.runAllTasks(random());
+            deterministicTaskQueue.runAllTasks();
 
             assertTrue(handler.successfulResponseReceived);
             assertThat(handler.transportException, nullValue());
@@ -322,7 +322,7 @@ public class LeaderCheckerTests extends ESTestCase {
 
             final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
-            deterministicTaskQueue.runAllTasks(random());
+            deterministicTaskQueue.runAllTasks();
 
             assertFalse(handler.successfulResponseReceived);
             assertThat(handler.transportException.getRootCause(), instanceOf(CoordinationStateRejectedException.class));

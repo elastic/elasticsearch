@@ -95,7 +95,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
         List<DisruptableMockTransport> transports = new ArrayList<>();
 
         deterministicTaskQueue = new DeterministicTaskQueue(
-            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "dummy").build());
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "dummy").build(), random());
 
         transport1 = new DisruptableMockTransport(logger) {
             @Override

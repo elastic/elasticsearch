@@ -35,8 +35,10 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider.HostsResolver;
 import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
 import org.elasticsearch.test.ESTestCase;
@@ -63,12 +65,16 @@ import static org.elasticsearch.cluster.coordination.CoordinationStateTests.setV
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.value;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.FOLLOWER;
+import static org.elasticsearch.cluster.coordination.CoordinatorTests.Cluster.DEFAULT_DELAY_VARIABILITY;
+import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_BACK_OFF_TIME_SETTING;
+import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
+import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
@@ -89,7 +95,7 @@ public class CoordinatorTests extends ESTestCase {
 
         logger.info("--> submitting value [{}] to [{}]", finalValue, leader);
         leader.submitValue(finalValue);
-        cluster.stabilise(); // TODO this should only need a short stabilisation
+        cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
 
         for (final ClusterNode clusterNode : cluster.clusterNodes) {
             final String nodeId = clusterNode.getId();
@@ -103,8 +109,15 @@ public class CoordinatorTests extends ESTestCase {
         cluster.stabilise();
 
         final long currentTerm = cluster.getAnyLeader().coordinator.getCurrentTerm();
-        cluster.addNodes(randomIntBetween(1, 2));
-        cluster.stabilise();
+        final int newNodesCount = randomIntBetween(1, 2);
+        cluster.addNodes(newNodesCount);
+        cluster.stabilise(
+            // The first pinging discovers the master
+            defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING)
+                // One message delay to send a join
+                + DEFAULT_DELAY_VARIABILITY
+                // Commit a new cluster state with the new node(s). Might be split into multiple commits
+                + newNodesCount * DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
 
         final long newTerm = cluster.getAnyLeader().coordinator.getCurrentTerm();
         assertEquals(currentTerm, newTerm);
@@ -118,7 +131,30 @@ public class CoordinatorTests extends ESTestCase {
         logger.info("--> disconnecting leader {}", originalLeader);
         originalLeader.disconnect();
 
-        cluster.stabilise();
+        cluster.stabilise(Math.max(
+            // Each follower may have just sent a leader check, which receives no response
+            // TODO not necessary if notified of disconnection
+            defaultMillis(LEADER_CHECK_TIMEOUT_SETTING)
+                // then wait for the follower to check the leader
+                + defaultMillis(LEADER_CHECK_INTERVAL_SETTING)
+                // then wait for the exception response
+                + DEFAULT_DELAY_VARIABILITY
+                // then wait for a new election
+                + DEFAULT_ELECTION_DELAY
+                // then wait for the old leader's removal to be committed
+                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY,
+
+            // ALSO the leader may have just sent a follower check, which receives no response
+            // TODO unnecessary if notified of disconnection
+            defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING)
+                // wait for the leader to check its followers
+                + defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING)
+                // then wait for the exception response
+                + DEFAULT_DELAY_VARIABILITY
+                // then wait for the removal to be committed
+                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+            ));
+
         assertThat(cluster.getAnyLeader().getId(), not(equalTo(originalLeader.getId())));
     }
 
@@ -130,13 +166,24 @@ public class CoordinatorTests extends ESTestCase {
         logger.info("--> partitioning leader {}", originalLeader);
         originalLeader.partition();
 
-        cluster.stabilise(
+        cluster.stabilise(Math.max(
             // first wait for all the followers to notice the leader has gone
-            (LEADER_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).millis() + LEADER_CHECK_TIMEOUT_SETTING.get(Settings.EMPTY).millis())
-            * LEADER_CHECK_RETRY_COUNT_SETTING.get(Settings.EMPTY)
-            // then wait for the new leader to notice that the old leader is unresponsive
-            + (FOLLOWER_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).millis() + FOLLOWER_CHECK_TIMEOUT_SETTING.get(Settings.EMPTY).millis())
-            * FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(Settings.EMPTY));
+            (defaultMillis(LEADER_CHECK_INTERVAL_SETTING) + defaultMillis(LEADER_CHECK_TIMEOUT_SETTING))
+                * defaultInt(LEADER_CHECK_RETRY_COUNT_SETTING)
+                // then wait for a follower to be promoted to leader
+                + DEFAULT_ELECTION_DELAY
+                // then wait for the new leader to notice that the old leader is unresponsive
+                + (defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING))
+                * defaultInt(FOLLOWER_CHECK_RETRY_COUNT_SETTING)
+                // then wait for the new leader to commit a state without the old leader
+                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY,
+
+            // ALSO wait for the leader to notice that its followers are unresponsive
+            (defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING))
+                * defaultInt(FOLLOWER_CHECK_RETRY_COUNT_SETTING)
+                // then wait for the leader to try and commit a state removing them, causing it to stand down
+                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+        ));
         assertThat(cluster.getAnyLeader().getId(), not(equalTo(originalLeader.getId())));
     }
 
@@ -149,7 +196,25 @@ public class CoordinatorTests extends ESTestCase {
         logger.info("--> disconnecting follower {}", follower);
         follower.disconnect();
 
-        cluster.stabilise();
+        cluster.stabilise(Math.max(
+            // the leader may have just sent a follower check, which receives no response
+            // TODO unnecessary if notified of disconnection
+            defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING)
+                // wait for the leader to check the follower
+                + defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING)
+                // then wait for the exception response
+                + DEFAULT_DELAY_VARIABILITY
+                // then wait for the removal to be committed
+                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY,
+
+            // ALSO the follower may have just sent a leader check, which receives no response
+            // TODO not necessary if notified of disconnection
+            defaultMillis(LEADER_CHECK_TIMEOUT_SETTING)
+                // then wait for the follower to check the leader
+                + defaultMillis(LEADER_CHECK_INTERVAL_SETTING)
+                // then wait for the exception response, causing the follower to become a candidate
+                + DEFAULT_DELAY_VARIABILITY
+        ));
         assertThat(cluster.getAnyLeader().getId(), equalTo(leader.getId()));
     }
 
@@ -162,12 +227,61 @@ public class CoordinatorTests extends ESTestCase {
         logger.info("--> partitioning follower {}", follower);
         follower.partition();
 
-        cluster.stabilise(
+        cluster.stabilise(Math.max(
             // wait for the leader to notice that the follower is unresponsive
-            (FOLLOWER_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).millis() + FOLLOWER_CHECK_TIMEOUT_SETTING.get(Settings.EMPTY).millis())
-            * FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(Settings.EMPTY));
+            (defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING))
+                * defaultInt(FOLLOWER_CHECK_RETRY_COUNT_SETTING)
+                // then wait for the leader to commit a state without the follower
+                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY,
+
+            // ALSO wait for the follower to notice the leader is unresponsive
+            (defaultMillis(LEADER_CHECK_INTERVAL_SETTING) + defaultMillis(LEADER_CHECK_TIMEOUT_SETTING))
+                * defaultInt(LEADER_CHECK_RETRY_COUNT_SETTING)
+        ));
         assertThat(cluster.getAnyLeader().getId(), equalTo(leader.getId()));
     }
+
+    private static long defaultMillis(Setting<TimeValue> setting) {
+        return setting.get(Settings.EMPTY).millis() + Cluster.DEFAULT_DELAY_VARIABILITY;
+    }
+
+    private static int defaultInt(Setting<Integer> setting) {
+        return setting.get(Settings.EMPTY);
+    }
+
+    // Updating the cluster state involves up to 5 delays:
+    // 1. submit the task to the master service
+    // 2. send PublishRequest
+    // 3. receive PublishResponse
+    // 4. send ApplyCommitRequest
+    // 5. receive ApplyCommitResponse and apply committed state
+    private static final long DEFAULT_CLUSTER_STATE_UPDATE_DELAY = 5 * DEFAULT_DELAY_VARIABILITY;
+
+    private static final int ELECTION_RETRIES = 10;
+
+    // The time it takes to complete an election
+    private static final long DEFAULT_ELECTION_DELAY
+        // Pinging all peers twice should be enough to discover all nodes
+        = defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2
+        // Then wait for an election to be scheduled; we allow enough time for retries to allow for collisions
+        + defaultMillis(ELECTION_INITIAL_TIMEOUT_SETTING) * ELECTION_RETRIES
+        + defaultMillis(ELECTION_BACK_OFF_TIME_SETTING) * ELECTION_RETRIES * (ELECTION_RETRIES - 1) / 2
+        // Allow two round-trip for pre-voting and voting
+        + 4 * DEFAULT_DELAY_VARIABILITY
+        // Then a commit of the new leader's first cluster state
+        + DEFAULT_CLUSTER_STATE_UPDATE_DELAY;
+
+    private static final long DEFAULT_STABILISATION_TIME =
+        // If leader just blackholed, need to wait for this to be detected
+        (defaultMillis(LEADER_CHECK_INTERVAL_SETTING) + defaultMillis(LEADER_CHECK_TIMEOUT_SETTING))
+            * defaultInt(LEADER_CHECK_RETRY_COUNT_SETTING)
+            // then wait for a follower to be promoted to leader
+            + DEFAULT_ELECTION_DELAY
+            // then wait for the new leader to notice that the old leader is unresponsive
+            + (defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING))
+            * defaultInt(FOLLOWER_CHECK_RETRY_COUNT_SETTING)
+            // then wait for the new leader to commit a state without the old leader
+            + DEFAULT_CLUSTER_STATE_UPDATE_DELAY;
 
     private static String nodeIdFromIndex(int nodeIndex) {
         return "node" + nodeIndex;
@@ -175,18 +289,20 @@ public class CoordinatorTests extends ESTestCase {
 
     class Cluster {
 
-        static final long DEFAULT_STABILISATION_TIME = 3000L; // TODO use a real stabilisation time - needs fault detection and disruption
+        static final long DEFAULT_DELAY_VARIABILITY = 100L;
 
         final List<ClusterNode> clusterNodes;
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
             // TODO does ThreadPool need a node name any more?
-            Settings.builder().put(NODE_NAME_SETTING.getKey(), "deterministic-task-queue").build());
+            Settings.builder().put(NODE_NAME_SETTING.getKey(), "deterministic-task-queue").build(), random());
         private final VotingConfiguration initialConfiguration;
 
         private final Set<String> disconnectedNodes = new HashSet<>();
         private final Set<String> blackholedNodes = new HashSet<>();
 
         Cluster(int initialNodeCount) {
+            deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
+
             logger.info("--> creating cluster of {} nodes", initialNodeCount);
 
             Set<String> initialNodeIds = new HashSet<>(initialNodeCount);
@@ -216,13 +332,16 @@ public class CoordinatorTests extends ESTestCase {
             stabilise(DEFAULT_STABILISATION_TIME);
         }
 
-        void stabilise(long stabilisationTime) {
+        void stabilise(long stabiliationDurationMillis) {
             final long stabilisationStartTime = deterministicTaskQueue.getCurrentTimeMillis();
-            while (deterministicTaskQueue.getCurrentTimeMillis() < stabilisationStartTime + stabilisationTime) {
+            final long stabilisationEndTime = stabilisationStartTime + stabiliationDurationMillis;
+            logger.info("--> stabilising until [{}ms]", stabilisationEndTime);
+
+            while (deterministicTaskQueue.getCurrentTimeMillis() < stabilisationEndTime) {
 
                 while (deterministicTaskQueue.hasRunnableTasks()) {
                     try {
-                        deterministicTaskQueue.runRandomTask(random());
+                        deterministicTaskQueue.runRandomTask();
                     } catch (CoordinationStateRejectedException e) {
                         logger.debug("ignoring benign exception thrown when stabilising", e);
                     }

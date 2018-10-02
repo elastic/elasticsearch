@@ -37,12 +37,15 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.Is.is;
 
 public class DeterministicTaskQueueTests extends ESTestCase {
 
-    public void testRunNextTask() {
+    public void testRunRandomTask() {
         final DeterministicTaskQueue taskQueue = newTaskQueue();
         final List<String> strings = new ArrayList<>(2);
 
@@ -52,24 +55,24 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertThat(strings, empty());
 
         assertTrue(taskQueue.hasRunnableTasks());
-        taskQueue.runNextTask();
-        assertThat(strings, contains("foo"));
+        taskQueue.runRandomTask();
+        assertThat(strings, contains(isOneOf("foo", "bar")));
 
         assertTrue(taskQueue.hasRunnableTasks());
-        taskQueue.runNextTask();
-        assertThat(strings, contains("foo", "bar"));
+        taskQueue.runRandomTask();
+        assertThat(strings, containsInAnyOrder("foo", "bar"));
 
         assertFalse(taskQueue.hasRunnableTasks());
     }
 
-    public void testRunRandomTask() {
+    public void testRunRandomTaskVariesOrder() {
         final List<String> strings1 = getResultsOfRunningRandomly(new Random(4520795446362137264L));
         final List<String> strings2 = getResultsOfRunningRandomly(new Random(266504691902226821L));
         assertThat(strings1, not(equalTo(strings2)));
     }
 
     private List<String> getResultsOfRunningRandomly(Random random) {
-        final DeterministicTaskQueue taskQueue = newTaskQueue();
+        final DeterministicTaskQueue taskQueue = newTaskQueue(random);
         final List<String> strings = new ArrayList<>(4);
 
         taskQueue.scheduleNow(() -> strings.add("foo"));
@@ -80,7 +83,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertThat(strings, empty());
 
         while (taskQueue.hasRunnableTasks()) {
-            taskQueue.runRandomTask(random);
+            taskQueue.runRandomTask();
         }
 
         assertThat(strings, containsInAnyOrder("foo", "bar", "baz", "quux"));
@@ -96,7 +99,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         taskQueue.scheduleAt(randomLongBetween(1, 100), () -> {
         });
         taskQueue.advanceTime();
-        taskQueue.runNextTask();
+        taskQueue.runRandomTask();
         assertFalse(taskQueue.hasRunnableTasks());
         assertFalse(taskQueue.hasDeferredTasks());
     }
@@ -110,7 +113,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         taskQueue.scheduleAt(taskQueue.getCurrentTimeMillis(), () -> strings.add("foo"));
         assertTrue(taskQueue.hasRunnableTasks());
         assertFalse(taskQueue.hasDeferredTasks());
-        taskQueue.runNextTask();
+        taskQueue.runRandomTask();
         assertThat(strings, contains("foo"));
 
         assertFalse(taskQueue.hasRunnableTasks());
@@ -125,7 +128,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         taskQueue.scheduleAt(taskQueue.getCurrentTimeMillis() - randomInt(200), () -> strings.add("foo"));
         assertTrue(taskQueue.hasRunnableTasks());
         assertFalse(taskQueue.hasDeferredTasks());
-        taskQueue.runNextTask();
+        taskQueue.runRandomTask();
         assertThat(strings, contains("foo"));
 
         assertFalse(taskQueue.hasRunnableTasks());
@@ -146,7 +149,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertTrue(taskQueue.hasRunnableTasks());
         assertFalse(taskQueue.hasDeferredTasks());
 
-        taskQueue.runNextTask();
+        taskQueue.runRandomTask();
         assertThat(strings, contains("foo"));
 
         assertFalse(taskQueue.hasRunnableTasks());
@@ -172,7 +175,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertTrue(taskQueue.hasRunnableTasks());
         assertTrue(taskQueue.hasDeferredTasks());
 
-        taskQueue.runNextTask();
+        taskQueue.runRandomTask();
         assertThat(strings, contains("foo"));
         assertFalse(taskQueue.hasRunnableTasks());
         assertTrue(taskQueue.hasDeferredTasks());
@@ -182,7 +185,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertTrue(taskQueue.hasRunnableTasks());
         assertFalse(taskQueue.hasDeferredTasks());
 
-        taskQueue.runNextTask();
+        taskQueue.runRandomTask();
         assertThat(strings, contains("foo", "bar"));
     }
 
@@ -205,7 +208,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertTrue(taskQueue.hasRunnableTasks());
         assertTrue(taskQueue.hasDeferredTasks());
 
-        taskQueue.runNextTask();
+        taskQueue.runRandomTask();
         assertThat(strings, contains("foo"));
         assertFalse(taskQueue.hasRunnableTasks());
         assertTrue(taskQueue.hasDeferredTasks());
@@ -218,9 +221,9 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertTrue(taskQueue.hasRunnableTasks());
         assertTrue(taskQueue.hasDeferredTasks());
 
-        taskQueue.runNextTask();
+        taskQueue.runRandomTask();
         taskQueue.advanceTime();
-        taskQueue.runNextTask();
+        taskQueue.runRandomTask();
         assertThat(strings, contains("foo", "baz", "bar"));
         assertThat(taskQueue.getCurrentTimeMillis(), is(executionTimeMillis2));
         assertFalse(taskQueue.hasRunnableTasks());
@@ -240,7 +243,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertThat(strings, empty());
 
         while (taskQueue.hasRunnableTasks()) {
-            taskQueue.runRandomTask(random());
+            taskQueue.runRandomTask();
         }
 
         assertThat(strings, containsInAnyOrder("foo", "bar"));
@@ -259,7 +262,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertThat(strings, empty());
 
         while (taskQueue.hasRunnableTasks()) {
-            taskQueue.runRandomTask(random());
+            taskQueue.runRandomTask();
         }
 
         assertThat(strings, containsInAnyOrder("foo", "bar"));
@@ -315,7 +318,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         taskQueue.runAllTasks();
 
         assertThat(taskQueue.getCurrentTimeMillis(), is(startTime + delayMillis));
-        assertThat(strings, contains("runnable", "also runnable", "deferred"));
+        assertThat(strings, containsInAnyOrder("runnable", "also runnable", "deferred"));
 
         final long delayMillis1 = randomLongBetween(2, 100);
         final long delayMillis2 = randomLongBetween(1, delayMillis1 - 1);
@@ -333,12 +336,49 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         final ScheduledFuture<?> future = threadPool.schedule(cancelledDelay, "", () -> strings.add("cancelled before execution"));
 
         future.cancel(false);
-        taskQueue.runAllTasks(random());
+        taskQueue.runAllTasks();
 
-        assertThat(strings, contains("runnable", "also runnable", "deferred", "not quite so deferred", "further deferred"));
+        assertThat(strings, containsInAnyOrder("runnable", "also runnable", "deferred", "not quite so deferred", "further deferred"));
+    }
+
+    public void testDelayVariabilityAppliesToImmediateTasks() {
+        final DeterministicTaskQueue deterministicTaskQueue = newTaskQueue();
+        advanceToRandomTime(deterministicTaskQueue);
+        final long variabilityMillis = randomLongBetween(100, 500);
+        deterministicTaskQueue.setExecutionDelayVariabilityMillis(variabilityMillis);
+        for (int i = 0; i < 100; i++) {
+            deterministicTaskQueue.scheduleNow(() -> {});
+        }
+
+        final long startTime = deterministicTaskQueue.getCurrentTimeMillis();
+        deterministicTaskQueue.runAllTasks();
+        final long elapsedTime = deterministicTaskQueue.getCurrentTimeMillis() - startTime;
+        assertThat(elapsedTime, greaterThan(0L)); // fails with negligible probability 2^{-100}
+        assertThat(elapsedTime, lessThanOrEqualTo(variabilityMillis));
+    }
+
+    public void testDelayVariabilityAppliesToFutureTasks() {
+        final DeterministicTaskQueue deterministicTaskQueue = newTaskQueue();
+        advanceToRandomTime(deterministicTaskQueue);
+        final long delayMillis = randomLongBetween(30000, 60000);
+        final long variabilityMillis = randomLongBetween(100, 500);
+        deterministicTaskQueue.setExecutionDelayVariabilityMillis(variabilityMillis);
+        for (int i = 0; i < 100; i++) {
+            deterministicTaskQueue.scheduleAt(delayMillis, () -> {});
+        }
+
+        final long startTime = deterministicTaskQueue.getCurrentTimeMillis();
+        deterministicTaskQueue.runAllTasks();
+        final long elapsedTime = deterministicTaskQueue.getCurrentTimeMillis() - startTime;
+        assertThat(elapsedTime, greaterThan(delayMillis)); // fails with negligible probability
+        assertThat(elapsedTime, lessThanOrEqualTo(delayMillis + variabilityMillis));
     }
 
     private static DeterministicTaskQueue newTaskQueue() {
-        return new DeterministicTaskQueue(Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build());
+        return newTaskQueue(random());
+    }
+
+    private static DeterministicTaskQueue newTaskQueue(Random random) {
+        return new DeterministicTaskQueue(Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build(), random);
     }
 }

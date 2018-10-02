@@ -37,7 +37,7 @@ public class JoinHelperTests extends ESTestCase {
 
     public void testJoinDeduplication() {
         DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
-            Settings.builder().put(NODE_NAME_SETTING.getKey(), "node0").build());
+            Settings.builder().put(NODE_NAME_SETTING.getKey(), "node0").build(), random());
         CapturingTransport capturingTransport = new CapturingTransport();
         DiscoveryNode localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
         TransportService transportService = capturingTransport.createTransportService(Settings.EMPTY,

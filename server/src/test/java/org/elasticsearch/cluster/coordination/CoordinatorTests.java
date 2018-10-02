@@ -44,6 +44,7 @@ import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matcher;
 
@@ -82,6 +83,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
+@TestLogging("org.elasticsearch.cluster.coordination:TRACE,org.elasticsearch.discovery:TRACE")
 public class CoordinatorTests extends ESTestCase {
 
     public void testCanUpdateClusterStateAfterStabilisation() {
@@ -129,15 +131,29 @@ public class CoordinatorTests extends ESTestCase {
         logger.info("--> disconnecting leader {}", originalLeader);
         originalLeader.disconnect();
 
-        cluster.stabilise(
-            // first wait for the follower to check the leader
-            defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING)
+        cluster.stabilise(Math.max(
+            // Each follower may have just sent a leader check, which receives no response
+            // TODO not necessary if notified of disconnection
+            defaultMillis(LEADER_CHECK_TIMEOUT_SETTING)
+                // then wait for the follower to check the leader
+                + defaultMillis(LEADER_CHECK_INTERVAL_SETTING)
                 // then wait for the exception response
                 + DEFAULT_DELAY_VARIABILITY
                 // then wait for a new election
                 + DEFAULT_ELECTION_DELAY
                 // then wait for the old leader's removal to be committed
-                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY,
+
+            // ALSO the leader may have just sent a follower check, which receives no response
+            // TODO unnecessary if notified of disconnection
+            defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING)
+                // wait for the leader to check its followers
+                + defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING)
+                // then wait for the exception response
+                + DEFAULT_DELAY_VARIABILITY
+                // then wait for the removal to be committed
+                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+            ));
 
         assertThat(cluster.getAnyLeader().getId(), not(equalTo(originalLeader.getId())));
     }
@@ -150,7 +166,7 @@ public class CoordinatorTests extends ESTestCase {
         logger.info("--> partitioning leader {}", originalLeader);
         originalLeader.partition();
 
-        cluster.stabilise(
+        cluster.stabilise(Math.max(
             // first wait for all the followers to notice the leader has gone
             (defaultMillis(LEADER_CHECK_INTERVAL_SETTING) + defaultMillis(LEADER_CHECK_TIMEOUT_SETTING))
                 * defaultInt(LEADER_CHECK_RETRY_COUNT_SETTING)
@@ -160,7 +176,14 @@ public class CoordinatorTests extends ESTestCase {
                 + (defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING))
                 * defaultInt(FOLLOWER_CHECK_RETRY_COUNT_SETTING)
                 // then wait for the new leader to commit a state without the old leader
-                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY,
+
+            // ALSO wait for the leader to notice that its followers are unresponsive
+            (defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING))
+                * defaultInt(FOLLOWER_CHECK_RETRY_COUNT_SETTING)
+                // then wait for the leader to try and commit a state removing them, causing it to stand down
+                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+        ));
         assertThat(cluster.getAnyLeader().getId(), not(equalTo(originalLeader.getId())));
     }
 
@@ -173,13 +196,25 @@ public class CoordinatorTests extends ESTestCase {
         logger.info("--> disconnecting follower {}", follower);
         follower.disconnect();
 
-        cluster.stabilise(
-            // first wait for the leader to check the follower
-            defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING)
+        cluster.stabilise(Math.max(
+            // the leader may have just sent a follower check, which receives no response
+            // TODO unnecessary if notified of disconnection
+            defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING)
+                // wait for the leader to check the follower
+                + defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING)
                 // then wait for the exception response
                 + DEFAULT_DELAY_VARIABILITY
                 // then wait for the removal to be committed
-                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY,
+
+            // ALSO the follower may have just sent a leader check, which receives no response
+            // TODO not necessary if notified of disconnection
+            defaultMillis(LEADER_CHECK_TIMEOUT_SETTING)
+                // then wait for the follower to check the leader
+                + defaultMillis(LEADER_CHECK_INTERVAL_SETTING)
+                // then wait for the exception response, causing the follower to become a candidate
+                + DEFAULT_DELAY_VARIABILITY
+        ));
         assertThat(cluster.getAnyLeader().getId(), equalTo(leader.getId()));
     }
 
@@ -192,12 +227,17 @@ public class CoordinatorTests extends ESTestCase {
         logger.info("--> partitioning follower {}", follower);
         follower.partition();
 
-        cluster.stabilise(
+        cluster.stabilise(Math.max(
             // wait for the leader to notice that the follower is unresponsive
             (defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING))
                 * defaultInt(FOLLOWER_CHECK_RETRY_COUNT_SETTING)
                 // then wait for the leader to commit a state without the follower
-                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY,
+
+            // ALSO wait for the follower to notice the leader is unresponsive
+            (defaultMillis(LEADER_CHECK_INTERVAL_SETTING) + defaultMillis(LEADER_CHECK_TIMEOUT_SETTING))
+                * defaultInt(LEADER_CHECK_RETRY_COUNT_SETTING)
+        ));
         assertThat(cluster.getAnyLeader().getId(), equalTo(leader.getId()));
     }
 

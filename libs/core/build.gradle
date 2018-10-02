@@ -48,7 +48,7 @@ if (!isEclipse && !isIdea) {
 
     forbiddenApisJava9 {
         if (project.runtimeJavaVersion < JavaVersion.VERSION_1_9) {
-            targetCompatibility = JavaVersion.VERSION_1_9
+            targetCompatibility = JavaVersion.VERSION_1_9.getMajorVersion()
         }
         replaceSignatureFiles 'jdk-signatures'
     }

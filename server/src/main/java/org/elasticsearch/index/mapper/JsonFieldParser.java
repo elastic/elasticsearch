@@ -75,48 +75,44 @@ public class JsonFieldParser {
 
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentName = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT) {
+            } else {
                 assert currentName != null;
-                path.add(currentName);
-                parseObject(parser, path, fields);
-                path.remove();
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                assert currentName != null;
-                parseArray(parser, path, currentName, fields);
-            }  else if (token.isValue()) {
-                String value = parser.text();
-                addField(path, currentName, value, fields);
-            } else if (token == XContentParser.Token.VALUE_NULL) {
-                String value = fieldType.nullValueAsString();
-                if (value != null) {
-                    addField(path, currentName, value, fields);
-                }
+                parseFieldValue(token, parser, path, currentName, fields);
             }
         }
     }
 
     private void parseArray(XContentParser parser,
-                             ContentPath path,
-                             String currentName,
-                             List<IndexableField> fields) throws IOException {
+                            ContentPath path,
+                            String currentName,
+                            List<IndexableField> fields) throws IOException {
         while (true) {
             XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.END_ARRAY) {
                 return;
             }
+            parseFieldValue(token, parser, path, currentName, fields);
+        }
+    }
 
-            if (token == XContentParser.Token.START_OBJECT) {
-                path.add(currentName);
-                parseObject(parser, path, fields);
-                path.remove();
-            } else if (token.isValue()) {
-                String value = parser.text();
+    private void parseFieldValue(XContentParser.Token token,
+                                 XContentParser parser,
+                                 ContentPath path,
+                                 String currentName,
+                                 List<IndexableField> fields) throws IOException {
+        if (token == XContentParser.Token.START_OBJECT) {
+            path.add(currentName);
+            parseObject(parser, path, fields);
+            path.remove();
+        } else if (token == XContentParser.Token.START_ARRAY) {
+            parseArray(parser, path, currentName, fields);
+        } else if (token.isValue()) {
+            String value = parser.text();
+            addField(path, currentName, value, fields);
+        } else if (token == XContentParser.Token.VALUE_NULL) {
+            String value = fieldType.nullValueAsString();
+            if (value != null) {
                 addField(path, currentName, value, fields);
-            } else if (token == XContentParser.Token.VALUE_NULL) {
-                String value = fieldType.nullValueAsString();
-                if (value != null) {
-                    addField(path, currentName, value, fields);
-                }
             }
         }
     }
@@ -129,7 +125,6 @@ public class JsonFieldParser {
             return;
         }
 
-        assert currentName != null;
         String key = path.pathAsText(currentName);
         if (key.contains(SEPARATOR)) {
             throw new IllegalArgumentException("Keys in [json] fields cannot contain the reserved character \\0."

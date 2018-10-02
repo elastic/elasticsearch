@@ -86,13 +86,13 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
         assertFalse(fields[0].fieldType().stored());
         assertTrue(fields[0].fieldType().omitNorms());
 
-        IndexableField[] prefixedFields = parsedDoc.rootDoc().getFields("field._prefixed");
-        assertEquals(1, prefixedFields.length);
+        IndexableField[] keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
+        assertEquals(1, keyedFields.length);
 
-        assertEquals("field._prefixed", prefixedFields[0].name());
-        assertEquals(new BytesRef("key\0value"), prefixedFields[0].binaryValue());
-        assertFalse(prefixedFields[0].fieldType().stored());
-        assertTrue(prefixedFields[0].fieldType().omitNorms());
+        assertEquals("field._keyed", keyedFields[0].name());
+        assertEquals(new BytesRef("key\0value"), keyedFields[0].binaryValue());
+        assertFalse(keyedFields[0].fieldType().stored());
+        assertTrue(keyedFields[0].fieldType().omitNorms());
 
         IndexableField[] fieldNamesFields = parsedDoc.rootDoc().getFields(FieldNamesFieldMapper.NAME);
         assertEquals(1, fieldNamesFields.length);
@@ -256,11 +256,11 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(new BytesRef("true"), fields[1].binaryValue());
         assertEquals(new BytesRef("false"), fields[2].binaryValue());
 
-        IndexableField[] prefixedFields = parsedDoc.rootDoc().getFields("field._prefixed");
-        assertEquals(3, prefixedFields.length);
-        assertEquals(new BytesRef("key1\0value"), prefixedFields[0].binaryValue());
-        assertEquals(new BytesRef("key2\0true"), prefixedFields[1].binaryValue());
-        assertEquals(new BytesRef("key3\0false"), prefixedFields[2].binaryValue());
+        IndexableField[] keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
+        assertEquals(3, keyedFields.length);
+        assertEquals(new BytesRef("key1\0value"), keyedFields[0].binaryValue());
+        assertEquals(new BytesRef("key2\0true"), keyedFields[1].binaryValue());
+        assertEquals(new BytesRef("key3\0false"), keyedFields[2].binaryValue());
     }
 
     public void testIgnoreAbove() throws IOException {
@@ -326,7 +326,7 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(1, otherFields.length);
         assertEquals(new BytesRef("placeholder"), otherFields[0].binaryValue());
 
-        IndexableField[] prefixedOtherFields = parsedDoc.rootDoc().getFields("other_field._prefixed");
+        IndexableField[] prefixedOtherFields = parsedDoc.rootDoc().getFields("other_field._keyed");
         assertEquals(1, prefixedOtherFields.length);
         assertEquals(new BytesRef("key\0placeholder"), prefixedOtherFields[0].binaryValue());
     }

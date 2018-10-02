@@ -40,7 +40,7 @@ public class JsonFieldParser {
     private final int ignoreAbove;
 
     private final String rootFieldName;
-    private final String prefixedFieldName;
+    private final String keyedFieldName;
 
     JsonFieldParser(MappedFieldType fieldType,
                     int ignoreAbove) {
@@ -48,7 +48,7 @@ public class JsonFieldParser {
         this.ignoreAbove = ignoreAbove;
 
         this.rootFieldName = fieldType.name();
-        this.prefixedFieldName = fieldType.name() + JsonFieldMapper.PREFIXED_FIELD_SUFFIX;
+        this.keyedFieldName = fieldType.name() + JsonFieldMapper.KEYED_FIELD_SUFFIX;
     }
 
     public List<IndexableField> parse(XContentParser parser) throws IOException {
@@ -134,13 +134,13 @@ public class JsonFieldParser {
             throw new IllegalArgumentException("Keys in [json] fields cannot contain the reserved character \\0."
                 + " Offending key: [" + key + "].");
         }
-        String prefixedValue = createPrefixedValue(key, value);
+        String keyedValue = createKeyedValue(key, value);
 
         fields.add(new Field(rootFieldName, new BytesRef(value), fieldType));
-        fields.add(new Field(prefixedFieldName, new BytesRef(prefixedValue), fieldType));
+        fields.add(new Field(keyedFieldName, new BytesRef(keyedValue), fieldType));
     }
 
-    private static String createPrefixedValue(String key, String value) {
+    private static String createKeyedValue(String key, String value) {
         return key + SEPARATOR + value;
     }
 }

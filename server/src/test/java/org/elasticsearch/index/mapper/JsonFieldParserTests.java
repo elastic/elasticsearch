@@ -58,17 +58,17 @@ public class JsonFieldParserTests extends ESTestCase {
         assertEquals("field", field1.name());
         assertEquals(new BytesRef("value1"), field1.binaryValue());
 
-        IndexableField prefixedField1 = fields.get(1);
-        assertEquals("field._prefixed", prefixedField1.name());
-        assertEquals(new BytesRef("key1\0value1"), prefixedField1.binaryValue());
+        IndexableField keyedField1 = fields.get(1);
+        assertEquals("field._keyed", keyedField1.name());
+        assertEquals(new BytesRef("key1\0value1"), keyedField1.binaryValue());
 
         IndexableField field2 = fields.get(2);
         assertEquals("field", field2.name());
         assertEquals(new BytesRef("value2"), field2.binaryValue());
 
-        IndexableField prefixedField2 = fields.get(3);
-        assertEquals("field._prefixed", prefixedField2.name());
-        assertEquals(new BytesRef("key2\0value2"), prefixedField2.binaryValue());
+        IndexableField keyedField2 = fields.get(3);
+        assertEquals("field._keyed", keyedField2.name());
+        assertEquals(new BytesRef("key2\0value2"), keyedField2.binaryValue());
     }
 
     public void testNumericValues() throws Exception {
@@ -82,9 +82,9 @@ public class JsonFieldParserTests extends ESTestCase {
         assertEquals("field", field.name());
         assertEquals(new BytesRef("2.718"), field.binaryValue());
 
-        IndexableField prefixedField = fields.get(1);
-        assertEquals("field._prefixed", prefixedField.name());
-        assertEquals(new BytesRef("key" + '\0' + "2.718"), prefixedField.binaryValue());
+        IndexableField keyedField = fields.get(1);
+        assertEquals("field._keyed", keyedField.name());
+        assertEquals(new BytesRef("key" + '\0' + "2.718"), keyedField.binaryValue());
     }
 
     public void testBooleanValues() throws Exception {
@@ -98,9 +98,9 @@ public class JsonFieldParserTests extends ESTestCase {
         assertEquals("field", field.name());
         assertEquals(new BytesRef("false"), field.binaryValue());
 
-        IndexableField prefixedField = fields.get(1);
-        assertEquals("field._prefixed", prefixedField.name());
-        assertEquals(new BytesRef("key\0false"), prefixedField.binaryValue());
+        IndexableField keyedField = fields.get(1);
+        assertEquals("field._keyed", keyedField.name());
+        assertEquals(new BytesRef("key\0false"), keyedField.binaryValue());
     }
 
     public void testBasicArrays() throws Exception {
@@ -114,17 +114,17 @@ public class JsonFieldParserTests extends ESTestCase {
         assertEquals("field", field1.name());
         assertEquals(new BytesRef("true"), field1.binaryValue());
 
-        IndexableField prefixedField1 = fields.get(1);
-        assertEquals("field._prefixed", prefixedField1.name());
-        assertEquals(new BytesRef("key\0true"), prefixedField1.binaryValue());
+        IndexableField keyedField1 = fields.get(1);
+        assertEquals("field._keyed", keyedField1.name());
+        assertEquals(new BytesRef("key\0true"), keyedField1.binaryValue());
 
         IndexableField field2 = fields.get(2);
         assertEquals("field", field2.name());
         assertEquals(new BytesRef("false"), field2.binaryValue());
 
-        IndexableField prefixedField2 = fields.get(3);
-        assertEquals("field._prefixed", prefixedField2.name());
-        assertEquals(new BytesRef("key\0false"), prefixedField2.binaryValue());
+        IndexableField keyedField2 = fields.get(3);
+        assertEquals("field._keyed", keyedField2.name());
+        assertEquals(new BytesRef("key\0false"), keyedField2.binaryValue());
     }
 
     public void testArrayOfArrays() throws Exception {
@@ -138,25 +138,25 @@ public class JsonFieldParserTests extends ESTestCase {
         assertEquals("field", field1.name());
         assertEquals(new BytesRef("true"), field1.binaryValue());
 
-        IndexableField prefixedField1 = fields.get(1);
-        assertEquals("field._prefixed", prefixedField1.name());
-        assertEquals(new BytesRef("key\0true"), prefixedField1.binaryValue());
+        IndexableField keyedField1 = fields.get(1);
+        assertEquals("field._keyed", keyedField1.name());
+        assertEquals(new BytesRef("key\0true"), keyedField1.binaryValue());
 
         IndexableField field2 = fields.get(2);
         assertEquals("field", field2.name());
         assertEquals(new BytesRef("value"), field2.binaryValue());
 
-        IndexableField prefixedField2 = fields.get(3);
-        assertEquals("field._prefixed", prefixedField2.name());
-        assertEquals(new BytesRef("key\0value"), prefixedField2.binaryValue());
+        IndexableField keyedField2 = fields.get(3);
+        assertEquals("field._keyed", keyedField2.name());
+        assertEquals(new BytesRef("key\0value"), keyedField2.binaryValue());
 
         IndexableField field3 = fields.get(4);
         assertEquals("field", field3.name());
         assertEquals(new BytesRef("3"), field3.binaryValue());
 
-        IndexableField prefixedField3 = fields.get(5);
-        assertEquals("field._prefixed", prefixedField3.name());
-        assertEquals(new BytesRef("key" + "\0" + "3"), prefixedField3.binaryValue());
+        IndexableField keyedField3 = fields.get(5);
+        assertEquals("field._keyed", keyedField3.name());
+        assertEquals(new BytesRef("key" + "\0" + "3"), keyedField3.binaryValue());
     }
 
     public void testArraysOfObjects() throws Exception {
@@ -170,25 +170,25 @@ public class JsonFieldParserTests extends ESTestCase {
         assertEquals("field", field1.name());
         assertEquals(new BytesRef("true"), field1.binaryValue());
 
-        IndexableField prefixedField1 = fields.get(1);
-        assertEquals("field._prefixed", prefixedField1.name());
-        assertEquals(new BytesRef("key1.key2\0true"), prefixedField1.binaryValue());
+        IndexableField keyedField1 = fields.get(1);
+        assertEquals("field._keyed", keyedField1.name());
+        assertEquals(new BytesRef("key1.key2\0true"), keyedField1.binaryValue());
 
         IndexableField field2 = fields.get(2);
         assertEquals("field", field2.name());
         assertEquals(new BytesRef("false"), field2.binaryValue());
 
-        IndexableField prefixedField2 = fields.get(3);
-        assertEquals("field._prefixed", prefixedField2.name());
-        assertEquals(new BytesRef("key1\0false"), prefixedField2.binaryValue());
+        IndexableField keyedField2 = fields.get(3);
+        assertEquals("field._keyed", keyedField2.name());
+        assertEquals(new BytesRef("key1\0false"), keyedField2.binaryValue());
 
         IndexableField field3 = fields.get(4);
         assertEquals("field", field3.name());
         assertEquals(new BytesRef("other"), field3.binaryValue());
 
-        IndexableField prefixedField3 = fields.get(5);
-        assertEquals("field._prefixed", prefixedField3.name());
-        assertEquals(new BytesRef("key4\0other"), prefixedField3.binaryValue());
+        IndexableField keyedField3 = fields.get(5);
+        assertEquals("field._keyed", keyedField3.name());
+        assertEquals(new BytesRef("key4\0other"), keyedField3.binaryValue());
     }
 
     public void testNestedObjects() throws Exception {
@@ -203,17 +203,17 @@ public class JsonFieldParserTests extends ESTestCase {
         assertEquals("field", field1.name());
         assertEquals(new BytesRef("value"), field1.binaryValue());
 
-        IndexableField prefixedField1 = fields.get(1);
-        assertEquals("field._prefixed", prefixedField1.name());
-        assertEquals(new BytesRef("parent1.key\0value"), prefixedField1.binaryValue());
+        IndexableField keyedField1 = fields.get(1);
+        assertEquals("field._keyed", keyedField1.name());
+        assertEquals(new BytesRef("parent1.key\0value"), keyedField1.binaryValue());
 
         IndexableField field2 = fields.get(2);
         assertEquals("field", field2.name());
         assertEquals(new BytesRef("value"), field2.binaryValue());
 
-        IndexableField prefixedField2 = fields.get(3);
-        assertEquals("field._prefixed", prefixedField2.name());
-        assertEquals(new BytesRef("parent2.key\0value"), prefixedField2.binaryValue());
+        IndexableField keyedField2 = fields.get(3);
+        assertEquals("field._keyed", keyedField2.name());
+        assertEquals(new BytesRef("parent2.key\0value"), keyedField2.binaryValue());
     }
 
     public void testIgnoreAbove() throws Exception {
@@ -249,9 +249,9 @@ public class JsonFieldParserTests extends ESTestCase {
         assertEquals("field", field.name());
         assertEquals(new BytesRef("placeholder"), field.binaryValue());
 
-        IndexableField prefixedField = fields.get(1);
-        assertEquals("field._prefixed", prefixedField.name());
-        assertEquals(new BytesRef("key\0placeholder"), prefixedField.binaryValue());
+        IndexableField keyedField = fields.get(1);
+        assertEquals("field._keyed", keyedField.name());
+        assertEquals(new BytesRef("key\0placeholder"), keyedField.binaryValue());
     }
 
     public void testMalformedJson() throws Exception {

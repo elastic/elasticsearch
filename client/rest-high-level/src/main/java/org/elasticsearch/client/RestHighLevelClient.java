@@ -492,9 +492,9 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      */
     public final void updateByQueryAsync(UpdateByQueryRequest updateByQueryRequest, RequestOptions options,
-                                   ActionListener<BulkByScrollResponse> listener) {
+                                         ActionListener<BulkByScrollResponse> listener) {
         performRequestAsyncAndParseEntity(
-                updateByQueryRequest, RequestConverters::updateByQuery, options, BulkByScrollResponse::fromXContent, listener, emptySet()
+            updateByQueryRequest, RequestConverters::updateByQuery, options, BulkByScrollResponse::fromXContent, listener, emptySet()
         );
     }
 
@@ -524,36 +524,38 @@ public class RestHighLevelClient implements Closeable {
     public final void deleteByQueryAsync(DeleteByQueryRequest deleteByQueryRequest, RequestOptions options,
                                          ActionListener<BulkByScrollResponse> listener) {
         performRequestAsyncAndParseEntity(
-                deleteByQueryRequest, RequestConverters::deleteByQuery, options, BulkByScrollResponse::fromXContent, listener, emptySet()
+            deleteByQueryRequest, RequestConverters::deleteByQuery, options, BulkByScrollResponse::fromXContent, listener, emptySet()
         );
     }
 
     /**
      * Executes a reindex rethrottling request.
      * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html#docs-reindex-rethrottle">
-     *     Reindex rethrottling API on elastic.co</a>
+     * Reindex rethrottling API on elastic.co</a>
+     *
      * @param rethrottleRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param options           the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final ListTasksResponse reindexRethrottle(RethrottleRequest rethrottleRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(rethrottleRequest, RequestConverters::rethrottle, options, ListTasksResponse::fromXContent,
-                emptySet());
+            emptySet());
     }
 
     /**
      * Executes a reindex rethrottling request.
      * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html#docs-reindex-rethrottle">
-     *     Reindex rethrottling API on elastic.co</a>
+     * Reindex rethrottling API on elastic.co</a>
+     *
      * @param rethrottleRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
+     * @param options           the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener          the listener to be notified upon request completion
      */
     public final void reindexRethrottleAsync(RethrottleRequest rethrottleRequest, RequestOptions options,
-            ActionListener<ListTasksResponse> listener) {
+                                             ActionListener<ListTasksResponse> listener) {
         performRequestAsyncAndParseEntity(rethrottleRequest, RequestConverters::rethrottle, options, ListTasksResponse::fromXContent,
-                listener, emptySet());
+            listener, emptySet());
     }
 
     /**

@@ -10,6 +10,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class SimpleExampleTestCase extends JdbcIntegrationTestCase {
     public void testSimpleExample() throws Exception {
         index("library", builder -> {
@@ -20,13 +22,17 @@ public class SimpleExampleTestCase extends JdbcIntegrationTestCase {
             // tag::simple_example
             try (Statement statement = connection.createStatement();
                     ResultSet results = statement.executeQuery(
-                        "SELECT name, page_count FROM library ORDER BY page_count DESC LIMIT 1")) {
+                          "   SELECT name, page_count"
+                        + "     FROM library"
+                        + " ORDER BY page_count DESC"
+                        + "    LIMIT 1")) {
                 assertTrue(results.next());
                 assertEquals("Don Quixote", results.getString(1));
                 assertEquals(1072, results.getInt(2));
-                SQLException e = expectThrows(SQLException.class, () -> results.getInt(1));
-                assertTrue(e.getMessage(), 
-                        e.getMessage().contains("Unable to convert value [Don Quixote] of type [VARCHAR] to an Integer"));
+                SQLException e = expectThrows(SQLException.class, () ->
+                    results.getInt(1));
+                assertThat(e.getMessage(), containsString("Unable to convert "
+                    + "value [Don Quixote] of type [VARCHAR] to an Integer"));
                 assertFalse(results.next());
             }
             // end::simple_example

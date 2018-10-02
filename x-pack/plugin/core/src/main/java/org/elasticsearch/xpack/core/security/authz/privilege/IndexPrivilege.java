@@ -21,6 +21,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Arrays;
@@ -55,7 +56,7 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton VIEW_METADATA_AUTOMATON = patterns(GetAliasesAction.NAME, AliasesExistAction.NAME,
             GetIndexAction.NAME, IndicesExistsAction.NAME, GetFieldMappingsAction.NAME + "*", GetMappingsAction.NAME,
             ClusterSearchShardsAction.NAME, TypesExistsAction.NAME, ValidateQueryAction.NAME + "*", GetSettingsAction.NAME);
-    private static final Automaton CREATE_FOLLOW_INDEX_AUTOMATON = patterns("indices:admin/xpack/ccr/create_and_follow_index");
+    private static final Automaton CREATE_FOLLOW_INDEX_AUTOMATON = patterns(PutFollowAction.NAME);
 
     public static final IndexPrivilege NONE =                new IndexPrivilege("none",             Automatons.EMPTY);
     public static final IndexPrivilege ALL =                 new IndexPrivilege("all",              ALL_AUTOMATON);

@@ -8,15 +8,15 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.BinaryProcessor;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
+import org.elasticsearch.xpack.sql.expression.gen.processor.BinaryProcessor;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class ConcatFunctionProcessor extends BinaryProcessor {
 
-    public static final String NAME = "cb";
+    public static final String NAME = "scon";
 
     public ConcatFunctionProcessor(Processor source1, Processor source2) {
         super(source1, source2);

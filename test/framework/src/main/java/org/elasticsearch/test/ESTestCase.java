@@ -1384,7 +1384,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return new ScriptModule(Settings.EMPTY, singletonList(new ScriptPlugin() {
             @Override
             public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-                return new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"));
+                return new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"), Collections.emptyMap());
             }
         }));
     }

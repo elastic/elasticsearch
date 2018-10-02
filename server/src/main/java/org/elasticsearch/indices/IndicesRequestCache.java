@@ -114,6 +114,9 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
         notification.getKey().entity.onRemoval(notification);
     }
 
+    // NORELEASE The cacheKeyRenderer has been added in order to debug
+    // https://github.com/elastic/elasticsearch/issues/32827, it should be
+    // removed when this issue is solved
     BytesReference getOrCompute(CacheEntity cacheEntity, Supplier<BytesReference> loader,
             DirectoryReader reader, BytesReference cacheKey, Supplier<String> cacheKeyRenderer) throws Exception {
         final Key key =  new Key(cacheEntity, reader.getVersion(), cacheKey);

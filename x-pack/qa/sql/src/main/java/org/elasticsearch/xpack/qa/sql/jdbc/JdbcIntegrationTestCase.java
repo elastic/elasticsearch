@@ -61,7 +61,8 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
         // tag::connect-dm
         String address = "jdbc:es://" + elasticsearchAddress;     // <1>
         Properties connectionProperties = connectionProperties(); // <2>
-        Connection connection = DriverManager.getConnection(address, connectionProperties);
+        Connection connection =
+            DriverManager.getConnection(address, connectionProperties);
         // end::connect-dm
         assertNotNull("The timezone should be specified", connectionProperties.getProperty(JdbcConfiguration.TIME_ZONE));
         return connection;

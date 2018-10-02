@@ -60,6 +60,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.cluster.coordination.Coordinator.Mode.LEADER;
+
 public class Coordinator extends AbstractLifecycleComponent implements Discovery {
 
     // the timeout for the publication of each value
@@ -143,7 +145,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private void onFollowerFailure(DiscoveryNode discoveryNode) {
         synchronized (mutex) {
-            if (mode == Mode.LEADER) {
+            if (mode == LEADER) {
                 masterService.submitStateUpdateTask("node-left",
                     new NodeRemovalClusterStateTaskExecutor.Task(discoveryNode, "node left"),
                     ClusterStateTaskConfig.build(Priority.IMMEDIATE),
@@ -184,12 +186,17 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         synchronized (mutex) {
             final DiscoveryNode sourceNode = publishRequest.getAcceptedState().nodes().getMasterNode();
             logger.trace("handlePublishRequest: handling [{}] from [{}]", publishRequest, sourceNode);
-            ensureTermAtLeast(sourceNode, publishRequest.getAcceptedState().term());
-            final PublishResponse publishResponse = coordinationState.get().handlePublishRequest(publishRequest);
 
-            if (sourceNode.equals(getLocalNode()) == false) {
+            if (sourceNode.equals(getLocalNode())) {
+                if (mode != LEADER || getCurrentTerm() != publishRequest.getAcceptedState().term()) {
+                    throw new CoordinationStateRejectedException("no longer leading this publication's term: " + publishRequest);
+                }
+            } else {
                 becomeFollower("handlePublishRequest", sourceNode);
             }
+
+            ensureTermAtLeast(sourceNode, publishRequest.getAcceptedState().term());
+            final PublishResponse publishResponse = coordinationState.get().handlePublishRequest(publishRequest);
 
             return new PublishWithJoinResponse(publishResponse,
                 joinWithDestination(lastJoin, sourceNode, publishRequest.getAcceptedState().term()));
@@ -309,7 +316,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         assert mode == Mode.CANDIDATE : "expected candidate but was " + mode;
         logger.debug("{}: becoming LEADER (was {}, lastKnownLeader was [{}])", method, mode, lastKnownLeader);
 
-        mode = Mode.LEADER;
+        mode = LEADER;
         joinAccumulator.close(mode);
         joinAccumulator = joinHelper.new LeaderJoinAccumulator();
 
@@ -419,7 +426,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             assert peerFinder.getCurrentTerm() == getCurrentTerm();
             assert followersChecker.getFastResponseState().term == getCurrentTerm() : followersChecker.getFastResponseState();
             assert followersChecker.getFastResponseState().mode == getMode() : followersChecker.getFastResponseState();
-            if (mode == Mode.LEADER) {
+            if (mode == LEADER) {
                 final boolean becomingMaster = getStateForMasterService().term() != getCurrentTerm();
 
                 assert coordinationState.get().electionWon();
@@ -509,7 +516,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             // expose last accepted cluster state as base state upon which the master service
             // speculatively calculates the next cluster state update
             final ClusterState clusterState = coordinationState.get().getLastAcceptedState();
-            if (mode != Mode.LEADER || clusterState.term() != getCurrentTerm()) {
+            if (mode != LEADER || clusterState.term() != getCurrentTerm()) {
                 // the master service checks if the local node is the master node in order to fail execution of the state update early
                 return clusterStateWithNoMasterBlock(clusterState);
             }
@@ -538,7 +545,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             synchronized (mutex) {
                 assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
 
-                if (mode != Mode.LEADER) {
+                if (mode != LEADER) {
                     logger.debug(() -> new ParameterizedMessage("[{}] failed publication as not currently leading",
                         clusterChangedEvent.source()));
                     publishListener.onFailure(new FailedToCommitClusterStateException("node stepped down as leader during publication"));
@@ -600,7 +607,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         currentPublication = Optional.empty();
                         updateMaxTermSeen(getCurrentTerm()); // triggers term bump if new term was found during publication
 
-                        localNodeAckEvent.addListener(new ActionListener<Void>() {
+                        localNodeAckEvent.addListener(wrapWithMutex(new ActionListener<Void>() {
                             @Override
                             public void onResponse(Void ignore) {
                                 assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
@@ -628,7 +635,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                 ackListener.onNodeAck(getLocalNode(), exception); // other nodes have acked, but not the master.
                                 publishListener.onFailure(exception);
                             }
-                        }, transportService.getThreadPool().generic());
+                        }), transportService.getThreadPool().generic());
                     }
 
                     @Override

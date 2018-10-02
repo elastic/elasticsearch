@@ -360,9 +360,9 @@ public abstract class PeerFinder extends AbstractComponent {
             });
         }
 
-        private void removePeer() {
+        void removePeer() {
             final Peer removed = peersByAddress.remove(transportAddress);
-            assert removed == Peer.this;
+            assert removed == Peer.this : removed + " != " + Peer.this;
         }
 
         private void requestPeers() {

@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -112,6 +113,14 @@ public class MetricConfig implements Writeable, ToXContentObject {
                     if (value.isAggregatable() == false) {
                         validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
                                 "but is not.");
+                    }
+                    if (RollupField.DATE_FIELD_MAPPER_TYPE.equals(key) &&
+                        RollupField.SUPPORTED_DATE_METRICS.containsAll(metrics) == false) {
+                        List<String> unsupportedMetrics = new ArrayList<>(metrics);
+                        unsupportedMetrics.removeAll(RollupField.SUPPORTED_DATE_METRICS);
+                        validationException.addValidationError("Only the metrics " + RollupField.SUPPORTED_DATE_METRICS.toString() +
+                            " are supported for [date] types, but unsupported metrics " + unsupportedMetrics +
+                            " supplied for field [" + field + "]");
                     }
                 } else {
                     validationException.addValidationError("The field referenced by a metric group must be a [numeric] or [date] type, " +

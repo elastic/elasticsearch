@@ -11,8 +11,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
+import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -89,6 +91,21 @@ public class MetricConfigSerializingTests extends AbstractSerializingTestCase<Me
         MetricConfig config = new MetricConfig("my_field", singletonList("max"));
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().get(0), equalTo("The field [my_field] must be aggregatable across all indices, but is not."));
+    }
+
+    public void testValidateDateFieldUnsupportedMetric() {
+        ActionRequestValidationException e = new ActionRequestValidationException();
+        Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
+
+        // Have to mock fieldcaps because the ctor's aren't public...
+        FieldCapabilities fieldCaps = mock(FieldCapabilities.class);
+        when(fieldCaps.isAggregatable()).thenReturn(true);
+        responseMap.put("my_field", Collections.singletonMap("date", fieldCaps));
+
+        MetricConfig config = new MetricConfig("my_field", Arrays.asList("avg", "max"));
+        config.validateMappings(responseMap, e);
+        assertThat(e.validationErrors().get(0), equalTo("Only the metrics " + RollupField.SUPPORTED_DATE_METRICS.toString() +
+            " are supported for [date] types, but unsupported metrics [avg] supplied for field [my_field]"));
     }
 
     public void testValidateMatchingField() {

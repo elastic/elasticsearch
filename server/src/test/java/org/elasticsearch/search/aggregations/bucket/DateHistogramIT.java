@@ -201,7 +201,7 @@ public class DateHistogramIT extends ESIntegTestCase {
     }
 
     private static String getBucketKeyAsString(ZonedDateTime key, ZoneId tz) {
-        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.withZone(tz).format(key);
+        return DateFormatters.forPattern("strict_date_optional_time").withZone(tz).format(key);
     }
 
     public void testSingleValuedField() throws Exception {

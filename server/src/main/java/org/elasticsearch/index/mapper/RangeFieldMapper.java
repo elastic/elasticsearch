@@ -93,7 +93,7 @@ public class RangeFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder<Builder, RangeFieldMapper> {
         private Boolean coerce;
         private Locale locale = Locale.ROOT;
-        private String format;
+        private String pattern;
 
         public Builder(String name, RangeType type) {
             super(name, new RangeFieldType(type), new RangeFieldType(type));
@@ -129,7 +129,7 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         public Builder format(String format) {
-            this.format = format;
+            this.pattern = format;
             return this;
         }
 
@@ -145,14 +145,14 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         protected void setupFieldType(BuilderContext context) {
             super.setupFieldType(context);
-            DateFormatter dateTimeFormatter = fieldType().dateTimeFormatter;
+            DateFormatter formatter = fieldType().dateTimeFormatter;
             if (fieldType().rangeType == RangeType.DATE) {
-                if (Strings.hasLength(builder.format) &&
-                    Objects.equals(builder.format, fieldType().dateTimeFormatter().pattern()) == false ||
-                    Objects.equals(builder.locale, fieldType().dateTimeFormatter().getLocale()) == false) {
-                    fieldType().setDateTimeFormatter(DateFormatters.forPattern(format, locale));
+                if (Strings.hasLength(builder.pattern) &&
+                    Objects.equals(builder.pattern, formatter.pattern()) == false ||
+                    Objects.equals(builder.locale, formatter.getLocale()) == false) {
+                    fieldType().setDateTimeFormatter(DateFormatters.forPattern(pattern).withLocale(locale));
                 }
-            } else if (format != null) {
+            } else if (pattern != null) {
                 throw new IllegalArgumentException("field [" + name() + "] of type [" + fieldType().rangeType
                     + "] should not define a dateTimeFormatter unless it is a " + RangeType.DATE + " type");
             }

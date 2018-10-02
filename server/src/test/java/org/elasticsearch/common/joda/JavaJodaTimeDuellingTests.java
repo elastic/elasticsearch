@@ -492,7 +492,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     public void testSamePrinterOutputWithTimeZone() {
-        String format = "strict_date_optional_time||epoch_millis";
+        String format = "strict_date_optional_time||date_time";
         String dateInput = "2017-02-01T08:02:00.000-01:00";
         DateFormatter javaFormatter = DateFormatters.forPattern(format);
         TemporalAccessor javaDate = javaFormatter.parse(dateInput);
@@ -522,8 +522,8 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
     public void testDateFormatterWithLocale() {
         Locale locale = randomLocale(random());
-        String pattern = randomBoolean() ? "strict_date_optional_time||epoch_millis" : "epoch_millis||strict_date_optional_time";
-        DateFormatter formatter = DateFormatters.forPattern(pattern, locale);
+        String pattern = randomBoolean() ? "strict_date_optional_time||date_time" : "date_time||strict_date_optional_time";
+        DateFormatter formatter = DateFormatters.forPattern(pattern).withLocale(locale);
         assertThat(formatter.pattern(), is(pattern));
         assertThat(formatter.getLocale(), is(locale));
     }
@@ -539,7 +539,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
     private void assertSamePrinterOutput(String format, Locale locale, ZonedDateTime javaDate, DateTime jodaDate) {
         assertThat(jodaDate.getMillis(), is(javaDate.toInstant().toEpochMilli()));
-        String javaTimeOut = DateFormatters.forPattern(format, locale).format(javaDate);
+        String javaTimeOut = DateFormatters.forPattern(format).withLocale(locale).format(javaDate);
         String jodaTimeOut = Joda.forPattern(format, locale).printer().print(jodaDate);
         String message = String.format(Locale.ROOT, "expected string representation to be equal for format [%s]: joda [%s], java [%s]",
                 format, jodaTimeOut, javaTimeOut);
@@ -564,7 +564,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         FormatDateTimeFormatter jodaFormatter = Joda.forPattern(format, locale);
         DateTime jodaDateTime = jodaFormatter.parser().parseDateTime(input);
 
-        DateFormatter javaTimeFormatter = DateFormatters.forPattern(format, locale);
+        DateFormatter javaTimeFormatter = DateFormatters.forPattern(format).withLocale(locale);
         TemporalAccessor javaTimeAccessor = javaTimeFormatter.parse(input);
         ZonedDateTime zonedDateTime = DateFormatters.toZonedDateTime(javaTimeAccessor);
 

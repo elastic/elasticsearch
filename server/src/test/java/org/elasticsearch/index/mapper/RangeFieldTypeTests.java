@@ -65,13 +65,13 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             addModifier(new Modifier("format", true) {
                 @Override
                 public void modify(MappedFieldType ft) {
-                    ((RangeFieldType) ft).setDateTimeFormatter(DateFormatters.forPattern("basic_week_date", Locale.ROOT));
+                    ((RangeFieldType) ft).setDateTimeFormatter(DateFormatters.forPattern("basic_week_date"));
                 }
             });
             addModifier(new Modifier("locale", true) {
                 @Override
                 public void modify(MappedFieldType ft) {
-                    ((RangeFieldType) ft).setDateTimeFormatter(DateFormatters.forPattern("date_optional_time", Locale.CANADA));
+                    ((RangeFieldType) ft).setDateTimeFormatter(DateFormatters.forPattern("date_optional_time").withLocale(Locale.CANADA));
                 }
             });
         }

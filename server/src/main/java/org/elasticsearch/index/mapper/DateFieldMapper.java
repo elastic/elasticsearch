@@ -133,7 +133,7 @@ public class DateFieldMapper extends FieldMapper {
             String formatter = this.format.value();
             if (Objects.equals(locale, fieldType().dateTimeFormatter.getLocale()) == false ||
                 (Objects.equals(formatter, fieldType().dateTimeFormatter.pattern()) == false && Strings.isEmpty(formatter) == false)) {
-                fieldType().setDateTimeFormatter(DateFormatters.forPattern(formatter, locale));
+                fieldType().setDateTimeFormatter(DateFormatters.forPattern(formatter).withLocale(locale));
             }
         }
 
@@ -389,7 +389,7 @@ public class DateFieldMapper extends FieldMapper {
         public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
             DateFormatter dateTimeFormatter = this.dateTimeFormatter;
             if (format != null) {
-                dateTimeFormatter = DateFormatters.forPattern(format, dateTimeFormatter.getLocale());
+                dateTimeFormatter = DateFormatters.forPattern(format).withLocale(dateTimeFormatter.getLocale());
             }
             if (timeZone == null) {
                 timeZone = ZoneOffset.UTC;

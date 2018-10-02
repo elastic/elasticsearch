@@ -54,7 +54,6 @@ public final class ActivateWatchResponse {
         return Objects.hash(status);
     }
 
-
     private static final ParseField STATUS_FIELD = new ParseField("status");
     private static ConstructingObjectParser<ActivateWatchResponse, Void> PARSER =
         new ConstructingObjectParser<>("activate_watch_response", true,

@@ -66,8 +66,8 @@ public class WatcherRequestConverters {
             .addPathPartAsIs("_xpack")
             .addPathPartAsIs("watcher")
             .addPathPartAsIs("watch")
-            .addPathPartAsIs(activateWatchRequest.getWatchId())
-            .addPathPart("_activate")
+            .addPathPart(activateWatchRequest.getWatchId())
+            .addPathPartAsIs("_activate")
             .build();
 
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);

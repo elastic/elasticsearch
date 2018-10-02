@@ -77,31 +77,26 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testActivateWatch() throws Exception {
-        // Activate watch that exists
-        {
-            String watchId = randomAlphaOfLength(10);
-            createWatch(watchId);
-            ActivateWatchResponse activateWatchResponse1 = highLevelClient().watcher().activateWatch(new ActivateWatchRequest(watchId),
-                RequestOptions.DEFAULT);
-            assertThat(activateWatchResponse1.getStatus().state().isActive(), is(true));
+    public void testActivateWatchThatExists() throws Exception {
+        String watchId = randomAlphaOfLength(10);
+        createWatch(watchId);
+        ActivateWatchResponse activateWatchResponse1 = highLevelClient().watcher().activateWatch(new ActivateWatchRequest(watchId),
+            RequestOptions.DEFAULT);
+        assertThat(activateWatchResponse1.getStatus().state().isActive(), is(true));
 
-            ActivateWatchResponse activateWatchResponse2 = highLevelClient().watcher().activateWatch(new ActivateWatchRequest(watchId),
-                RequestOptions.DEFAULT);
-            assertThat(activateWatchResponse2.getStatus().state().isActive(), is(true));
-            assertThat(activateWatchResponse1.getStatus().state().getTimestamp(),
-                lessThan(activateWatchResponse2.getStatus().state().getTimestamp()));
+        ActivateWatchResponse activateWatchResponse2 = highLevelClient().watcher().activateWatch(new ActivateWatchRequest(watchId),
+            RequestOptions.DEFAULT);
+        assertThat(activateWatchResponse2.getStatus().state().isActive(), is(true));
+        assertThat(activateWatchResponse1.getStatus().state().getTimestamp(),
+            lessThan(activateWatchResponse2.getStatus().state().getTimestamp()));
+    }
 
-        }
-
-        // Activate watch that does not exist
-        {
-            String watchId = randomAlphaOfLength(10);
-            // exception when activating a not existing watcher
-            ElasticsearchStatusException exception =  expectThrows(ElasticsearchStatusException.class, () ->
-                highLevelClient().watcher().activateWatch(new ActivateWatchRequest(watchId), RequestOptions.DEFAULT));
-            assertEquals(RestStatus.NOT_FOUND, exception.status());
-        }
+    public void testActivateWatchThatDoesNotExist() throws Exception {
+        String watchId = randomAlphaOfLength(10);
+        // exception when activating a not existing watcher
+        ElasticsearchStatusException exception =  expectThrows(ElasticsearchStatusException.class, () ->
+            highLevelClient().watcher().activateWatch(new ActivateWatchRequest(watchId), RequestOptions.DEFAULT));
+        assertEquals(RestStatus.NOT_FOUND, exception.status());
     }
 
 }

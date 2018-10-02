@@ -20,25 +20,26 @@
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * A request to explicitly activate a watch.
  */
-public final class ActivateWatchRequest implements Validatable, Closeable, ToXContentObject {
+public final class ActivateWatchRequest implements Validatable, Closeable {
 
     private final String watchId;
 
     public ActivateWatchRequest(String watchId) {
-        this.watchId = Objects.requireNonNull(watchId, "Watch identifier is required");
+        if (watchId == null) {
+            throw new IllegalArgumentException("Watch identifier is required");
+        }
+        if (PutWatchRequest.isValidId(watchId) == false) {
+            throw new IllegalArgumentException("Watch identifier contains whitespace");
+        }
+        this.watchId = watchId;
     }
 
     /**
@@ -64,31 +65,5 @@ public final class ActivateWatchRequest implements Validatable, Closeable, ToXCo
 
     @Override
     public void close() {
-    }
-
-    @Override
-    public Optional<ValidationException> validate() {
-
-        ValidationException exception = new ValidationException();
-
-        if (watchId == null) {
-            exception.addValidationError("watch id is missing");
-        } else if (PutWatchRequest.isValidId(watchId) == false) {
-            exception.addValidationError("watch id contains whitespace");
-        }
-        return !exception.validationErrors().isEmpty()
-            ? Optional.of(exception)
-            : Optional.empty();
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder;
-    }
-
-    @Override
-    public String toString() {
-        StringBuilder sb = new StringBuilder("activate [").append(watchId).append("]");
-        return sb.toString();
     }
 }

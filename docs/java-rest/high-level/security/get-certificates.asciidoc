@@ -28,7 +28,8 @@ include-tagged::{doc-tests}/SecurityDocumentationIT.java[get-certificates-respon
 [[java-rest-high-security-get-certificates-execute-async]]
 ==== Asynchronous Execution
 
-This request can be executed asynchronously:
+This request can be executed asynchronously using the `security().getSslCertificatesAsync()`
+method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

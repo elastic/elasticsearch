@@ -32,7 +32,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 /**
  * Simple model of an X.509 certificate
  */
-public class CertificateInfo {
+public final class CertificateInfo {
     public static final ParseField PATH = new ParseField("path");
     public static final ParseField FORMAT = new ParseField("format");
     public static final ParseField ALIAS = new ParseField("alias");

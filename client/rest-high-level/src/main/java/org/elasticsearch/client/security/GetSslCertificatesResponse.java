@@ -34,24 +34,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetSslCertificatesResponse {
+/**
+ * Response object when retrieving the X.509 certificates that are used to encrypt communications in an Elasticsearch cluster.
+ * Returns a list of {@link CertificateInfo} objects describing each of the certificates.
+ */
+public final class GetSslCertificatesResponse {
 
     private final List<CertificateInfo> certificates;
 
     public GetSslCertificatesResponse(List<CertificateInfo> certificates) {
         this.certificates = certificates;
     }
-
-    private static final DeprecationHandler DEPRECATION_HANDLER = new DeprecationHandler() {
-
-        @Override
-        public void usedDeprecatedName(String usedName, String modernName) {
-        }
-
-        @Override
-        public void usedDeprecatedField(String usedName, String replacedWith) {
-        }
-    };
 
     @Override
     public boolean equals(Object o) {
@@ -78,7 +71,7 @@ public class GetSslCertificatesResponse {
                 Map<String, ?> value = (Map<String, ?>) cert;
                 builder.map(value);
                 try (XContentParser certificateInfoParser = XContentFactory.xContent(builder.contentType()).createParser(
-                    NamedXContentRegistry.EMPTY, DEPRECATION_HANDLER, Strings.toString(builder))) {
+                    NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATION_HANDLER, Strings.toString(builder))) {
                     certificates.add(CertificateInfo.PARSER.parse(certificateInfoParser, null));
                 }
             }

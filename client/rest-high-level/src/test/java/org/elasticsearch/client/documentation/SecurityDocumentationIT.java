@@ -257,7 +257,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::end-certificates-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
-
         }
     }
 }

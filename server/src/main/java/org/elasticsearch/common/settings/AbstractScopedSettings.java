@@ -735,10 +735,10 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
 
     private void validate(String key, Settings toApply, Settings target) {
         Settings.Builder toValidate = Settings.builder();
-        // Existing settings reused to have to bigger picture,
-        // this help to validate runtime dependencies
-        // (e.g. disk watermarks "low", "high" and "flood_stage").
-        // Add only valid target settings to "toValidate" settings
+        // Reuse target settings to have a bigger picture,
+        // this helps to validate runtime dependencies
+        // (e.g. "low", "high" and "flood_stage" disk watermarks).
+        // Only valid target settings are kept.
         target.keySet().forEach(targetKey -> {
             try {
                 validate(targetKey, target, false);
@@ -747,7 +747,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 // Don't add invalid settings for validation
             }
         });
-        // Put last to override existing setting
+        // Put last to override existing target setting
         toValidate.copy(key, toApply);
         // We might not have a full picture here do to a dependency validation
         validate(toValidate.build(), false);

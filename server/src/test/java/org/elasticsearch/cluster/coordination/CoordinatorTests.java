@@ -376,14 +376,14 @@ public class CoordinatorTests extends ESTestCase {
 
                         switch (randomInt(2)) {
                             case 0:
-                                logger.debug("----> [runRandomly {}] connecting", step, id);
+                                logger.debug("----> [runRandomly {}] connecting {}", step, id);
                                 break;
                             case 1:
-                                logger.debug("----> [runRandomly {}] disconnecting", step, id);
+                                logger.debug("----> [runRandomly {}] disconnecting {}", step, id);
                                 disconnectedNodes.add(id);
                                 break;
                             case 2:
-                                logger.debug("----> [runRandomly {}] blackholing", step, id);
+                                logger.debug("----> [runRandomly {}] blackholing {}", step, id);
                                 blackholedNodes.add(id);
                                 break;
                         }

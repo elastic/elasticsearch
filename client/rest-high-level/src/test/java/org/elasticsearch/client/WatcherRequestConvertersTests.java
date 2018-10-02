@@ -77,7 +77,7 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         assertThat(request.getEntity(), nullValue());
     }
 
-    public void testActivateWatch() {
+    public void testActivateWatchRequestConversion() {
         String watchId = randomAlphaOfLength(10);
         ActivateWatchRequest activateWatchRequest = new ActivateWatchRequest(watchId);
 

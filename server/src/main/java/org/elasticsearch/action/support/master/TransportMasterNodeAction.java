@@ -55,7 +55,6 @@ import java.util.function.Supplier;
 public abstract class TransportMasterNodeAction<Request extends MasterNodeRequest<Request>, Response extends ActionResponse>
     extends HandledTransportAction<Request, Response> {
 
-    protected final ThreadPool threadPool;
     protected final TransportService transportService;
     protected final ClusterService clusterService;
 
@@ -65,18 +64,6 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                         ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
         this(settings, actionName, true, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, request);
-    }
-
-    protected TransportMasterNodeAction(Settings settings, String actionName, boolean canTripCircuitBreaker,
-                                        TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                        Supplier<Request> request) {
-        super(settings, actionName, canTripCircuitBreaker, transportService, actionFilters, request);
-        this.transportService = transportService;
-        this.clusterService = clusterService;
-        this.threadPool = threadPool;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.executor = executor();
     }
 
     protected TransportMasterNodeAction(Settings settings, String actionName, boolean canTripCircuitBreaker,

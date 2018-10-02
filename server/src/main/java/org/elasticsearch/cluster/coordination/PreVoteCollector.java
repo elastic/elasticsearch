@@ -200,8 +200,6 @@ public class PreVoteCollector extends AbstractComponent {
                 ", electionStarted=" + electionStarted +
                 ", preVoteRequest=" + preVoteRequest +
                 ", isClosed=" + isClosed +
-                ", clusterState.term=" + clusterState.term() +
-                ", clusterState.version=" + clusterState.version() +
                 '}';
         }
 

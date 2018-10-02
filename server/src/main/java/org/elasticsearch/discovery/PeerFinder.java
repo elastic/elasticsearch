@@ -355,6 +355,11 @@ public abstract class PeerFinder extends AbstractComponent {
                 @Override
                 public void onFailure(Exception e) {
                     logger.debug(() -> new ParameterizedMessage("{} connection failed", Peer.this), e);
+                    synchronized (mutex) {
+                        if (active == false) {
+                            return;
+                        }
+                    }
                     removePeer();
                 }
             });

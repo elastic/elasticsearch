@@ -187,16 +187,16 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             final DiscoveryNode sourceNode = publishRequest.getAcceptedState().nodes().getMasterNode();
             logger.trace("handlePublishRequest: handling [{}] from [{}]", publishRequest, sourceNode);
 
-            if (sourceNode.equals(getLocalNode())) {
-                if (mode != LEADER || getCurrentTerm() != publishRequest.getAcceptedState().term()) {
-                    throw new CoordinationStateRejectedException("no longer leading this publication's term: " + publishRequest);
-                }
-            } else {
-                becomeFollower("handlePublishRequest", sourceNode);
+            if (sourceNode.equals(getLocalNode()) && (mode != LEADER || getCurrentTerm() != publishRequest.getAcceptedState().term())) {
+                throw new CoordinationStateRejectedException("no longer leading this publication's term: " + publishRequest);
             }
 
             ensureTermAtLeast(sourceNode, publishRequest.getAcceptedState().term());
             final PublishResponse publishResponse = coordinationState.get().handlePublishRequest(publishRequest);
+
+            if (sourceNode.equals(getLocalNode()) == false) {
+                becomeFollower("handlePublishRequest", sourceNode);
+            }
 
             return new PublishWithJoinResponse(publishResponse,
                 joinWithDestination(lastJoin, sourceNode, publishRequest.getAcceptedState().term()));

@@ -19,9 +19,16 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -234,6 +241,40 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             follower.join();
             IOUtils.close(follower.engine, follower.engine.store);
         }
+    }
+
+    public void testTranslogWithParentChild() throws IOException {
+        MapperService mapperServiceWithParent = createMapperServiceWithParent("test");
+        String id = Integer.toString(randomIntBetween(1, 10));
+        String parent = randomAlphaOfLength(10);
+        ParsedDocument doc = createParsedDoc(id, randomAlphaOfLengthBetween(1, 5), false);
+        doc.parent(parent);
+        doc.docs().get(0).add(new SortedDocValuesField("_parent#another_type", new BytesRef(parent)));
+        final Engine.Index toIndex = new Engine.Index(newUid(doc), primaryTerm.get(), doc);
+        engine.index(toIndex);
+        long maxSeqNo = engine.getLocalCheckpointTracker().getMaxSeqNo();
+        engine.refresh("test");
+        Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+        try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(searcher, mapperServiceWithParent,
+                between(1, 100), 0, maxSeqNo, false)) {
+            Translog.Operation op = snapshot.next();
+            assertEquals(op.opType(), Translog.Operation.Type.INDEX);
+            Translog.Index indexOp = (Translog.Index) op;
+            assertThat(indexOp.parent(), equalTo(parent));
+        }
+    }
+
+    private static MapperService createMapperServiceWithParent(String type) throws IOException {
+        IndexMetaData indexMetaData = IndexMetaData.builder("test")
+            .settings(Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1))
+            .putMapping(type, "{\"_parent\": {\"type\": \"another_type\"}, \"properties\": {}}")
+            .build();
+        MapperService mapperService = MapperTestUtils.newMapperService(new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
+            createTempDir(), Settings.EMPTY, "test");
+        mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_UPDATE, false);
+        return mapperService;
     }
 
     class Follower extends Thread {

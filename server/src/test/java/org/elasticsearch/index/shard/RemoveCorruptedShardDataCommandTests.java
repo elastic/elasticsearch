@@ -146,7 +146,6 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33916")
     public void testCorruptedIndex() throws Exception {
         final int numDocs = indexDocs(indexShard, true);
 
@@ -179,9 +178,9 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             } else {
                 assertThat(e.getMessage(), containsString("aborted by user"));
             }
+        } finally {
+            logger.info("--> output:\n{}", t.getOutput());
         }
-
-        logger.info("--> output:\n{}", t.getOutput());
 
         if (corruptSegments == false) {
 

@@ -73,7 +73,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         final int sourceRefCount = open.getRefCount();
         final AtomicInteger count = new AtomicInteger();
         final AtomicInteger outerCount = new AtomicInteger();
-        try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher)) {
+        try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher, s -> {}, logger)) {
             final Engine.Searcher wrap =  wrapper.wrap(engineSearcher);
             assertEquals(1, wrap.reader().getRefCount());
             ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), key -> {
@@ -121,7 +121,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
             }
         };
         final ConcurrentHashMap<Object, TopDocs> cache = new ConcurrentHashMap<>();
-        try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher)) {
+        try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher, s -> {}, logger)) {
             try (Engine.Searcher wrap = wrapper.wrap(engineSearcher)) {
                 ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), key -> {
                     cache.remove(key);
@@ -151,7 +151,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
         searcher.setSimilarity(iwc.getSimilarity());
         IndexSearcherWrapper wrapper = new IndexSearcherWrapper();
-        try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher)) {
+        try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher, logger)) {
             final Engine.Searcher wrap = wrapper.wrap(engineSearcher);
             assertSame(wrap, engineSearcher);
         }

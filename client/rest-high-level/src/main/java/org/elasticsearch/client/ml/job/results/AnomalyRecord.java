@@ -48,6 +48,7 @@ public class AnomalyRecord implements ToXContentObject {
      * Result fields (all detector types)
      */
     public static final ParseField PROBABILITY = new ParseField("probability");
+    public static final ParseField IMPACT = new ParseField("multi_bucket_impact");
     public static final ParseField DETECTOR_INDEX = new ParseField("detector_index");
     public static final ParseField BY_FIELD_NAME = new ParseField("by_field_name");
     public static final ParseField BY_FIELD_VALUE = new ParseField("by_field_value");
@@ -94,6 +95,7 @@ public class AnomalyRecord implements ToXContentObject {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         PARSER.declareString((anomalyRecord, s) -> {}, Result.RESULT_TYPE);
         PARSER.declareDouble(AnomalyRecord::setProbability, PROBABILITY);
+        PARSER.declareDouble(AnomalyRecord::setImpact, IMPACT);
         PARSER.declareDouble(AnomalyRecord::setRecordScore, RECORD_SCORE);
         PARSER.declareDouble(AnomalyRecord::setInitialRecordScore, INITIAL_RECORD_SCORE);
         PARSER.declareInt(AnomalyRecord::setDetectorIndex, DETECTOR_INDEX);
@@ -117,6 +119,7 @@ public class AnomalyRecord implements ToXContentObject {
     private final String jobId;
     private int detectorIndex;
     private double probability;
+    private double impact;
     private String byFieldName;
     private String byFieldValue;
     private String correlatedByFieldValue;
@@ -155,6 +158,7 @@ public class AnomalyRecord implements ToXContentObject {
         builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         builder.field(PROBABILITY.getPreferredName(), probability);
+        builder.field(IMPACT.getPreferredName(), impact);
         builder.field(RECORD_SCORE.getPreferredName(), recordScore);
         builder.field(INITIAL_RECORD_SCORE.getPreferredName(), initialRecordScore);
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
@@ -252,6 +256,14 @@ public class AnomalyRecord implements ToXContentObject {
 
     void setProbability(double value) {
         probability = value;
+    }
+
+    public double getImpact() {
+        return impact;
+    }
+
+    void setImpact(double value) {
+        impact = value;
     }
 
     public String getByFieldName() {
@@ -376,7 +388,7 @@ public class AnomalyRecord implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, detectorIndex, bucketSpan, probability, recordScore,
+        return Objects.hash(jobId, detectorIndex, bucketSpan, probability, impact, recordScore,
                 initialRecordScore, typical, actual,function, functionDescription, fieldName,
                 byFieldName, byFieldValue, correlatedByFieldValue, partitionFieldName,
                 partitionFieldValue, overFieldName, overFieldValue, timestamp, isInterim,
@@ -399,6 +411,7 @@ public class AnomalyRecord implements ToXContentObject {
             && this.detectorIndex == that.detectorIndex
             && this.bucketSpan == that.bucketSpan
             && this.probability == that.probability
+            && this.impact == that.impact
             && this.recordScore == that.recordScore
             && this.initialRecordScore == that.initialRecordScore
             && Objects.deepEquals(this.typical, that.typical)

@@ -41,9 +41,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
 import org.elasticsearch.xpack.ccr.action.TransportGetAutoFollowPatternAction;
+import org.elasticsearch.xpack.ccr.action.TransportUnfollowAction;
 import org.elasticsearch.xpack.ccr.rest.RestGetAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.action.TransportAutoFollowStatsAction;
 import org.elasticsearch.xpack.ccr.rest.RestAutoFollowStatsAction;
+import org.elasticsearch.xpack.ccr.rest.RestUnfollowAction;
 import org.elasticsearch.xpack.core.ccr.action.AutoFollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
@@ -72,6 +74,7 @@ import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -164,6 +167,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                 new ActionHandler<>(PutFollowAction.INSTANCE, TransportPutFollowAction.class),
                 new ActionHandler<>(ResumeFollowAction.INSTANCE, TransportResumeFollowAction.class),
                 new ActionHandler<>(PauseFollowAction.INSTANCE, TransportPauseFollowAction.class),
+                new ActionHandler<>(UnfollowAction.INSTANCE, TransportUnfollowAction.class),
                 // auto-follow actions
                 new ActionHandler<>(DeleteAutoFollowPatternAction.INSTANCE, TransportDeleteAutoFollowPatternAction.class),
                 new ActionHandler<>(PutAutoFollowPatternAction.INSTANCE, TransportPutAutoFollowPatternAction.class),
@@ -186,6 +190,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                 new RestPutFollowAction(settings, restController),
                 new RestResumeFollowAction(settings, restController),
                 new RestPauseFollowAction(settings, restController),
+                new RestUnfollowAction(settings, restController),
                 // auto-follow APIs
                 new RestDeleteAutoFollowPatternAction(settings, restController),
                 new RestPutAutoFollowPatternAction(settings, restController),

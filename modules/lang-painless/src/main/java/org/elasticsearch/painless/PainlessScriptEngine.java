@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
@@ -102,7 +101,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
 
         for (Map.Entry<ScriptContext<?>, List<Whitelist>> entry : contexts.entrySet()) {
             ScriptContext<?> context = entry.getKey();
-            if (context.instanceClazz.equals(SearchScript.class) || context.instanceClazz.equals(ExecutableScript.class)) {
+            if (context.instanceClazz.equals(SearchScript.class)) {
                 contextsToCompilers.put(context, new Compiler(GenericElasticsearchScript.class, null, null,
                         PainlessLookupBuilder.buildFromWhitelists(entry.getValue())));
             } else {
@@ -154,23 +153,6 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
                     return needsScore;
                 }
             };
-            return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(ExecutableScript.class)) {
-            Constructor<?> constructor = compile(compiler, scriptName, scriptSource, params);
-
-            ExecutableScript.Factory factory = new ExecutableScript.Factory() {
-                @Override
-                public ExecutableScript newInstance(Map<String, Object> params) {
-                    try {
-                        // a new instance is required for the class bindings model to work correctly
-                        GenericElasticsearchScript newInstance = (GenericElasticsearchScript)constructor.newInstance();
-                        return new ScriptImpl(newInstance, params, null, null);
-                    } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-                        throw new IllegalArgumentException("internal error");
-                    }
-                }
-            };
-
             return context.factoryClazz.cast(factory);
         } else {
             // Check we ourselves are not being called by unprivileged code.

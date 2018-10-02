@@ -67,7 +67,9 @@ public class MultiMatchQuery extends MatchQuery {
     }
 
     public Query parse(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames, Object value, String minimumShouldMatch) throws IOException {
-        Query result;
+        final Query result;
+        // reset query builder
+        queryBuilder = null;
         if (fieldNames.size() == 1) {
             Map.Entry<String, Float> fieldBoost = fieldNames.entrySet().iterator().next();
             Float boostValue = fieldBoost.getValue();

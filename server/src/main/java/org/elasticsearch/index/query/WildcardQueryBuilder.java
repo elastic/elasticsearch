@@ -96,6 +96,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         out.writeOptionalString(rewrite);
     }
 
+    @Override
     public String fieldName() {
         return fieldName;
     }

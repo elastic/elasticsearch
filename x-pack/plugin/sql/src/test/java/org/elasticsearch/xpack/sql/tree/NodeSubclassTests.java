@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.tree;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -17,9 +16,13 @@ import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.AggExtractorInput;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggExtractorInput;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.BinaryPipesTests;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.FullTextPredicate;
-import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.tree.NodeTests.ChildrenAreAProperty;
 import org.elasticsearch.xpack.sql.tree.NodeTests.Dummy;
 import org.elasticsearch.xpack.sql.tree.NodeTests.NoChildren;
@@ -414,7 +417,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             }
         } else if (toBuildClass == ChildrenAreAProperty.class) {
             /*
-             * While any subclass of Dummy will do here we want to prevent
+             * While any subclass of DummyFunction will do here we want to prevent
              * stack overflow so we use the one without children.
              */
             if (argClass == Dummy.class) {
@@ -454,6 +457,23 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
              */
             return UnresolvedAttributeTests.randomUnresolvedAttribute();
         }
+
+        if (Pipe.class == argClass) {
+            /*
+             * Similar to expressions, mock pipes to avoid
+             * stackoverflow errors while building the tree.
+             */
+            return BinaryPipesTests.randomUnaryPipe();
+        }
+
+        if (Processor.class == argClass) {
+            /*
+             * Similar to expressions, mock pipes to avoid
+             * stackoverflow errors while building the tree.
+             */
+            return new ConstantProcessor(randomAlphaOfLength(16));
+        }
+
         if (Node.class.isAssignableFrom(argClass)) {
             /*
              * Rather than attempting to mock subclasses of node

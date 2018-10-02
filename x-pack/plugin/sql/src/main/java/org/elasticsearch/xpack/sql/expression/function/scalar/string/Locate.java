@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -20,14 +20,13 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.string.LocateFunctionProcessor.doProcess;
+import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
  * Returns the starting position of the first occurrence of the pattern within the source string.
  * The search for the first occurrence of the pattern begins with the first character position in the source string
- * unless the optional argument, start, is specified. If start is specified, the search begins with the character 
+ * unless the optional argument, start, is specified. If start is specified, the search begins with the character
  * position indicated by the value of start. The first character position in the source string is indicated by the value 1.
  * If the pattern is not found within the source string, the value 0 is returned.
  */
@@ -42,6 +41,7 @@ public class Locate extends ScalarFunction {
         this.start = start;
     }
     
+    @Override
     protected TypeResolution resolveType() {
         if (!childrenResolved()) {
             return new TypeResolution("Unresolved children");
@@ -61,11 +61,11 @@ public class Locate extends ScalarFunction {
     }
 
     @Override
-    protected ProcessorDefinition makeProcessorDefinition() {
-        return new LocateFunctionProcessorDefinition(location(), this,
-            ProcessorDefinitions.toProcessorDefinition(pattern),
-            ProcessorDefinitions.toProcessorDefinition(source),
-            start == null ? null : ProcessorDefinitions.toProcessorDefinition(start));
+    protected Pipe makePipe() {
+        return new LocateFunctionPipe(location(), this,
+            Expressions.pipe(pattern),
+            Expressions.pipe(source),
+            start == null ? null : Expressions.pipe(start));
     }
 
     @Override
@@ -75,7 +75,7 @@ public class Locate extends ScalarFunction {
 
     @Override
     public boolean foldable() {
-        return pattern.foldable() 
+        return pattern.foldable()
                 && source.foldable()
                 && (start == null? true : start.foldable());
     }
@@ -94,22 +94,20 @@ public class Locate extends ScalarFunction {
         return asScriptFrom(patternScript, sourceScript, startScript);
     }
 
-    protected ScriptTemplate asScriptFrom(ScriptTemplate patternScript, ScriptTemplate sourceScript,
-            ScriptTemplate startScript)
-    {
+    private ScriptTemplate asScriptFrom(ScriptTemplate patternScript, ScriptTemplate sourceScript, ScriptTemplate startScript) {
         if (start == null) {
-            return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s)"), 
-                    "locate", 
-                    patternScript.template(), 
+            return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s)"),
+                    "locate",
+                    patternScript.template(),
                     sourceScript.template()),
                     paramsBuilder()
                         .script(patternScript.params()).script(sourceScript.params())
                         .build(), dataType());
         }
         // basically, transform the script to InternalSqlScriptUtils.[function_name](function_or_field1, function_or_field2,...)
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s,%s)"), 
-                "locate", 
-                patternScript.template(), 
+        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s,%s)"),
+                "locate",
+                patternScript.template(),
                 sourceScript.template(),
                 startScript.template()),
                 paramsBuilder()
@@ -119,8 +117,8 @@ public class Locate extends ScalarFunction {
     }
     
     @Override
-    protected ScriptTemplate asScriptFrom(FieldAttribute field) {
-        return new ScriptTemplate(formatScript("doc[{}].value"),
+    public ScriptTemplate scriptWithField(FieldAttribute field) {
+        return new ScriptTemplate(processScript("doc[{}].value"),
                 paramsBuilder().variable(field.isInexact() ? field.exactAttribute().name() : field.name()).build(),
                 dataType());
     }

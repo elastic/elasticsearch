@@ -52,14 +52,12 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     public static final ParseField MAX_RETRY_DELAY = new ParseField("max_retry_delay");
     public static final ParseField POLL_TIMEOUT = new ParseField("poll_timeout");
     public static final ParseField RECORDED_LEADER_HISTORY_UUID = new ParseField("recorded_leader_history_uuid");
-    public static final ParseField RECORDED_FOLLOWER_HISTORY_UUID = new ParseField("recorded_follower_history_uuid");
 
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<ShardFollowTask, Void> PARSER = new ConstructingObjectParser<>(NAME,
             (a) -> new ShardFollowTask((String) a[0], new ShardId((String) a[1], (String) a[2], (int) a[3]),
                     new ShardId((String) a[4], (String) a[5], (int) a[6]), (int) a[7], (int) a[8], (ByteSizeValue) a[9],
-                (int) a[10], (int) a[11], (TimeValue) a[12], (TimeValue) a[13], (String) a[14], (String) a[15],
-                (Map<String, String>) a[16]));
+                (int) a[10], (int) a[11], (TimeValue) a[12], (TimeValue) a[13], (String) a[14], (Map<String, String>) a[15]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), LEADER_CLUSTER_ALIAS_FIELD);
@@ -85,7 +83,6 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
             (p, c) -> TimeValue.parseTimeValue(p.text(), POLL_TIMEOUT.getPreferredName()),
                 POLL_TIMEOUT, ObjectParser.ValueType.STRING);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), RECORDED_LEADER_HISTORY_UUID);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), RECORDED_FOLLOWER_HISTORY_UUID);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), HEADERS);
     }
 
@@ -100,7 +97,6 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     private final TimeValue maxRetryDelay;
     private final TimeValue pollTimeout;
     private final String recordedLeaderIndexHistoryUUID;
-    private final String recordedFollowerIndexHistoryUUID;
     private final Map<String, String> headers;
 
     ShardFollowTask(
@@ -115,7 +111,6 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
             final TimeValue maxRetryDelay,
             final TimeValue pollTimeout,
             final String recordedLeaderIndexHistoryUUID,
-            final String recordedFollowerIndexHistoryUUID,
             final Map<String, String> headers) {
         this.leaderClusterAlias = leaderClusterAlias;
         this.followShardId = followShardId;
@@ -128,7 +123,6 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         this.maxRetryDelay = maxRetryDelay;
         this.pollTimeout = pollTimeout;
         this.recordedLeaderIndexHistoryUUID = recordedLeaderIndexHistoryUUID;
-        this.recordedFollowerIndexHistoryUUID = recordedFollowerIndexHistoryUUID;
         this.headers = headers != null ? Collections.unmodifiableMap(headers) : Collections.emptyMap();
     }
 
@@ -144,7 +138,6 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         this.maxRetryDelay = in.readTimeValue();
         this.pollTimeout = in.readTimeValue();
         this.recordedLeaderIndexHistoryUUID = in.readString();
-        this.recordedFollowerIndexHistoryUUID = in.readString();
         this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
     }
 
@@ -196,10 +189,6 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         return recordedLeaderIndexHistoryUUID;
     }
 
-    public String getRecordedFollowerIndexHistoryUUID() {
-        return recordedFollowerIndexHistoryUUID;
-    }
-
     public Map<String, String> getHeaders() {
         return headers;
     }
@@ -222,7 +211,6 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         out.writeTimeValue(maxRetryDelay);
         out.writeTimeValue(pollTimeout);
         out.writeString(recordedLeaderIndexHistoryUUID);
-        out.writeString(recordedFollowerIndexHistoryUUID);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
     }
 
@@ -250,7 +238,6 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         builder.field(MAX_RETRY_DELAY.getPreferredName(), maxRetryDelay.getStringRep());
         builder.field(POLL_TIMEOUT.getPreferredName(), pollTimeout.getStringRep());
         builder.field(RECORDED_LEADER_HISTORY_UUID.getPreferredName(), recordedLeaderIndexHistoryUUID);
-        builder.field(RECORDED_FOLLOWER_HISTORY_UUID.getPreferredName(), recordedFollowerIndexHistoryUUID);
         builder.field(HEADERS.getPreferredName(), headers);
         return builder.endObject();
     }
@@ -271,7 +258,6 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
                 Objects.equals(maxRetryDelay, that.maxRetryDelay) &&
                 Objects.equals(pollTimeout, that.pollTimeout) &&
                 Objects.equals(recordedLeaderIndexHistoryUUID, that.recordedLeaderIndexHistoryUUID) &&
-                Objects.equals(recordedFollowerIndexHistoryUUID, that.recordedFollowerIndexHistoryUUID) &&
                 Objects.equals(headers, that.headers);
     }
 
@@ -289,8 +275,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
                 maxRetryDelay,
                 pollTimeout,
                 recordedLeaderIndexHistoryUUID,
-                recordedFollowerIndexHistoryUUID,
-            headers
+                headers
         );
     }
 

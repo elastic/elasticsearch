@@ -23,6 +23,8 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -135,13 +137,14 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
             @Override
             protected void innerSendBulkShardOperationsRequest(
-                    final List<Translog.Operation> operations,
-                    final long maxSeqNoOfUpdatesOrDeletes,
-                    final Consumer<BulkShardOperationsResponse> handler,
-                    final Consumer<Exception> errorHandler) {
-                final BulkShardOperationsRequest request =
-                    new BulkShardOperationsRequest(
-                    params.getFollowShardId(), params.getRecordedFollowerIndexHistoryUUID(), operations, maxSeqNoOfUpdatesOrDeletes);
+                final String followerHistoryUUID,
+                final List<Translog.Operation> operations,
+                final long maxSeqNoOfUpdatesOrDeletes,
+                final Consumer<BulkShardOperationsResponse> handler,
+                final Consumer<Exception> errorHandler) {
+
+                final BulkShardOperationsRequest request = new BulkShardOperationsRequest(params.getFollowShardId(),
+                    followerHistoryUUID, operations, maxSeqNoOfUpdatesOrDeletes);
                 followerClient.execute(BulkShardOperationsAction.INSTANCE, request,
                     ActionListener.wrap(response -> handler.accept(response), errorHandler));
             }
@@ -160,8 +163,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         };
     }
 
-    interface BiLongConsumer {
-        void accept(long x, long y);
+    interface FollowerStatsInfoHandler {
+        void accept(String followerHistoryUUID, long globalCheckpoint, long maxSeqNo);
     }
 
     @Override
@@ -170,7 +173,9 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         ShardFollowNodeTask shardFollowNodeTask = (ShardFollowNodeTask) task;
         logger.info("{} Starting to track leader shard {}", params.getFollowShardId(), params.getLeaderShardId());
 
-        BiLongConsumer handler = (followerGCP, maxSeqNo) -> shardFollowNodeTask.start(followerGCP, maxSeqNo, followerGCP, maxSeqNo);
+        FollowerStatsInfoHandler handler = (followerHistoryUUID, followerGCP, maxSeqNo) -> {
+            shardFollowNodeTask.start(followerHistoryUUID, followerGCP, maxSeqNo, followerGCP, maxSeqNo);
+        };
         Consumer<Exception> errorHandler = e -> {
             if (shardFollowNodeTask.isStopped()) {
                 return;
@@ -185,13 +190,13 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             }
         };
 
-        fetchGlobalCheckpoint(followerClient, params.getFollowShardId(), handler, errorHandler);
+        fetchFollowerShardInfo(followerClient, params.getFollowShardId(), handler, errorHandler);
     }
 
-    private void fetchGlobalCheckpoint(
+    private void fetchFollowerShardInfo(
             final Client client,
             final ShardId shardId,
-            final BiLongConsumer handler,
+            final FollowerStatsInfoHandler handler,
             final Consumer<Exception> errorHandler) {
         client.admin().indices().stats(new IndicesStatsRequest().indices(shardId.getIndexName()), ActionListener.wrap(r -> {
             IndexStats indexStats = r.getIndex(shardId.getIndexName());
@@ -205,10 +210,14 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     .filter(shardStats -> shardStats.getShardRouting().primary())
                     .findAny();
             if (filteredShardStats.isPresent()) {
-                final SeqNoStats seqNoStats = filteredShardStats.get().getSeqNoStats();
+                final ShardStats shardStats = filteredShardStats.get();
+                final CommitStats commitStats = shardStats.getCommitStats();
+                final String historyUUID = commitStats.getUserData().get(Engine.HISTORY_UUID_KEY);
+
+                final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
                 final long globalCheckpoint = seqNoStats.getGlobalCheckpoint();
                 final long maxSeqNo = seqNoStats.getMaxSeqNo();
-                handler.accept(globalCheckpoint, maxSeqNo);
+                handler.accept(historyUUID, globalCheckpoint, maxSeqNo);
             } else {
                 errorHandler.accept(new ShardNotFoundException(shardId));
             }

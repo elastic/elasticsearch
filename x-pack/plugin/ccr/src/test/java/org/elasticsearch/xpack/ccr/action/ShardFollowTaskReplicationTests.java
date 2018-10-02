@@ -63,6 +63,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             final SeqNoStats leaderSeqNoStats = leaderGroup.getPrimary().seqNoStats();
             final SeqNoStats followerSeqNoStats = followerGroup.getPrimary().seqNoStats();
             shardFollowTask.start(
+                    followerGroup.getPrimary().getHistoryUUID(),
                     leaderSeqNoStats.getGlobalCheckpoint(),
                     leaderSeqNoStats.getMaxSeqNo(),
                     followerSeqNoStats.getGlobalCheckpoint(),
@@ -103,6 +104,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             final SeqNoStats leaderSeqNoStats = leaderGroup.getPrimary().seqNoStats();
             final SeqNoStats followerSeqNoStats = followerGroup.getPrimary().seqNoStats();
             shardFollowTask.start(
+                    followerGroup.getPrimary().getHistoryUUID(),
                     leaderSeqNoStats.getGlobalCheckpoint(),
                     leaderSeqNoStats.getMaxSeqNo(),
                     followerSeqNoStats.getGlobalCheckpoint(),
@@ -148,6 +150,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             final SeqNoStats leaderSeqNoStats = leaderGroup.getPrimary().seqNoStats();
             final SeqNoStats followerSeqNoStats = followerGroup.getPrimary().seqNoStats();
             shardFollowTask.start(
+                followerGroup.getPrimary().getHistoryUUID(),
                 leaderSeqNoStats.getGlobalCheckpoint(),
                 leaderSeqNoStats.getMaxSeqNo(),
                 followerSeqNoStats.getGlobalCheckpoint(),
@@ -188,6 +191,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             final SeqNoStats leaderSeqNoStats = leaderGroup.getPrimary().seqNoStats();
             final SeqNoStats followerSeqNoStats = followerGroup.getPrimary().seqNoStats();
             shardFollowTask.start(
+                followerGroup.getPrimary().getHistoryUUID(),
                 leaderSeqNoStats.getGlobalCheckpoint(),
                 leaderSeqNoStats.getMaxSeqNo(),
                 followerSeqNoStats.getGlobalCheckpoint(),
@@ -258,7 +262,6 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueMillis(10),
             leaderGroup.getPrimary().getHistoryUUID(),
-            followerGroup.getPrimary().getHistoryUUID(),
             Collections.emptyMap()
         );
 
@@ -286,15 +289,14 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
             @Override
             protected void innerSendBulkShardOperationsRequest(
-                    final List<Translog.Operation> operations,
-                    final long maxSeqNoOfUpdates,
-                    final Consumer<BulkShardOperationsResponse> handler,
-                    final Consumer<Exception> errorHandler) {
+                final String followerHistoryUUID,
+                final List<Translog.Operation> operations,
+                final long maxSeqNoOfUpdates,
+                final Consumer<BulkShardOperationsResponse> handler,
+                final Consumer<Exception> errorHandler) {
                 Runnable task = () -> {
-                    String historyUUID = params.getRecordedFollowerIndexHistoryUUID();
-                    BulkShardOperationsRequest request =
-                        new BulkShardOperationsRequest(
-                        params.getFollowShardId(), historyUUID, operations, maxSeqNoOfUpdates);
+                    BulkShardOperationsRequest request = new BulkShardOperationsRequest(params.getFollowShardId(),
+                        followerHistoryUUID, operations, maxSeqNoOfUpdates);
                     ActionListener<BulkShardOperationsResponse> listener = ActionListener.wrap(handler::accept, errorHandler);
                     new CCRAction(request, listener, followerGroup).execute();
                 };

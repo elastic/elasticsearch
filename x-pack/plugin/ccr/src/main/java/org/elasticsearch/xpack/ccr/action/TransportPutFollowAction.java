@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -15,8 +14,8 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -29,7 +28,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -165,9 +163,23 @@ public final class TransportPutFollowAction
             return;
         }
 
+        ActionListener<Boolean> handler = ActionListener.wrap(
+                result -> {
+                    if (result) {
+                        initiateFollowing(request, listener);
+                    } else {
+                        listener.onResponse(new PutFollowAction.Response(true, false, false));
+                    }
+                },
+                listener::onFailure);
         // Can't use create index api here, because then index templates can alter the mappings / settings.
         // And index templates could introduce settings / mappings that are incompatible with the leader index.
-        clusterService.submitStateUpdateTask("create_follow_index", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("create_follow_index", new AckedClusterStateUpdateTask<Boolean>(request, handler) {
+
+            @Override
+            protected Boolean newResponse(final boolean acknowledged) {
+                return acknowledged;
+            }
 
             @Override
             public ClusterState execute(final ClusterState currentState) throws Exception {
@@ -218,53 +230,21 @@ public final class TransportPutFollowAction
 
                 return updatedState;
             }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                IndexMetaData followerIndexMeta = newState.metaData().index(request.getFollowRequest().getFollowerIndex());
-                initiateFollowing(request, followerIndexMeta, listener);
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                listener.onFailure(e);
-            }
         });
     }
 
     private void initiateFollowing(
             final PutFollowAction.Request request,
-            final IndexMetaData followerIndexMeta,
             final ActionListener<PutFollowAction.Response> listener) {
         activeShardsObserver.waitForActiveShards(new String[]{request.getFollowRequest().getFollowerIndex()},
                 ActiveShardCount.DEFAULT, request.timeout(), result -> {
                     if (result) {
-                        ccrLicenseChecker.fetchHistoryUUIDs(client, followerIndexMeta, listener::onFailure, historyUUIDs -> {
-                            clusterService.submitStateUpdateTask("record-follower-index-uuids", new ClusterStateUpdateTask() {
-                                @Override
-                                public ClusterState execute(ClusterState currentState) throws Exception {
-                                    return recordFollowerShardHistoryUUIDs(currentState, followerIndexMeta.getIndex(), historyUUIDs);
-                                }
-
-                                @Override
-                                public void onFailure(String source, Exception e) {
-                                    listener.onFailure(e);
-                                }
-
-                                @Override
-                                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                                    client.execute(ResumeFollowAction.INSTANCE, request.getFollowRequest(), ActionListener.wrap(
-                                        r -> listener.onResponse(new PutFollowAction.Response(true, true, r.isAcknowledged())),
-                                        e -> {
-                                            logger.error("Failed to initiate the shard following", e);
-                                            listener.onResponse(new PutFollowAction.Response(true, true, false));
-                                        }
-                                    ));
-                                }
-                            });
-                        });
+                        client.execute(ResumeFollowAction.INSTANCE, request.getFollowRequest(), ActionListener.wrap(
+                                r -> listener.onResponse(new PutFollowAction.Response(true, true, r.isAcknowledged())),
+                                listener::onFailure
+                        ));
                     } else {
-                        listener.onFailure(new ElasticsearchException("creation of leader index was not acked"));
+                        listener.onResponse(new PutFollowAction.Response(true, false, false));
                     }
                 }, listener::onFailure);
     }
@@ -272,23 +252,6 @@ public final class TransportPutFollowAction
     @Override
     protected ClusterBlockException checkBlock(final PutFollowAction.Request request, final ClusterState state) {
         return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.getFollowRequest().getFollowerIndex());
-    }
-
-    private static ClusterState recordFollowerShardHistoryUUIDs(ClusterState current,
-                                                                Index followerIndex,
-                                                                String[] historyUUIDs) {
-
-        IndexMetaData currentFollowerIndexMetaData = current.metaData().index(followerIndex);
-        IndexMetaData.Builder followIndexMetaDataBuilder = IndexMetaData.builder(currentFollowerIndexMetaData);
-        Map<String, String> ccrCustom = new HashMap<>(currentFollowerIndexMetaData.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY));
-        ccrCustom.put(Ccr.CCR_CUSTOM_METADATA_FOLLOWER_INDEX_SHARD_HISTORY_UUIDS, String.join(",", historyUUIDs));
-        followIndexMetaDataBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, ccrCustom);
-
-        return ClusterState.builder(current)
-            .metaData(MetaData.builder(current.metaData())
-                .put(followIndexMetaDataBuilder)
-                .build())
-            .build();
     }
 
 }

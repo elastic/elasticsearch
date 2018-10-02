@@ -195,12 +195,9 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             Map<String, String> ccrIndexMetadata = followIndexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
             String[] recordedLeaderShardHistoryUUIDs = extractLeaderShardHistoryUUIDs(ccrIndexMetadata);
             String recordedLeaderShardHistoryUUID = recordedLeaderShardHistoryUUIDs[shardId];
-            String[] recordedFollowerShardHistoryUUIDs = extractFollowerShardHistoryUUIDs(ccrIndexMetadata);
-            String recordedFollowerShardHistoryUUID = recordedFollowerShardHistoryUUIDs[shardId];
 
             final ShardFollowTask shardFollowTask = createShardFollowTask(shardId, clusterNameAlias, request,
-                leaderIndexMetadata, followIndexMetadata, recordedLeaderShardHistoryUUID, recordedFollowerShardHistoryUUID,
-                filteredHeaders);
+                leaderIndexMetadata, followIndexMetadata, recordedLeaderShardHistoryUUID, filteredHeaders);
             persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask,
                     new ActionListener<PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask>>() {
                         @Override
@@ -315,7 +312,6 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         IndexMetaData leaderIndexMetadata,
         IndexMetaData followIndexMetadata,
         String recordedLeaderShardHistoryUUID,
-        String recordedFollowerShardHistoryUUID,
         Map<String, String> filteredHeaders
     ) {
         int maxBatchOperationCount;
@@ -368,7 +364,6 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             maxRetryDelay,
             pollTimeout,
             recordedLeaderShardHistoryUUID,
-            recordedFollowerShardHistoryUUID,
             filteredHeaders
         );
     }
@@ -377,15 +372,6 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         String historyUUIDs = ccrIndexMetaData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS);
         if (historyUUIDs == null) {
             throw new IllegalArgumentException("leader index shard UUIDs are missing");
-        }
-
-        return historyUUIDs.split(",");
-    }
-
-    private static String[] extractFollowerShardHistoryUUIDs(Map<String, String> ccrIndexMetaData) {
-        String historyUUIDs = ccrIndexMetaData.get(Ccr.CCR_CUSTOM_METADATA_FOLLOWER_INDEX_SHARD_HISTORY_UUIDS);
-        if (historyUUIDs == null) {
-            throw new IllegalArgumentException("follower index shard UUIDs are missing");
         }
 
         return historyUUIDs.split(",");

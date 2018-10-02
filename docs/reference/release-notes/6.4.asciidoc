@@ -37,33 +37,35 @@
 [[release-notes-6.4.2]]
 == {es} version 6.4.2
 
-coming[6.4.2]
+[[enhancement-6.4.2]]
+[float]
+=== Enhancements
 
-//[float]
-//[[breaking-n.n.n]]
-//=== Breaking Changes
+Search::
+* Add a limit for graph phrase query expansion {pull}34031[#34031]
 
-//[float]
-//=== Breaking Java Changes
+[[bug-6.4.2]]
+[float]
+=== Bug fixes
 
-//[float]
-//=== Deprecations
+Core::
+* Fix AutoQueueAdjustingExecutorBuilder settings validation {pull}33922[#33922]
 
-//[float]
-//=== New Features
+Index APIs::
+* Allow to clear the fielddata cache per field {pull}33807[#33807] (issue: {issue}33798[#33798])
 
-//[float]
-//=== Enhancements
+Network::
+*  Support PKCS#11 tokens as keystores and truststores  [OPEN] {pull}34063[#34063] (issue: {issue}11[#11])
+* Correctly handle PKCS#11 tokens for system keystore {pull}33460[#33460] (issues: {issue}11[#11], {issue}33459[#33459])
 
-//[float]
-//=== Bug Fixes
+Security::
+* Security: use default scroll keepalive {pull}33639[#33639]
 
-//[float]
-//=== Regressions
+Snapshot/Restore::
+* Do not override named S3 client credentials {pull}33793[#33793] (issue: {issue}33769[#33769])
 
-//[float]
-//=== Known Issues
-
+Watcher::
+* Watcher: Ensure triggered watch deletion is sync {pull}33799[#33799]
 
 [[release-notes-6.4.1]]
 == {es} version 6.4.1
@@ -200,15 +202,15 @@ Java High Level REST Client::
 * Rest High Level client: Add List Tasks {pull}29546[#29546] (issue: {issue}27205[#27205])
 
 Machine learning::
-* Detectors now support {stack-ov}/ml-rules.html[custom rules] that enable the 
-user to improve machine learning results by providing some domain-specific 
+* Detectors now support {stack-ov}/ml-rules.html[custom rules] that enable the
+user to improve machine learning results by providing some domain-specific
 knowledge in the form of rule. {ml-pull}119[#119], {pull}31110[#31110], {pull}31294[#31294] (issue: {issue}31110[#31110])
 * Reverse engineer Grok patterns from categorization results {pull}30125[#30125]
 
 Mapping::
 * Add support for field aliases. {pull}32172[#32172] (issues: {issue}23714[#23714], {issue}31372[#31372])
 * Add an option to split keyword field on whitespace at query time {pull}30691[#30691] (issue: {issue}30393[#30393])
-* The new <<mapping-ignored-field,`_ignored`>> field enables you to know which 
+* The new <<mapping-ignored-field,`_ignored`>> field enables you to know which
 fields got ignored at index time because of the <<ignore-malformed,`ignore_malformed`>>
 option. ({pull}29658[#29658]) (issue: {issue}29494[#29494])
 
@@ -359,9 +361,9 @@ Logging::
  * Add x-opaque-id to search slow logs {pull}31539[#31539] (issue: {issue}31521[#31521])
 
 Machine learning::
-* If a {ml} datafeed is configured to use cross cluster search to retrieve data, 
-the remote clusters must have {xpack} installed and a valid licence for {ml}. 
-If the licence requirements are not met, datafeeds using cross cluster search 
+* If a {ml} datafeed is configured to use cross cluster search to retrieve data,
+the remote clusters must have {xpack} installed and a valid licence for {ml}.
+If the licence requirements are not met, datafeeds using cross cluster search
 will not start. {pull}31247[#31247]
  * Use default request durability for .ml-state index {pull}32233[#32233]
  * Return statistics about forecasts as part of the job stats and usage API {pull}31647[#31647] (issue: {issue}31395[#31395])
@@ -382,14 +384,14 @@ will not start. {pull}31247[#31247]
 * Reduces the memory consumed by distribution models ({ml-pull}162[#162], {ml-pull}146[#146])
 * Forecasting of large machine learning jobs is now supported by temporarily storing
 model state on disk ({ml-pull}89[#89])
-* Secures the machine learning processes by preventing system calls such as fork 
-and exec. The Linux implementation uses Seccomp BPF (secure computing with 
-Berkeley Packet Filters) to intercept system calls and is available in kernels 
-since 3.5. On Windows, Job Objects prevent new processes being created and macOS 
+* Secures the machine learning processes by preventing system calls such as fork
+and exec. The Linux implementation uses Seccomp BPF (secure computing with
+Berkeley Packet Filters) to intercept system calls and is available in kernels
+since 3.5. On Windows, Job Objects prevent new processes being created and macOS
 uses the sandbox functionality ({ml-pull}106[#106], {ml-pull}98[#98])
-* Fixes a bug that caused underestimation of the memory used by shared pointers. 
+* Fixes a bug that caused underestimation of the memory used by shared pointers.
 Also reduces the memory consumed by unnecessary reference counting ({ml-pull}121[#121], {ml-pull}108, {ml-pull}115[#115])
-* Reduces model memory by storing the state for testing predictive calendar 
+* Reduces model memory by storing the state for testing predictive calendar
 features in a compressed format ({ml-pull}137[#137], {ml-pull}127[#127])
 * Always combine duplicate samples when updating population models ({ml-pull}74[#74])
 * Speeds up trend model component prediction ({ml-pull}73[#73])
@@ -432,7 +434,7 @@ Rollup::
  * Rollups no longer allow patterns that match its `rollup_index`, which can lead to strange errors. {pull}30491[#30491]
  * A new API allows getting the rollup capabilities of specific rollup indices,
  rather than by the target pattern. {pull}30401[#30401]
- * Validation errors thrown while creating a rollup job are now a specialization of the previous `ActionRequestValidationException`, which makes it easier to catch. 
+ * Validation errors thrown while creating a rollup job are now a specialization of the previous `ActionRequestValidationException`, which makes it easier to catch.
  The new exception is `RollupActionRequestValidationException`. {pull}30339[#30339]
  * Validate timezone in range queries to ensure they match the selected job when
  searching. {pull}30338[#30338]
@@ -489,7 +491,7 @@ Snapshot/Restore::
  * Use simpler write-once semantics for HDFS repository {pull}30439[#30439]
  * User proper write-once semantics for GCS repository {pull}30438[#30438]
  * Use stronger write-once semantics for Azure repository {pull}30437[#30437]
- * Use simpler write-once semantics for FS repository {pull}30435[#30435] 
+ * Use simpler write-once semantics for FS repository {pull}30435[#30435]
  * Do not fail snapshot when deleting a missing snapshotted file {pull}30332[#30332] (issue: {issue}28322[#28322])
  * Repository GCS plugin new client library {pull}30168[#30168] (issue: {issue}29259[#29259])
  * Fail snapshot operations early on repository corruption {pull}30140[#30140] (issues: {issue}29649[#29649])
@@ -604,7 +606,7 @@ Index APIs::
 * Add support for is_write_index in put-alias body parsing {pull}31674[#31674]
 * Fix writeIndex evaluation for aliases {pull}31562[#31562]
 * Fix IndexTemplateMetaData parsing from xContent {pull}30917[#30917]
-* Do not ignore request analysis/similarity settings on index resize operations 
+* Do not ignore request analysis/similarity settings on index resize operations
 when the source index already contains such settings. {pull}30216[#30216]
 * Do not return all indices if a specific alias is requested via get aliases api. {pull}29538[#29538] (issues: {issue}27763[#27763])
 
@@ -632,16 +634,16 @@ Machine learning::
 * Rate limit established model memory updates {pull}31768[#31768]
 * Account for gaps in data counts after job is reopened {pull}30294[#30294] (issue: {issue}30080[#30080])
 * Ages seasonal components in proportion to the fraction of values with which they're updated ({ml-pull}88[#88] (issue: {ml-issue}87[#87]))
-* Fixes persist and restore, which were missing some of the trend model state. 
+* Fixes persist and restore, which were missing some of the trend model state.
 ({ml-pull}103[#103], {ml-pull}99[#99])
 * Stops zero variance data from generating a log error in the forecast confidence interval calculation ({ml-pull}120[#120], {ml-pull}107[#107])
-* Fixes corner case which was failing to calculate lgamma values and fixes the 
+* Fixes corner case which was failing to calculate lgamma values and fixes the
 corresponding log errors ({ml-pull}131[#131], {ml-pull}126[#126])
-* Fixes influence count per bucket for metric population analyses, which was 
+* Fixes influence count per bucket for metric population analyses, which was
 wrong and lead to incorrect influencer scoring ({ml-pull}153[#153], {ml-pull}150[#150])
 * Fixes a possible SIGSEGV for jobs with multivariate by fields enabled, which caused the jobs to fail ({ml-pull}174[#174], {ml-pull}170[#170])
-* Corrects the model bounds and typical value calculation for time series models 
-which use a multimodal distribution. This issue could cause "Unable to bracket 
+* Corrects the model bounds and typical value calculation for time series models
+which use a multimodal distribution. This issue could cause "Unable to bracket
 left percentile =..." errors to appear in the logs. ({ml-pull}178[#178], {ml-pull}176[#176])
 
 Mapping::
@@ -794,4 +796,3 @@ Network::
 
 Search::
 * Upgrade to Lucene 7.4.0. {pull}31529[#31529]
-

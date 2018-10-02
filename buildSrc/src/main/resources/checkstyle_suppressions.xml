@@ -42,11 +42,6 @@
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]StoredScriptsDocumentationIT.java" id="SnippetLength" />
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]TasksClientDocumentationIT.java" id="SnippetLength" />
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]WatcherDocumentationIT.java" id="SnippetLength" />
-  <!--
-    This one is in plugins/examples/script-expert-scoring but we need to
-    suppress it like this because we build that project twice, once in for
-    real and once as a test for our build system. -->
-  <suppress files="src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]example[/\\]expertscript[/\\]ExpertScriptPlugin.java" id="SnippetLength" />
   <suppress files="modules[/\\]reindex[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]ReindexDocumentationIT.jav" id="SnippetLength" />
 
   <!-- Hopefully temporary suppression of LineLength on files that don't pass it. We should remove these when we the

@@ -22,11 +22,14 @@ package org.elasticsearch.index.mapper;
 import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.JsonFieldMapper.JsonFieldType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.XContentTestUtils;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -266,12 +269,32 @@ public class JsonFieldParserTests extends ESTestCase {
         assertEquals(0, fields.size());
     }
 
+    public void testRandomFields() throws Exception {
+        BytesReference input = BytesReference.bytes(
+            XContentBuilder.builder(JsonXContent.jsonXContent)
+                .startObject()
+                    .startObject("object")
+                        .field("key", "value")
+                    .endObject()
+                    .startArray("array")
+                        .value(2.718)
+                    .endArray()
+                .endObject());
+
+        input = XContentTestUtils.insertRandomFields(XContentType.JSON, input, null, random());
+        XContentParser xContentParser = createXContentParser(input.utf8ToString());
+
+        List<IndexableField> fields = parser.parse(xContentParser);
+        assertTrue(fields.size() > 4);
+    }
+
     public void testReservedCharacters() throws Exception {
-        XContentBuilder input = XContentBuilder.builder(JsonXContent.jsonXContent)
-            .startObject()
-                .field("k\0y", "value")
-            .endObject();
-        XContentParser xContentParser = createXContentParser(input);
+        BytesReference input = BytesReference.bytes(
+            XContentBuilder.builder(JsonXContent.jsonXContent)
+                .startObject()
+                    .field("k\0y", "value")
+                .endObject());
+        XContentParser xContentParser = createXContentParser(input.utf8ToString());
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parser.parse(xContentParser));
         assertEquals("Keys in [json] fields cannot contain the reserved character \\0. Offending key: [k\0y].",
@@ -280,12 +303,6 @@ public class JsonFieldParserTests extends ESTestCase {
 
     private XContentParser createXContentParser(String input) throws IOException {
         XContentParser xContentParser = createParser(JsonXContent.jsonXContent, input);
-        xContentParser.nextToken();
-        return xContentParser;
-    }
-
-    private XContentParser createXContentParser(XContentBuilder input) throws IOException {
-        XContentParser xContentParser = createParser(input);
         xContentParser.nextToken();
         return xContentParser;
     }

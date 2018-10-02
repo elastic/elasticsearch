@@ -19,19 +19,13 @@
 
 package org.elasticsearch.client.indexlifecycle;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.client.TimedRequest;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-public class SetIndexLifecyclePolicyRequest extends AcknowledgedRequest<SetIndexLifecyclePolicyRequest>
-    implements IndicesRequest.Replaceable {
+public class SetIndexLifecyclePolicyRequest extends TimedRequest {
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
@@ -51,13 +45,11 @@ public class SetIndexLifecyclePolicyRequest extends AcknowledgedRequest<SetIndex
         this.policy = policy;
     }
 
-    @Override
     public SetIndexLifecyclePolicyRequest indices(String... indices) {
         this.indices = indices;
         return this;
     }
 
-    @Override
     public String[] indices() {
         return indices;
     }
@@ -77,27 +69,6 @@ public class SetIndexLifecyclePolicyRequest extends AcknowledgedRequest<SetIndex
 
     public IndicesOptions indicesOptions() {
         return indicesOptions;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        policy = in.readString();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArray(indices);
-        indicesOptions.writeIndicesOptions(out);
-        out.writeString(policy);
     }
 
     @Override

@@ -25,6 +25,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -112,7 +113,11 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                 // of the ldap server and the opening of the socket
                 logger.debug("opening mock server socket listening on [{}]", port);
                 Runnable runnable = () -> {
-                    try (Socket socket = new MockSocket(InetAddress.getByName("localhost"), mockServerSocket.getLocalPort(), local, port)) {
+                    try (Socket socket = new MockSocket()) {
+                        socket.setReuseAddress(true); // allow binding even if the previous socket is in timed state.
+                        socket.setSoLinger(true, 0); // close immediately as we are not writing anything here.
+                        socket.bind(new InetSocketAddress(local, port));
+                        socket.connect(new InetSocketAddress(local, mockServerSocket.getLocalPort()));
                         logger.debug("opened socket [{}]", socket);
                         latch.countDown();
                         closeLatch.await();

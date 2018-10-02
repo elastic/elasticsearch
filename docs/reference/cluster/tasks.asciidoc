@@ -1,8 +1,6 @@
 [[tasks]]
 == Task Management API
 
-beta[The Task Management API is new and should still be considered a beta feature.  The API may change in ways that are not backwards compatible]
-
 [float]
 === Current Tasks Information
 

@@ -12,15 +12,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
-import org.elasticsearch.xpack.core.ml.MlTasks;
-import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
-import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.util.Objects;
@@ -89,16 +87,20 @@ public class MlAssignmentNotifier extends AbstractComponent implements ClusterSt
                     auditor.info(jobId, "Opening job on node [" + node.toString() + "]");
                 }
             } else if (MlTasks.DATAFEED_TASK_NAME.equals(currentTask.getTaskName())) {
-                String datafeedId = ((StartDatafeedAction.DatafeedParams) currentTask.getParams()).getDatafeedId();
-                DatafeedConfig datafeedConfig = MlMetadata.getMlMetadata(event.state()).getDatafeed(datafeedId);
+                StartDatafeedAction.DatafeedParams datafeedParams = (StartDatafeedAction.DatafeedParams) currentTask.getParams();
+                String jobId = datafeedParams.getJob() != null ? datafeedParams.getJob().getId() : null;
                 if (currentAssignment.getExecutorNode() == null) {
-                    String msg = "No node found to start datafeed [" + datafeedId +"]. Reasons [" +
+                    String msg = "No node found to start datafeed [" + datafeedParams.getDatafeedId() +"]. Reasons [" +
                             currentAssignment.getExplanation() + "]";
-                    logger.warn("[{}] {}", datafeedConfig.getJobId(), msg);
-                    auditor.warning(datafeedConfig.getJobId(), msg);
+                    logger.warn("[{}] {}", jobId, msg);
+                    if (jobId != null) {
+                        auditor.warning(jobId, msg);
+                    }
                 } else {
                     DiscoveryNode node = event.state().nodes().get(currentAssignment.getExecutorNode());
-                    auditor.info(datafeedConfig.getJobId(), "Starting datafeed [" + datafeedId + "] on node [" + node + "]");
+                    if (jobId != null) {
+                        auditor.info(jobId, "Starting datafeed [" + datafeedParams.getDatafeedId() + "] on node [" + node + "]");
+                    }
                 }
             }
         }

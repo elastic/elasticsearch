@@ -32,7 +32,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class MlAssignmentNotifierTests extends ESTestCase {
 
-    public void testClusterChanged_info() throws Exception {
+    public void testClusterChanged_info() {
         Auditor auditor = mock(Auditor.class);
         ClusterService clusterService = mock(ClusterService.class);
         MlAssignmentNotifier notifier = new MlAssignmentNotifier(Settings.EMPTY, auditor, clusterService);
@@ -60,7 +60,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
         verifyNoMoreInteractions(auditor);
     }
 
-    public void testClusterChanged_warning() throws Exception {
+    public void testClusterChanged_warning() {
         Auditor auditor = mock(Auditor.class);
         ClusterService clusterService = mock(ClusterService.class);
         MlAssignmentNotifier notifier = new MlAssignmentNotifier(Settings.EMPTY, auditor, clusterService);

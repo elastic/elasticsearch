@@ -15,7 +15,7 @@
                   type: keyword
 
   - do:
-      ccr.create_and_follow_index:
+      ccr.follow:
         index: bar
         body:
           leader_index: foo
@@ -51,7 +51,7 @@
   - gte: { bar.0.time_since_last_fetch_millis: -1 }
 
   - do:
-      ccr.unfollow_index:
+      ccr.pause_follow:
         index: bar
   - is_true: acknowledged
 

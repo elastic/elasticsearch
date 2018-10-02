@@ -33,8 +33,8 @@ public class JsonFileStructureFinder implements FileStructureFinder {
     private final FileStructure structure;
 
     static JsonFileStructureFinder makeJsonFileStructureFinder(List<String> explanation, String sample, String charsetName,
-                                                               Boolean hasByteOrderMarker, FileStructureOverrides overrides)
-        throws IOException {
+                                                               Boolean hasByteOrderMarker, FileStructureOverrides overrides,
+                                                               TimeoutChecker timeoutChecker) throws IOException {
 
         List<Map<String, ?>> sampleRecords = new ArrayList<>();
 
@@ -43,6 +43,7 @@ public class JsonFileStructureFinder implements FileStructureFinder {
             XContentParser parser = jsonXContent.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                 sampleMessage);
             sampleRecords.add(parser.mapOrdered());
+            timeoutChecker.check("JSON parsing");
         }
 
         FileStructure.Builder structureBuilder = new FileStructure.Builder(FileStructure.Format.JSON)
@@ -52,15 +53,17 @@ public class JsonFileStructureFinder implements FileStructureFinder {
             .setNumLinesAnalyzed(sampleMessages.size())
             .setNumMessagesAnalyzed(sampleRecords.size());
 
-        Tuple<String, TimestampMatch> timeField = FileStructureUtils.guessTimestampField(explanation, sampleRecords, overrides);
+        Tuple<String, TimestampMatch> timeField =
+            FileStructureUtils.guessTimestampField(explanation, sampleRecords, overrides, timeoutChecker);
         if (timeField != null) {
             structureBuilder.setTimestampField(timeField.v1())
-                .setTimestampFormats(timeField.v2().dateFormats)
+                .setJodaTimestampFormats(timeField.v2().jodaTimestampFormats)
+                .setJavaTimestampFormats(timeField.v2().javaTimestampFormats)
                 .setNeedClientTimezone(timeField.v2().hasTimezoneDependentParsing());
         }
 
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats =
-            FileStructureUtils.guessMappingsAndCalculateFieldStats(explanation, sampleRecords);
+            FileStructureUtils.guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker);
 
         SortedMap<String, Object> mappings = mappingsAndFieldStats.v1();
         if (timeField != null) {

@@ -14,10 +14,8 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
-import java.util.TimeZone;
 
 import static java.lang.String.format;
 import static java.sql.Types.BIGINT;
@@ -35,8 +33,6 @@ import static org.junit.Assert.fail;
  * Utility class for doing JUnit-style asserts over JDBC.
  */
 public class JdbcAssert {
-    private static final Calendar UTC_CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
-
     public static void assertResultSets(ResultSet expected, ResultSet actual) throws SQLException {
         assertResultSets(expected, actual, null);
     }
@@ -133,7 +129,7 @@ public class JdbcAssert {
             doAssertResultSetData(ex, ac, logger, lenient);
         }
     }
-    
+
     private static void doAssertResultSetData(ResultSet expected, ResultSet actual, Logger logger, boolean lenient) throws SQLException {
         ResultSetMetaData metaData = expected.getMetaData();
         int columns = metaData.getColumnCount();
@@ -172,7 +168,7 @@ public class JdbcAssert {
                     } catch (ClassNotFoundException cnfe) {
                         throw new SQLException(cnfe);
                     }
-                    
+
                     Object expectedObject = expected.getObject(column);
                     Object actualObject = lenient ? actual.getObject(column, expectedColumnClass) : actual.getObject(column);
 

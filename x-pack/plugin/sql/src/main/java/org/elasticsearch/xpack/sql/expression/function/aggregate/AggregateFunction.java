@@ -5,8 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.Function;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggNameInput;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
@@ -51,6 +55,17 @@ public abstract class AggregateFunction extends Function {
             lazyAttribute = new AggregateFunctionAttribute(location(), name(), dataType(), id(), functionId(), null);
         }
         return lazyAttribute;
+    }
+
+    @Override
+    protected Pipe makePipe() {
+        // unresolved AggNameInput (should always get replaced by the folder)
+        return new AggNameInput(location(), this, name());
+    }
+
+    @Override
+    public ScriptTemplate asScript() {
+        throw new SqlIllegalArgumentException("Aggregate functions cannot be scripted");
     }
 
     @Override

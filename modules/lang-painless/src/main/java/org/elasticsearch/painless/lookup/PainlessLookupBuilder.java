@@ -20,8 +20,8 @@
 package org.elasticsearch.painless.lookup;
 
 import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.painless.spi.WhitelistClassBinding;
 import org.elasticsearch.painless.spi.WhitelistClass;
+import org.elasticsearch.painless.spi.WhitelistClassBinding;
 import org.elasticsearch.painless.spi.WhitelistConstructor;
 import org.elasticsearch.painless.spi.WhitelistField;
 import org.elasticsearch.painless.spi.WhitelistMethod;
@@ -34,7 +34,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,155 +50,10 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typesToCan
 
 public final class PainlessLookupBuilder {
 
-    private static class PainlessConstructorCacheKey {
-
-        private final Class<?> targetClass;
-        private final List<Class<?>> typeParameters;
-
-        private PainlessConstructorCacheKey(Class<?> targetClass, List<Class<?>> typeParameters) {
-            this.targetClass = targetClass;
-            this.typeParameters = Collections.unmodifiableList(typeParameters);
-        }
-
-        @Override
-        public boolean equals(Object object) {
-            if (this == object) {
-                return true;
-            }
-
-            if (object == null || getClass() != object.getClass()) {
-                return false;
-            }
-
-            PainlessConstructorCacheKey that = (PainlessConstructorCacheKey)object;
-
-            return Objects.equals(targetClass, that.targetClass) &&
-                   Objects.equals(typeParameters, that.typeParameters);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(targetClass, typeParameters);
-        }
-    }
-
-    private static class PainlessMethodCacheKey {
-
-        private final Class<?> targetClass;
-        private final String methodName;
-        private final Class<?> returnType;
-        private final List<Class<?>> typeParameters;
-
-        private PainlessMethodCacheKey(Class<?> targetClass, String methodName, Class<?> returnType, List<Class<?>> typeParameters) {
-            this.targetClass = targetClass;
-            this.methodName = methodName;
-            this.returnType = returnType;
-            this.typeParameters = Collections.unmodifiableList(typeParameters);
-        }
-
-        @Override
-        public boolean equals(Object object) {
-            if (this == object) {
-                return true;
-            }
-
-            if (object == null || getClass() != object.getClass()) {
-                return false;
-            }
-
-            PainlessMethodCacheKey that = (PainlessMethodCacheKey)object;
-
-            return Objects.equals(targetClass, that.targetClass) &&
-                   Objects.equals(methodName, that.methodName) &&
-                   Objects.equals(returnType, that.returnType) &&
-                   Objects.equals(typeParameters, that.typeParameters);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(targetClass, methodName, returnType, typeParameters);
-        }
-    }
-
-    private static class PainlessFieldCacheKey {
-
-        private final Class<?> targetClass;
-        private final String fieldName;
-        private final Class<?> typeParameter;
-
-        private PainlessFieldCacheKey(Class<?> targetClass, String fieldName, Class<?> typeParameter) {
-            this.targetClass = targetClass;
-            this.fieldName = fieldName;
-            this.typeParameter = typeParameter;
-        }
-
-        @Override
-        public boolean equals(Object object) {
-            if (this == object) {
-                return true;
-            }
-
-            if (object == null || getClass() != object.getClass()) {
-                return false;
-            }
-
-            PainlessFieldCacheKey that = (PainlessFieldCacheKey) object;
-
-            return Objects.equals(targetClass, that.targetClass) &&
-                   Objects.equals(fieldName, that.fieldName)   &&
-                   Objects.equals(typeParameter, that.typeParameter);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(targetClass, fieldName, typeParameter);
-        }
-    }
-
-    private static class PainlessClassBindingCacheKey {
-
-        private final Class<?> targetClass;
-        private final String methodName;
-        private final Class<?> methodReturnType;
-        private final List<Class<?>> methodTypeParameters;
-
-        private PainlessClassBindingCacheKey(Class<?> targetClass,
-                String methodName, Class<?> returnType, List<Class<?>> typeParameters) {
-
-            this.targetClass = targetClass;
-            this.methodName = methodName;
-            this.methodReturnType = returnType;
-            this.methodTypeParameters = Collections.unmodifiableList(typeParameters);
-        }
-
-        @Override
-        public boolean equals(Object object) {
-            if (this == object) {
-                return true;
-            }
-
-            if (object == null || getClass() != object.getClass()) {
-                return false;
-            }
-
-            PainlessClassBindingCacheKey that = (PainlessClassBindingCacheKey)object;
-
-            return Objects.equals(targetClass, that.targetClass)                             &&
-                   Objects.equals(methodName, that.methodName)                               &&
-                   Objects.equals(methodReturnType, that.methodReturnType)                   &&
-                   Objects.equals(methodTypeParameters, that.methodTypeParameters);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(targetClass, methodName, methodReturnType, methodTypeParameters);
-        }
-    }
-
-    private static final Map<PainlessConstructorCacheKey, PainlessConstructor>   painlessConstructorCache  = new HashMap<>();
-    private static final Map<PainlessMethodCacheKey,      PainlessMethod>        painlessMethodCache       = new HashMap<>();
-    private static final Map<PainlessFieldCacheKey,       PainlessField>         painlessFieldCache        = new HashMap<>();
-    private static final Map<PainlessClassBindingCacheKey, PainlessClassBinding> painlessClassBindingCache = new HashMap<>();
+    private static final Map<PainlessConstructor , PainlessConstructor>  painlessConstructorCache  = new HashMap<>();
+    private static final Map<PainlessMethod      , PainlessMethod>       painlessMethodCache       = new HashMap<>();
+    private static final Map<PainlessField       , PainlessField>        painlessFieldCache        = new HashMap<>();
+    private static final Map<PainlessClassBinding, PainlessClassBinding> painlessClassBindingCache = new HashMap<>();
 
     private static final Pattern CLASS_NAME_PATTERN  = Pattern.compile("^[_a-zA-Z][._a-zA-Z0-9]*$");
     private static final Pattern METHOD_NAME_PATTERN = Pattern.compile("^[_a-zA-Z][_a-zA-Z0-9]*$");
@@ -335,8 +189,7 @@ public final class PainlessLookupBuilder {
             throw new IllegalArgumentException("invalid class name [" + canonicalClassName + "]");
         }
 
-
-        Class<?> existingClass = canonicalClassNamesToClasses.get(typeToCanonicalTypeName(clazz));
+        Class<?> existingClass = canonicalClassNamesToClasses.get(canonicalClassName);
 
         if (existingClass != null && existingClass != clazz) {
             throw new IllegalArgumentException("class [" + canonicalClassName + "] " +
@@ -360,22 +213,22 @@ public final class PainlessLookupBuilder {
                 throw new IllegalArgumentException("must use no_import parameter on class [" + canonicalClassName + "] with no package");
             }
         } else {
-            Class<?> importedPainlessClass = canonicalClassNamesToClasses.get(importedCanonicalClassName);
+            Class<?> importedClass = canonicalClassNamesToClasses.get(importedCanonicalClassName);
 
-            if (importedPainlessClass == null) {
+            if (importedClass == null) {
                 if (importClassName) {
                     if (existingPainlessClassBuilder != null) {
                         throw new IllegalArgumentException(
-                                "inconsistent no_import parameters found for class [" + canonicalClassName + "]");
+                                "inconsistent no_import parameter found for class [" + canonicalClassName + "]");
                     }
 
                     canonicalClassNamesToClasses.put(importedCanonicalClassName, clazz);
                 }
-            } else if (importedPainlessClass != clazz) {
+            } else if (importedClass != clazz) {
                 throw new IllegalArgumentException("imported class [" + importedCanonicalClassName + "] cannot represent multiple " +
-                        "classes [" + canonicalClassName + "] and [" + typeToCanonicalTypeName(importedPainlessClass) + "]");
+                        "classes [" + canonicalClassName + "] and [" + typeToCanonicalTypeName(importedClass) + "]");
             } else if (importClassName == false) {
-                throw new IllegalArgumentException("inconsistent no_import parameters found for class [" + canonicalClassName + "]");
+                throw new IllegalArgumentException("inconsistent no_import parameter found for class [" + canonicalClassName + "]");
             }
         }
     }
@@ -440,36 +293,32 @@ public final class PainlessLookupBuilder {
         try {
             javaConstructor = targetClass.getConstructor(javaTypeParameters.toArray(new Class<?>[typeParametersSize]));
         } catch (NoSuchMethodException nsme) {
-            throw new IllegalArgumentException("constructor reflection object " +
-                    "[[" + targetCanonicalClassName + "], " + typesToCanonicalTypeNames(typeParameters) + "] not found", nsme);
+            throw new IllegalArgumentException("reflection object not found for constructor " +
+                    "[[" + targetCanonicalClassName + "], " + typesToCanonicalTypeNames(typeParameters) + "]", nsme);
         }
 
+        MethodHandle methodHandle;
+
+        try {
+            methodHandle = MethodHandles.publicLookup().in(targetClass).unreflectConstructor(javaConstructor);
+        } catch (IllegalAccessException iae) {
+            throw new IllegalArgumentException("method handle not found for constructor " +
+                    "[[" + targetCanonicalClassName + "], " + typesToCanonicalTypeNames(typeParameters) + "]", iae);
+        }
+
+        MethodType methodType = methodHandle.type();
+
         String painlessConstructorKey = buildPainlessConstructorKey(typeParametersSize);
-        PainlessConstructor painlessConstructor = painlessClassBuilder.constructors.get(painlessConstructorKey);
+        PainlessConstructor existingPainlessConstructor = painlessClassBuilder.constructors.get(painlessConstructorKey);
+        PainlessConstructor newPainlessConstructor = new PainlessConstructor(javaConstructor, typeParameters, methodHandle, methodType);
 
-        if (painlessConstructor == null) {
-            MethodHandle methodHandle;
-
-            try {
-                methodHandle = MethodHandles.publicLookup().in(targetClass).unreflectConstructor(javaConstructor);
-            } catch (IllegalAccessException iae) {
-                throw new IllegalArgumentException("constructor method handle " +
-                        "[[" + targetCanonicalClassName + "], " + typesToCanonicalTypeNames(typeParameters) + "] not found", iae);
-            }
-
-            MethodType methodType = methodHandle.type();
-
-            painlessConstructor = painlessConstructorCache.computeIfAbsent(
-                    new PainlessConstructorCacheKey(targetClass, typeParameters),
-                    key -> new PainlessConstructor(javaConstructor, typeParameters, methodHandle, methodType)
-            );
-
-            painlessClassBuilder.constructors.put(painlessConstructorKey, painlessConstructor);
-        } else if (painlessConstructor.typeParameters.equals(typeParameters) == false){
-            throw new IllegalArgumentException("cannot have constructors " +
+        if (existingPainlessConstructor == null) {
+            newPainlessConstructor = painlessConstructorCache.computeIfAbsent(newPainlessConstructor, key -> key);
+            painlessClassBuilder.constructors.put(painlessConstructorKey, newPainlessConstructor);
+        } else if (newPainlessConstructor.equals(existingPainlessConstructor) == false){
+            throw new IllegalArgumentException("cannot add constructors with the same arity but are not equivalent for constructors " +
                     "[[" + targetCanonicalClassName + "], " + typesToCanonicalTypeNames(typeParameters) + "] and " +
-                    "[[" + targetCanonicalClassName + "], " + typesToCanonicalTypeNames(painlessConstructor.typeParameters) + "] " +
-                    "with the same arity and different type parameters");
+                    "[[" + targetCanonicalClassName + "], " + typesToCanonicalTypeNames(existingPainlessConstructor.typeParameters) + "]");
         }
     }
 
@@ -578,8 +427,8 @@ public final class PainlessLookupBuilder {
             try {
                 javaMethod = targetClass.getMethod(methodName, javaTypeParameters.toArray(new Class<?>[typeParametersSize]));
             } catch (NoSuchMethodException nsme) {
-                throw new IllegalArgumentException("method reflection object [[" + targetCanonicalClassName + "], " +
-                        "[" + methodName + "], " + typesToCanonicalTypeNames(typeParameters) + "] not found", nsme);
+                throw new IllegalArgumentException("reflection object not found for method [[" + targetCanonicalClassName + "], " +
+                        "[" + methodName + "], " + typesToCanonicalTypeNames(typeParameters) + "]", nsme);
             }
         } else {
             try {
@@ -591,9 +440,9 @@ public final class PainlessLookupBuilder {
                             "[" + typeToCanonicalTypeName(augmentedClass) + "] must be static");
                 }
             } catch (NoSuchMethodException nsme) {
-                throw new IllegalArgumentException("method reflection object [[" + targetCanonicalClassName + "], " +
-                        "[" + methodName + "], " + typesToCanonicalTypeNames(typeParameters) + "] not found " +
-                        "with augmented target class [" + typeToCanonicalTypeName(augmentedClass) + "]", nsme);
+                throw new IllegalArgumentException("reflection object not found for method " +
+                        "[[" + targetCanonicalClassName + "], [" + methodName + "], " + typesToCanonicalTypeNames(typeParameters) + "] " +
+                        "with augmented class [" + typeToCanonicalTypeName(augmentedClass) + "]", nsme);
             }
         }
 
@@ -604,78 +453,53 @@ public final class PainlessLookupBuilder {
                     typesToCanonicalTypeNames(typeParameters) + "]");
         }
 
-        String painlessMethodKey = buildPainlessMethodKey(methodName, typeParametersSize);
+        MethodHandle methodHandle;
 
-        if (augmentedClass == null && Modifier.isStatic(javaMethod.getModifiers())) {
-            PainlessMethod painlessMethod = painlessClassBuilder.staticMethods.get(painlessMethodKey);
-
-            if (painlessMethod == null) {
-                MethodHandle methodHandle;
-
-                try {
-                    methodHandle = MethodHandles.publicLookup().in(targetClass).unreflect(javaMethod);
-                } catch (IllegalAccessException iae) {
-                    throw new IllegalArgumentException("static method handle [[" + targetClass.getCanonicalName() + "], " +
-                            "[" + methodName + "], " + typesToCanonicalTypeNames(typeParameters) + "] not found", iae);
-                }
-
-                MethodType methodType = methodHandle.type();
-
-                painlessMethod = painlessMethodCache.computeIfAbsent(
-                        new PainlessMethodCacheKey(targetClass, methodName, returnType, typeParameters),
-                        key -> new PainlessMethod(javaMethod, targetClass, returnType, typeParameters, methodHandle, methodType));
-
-                painlessClassBuilder.staticMethods.put(painlessMethodKey, painlessMethod);
-            } else if (painlessMethod.returnType == returnType && painlessMethod.typeParameters.equals(typeParameters) == false) {
-                throw new IllegalArgumentException("cannot have static methods " +
-                        "[[" + targetCanonicalClassName + "], [" + methodName + "], " +
-                        "[" + typeToCanonicalTypeName(returnType) + "], " +
-                        typesToCanonicalTypeNames(typeParameters) + "] and " +
-                        "[[" + targetCanonicalClassName + "], [" + methodName + "], " +
-                        "[" + typeToCanonicalTypeName(painlessMethod.returnType) + "], " +
-                        typesToCanonicalTypeNames(painlessMethod.typeParameters) + "] " +
-                        "with the same arity and different return type or type parameters");
+        if (augmentedClass == null) {
+            try {
+                methodHandle = MethodHandles.publicLookup().in(targetClass).unreflect(javaMethod);
+            } catch (IllegalAccessException iae) {
+                throw new IllegalArgumentException("method handle not found for method " +
+                        "[[" + targetClass.getCanonicalName() + "], [" + methodName + "], " +
+                        typesToCanonicalTypeNames(typeParameters) + "]", iae);
             }
         } else {
-            PainlessMethod painlessMethod = painlessClassBuilder.methods.get(painlessMethodKey);
-
-            if (painlessMethod == null) {
-                MethodHandle methodHandle;
-
-                if (augmentedClass == null) {
-                    try {
-                        methodHandle = MethodHandles.publicLookup().in(targetClass).unreflect(javaMethod);
-                    } catch (IllegalAccessException iae) {
-                        throw new IllegalArgumentException("method handle [[" + targetClass.getCanonicalName() + "], " +
-                                "[" + methodName + "], " + typesToCanonicalTypeNames(typeParameters) + "] not found", iae);
-                    }
-                } else {
-                    try {
-                        methodHandle = MethodHandles.publicLookup().in(augmentedClass).unreflect(javaMethod);
-                    } catch (IllegalAccessException iae) {
-                        throw new IllegalArgumentException("method handle [[" + targetClass.getCanonicalName() + "], " +
-                                "[" + methodName + "], " + typesToCanonicalTypeNames(typeParameters) + "] not found " +
-                                "with augmented target class [" + typeToCanonicalTypeName(augmentedClass) + "]", iae);
-                    }
-                }
-
-                MethodType methodType = methodHandle.type();
-
-                painlessMethod = painlessMethodCache.computeIfAbsent(
-                        new PainlessMethodCacheKey(targetClass, methodName, returnType, typeParameters),
-                        key -> new PainlessMethod(javaMethod, targetClass, returnType, typeParameters, methodHandle, methodType));
-
-                painlessClassBuilder.methods.put(painlessMethodKey, painlessMethod);
-            } else if (painlessMethod.returnType == returnType && painlessMethod.typeParameters.equals(typeParameters) == false) {
-                throw new IllegalArgumentException("cannot have methods " +
-                        "[[" + targetCanonicalClassName + "], [" + methodName + "], " +
-                        "[" + typeToCanonicalTypeName(returnType) + "], " +
-                        typesToCanonicalTypeNames(typeParameters) + "] and " +
-                        "[[" + targetCanonicalClassName + "], [" + methodName + "], " +
-                        "[" + typeToCanonicalTypeName(painlessMethod.returnType) + "], " +
-                        typesToCanonicalTypeNames(painlessMethod.typeParameters) + "] " +
-                        "with the same arity and different return type or type parameters");
+            try {
+                methodHandle = MethodHandles.publicLookup().in(augmentedClass).unreflect(javaMethod);
+            } catch (IllegalAccessException iae) {
+                throw new IllegalArgumentException("method handle not found for method " +
+                        "[[" + targetClass.getCanonicalName() + "], [" + methodName + "], " +
+                        typesToCanonicalTypeNames(typeParameters) + "]" +
+                        "with augmented class [" + typeToCanonicalTypeName(augmentedClass) + "]", iae);
             }
+        }
+
+        MethodType methodType = methodHandle.type();
+
+        boolean isStatic = augmentedClass == null && Modifier.isStatic(javaMethod.getModifiers());
+        String painlessMethodKey = buildPainlessMethodKey(methodName, typeParametersSize);
+        PainlessMethod existingPainlessMethod = isStatic ?
+                painlessClassBuilder.staticMethods.get(painlessMethodKey) :
+                painlessClassBuilder.methods.get(painlessMethodKey);
+        PainlessMethod newPainlessMethod =
+                new PainlessMethod(javaMethod, targetClass, returnType, typeParameters, methodHandle, methodType);
+
+        if (existingPainlessMethod == null) {
+            newPainlessMethod = painlessMethodCache.computeIfAbsent(newPainlessMethod, key -> key);
+
+            if (isStatic) {
+                painlessClassBuilder.staticMethods.put(painlessMethodKey, newPainlessMethod);
+            } else {
+                painlessClassBuilder.methods.put(painlessMethodKey, newPainlessMethod);
+            }
+        } else if (newPainlessMethod.equals(existingPainlessMethod) == false) {
+            throw new IllegalArgumentException("cannot add methods with the same name and arity but are not equivalent for methods " +
+                    "[[" + targetCanonicalClassName + "], [" + methodName + "], " +
+                    "[" + typeToCanonicalTypeName(returnType) + "], " +
+                    typesToCanonicalTypeNames(typeParameters) + "] and " +
+                    "[[" + targetCanonicalClassName + "], [" + methodName + "], " +
+                    "[" + typeToCanonicalTypeName(existingPainlessMethod.returnType) + "], " +
+                    typesToCanonicalTypeNames(existingPainlessMethod.typeParameters) + "]");
         }
     }
 
@@ -687,7 +511,8 @@ public final class PainlessLookupBuilder {
         Class<?> targetClass = canonicalClassNamesToClasses.get(targetCanonicalClassName);
 
         if (targetClass == null) {
-            throw new IllegalArgumentException("class [" + targetCanonicalClassName + "] not found");
+            throw new IllegalArgumentException("target class [" + targetCanonicalClassName + "] not found for field " +
+                    "[[" + targetCanonicalClassName + "], [" + fieldName + "], [" + canonicalTypeNameParameter + "]]");
         }
 
         Class<?> typeParameter = canonicalTypeNameToType(canonicalTypeNameParameter);
@@ -721,7 +546,8 @@ public final class PainlessLookupBuilder {
         PainlessClassBuilder painlessClassBuilder = classesToPainlessClassBuilders.get(targetClass);
 
         if (painlessClassBuilder == null) {
-            throw new IllegalArgumentException("class [" + targetCanonicalClassName + "] not found");
+            throw new IllegalArgumentException("target class [" + targetCanonicalClassName + "] not found for field " +
+                    "[[" + targetCanonicalClassName + "], [" + fieldName + "], [" + typeToCanonicalTypeName(typeParameter) + "]]");
         }
 
         if (isValidType(typeParameter) == false) {
@@ -735,7 +561,7 @@ public final class PainlessLookupBuilder {
             javaField = targetClass.getField(fieldName);
         } catch (NoSuchFieldException nsme) {
             throw new IllegalArgumentException(
-                    "field reflection object [[" + targetCanonicalClassName + "], [" + fieldName + "] not found", nsme);
+                    "reflection object not found for field [[" + targetCanonicalClassName + "], [" + fieldName + "]", nsme);
         }
 
         if (javaField.getType() != typeToJavaType(typeParameter)) {
@@ -760,20 +586,18 @@ public final class PainlessLookupBuilder {
                 throw new IllegalArgumentException("static field [[" + targetCanonicalClassName + "], [" + fieldName + "]] must be final");
             }
 
-            PainlessField painlessField = painlessClassBuilder.staticFields.get(painlessFieldKey);
+            PainlessField existingPainlessField = painlessClassBuilder.staticFields.get(painlessFieldKey);
+            PainlessField newPainlessField = new PainlessField(javaField, typeParameter, methodHandleGetter, null);
 
-            if (painlessField == null) {
-                painlessField = painlessFieldCache.computeIfAbsent(
-                        new PainlessFieldCacheKey(targetClass, fieldName, typeParameter),
-                        key -> new PainlessField(javaField, typeParameter, methodHandleGetter, null));
-
-                painlessClassBuilder.staticFields.put(painlessFieldKey, painlessField);
-            } else if (painlessField.typeParameter != typeParameter) {
-                throw new IllegalArgumentException("cannot have static fields " +
+            if (existingPainlessField == null) {
+                newPainlessField = painlessFieldCache.computeIfAbsent(newPainlessField, key -> key);
+                painlessClassBuilder.staticFields.put(painlessFieldKey, newPainlessField);
+            } else if (newPainlessField.equals(existingPainlessField) == false) {
+                throw new IllegalArgumentException("cannot add fields with the same name but are not equivalent for fields " +
                         "[[" + targetCanonicalClassName + "], [" + fieldName + "], [" +
                         typeToCanonicalTypeName(typeParameter) + "] and " +
-                        "[[" + targetCanonicalClassName + "], [" + painlessField.javaField.getName() + "], " +
-                        typeToCanonicalTypeName(painlessField.typeParameter) + "] " +
+                        "[[" + targetCanonicalClassName + "], [" + existingPainlessField.javaField.getName() + "], " +
+                        typeToCanonicalTypeName(existingPainlessField.typeParameter) + "] " +
                         "with the same name and different type parameters");
             }
         } else {
@@ -786,35 +610,41 @@ public final class PainlessLookupBuilder {
                         "setter method handle not found for field [[" + targetCanonicalClassName + "], [" + fieldName + "]]");
             }
 
-            PainlessField painlessField = painlessClassBuilder.fields.get(painlessFieldKey);
+            PainlessField existingPainlessField = painlessClassBuilder.fields.get(painlessFieldKey);
+            PainlessField newPainlessField = new PainlessField(javaField, typeParameter, methodHandleGetter, methodHandleSetter);
 
-            if (painlessField == null) {
-                painlessField = painlessFieldCache.computeIfAbsent(
-                        new PainlessFieldCacheKey(targetClass, painlessFieldKey, typeParameter),
-                        key -> new PainlessField(javaField, typeParameter, methodHandleGetter, methodHandleSetter));
-
-                painlessClassBuilder.fields.put(fieldName, painlessField);
-            } else if (painlessField.typeParameter != typeParameter) {
-                throw new IllegalArgumentException("cannot have fields " +
+            if (existingPainlessField == null) {
+                newPainlessField = painlessFieldCache.computeIfAbsent(newPainlessField, key -> key);
+                painlessClassBuilder.fields.put(painlessFieldKey, newPainlessField);
+            } else if (newPainlessField.equals(existingPainlessField) == false) {
+                throw new IllegalArgumentException("cannot add fields with the same name but are not equivalent for fields " +
                         "[[" + targetCanonicalClassName + "], [" + fieldName + "], [" +
                         typeToCanonicalTypeName(typeParameter) + "] and " +
-                        "[[" + targetCanonicalClassName + "], [" + painlessField.javaField.getName() + "], " +
-                        typeToCanonicalTypeName(painlessField.typeParameter) + "] " +
+                        "[[" + targetCanonicalClassName + "], [" + existingPainlessField.javaField.getName() + "], " +
+                        typeToCanonicalTypeName(existingPainlessField.typeParameter) + "] " +
                         "with the same name and different type parameters");
             }
         }
     }
 
-    public void addImportedPainlessMethod(ClassLoader classLoader, String targetCanonicalClassName,
+    public void addImportedPainlessMethod(ClassLoader classLoader, String targetJavaClassName,
             String methodName, String returnCanonicalTypeName, List<String> canonicalTypeNameParameters) {
 
         Objects.requireNonNull(classLoader);
-        Objects.requireNonNull(targetCanonicalClassName);
+        Objects.requireNonNull(targetJavaClassName);
         Objects.requireNonNull(methodName);
         Objects.requireNonNull(returnCanonicalTypeName);
         Objects.requireNonNull(canonicalTypeNameParameters);
 
-        Class<?> targetClass = canonicalClassNamesToClasses.get(targetCanonicalClassName);
+        Class<?> targetClass;
+
+        try {
+            targetClass = Class.forName(targetJavaClassName, true, classLoader);
+        } catch (ClassNotFoundException cnfe) {
+            throw new IllegalArgumentException("class [" + targetJavaClassName + "] not found", cnfe);
+        }
+
+        String targetCanonicalClassName = typeToCanonicalTypeName(targetClass);
 
         if (targetClass == null) {
             throw new IllegalArgumentException("target class [" + targetCanonicalClassName + "] not found for imported method " +
@@ -913,35 +743,33 @@ public final class PainlessLookupBuilder {
             throw new IllegalArgumentException("imported method and class binding cannot have the same name [" + methodName + "]");
         }
 
-        PainlessMethod importedPainlessMethod = painlessMethodKeysToImportedPainlessMethods.get(painlessMethodKey);
+        MethodHandle methodHandle;
 
-        if (importedPainlessMethod == null) {
-            MethodHandle methodHandle;
+        try {
+            methodHandle = MethodHandles.publicLookup().in(targetClass).unreflect(javaMethod);
+        } catch (IllegalAccessException iae) {
+            throw new IllegalArgumentException("imported method handle [[" + targetClass.getCanonicalName() + "], " +
+                    "[" + methodName + "], " + typesToCanonicalTypeNames(typeParameters) + "] not found", iae);
+        }
 
-            try {
-                methodHandle = MethodHandles.publicLookup().in(targetClass).unreflect(javaMethod);
-            } catch (IllegalAccessException iae) {
-                throw new IllegalArgumentException("imported method handle [[" + targetClass.getCanonicalName() + "], " +
-                        "[" + methodName + "], " + typesToCanonicalTypeNames(typeParameters) + "] not found", iae);
-            }
+        MethodType methodType = methodHandle.type();
 
-            MethodType methodType = methodHandle.type();
+        PainlessMethod existingImportedPainlessMethod = painlessMethodKeysToImportedPainlessMethods.get(painlessMethodKey);
+        PainlessMethod newImportedPainlessMethod =
+                new PainlessMethod(javaMethod, targetClass, returnType, typeParameters, methodHandle, methodType);
 
-            importedPainlessMethod = painlessMethodCache.computeIfAbsent(
-                    new PainlessMethodCacheKey(targetClass, methodName, returnType, typeParameters),
-                    key -> new PainlessMethod(javaMethod, targetClass, returnType, typeParameters, methodHandle, methodType));
-
-            painlessMethodKeysToImportedPainlessMethods.put(painlessMethodKey, importedPainlessMethod);
-        } else if (importedPainlessMethod.returnType == returnType &&
-                importedPainlessMethod.typeParameters.equals(typeParameters) == false) {
-            throw new IllegalArgumentException("cannot have imported methods " +
+        if (existingImportedPainlessMethod == null) {
+            newImportedPainlessMethod = painlessMethodCache.computeIfAbsent(newImportedPainlessMethod, key -> key);
+            painlessMethodKeysToImportedPainlessMethods.put(painlessMethodKey, newImportedPainlessMethod);
+        } else if (newImportedPainlessMethod.equals(existingImportedPainlessMethod) == false) {
+            throw new IllegalArgumentException("cannot add imported methods with the same name and arity " +
+                    "but are not equivalent for methods " +
                     "[[" + targetCanonicalClassName + "], [" + methodName + "], " +
                     "[" + typeToCanonicalTypeName(returnType) + "], " +
                     typesToCanonicalTypeNames(typeParameters) + "] and " +
                     "[[" + targetCanonicalClassName + "], [" + methodName + "], " +
-                    "[" + typeToCanonicalTypeName(importedPainlessMethod.returnType) + "], " +
-                    typesToCanonicalTypeNames(importedPainlessMethod.typeParameters) + "] " +
-                    "with the same arity and different return type or type parameters");
+                    "[" + typeToCanonicalTypeName(existingImportedPainlessMethod.returnType) + "], " +
+                    typesToCanonicalTypeNames(existingImportedPainlessMethod.typeParameters) + "]");
         }
     }
 
@@ -987,7 +815,6 @@ public final class PainlessLookupBuilder {
     }
 
     public void addPainlessClassBinding(Class<?> targetClass, String methodName, Class<?> returnType, List<Class<?>> typeParameters) {
-
         Objects.requireNonNull(targetClass);
         Objects.requireNonNull(methodName);
         Objects.requireNonNull(returnType);
@@ -1100,31 +927,24 @@ public final class PainlessLookupBuilder {
             throw new IllegalArgumentException("class binding and imported method cannot have the same name [" + methodName + "]");
         }
 
-        PainlessClassBinding painlessClassBinding = painlessMethodKeysToPainlessClassBindings.get(painlessMethodKey);
+        PainlessClassBinding existingPainlessClassBinding = painlessMethodKeysToPainlessClassBindings.get(painlessMethodKey);
+        PainlessClassBinding newPainlessClassBinding =
+                new PainlessClassBinding(javaConstructor, javaMethod, returnType, typeParameters);
 
-        if (painlessClassBinding == null) {
-            Constructor<?> finalJavaConstructor = javaConstructor;
-            Method finalJavaMethod = javaMethod;
-
-            painlessClassBinding = painlessClassBindingCache.computeIfAbsent(
-                    new PainlessClassBindingCacheKey(targetClass, methodName, returnType, typeParameters),
-                    key -> new PainlessClassBinding(finalJavaConstructor, finalJavaMethod, returnType, typeParameters));
-
-            painlessMethodKeysToPainlessClassBindings.put(painlessMethodKey, painlessClassBinding);
-        } else if (painlessClassBinding.javaConstructor.equals(javaConstructor) == false ||
-                painlessClassBinding.javaMethod.equals(javaMethod) == false ||
-                painlessClassBinding.returnType != returnType ||
-                painlessClassBinding.typeParameters.equals(typeParameters) == false) {
-            throw new IllegalArgumentException("cannot have class bindings " +
+        if (existingPainlessClassBinding == null) {
+            newPainlessClassBinding = painlessClassBindingCache.computeIfAbsent(newPainlessClassBinding, key -> key);
+            painlessMethodKeysToPainlessClassBindings.put(painlessMethodKey, newPainlessClassBinding);
+        } else if (newPainlessClassBinding.equals(existingPainlessClassBinding)) {
+            throw new IllegalArgumentException("cannot add class bindings with the same name and arity " +
+                    "but are not equivalent for methods " +
                     "[[" + targetCanonicalClassName + "], " +
                     "[" + methodName + "], " +
                     "[" + typeToCanonicalTypeName(returnType) + "], " +
                     typesToCanonicalTypeNames(typeParameters) + "] and " +
                     "[[" + targetCanonicalClassName + "], " +
                     "[" + methodName + "], " +
-                    "[" + typeToCanonicalTypeName(painlessClassBinding.returnType) + "], " +
-                    typesToCanonicalTypeNames(painlessClassBinding.typeParameters) + "] and " +
-                    "with the same name and arity but different constructors or methods");
+                    "[" + typeToCanonicalTypeName(existingPainlessClassBinding.returnType) + "], " +
+                    typesToCanonicalTypeNames(existingPainlessClassBinding.typeParameters) + "]");
         }
     }
 

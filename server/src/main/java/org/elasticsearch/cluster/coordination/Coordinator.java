@@ -469,7 +469,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert lastCommittedState.get().term() == applierState.term();
                 assert lastCommittedState.get().version() == applierState.version();
             }
-            assert mode != Mode.CANDIDATE || applierState.nodes().getMasterNodeId() == null;
             assert (applierState.nodes().getMasterNodeId() == null) == applierState.blocks().hasGlobalBlock(NO_MASTER_BLOCK_WRITES.id());
             if (mode == Mode.LEADER) {
                 final boolean becomingMaster = getStateForMasterService().term() != getCurrentTerm();
@@ -482,6 +481,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert prevotingRound == null : prevotingRound;
                 assert becomingMaster || getStateForMasterService().nodes().getMasterNodeId() != null : getStateForMasterService();
                 assert leaderCheckScheduler == null : leaderCheckScheduler;
+                assert applierState.nodes().getMasterNodeId() == null || getLocalNode().equals(applierState.nodes().getMasterNode());
 
                 final Set<DiscoveryNode> knownFollowers = followersChecker.getKnownFollowers();
                 final Set<DiscoveryNode> lastPublishedNodes = new HashSet<>();
@@ -513,6 +513,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert leaderChecker.currentNodeIsMaster() == false;
                 assert leaderCheckScheduler == null : leaderCheckScheduler;
                 assert followersChecker.getKnownFollowers().isEmpty();
+                assert applierState.nodes().getMasterNodeId() == null;
             }
         }
     }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
@@ -42,31 +43,29 @@ import static org.hamcrest.Matchers.sameInstance;
 public class ReconfiguratorTests extends ESTestCase {
 
     public void testReconfigurationExamples() {
-        check(nodes("a"), conf("a"), randomIntBetween(1, 10), conf("a"));
-        check(nodes("a", "b"), conf("a"), 1, conf("a"));
-        check(nodes("a", "b"), conf("a"), randomIntBetween(2, 10), conf("a", "b"));
-        check(nodes("a", "b", "c"), conf("a"), randomIntBetween(1, 10), conf("a", "b", "c"));
-        check(nodes("a", "b", "c"), conf("a", "b"), randomIntBetween(1, 10), conf("a", "b", "c"));
-        check(nodes("a", "b", "c"), conf("a", "b", "c"), randomIntBetween(1, 10), conf("a", "b", "c"));
-        check(nodes("a", "b", "c", "d"), conf("a", "b", "c"), randomIntBetween(1, 2), conf("a", "b", "c"));
-        check(nodes("a", "b", "c", "d"), conf("a", "b", "c"), randomIntBetween(3, 10), conf("a", "b", "c", "d"));
-        check(nodes("a", "b", "c", "d", "e"), conf("a", "b", "c"), randomIntBetween(1, 10), conf("a", "b", "c", "d", "e"));
-        check(nodes("a", "b"), conf("a", "b", "e"), 1, conf("a"));
-        check(nodes("a", "b"), conf("a", "b", "e"), randomIntBetween(2, 10), conf("a", "b", "e"));
-        check(nodes("a", "b", "c"), conf("a", "b", "e"), randomIntBetween(1, 2), conf("a", "b", "c"));
-        check(nodes("a", "b", "c"), conf("a", "b", "e"), randomIntBetween(3, 10), conf("a", "b", "c", "e"));
-        check(nodes("a", "b", "c", "d"), conf("a", "b", "e"), randomIntBetween(1, 2), conf("a", "b", "c"));
-        check(nodes("a", "b", "c", "d"), conf("a", "b", "e"), randomIntBetween(3, 10), conf("a", "b", "c", "d", "e"));
-        check(nodes("a", "b", "c", "d", "e"), conf("a", "f", "g"), randomIntBetween(1, 3), conf("a", "b", "c", "d", "e"));
-        check(nodes("a", "b", "c", "d", "e"), conf("a", "f", "g"), randomIntBetween(4, 10), conf("a", "b", "c", "d", "e", "f", "g"));
+        for (int safetyLevel = 1; safetyLevel <= 3; safetyLevel++) {
+            check(nodes("a"), conf("a"), safetyLevel, conf("a"));
+            check(nodes("a", "b"), conf("a"), safetyLevel, conf("a"));
+            check(nodes("a", "b", "c"), conf("a"), safetyLevel, conf("a", "b", "c"));
+            check(nodes("a", "b", "c"), conf("a", "b"), safetyLevel, conf("a", "b", "c"));
+            check(nodes("a", "b", "c"), conf("a", "b", "c"), safetyLevel, conf("a", "b", "c"));
+            check(nodes("a", "b", "c", "d"), conf("a", "b", "c"), safetyLevel, conf("a", "b", "c"));
+            check(nodes("a", "b", "c", "d", "e"), conf("a", "b", "c"), safetyLevel, conf("a", "b", "c", "d", "e"));
+            check(nodes("a", "b"), conf("a", "b", "e"), safetyLevel, safetyLevel == 2 ? conf("a", "b", "e") : conf("a"));
+            check(nodes("a", "b", "c"), conf("a", "b", "e"), safetyLevel, conf("a", "b", "c"));
+            check(nodes("a", "b", "c", "d"), conf("a", "b", "e"), safetyLevel, conf("a", "b", "c"));
+            check(nodes("a", "b", "c", "d", "e"), conf("a", "f", "g"), safetyLevel, conf("a", "b", "c", "d", "e"));
+            check(nodes("a", "b", "c", "d"), conf("a", "b", "c", "d", "e"), safetyLevel,
+                safetyLevel <= 2 ? conf("a", "b", "c") : conf("a", "b", "c", "d", "e"));
+        }
 
         // Retiring a single node shifts the votes elsewhere if possible.
         check(nodes("a", "b"), retired("a"), conf("a"), 1, conf("b"));
-        check(nodes("a", "b"), retired("a"), conf("a"), 2, conf("a", "b")); // below min voter size, so no retirement takes place
+        check(nodes("a", "b"), retired("a"), conf("a"), 2, conf("b")); // never reached min voter size, so retirement can take place
         check(nodes("a", "b"), retired("a"), conf("b"), 2, conf("b"));
         check(nodes("a", "b", "c"), retired("a"), conf("a"), 1, conf("b"));
         check(nodes("a", "b", "c"), retired("a"), conf("a", "b", "c"), 1, conf("b"));
-        check(nodes("a", "b", "c"), retired("a"), conf("a", "b", "c"), 2, conf("a", "b", "c"));
+        check(nodes("a", "b", "c"), retired("a"), conf("a", "b", "c"), 2, conf("a", "b", "c")); // min voter size prevents retirement
 
         // 7 nodes, one for each combination of live/retired/current. Ideally we want the config to be the non-retired live nodes.
         // Since there are 2 non-retired live nodes we round down to 1 and just use the one that's already in the config.
@@ -74,9 +73,8 @@ public class ReconfiguratorTests extends ESTestCase {
         // If we want the config to be at least 3 nodes then we don't retire "c" just yet.
         check(nodes("a", "b", "c", "f"), retired("c", "e", "f", "g"), conf("a", "c", "d", "e"), 2,
             conf("a", "b", "c"));
-        // If we want the config to be at least 5 nodes then we keep the old config and add the new node "b" to it.
-        check(nodes("a", "b", "c", "f"), retired("c", "e", "f", "g"), conf("a", "c", "d", "e"), randomIntBetween(3, 10),
-            conf("a", "b", "c", "d", "e"));
+        // The current config never reached 5 nodes so retirement is allowed
+        check(nodes("a", "b", "c", "f"), retired("c", "e", "f", "g"), conf("a", "c", "d", "e"), 3, conf("a"));
     }
 
     public void testReconfigurationProperty() {
@@ -88,27 +86,26 @@ public class ReconfiguratorTests extends ESTestCase {
         final String[] initialVotingNodes = new String[randomIntBetween(1, allNodes.length)];
         randomSubsetOf(initialVotingNodes.length, allNodes).toArray(initialVotingNodes);
 
-        final int minVotingMasterNodes = randomIntBetween(1, allNodes.length + 1);
+        final int minConfiguredVotingMasterNodes = randomIntBetween(1, 3);
 
         final Reconfigurator reconfigurator = makeReconfigurator(
-            Settings.builder().put(MINIMUM_VOTING_MASTER_NODES_SETTING.getKey(), minVotingMasterNodes).build());
+            Settings.builder().put(MINIMUM_VOTING_MASTER_NODES_SETTING.getKey(), minConfiguredVotingMasterNodes).build());
         final Set<DiscoveryNode> liveNodesSet = nodes(liveNodes);
         final ClusterState.VotingConfiguration initialConfig = conf(initialVotingNodes);
         final ClusterState.VotingConfiguration finalConfig = reconfigurator.reconfigure(liveNodesSet, emptySet(), initialConfig);
 
-        // min configuration size comes from MINIMUM_VOTING_MASTER_NODES_SETTING as long as there are enough nodes in play
-        final Set<String> mentionedNodes = Sets.union(Sets.newHashSet(liveNodes), Sets.newHashSet(initialVotingNodes));
-        final int minConfigurationSize = Math.min(2 * minVotingMasterNodes - 1, mentionedNodes.size());
+        // min configuration size comes from MINIMUM_VOTING_MASTER_NODES_SETTING as long as there are enough nodes in the current config
+        final boolean isSafeConfiguration = initialConfig.getNodeIds().size() >= minConfiguredVotingMasterNodes * 2 - 1;
 
         // actual size of a quorum: half the configured nodes, which is all the live nodes plus maybe some dead ones to make up numbers
-        final int quorumSize = Math.max(liveNodes.length, minConfigurationSize) / 2 + 1;
+        final int quorumSize = Math.max(liveNodes.length / 2 + 1, isSafeConfiguration ? minConfiguredVotingMasterNodes : 0);
 
         if (quorumSize > liveNodes.length) {
-            assertFalse("reconfigure " + liveNodesSet + " from " + initialConfig + " with min of " + minVotingMasterNodes
+            assertFalse("reconfigure " + liveNodesSet + " from " + initialConfig + " with min of " + minConfiguredVotingMasterNodes
                 + " yielded " + finalConfig + " without a live quorum", finalConfig.hasQuorum(Arrays.asList(liveNodes)));
         } else {
             final List<String> expectedQuorum = randomSubsetOf(quorumSize, liveNodes);
-            assertTrue("reconfigure " + liveNodesSet + " from " + initialConfig + " with min of " + minVotingMasterNodes
+            assertTrue("reconfigure " + liveNodesSet + " from " + initialConfig + " with min of " + minConfiguredVotingMasterNodes
                     + " yielded " + finalConfig + " with quorum of " + expectedQuorum,
                 finalConfig.hasQuorum(expectedQuorum));
         }
@@ -141,7 +138,9 @@ public class ReconfiguratorTests extends ESTestCase {
             .put(MINIMUM_VOTING_MASTER_NODES_SETTING.getKey(), minVoterSize)
             .build());
         final ClusterState.VotingConfiguration adaptedConfig = reconfigurator.reconfigure(liveNodes, retired, config);
-        assertEquals(expectedConfig, adaptedConfig);
+        assertEquals(new ParameterizedMessage("[liveNodes={}, retired={}, config={}, minVoterSize={}]",
+                liveNodes, retired, config, minVoterSize).getFormattedMessage(),
+            expectedConfig, adaptedConfig);
     }
 
     private Reconfigurator makeReconfigurator(Settings settings) {

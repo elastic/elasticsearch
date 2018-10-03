@@ -132,8 +132,11 @@ public class Reconfigurator extends AbstractComponent {
         // ... except one, if even, because odd configurations are slightly more resilient ...
         final int votingNodeCount = roundDownToOdd(nonRetiredLiveNodeCount);
 
-        // ... unless there's too few non-retired live nodes to meet the minimum configured resilience level:
-        final int targetSize = Math.max(votingNodeCount, 2 * minVotingMasterNodes - 1);
+        // ... except that if the current configuration satisfies MINIMUM_VOTING_MASTER_NODES_SETTING then the new one must too:
+        final int safeConfigurationSize = 2 * minVotingMasterNodes - 1;
+        final int targetSize;
+        targetSize = currentConfig.getNodeIds().size() >= safeConfigurationSize && votingNodeCount < safeConfigurationSize
+            ? safeConfigurationSize : votingNodeCount;
 
         /*
          * The new configuration is formed by taking this many nodes in the following preference order:

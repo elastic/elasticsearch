@@ -347,8 +347,9 @@ public class CoordinatorTests extends ESTestCase {
 
         void runRandomly() {
 
-            assert disconnectedNodes.isEmpty() : "may reconnect disconnected nodes, probably unexpected: " + disconnectedNodes;
-            assert blackholedNodes.isEmpty() : "may reconnect blackholed nodes, probably unexpected: " + blackholedNodes;
+            // TODO supporting (preserving?) existing disruptions needs implementing if needed, for now we just forbid it
+            assertThat("may reconnect disconnected nodes, probably unexpected", disconnectedNodes, empty());
+            assertThat("may reconnect blackholed nodes, probably unexpected", blackholedNodes, empty());
 
             final int randomSteps = scaledRandomIntBetween(10, 10000);
             logger.info("--> start of safety phase of at least [{}] steps", randomSteps);

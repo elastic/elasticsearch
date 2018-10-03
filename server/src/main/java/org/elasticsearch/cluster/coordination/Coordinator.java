@@ -679,7 +679,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     @Override
                     public void run() {
                         synchronized (mutex) {
-                            publication.onTimeout();
+                            currentPublication.ifPresent(p -> {
+                                if (p == publication && getLastAcceptedState().term() < publishRequest.getAcceptedState().term()) {
+                                    becomeCandidate("initial publication timed out before local acceptance");
+                                } else {
+                                    publication.onTimeout();
+                                }
+                            });
                         }
                     }
 

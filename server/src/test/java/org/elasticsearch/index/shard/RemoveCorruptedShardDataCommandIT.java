@@ -293,11 +293,9 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         indexRandom(false, false, false, Arrays.asList(builders));
         Set<Path> translogDirs = getDirs(indexName, ShardPath.TRANSLOG_FOLDER_NAME);
 
-        // that's only for 6.x branch for bwc with elasticsearch-translog
-        final boolean translogOnly = randomBoolean();
-        final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand(translogOnly);
-        final MockTerminal terminal = new MockTerminal();
-        final OptionParser parser = command.getParser();
+        RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
+        MockTerminal terminal = new MockTerminal();
+        OptionParser parser = command.getParser();
 
         if (randomBoolean() && numDocsToTruncate > 0) {
             // flush the replica, so it will have more docs than what the primary will have

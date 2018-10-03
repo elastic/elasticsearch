@@ -23,6 +23,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -30,6 +31,8 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -62,6 +65,7 @@ import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction.StatsResponses;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -351,7 +355,7 @@ public class ShardChangesIT extends ESIntegTestCase {
 
         assertSameDocCount("index1", "index2");
         assertTotalNumberOfOptimizedIndexing(resolveIndex("index2"), numberOfShards,
-            client().prepareSearch("index2").get().getHits().totalHits);
+            client().prepareSearch("index1").get().getHits().totalHits);
         unfollowIndex("index2");
         assertMaxSeqNoOfUpdatesIsTransferred(resolveIndex("index1"), resolveIndex("index2"), numberOfShards);
     }
@@ -487,7 +491,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         }
 
         PutFollowAction.Request followRequest = follow("index1", "index2");
-        followRequest.getFollowRequest().setMaxOperationSizeInBytes(1L);
+        followRequest.getFollowRequest().setMaxBatchSize(new ByteSizeValue(1, ByteSizeUnit.BYTES));
         client().execute(PutFollowAction.INSTANCE, followRequest).get();
 
         final Map<ShardId, Long> firstBatchNumDocsPerShard = new HashMap<>();
@@ -648,6 +652,33 @@ public class ShardChangesIT extends ESIntegTestCase {
         client().admin().indices().delete(new DeleteIndexRequest("index2")).actionGet();
         client().prepareIndex("index1", "doc", "2").setSource("{}", XContentType.JSON).get();
         ensureNoCcrTasks();
+    }
+
+    public void testUnfollowIndex() throws Exception {
+        String leaderIndexSettings = getIndexSettings(1, 0, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON).get());
+        PutFollowAction.Request followRequest = follow("index1", "index2");
+        client().execute(PutFollowAction.INSTANCE, followRequest).get();
+        client().prepareIndex("index1", "doc").setSource("{}", XContentType.JSON).get();
+        assertBusy(() -> {
+            assertThat(client().prepareSearch("index2").get().getHits().getTotalHits(), equalTo(1L));
+        });
+
+        // Indexing directly into index2 would fail now, because index2 is a follow index.
+        // We can't test this here because an assertion trips before an actual error is thrown and then index call hangs.
+
+        // Turn follow index into a regular index by: pausing shard follow, close index, unfollow index and then open index:
+        unfollowIndex("index2");
+        client().admin().indices().close(new CloseIndexRequest("index2")).actionGet();
+        assertAcked(client().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request("index2")).actionGet());
+        client().admin().indices().open(new OpenIndexRequest("index2")).actionGet();
+        ensureGreen("index2");
+
+        // Indexing succeeds now, because index2 is no longer a follow index:
+        client().prepareIndex("index2", "doc").setSource("{}", XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        assertThat(client().prepareSearch("index2").get().getHits().getTotalHits(), equalTo(2L));
     }
 
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {
@@ -885,7 +916,7 @@ public class ShardChangesIT extends ESIntegTestCase {
                 for (String node : internalCluster().nodesInclude(followerIndex.getName())) {
                     IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
                     IndexShard shard = indicesService.getShardOrNull(new ShardId(followerIndex, shardId));
-                    if (shard != null) {
+                    if (shard != null && shard.routingEntry().primary()) {
                         try {
                             FollowingEngine engine = ((FollowingEngine) IndexShardTestCase.getEngine(shard));
                             numOfOptimizedOps[shardId] = engine.getNumberOfOptimizedIndexing();

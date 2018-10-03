@@ -500,19 +500,20 @@ public class CoordinatorTests extends ESTestCase {
 
                 final String nodeId = clusterNode.getId();
 
-                if (disconnectedNodes.contains(nodeId) || blackholedNodes.contains(nodeId)) {
-                    assertThat(nodeId + " is a candidate", clusterNode.coordinator.getMode(), is(CANDIDATE));
-                } else {
-                    assertThat(nodeId + " has the same term as the leader", clusterNode.coordinator.getCurrentTerm(), is(leaderTerm));
-                    // TODO assert that all nodes have actually voted for the leader in this term
-
+                if (isConnectedPair(leader, clusterNode)) {
                     assertThat(nodeId + " is a follower", clusterNode.coordinator.getMode(), is(FOLLOWER));
-                    assertThat(nodeId + " is at the same accepted version as the leader",
-                        Optional.of(clusterNode.coordinator.getLastAcceptedState().getVersion()), isPresentAndEqualToLeaderVersion);
-                    assertThat(nodeId + " is at the same committed version as the leader",
-                        clusterNode.coordinator.getLastCommittedState().map(ClusterState::getVersion), isPresentAndEqualToLeaderVersion);
-                    assertThat(clusterNode.coordinator.getLastCommittedState().map(ClusterState::getNodes).map(dn -> dn.nodeExists(nodeId)),
+                    assertThat(nodeId + " has the same term as the leader", clusterNode.coordinator.getCurrentTerm(), is(leaderTerm));
+                    // TODO assert that this node has actually voted for the leader in this term
+                    // TODO assert that this node's accepted and committed states are the same as the leader's
+
+                    assertThat(nodeId + " is in the leader's committed state",
+                        leader.coordinator.getLastCommittedState().map(ClusterState::getNodes).map(dn -> dn.nodeExists(nodeId)),
                         equalTo(Optional.of(true)));
+                } else {
+                    assertThat(nodeId + " is a candidate", clusterNode.coordinator.getMode(), is(CANDIDATE));
+                    assertThat(nodeId + " is not in the leader's committed state",
+                        leader.coordinator.getLastCommittedState().map(ClusterState::getNodes).map(dn -> dn.nodeExists(nodeId)),
+                        equalTo(Optional.of(false)));
                 }
             }
 

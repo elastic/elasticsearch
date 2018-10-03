@@ -54,7 +54,6 @@ import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
-import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.FindFileStructureAction;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.ForecastJobAction;
@@ -236,7 +235,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 GetRecordsAction.INSTANCE,
                 PostDataAction.INSTANCE,
                 CloseJobAction.INSTANCE,
-                FinalizeJobExecutionAction.INSTANCE,
                 FlushJobAction.INSTANCE,
                 ValidateDetectorAction.INSTANCE,
                 ValidateJobConfigAction.INSTANCE,

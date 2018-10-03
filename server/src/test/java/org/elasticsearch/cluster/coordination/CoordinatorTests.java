@@ -347,6 +347,9 @@ public class CoordinatorTests extends ESTestCase {
 
         void runRandomly() {
 
+            assert disconnectedNodes.isEmpty() : "may reconnect disconnected nodes, probably unexpected: " + disconnectedNodes;
+            assert blackholedNodes.isEmpty() : "may reconnect blackholed nodes, probably unexpected: " + blackholedNodes;
+
             final int randomSteps = scaledRandomIntBetween(10, 10000);
             logger.info("--> start of safety phase of at least [{}] steps", randomSteps);
 

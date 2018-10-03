@@ -45,6 +45,7 @@ import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PostDataRequest;
+import org.elasticsearch.client.ml.PreviewDatafeedRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
@@ -257,6 +258,17 @@ final class MLRequestConverters {
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         request.setEntity(createEntity(stopDatafeedRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
+    }
+
+    static Request previewDatafeed(PreviewDatafeedRequest previewDatafeedRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("datafeeds")
+            .addPathPart(previewDatafeedRequest.getDatafeedId())
+            .addPathPartAsIs("_preview")
+            .build();
+        return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 
     static Request deleteForecast(DeleteForecastRequest deleteForecastRequest) {

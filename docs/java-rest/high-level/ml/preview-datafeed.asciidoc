@@ -1,0 +1,53 @@
+[[java-rest-high-x-pack-ml-preview-datafeed]]
+=== Preview Datafeed API
+
+The Preview Datafeed API provides the ability to preview a {ml} datafeed's data
+in the cluster. It accepts a `PreviewDatafeedRequest` object and responds
+with a `PreviewDatafeedResponse` object.
+
+[[java-rest-high-x-pack-ml-preview-datafeed-request]]
+==== Preview Datafeed Request
+
+A `PreviewDatafeedRequest` object is created referencing a non-null `datafeedId`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-preview-datafeed-request]
+--------------------------------------------------
+<1> Constructing a new request referencing an existing `datafeedId`
+
+[[java-rest-high-x-pack-ml-preview-datafeed-execution]]
+==== Execution
+
+The request can be executed through the `MachineLearningClient` contained
+in the `RestHighLevelClient` object, accessed via the `machineLearningClient()` method.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-preview-datafeed-execute]
+--------------------------------------------------
+<1> The raw BytesReference of the data preview
+<2> A List of Map<String,Object> that represents the previewed data
+
+[[java-rest-high-x-pack-ml-preview-datafeed-execution-async]]
+==== Asynchronous Execution
+
+The request can also be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-preview-datafeed-execute-async]
+--------------------------------------------------
+<1> The `PreviewDatafeedRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The method does not block and returns immediately. The passed `ActionListener` is used
+to notify the caller of completion. A typical `ActionListener` for `PreviewDatafeedResponse` may
+look like
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-preview-datafeed-listener]
+--------------------------------------------------
+<1> `onResponse` is called back when the action is completed successfully
+<2> `onFailure` is called back when some unexpected error occurs

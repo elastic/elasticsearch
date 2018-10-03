@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -15,22 +17,27 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
+    private static final Logger logger = LogManager.getLogger(MoveToNextStepUpdateTask.class);
+
     private final Index index;
     private final String policy;
     private final Step.StepKey currentStepKey;
     private final Step.StepKey nextStepKey;
     private final LongSupplier nowSupplier;
+    private final Consumer<ClusterState> stateChangeConsumer;
 
     public MoveToNextStepUpdateTask(Index index, String policy, Step.StepKey currentStepKey, Step.StepKey nextStepKey,
-                                    LongSupplier nowSupplier) {
+                                    LongSupplier nowSupplier, Consumer<ClusterState> stateChangeConsumer) {
         this.index = index;
         this.policy = policy;
         this.currentStepKey = currentStepKey;
         this.nextStepKey = nextStepKey;
         this.nowSupplier = nowSupplier;
+        this.stateChangeConsumer = stateChangeConsumer;
     }
 
     Index getIndex() {
@@ -60,12 +67,20 @@ public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
         LifecycleExecutionState indexILMData = LifecycleExecutionState.fromIndexMetadata(currentState.getMetaData().index(index));
         if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
             && currentStepKey.equals(IndexLifecycleRunner.getCurrentStepKey(indexILMData))) {
+            logger.trace("moving [{}] to next step ({})", index.getName(), nextStepKey);
             return IndexLifecycleRunner.moveClusterStateToNextStep(index, currentState, currentStepKey, nextStepKey, nowSupplier);
         } else {
             // either the policy has changed or the step is now
             // not the same as when we submitted the update task. In
             // either case we don't want to do anything now
             return currentState;
+        }
+    }
+
+    @Override
+    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+        if (oldState.equals(newState) == false) {
+            stateChangeConsumer.accept(newState);
         }
     }
 

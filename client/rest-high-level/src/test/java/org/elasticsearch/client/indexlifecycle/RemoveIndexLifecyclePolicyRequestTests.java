@@ -20,32 +20,63 @@
 package org.elasticsearch.client.indexlifecycle;
 
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.Arrays;
+import java.util.Collections;
 
 public class RemoveIndexLifecyclePolicyRequestTests extends ESTestCase {
 
-    private RemoveIndexLifecyclePolicyRequest createTestInstance() {
-        RemoveIndexLifecyclePolicyRequest request = new RemoveIndexLifecyclePolicyRequest(generateRandomStringArray(20, 20, false));
-        if (randomBoolean()) {
-            IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
-                    randomBoolean(), randomBoolean(), randomBoolean());
-            request.indicesOptions(indicesOptions);
-        }
-        if (randomBoolean()) {
-            request.indices(generateRandomStringArray(20, 20, false));
-        }
-        return request;
-    }
-
     public void testNullIndices() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> new RemoveIndexLifecyclePolicyRequest((String[]) null));
+                () -> new RemoveIndexLifecyclePolicyRequest(null));
         assertEquals("indices cannot be null", exception.getMessage());
     }
 
+    public void testNullIndicesOptions() {
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+                () -> new RemoveIndexLifecyclePolicyRequest(Collections.emptyList(), null));
+        assertEquals("indices options cannot be null", exception.getMessage());
+    }
+
     public void testValidate() {
-        RemoveIndexLifecyclePolicyRequest request = createTestInstance();
+        RemoveIndexLifecyclePolicyRequest request = new RemoveIndexLifecyclePolicyRequest(Collections.emptyList());
         assertFalse(request.validate().isPresent());
+    }
+
+    public void testEqualsAndHashCode() {
+        RemoveIndexLifecyclePolicyRequest req0 = new RemoveIndexLifecyclePolicyRequest(Collections.singletonList("rbh"));
+        RemoveIndexLifecyclePolicyRequest req1 = new RemoveIndexLifecyclePolicyRequest(Collections.singletonList("rbh"));
+        RemoveIndexLifecyclePolicyRequest req2 = new RemoveIndexLifecyclePolicyRequest(Collections.singletonList("baz"));
+        RemoveIndexLifecyclePolicyRequest req3 =
+                new RemoveIndexLifecyclePolicyRequest(Collections.singletonList("rbh"), IndicesOptions.lenientExpandOpen());
+        RemoveIndexLifecyclePolicyRequest req4 =
+                new RemoveIndexLifecyclePolicyRequest(Collections.singletonList("rbh"), IndicesOptions.lenientExpandOpen());
+        RemoveIndexLifecyclePolicyRequest req5 =
+                new RemoveIndexLifecyclePolicyRequest(Arrays.asList("rbh", "baz"), IndicesOptions.lenientExpandOpen());
+        RemoveIndexLifecyclePolicyRequest req6 =
+                new RemoveIndexLifecyclePolicyRequest(Arrays.asList("rbh", "baz"), IndicesOptions.lenientExpandOpen());
+
+        assertEquals(req0, req1);
+        assertEquals(req0.hashCode(), req1.hashCode());
+        assertEquals(req3, req4);
+        assertEquals(req3.hashCode(), req4.hashCode());
+        assertEquals(req5, req6);
+        assertEquals(req5.hashCode(), req6.hashCode());
+
+        assertNotEquals(req0, req2);
+        assertNotEquals(req0, req3);
+        assertNotEquals(req0, req4);
+        assertNotEquals(req0, req5);
+        assertNotEquals(req0, req6);
+        assertNotEquals(req1, req2);
+        assertNotEquals(req1, req3);
+        assertNotEquals(req1, req4);
+        assertNotEquals(req1, req5);
+        assertNotEquals(req1, req6);
+        assertNotEquals(req3, req5);
+        assertNotEquals(req3, req6);
+        assertNotEquals(req4, req5);
+        assertNotEquals(req4, req6);
     }
 }

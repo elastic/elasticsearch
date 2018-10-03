@@ -465,23 +465,17 @@ public class CoordinatorTests extends ESTestCase {
         }
 
         void stabilise() {
-            stabilise(DEFAULT_STABILISATION_TIME, DEFAULT_DELAY_VARIABILITY);
+            stabilise(DEFAULT_STABILISATION_TIME);
         }
 
         void stabilise(long stabiliationDurationMillis) {
-            stabilise(stabiliationDurationMillis, DEFAULT_DELAY_VARIABILITY);
-        }
-
-        void stabilise(long stabiliationDurationMillis, long delayVariability) {
             final long stabilisationStartTime = deterministicTaskQueue.getCurrentTimeMillis();
             final long stabilisationEndTime = stabilisationStartTime + stabiliationDurationMillis;
             logger.info("--> stabilising until [{}ms]", stabilisationEndTime);
 
-            deterministicTaskQueue.setExecutionDelayVariabilityMillis(delayVariability);
+            deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
 
             runUntil(stabilisationEndTime);
-
-            deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
 
             assertUniqueLeaderAndExpectedModes();
         }

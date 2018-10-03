@@ -1342,7 +1342,7 @@ or `xpack.ssl.truststore.secure_password`. In the absence of the above, {es} wil
 fallback to use he appropriate JVM setting (`-Djavax.net.ssl.trustStorePassword`)
 if that s set.
 Since there can only be one PKCS#11 token configured, only one keystore and
-truststore will be usable for configuration in Elasticsearch. This in turn means
+truststore will be usable for configuration in {es}. This in turn means
 that only one certificate can be used for TLS both in the transport and the
 http layer.
 

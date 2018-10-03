@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
-import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction;
@@ -617,7 +616,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().check(DeleteFilterAction.NAME, request), is(true));
         assertThat(role.cluster().check(DeleteJobAction.NAME, request), is(true));
         assertThat(role.cluster().check(DeleteModelSnapshotAction.NAME, request), is(true));
-        assertThat(role.cluster().check(FinalizeJobExecutionAction.NAME, request), is(false)); // internal use only
         assertThat(role.cluster().check(FlushJobAction.NAME, request), is(true));
         assertThat(role.cluster().check(GetBucketsAction.NAME, request), is(true));
         assertThat(role.cluster().check(GetCategoriesAction.NAME, request), is(true));
@@ -669,7 +667,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().check(DeleteFilterAction.NAME, request), is(false));
         assertThat(role.cluster().check(DeleteJobAction.NAME, request), is(false));
         assertThat(role.cluster().check(DeleteModelSnapshotAction.NAME, request), is(false));
-        assertThat(role.cluster().check(FinalizeJobExecutionAction.NAME, request), is(false));
         assertThat(role.cluster().check(FlushJobAction.NAME, request), is(false));
         assertThat(role.cluster().check(GetBucketsAction.NAME, request), is(true));
         assertThat(role.cluster().check(GetCategoriesAction.NAME, request), is(true));

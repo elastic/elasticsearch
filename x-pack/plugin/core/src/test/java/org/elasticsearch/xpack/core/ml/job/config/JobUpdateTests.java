@@ -94,11 +94,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
             update.setJobVersion(randomFrom(Version.CURRENT, Version.V_6_2_0, Version.V_6_1_0));
         }
         if (useInternalParser) {
-            if (randomBoolean()) {
-                update.setClearFinishTime(randomBoolean());
-            } else {
-                update.setFinishedTime(new Date());
-            }
+            update.setClearFinishTime(randomBoolean());
         }
 
         return update.build();
@@ -218,12 +214,6 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         updateBuilder.setCustomSettings(customSettings);
         updateBuilder.setModelSnapshotId(randomAlphaOfLength(10));
         updateBuilder.setJobVersion(Version.V_6_1_0);
-        boolean clearJobFinishedTime = randomBoolean();
-        if (clearJobFinishedTime) {
-            updateBuilder.setClearFinishTime(true);
-        } else {
-            updateBuilder.setFinishedTime(new Date());
-        }
         JobUpdate update = updateBuilder.build();
 
         Job.Builder jobBuilder = new Job.Builder("foo");
@@ -253,11 +243,6 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         assertEquals(update.getCustomSettings(), updatedJob.getCustomSettings());
         assertEquals(update.getModelSnapshotId(), updatedJob.getModelSnapshotId());
         assertEquals(update.getJobVersion(), updatedJob.getJobVersion());
-        if (clearJobFinishedTime) {
-            assertNull(updatedJob.getFinishedTime());
-        } else {
-            assertEquals(update.getFinishedTime(), updatedJob.getFinishedTime());
-        }
         for (JobUpdate.DetectorUpdate detectorUpdate : update.getDetectorUpdates()) {
             Detector updatedDetector = updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getDetectorIndex());
             assertNotNull(updatedDetector);

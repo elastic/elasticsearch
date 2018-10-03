@@ -2,22 +2,26 @@
 
 == Document APIs
 
+:upid: {mainid}-document
+:doc-tests-file: {doc-tests}/CRUDDocumentationIT.java
+
 The Java High Level REST Client supports the following Document APIs:
 
 [[single-doc]]
 Single document APIs::
-* <<java-rest-high-document-index>>
-* <<java-rest-high-document-get>>
-* <<java-rest-high-document-delete>>
-* <<java-rest-high-document-update>>
+* <<{upid}-index>>
+* <<{upid}-get>>
+* <<{upid}-delete>>
+* <<{upid}-update>>
 
 [[multi-doc]]
 Multi-document APIs::
-* <<java-rest-high-document-bulk>>
-* <<java-rest-high-document-multi-get>>
-* <<java-rest-high-document-reindex>>
-* <<java-rest-high-document-update-by-query>>
-* <<java-rest-high-document-delete-by-query>>
+* <<{upid}-bulk>>
+* <<{upid}-multi-get>>
+* <<{upid}-reindex>>
+* <<{upid}-update-by-query>>
+* <<{upid}-delete-by-query>>
+* <<{upid}-rethrottle>>
 
 include::document/index.asciidoc[]
 include::document/get.asciidoc[]
@@ -29,20 +33,24 @@ include::document/multi-get.asciidoc[]
 include::document/reindex.asciidoc[]
 include::document/update-by-query.asciidoc[]
 include::document/delete-by-query.asciidoc[]
+include::document/rethrottle.asciidoc[]
 
 == Search APIs
 
+:upid: {mainid}
+:doc-tests-file: {doc-tests}/SearchDocumentationIT.java
+
 The Java High Level REST Client supports the following Search APIs:
 
-* <<java-rest-high-search>>
-* <<java-rest-high-search-scroll>>
-* <<java-rest-high-clear-scroll>>
-* <<java-rest-high-search-template>>
-* <<java-rest-high-multi-search-template>>
-* <<java-rest-high-multi-search>>
-* <<java-rest-high-field-caps>>
-* <<java-rest-high-rank-eval>>
-* <<java-rest-high-explain>>
+* <<{upid}-search>>
+* <<{upid}-search-scroll>>
+* <<{upid}-clear-scroll>>
+* <<{upid}-search-template>>
+* <<{upid}-multi-search-template>>
+* <<{upid}-multi-search>>
+* <<{upid}-field-caps>>
+* <<{upid}-rank-eval>>
+* <<{upid}-explain>>
 
 include::search/search.asciidoc[]
 include::search/scroll.asciidoc[]
@@ -135,6 +143,8 @@ The Java High Level REST Client supports the following Cluster APIs:
 * <<java-rest-high-cluster-get-settings>>
 * <<java-rest-high-cluster-health>>
 
+:upid: {mainid}-cluster
+:doc-tests-file: {doc-tests}/ClusterClientDocumentationIT.java
 include::cluster/put_settings.asciidoc[]
 include::cluster/get_settings.asciidoc[]
 include::cluster/health.asciidoc[]
@@ -223,6 +233,8 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<java-rest-high-x-pack-ml-put-datafeed>>
 * <<java-rest-high-x-pack-ml-get-datafeed>>
 * <<java-rest-high-x-pack-ml-delete-datafeed>>
+* <<java-rest-high-x-pack-ml-start-datafeed>>
+* <<java-rest-high-x-pack-ml-stop-datafeed>>
 * <<java-rest-high-x-pack-ml-forecast-job>>
 * <<java-rest-high-x-pack-ml-delete-forecast>>
 * <<java-rest-high-x-pack-ml-get-buckets>>
@@ -245,6 +257,8 @@ include::ml/flush-job.asciidoc[]
 include::ml/put-datafeed.asciidoc[]
 include::ml/get-datafeed.asciidoc[]
 include::ml/delete-datafeed.asciidoc[]
+include::ml/start-datafeed.asciidoc[]
+include::ml/stop-datafeed.asciidoc[]
 include::ml/get-job-stats.asciidoc[]
 include::ml/forecast-job.asciidoc[]
 include::ml/delete-forecast.asciidoc[]
@@ -271,8 +285,10 @@ include::migration/get-assistance.asciidoc[]
 The Java High Level REST Client supports the following Rollup APIs:
 
 * <<java-rest-high-x-pack-rollup-put-job>>
+* <<java-rest-high-x-pack-rollup-get-job>>
 
 include::rollup/put_job.asciidoc[]
+include::rollup/get_job.asciidoc[]
 
 == Security APIs
 
@@ -281,10 +297,12 @@ The Java High Level REST Client supports the following Security APIs:
 * <<java-rest-high-security-put-user>>
 * <<java-rest-high-security-enable-user>>
 * <<java-rest-high-security-disable-user>>
+* <<java-rest-high-security-change-password>>
 
 include::security/put-user.asciidoc[]
 include::security/enable-user.asciidoc[]
 include::security/disable-user.asciidoc[]
+include::security/change-password.asciidoc[]
 
 == Watcher APIs
 
@@ -303,3 +321,15 @@ The Java High Level REST Client supports the following Graph APIs:
 * <<java-rest-high-x-pack-graph-explore>>
 
 include::graph/explore.asciidoc[]
+
+////
+Clear attributes that we use to document that APIs included above so they
+don't leak into the rest of the documentation.
+////
+--
+:api!:
+:request!:
+:response!:
+:doc-tests-file!:
+:upid!:
+--

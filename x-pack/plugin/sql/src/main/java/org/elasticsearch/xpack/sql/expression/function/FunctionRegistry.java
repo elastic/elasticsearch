@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.StddevPop;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.SumOfSquares;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.VarPop;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mod;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfWeek;
@@ -61,6 +60,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sin;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sinh;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Tan;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Truncate;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Ascii;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BitLength;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Char;
@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.Right;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.util.StringUtils;
@@ -89,6 +90,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 import java.util.function.BiFunction;
@@ -114,21 +116,21 @@ public class FunctionRegistry {
             def(SumOfSquares.class, SumOfSquares::new),
             def(Skewness.class, Skewness::new),
             def(Kurtosis.class, Kurtosis::new),
-        // Scalar functions
+            // Scalar functions
             // Date
+            def(DayName.class, DayName::new, "DAYNAME"),
             def(DayOfMonth.class, DayOfMonth::new, "DAYOFMONTH", "DAY", "DOM"),
             def(DayOfWeek.class, DayOfWeek::new, "DAYOFWEEK", "DOW"),
             def(DayOfYear.class, DayOfYear::new, "DAYOFYEAR", "DOY"),
             def(HourOfDay.class, HourOfDay::new, "HOUR"),
             def(MinuteOfDay.class, MinuteOfDay::new),
             def(MinuteOfHour.class, MinuteOfHour::new, "MINUTE"),
-            def(SecondOfMinute.class, SecondOfMinute::new, "SECOND"),
+            def(MonthName.class, MonthName::new, "MONTHNAME"),
             def(MonthOfYear.class, MonthOfYear::new, "MONTH"),
+            def(SecondOfMinute.class, SecondOfMinute::new, "SECOND"),
+            def(Quarter.class, Quarter::new),
             def(Year.class, Year::new),
             def(WeekOfYear.class, WeekOfYear::new, "WEEK"),
-            def(DayName.class, DayName::new, "DAYNAME"),
-            def(MonthName.class, MonthName::new, "MONTHNAME"),
-            def(Quarter.class, Quarter::new),
             // Math
             def(Abs.class, Abs::new),
             def(ACos.class, ACos::new),
@@ -159,27 +161,28 @@ public class FunctionRegistry {
             def(Sinh.class, Sinh::new),
             def(Sqrt.class, Sqrt::new),
             def(Tan.class, Tan::new),
+            def(Truncate.class, Truncate::new),
             // String
             def(Ascii.class, Ascii::new),
-            def(Char.class, Char::new),
             def(BitLength.class, BitLength::new),
+            def(Char.class, Char::new),
             def(CharLength.class, CharLength::new, "CHARACTER_LENGTH"),
-            def(LCase.class, LCase::new),
-            def(Length.class, Length::new),
-            def(LTrim.class, LTrim::new),
-            def(RTrim.class, RTrim::new),
-            def(Space.class, Space::new),
             def(Concat.class, Concat::new),
             def(Insert.class, Insert::new),
+            def(LCase.class, LCase::new),
             def(Left.class, Left::new),
+            def(Length.class, Length::new),
             def(Locate.class, Locate::new),
+            def(LTrim.class, LTrim::new),
             def(Position.class, Position::new),
             def(Repeat.class, Repeat::new),
             def(Replace.class, Replace::new),
             def(Right.class, Right::new),
+            def(RTrim.class, RTrim::new),
+            def(Space.class, Space::new),
             def(Substring.class, Substring::new),
             def(UCase.class, UCase::new),
-        // Special
+            // Special
             def(Score.class, Score::new)));
 
     private final Map<String, FunctionDefinition> defs = new LinkedHashMap<>();
@@ -209,21 +212,23 @@ public class FunctionRegistry {
         }
     }
 
-    public FunctionDefinition resolveFunction(String name) {
-        FunctionDefinition def = defs.get(normalize(name));
+    public FunctionDefinition resolveFunction(String functionName) {
+        FunctionDefinition def = defs.get(functionName);
         if (def == null) {
-            throw new SqlIllegalArgumentException("Cannot find function {}; this should have been caught during analysis", name);
+            throw new SqlIllegalArgumentException(
+                "Cannot find function {}; this should have been caught during analysis",
+                functionName);
         }
         return def;
     }
 
-    public String concreteFunctionName(String alias) {
-        String normalized = normalize(alias);
-        return aliases.getOrDefault(normalized, normalized);
+    public String resolveAlias(String alias) {
+        String upperCase = alias.toUpperCase(Locale.ROOT);
+        return aliases.getOrDefault(upperCase, upperCase);
     }
 
-    public boolean functionExists(String name) {
-        return defs.containsKey(normalize(name));
+    public boolean functionExists(String functionName) {
+        return defs.containsKey(functionName);
     }
 
     public Collection<FunctionDefinition> listFunctions() {
@@ -330,13 +335,17 @@ public class FunctionRegistry {
     static <T extends Function> FunctionDefinition def(Class<T> function,
             BinaryFunctionBuilder<T> ctorRef, String... aliases) {
         FunctionBuilder builder = (location, children, distinct, tz) -> {
-            if (children.size() != 2) {
+            boolean isBinaryOptionalParamFunction = function.isAssignableFrom(Round.class) || function.isAssignableFrom(Truncate.class);
+            if (isBinaryOptionalParamFunction && (children.size() > 2 || children.size() < 1)) {
+                throw new IllegalArgumentException("expects one or two arguments");
+            } else if (!isBinaryOptionalParamFunction && children.size() != 2) {
                 throw new IllegalArgumentException("expects exactly two arguments");
             }
+
             if (distinct) {
                 throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
             }
-            return ctorRef.build(location, children.get(0), children.get(1));
+            return ctorRef.build(location, children.get(0), children.size() == 2 ? children.get(1) : null);
         };
         return def(function, builder, false, aliases);
     }

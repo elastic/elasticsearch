@@ -736,7 +736,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
 
                     @Override
                     public String toString() {
-                        return "processing of [" + action + "][" + requestId + "]: " + request;
+                        return "processing of [" + requestId + "][" + action + "]: " + request;
                     }
                 });
             }
@@ -1057,7 +1057,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
 
         @Override
         public String toString() {
-            return "TimeoutHandler for [" + action + "][" + requestId + "]";
+            return "timeout handler for [" + requestId + "][" + action + "]";
         }
     }
 
@@ -1188,13 +1188,13 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                 } else {
                     threadPool.executor(executor).execute(new Runnable() {
                         @Override
-                        public String toString() {
-                            return "delivery of response to [" + action + "][" + requestId + "]: " + response;
+                        public void run() {
+                            processResponse(handler, response);
                         }
 
                         @Override
-                        public void run() {
-                            DirectResponseChannel.this.processResponse(handler, response);
+                        public String toString() {
+                            return "delivery of response to [" + requestId + "][" + action + "]: " + response;
                         }
                     });
                 }
@@ -1229,7 +1229,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
 
                         @Override
                         public String toString() {
-                            return "delivery of exception response to [" + action + "][" + requestId + "]: " + exception;
+                            return "delivery of failure response to [" + requestId + "][" + action + "]: " + exception;
                         }
                     });
                 }

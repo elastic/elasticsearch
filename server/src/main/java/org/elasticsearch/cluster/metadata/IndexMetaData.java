@@ -955,6 +955,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             return this;
         }
 
+        public Map<String, String> removeCustom(String type) {
+            return this.customMetaData.remove(type);
+        }
+
         public Set<String> getInSyncAllocationIds(int shardId) {
             return inSyncAllocationIds.get(shardId);
         }

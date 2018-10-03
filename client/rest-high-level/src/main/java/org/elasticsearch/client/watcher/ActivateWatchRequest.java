@@ -28,18 +28,15 @@ import java.util.Objects;
 /**
  * A request to explicitly activate a watch.
  */
-public final class ActivateWatchRequest implements Validatable, Closeable {
+public final class ActivateWatchRequest implements Validatable {
 
     private final String watchId;
 
     public ActivateWatchRequest(String watchId) {
-        if (watchId == null) {
-            throw new IllegalArgumentException("Watch identifier is required");
-        }
-        if (PutWatchRequest.isValidId(watchId) == false) {
+        this.watchId  = Objects.requireNonNull(watchId, "Watch identifier is required");
+        if (PutWatchRequest.isValidId(this.watchId) == false) {
             throw new IllegalArgumentException("Watch identifier contains whitespace");
         }
-        this.watchId = watchId;
     }
 
     /**
@@ -61,9 +58,5 @@ public final class ActivateWatchRequest implements Validatable, Closeable {
     public int hashCode() {
         int result = Objects.hash(watchId);
         return result;
-    }
-
-    @Override
-    public void close() {
     }
 }

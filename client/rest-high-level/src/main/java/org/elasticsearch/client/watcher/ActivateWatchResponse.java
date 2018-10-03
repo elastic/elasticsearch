@@ -31,6 +31,17 @@ import java.util.Objects;
  */
 public final class ActivateWatchResponse {
 
+    private static final ParseField STATUS_FIELD = new ParseField("status");
+    private static ConstructingObjectParser<ActivateWatchResponse, Void> PARSER =
+        new ConstructingObjectParser<>("activate_watch_response", true,
+            a -> new ActivateWatchResponse((WatchStatus) a[0]));
+
+    static {
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(),
+            (parser, context) -> WatchStatus.parse(parser),
+            STATUS_FIELD);
+    }
+
     private final WatchStatus status;
 
     public ActivateWatchResponse(WatchStatus status) {
@@ -52,17 +63,6 @@ public final class ActivateWatchResponse {
     @Override
     public int hashCode() {
         return Objects.hash(status);
-    }
-
-    private static final ParseField STATUS_FIELD = new ParseField("status");
-    private static ConstructingObjectParser<ActivateWatchResponse, Void> PARSER =
-        new ConstructingObjectParser<>("activate_watch_response", true,
-            a -> new ActivateWatchResponse((WatchStatus) a[0]));
-
-    static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(),
-            (parser, context) -> WatchStatus.parse(parser),
-            STATUS_FIELD);
     }
 
     public static ActivateWatchResponse fromXContent(XContentParser parser) throws IOException {

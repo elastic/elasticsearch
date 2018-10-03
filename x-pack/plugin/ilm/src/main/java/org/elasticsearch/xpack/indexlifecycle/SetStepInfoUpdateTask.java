@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
@@ -73,5 +74,21 @@ public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
     public void onFailure(String source, Exception e) {
         throw new ElasticsearchException("policy [" + policy + "] for index [" + index.getName()
                 + "] failed trying to set step info for step [" + currentStepKey + "].", e);
+    }
+
+    public static class ExceptionWrapper implements ToXContentObject {
+        private final Throwable exception;
+
+        public ExceptionWrapper(Throwable exception) {
+            this.exception = exception;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            ElasticsearchException.generateThrowableXContent(builder, params, exception);
+            builder.endObject();
+            return builder;
+        }
     }
 }

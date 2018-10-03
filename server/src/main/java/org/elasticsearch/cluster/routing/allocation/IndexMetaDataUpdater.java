@@ -71,7 +71,7 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
         addAllocationId(startedShard);
         if (startedShard.primary()
             // started shard has to have null recoverySource; have to pick up recoverySource from its initializing state
-            && (initializingShard.recoverySource() instanceof RecoverySource.ExistingStoreRecoverySource
+            && (initializingShard.recoverySource() == RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE
             || initializingShard.recoverySource() instanceof RecoverySource.SnapshotRecoverySource)) {
             Updates updates = changes(startedShard.shardId());
             updates.removedAllocationIds.add(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID);
@@ -147,6 +147,7 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
         Set<String> oldInSyncAllocationIds = oldIndexMetaData.inSyncAllocationIds(shardId.id());
 
         // check if we have been force-initializing an empty primary or a stale primary
+        // the same is applicable for snapshot/restore as it can be considered as allocating a stale primary.
         if (updates.initializedPrimary != null && oldInSyncAllocationIds.isEmpty() == false &&
             oldInSyncAllocationIds.contains(updates.initializedPrimary.allocationId().getId()) == false) {
             // we're not reusing an existing in-sync allocation id to initialize a primary, which means that we're either force-allocating
@@ -164,7 +165,7 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
                 // forcing an empty primary resets the in-sync allocations to the empty set (ShardRouting.allocatedPostIndexCreate)
                 indexMetaDataBuilder.putInSyncAllocationIds(shardId.id(), Collections.emptySet());
             } else {
-                assert recoverySource instanceof RecoverySource.ExistingStoreRecoverySource
+                assert recoverySource == RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE
                     || recoverySource instanceof RecoverySource.SnapshotRecoverySource
                     : recoverySource;
                 // forcing a stale primary resets the in-sync allocations to the singleton set with the stale id

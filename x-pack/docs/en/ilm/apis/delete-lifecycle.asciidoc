@@ -6,7 +6,7 @@
 <titleabbrev>Delete Policy</titleabbrev>
 ++++
 
-Deletes an existing policy
+Deletes an existing lifecycle policy
 
 ==== Request
 

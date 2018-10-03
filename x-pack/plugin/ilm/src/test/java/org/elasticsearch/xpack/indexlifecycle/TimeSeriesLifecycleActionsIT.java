@@ -10,6 +10,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
@@ -18,16 +19,15 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
 import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ForceMergeAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
+import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
@@ -36,6 +36,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -52,25 +53,70 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     private String policy;
 
     @Before
-    public void refreshIndex() throws IOException {
+    public void refreshIndex() {
         index = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         policy = randomAlphaOfLength(5);
-        Request request = new Request("PUT", "/_cluster/settings");
-        XContentBuilder pollIntervalEntity = JsonXContent.contentBuilder();
-        pollIntervalEntity.startObject();
-        {
-            pollIntervalEntity.startObject("transient");
-            {
-                pollIntervalEntity.field(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s");
-            }pollIntervalEntity.endObject();
-        } pollIntervalEntity.endObject();
-        request.setJsonEntity(Strings.toString(pollIntervalEntity));
-        assertOK(adminClient().performRequest(request));
     }
 
     public static void updatePolicy(String indexName, String policy) throws IOException {
         Request request = new Request("PUT", "/" + indexName + "/_ilm/" + policy);
-        client().performRequest(request);
+        assertOK(client().performRequest(request));
+    }
+
+    public void testFullPolicy() throws Exception {
+        String originalIndex = index + "-000001";
+        String shrunkenOriginalIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + originalIndex;
+        String secondIndex = index + "-000002";
+        createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 4)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.routing.allocation.include._name", "node-0")
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
+
+        // create policy
+        Map<String, LifecycleAction> warmActions = new HashMap<>();
+        warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1));
+        warmActions.put(AllocateAction.NAME, new AllocateAction(1, singletonMap("_name", "node-1,node-2"), null, null));
+        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
+        Map<String, Phase> phases = new HashMap<>();
+        phases.put("hot", new Phase("hot", TimeValue.ZERO, singletonMap(RolloverAction.NAME,
+            new RolloverAction(null, null, 1L))));
+        phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
+        phases.put("cold", new Phase("cold", TimeValue.ZERO, singletonMap(AllocateAction.NAME,
+            new AllocateAction(0, singletonMap("_name", "node-3"), null, null))));
+        phases.put("delete", new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction())));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
+        // PUT policy
+        XContentBuilder builder = jsonBuilder();
+        lifecyclePolicy.toXContent(builder, null);
+        final StringEntity entity = new StringEntity(
+            "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
+        Request request = new Request("PUT", "_ilm/" + policy);
+        request.setEntity(entity);
+        assertOK(client().performRequest(request));
+        // update policy on index
+        updatePolicy(originalIndex, policy);
+        // index document {"foo": "bar"} to trigger rollover
+        index(client(), originalIndex, "_id", "foo", "bar");
+        assertBusy(() -> assertTrue(indexExists(secondIndex)));
+        assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
+        assertBusy(() -> assertFalse(indexExists(originalIndex)));
+    }
+
+    public void testRolloverAction() throws Exception {
+        String originalIndex = index + "-000001";
+        String secondIndex = index + "-000002";
+        createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
+
+        // create policy
+        createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
+        // update policy on index
+        updatePolicy(originalIndex, policy);
+        // index document {"foo": "bar"} to trigger rollover
+        index(client(), originalIndex, "_id", "foo", "bar");
+        assertBusy(() -> assertTrue(indexExists(secondIndex)));
+        assertBusy(() -> assertTrue(indexExists(originalIndex)));
     }
 
     public void testAllocateOnlyAllocation() throws Exception {
@@ -210,10 +256,24 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
     private void createIndexWithSettings(String index, Settings.Builder settings) throws IOException {
         // create the test-index index
-        createIndex(index, settings.build());
+        Request request = new Request("PUT", "/" + index);
+        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings.build())
+            + ", \"aliases\" : { \"alias\": { \"is_write_index\": true } } }");
+        client().performRequest(request);
         // wait for the shards to initialize
         ensureGreen(index);
 
+    }
+
+    private static void index(RestClient client, String index, String id, Object... fields) throws IOException {
+        XContentBuilder document = jsonBuilder().startObject();
+        for (int i = 0; i < fields.length; i += 2) {
+            document.field((String) fields[i], fields[i + 1]);
+        }
+        document.endObject();
+        final Request request = new Request("POST", "/" + index + "/_doc/" + id);
+        request.setJsonEntity(Strings.toString(document));
+        assertOK(client.performRequest(request));
     }
 
     @SuppressWarnings("unchecked")

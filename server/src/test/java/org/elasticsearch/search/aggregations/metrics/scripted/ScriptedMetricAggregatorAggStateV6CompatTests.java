@@ -132,7 +132,8 @@ public class ScriptedMetricAggregatorAggStateV6CompatTests extends AggregatorTes
             }
         }
 
-        assertWarnings(ScriptedMetricAggContexts.AGG_PARAM_DEPRECATION_WARNING);
+        assertWarnings(ScriptedMetricAggContexts.AGG_PARAM_DEPRECATION_WARNING,
+            "[reduceScript] must be provided for metric aggregations.");
     }
 
     /**
@@ -161,7 +162,8 @@ public class ScriptedMetricAggregatorAggStateV6CompatTests extends AggregatorTes
             }
         }
 
-        assertWarnings(ScriptedMetricAggContexts.AGG_PARAM_DEPRECATION_WARNING);
+        assertWarnings(ScriptedMetricAggContexts.AGG_PARAM_DEPRECATION_WARNING,
+            "[reduceScript] must be provided for metric aggregations.");
     }
 
     /**

@@ -100,6 +100,7 @@ buildRestTests.docs = fileTree(projectDir) {
   exclude 'reference/rollup/apis/delete-job.asciidoc'
   exclude 'reference/rollup/apis/get-job.asciidoc'
   exclude 'reference/rollup/apis/rollup-caps.asciidoc'
+  exclude 'reference/graph/explore.asciidoc'
 }
 
 listSnippets.docs = buildRestTests.docs

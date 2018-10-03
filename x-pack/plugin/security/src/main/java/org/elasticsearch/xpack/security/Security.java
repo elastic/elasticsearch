@@ -658,7 +658,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             assert getLicenseState() != null;
             if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
                 module.setSearcherWrapper(indexService ->
-                        new SecurityIndexSearcherWrapper(indexService.getIndexSettings(),
+                        new SecurityIndexSearcherWrapper(
                                 shardId -> indexService.newQueryShardContext(shardId.id(),
                                 // we pass a null index reader, which is legal and will disable rewrite optimizations
                                 // based on index statistics, which is probably safer...

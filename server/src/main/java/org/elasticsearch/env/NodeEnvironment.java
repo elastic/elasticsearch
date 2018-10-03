@@ -19,6 +19,10 @@
 
 package org.elasticsearch.env;
 
+import java.io.UncheckedIOException;
+import java.util.Iterator;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -486,12 +490,27 @@ public final class NodeEnvironment  implements Closeable {
     }
 
     private static boolean assertPathsDoNotExist(final Path[] paths) {
-        Set<Path> existingPaths = new HashSet<>();
-        for (Path path : paths) {
-            if (FileSystemUtils.exists(paths)) {
-                existingPaths.add(path);
-            }
-        }
+        Set<Path> existingPaths = Stream.of(paths)
+            .filter(FileSystemUtils::exists)
+            .filter(leftOver -> {
+                // Relaxed assertion for the special case where only the empty state directory exists after deleting
+                // the shard directory because it was created again as a result of a metadata read action concurrently.
+                try (DirectoryStream<Path> children = Files.newDirectoryStream(leftOver)) {
+                    Iterator<Path> iter = children.iterator();
+                    if (iter.hasNext() == false) {
+                        return true;
+                    }
+                    Path maybeState = iter.next();
+                    if (iter.hasNext() || maybeState.equals(leftOver.resolve(MetaDataStateFormat.STATE_DIR_NAME)) == false) {
+                        return true;
+                    }
+                    try (DirectoryStream<Path> stateChildren = Files.newDirectoryStream(maybeState)) {
+                        return stateChildren.iterator().hasNext();
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }).collect(Collectors.toSet());
         assert existingPaths.size() == 0 : "Paths exist that should have been deleted: " + existingPaths;
         return existingPaths.size() == 0;
     }
@@ -551,10 +570,8 @@ public final class NodeEnvironment  implements Closeable {
      * @param index the index to lock shards for
      * @param lockTimeoutMS how long to wait for acquiring the indices shard locks
      * @return the {@link ShardLock} instances for this index.
-     * @throws IOException if an IOException occurs.
      */
-    public List<ShardLock> lockAllForIndex(Index index, IndexSettings settings, long lockTimeoutMS)
-            throws IOException, ShardLockObtainFailedException {
+    public List<ShardLock> lockAllForIndex(Index index, IndexSettings settings, long lockTimeoutMS) throws ShardLockObtainFailedException {
         final int numShards = settings.getNumberOfShards();
         if (numShards <= 0) {
             throw new IllegalArgumentException("settings must contain a non-null > 0 number of shards");
@@ -842,7 +859,7 @@ public final class NodeEnvironment  implements Closeable {
     /**
      * Resolves all existing paths to <code>indexFolderName</code> in ${data.paths}/nodes/{node.id}/indices
      */
-    public Path[] resolveIndexFolder(String indexFolderName) throws IOException {
+    public Path[] resolveIndexFolder(String indexFolderName) {
         if (nodePaths == null || locks == null) {
             throw new IllegalStateException("node is not configured to store local location");
         }
@@ -985,17 +1002,6 @@ public final class NodeEnvironment  implements Closeable {
                 }
             }
         }
-    }
-
-    /**
-     * Resolve the custom path for a index's shard.
-     * Uses the {@code IndexMetaData.SETTING_DATA_PATH} setting to determine
-     * the root path for the index.
-     *
-     * @param indexSettings settings for the index
-     */
-    public Path resolveBaseCustomLocation(IndexSettings indexSettings) {
-        return resolveBaseCustomLocation(indexSettings, sharedDataPath, nodeLockId);
     }
 
     /**

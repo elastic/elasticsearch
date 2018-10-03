@@ -53,18 +53,26 @@ import static java.util.Collections.emptyMap;
  */
 public class MockScriptEngine implements ScriptEngine {
 
+    /** A non-typed compiler for a single custom context */
+    public interface ContextCompiler {
+        Object compile(Function<Map<String, Object>, Object> script, Map<String, String> params);
+    }
+
     public static final String NAME = "mockscript";
 
     private final String type;
     private final Map<String, Function<Map<String, Object>, Object>> scripts;
+    private final Map<ScriptContext<?>, ContextCompiler> contexts;
 
-    public MockScriptEngine(String type, Map<String, Function<Map<String, Object>, Object>> scripts) {
+    public MockScriptEngine(String type, Map<String, Function<Map<String, Object>, Object>> scripts,
+                            Map<ScriptContext<?>, ContextCompiler> contexts) {
         this.type = type;
         this.scripts = Collections.unmodifiableMap(scripts);
+        this.contexts = Collections.unmodifiableMap(contexts);
     }
 
     public MockScriptEngine() {
-        this(NAME, Collections.emptyMap());
+        this(NAME, Collections.emptyMap(), Collections.emptyMap());
     }
 
     @Override
@@ -97,16 +105,14 @@ public class MockScriptEngine implements ScriptEngine {
                 }
             };
             return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(ExecutableScript.class)) {
-            ExecutableScript.Factory factory = mockCompiled::createExecutableScript;
-            return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(IngestScript.class)) {
-            IngestScript.Factory factory = parameters -> new IngestScript(parameters) {
-                @Override
-                public void execute(Map<String, Object> ctx) {
-                    script.apply(ctx);
-                }
-            };
+            IngestScript.Factory factory = vars ->
+                new IngestScript(vars) {
+                    @Override
+                    public void execute(Map<String, Object> ctx) {
+                        script.apply(ctx);
+                    }
+                };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(IngestConditionalScript.class)) {
             IngestConditionalScript.Factory factory = parameters -> new IngestConditionalScript(parameters) {
@@ -117,9 +123,9 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(UpdateScript.class)) {
-            UpdateScript.Factory factory = parameters -> new UpdateScript(parameters) {
+            UpdateScript.Factory factory = (parameters, ctx) -> new UpdateScript(parameters, ctx) {
                 @Override
-                public void execute(Map<String, Object> ctx) {
+                public void execute() {
                     final Map<String, Object> vars = new HashMap<>();
                     vars.put("ctx", ctx);
                     vars.put("params", parameters);
@@ -159,16 +165,17 @@ public class MockScriptEngine implements ScriptEngine {
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(TemplateScript.class)) {
             TemplateScript.Factory factory = vars -> {
-                // TODO: need a better way to implement all these new contexts
-                // this is just a shim to act as an executable script just as before
-                ExecutableScript execScript = mockCompiled.createExecutableScript(vars);
-                    return new TemplateScript(vars) {
-                        @Override
-                        public String execute() {
-                            return (String) execScript.run();
-                        }
-                    };
+                Map<String, Object> varsWithParams = new HashMap<>();
+                if (vars != null) {
+                    varsWithParams.put("params", vars);
+                }
+                return new TemplateScript(vars) {
+                    @Override
+                    public String execute() {
+                        return (String) script.apply(varsWithParams);
+                    }
                 };
+            };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(FilterScript.class)) {
             FilterScript.Factory factory = mockCompiled::createFilterScript;
@@ -198,6 +205,10 @@ public class MockScriptEngine implements ScriptEngine {
             ScriptedMetricAggContexts.ReduceScript.Factory factory = mockCompiled::createMetricAggReduceScript;
             return context.factoryClazz.cast(factory);
         }
+        ContextCompiler compiler = contexts.get(context);
+        if (compiler != null) {
+            return context.factoryClazz.cast(compiler.compile(script, params));
+        }
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
     }
 
@@ -217,19 +228,6 @@ public class MockScriptEngine implements ScriptEngine {
 
         public String getName() {
             return name;
-        }
-
-        public ExecutableScript createExecutableScript(Map<String, Object> params) {
-            Map<String, Object> context = new HashMap<>();
-            if (options != null) {
-                context.putAll(options); // TODO: remove this once scripts know to look for options under options key
-                context.put("options", options);
-            }
-            if (params != null) {
-                context.putAll(params); // TODO: remove this once scripts know to look for params under params key
-                context.put("params", params);
-            }
-            return new MockExecutableScript(context, script != null ? script : ctx -> source);
         }
 
         public SearchScript.LeafFactory createSearchScript(Map<String, Object> params, SearchLookup lookup) {
@@ -279,27 +277,6 @@ public class MockScriptEngine implements ScriptEngine {
 
         public ScriptedMetricAggContexts.ReduceScript createMetricAggReduceScript(Map<String, Object> params, List<Object> states) {
             return new MockMetricAggReduceScript(params, states, script != null ? script : ctx -> 42d);
-        }
-    }
-
-    public class MockExecutableScript implements ExecutableScript {
-
-        private final Function<Map<String, Object>, Object> script;
-        private final Map<String, Object> vars;
-
-        public MockExecutableScript(Map<String, Object> vars, Function<Map<String, Object>, Object> script) {
-            this.vars = vars;
-            this.script = script;
-        }
-
-        @Override
-        public void setNextVar(String name, Object value) {
-            vars.put(name, value);
-        }
-
-        @Override
-        public Object run() {
-            return script.apply(vars);
         }
     }
 

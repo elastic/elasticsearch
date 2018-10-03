@@ -172,6 +172,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         action = new TestAction(Settings.EMPTY, "internal:testAction", transportService, clusterService, shardStateAction, threadPool);
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();
@@ -515,6 +516,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                     ActionListener<TransportReplicationAction.PrimaryResult<Request, TestResponse>> actionListener,
                     TransportReplicationAction<Request, Request, TestResponse>.PrimaryShardReference primaryShardReference) {
                 return new NoopReplicationOperation(request, actionListener) {
+                    @Override
                     public void execute() throws Exception {
                         assertPhase(task, "primary");
                         assertFalse(executed.getAndSet(true));
@@ -571,6 +573,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                     ActionListener<TransportReplicationAction.PrimaryResult<Request, TestResponse>> actionListener,
                     TransportReplicationAction<Request, Request, TestResponse>.PrimaryShardReference primaryShardReference) {
                 return new NoopReplicationOperation(request, actionListener) {
+                    @Override
                     public void execute() throws Exception {
                         assertPhase(task, "primary");
                         assertFalse(executed.getAndSet(true));
@@ -629,6 +632,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 routingState == ShardRoutingState.RELOCATING ? state.nodes().iterator().next().getId() : null, false, routingState),
                 new Request(),
                 randomNonNegativeLong(),
+                randomNonNegativeLong(),
                 listener);
         assertTrue(listener.isDone());
         assertListenerThrows("non existent node should throw a NoNodeAvailableException", listener, NoNodeAvailableException.class);
@@ -637,7 +641,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         final ShardRouting replica = randomFrom(shardRoutings.replicaShards().stream()
             .filter(ShardRouting::assignedToNode).collect(Collectors.toList()));
         listener = new PlainActionFuture<>();
-        proxy.performOn(replica, new Request(), randomNonNegativeLong(), listener);
+        proxy.performOn(replica, new Request(), randomNonNegativeLong(), randomNonNegativeLong(), listener);
         assertFalse(listener.isDone());
 
         CapturingTransport.CapturedRequest[] captures = transport.getCapturedRequestsAndClear();
@@ -699,13 +703,6 @@ public class TransportReplicationActionTests extends ESTestCase {
             ((ActionListener<Releasable>)invocation.getArguments()[0]).onResponse(() -> {});
             return null;
         }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), anyObject());
-
-        AtomicBoolean closed = new AtomicBoolean();
-        Releasable releasable = () -> {
-            if (closed.compareAndSet(false, true) == false) {
-                fail("releasable is closed twice");
-            }
-        };
 
         TestAction action =
             new TestAction(Settings.EMPTY, "internal:testSeqNoIsSetOnPrimary", transportService, clusterService, shardStateAction,
@@ -809,7 +806,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             replicaOperationTransportHandler.messageReceived(
                 new TransportReplicationAction.ConcreteReplicaRequest<>(
                         new Request().setShardId(shardId), replicaRouting.allocationId().getId(), randomNonNegativeLong(),
-                        randomNonNegativeLong()),
+                        randomNonNegativeLong(), randomNonNegativeLong()),
                 createTransportChannel(new PlainActionFuture<>()), task);
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("simulated"));
@@ -899,7 +896,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         Request request = new Request(shardId).timeout("1ms");
         action.new ReplicaOperationTransportHandler().messageReceived(
             new TransportReplicationAction.ConcreteReplicaRequest<>(request, "_not_a_valid_aid_", randomNonNegativeLong(),
-                randomNonNegativeLong()),
+                randomNonNegativeLong(), randomNonNegativeLong()),
             createTransportChannel(listener), maybeTask()
         );
         try {
@@ -943,8 +940,10 @@ public class TransportReplicationActionTests extends ESTestCase {
         final PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         final Request request = new Request().setShardId(shardId);
         final long checkpoint = randomNonNegativeLong();
+        final long maxSeqNoOfUpdatesOrDeletes = randomNonNegativeLong();
         replicaOperationTransportHandler.messageReceived(
-                new TransportReplicationAction.ConcreteReplicaRequest<>(request, replica.allocationId().getId(), primaryTerm, checkpoint),
+                new TransportReplicationAction.ConcreteReplicaRequest<>(request, replica.allocationId().getId(),
+                    primaryTerm, checkpoint, maxSeqNoOfUpdatesOrDeletes),
                 createTransportChannel(listener), task);
         if (listener.isDone()) {
             listener.get(); // fail with the exception if there
@@ -968,6 +967,8 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertThat(capturedRequest.request, instanceOf(TransportReplicationAction.ConcreteReplicaRequest.class));
         assertThat(((TransportReplicationAction.ConcreteReplicaRequest) capturedRequest.request).getGlobalCheckpoint(),
                 equalTo(checkpoint));
+        assertThat(((TransportReplicationAction.ConcreteReplicaRequest) capturedRequest.request).getMaxSeqNoOfUpdatesOrDeletes(),
+            equalTo(maxSeqNoOfUpdatesOrDeletes));
         assertConcreteShardRequest(capturedRequest.request, request, replica.allocationId());
     }
 
@@ -1008,8 +1009,10 @@ public class TransportReplicationActionTests extends ESTestCase {
         final PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         final Request request = new Request().setShardId(shardId);
         final long checkpoint = randomNonNegativeLong();
+        final long maxSeqNoOfUpdates = randomNonNegativeLong();
         replicaOperationTransportHandler.messageReceived(
-                new TransportReplicationAction.ConcreteReplicaRequest<>(request, replica.allocationId().getId(), primaryTerm, checkpoint),
+                new TransportReplicationAction.ConcreteReplicaRequest<>(request, replica.allocationId().getId(),
+                    primaryTerm, checkpoint, maxSeqNoOfUpdates),
                 createTransportChannel(listener), task);
         if (listener.isDone()) {
             listener.get(); // fail with the exception if there
@@ -1112,8 +1115,6 @@ public class TransportReplicationActionTests extends ESTestCase {
 
     private class TestAction extends TransportReplicationAction<Request, Request, TestResponse> {
 
-        private final boolean withDocumentFailureOnPrimary;
-        private final boolean withDocumentFailureOnReplica;
 
         TestAction(Settings settings, String actionName, TransportService transportService,
                    ClusterService clusterService, ShardStateAction shardStateAction,
@@ -1122,8 +1123,6 @@ public class TransportReplicationActionTests extends ESTestCase {
                 shardStateAction,
                 new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
                 Request::new, Request::new, ThreadPool.Names.SAME);
-            this.withDocumentFailureOnPrimary = false;
-            this.withDocumentFailureOnReplica = false;
         }
 
         TestAction(Settings settings, String actionName, TransportService transportService,
@@ -1133,8 +1132,6 @@ public class TransportReplicationActionTests extends ESTestCase {
                 shardStateAction,
                 new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
                 Request::new, Request::new, ThreadPool.Names.SAME);
-            this.withDocumentFailureOnPrimary = withDocumentFailureOnPrimary;
-            this.withDocumentFailureOnReplica = withDocumentFailureOnReplica;
         }
 
         @Override
@@ -1173,7 +1170,6 @@ public class TransportReplicationActionTests extends ESTestCase {
             Index index = (Index) invocation.getArguments()[0];
             final ClusterState state = clusterService.state();
             if (state.metaData().hasIndex(index.getName())) {
-                final IndexMetaData indexSafe = state.metaData().getIndexSafe(index);
                 return mockIndexService(clusterService.state().metaData().getIndexSafe(index), clusterService);
             } else {
                 return null;
@@ -1205,7 +1201,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), anyObject());
         doAnswer(invocation -> {
             long term = (Long)invocation.getArguments()[0];
-            ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[2];
+            ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[3];
             final long primaryTerm = indexShard.getPendingPrimaryTerm();
             if (term < primaryTerm) {
                 throw new IllegalArgumentException(String.format(Locale.ROOT, "%s operation term [%d] is too old (current [%d])",
@@ -1214,7 +1210,8 @@ public class TransportReplicationActionTests extends ESTestCase {
             count.incrementAndGet();
             callback.onResponse(count::decrementAndGet);
             return null;
-        }).when(indexShard).acquireReplicaOperationPermit(anyLong(), anyLong(), any(ActionListener.class), anyString(), anyObject());
+        }).when(indexShard)
+            .acquireReplicaOperationPermit(anyLong(), anyLong(), anyLong(), any(ActionListener.class), anyString(), anyObject());
         when(indexShard.routingEntry()).thenAnswer(invocationOnMock -> {
             final ClusterState state = clusterService.state();
             final RoutingNode node = state.getRoutingNodes().node(state.nodes().getLocalNodeId());

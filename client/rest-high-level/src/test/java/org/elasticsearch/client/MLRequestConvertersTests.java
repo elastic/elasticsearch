@@ -44,6 +44,9 @@ import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
+import org.elasticsearch.client.ml.StartDatafeedRequest;
+import org.elasticsearch.client.ml.StartDatafeedRequestTests;
+import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.calendars.CalendarTests;
@@ -259,6 +262,35 @@ public class MLRequestConvertersTests extends ESTestCase {
         deleteDatafeedRequest.setForce(true);
         request = MLRequestConverters.deleteDatafeed(deleteDatafeedRequest);
         assertEquals(Boolean.toString(true), request.getParameters().get("force"));
+    }
+
+    public void testStartDatafeed() throws Exception {
+        String datafeedId = DatafeedConfigTests.randomValidDatafeedId();
+        StartDatafeedRequest datafeedRequest = StartDatafeedRequestTests.createRandomInstance(datafeedId);
+
+        Request request = MLRequestConverters.startDatafeed(datafeedRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/datafeeds/" + datafeedId + "/_start", request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            StartDatafeedRequest parsedDatafeedRequest = StartDatafeedRequest.PARSER.apply(parser, null);
+            assertThat(parsedDatafeedRequest, equalTo(datafeedRequest));
+        }
+    }
+
+    public void testStopDatafeed() throws Exception {
+        StopDatafeedRequest datafeedRequest = new StopDatafeedRequest("datafeed_1", "datafeed_2");
+        datafeedRequest.setForce(true);
+        datafeedRequest.setTimeout(TimeValue.timeValueMinutes(10));
+        datafeedRequest.setAllowNoDatafeeds(true);
+        Request request = MLRequestConverters.stopDatafeed(datafeedRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/datafeeds/" +
+            Strings.collectionToCommaDelimitedString(datafeedRequest.getDatafeedIds()) +
+            "/_stop", request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            StopDatafeedRequest parsedDatafeedRequest = StopDatafeedRequest.PARSER.apply(parser, null);
+            assertThat(parsedDatafeedRequest, equalTo(datafeedRequest));
+        }
     }
 
     public void testDeleteForecast() {

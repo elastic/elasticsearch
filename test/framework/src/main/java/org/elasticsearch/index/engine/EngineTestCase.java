@@ -477,6 +477,7 @@ public abstract class EngineTestCase extends ESTestCase {
 
         }
         InternalEngine internalEngine = createInternalEngine(indexWriterFactory, localCheckpointTrackerSupplier, seqNoForOperation, config);
+        internalEngine.initializeMaxSeqNoOfUpdatesOrDeletes();
         internalEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
         return internalEngine;
     }
@@ -502,7 +503,7 @@ public abstract class EngineTestCase extends ESTestCase {
             @Nullable final ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
             final EngineConfig config) {
         if (localCheckpointTrackerSupplier == null) {
-            return new InternalEngine(config) {
+            return new InternalTestEngine(config) {
                 @Override
                 IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
                     return (indexWriterFactory != null) ?
@@ -518,7 +519,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
             };
         } else {
-            return new InternalEngine(config, localCheckpointTrackerSupplier) {
+            return new InternalTestEngine(config, localCheckpointTrackerSupplier) {
                 @Override
                 IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
                     return (indexWriterFactory != null) ?
@@ -574,11 +575,11 @@ public abstract class EngineTestCase extends ESTestCase {
         return new BytesArray(string.getBytes(Charset.defaultCharset()));
     }
 
-    protected static Term newUid(String id) {
+    public static Term newUid(String id) {
         return new Term("_id", Uid.encodeId(id));
     }
 
-    protected Term newUid(ParsedDocument doc) {
+    public static Term newUid(ParsedDocument doc) {
         return newUid(doc.id());
     }
 
@@ -642,7 +643,7 @@ public abstract class EngineTestCase extends ESTestCase {
                     throw new UnsupportedOperationException("unknown version type: " + versionType);
             }
             if (randomBoolean()) {
-                op = new Engine.Index(id, testParsedDocument(docId, null, testDocumentWithTextField(valuePrefix + i), B_1, null),
+                op = new Engine.Index(id, testParsedDocument(docId, null, testDocumentWithTextField(valuePrefix + i), SOURCE, null),
                     forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
                     forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
                     version,
@@ -733,7 +734,7 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
-    protected void concurrentlyApplyOps(List<Engine.Operation> ops, InternalEngine engine) throws InterruptedException {
+    public static void concurrentlyApplyOps(List<Engine.Operation> ops, InternalEngine engine) throws InterruptedException {
         Thread[] thread = new Thread[randomIntBetween(3, 5)];
         CountDownLatch startGun = new CountDownLatch(thread.length);
         AtomicInteger offset = new AtomicInteger(-1);
@@ -876,7 +877,7 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
-    protected MapperService createMapperService(String type) throws IOException {
+    public static MapperService createMapperService(String type) throws IOException {
         IndexMetaData indexMetaData = IndexMetaData.builder("test")
             .settings(Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)

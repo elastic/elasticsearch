@@ -485,7 +485,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
                 final Set<DiscoveryNode> knownFollowers = followersChecker.getKnownFollowers();
                 final Set<DiscoveryNode> lastPublishedNodes = new HashSet<>();
-                if (becomingMaster == false || publicationInProgress()) {
+                if (becomingMaster == false ||
+                    (publicationInProgress() && getCurrentTerm() == currentPublication.get().publishedState().term())) {
                     final ClusterState lastPublishedState
                         = currentPublication.map(Publication::publishedState).orElse(coordinationState.get().getLastAcceptedState());
                     lastPublishedState.nodes().forEach(lastPublishedNodes::add);

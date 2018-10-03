@@ -483,10 +483,6 @@ public class CoordinatorTests extends ESTestCase {
 
             deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
 
-            for (ClusterNode clusterNode : clusterNodes) {
-                assert clusterNode.coordinator.publicationInProgress() == false;
-            }
-
             assertUniqueLeaderAndExpectedModes();
         }
 
@@ -532,11 +528,12 @@ public class CoordinatorTests extends ESTestCase {
                 equalTo(Optional.of(true)));
 
             for (final ClusterNode clusterNode : clusterNodes) {
+                final String nodeId = clusterNode.getId();
+                assertFalse(nodeId + " should not have an active publication", clusterNode.coordinator.activePublicationInProgress());
+
                 if (clusterNode == leader) {
                     continue;
                 }
-
-                final String nodeId = clusterNode.getId();
 
                 if (disconnectedNodes.contains(nodeId) || blackholedNodes.contains(nodeId)) {
                     assertThat(nodeId + " is a candidate", clusterNode.coordinator.getMode(), is(CANDIDATE));

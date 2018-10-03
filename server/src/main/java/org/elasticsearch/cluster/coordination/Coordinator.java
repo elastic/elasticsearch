@@ -107,7 +107,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private Optional<DiscoveryNode> lastKnownLeader;
     private Optional<Join> lastJoin;
     private JoinHelper.JoinAccumulator joinAccumulator;
-    private Optional<Publication> currentPublication = Optional.empty();
+    private Optional<CoordinatorPublication> currentPublication = Optional.empty();
 
     public Coordinator(Settings settings, TransportService transportService, AllocationService allocationService,
                        MasterService masterService, Supplier<CoordinationState.PersistedState> persistedStateSupplier,
@@ -412,9 +412,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     // package-visible for testing
-    boolean publicationInProgress() {
+    boolean activePublicationInProgress() {
         synchronized (mutex) {
-            return currentPublication.isPresent();
+            return currentPublication.map(CoordinatorPublication::isActive).orElse(false);
         }
     }
 
@@ -483,16 +483,24 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert leaderCheckScheduler == null : leaderCheckScheduler;
                 assert applierState.nodes().getMasterNodeId() == null || getLocalNode().equals(applierState.nodes().getMasterNode());
 
-                final Set<DiscoveryNode> knownFollowers = followersChecker.getKnownFollowers();
-                final Set<DiscoveryNode> lastPublishedNodes = new HashSet<>();
-                if (becomingMaster == false ||
-                    (publicationInProgress() && getCurrentTerm() == currentPublication.get().publishedState().term())) {
-                    final ClusterState lastPublishedState
-                        = currentPublication.map(Publication::publishedState).orElse(coordinationState.get().getLastAcceptedState());
+                if (becomingMaster && activePublicationInProgress() == false) {
+                    // cluster state update task to become master is submitted to MasterService, but publication has not started yet
+                    assert followersChecker.getKnownFollowers().isEmpty() : followersChecker.getKnownFollowers();
+                } else {
+                    final ClusterState lastPublishedState;
+                    if (activePublicationInProgress()) {
+                        // active publication in progress: followersChecker is up-to-date with nodes that we're actively publishing to
+                        lastPublishedState = currentPublication.get().publishedState();
+                    } else {
+                        // no active publication: followersChecker is up-to-date with the nodes of the latest publication
+                        lastPublishedState = coordinationState.get().getLastAcceptedState();
+                    }
+                    final Set<DiscoveryNode> lastPublishedNodes = new HashSet<>();
                     lastPublishedState.nodes().forEach(lastPublishedNodes::add);
-                    assert lastPublishedNodes.remove(getLocalNode());
+                    assert lastPublishedNodes.remove(getLocalNode()); // followersChecker excludes local node
+                    assert lastPublishedNodes.equals(followersChecker.getKnownFollowers()) :
+                        lastPublishedNodes + " != " + followersChecker.getKnownFollowers();
                 }
-                assert lastPublishedNodes.equals(knownFollowers) : lastPublishedNodes + " != " + knownFollowers;
             } else if (mode == Mode.FOLLOWER) {
                 assert coordinationState.get().electionWon() == false : getLocalNode() + " is FOLLOWER so electionWon() should be false";
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);
@@ -504,6 +512,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert leaderChecker.currentNodeIsMaster() == false;
                 assert leaderCheckScheduler != null;
                 assert followersChecker.getKnownFollowers().isEmpty();
+                assert activePublicationInProgress() == false;
             } else {
                 assert mode == Mode.CANDIDATE;
                 assert joinAccumulator instanceof JoinHelper.CandidateJoinAccumulator;
@@ -514,6 +523,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert leaderCheckScheduler == null : leaderCheckScheduler;
                 assert followersChecker.getKnownFollowers().isEmpty();
                 assert applierState.nodes().getMasterNodeId() == null;
+                assert activePublicationInProgress() == false;
             }
         }
     }
@@ -619,7 +629,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     getLocalNode() + " should be in published " + clusterState;
 
                 final PublishRequest publishRequest = coordinationState.get().handleClientValue(clusterState);
-                final Publication publication = new CoordinatorPublication(publishRequest, new ListenableFuture<>(), ackListener,
+                final CoordinatorPublication publication = new CoordinatorPublication(publishRequest, new ListenableFuture<>(), ackListener,
                     publishListener);
                 currentPublication = Optional.of(publication);
 
@@ -737,6 +747,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         private final ListenableFuture<Void> localNodeAckEvent;
         private final AckListener ackListener;
         private final ActionListener<Void> publishListener;
+        private boolean completed;
 
         CoordinatorPublication(PublishRequest publishRequest, ListenableFuture<Void> localNodeAckEvent, AckListener ackListener,
                                ActionListener<Void> publishListener) {
@@ -786,6 +797,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         protected void onCompletion(boolean committed) {
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
 
+            completed = true;
+
             localNodeAckEvent.addListener(new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void ignore) {
@@ -828,6 +841,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     publishListener.onFailure(exception);
                 }
             }, EsExecutors.newDirectExecutorService());
+        }
+
+        boolean isActive() {
+            return completed == false;
         }
 
         @Override

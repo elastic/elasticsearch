@@ -320,11 +320,8 @@ public class ExecutionService extends AbstractComponent {
                         // TODO log watch record in logger, when saving in history store failed, otherwise the info is gone!
                     }
                 }
-                try {
-                    triggeredWatchStore.delete(ctx.id());
-                } catch (Exception e) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to delete triggered watch [{}]", ctx.id()), e);
-                }
+
+                triggeredWatchStore.delete(ctx.id());
             }
             currentExecutions.get().remove(watchId);
             logger.debug("finished [{}]/[{}]", watchId, ctx.id());
@@ -412,14 +409,8 @@ public class ExecutionService extends AbstractComponent {
                         triggeredWatch.id()), exc);
             }
 
-            try {
-                triggeredWatchStore.delete(triggeredWatch.id());
-            } catch (Exception exc) {
-                logger.error((Supplier<?>) () ->
-                    new ParameterizedMessage("Error deleting triggered watch store record for watch [{}] after thread pool " +
-                        "rejection", triggeredWatch.id()), exc);
-            }
-        };
+            triggeredWatchStore.delete(triggeredWatch.id());
+        }
     }
 
     WatchRecord executeInner(WatchExecutionContext ctx) {

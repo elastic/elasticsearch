@@ -42,7 +42,7 @@ public class ExecutableJiraAction extends ExecutableAction<JiraAction> {
             throw new IllegalStateException("account [" + action.account + "] was not found. perhaps it was deleted");
         }
 
-        final Function<String, String> render = s -> engine.render(new TextTemplate(s), Variables.createCtxModel(ctx, payload));
+        final Function<String, String> render = s -> engine.render(new TextTemplate(s), Variables.createCtxParamsMap(ctx, payload));
 
         Map<String, Object> fields = new HashMap<>();
         // Apply action fields

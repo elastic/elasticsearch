@@ -16,6 +16,10 @@ import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -34,7 +38,7 @@ class DefaultJDKTrustConfig extends TrustConfig {
     @Override
     X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
         try {
-            return CertParsingUtils.trustManager(null, TrustManagerFactory.getDefaultAlgorithm());
+            return CertParsingUtils.trustManager(getSystemTrustStore(), TrustManagerFactory.getDefaultAlgorithm());
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
         }
@@ -80,5 +84,21 @@ class DefaultJDKTrustConfig extends TrustConfig {
         } else {
             return new CombiningTrustConfig(Arrays.asList(INSTANCE, trustConfig));
         }
+    }
+
+    /**
+     * When a PKCS#11 token is used as the system default keystore/truststore, we need to pass the keystore
+     * password when loading, even for reading certificates only ( as opposed to i.e. JKS keystores where
+     * we only need to pass the password for reading Private Key entries ).
+     *
+     * @return the KeyStore used as truststore for PKCS#11 initialized with the password, null otherwise
+     */
+    private KeyStore getSystemTrustStore() throws KeyStoreException, CertificateException, NoSuchAlgorithmException, IOException {
+        if (System.getProperty("javax.net.ssl.trustStoreType", "").equalsIgnoreCase("PKCS11")) {
+            KeyStore keyStore = KeyStore.getInstance("PKCS11");
+            keyStore.load(null, System.getProperty("javax.net.ssl.trustStorePassword", "").toCharArray());
+            return keyStore;
+        }
+        return null;
     }
 }

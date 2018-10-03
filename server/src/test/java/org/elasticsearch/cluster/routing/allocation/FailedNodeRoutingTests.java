@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
@@ -149,8 +150,6 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
             assertTrue(state.metaData().hasIndex(name));
         }
 
-        ClusterState previousState = state;
-
         logger.info("--> starting shards");
         state = cluster.applyStartedShards(state, state.getRoutingNodes().shardsWithState(INITIALIZING));
         logger.info("--> starting replicas a random number of times");
@@ -228,7 +227,7 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
         }
         final String id = String.format(Locale.ROOT, "node_%03d", nodeIdGenerator.incrementAndGet());
         return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles,
-            VersionUtils.randomVersionBetween(random(), Version.V_5_6_0, null));
+            VersionUtils.randomVersionBetween(random(), Version.V_6_0_0_alpha1, null));
     }
 
 }

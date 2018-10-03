@@ -136,42 +136,6 @@ public final class ExceptionsHelper {
         return Arrays.stream(stackTrace).skip(1).map(e -> "\tat " + e).collect(Collectors.joining("\n"));
     }
 
-    static final int MAX_ITERATIONS = 1024;
-
-    /**
-     * Unwrap the specified throwable looking for any suppressed errors or errors as a root cause of the specified throwable.
-     *
-     * @param cause the root throwable
-     *
-     * @return an optional error if one is found suppressed or a root cause in the tree rooted at the specified throwable
-     */
-    public static Optional<Error> maybeError(final Throwable cause, final Logger logger) {
-        // early terminate if the cause is already an error
-        if (cause instanceof Error) {
-            return Optional.of((Error) cause);
-        }
-
-        final Queue<Throwable> queue = new LinkedList<>();
-        queue.add(cause);
-        int iterations = 0;
-        while (!queue.isEmpty()) {
-            iterations++;
-            if (iterations > MAX_ITERATIONS) {
-                logger.warn("giving up looking for fatal errors", cause);
-                break;
-            }
-            final Throwable current = queue.remove();
-            if (current instanceof Error) {
-                return Optional.of((Error) current);
-            }
-            Collections.addAll(queue, current.getSuppressed());
-            if (current.getCause() != null) {
-                queue.add(current.getCause());
-            }
-        }
-        return Optional.empty();
-    }
-
     /**
      * Rethrows the first exception in the list and adds all remaining to the suppressed list.
      * If the given list is empty no exception is thrown
@@ -243,13 +207,50 @@ public final class ExceptionsHelper {
         return true;
     }
 
+    static final int MAX_ITERATIONS = 1024;
+
+    /**
+     * Unwrap the specified throwable looking for any suppressed errors or errors as a root cause of the specified throwable.
+     *
+     * @param cause the root throwable
+     * @return an optional error if one is found suppressed or a root cause in the tree rooted at the specified throwable
+     */
+    public static Optional<Error> maybeError(final Throwable cause, final Logger logger) {
+        // early terminate if the cause is already an error
+        if (cause instanceof Error) {
+            return Optional.of((Error) cause);
+        }
+
+        final Queue<Throwable> queue = new LinkedList<>();
+        queue.add(cause);
+        int iterations = 0;
+        while (queue.isEmpty() == false) {
+            iterations++;
+            // this is a guard against deeply nested or circular chains of exceptions
+            if (iterations > MAX_ITERATIONS) {
+                logger.warn("giving up looking for fatal errors", cause);
+                break;
+            }
+            final Throwable current = queue.remove();
+            if (current instanceof Error) {
+                return Optional.of((Error) current);
+            }
+            Collections.addAll(queue, current.getSuppressed());
+            if (current.getCause() != null) {
+                queue.add(current.getCause());
+            }
+        }
+        return Optional.empty();
+    }
+
     /**
      * If the specified cause is an unrecoverable error, this method will rethrow the cause on a separate thread so that it can not be
-     * caught and bubbles up to the uncaught exception handler.
+     * caught and bubbles up to the uncaught exception handler. Note that the cause tree is examined for any {@link Error}. See
+     * {@link #maybeError(Throwable, Logger)} for the semantics.
      *
-     * @param throwable the throwable to test
+     * @param throwable the throwable to possibly throw on another thread
      */
-    public static void dieOnError(Throwable throwable) {
+    public static void maybeDieOnAnotherThread(final Throwable throwable) {
         ExceptionsHelper.maybeError(throwable, logger).ifPresent(error -> {
             /*
              * Here be dragons. We want to rethrow this so that it bubbles up to the uncaught exception handler. Yet, sometimes the stack

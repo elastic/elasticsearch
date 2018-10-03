@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.util;
 
-import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -248,7 +248,7 @@ public abstract class StringUtils {
     }
 
     public static List<String> findSimilar(String match, Iterable<String> potentialMatches) {
-        LevensteinDistance ld = new LevensteinDistance();
+        LevenshteinDistance ld = new LevenshteinDistance();
         List<Tuple<Float, String>> scoredMatches = new ArrayList<>();
         for (String potentialMatch : potentialMatches) {
             float distance = ld.getDistance(match, potentialMatch);

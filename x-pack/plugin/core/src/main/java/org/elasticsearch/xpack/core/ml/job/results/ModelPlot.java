@@ -109,20 +109,7 @@ public class ModelPlot implements ToXContentObject, Writeable {
 
     public ModelPlot(StreamInput in) throws IOException {
         jobId = in.readString();
-        // timestamp isn't optional in v5.5
-        if (in.getVersion().before(Version.V_5_5_0)) {
-            if (in.readBoolean()) {
-                timestamp = new Date(in.readLong());
-            } else {
-                timestamp = new Date();
-            }
-        } else {
-            timestamp = new Date(in.readLong());
-        }
-        // bwc for removed id field
-        if (in.getVersion().before(Version.V_5_5_0)) {
-            in.readOptionalString();
-        }
+        timestamp = new Date(in.readLong());
         partitionFieldName = in.readOptionalString();
         partitionFieldValue = in.readOptionalString();
         overFieldName = in.readOptionalString();
@@ -138,11 +125,7 @@ public class ModelPlot implements ToXContentObject, Writeable {
         } else {
             actual = in.readOptionalDouble();
         }
-        if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
-            bucketSpan = in.readLong();
-        } else {
-            bucketSpan = 0;
-        }
+        bucketSpan = in.readLong();
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
             detectorIndex = in.readInt();
         } else {
@@ -154,20 +137,7 @@ public class ModelPlot implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        // timestamp isn't optional in v5.5
-        if (out.getVersion().before(Version.V_5_5_0)) {
-            boolean hasTimestamp = timestamp != null;
-            out.writeBoolean(hasTimestamp);
-            if (hasTimestamp) {
-                out.writeLong(timestamp.getTime());
-            }
-        } else {
-            out.writeLong(timestamp.getTime());
-        }
-        // bwc for removed id field
-        if (out.getVersion().before(Version.V_5_5_0)) {
-            out.writeOptionalString(null);
-        }
+        out.writeLong(timestamp.getTime());
         out.writeOptionalString(partitionFieldName);
         out.writeOptionalString(partitionFieldValue);
         out.writeOptionalString(overFieldName);
@@ -189,9 +159,7 @@ public class ModelPlot implements ToXContentObject, Writeable {
         } else {
             out.writeOptionalDouble(actual);
         }
-        if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
-            out.writeLong(bucketSpan);
-        }
+        out.writeLong(bucketSpan);
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeInt(detectorIndex);
         }

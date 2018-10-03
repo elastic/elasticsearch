@@ -31,6 +31,8 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.ThreadWatchdog;
+import org.elasticsearch.ingest.DropProcessor;
+import org.elasticsearch.ingest.PipelineProcessor;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -72,7 +74,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         processors.put(ConvertProcessor.TYPE, new ConvertProcessor.Factory());
         processors.put(GsubProcessor.TYPE, new GsubProcessor.Factory());
         processors.put(FailProcessor.TYPE, new FailProcessor.Factory(parameters.scriptService));
-        processors.put(ForEachProcessor.TYPE, new ForEachProcessor.Factory());
+        processors.put(ForEachProcessor.TYPE, new ForEachProcessor.Factory(parameters.scriptService));
         processors.put(DateIndexNameProcessor.TYPE, new DateIndexNameProcessor.Factory(parameters.scriptService));
         processors.put(SortProcessor.TYPE, new SortProcessor.Factory());
         processors.put(GrokProcessor.TYPE, new GrokProcessor.Factory(GROK_PATTERNS, createGrokThreadWatchdog(parameters)));
@@ -82,6 +84,9 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         processors.put(KeyValueProcessor.TYPE, new KeyValueProcessor.Factory());
         processors.put(URLDecodeProcessor.TYPE, new URLDecodeProcessor.Factory());
         processors.put(BytesProcessor.TYPE, new BytesProcessor.Factory());
+        processors.put(PipelineProcessor.TYPE, new PipelineProcessor.Factory(parameters.ingestService));
+        processors.put(DissectProcessor.TYPE, new DissectProcessor.Factory());
+        processors.put(DropProcessor.TYPE, new DropProcessor.Factory());
         return Collections.unmodifiableMap(processors);
     }
 

@@ -87,6 +87,7 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
 
     private boolean disableBeforeIndexDeletion;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -109,6 +110,9 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
     protected void beforeIndexDeletion() throws Exception {
         if (disableBeforeIndexDeletion == false) {
             super.beforeIndexDeletion();
+            internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
+            assertSeqNos();
+            assertSameDocIdsOnShards();
         }
     }
 
@@ -237,7 +241,6 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
 
     public ServiceDisruptionScheme addRandomDisruptionScheme() {
         // TODO: add partial partitions
-        NetworkDisruption p;
         final DisruptedLinks disruptedLinks;
         if (randomBoolean()) {
             disruptedLinks = TwoPartitions.random(random(), internalCluster().getNodeNames());

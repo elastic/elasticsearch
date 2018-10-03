@@ -27,10 +27,11 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -923,8 +924,9 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                                 }
                                 DateTimeFormatter parser = dateFormatter.withZone(timeZone);
                                 FormatDateTimeFormatter formatter = new FormatDateTimeFormatter(dateFormatterPattern, parser, Locale.ROOT);
-                                DateMathParser dateMathParser = new DateMathParser(formatter);
-                            long millis = dateMathParser.parse(mathExpression, context::getStartTime, false, timeZone);
+                                DateMathParser dateMathParser = formatter.toDateMathParser();
+                                long millis = dateMathParser.parse(mathExpression, context::getStartTime, false,
+                                    DateUtils.dateTimeZoneToZoneId(timeZone));
 
                                 String time = formatter.printer().print(millis);
                                 beforePlaceHolderSb.append(time);

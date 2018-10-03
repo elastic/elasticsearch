@@ -31,9 +31,12 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -94,14 +97,15 @@ public final class SearchPhaseController extends AbstractComponent {
             assert terms.length == stats.length;
             for (int i = 0; i < terms.length; i++) {
                 assert terms[i] != null;
+                if (stats[i] == null) {
+                    continue;
+                }
                 TermStatistics existing = termStatistics.get(terms[i]);
                 if (existing != null) {
                     assert terms[i].bytes().equals(existing.term());
-                    // totalTermFrequency is an optional statistic we need to check if either one or both
-                    // are set to -1 which means not present and then set it globally to -1
                     termStatistics.put(terms[i], new TermStatistics(existing.term(),
-                            existing.docFreq() + stats[i].docFreq(),
-                            optionalSum(existing.totalTermFreq(), stats[i].totalTermFreq())));
+                        existing.docFreq() + stats[i].docFreq(),
+                        existing.totalTermFreq() + stats[i].totalTermFreq()));
                 } else {
                     termStatistics.put(terms[i], stats[i]);
                 }
@@ -115,14 +119,17 @@ public final class SearchPhaseController extends AbstractComponent {
                 if (keys[i] != null) {
                     String key = (String) keys[i];
                     CollectionStatistics value = (CollectionStatistics) values[i];
+                    if (value == null) {
+                        continue;
+                    }
                     assert key != null;
                     CollectionStatistics existing = fieldStatistics.get(key);
                     if (existing != null) {
-                        CollectionStatistics merged = new CollectionStatistics(
-                                key, existing.maxDoc() + value.maxDoc(),
-                                optionalSum(existing.docCount(), value.docCount()),
-                                optionalSum(existing.sumTotalTermFreq(), value.sumTotalTermFreq()),
-                                optionalSum(existing.sumDocFreq(), value.sumDocFreq())
+                        CollectionStatistics merged = new CollectionStatistics(key,
+                            existing.maxDoc() + value.maxDoc(),
+                            existing.docCount() + value.docCount(),
+                            existing.sumTotalTermFreq() + value.sumTotalTermFreq(),
+                            existing.sumDocFreq() + value.sumDocFreq()
                         );
                         fieldStatistics.put(key, merged);
                     } else {
@@ -133,10 +140,6 @@ public final class SearchPhaseController extends AbstractComponent {
             aggMaxDoc += lEntry.maxDoc();
         }
         return new AggregatedDfs(termStatistics, fieldStatistics, aggMaxDoc);
-    }
-
-    private static long optionalSum(long left, long right) {
-        return Math.min(left, right) == -1 ? -1 : left + right;
     }
 
     /**
@@ -156,7 +159,7 @@ public final class SearchPhaseController extends AbstractComponent {
      * @param size the number of hits to return from the merged top docs
      */
     public SortedTopDocs sortDocs(boolean ignoreFrom, Collection<? extends SearchPhaseResult> results,
-                               final Collection<TopDocs> bufferedTopDocs, final TopDocsStats topDocsStats, int from, int size) {
+                                  final Collection<TopDocs> bufferedTopDocs, final TopDocsStats topDocsStats, int from, int size) {
         if (results.isEmpty()) {
             return SortedTopDocs.EMPTY;
         }
@@ -169,12 +172,12 @@ public final class SearchPhaseController extends AbstractComponent {
              * top docs anymore but instead only pass relevant results / top docs to the merge method*/
             QuerySearchResult queryResult = sortedResult.queryResult();
             if (queryResult.hasConsumedTopDocs() == false) { // already consumed?
-                final TopDocs td = queryResult.consumeTopDocs();
+                final TopDocsAndMaxScore td = queryResult.consumeTopDocs();
                 assert td != null;
                 topDocsStats.add(td);
-                if (td.scoreDocs.length > 0) { // make sure we set the shard index before we add it - the consumer didn't do that yet
-                    setShardIndex(td, queryResult.getShardIndex());
-                    topDocs.add(td);
+                if (td.topDocs.scoreDocs.length > 0) { // make sure we set the shard index before we add it - the consumer didn't do that yet
+                    setShardIndex(td.topDocs, queryResult.getShardIndex());
+                    topDocs.add(td.topDocs);
                 }
             }
             if (queryResult.hasSuggestHits()) {
@@ -387,7 +390,9 @@ public final class SearchPhaseController extends AbstractComponent {
                 assert index < fetchResult.hits().getHits().length : "not enough hits fetched. index [" + index + "] length: "
                     + fetchResult.hits().getHits().length;
                 SearchHit searchHit = fetchResult.hits().getHits()[index];
-                searchHit.score(shardDoc.score);
+                if (sorted == false) {
+                    searchHit.score(shardDoc.score);
+                }
                 searchHit.shard(fetchResult.getSearchShardTarget());
                 if (sorted) {
                     FieldDoc fieldDoc = (FieldDoc) shardDoc;
@@ -683,10 +688,10 @@ public final class SearchPhaseController extends AbstractComponent {
                 aggsBuffer[i] = (InternalAggregations) querySearchResult.consumeAggs();
             }
             if (hasTopDocs) {
-                final TopDocs topDocs = querySearchResult.consumeTopDocs(); // can't be null
+                final TopDocsAndMaxScore topDocs = querySearchResult.consumeTopDocs(); // can't be null
                 topDocsStats.add(topDocs);
-                SearchPhaseController.setShardIndex(topDocs, querySearchResult.getShardIndex());
-                topDocsBuffer[i] = topDocs;
+                SearchPhaseController.setShardIndex(topDocs.topDocs, querySearchResult.getShardIndex());
+                topDocsBuffer[i] = topDocs.topDocs;
             }
         }
 
@@ -743,6 +748,7 @@ public final class SearchPhaseController extends AbstractComponent {
     static final class TopDocsStats {
         final boolean trackTotalHits;
         long totalHits;
+        TotalHits.Relation totalHitsRelation = TotalHits.Relation.EQUAL_TO;
         long fetchHits;
         float maxScore = Float.NEGATIVE_INFINITY;
 
@@ -755,13 +761,16 @@ public final class SearchPhaseController extends AbstractComponent {
             this.totalHits = trackTotalHits ? 0 : -1;
         }
 
-        void add(TopDocs topDocs) {
+        void add(TopDocsAndMaxScore topDocs) {
             if (trackTotalHits) {
-                totalHits += topDocs.totalHits;
+                totalHits += topDocs.topDocs.totalHits.value;
+                if (topDocs.topDocs.totalHits.relation == Relation.GREATER_THAN_OR_EQUAL_TO) {
+                    totalHitsRelation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
+                }
             }
-            fetchHits += topDocs.scoreDocs.length;
-            if (!Float.isNaN(topDocs.getMaxScore())) {
-                maxScore = Math.max(maxScore, topDocs.getMaxScore());
+            fetchHits += topDocs.topDocs.scoreDocs.length;
+            if (!Float.isNaN(topDocs.maxScore)) {
+                maxScore = Math.max(maxScore, topDocs.maxScore);
             }
         }
     }

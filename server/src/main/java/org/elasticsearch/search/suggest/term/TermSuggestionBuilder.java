@@ -21,7 +21,7 @@ package org.elasticsearch.search.suggest.term;
 
 import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.search.spell.JaroWinklerDistance;
-import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
 import org.apache.lucene.search.spell.NGramDistance;
 import org.apache.lucene.search.spell.StringDistance;
@@ -548,7 +548,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         LEVENSHTEIN {
             @Override
             public StringDistance toLucene() {
-                return new LevensteinDistance();
+                return new LevenshteinDistance();
             }
         },
         /** String distance algorithm based on Jaro-Winkler algorithm. */

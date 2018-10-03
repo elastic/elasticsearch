@@ -173,7 +173,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         return service;
     }
 
-    private MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings) {
+    protected MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings) {
         return buildService(name, version, clusterSettings, Settings.EMPTY, true, true);
     }
 
@@ -768,6 +768,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testNotifyOnShutdown() throws Exception {
         final CountDownLatch latch2 = new CountDownLatch(1);
+        final CountDownLatch latch3 = new CountDownLatch(1);
         try {
             serviceA.registerRequestHandler("internal:foobar", StringMessageRequest::new, ThreadPool.Names.GENERIC,
                 (request, channel, task) -> {
@@ -777,6 +778,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         serviceB.stop();
                     } catch (Exception e) {
                         fail(e.getMessage());
+                    } finally {
+                        latch3.countDown();
                     }
                 });
             TransportFuture<TransportResponse.Empty> foobar = serviceB.submitRequest(nodeA, "internal:foobar",
@@ -788,6 +791,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             } catch (TransportException ex) {
 
             }
+            latch3.await();
         } finally {
             serviceB.close(); // make sure we are fully closed here otherwise we might run into assertions down the road
             serviceA.disconnectFromNode(nodeB);
@@ -2682,7 +2686,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     @SuppressForbidden(reason = "need local ephemeral port")
-    private InetSocketAddress getLocalEphemeral() throws UnknownHostException {
+    protected InetSocketAddress getLocalEphemeral() throws UnknownHostException {
         return new InetSocketAddress(InetAddress.getLocalHost(), 0);
     }
 }

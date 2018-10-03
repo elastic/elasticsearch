@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -105,7 +106,7 @@ public class ExportElasticsearchBuildResourcesTask extends DefaultTask {
                     if (is == null) {
                         throw new GradleException("Can't export `" + resourcePath + "` from build-tools: not found");
                     }
-                    Files.copy(is, destination);
+                    Files.copy(is, destination, StandardCopyOption.REPLACE_EXISTING);
                 } catch (IOException e) {
                     throw new GradleException("Can't write resource `" + resourcePath + "` to " + destination, e);
                 }

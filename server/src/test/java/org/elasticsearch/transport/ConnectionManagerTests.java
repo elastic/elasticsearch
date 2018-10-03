@@ -159,7 +159,7 @@ public class ConnectionManagerTests extends ESTestCase {
         assertFalse(connection.isClosed());
         assertTrue(connectionManager.nodeConnected(node));
         assertSame(connection, connectionManager.getConnection(node));
-        assertEquals(1, connectionManager.connectedNodeCount());
+        assertEquals(1, connectionManager.size());
         assertEquals(1, nodeConnectedCount.get());
         assertEquals(0, nodeDisconnectedCount.get());
 
@@ -169,7 +169,7 @@ public class ConnectionManagerTests extends ESTestCase {
             connection.close();
         }
         assertTrue(connection.isClosed());
-        assertEquals(0, connectionManager.connectedNodeCount());
+        assertEquals(0, connectionManager.size());
         assertEquals(1, nodeConnectedCount.get());
         assertEquals(1, nodeDisconnectedCount.get());
     }
@@ -205,7 +205,7 @@ public class ConnectionManagerTests extends ESTestCase {
         assertTrue(connection.isClosed());
         assertFalse(connectionManager.nodeConnected(node));
         expectThrows(NodeNotConnectedException.class, () -> connectionManager.getConnection(node));
-        assertEquals(0, connectionManager.connectedNodeCount());
+        assertEquals(0, connectionManager.size());
         assertEquals(0, nodeConnectedCount.get());
         assertEquals(0, nodeDisconnectedCount.get());
     }

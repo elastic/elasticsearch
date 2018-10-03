@@ -20,12 +20,13 @@ package org.elasticsearch.versioning;
 
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
@@ -357,7 +358,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 // zero-pad sequential
                 logger.info("--> use zero-padded sequential ids");
                 ids = new IDSource() {
-                    final int radix = TestUtil.nextInt(random, Character.MIN_RADIX, Character.MAX_RADIX);
                     final String zeroPad = String.format(Locale.ROOT, "%0" + TestUtil.nextInt(random, 4, 20) + "d", 0);
                     int upto;
 
@@ -373,7 +373,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 logger.info("--> use random long ids");
                 ids = new IDSource() {
                     final int radix = TestUtil.nextInt(random, Character.MIN_RADIX, Character.MAX_RADIX);
-                    int upto;
 
                     @Override
                     public String next() {
@@ -386,8 +385,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 logger.info("--> use zero-padded random long ids");
                 ids = new IDSource() {
                     final int radix = TestUtil.nextInt(random, Character.MIN_RADIX, Character.MAX_RADIX);
-                    final String zeroPad = String.format(Locale.ROOT, "%015d", 0);
-                    int upto;
 
                     @Override
                     public String next() {
@@ -784,5 +781,27 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                         .actionGet()
                         .getVersion(),
                 equalTo(-1L));
+    }
+
+    public void testSpecialVersioning() {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        createIndex("test", Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build());
+        IndexResponse doc1 = client().prepareIndex("test", "type", "1").setSource("field", "value1")
+            .setVersion(0).setVersionType(VersionType.EXTERNAL).execute().actionGet();
+        assertThat(doc1.getVersion(), equalTo(0L));
+        IndexResponse doc2 = client().prepareIndex("test", "type", "1").setSource("field", "value2")
+            .setVersion(Versions.MATCH_ANY).setVersionType(VersionType.INTERNAL).execute().actionGet();
+        assertThat(doc2.getVersion(), equalTo(1L));
+        client().prepareDelete("test", "type", "1").get(); //v2
+        IndexResponse doc3 = client().prepareIndex("test", "type", "1").setSource("field", "value3")
+            .setVersion(Versions.MATCH_DELETED).setVersionType(VersionType.INTERNAL).execute().actionGet();
+        assertThat(doc3.getVersion(), equalTo(3L));
+        IndexResponse doc4 = client().prepareIndex("test", "type", "1").setSource("field", "value4")
+            .setVersion(4L).setVersionType(VersionType.EXTERNAL_GTE).execute().actionGet();
+        assertThat(doc4.getVersion(), equalTo(4L));
+        // Make sure that these versions are replicated correctly
+        client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)).get();
+        ensureGreen("test");
     }
 }

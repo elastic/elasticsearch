@@ -513,7 +513,7 @@ public class HttpClientTests extends ESTestCase {
                 try (Socket socket = serverSocket.accept()) {
                     BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
                     in.readLine();
-                    socket.getOutputStream().write("This is not a HTTP response".getBytes(StandardCharsets.UTF_8));
+                    socket.getOutputStream().write("This is not an HTTP response".getBytes(StandardCharsets.UTF_8));
                     socket.getOutputStream().flush();
                 } catch (Exception e) {
                     hasExceptionHappened.set(e);

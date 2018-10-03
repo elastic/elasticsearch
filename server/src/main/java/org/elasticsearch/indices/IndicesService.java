@@ -228,6 +228,14 @@ public class IndicesService extends AbstractLifecycleComponent
         this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, indicesRequestCache,  logger, threadPool, this.cleanInterval);
         this.metaStateService = metaStateService;
         this.engineFactoryProviders = engineFactoryProviders;
+
+        // do not allow any plugin-provided index store type to conflict with a built-in type
+        for (final String indexStoreType : indexStoreFactories.keySet()) {
+            if (IndexModule.isBuiltinType(indexStoreType)) {
+                throw new IllegalStateException("registered index store type [" + indexStoreType + "] conflicts with a built-in type");
+            }
+        }
+
         this.indexStoreFactories = indexStoreFactories;
     }
 
@@ -388,7 +396,6 @@ public class IndicesService extends AbstractLifecycleComponent
     public IndexService indexService(Index index) {
         return indices.get(index.getUUID());
     }
-
     /**
      * Returns an IndexService for the specified index if exists otherwise a {@link IndexNotFoundException} is thrown.
      */

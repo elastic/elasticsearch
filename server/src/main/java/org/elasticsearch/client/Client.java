@@ -455,7 +455,7 @@ public interface Client extends ElasticsearchClient, Releasable {
     /**
      * Builder for the field capabilities request.
      */
-    FieldCapabilitiesRequestBuilder prepareFieldCaps();
+    FieldCapabilitiesRequestBuilder prepareFieldCaps(String... indices);
 
     /**
      * An action that returns the field capabilities from the provided request

@@ -95,7 +95,7 @@ Contributing to the Elasticsearch codebase
 JDK 10 is required to build Elasticsearch. You must have a JDK 10 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
 your JDK 10 installation. By default, tests use the same runtime as `JAVA_HOME`.
-However, since Elasticsearch, supports JDK 8 the build supports compiling with
+However, since Elasticsearch supports JDK 8, the build supports compiling with
 JDK 10 and testing on a JDK 8 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 8 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 8.
@@ -325,21 +325,19 @@ common configurations in our build and how we use them:
 
 <dl>
 <dt>`compile`</dt><dd>Code that is on the classpath at both compile and
-runtime. If the [`shadow`][shadow-plugin] plugin is applied to the project then
-this code is bundled into the jar produced by the project.</dd>
+runtime.</dd>
 <dt>`runtime`</dt><dd>Code that is not on the classpath at compile time but is
 on the classpath at runtime. We mostly use this configuration to make sure that
 we do not accidentally compile against dependencies of our dependencies also
 known as "transitive" dependencies".</dd>
-<dt>`compileOnly`</dt><dd>Code that is on the classpath at comile time but that
+<dt>`compileOnly`</dt><dd>Code that is on the classpath at compile time but that
 should not be shipped with the project because it is "provided" by the runtime
 somehow. Elasticsearch plugins use this configuration to include dependencies
 that are bundled with Elasticsearch's server.</dd>
-<dt>`shadow`</dt><dd>Only available in projects with the shadow plugin. Code
-that is on the classpath at both compile and runtime but it *not* bundled into
-the jar produced by the project. If you depend on a project with the `shadow`
-plugin then you need to depend on this configuration because it will bring
-along all of the dependencies you need at runtime.</dd>
+<dt>`bundle`</dt><dd>Only available in projects with the shadow plugin,
+dependencies with this configuration are bundled into the jar produced by the
+build. Since IDEs do not understand this configuration we rig them to treat
+dependencies in this configuration as `compile` dependencies.</dd>
 <dt>`testCompile`</dt><dd>Code that is on the classpath for compiling tests
 that are part of this project but not production code. The canonical example
 of this is `junit`.</dd>

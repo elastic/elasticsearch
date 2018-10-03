@@ -7,10 +7,9 @@ package org.elasticsearch.integration;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.StatusLine;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
@@ -18,9 +17,7 @@ import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -28,64 +25,59 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 /**
- * a helper class that contains a couple of HTTP helper methods
+ * A helper class that contains a couple of HTTP helper methods.
  */
 public abstract class AbstractPrivilegeTestCase extends SecuritySingleNodeTestCase {
 
-    protected void assertAccessIsAllowed(String user, String method, String uri, String body,
-                                         Map<String, String> params) throws IOException {
-        Response response = getRestClient().performRequest(method, uri, params, entityOrNull(body),
-                new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                        UsernamePasswordToken.basicAuthHeaderValue(user, new SecureString("passwd".toCharArray()))));
+    protected void assertAccessIsAllowed(String user, Request request) throws IOException {
+        setUser(request, user);
+        Response response = getRestClient().performRequest(request);
         StatusLine statusLine = response.getStatusLine();
-        String message = String.format(Locale.ROOT, "%s %s: Expected no error got %s %s with body %s", method, uri,
-                statusLine.getStatusCode(), statusLine.getReasonPhrase(), EntityUtils.toString(response.getEntity()));
+        String message = String.format(Locale.ROOT, "%s %s: Expected no error got %s %s with body %s",
+                request.getMethod(), request.getEndpoint(), statusLine.getStatusCode(),
+                statusLine.getReasonPhrase(), EntityUtils.toString(response.getEntity()));
         assertThat(message, statusLine.getStatusCode(), is(not(greaterThanOrEqualTo(400))));
     }
 
     protected void assertAccessIsAllowed(String user, String method, String uri, String body) throws IOException {
-        assertAccessIsAllowed(user, method, uri, body, new HashMap<>());
+        Request request = new Request(method, uri);
+        request.setJsonEntity(body);
+        assertAccessIsAllowed(user, request);
     }
 
     protected void assertAccessIsAllowed(String user, String method, String uri) throws IOException {
-        assertAccessIsAllowed(user, method, uri, null, new HashMap<>());
+        assertAccessIsAllowed(user, new Request(method, uri));
     }
 
-    protected void assertAccessIsDenied(String user, String method, String uri, String body) throws IOException {
-        assertAccessIsDenied(user, method, uri, body, new HashMap<>());
-    }
-
-    protected void assertAccessIsDenied(String user, String method, String uri) throws IOException {
-        assertAccessIsDenied(user, method, uri, null, new HashMap<>());
-    }
-
-    protected void assertAccessIsDenied(String user, String method, String uri, String body,
-                                        Map<String, String> params) throws IOException {
-        ResponseException responseException = expectThrows(ResponseException.class,
-                () -> getRestClient().performRequest(method, uri, params, entityOrNull(body),
-                        new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                                UsernamePasswordToken.basicAuthHeaderValue(user, new SecureString("passwd".toCharArray())))));
+    protected void assertAccessIsDenied(String user, Request request) throws IOException {
+        setUser(request, user);
+        ResponseException responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         StatusLine statusLine = responseException.getResponse().getStatusLine();
-        String message = String.format(Locale.ROOT, "%s %s body %s: Expected 403, got %s %s with body %s", method, uri, body,
+        String requestBody = request.getEntity() == null ? "" : "with body " + EntityUtils.toString(request.getEntity());
+        String message = String.format(Locale.ROOT, "%s %s body %s: Expected 403, got %s %s with body %s",
+                request.getMethod(), request.getEndpoint(), requestBody,
                 statusLine.getStatusCode(), statusLine.getReasonPhrase(),
                 EntityUtils.toString(responseException.getResponse().getEntity()));
         assertThat(message, statusLine.getStatusCode(), is(403));
     }
 
+    protected void assertAccessIsDenied(String user, String method, String uri, String body) throws IOException {
+        Request request = new Request(method, uri);
+        request.setJsonEntity(body);
+        assertAccessIsDenied(user, request);
+    }
 
-    protected void assertBodyHasAccessIsDenied(String user, String method, String uri, String body) throws IOException {
-        assertBodyHasAccessIsDenied(user, method, uri, body, new HashMap<>());
+    protected void assertAccessIsDenied(String user, String method, String uri) throws IOException {
+        assertAccessIsDenied(user, new Request(method, uri));
     }
 
     /**
      * Like {@code assertAcessIsDenied}, but for _bulk requests since the entire
      * request will not be failed, just the individual ones
      */
-    protected void assertBodyHasAccessIsDenied(String user, String method, String uri, String body,
-                                               Map<String, String> params) throws IOException {
-        Response resp = getRestClient().performRequest(method, uri, params, entityOrNull(body),
-                new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                        UsernamePasswordToken.basicAuthHeaderValue(user, new SecureString("passwd".toCharArray()))));
+    protected void assertBodyHasAccessIsDenied(String user, Request request) throws IOException {
+        setUser(request, user);
+        Response resp = getRestClient().performRequest(request);
         StatusLine statusLine = resp.getStatusLine();
         assertThat(statusLine.getStatusCode(), is(200));
         HttpEntity bodyEntity = resp.getEntity();
@@ -93,11 +85,15 @@ public abstract class AbstractPrivilegeTestCase extends SecuritySingleNodeTestCa
         assertThat(bodyStr, containsString("unauthorized for user [" + user + "]"));
     }
 
-    private static HttpEntity entityOrNull(String body) {
-        HttpEntity entity = null;
-        if (body != null) {
-            entity = new StringEntity(body, ContentType.APPLICATION_JSON);
-        }
-        return entity;
+    protected void assertBodyHasAccessIsDenied(String user, String method, String uri, String body) throws IOException {
+        Request request = new Request(method, uri);
+        request.setJsonEntity(body);
+        assertBodyHasAccessIsDenied(user, request);
+    }
+
+    private void setUser(Request request, String user) {
+        RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
+        options.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(user, new SecureString("passwd".toCharArray())));
+        request.setOptions(options);
     }
 }

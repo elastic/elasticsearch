@@ -217,4 +217,4 @@ Response:
 --------------------------------------------------
 // NOTCONSOLE
 
-NOTE: Second level of of collapsing doesn't allow `inner_hits`.
+NOTE: Second level of collapsing doesn't allow `inner_hits`.

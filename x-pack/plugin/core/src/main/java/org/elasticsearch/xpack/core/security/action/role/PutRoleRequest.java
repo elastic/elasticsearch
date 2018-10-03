@@ -167,7 +167,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         for (int i = 0; i < indicesSize; i++) {
             indicesPrivileges.add(RoleDescriptor.IndicesPrivileges.createFrom(in));
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             applicationPrivileges = in.readList(RoleDescriptor.ApplicationResourcePrivileges::createFrom);
             conditionalClusterPrivileges = ConditionalClusterPrivileges.readArray(in);
         }
@@ -185,7 +185,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         for (RoleDescriptor.IndicesPrivileges index : indicesPrivileges) {
             index.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeStreamableList(applicationPrivileges);
             ConditionalClusterPrivileges.writeArray(out, this.conditionalClusterPrivileges);
         }

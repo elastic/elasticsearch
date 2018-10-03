@@ -61,7 +61,8 @@ final class RemoteRequestBuilders {
 
         if (searchRequest.scroll() != null) {
             TimeValue keepAlive = searchRequest.scroll().keepAlive();
-            if (remoteVersion.before(Version.V_5_0_0)) {
+            // V_5_0_0
+            if (remoteVersion.before(Version.fromId(5000099))) {
                 /* Versions of Elasticsearch before 5.0 couldn't parse nanos or micros
                  * so we toss out that resolution, rounding up because more scroll
                  * timeout seems safer than less. */
@@ -117,7 +118,8 @@ final class RemoteRequestBuilders {
             for (int i = 1; i < searchRequest.source().storedFields().fieldNames().size(); i++) {
                 fields.append(',').append(searchRequest.source().storedFields().fieldNames().get(i));
             }
-            String storedFieldsParamName = remoteVersion.before(Version.V_5_0_0_alpha4) ? "fields" : "stored_fields";
+            // V_5_0_0
+            String storedFieldsParamName = remoteVersion.before(Version.fromId(5000099)) ? "fields" : "stored_fields";
             request.addParameter(storedFieldsParamName, fields.toString());
         }
 
@@ -186,7 +188,8 @@ final class RemoteRequestBuilders {
     static Request scroll(String scroll, TimeValue keepAlive, Version remoteVersion) {
         Request request = new Request("POST", "/_search/scroll");
 
-        if (remoteVersion.before(Version.V_5_0_0)) {
+        // V_5_0_0
+        if (remoteVersion.before(Version.fromId(5000099))) {
             /* Versions of Elasticsearch before 5.0 couldn't parse nanos or micros
              * so we toss out that resolution, rounding up so we shouldn't end up
              * with 0s. */

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -248,12 +247,7 @@ public class Detector implements ToXContentObject, Writeable {
         useNull = in.readBoolean();
         excludeFrequent = in.readBoolean() ? ExcludeFrequent.readFromStream(in) : null;
         rules = Collections.unmodifiableList(in.readList(DetectionRule::new));
-        if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
-            detectorIndex = in.readInt();
-        } else {
-            // negative means unknown, and is expected for 5.4 jobs
-            detectorIndex = -1;
-        }
+        detectorIndex = in.readInt();
     }
 
     @Override
@@ -276,9 +270,7 @@ public class Detector implements ToXContentObject, Writeable {
         } else {
             out.writeList(Collections.emptyList());
         }
-        if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
-            out.writeInt(detectorIndex);
-        }
+        out.writeInt(detectorIndex);
     }
 
     @Override

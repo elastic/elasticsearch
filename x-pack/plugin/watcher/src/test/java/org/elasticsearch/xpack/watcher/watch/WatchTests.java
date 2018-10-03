@@ -236,8 +236,7 @@ public class WatchTests extends ESTestCase {
         TriggerService triggerService = new TriggerService(Settings.EMPTY, Collections.emptySet()) {
             @Override
             public Trigger parseTrigger(String jobName, XContentParser parser) throws IOException {
-                XContentParser.Token token;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 }
 
                 return new ScheduleTrigger(randomSchedule());
@@ -438,7 +437,7 @@ public class WatchTests extends ESTestCase {
     private WatchParser createWatchparser() throws Exception {
         LoggingAction loggingAction = new LoggingAction(new TextTemplate("foo"), null, null);
         List<ActionWrapper> actions = Collections.singletonList(new ActionWrapper("_logging_", randomThrottler(), null, null,
-                new ExecutableLoggingAction(loggingAction, logger, settings, new MockTextTemplateEngine())));
+                new ExecutableLoggingAction(loggingAction, logger, new MockTextTemplateEngine())));
 
         ScheduleRegistry scheduleRegistry = registry(new IntervalSchedule(new IntervalSchedule.Interval(1,
                 IntervalSchedule.Interval.Unit.SECONDS)));
@@ -571,7 +570,7 @@ public class WatchTests extends ESTestCase {
         Map<String, TransformFactory> factories = new HashMap<>();
         factories.put(ScriptTransform.TYPE, new ScriptTransformFactory(settings, scriptService));
         factories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, xContentRegistry(), scriptService));
-        return new TransformRegistry(Settings.EMPTY, unmodifiableMap(factories));
+        return new TransformRegistry(unmodifiableMap(factories));
     }
 
     private List<ActionWrapper> randomActions() {
@@ -622,7 +621,7 @@ public class WatchTests extends ESTestCase {
                     parsers.put(WebhookAction.TYPE, new WebhookActionFactory(settings, httpClient, templateEngine));
                     break;
                 case LoggingAction.TYPE:
-                    parsers.put(LoggingAction.TYPE, new LoggingActionFactory(settings, new MockTextTemplateEngine()));
+                    parsers.put(LoggingAction.TYPE, new LoggingActionFactory(new MockTextTemplateEngine()));
                     break;
             }
         }

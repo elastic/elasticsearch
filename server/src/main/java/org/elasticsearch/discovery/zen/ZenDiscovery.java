@@ -28,11 +28,10 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
+import org.elasticsearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -220,7 +219,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         this.joinThreadControl = new JoinThreadControl();
 
         this.nodeJoinController = new NodeJoinController(masterService, allocationService, electMaster, settings);
-        this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, electMaster, this::submitRejoin, logger);
+        this.nodeRemovalExecutor = new ZenNodeRemovalClusterStateTaskExecutor(allocationService, electMaster, this::submitRejoin, logger);
 
         masterService.setClusterStateSupplier(this::clusterState);
 
@@ -550,99 +549,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         synchronized (stateMutex) {
             committedState.set(clusterState);
         }
-    }
-
-    // visible for testing
-    public static class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExecutor<NodeRemovalClusterStateTaskExecutor.Task>, ClusterStateTaskListener {
-
-        private final AllocationService allocationService;
-        private final ElectMasterService electMasterService;
-        private final Consumer<String> rejoin;
-        private final Logger logger;
-
-        public static class Task {
-
-            private final DiscoveryNode node;
-            private final String reason;
-
-            public Task(final DiscoveryNode node, final String reason) {
-                this.node = node;
-                this.reason = reason;
-            }
-
-            public DiscoveryNode node() {
-                return node;
-            }
-
-            public String reason() {
-                return reason;
-            }
-
-            @Override
-            public String toString() {
-                return node + " " + reason;
-            }
-        }
-
-        public NodeRemovalClusterStateTaskExecutor(
-                final AllocationService allocationService,
-                final ElectMasterService electMasterService,
-                final Consumer<String> rejoin,
-                final Logger logger) {
-            this.allocationService = allocationService;
-            this.electMasterService = electMasterService;
-            this.rejoin = rejoin;
-            this.logger = logger;
-        }
-
-        @Override
-        public ClusterTasksResult<Task> execute(final ClusterState currentState, final List<Task> tasks) throws Exception {
-            final DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(currentState.nodes());
-            boolean removed = false;
-            for (final Task task : tasks) {
-                if (currentState.nodes().nodeExists(task.node())) {
-                    remainingNodesBuilder.remove(task.node());
-                    removed = true;
-                } else {
-                    logger.debug("node [{}] does not exist in cluster state, ignoring", task);
-                }
-            }
-
-            if (!removed) {
-                // no nodes to remove, keep the current cluster state
-                return ClusterTasksResult.<Task>builder().successes(tasks).build(currentState);
-            }
-
-            final ClusterState remainingNodesClusterState = remainingNodesClusterState(currentState, remainingNodesBuilder);
-
-            final ClusterTasksResult.Builder<Task> resultBuilder = ClusterTasksResult.<Task>builder().successes(tasks);
-            if (electMasterService.hasEnoughMasterNodes(remainingNodesClusterState.nodes()) == false) {
-                final int masterNodes = electMasterService.countMasterNodes(remainingNodesClusterState.nodes());
-                rejoin.accept(LoggerMessageFormat.format("not enough master nodes (has [{}], but needed [{}])",
-                                                         masterNodes, electMasterService.minimumMasterNodes()));
-                return resultBuilder.build(currentState);
-            } else {
-                return resultBuilder.build(allocationService.deassociateDeadNodes(remainingNodesClusterState, true, describeTasks(tasks)));
-            }
-        }
-
-        // visible for testing
-        // hook is used in testing to ensure that correct cluster state is used to test whether a
-        // rejoin or reroute is needed
-        ClusterState remainingNodesClusterState(final ClusterState currentState, DiscoveryNodes.Builder remainingNodesBuilder) {
-            return ClusterState.builder(currentState).nodes(remainingNodesBuilder).build();
-        }
-
-        @Override
-        public void onFailure(final String source, final Exception e) {
-            logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
-        }
-
-        @Override
-        public void onNoLongerMaster(String source) {
-            logger.debug("no longer master while processing node removal [{}]", source);
-        }
-
     }
 
     private void removeNode(final DiscoveryNode node, final String source, final String reason) {
@@ -1290,4 +1196,33 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         return onJoinValidators;
     }
 
+    static class ZenNodeRemovalClusterStateTaskExecutor extends NodeRemovalClusterStateTaskExecutor {
+
+        private final ElectMasterService electMasterService;
+        private final Consumer<String> rejoin;
+
+        ZenNodeRemovalClusterStateTaskExecutor(
+            final AllocationService allocationService,
+            final ElectMasterService electMasterService,
+            final Consumer<String> rejoin,
+            final Logger logger) {
+            super(allocationService, logger);
+            this.electMasterService = electMasterService;
+            this.rejoin = rejoin;
+        }
+
+        @Override
+        protected ClusterTasksResult<Task> getTaskClusterTasksResult(ClusterState currentState, List<Task> tasks,
+                                                                     ClusterState remainingNodesClusterState) {
+            if (electMasterService.hasEnoughMasterNodes(remainingNodesClusterState.nodes()) == false) {
+                final ClusterTasksResult.Builder<Task> resultBuilder = ClusterTasksResult.<Task>builder().successes(tasks);
+                final int masterNodes = electMasterService.countMasterNodes(remainingNodesClusterState.nodes());
+                rejoin.accept(LoggerMessageFormat.format("not enough master nodes (has [{}], but needed [{}])",
+                    masterNodes, electMasterService.minimumMasterNodes()));
+                return resultBuilder.build(currentState);
+            } else {
+                return super.getTaskClusterTasksResult(currentState, tasks, remainingNodesClusterState);
+            }
+        }
+    }
 }

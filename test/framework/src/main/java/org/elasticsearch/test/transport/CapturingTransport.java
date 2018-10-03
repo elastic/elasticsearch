@@ -111,7 +111,6 @@ public class CapturingTransport extends MockTransport implements Transport {
 
     @Override
     protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
-        super.onSendRequest(requestId, action, request, node);
         capturedRequests.add(new CapturingTransport.CapturedRequest(node, requestId, action, request));
     }
 

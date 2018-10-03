@@ -240,7 +240,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     protected SearchContext createSearchContext(IndexSearcher indexSearcher, IndexSettings indexSettings) {
-        Engine.Searcher searcher = new Engine.Searcher("aggregator_test", indexSearcher);
+        Engine.Searcher searcher = new Engine.Searcher("aggregator_test", indexSearcher, logger);
         QueryCache queryCache = new DisabledQueryCache(indexSettings);
         QueryCachingPolicy queryCachingPolicy = new QueryCachingPolicy() {
             @Override

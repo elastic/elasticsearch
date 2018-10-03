@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test.transport;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -91,7 +90,14 @@ public class MockTransport implements Transport, LifecycleComponent {
     public void handleResponse(final long requestId, final TransportResponse response) {
         final TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
         if (transportResponseHandler != null) {
-            transportResponseHandler.handleResponse(response);
+            final TransportResponse deliveredResponse;
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                response.writeTo(output);
+                deliveredResponse = transportResponseHandler.read(output.bytes().streamInput());
+            } catch (IOException | UnsupportedOperationException e) {
+                throw new AssertionError("failed to serialize/deserialize response " + response, e);
+            }
+            transportResponseHandler.handleResponse(deliveredResponse);
         }
     }
 
@@ -126,7 +132,7 @@ public class MockTransport implements Transport, LifecycleComponent {
                 output.writeException(t);
                 remoteException = new RemoteTransportException("remote failure", output.bytes().streamInput().readException());
             } catch (IOException ioException) {
-                throw new ElasticsearchException("failed to serialize/deserialize supplied exception " + t, ioException);
+                throw new AssertionError("failed to serialize/deserialize supplied exception " + t, ioException);
             }
         }
         this.handleError(requestId, remoteException);
@@ -181,7 +187,6 @@ public class MockTransport implements Transport, LifecycleComponent {
     }
 
     protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
-
     }
 
     protected boolean nodeConnected(DiscoveryNode discoveryNode) {

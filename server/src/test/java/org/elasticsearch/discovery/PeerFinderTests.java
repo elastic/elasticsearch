@@ -198,7 +198,7 @@ public class PeerFinderTests extends ESTestCase {
         addressResolveDelay = 0L;
 
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
-        deterministicTaskQueue = new DeterministicTaskQueue(settings);
+        deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
 
         localNode = newDiscoveryNode("local-node");
 
@@ -228,7 +228,7 @@ public class PeerFinderTests extends ESTestCase {
     @After
     public void deactivateAndRunRemainingTasks() {
         peerFinder.deactivate(localNode);
-        deterministicTaskQueue.runAllRunnableTasks(random());
+        deterministicTaskQueue.runAllRunnableTasks();
     }
 
     public void testAddsReachableNodesFromUnicastHostsList() {
@@ -726,7 +726,7 @@ public class PeerFinderTests extends ESTestCase {
                 return "assertNotifiedOfAllUpdates";
             }
         });
-        deterministicTaskQueue.runAllRunnableTasks(random());
+        deterministicTaskQueue.runAllRunnableTasks();
         assertNotifiedOfAllUpdates();
     }
 }

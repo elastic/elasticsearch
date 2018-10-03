@@ -148,6 +148,11 @@ public abstract class PeerFinder extends AbstractComponent {
         }
     }
 
+    // exposed for checking invariant in o.e.c.c.Coordinator (public since this is a different package)
+    public long getCurrentTerm() {
+        return currentTerm;
+    }
+
     public void setCurrentTerm(long currentTerm) {
         this.currentTerm = currentTerm;
     }
@@ -406,7 +411,7 @@ public abstract class PeerFinder extends AbstractComponent {
                     @Override
                     public void handleException(TransportException exp) {
                         peersRequestInFlight = false;
-                        logger.debug(new ParameterizedMessage("{} peers request failed", this), exp);
+                        logger.debug(new ParameterizedMessage("{} peers request failed", Peer.this), exp);
                     }
 
                     @Override

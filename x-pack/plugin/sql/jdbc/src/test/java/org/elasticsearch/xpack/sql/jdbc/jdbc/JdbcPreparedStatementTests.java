@@ -9,9 +9,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.sql.JDBCType;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLType;
 import java.sql.Struct;
 import java.sql.Time;
 import java.sql.Timestamp;
@@ -450,7 +450,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         someCalendar.setTimeInMillis(randomLong());
 
         jps.setObject(1, someCalendar);
-        assertEquals(someCalendar.getTime(), (Date) value(jps));
+        assertEquals(someCalendar.getTime(), value(jps));
         assertEquals(TIMESTAMP, jdbcType(jps));
         assertTrue(value(jps) instanceof java.util.Date);
 
@@ -460,7 +460,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         Calendar nonDefaultCal = randomCalendar();
         jps.setObject(1, nonDefaultCal);
-        assertEquals(nonDefaultCal.getTime(), (Date) value(jps));
+        assertEquals(nonDefaultCal.getTime(), value(jps));
         assertEquals(TIMESTAMP, jdbcType(jps));
     }
 
@@ -477,7 +477,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         Date someDate = new Date(randomLong());
 
         jps.setObject(1, someDate);
-        assertEquals(someDate, (Date) value(jps));
+        assertEquals(someDate, value(jps));
         assertEquals(TIMESTAMP, jdbcType(jps));
         assertTrue(value(jps) instanceof java.util.Date);
 
@@ -530,7 +530,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         assertTrue(value(jps) instanceof byte[]);
 
         jps.setObject(1, buffer, Types.VARBINARY);
-        assertEquals((byte[]) value(jps), buffer);
+        assertEquals(value(jps), buffer);
         assertEquals(VARBINARY, jdbcType(jps));
 
         SQLException sqle = expectThrows(SQLFeatureNotSupportedException.class, () -> jps.setObject(1, buffer, Types.VARCHAR));
@@ -555,7 +555,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         return new JdbcPreparedStatement(null, JdbcConfiguration.create("jdbc:es://l:1", null, 0), "?");
     }
 
-    private JDBCType jdbcType(JdbcPreparedStatement jps) throws SQLException {
+    private SQLType jdbcType(JdbcPreparedStatement jps) throws SQLException {
         return jps.query.getParam(1).type;
     }
 

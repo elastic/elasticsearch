@@ -38,6 +38,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
@@ -55,8 +57,10 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -127,10 +131,38 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         }
     }
 
-    class Response extends ActionResponse {}
+    class Response extends ActionResponse {
+        private long identity = randomLong();
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response response = (Response) o;
+            return identity == response.identity;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(identity);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeLong(identity);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            identity = in.readLong();
+        }
+    }
 
     class Action extends TransportMasterNodeAction<Request, Response> {
-        Action(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
+        Action(Settings settings, String actionName, TransportService transportService, ClusterService clusterService,
+               ThreadPool threadPool) {
             super(settings, actionName, transportService, clusterService, threadPool,
                     new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY), Request::new);
         }
@@ -176,7 +208,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         new Action(Settings.EMPTY, "internal:testAction", transportService, clusterService, threadPool) {
             @Override
-            protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+            protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
                 if (masterOperationFailure) {
                     listener.onFailure(exception);
                 } else {

@@ -126,6 +126,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         normalizerFactory = mock(NormalizerFactory.class);
         auditor = mock(Auditor.class);
 
+
         when(jobManager.getJobOrThrowIfUnknown("foo")).thenReturn(createJobDetails("foo"));
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")

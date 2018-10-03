@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher.AckListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -70,6 +71,10 @@ public abstract class Publication extends AbstractComponent {
     }
 
     public void onTimeout() {
+        if (isCompleted) {
+            return;
+        }
+
         assert timedOut == false;
         timedOut = true;
         if (applyCommitRequest.isPresent() == false) {
@@ -124,6 +129,11 @@ public abstract class Publication extends AbstractComponent {
             }
         }
         return isCompleted;
+    }
+
+    // For assertions
+    ClusterState publishedState() {
+        return publishRequest.getAcceptedState();
     }
 
     private void onPossibleCommitFailure() {
@@ -303,11 +313,7 @@ public abstract class Publication extends AbstractComponent {
             public void onFailure(Exception e) {
                 assert e instanceof TransportException;
                 final TransportException exp = (TransportException) e;
-                if (exp.getRootCause() instanceof CoordinationStateRejectedException) {
-                    logger.debug("PublishResponseHandler: [{}] failed: {}", discoveryNode, exp.getRootCause().getMessage());
-                } else {
-                    logger.debug(() -> new ParameterizedMessage("PublishResponseHandler: [{}] failed", discoveryNode), exp);
-                }
+                logger.debug(() -> new ParameterizedMessage("PublishResponseHandler: [{}] failed", discoveryNode), exp);
                 assert ((TransportException) e).getRootCause() instanceof Exception;
                 setFailed((Exception) exp.getRootCause());
                 onPossibleCommitFailure();
@@ -334,11 +340,7 @@ public abstract class Publication extends AbstractComponent {
             public void onFailure(Exception e) {
                 assert e instanceof TransportException;
                 final TransportException exp = (TransportException) e;
-                if (exp.getRootCause() instanceof CoordinationStateRejectedException) {
-                    logger.debug("ApplyCommitResponseHandler: [{}] failed: {}", discoveryNode, exp.getRootCause().getMessage());
-                } else {
-                    logger.debug(() -> new ParameterizedMessage("ApplyCommitResponseHandler: [{}] failed", discoveryNode), exp);
-                }
+                logger.debug(() -> new ParameterizedMessage("ApplyCommitResponseHandler: [{}] failed", discoveryNode), exp);
                 assert ((TransportException) e).getRootCause() instanceof Exception;
                 setFailed((Exception) exp.getRootCause());
                 onPossibleCompletion();

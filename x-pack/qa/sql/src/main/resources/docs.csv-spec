@@ -195,6 +195,8 @@ PERCENTILE_RANK |AGGREGATE
 SUM_OF_SQUARES  |AGGREGATE      
 SKEWNESS        |AGGREGATE      
 KURTOSIS        |AGGREGATE      
+DAY_NAME        |SCALAR         
+DAYNAME         |SCALAR
 DAY_OF_MONTH    |SCALAR         
 DAYOFMONTH      |SCALAR         
 DAY             |SCALAR         
@@ -210,18 +212,16 @@ HOUR            |SCALAR
 MINUTE_OF_DAY   |SCALAR         
 MINUTE_OF_HOUR  |SCALAR         
 MINUTE          |SCALAR         
-SECOND_OF_MINUTE|SCALAR         
-SECOND          |SCALAR         
-MONTH_OF_YEAR   |SCALAR         
-MONTH           |SCALAR         
-YEAR            |SCALAR         
-WEEK_OF_YEAR    |SCALAR         
-WEEK            |SCALAR         
-DAY_NAME        |SCALAR         
-DAYNAME         |SCALAR         
 MONTH_NAME      |SCALAR         
 MONTHNAME       |SCALAR         
+MONTH_OF_YEAR   |SCALAR         
+MONTH           |SCALAR         
+SECOND_OF_MINUTE|SCALAR         
+SECOND          |SCALAR         
 QUARTER         |SCALAR         
+YEAR            |SCALAR         
+WEEK_OF_YEAR    |SCALAR         
+WEEK            |SCALAR                  
 ABS             |SCALAR         
 ACOS            |SCALAR         
 ASIN            |SCALAR         
@@ -253,27 +253,28 @@ SIN             |SCALAR
 SINH            |SCALAR         
 SQRT            |SCALAR         
 TAN             |SCALAR         
+TRUNCATE        |SCALAR         
 ASCII           |SCALAR         
-CHAR            |SCALAR         
 BIT_LENGTH      |SCALAR         
-CHAR_LENGTH     |SCALAR
-CHARACTER_LENGTH|SCALAR
+CHAR            |SCALAR         
+CHAR_LENGTH     |SCALAR         
+CHARACTER_LENGTH|SCALAR         
+CONCAT          |SCALAR
+INSERT          |SCALAR                  
 LCASE           |SCALAR         
-LENGTH          |SCALAR         
-LTRIM           |SCALAR         
-RTRIM           |SCALAR         
-SPACE           |SCALAR         
-CONCAT          |SCALAR         
-INSERT          |SCALAR         
 LEFT            |SCALAR         
+LENGTH          |SCALAR         
 LOCATE          |SCALAR         
+LTRIM           |SCALAR         
 POSITION        |SCALAR         
 REPEAT          |SCALAR         
 REPLACE         |SCALAR         
-RIGHT           |SCALAR         
+RIGHT           |SCALAR
+RTRIM           |SCALAR         
+SPACE           |SCALAR                  
 SUBSTRING       |SCALAR         
 UCASE           |SCALAR         
-SCORE           |SCORE  
+SCORE           |SCORE          
 // end::showFunctions
 ;
 
@@ -321,6 +322,8 @@ SHOW FUNCTIONS LIKE '%DAY%';
 
      name      |     type      
 ---------------+---------------
+DAY_NAME       |SCALAR         
+DAYNAME        |SCALAR 
 DAY_OF_MONTH   |SCALAR         
 DAYOFMONTH     |SCALAR         
 DAY            |SCALAR         
@@ -330,8 +333,6 @@ DAY_OF_YEAR    |SCALAR
 DAYOFYEAR      |SCALAR         
 HOUR_OF_DAY    |SCALAR         
 MINUTE_OF_DAY  |SCALAR         
-DAY_NAME       |SCALAR         
-DAYNAME        |SCALAR     
 
 // end::showFunctionsWithPattern
 ;
@@ -357,8 +358,8 @@ selectInline
 // tag::selectInline
 SELECT 1 + 1;
 
-    (1 + 1)    
----------------
+    1 + 1    
+--------------
 2      
 
 // end::selectInline
@@ -548,7 +549,7 @@ M              |63
 
 groupByAndAggExpression
 // tag::groupByAndAggExpression
-SELECT gender AS g, ROUND(MIN(salary) / 100) AS salary FROM emp GROUP BY gender;
+SELECT gender AS g, ROUND((MIN(salary) / 100)) AS salary FROM emp GROUP BY gender;
 
        g       |    salary     
 ---------------+---------------
@@ -1124,3 +1125,310 @@ SELECT YEAR(CAST('2018-05-19T11:23:45Z' AS TIMESTAMP)) AS year;
 2018
 // end::conversionStringToDateCast
 ;
+
+///////////////////////////////
+//
+// Math
+//
+///////////////////////////////
+
+mathInlineAbs
+// tag::abs
+SELECT ABS(-123.5), ABS(55);
+
+  ABS(-123.5)  |    ABS(55)
+---------------+---------------
+123.5          |55
+// end::abs
+;
+
+mathInlineAcos
+// tag::mathInlineAcos
+SELECT ACOS(COS(PI())), PI();
+
+  ACOS(COS(PI))  |       PI
+-----------------+-----------------
+3.141592653589793|3.141592653589793
+// end::mathInlineAcos
+;
+
+mathInlineAsin
+// tag::mathInlineAsin
+SELECT ROUND(DEGREES(ASIN(0.7071067811865475))) AS "ASIN(0.707)", ROUND(SIN(RADIANS(45)), 3) AS "SIN(45)";
+
+  ASIN(0.707)  |    SIN(45)
+---------------+---------------
+45.0           |0.707
+// end::mathInlineAsin
+;
+
+mathInlineAtan
+// tag::mathInlineAtan
+SELECT DEGREES(ATAN(TAN(RADIANS(90))));
+
+DEGREES(ATAN(TAN(RADIANS(90))))
+-------------------------------
+90.0
+// end::mathInlineAtan
+;
+
+mathInlineAtan2
+// tag::mathInlineAtan2
+SELECT ATAN2(5 * SIN(RADIANS(45)), 5 * COS(RADIANS(45))) AS "ATAN2(5*SIN(45), 5*COS(45))", RADIANS(45);
+
+ATAN2(5*SIN(45), 5*COS(45))|   RADIANS(45)
+---------------------------+------------------
+0.7853981633974483         |0.7853981633974483
+// end::mathInlineAtan2
+;
+
+mathInlineCbrtWithNegativeValue
+// tag::mathInlineCbrtWithNegativeValue
+SELECT CBRT(-125.5);
+
+   CBRT(-125.5)
+-------------------
+-5.0066577974783435
+// end::mathInlineCbrtWithNegativeValue
+;
+
+mathInlineCeiling
+// tag::mathInlineCeiling
+SELECT CEIL(125.01), CEILING(-125.99);
+
+ CEIL(125.01)  | CEIL(-125.99)
+---------------+---------------
+126            |-125
+// end::mathInlineCeiling
+;
+
+mathInlineCosine
+// tag::mathInlineCosine
+SELECT COS(RADIANS(180)), POWER(SIN(RADIANS(54)), 2) + POWER(COS(RADIANS(54)), 2) AS pythagorean_identity;
+
+COS(RADIANS(180))|pythagorean_identity
+-----------------+--------------------
+-1.0             |1.0
+// end::mathInlineCosine
+;
+
+mathInlineCosh
+// tag::mathInlineCosh
+SELECT COSH(5), (POWER(E(), 5) + POWER(E(), -5)) / 2 AS "(e^5 + e^-5)/2";
+
+     COSH(5)     | (e^5 + e^-5)/2
+-----------------+-----------------
+74.20994852478785|74.20994852478783
+// end::mathInlineCosh
+;
+
+mathInlineCotangent
+// tag::mathInlineCotangent
+SELECT COT(RADIANS(30)) AS "COT(30)", COS(RADIANS(30)) / SIN(RADIANS(30)) AS "COS(30)/SIN(30)";
+
+     COT(30)      | COS(30)/SIN(30)
+------------------+------------------
+1.7320508075688774|1.7320508075688776
+// end::mathInlineCotangent
+;
+
+mathInlineDegrees
+// tag::mathInlineDegrees
+SELECT DEGREES(PI() * 2), DEGREES(PI());
+
+DEGREES((PI) * 2)|  DEGREES(PI)
+-----------------+---------------
+360.0            |180.0
+// end::mathInlineDegrees
+;
+
+mathEulersNumber
+// tag::mathEulersNumber
+SELECT E(), CEIL(E());
+
+        E        |    CEIL(E)
+-----------------+---------------
+2.718281828459045|3
+// end::mathEulersNumber
+;
+
+mathExpInline
+// tag::mathExpInline
+SELECT EXP(1), E(), EXP(2), E() * E();
+
+     EXP(1)      |        E        |     EXP(2)     |     (E) * (E)
+-----------------+-----------------+----------------+------------------
+2.718281828459045|2.718281828459045|7.38905609893065|7.3890560989306495
+// end::mathExpInline
+;
+
+mathExpm1Inline
+// tag::mathExpm1Inline
+SELECT E(), EXP(2), EXPM1(2);
+
+        E        |     EXP(2)     |    EXPM1(2)
+-----------------+----------------+----------------
+2.718281828459045|7.38905609893065|6.38905609893065
+// end::mathExpm1Inline
+;
+
+mathInlineFloor
+// tag::mathInlineFloor
+SELECT FLOOR(125.01), FLOOR(-125.99);
+
+ FLOOR(125.01) |FLOOR(-125.99)
+---------------+---------------
+125            |-126
+// end::mathInlineFloor
+;
+
+mathInlineLog
+// tag::mathInlineLog
+SELECT EXP(3), LOG(20.085536923187668);
+
+      EXP(3)      |LOG(20.085536923187668)
+------------------+-----------------------
+20.085536923187668|3.0
+// end::mathInlineLog
+;
+
+mathInlineLog10
+// tag::mathInlineLog10
+SELECT LOG10(5), LOG(5)/LOG(10);
+
+     LOG10(5)     |(LOG(5)) / (LOG(10))
+------------------+--------------------
+0.6989700043360189|0.6989700043360187
+// end::mathInlineLog10
+;
+
+mathPINumber
+// tag::mathPINumber
+SELECT PI();
+
+       PI
+-----------------
+3.141592653589793
+// end::mathPINumber
+;
+
+mathInlinePowerPositive
+// tag::mathInlinePowerPositive
+SELECT POWER(3, 2), POWER(3, 3);
+
+  POWER(3,2)   |  POWER(3,3)
+---------------+---------------
+9.0            |27.0
+// end::mathInlinePowerPositive
+;
+
+mathInlinePowerNegative
+// tag::mathInlinePowerNegative
+SELECT POWER(5, -1), POWER(5, -2);
+
+  POWER(5,-1)  |  POWER(5,-2)
+---------------+---------------
+0.2            |0.04
+// end::mathInlinePowerNegative
+;
+
+mathInlineRadians
+// tag::mathInlineRadians
+SELECT RADIANS(90), PI()/2;
+
+   RADIANS(90)    |     (PI) / 2
+------------------+------------------
+1.5707963267948966|1.5707963267948966
+// end::mathInlineRadians
+;
+
+mathRoundWithNegativeParameter
+// tag::mathRoundWithNegativeParameter
+SELECT ROUND(-345.153, -1) AS rounded;
+
+    rounded
+---------------
+-350.0
+// end::mathRoundWithNegativeParameter
+;
+
+mathRoundWithPositiveParameter
+// tag::mathRoundWithPositiveParameter
+SELECT ROUND(-345.153, 1) AS rounded;
+
+    rounded
+---------------
+-345.2
+// end::mathRoundWithPositiveParameter
+;
+
+mathInlineSign
+// tag::mathInlineSign
+SELECT SIGN(-123), SIGN(0), SIGN(415);
+
+  SIGN(-123)   |    SIGN(0)    |   SIGN(415)
+---------------+---------------+---------------
+-1             |0              |1
+// end::mathInlineSign
+;
+
+mathInlineSine
+// tag::mathInlineSine
+SELECT SIN(RADIANS(90)), POWER(SIN(RADIANS(67)), 2) + POWER(COS(RADIANS(67)), 2) AS pythagorean_identity;
+
+SIN(RADIANS(90))|pythagorean_identity
+----------------+--------------------
+1.0             |1.0
+// end::mathInlineSine
+;
+
+mathInlineSinh
+// tag::mathInlineSinh
+SELECT SINH(5), (POWER(E(), 5) - POWER(E(), -5)) / 2 AS "(e^5 - e^-5)/2";
+
+     SINH(5)     | (e^5 - e^-5)/2
+-----------------+-----------------
+74.20321057778875|74.20321057778874
+// end::mathInlineSinh
+;
+
+mathInlineSqrt
+// tag::mathInlineSqrt
+SELECT SQRT(EXP(2)), E(), SQRT(25);
+
+  SQRT(EXP(2))   |        E        |   SQRT(25)
+-----------------+-----------------+---------------
+2.718281828459045|2.718281828459045|5.0
+// end::mathInlineSqrt
+;
+
+mathInlineTanget
+// tag::mathInlineTanget
+SELECT TAN(RADIANS(66)) AS "TAN(66)", SIN(RADIANS(66))/COS(RADIANS(66)) AS "SIN(66)/COS(66)=TAN(66)";
+
+     TAN(66)      |SIN(66)/COS(66)=TAN(66)
+------------------+-----------------------
+2.2460367739042164|2.246036773904216
+// end::mathInlineTanget
+;
+
+mathTruncateWithNegativeParameter
+// tag::mathTruncateWithNegativeParameter
+SELECT TRUNCATE(-345.153, -1) AS trimmed;
+
+    trimmed
+---------------
+-340.0
+// end::mathTruncateWithNegativeParameter
+;
+
+mathTruncateWithPositiveParameter
+// tag::mathTruncateWithPositiveParameter
+SELECT TRUNCATE(-345.153, 1) AS trimmed;
+
+    trimmed
+---------------
+-345.1
+// end::mathTruncateWithPositiveParameter
+;
+

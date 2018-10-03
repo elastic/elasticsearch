@@ -6,7 +6,8 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 public class TerminalPolicyStep extends Step {
-    public static final StepKey KEY = new StepKey("completed", "completed", "completed");
+    public static final String COMPLETED_PHASE = "completed";
+    public static final StepKey KEY = new StepKey(COMPLETED_PHASE, "completed", "completed");
     public static final TerminalPolicyStep INSTANCE = new TerminalPolicyStep(KEY, null);
 
     TerminalPolicyStep(StepKey key, StepKey nextStepKey) {

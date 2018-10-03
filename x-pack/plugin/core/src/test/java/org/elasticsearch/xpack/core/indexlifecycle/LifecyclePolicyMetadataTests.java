@@ -34,16 +34,32 @@ public class LifecyclePolicyMetadataTests extends AbstractSerializingTestCase<Li
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-                Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new),
-                        new NamedWriteableRegistry.Entry(LifecycleType.class, TestLifecycleType.TYPE, (in) -> TestLifecycleType.INSTANCE)));
+            Arrays.asList(
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleType.class, TimeseriesLifecycleType.TYPE,
+                    (in) -> TimeseriesLifecycleType.INSTANCE),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, AllocateAction.NAME, AllocateAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ReadOnlyAction.NAME, ReadOnlyAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new)
+            ));
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
-        entries.add(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MockAction.NAME), MockAction::parse));
-        entries.add(new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TestLifecycleType.TYPE),
-                (p) -> TestLifecycleType.INSTANCE));
+        entries.addAll(Arrays.asList(
+            new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TimeseriesLifecycleType.TYPE),
+                (p) -> TimeseriesLifecycleType.INSTANCE),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse)
+        ));
         return new NamedXContentRegistry(entries);
     }
 
@@ -59,7 +75,8 @@ public class LifecyclePolicyMetadataTests extends AbstractSerializingTestCase<Li
         for (int i = 0; i < numberHeaders; i++) {
             headers.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
         }
-        return new LifecyclePolicyMetadata(LifecyclePolicyTests.randomLifecyclePolicy(lifecycleName), headers);
+        return new LifecyclePolicyMetadata(LifecyclePolicyTests.randomTimeseriesLifecyclePolicy(lifecycleName), headers,
+            randomNonNegativeLong(), randomNonNegativeLong());
     }
 
     @Override
@@ -71,19 +88,27 @@ public class LifecyclePolicyMetadataTests extends AbstractSerializingTestCase<Li
     protected LifecyclePolicyMetadata mutateInstance(LifecyclePolicyMetadata instance) throws IOException {
         LifecyclePolicy policy = instance.getPolicy();
         Map<String, String> headers = instance.getHeaders();
-        switch (between(0, 1)) {
+        long version = instance.getVersion();
+        long creationDate = instance.getModifiedDate();
+        switch (between(0, 3)) {
         case 0:
-            policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, policy.getName() + randomAlphaOfLengthBetween(1, 5),
+            policy = new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, policy.getName() + randomAlphaOfLengthBetween(1, 5),
                     policy.getPhases());
             break;
         case 1:
             headers = new HashMap<>(headers);
             headers.put(randomAlphaOfLength(11), randomAlphaOfLength(11));
             break;
+        case 2:
+            version++;
+            break;
+        case 3:
+            creationDate++;
+            break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new LifecyclePolicyMetadata(policy, headers);
+        return new LifecyclePolicyMetadata(policy, headers, version, creationDate);
     }
 
 }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -36,8 +37,8 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.RecordsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
@@ -115,7 +116,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     @After
     public void deleteJob() throws Exception {
         DeleteJobAction.Request request = new DeleteJobAction.Request(JOB_ID);
-        DeleteJobAction.Response response = client().execute(DeleteJobAction.INSTANCE, request).actionGet();
+        AcknowledgedResponse response = client().execute(DeleteJobAction.INSTANCE, request).actionGet();
         assertTrue(response.isAcknowledged());
     }
 

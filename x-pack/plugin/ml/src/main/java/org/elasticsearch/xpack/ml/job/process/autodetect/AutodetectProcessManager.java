@@ -493,13 +493,15 @@ public class AutodetectProcessManager extends AbstractComponent {
         Job job = jobManager.getJobOrThrowIfUnknown(jobId);
         // A TP with no queue, so that we fail immediately if there are no threads available
         ExecutorService autoDetectExecutorService = threadPool.executor(MachineLearning.AUTODETECT_THREAD_POOL_NAME);
-        DataCountsReporter dataCountsReporter = new DataCountsReporter(settings, job, autodetectParams.dataCounts(),
-                jobDataCountsPersister);
+        DataCountsReporter dataCountsReporter = new DataCountsReporter(settings,
+            job,
+            autodetectParams.dataCounts(),
+            jobDataCountsPersister);
         ScoresUpdater scoresUpdater = new ScoresUpdater(job, jobResultsProvider,
                 new JobRenormalizedResultsPersister(job.getId(), settings, client), normalizerFactory);
         ExecutorService renormalizerExecutorService = threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME);
         Renormalizer renormalizer = new ShortCircuitingRenormalizer(jobId, scoresUpdater,
-                renormalizerExecutorService, job.getAnalysisConfig().getUsePerPartitionNormalization());
+                renormalizerExecutorService);
 
         AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, autodetectParams, autoDetectExecutorService,
                 onProcessCrash(jobTask));

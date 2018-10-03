@@ -55,8 +55,6 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -96,7 +94,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
     }
 
     public void testIndexCleanup() throws Exception {
-        final String masterNode = internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false));
+        internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false));
         final String node_1 = internalCluster().startNode(Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false));
         final String node_2 = internalCluster().startNode(Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false));
         logger.info("--> creating index [test] with one shard and on replica");
@@ -234,16 +232,13 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         MockTransportService transportServiceNode_1 = (MockTransportService) internalCluster().getInstance(TransportService.class, node_1);
         TransportService transportServiceNode_2 = internalCluster().getInstance(TransportService.class, node_2);
         final CountDownLatch shardActiveRequestSent = new CountDownLatch(1);
-        transportServiceNode_1.addDelegate(transportServiceNode_2, new MockTransportService.DelegateTransport(transportServiceNode_1.original()) {
-            @Override
-            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException {
-                if (action.equals("internal:index/shard/exists") && shardActiveRequestSent.getCount() > 0) {
-                    shardActiveRequestSent.countDown();
-                    logger.info("prevent shard active request from being sent");
-                    throw new ConnectTransportException(connection.getNode(), "DISCONNECT: simulated");
-                }
-                super.sendRequest(connection, requestId, action, request, options);
+        transportServiceNode_1.addSendBehavior(transportServiceNode_2, (connection, requestId, action, request, options) -> {
+            if (action.equals("internal:index/shard/exists") && shardActiveRequestSent.getCount() > 0) {
+                shardActiveRequestSent.countDown();
+                logger.info("prevent shard active request from being sent");
+                throw new ConnectTransportException(connection.getNode(), "DISCONNECT: simulated");
             }
+            connection.sendRequest(requestId, action, request, options);
         });
 
         logger.info("--> move shard from {} to {}, and wait for relocation to finish", node_1, node_2);
@@ -330,7 +325,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
     }
 
     public void testShardActiveElsewhereDoesNotDeleteAnother() throws Exception {
-        final String masterNode = internalCluster().startMasterOnlyNode();
+        internalCluster().startMasterOnlyNode();
         final List<String> nodes = internalCluster().startDataOnlyNodes(4);
 
         final String node1 = nodes.get(0);

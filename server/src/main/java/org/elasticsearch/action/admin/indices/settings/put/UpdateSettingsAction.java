@@ -20,8 +20,9 @@
 package org.elasticsearch.action.admin.indices.settings.put;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
-public class UpdateSettingsAction extends Action<UpdateSettingsResponse> {
+public class UpdateSettingsAction extends Action<AcknowledgedResponse> {
 
     public static final UpdateSettingsAction INSTANCE = new UpdateSettingsAction();
     public static final String NAME = "indices:admin/settings/update";
@@ -31,7 +32,7 @@ public class UpdateSettingsAction extends Action<UpdateSettingsResponse> {
     }
 
     @Override
-    public UpdateSettingsResponse newResponse() {
-        return new UpdateSettingsResponse();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 }

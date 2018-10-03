@@ -23,6 +23,7 @@ import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.test.RunTask
 import org.apache.tools.ant.filters.FixCrLfFilter
 
+import java.nio.file.Files
 import java.nio.file.Path
 
 Collection distributions = project('archives').subprojects + project('packages').subprojects
@@ -503,5 +504,17 @@ subprojects {
       result[key] = value
     }
     return result
+  }
+
+  ext.assertLinesInFile =  { Path path, List<String> expectedLines ->
+    final List<String> actualLines = Files.readAllLines(path)
+    int line = 0
+    for (final String expectedLine : expectedLines) {
+      final String actualLine = actualLines.get(line)
+      if (expectedLine != actualLine) {
+        throw new GradleException("expected line [${line + 1}] in [${path}] to be [${expectedLine}] but was [${actualLine}]")
+      }
+      line++
+    }
   }
 }

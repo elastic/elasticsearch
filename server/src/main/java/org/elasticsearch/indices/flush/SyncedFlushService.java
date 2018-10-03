@@ -560,9 +560,6 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         }
 
         boolean includeNumDocs(Version version) {
-            if (version.major == Version.V_5_6_8.major) {
-                return version.onOrAfter(Version.V_5_6_8);
-            }
             return version.onOrAfter(Version.V_6_2_2);
         }
 

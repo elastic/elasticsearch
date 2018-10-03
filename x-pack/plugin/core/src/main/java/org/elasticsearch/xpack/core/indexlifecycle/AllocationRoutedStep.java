@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
@@ -20,14 +21,12 @@ import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDeci
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -36,7 +35,7 @@ import java.util.Objects;
 public class AllocationRoutedStep extends ClusterStateWaitStep {
     public static final String NAME = "check-allocation";
 
-    private static final Logger logger = ESLoggerFactory.getLogger(AllocationRoutedStep.class);
+    private static final Logger logger = LogManager.getLogger(AllocationRoutedStep.class);
 
     private static final AllocationDeciders ALLOCATION_DECIDERS = new AllocationDeciders(Settings.EMPTY, Collections.singletonList(
             new FilterAllocationDecider(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))));
@@ -56,8 +55,9 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
     public Result isConditionMet(Index index, ClusterState clusterState) {
         IndexMetaData idxMeta = clusterState.metaData().index(index);
         if (idxMeta == null) {
-            throw new IndexNotFoundException("Index not found when executing " + getKey().getAction() + " lifecycle action.",
-                index.getName());
+            // Index must have been since deleted, ignore it
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            return new Result(false, null);
         }
         if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {
             logger.debug("[{}] lifecycle action for index [{}] cannot make progress because not all shards are active",

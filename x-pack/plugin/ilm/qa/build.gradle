@@ -4,8 +4,8 @@ gradle.projectsEvaluated {
     subprojects {
         Task assemble = project.tasks.findByName('assemble')
         if (assemble) {
-            project.tasks.remove(assemble)
-            project.build.dependsOn.remove('assemble')
+            assemble.enabled = false
         }
     }
 }
+

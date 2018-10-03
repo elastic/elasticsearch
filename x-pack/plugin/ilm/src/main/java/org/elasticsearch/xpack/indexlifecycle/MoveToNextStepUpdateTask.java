@@ -5,32 +5,39 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
+    private static final Logger logger = LogManager.getLogger(MoveToNextStepUpdateTask.class);
+
     private final Index index;
     private final String policy;
     private final Step.StepKey currentStepKey;
     private final Step.StepKey nextStepKey;
-    private final Listener listener;
     private final LongSupplier nowSupplier;
+    private final Consumer<ClusterState> stateChangeConsumer;
 
     public MoveToNextStepUpdateTask(Index index, String policy, Step.StepKey currentStepKey, Step.StepKey nextStepKey,
-            LongSupplier nowSupplier, Listener listener) {
+                                    LongSupplier nowSupplier, Consumer<ClusterState> stateChangeConsumer) {
         this.index = index;
         this.policy = policy;
         this.currentStepKey = currentStepKey;
         this.nextStepKey = nextStepKey;
         this.nowSupplier = nowSupplier;
-        this.listener = listener;
+        this.stateChangeConsumer = stateChangeConsumer;
     }
 
     Index getIndex() {
@@ -51,9 +58,16 @@ public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public ClusterState execute(ClusterState currentState) {
-        Settings indexSettings = currentState.getMetaData().index(index).getSettings();
+        IndexMetaData indexMetaData = currentState.getMetaData().index(index);
+        if (indexMetaData == null) {
+            // Index must have been since deleted, ignore it
+            return currentState;
+        }
+        Settings indexSettings = indexMetaData.getSettings();
+        LifecycleExecutionState indexILMData = LifecycleExecutionState.fromIndexMetadata(currentState.getMetaData().index(index));
         if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
-            && currentStepKey.equals(IndexLifecycleRunner.getCurrentStepKey(indexSettings))) {
+            && currentStepKey.equals(IndexLifecycleRunner.getCurrentStepKey(indexILMData))) {
+            logger.trace("moving [{}] to next step ({})", index.getName(), nextStepKey);
             return IndexLifecycleRunner.moveClusterStateToNextStep(index, currentState, currentStepKey, nextStepKey, nowSupplier);
         } else {
             // either the policy has changed or the step is now
@@ -65,11 +79,8 @@ public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-        // if the new cluster state is different from the old one then
-        // we moved to the new step in the execute method so we should
-        // execute the next step
-        if (oldState != newState) {
-            listener.onClusterStateProcessed(newState);
+        if (oldState.equals(newState) == false) {
+            stateChangeConsumer.accept(newState);
         }
     }
 
@@ -77,10 +88,5 @@ public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
     public void onFailure(String source, Exception e) {
         throw new ElasticsearchException("policy [" + policy + "] for index [" + index.getName() + "] failed trying to move from step ["
                 + currentStepKey + "] to step [" + nextStepKey + "].", e);
-    }
-
-    @FunctionalInterface
-    public interface Listener {
-        void onClusterStateProcessed(ClusterState clusterState);
     }
 }

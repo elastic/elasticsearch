@@ -111,7 +111,7 @@ public class PagerDutyActionTests extends ESTestCase {
         when(response.status()).thenReturn(200);
         HttpRequest request = mock(HttpRequest.class);
         SentEvent sentEvent = SentEvent.responded(event, request, response);
-        when(account.send(event, payload)).thenReturn(sentEvent);
+        when(account.send(event, payload, wid.watchId())).thenReturn(sentEvent);
         when(service.getAccount(accountName)).thenReturn(account);
 
         Action.Result result = executable.execute("_id", ctx, payload);

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
@@ -19,6 +21,7 @@ import java.util.Objects;
 
 public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
     public static final String NAME = "is-shrunken-index";
+    private static final Logger logger = LogManager.getLogger(InitializePolicyContextStep.class);
     private String shrunkIndexPrefix;
 
     public ShrunkenIndexCheckStep(StepKey key, StepKey nextStepKey, String shrunkIndexPrefix) {
@@ -32,7 +35,13 @@ public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        String shrunkenIndexSource = IndexMetaData.INDEX_SHRINK_SOURCE_NAME.get(
+        IndexMetaData idxMeta = clusterState.getMetaData().index(index);
+        if (idxMeta == null) {
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            // Index must have been since deleted, ignore it
+            return new Result(false, null);
+        }
+        String shrunkenIndexSource = IndexMetaData.INDEX_RESIZE_SOURCE_NAME.get(
             clusterState.metaData().index(index).getSettings());
         if (Strings.isNullOrEmpty(shrunkenIndexSource)) {
             throw new IllegalStateException("step[" + NAME + "] is checking an un-shrunken index[" + index.getName() + "]");
@@ -50,7 +59,7 @@ public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
     public int hashCode() {
         return Objects.hash(super.hashCode(), shrunkIndexPrefix);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {
@@ -60,7 +69,7 @@ public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
             return false;
         }
         ShrunkenIndexCheckStep other = (ShrunkenIndexCheckStep) obj;
-        return super.equals(obj) && 
+        return super.equals(obj) &&
                 Objects.equals(shrunkIndexPrefix, other.shrunkIndexPrefix);
     }
 

@@ -1,6 +1,6 @@
 {
   "xpack.security.get_token": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-tokens.html#security-api-get-token",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-token.html",
     "methods": [ "POST" ],
     "url": {
       "path": "/_xpack/security/oauth2/token",

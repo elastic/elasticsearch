@@ -6,14 +6,13 @@ setup:
   - do:
       acknowlege: true
       ilm.put_lifecycle:
-        lifecycle: "my_moveable_timeseries_lifecycle"
+        policy: "my_moveable_timeseries_lifecycle"
         body: |
            {
              "policy": {
-               "type": "timeseries",
                "phases": {
                  "warm": {
-                   "after": "1000s",
+                   "minimum_age": "1000s",
                    "actions": {
                      "forcemerge": {
                        "max_num_segments": 10000
@@ -21,7 +20,7 @@ setup:
                    }
                  },
                  "hot": {
-                   "after": "1000s",
+                   "minimum_age": "1000s",
                    "actions": { }
                  }
                }
@@ -31,19 +30,18 @@ setup:
   - do:
       acknowledge: true
       ilm.get_lifecycle:
-        lifecycle: "my_moveable_timeseries_lifecycle"
+        policy: "my_moveable_timeseries_lifecycle"
         
   - do:
       acknowlege: true
       ilm.put_lifecycle:
-        lifecycle: "my_alternative_timeseries_lifecycle"
+        policy: "my_alternative_timeseries_lifecycle"
         body: |
            {
              "policy": {
-               "type": "timeseries",
                "phases": {
                  "warm": {
-                   "after": "1000s",
+                   "minimum_age": "1000s",
                    "actions": {
                      "forcemerge": {
                        "max_num_segments": 10000
@@ -51,7 +49,7 @@ setup:
                    }
                  },
                  "hot": {
-                   "after": "1000s",
+                   "minimum_age": "1000s",
                    "actions": { }
                  }
                }
@@ -61,7 +59,7 @@ setup:
   - do:
       acknowledge: true
       ilm.get_lifecycle:
-        lifecycle: "my_alternative_timeseries_lifecycle"
+        policy: "my_alternative_timeseries_lifecycle"
 
   - do:
       indices.create:
@@ -122,22 +120,22 @@ teardown:
   - do:
       acknowledge: true
       ilm.delete_lifecycle:
-        lifecycle: "my_moveable_timeseries_lifecycle"
+        policy: "my_moveable_timeseries_lifecycle"
 
   - do:
       catch: missing
       ilm.get_lifecycle:
-        lifecycle: "my_moveable_timeseries_lifecycle"
+        policy: "my_moveable_timeseries_lifecycle"
 
   - do:
       acknowledge: true
       ilm.delete_lifecycle:
-        lifecycle: "my_alternative_timeseries_lifecycle"
+        policy: "my_alternative_timeseries_lifecycle"
 
   - do:
       catch: missing
       ilm.get_lifecycle:
-        lifecycle: "my_alternative_timeseries_lifecycle"
+        policy: "my_alternative_timeseries_lifecycle"
 
 ---
 "Test Remove Policy Single Index":

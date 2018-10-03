@@ -40,8 +40,8 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
-import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
@@ -156,6 +156,7 @@ final class StoreRecovery {
         final Directory hardLinkOrCopyTarget = new org.apache.lucene.store.HardlinkCopyDirectoryWrapper(target);
 
         IndexWriterConfig iwc = new IndexWriterConfig(null)
+            .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
             .setCommitOnClose(false)
             // we don't want merges to happen here - we call maybe merge on the engine
             // later once we stared it up otherwise we would need to wait for it here
@@ -180,7 +181,7 @@ final class StoreRecovery {
                 final HashMap<String, String> liveCommitData = new HashMap<>(3);
                 liveCommitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
                 liveCommitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(maxSeqNo));
-                liveCommitData.put(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp));
+                liveCommitData.put(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp));
                 return liveCommitData.entrySet().iterator();
             });
             writer.commit();
@@ -397,6 +398,9 @@ final class StoreRecovery {
                     indexShard.shardPath().resolveTranslog(), maxSeqNo, shardId, indexShard.getPendingPrimaryTerm());
                 store.associateIndexWithNewTranslog(translogUUID);
             } else if (indexShouldExists) {
+                if (recoveryState.getRecoverySource().shouldBootstrapNewHistoryUUID()) {
+                    store.bootstrapNewHistory();
+                }
                 // since we recover from local, just fill the files and size
                 try {
                     final RecoveryState.Index index = recoveryState.getIndex();

@@ -51,7 +51,7 @@ public class PutLifecycleAction extends Action<PutLifecycleAction.Response> {
         private static final ConstructingObjectParser<Request, String> PARSER =
             new ConstructingObjectParser<>("put_lifecycle_request", a -> new Request((LifecyclePolicy) a[0]));
         static {
-            PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, name) -> LifecyclePolicy.parse(p, name), POLICY_FIELD);
+            PARSER.declareObject(ConstructingObjectParser.constructorArg(), LifecyclePolicy::parse, POLICY_FIELD);
         }
 
         private LifecyclePolicy policy;

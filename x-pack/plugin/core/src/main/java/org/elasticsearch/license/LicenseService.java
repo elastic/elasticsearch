@@ -28,6 +28,7 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
+import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -119,7 +120,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         super(settings);
         this.clusterService = clusterService;
         this.clock = clock;
-        this.scheduler = new SchedulerEngine(clock);
+        this.scheduler = new SchedulerEngine(settings, clock);
         this.licenseState = licenseState;
         this.operationModeFileWatcher = new OperationModeFileWatcher(resourceWatcherService,
             XPackPlugin.resolveConfigFile(env, "license_mode"), logger,

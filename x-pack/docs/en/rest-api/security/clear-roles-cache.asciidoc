@@ -1,0 +1,39 @@
+[role="xpack"]
+[[security-api-clear-role-cache]]
+=== Clear roles cache API
+
+Evicts roles from the native role cache. 
+
+==== Request
+
+`POST /_xpack/security/role/<name>/_clear_cache` 
+
+==== Description
+
+For more information about the native realm, see 
+{stack-ov}/realms.html[Realms] and <<configuring-native-realm>>. 
+
+==== Path Parameters
+
+`name`::
+  (string) The name of the role. 
+
+
+//==== Request Body
+
+==== Authorization
+
+To use this API, you must have at least the `manage_security` cluster
+privilege.
+
+
+==== Examples
+
+The clear roles cache API evicts roles from the native role cache. For example, 
+to clear the cache for `my_admin_role`:
+
+[source,js]
+--------------------------------------------------
+POST /_xpack/security/role/my_admin_role/_clear_cache
+--------------------------------------------------
+// CONSOLE

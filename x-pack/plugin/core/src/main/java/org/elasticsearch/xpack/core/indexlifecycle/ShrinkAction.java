@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -29,7 +30,7 @@ public class ShrinkAction implements LifecycleAction {
     public static final String SHRUNKEN_INDEX_PREFIX = "shrink-";
     public static final ParseField NUMBER_OF_SHARDS_FIELD = new ParseField("number_of_shards");
 
-    private static final ConstructingObjectParser<ShrinkAction, CreateIndexRequest> PARSER =
+    private static final ConstructingObjectParser<ShrinkAction, Void> PARSER =
         new ConstructingObjectParser<>(NAME, a -> new ShrinkAction((Integer) a[0]));
 
     static {
@@ -39,7 +40,7 @@ public class ShrinkAction implements LifecycleAction {
     private int numberOfShards;
 
     public static ShrinkAction parse(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new CreateIndexRequest());
+        return PARSER.parse(parser, null);
     }
 
     public ShrinkAction(int numberOfShards) {
@@ -82,30 +83,41 @@ public class ShrinkAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
+        Settings readOnlySettings = Settings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, true).build();
+
+        StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyAction.NAME);
         StepKey setSingleNodeKey = new StepKey(phase, NAME, SetSingleNodeAllocateStep.NAME);
         StepKey allocationRoutedKey = new StepKey(phase, NAME, AllocationRoutedStep.NAME);
         StepKey shrinkKey = new StepKey(phase, NAME, ShrinkStep.NAME);
         StepKey enoughShardsKey = new StepKey(phase, NAME, ShrunkShardsAllocatedStep.NAME);
+        StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
         StepKey aliasKey = new StepKey(phase, NAME, ShrinkSetAliasStep.NAME);
         StepKey isShrunkIndexKey = new StepKey(phase, NAME, ShrunkenIndexCheckStep.NAME);
+
+        UpdateSettingsStep readOnlyStep = new UpdateSettingsStep(readOnlyKey, setSingleNodeKey, client, readOnlySettings);
         SetSingleNodeAllocateStep setSingleNodeStep = new SetSingleNodeAllocateStep(setSingleNodeKey, allocationRoutedKey, client);
         AllocationRoutedStep allocationStep = new AllocationRoutedStep(allocationRoutedKey, shrinkKey, false);
         ShrinkStep shrink = new ShrinkStep(shrinkKey, enoughShardsKey, client, numberOfShards, SHRUNKEN_INDEX_PREFIX);
-        ShrunkShardsAllocatedStep allocated = new ShrunkShardsAllocatedStep(enoughShardsKey, aliasKey, SHRUNKEN_INDEX_PREFIX);
+        ShrunkShardsAllocatedStep allocated = new ShrunkShardsAllocatedStep(enoughShardsKey, copyMetadataKey, SHRUNKEN_INDEX_PREFIX);
+        CopyExecutionStateStep copyMetadata = new CopyExecutionStateStep(copyMetadataKey, aliasKey, SHRUNKEN_INDEX_PREFIX);
         ShrinkSetAliasStep aliasSwapAndDelete = new ShrinkSetAliasStep(aliasKey, isShrunkIndexKey, client, SHRUNKEN_INDEX_PREFIX);
         ShrunkenIndexCheckStep waitOnShrinkTakeover = new ShrunkenIndexCheckStep(isShrunkIndexKey, nextStepKey, SHRUNKEN_INDEX_PREFIX);
-        return Arrays.asList(setSingleNodeStep, allocationStep, shrink, allocated, aliasSwapAndDelete, waitOnShrinkTakeover);
+        return Arrays.asList(readOnlyStep, setSingleNodeStep, allocationStep, shrink, allocated, copyMetadata,
+            aliasSwapAndDelete, waitOnShrinkTakeover);
     }
 
     @Override
     public List<StepKey> toStepKeys(String phase) {
+        StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyAction.NAME);
         StepKey setSingleNodeKey = new StepKey(phase, NAME, SetSingleNodeAllocateStep.NAME);
         StepKey allocationRoutedKey = new StepKey(phase, NAME, AllocationRoutedStep.NAME);
         StepKey shrinkKey = new StepKey(phase, NAME, ShrinkStep.NAME);
         StepKey enoughShardsKey = new StepKey(phase, NAME, ShrunkShardsAllocatedStep.NAME);
+        StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
         StepKey aliasKey = new StepKey(phase, NAME, ShrinkSetAliasStep.NAME);
         StepKey isShrunkIndexKey = new StepKey(phase, NAME, ShrunkenIndexCheckStep.NAME);
-        return Arrays.asList(setSingleNodeKey, allocationRoutedKey, shrinkKey, enoughShardsKey, aliasKey, isShrunkIndexKey);
+        return Arrays.asList(readOnlyKey, setSingleNodeKey, allocationRoutedKey, shrinkKey, enoughShardsKey,
+            copyMetadataKey, aliasKey, isShrunkIndexKey);
     }
 
     @Override

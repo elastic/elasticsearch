@@ -6,6 +6,7 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;

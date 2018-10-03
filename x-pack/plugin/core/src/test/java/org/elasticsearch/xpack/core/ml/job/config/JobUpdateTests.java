@@ -274,6 +274,8 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         assertTrue(update.isAutodetectProcessUpdate());
         update = new JobUpdate.Builder("foo").setDetectorUpdates(Collections.singletonList(mock(JobUpdate.DetectorUpdate.class))).build();
         assertTrue(update.isAutodetectProcessUpdate());
+        update = new JobUpdate.Builder("foo").setGroups(Arrays.asList("bar")).build();
+        assertTrue(update.isAutodetectProcessUpdate());
     }
 
     public void testUpdateAnalysisLimitWithValueGreaterThanMax() {

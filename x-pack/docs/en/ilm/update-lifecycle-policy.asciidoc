@@ -1,0 +1,5 @@
+[[update-lifecycle-policy]]
+== Update lifecycle policy
+
+Discuss how one updates an existing policy (when allowed, when not),
+ as well as all the stuff about switching policies on indices.

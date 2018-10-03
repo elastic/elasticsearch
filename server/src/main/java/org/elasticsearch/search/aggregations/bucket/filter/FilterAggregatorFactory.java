@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
@@ -58,7 +59,7 @@ public class FilterAggregatorFactory extends AggregatorFactory<FilterAggregatorF
         if (weight == null) {
             IndexSearcher contextSearcher = context.searcher();
             try {
-                weight = contextSearcher.createNormalizedWeight(filter, false);
+                weight = contextSearcher.createWeight(contextSearcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
             } catch (IOException e) {
                 throw new AggregationInitializationException("Failed to initialse filter", e);
             }

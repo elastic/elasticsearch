@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -38,12 +38,14 @@ public class SegmentCountStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(Index index, Listener listener) {
-        getClient().admin().indices().segments(new IndicesSegmentsRequest(index.getName()), ActionListener.wrap(response -> {
-            long numberShardsLeftToMerge = StreamSupport.stream(response.getIndices().get(index.getName()).spliterator(), false)
-                    .filter(iss -> Arrays.stream(iss.getShards()).anyMatch(p -> p.getSegments().size() > maxNumSegments)).count();
-            listener.onResponse(numberShardsLeftToMerge == 0, new Info(numberShardsLeftToMerge));
-        }, listener::onFailure));
+    public void evaluateCondition(IndexMetaData indexMetaData, Listener listener) {
+        getClient().admin().indices().segments(new IndicesSegmentsRequest(indexMetaData.getIndex().getName()),
+            ActionListener.wrap(response -> {
+                long numberShardsLeftToMerge =
+                    StreamSupport.stream(response.getIndices().get(indexMetaData.getIndex().getName()).spliterator(), false)
+                        .filter(iss -> Arrays.stream(iss.getShards()).anyMatch(p -> p.getSegments().size() > maxNumSegments)).count();
+                listener.onResponse(numberShardsLeftToMerge == 0, new Info(numberShardsLeftToMerge));
+            }, listener::onFailure));
     }
 
     @Override

@@ -22,7 +22,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep.Result;
@@ -288,9 +287,9 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
         AllocationRoutedStep step = createRandomInstance();
 
-        IndexNotFoundException thrownException = expectThrows(IndexNotFoundException.class, () -> step.isConditionMet(index, clusterState));
-        assertEquals("Index not found when executing " + step.getKey().getAction() + " lifecycle action.", thrownException.getMessage());
-        assertEquals(index.getName(), thrownException.getIndex().getName());
+        Result actualResult = step.isConditionMet(index, clusterState);
+        assertFalse(actualResult.isComplete());
+        assertNull(actualResult.getInfomationContext());
     }
 
     private void assertAllocateStatus(Index index, int shards, int replicas, AllocationRoutedStep step, Settings.Builder existingSettings,

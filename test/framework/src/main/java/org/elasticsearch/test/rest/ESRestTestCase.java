@@ -161,7 +161,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
-     * Construct a HttpHost from the given host and port
+     * Construct an HttpHost from the given host and port
      */
     protected HttpHost buildHttpHost(String host, int port) {
         return new HttpHost(host, port, getProtocol());
@@ -237,6 +237,16 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
+     * Controls whether or not to preserve cluster settings upon completion of the test. The default implementation is to remove all cluster
+     * settings.
+     *
+     * @return true if cluster settings should be preserved and otherwise false
+     */
+    protected boolean preserveClusterSettings() {
+        return false;
+    }
+
+    /**
      * Returns whether to preserve the repositories on completion of this test.
      * Defaults to not preserving repos. See also
      * {@link #preserveSnapshotsUponCompletion()}.
@@ -295,7 +305,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         wipeSnapshots();
-        wipeClusterSettings();
+
+        // wipe cluster settings
+        if (preserveClusterSettings() == false) {
+            wipeClusterSettings();
+        }
     }
 
     /**
@@ -543,6 +557,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         client().performRequest(request);
     }
 
+    protected static void createIndex(String name, Settings settings, String mapping, String aliases) throws IOException {
+        Request request = new Request("PUT", "/" + name);
+        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings)
+            + ", \"mappings\" : {" + mapping + "}"
+            + ", \"aliases\": {" + aliases + "} }");
+        client().performRequest(request);
+    }
+
     protected static void deleteIndex(String name) throws IOException {
         Request request = new Request("DELETE", "/" + name);
         client().performRequest(request);
@@ -621,7 +643,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith(".monitoring-")) {
             return true;
         }
-        if (name.startsWith(".watch-history-")) {
+        if (name.startsWith(".watch") || name.startsWith(".triggered_watches")) {
             return true;
         }
         if (name.startsWith(".ml-")) {

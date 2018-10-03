@@ -67,7 +67,7 @@ Example response:
          "available" : false,
          "enabled" : true
       },
-      "index_lifecycle" : {
+      "ilm" : {
          "description" : "Index lifecycle management for the Elastic Stack",
          "available" : true,
          "enabled" : true

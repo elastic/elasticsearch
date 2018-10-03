@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleResponse;
+import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleResponse;
 
 public class ExplainLifecycleAction extends Action<ExplainLifecycleResponse> {
     public static final ExplainLifecycleAction INSTANCE = new ExplainLifecycleAction();

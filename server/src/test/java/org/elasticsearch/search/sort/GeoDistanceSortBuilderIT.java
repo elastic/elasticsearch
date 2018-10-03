@@ -28,16 +28,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.GeoValidationMethod;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -50,11 +47,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSort
 import static org.hamcrest.Matchers.closeTo;
 
 public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
+
     private static final String LOCATION_FIELD = "location";
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class);
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
     }
 
     public void testManyToManyGeoPoints() throws ExecutionException, InterruptedException, IOException {
@@ -70,7 +68,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
          * 1   2   3   4   5   6   7
          */
         Version version = randomBoolean() ? Version.CURRENT
-                : VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, Version.CURRENT);
+                : VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
@@ -136,7 +134,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
          * d2 = (0, 1), (0, 5), (0, 6); so avg. distance is 4, median distance is 5
          */
         Version version = randomBoolean() ? Version.CURRENT
-                : VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, Version.CURRENT);
+                : VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
@@ -197,7 +195,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
          * 1   2   3   4   5   6
          */
         Version version = randomBoolean() ? Version.CURRENT
-                : VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, Version.CURRENT);
+                : VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();

@@ -55,7 +55,7 @@ public class ShrunkenIndexCheckStepTests extends AbstractStepTestCase<ShrunkenIn
         ShrunkenIndexCheckStep step = createRandomInstance();
         String sourceIndex = randomAlphaOfLengthBetween(1, 10);
         IndexMetaData indexMetadata = IndexMetaData.builder(step.getShrunkIndexPrefix() + sourceIndex)
-            .settings(settings(Version.CURRENT).put(IndexMetaData.INDEX_SHRINK_SOURCE_NAME_KEY, sourceIndex))
+            .settings(settings(Version.CURRENT).put(IndexMetaData.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndex))
             .numberOfShards(1)
             .numberOfReplicas(0).build();
         MetaData metaData = MetaData.builder()
@@ -73,7 +73,7 @@ public class ShrunkenIndexCheckStepTests extends AbstractStepTestCase<ShrunkenIn
         ShrunkenIndexCheckStep step = createRandomInstance();
         String sourceIndex = randomAlphaOfLengthBetween(1, 10);
         IndexMetaData shrinkIndexMetadata = IndexMetaData.builder(sourceIndex + "hello")
-            .settings(settings(Version.CURRENT).put(IndexMetaData.INDEX_SHRINK_SOURCE_NAME_KEY, sourceIndex))
+            .settings(settings(Version.CURRENT).put(IndexMetaData.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndex))
             .numberOfShards(1)
             .numberOfReplicas(0).build();
         MetaData metaData = MetaData.builder()
@@ -94,7 +94,7 @@ public class ShrunkenIndexCheckStepTests extends AbstractStepTestCase<ShrunkenIn
             .numberOfShards(100)
             .numberOfReplicas(0).build();
         IndexMetaData shrinkIndexMetadata = IndexMetaData.builder(step.getShrunkIndexPrefix() + sourceIndex)
-            .settings(settings(Version.CURRENT).put(IndexMetaData.INDEX_SHRINK_SOURCE_NAME_KEY, sourceIndex))
+            .settings(settings(Version.CURRENT).put(IndexMetaData.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndex))
             .numberOfShards(1)
             .numberOfReplicas(0).build();
         MetaData metaData = MetaData.builder()

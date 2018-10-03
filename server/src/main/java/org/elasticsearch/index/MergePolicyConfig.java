@@ -82,11 +82,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
  *     &gt;= than the <code>max_merge_at_once</code> otherwise you'll force too many merges to
  *     occur.
  *
- * <li><code>index.merge.policy.reclaim_deletes_weight</code>:
+ * <li><code>index.merge.policy.deletes_pct_allowed</code>:
  *
- *     Controls how aggressively merges that reclaim more deletions are favored.
- *     Higher values favor selecting merges that reclaim deletions. A value of
- *     <code>0.0</code> means deletions don't impact merge selection. Defaults to <code>2.0</code>.
+ *     Controls the maximum percentage of deleted documents that is tolerated in
+ *     the index. Lower values make the index more space efficient at the
+ *     expense of increased CPU and I/O activity. Values must be between <code>20</code> and
+ *     <code>50</code>. Default value is <code>33</code>.
  * </ul>
  *
  * <p>
@@ -126,6 +127,7 @@ public final class MergePolicyConfig {
     public static final ByteSizeValue   DEFAULT_MAX_MERGED_SEGMENT          = new ByteSizeValue(5, ByteSizeUnit.GB);
     public static final double          DEFAULT_SEGMENTS_PER_TIER           = 10.0d;
     public static final double          DEFAULT_RECLAIM_DELETES_WEIGHT      = 2.0d;
+    public static final double          DEFAULT_DELETES_PCT_ALLOWED         = 33.0d;
     public static final Setting<Double> INDEX_COMPOUND_FORMAT_SETTING       =
         new Setting<>("index.compound_format", Double.toString(TieredMergePolicy.DEFAULT_NO_CFS_RATIO), MergePolicyConfig::parseNoCFSRatio,
             Property.Dynamic, Property.IndexScope);
@@ -151,6 +153,9 @@ public final class MergePolicyConfig {
     public static final Setting<Double> INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING =
         Setting.doubleSetting("index.merge.policy.reclaim_deletes_weight", DEFAULT_RECLAIM_DELETES_WEIGHT, 0.0d,
             Property.Dynamic, Property.IndexScope, Property.Deprecated);
+    public static final Setting<Double> INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING =
+        Setting.doubleSetting("index.merge.policy.deletes_pct_allowed", DEFAULT_DELETES_PCT_ALLOWED, 20.0d, 50.0d,
+            Property.Dynamic, Property.IndexScope);
     public static final String INDEX_MERGE_ENABLED = "index.merge.enabled"; // don't convert to Setting<> and register... we only set this in tests and register via a plugin
 
 
@@ -164,6 +169,7 @@ public final class MergePolicyConfig {
         ByteSizeValue maxMergedSegment = indexSettings.getValue(INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING);
         double segmentsPerTier = indexSettings.getValue(INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING);
         double reclaimDeletesWeight = indexSettings.getValue(INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING);
+        double deletesPctAllowed = indexSettings.getValue(INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING);
         this.mergesEnabled = indexSettings.getSettings().getAsBoolean(INDEX_MERGE_ENABLED, true);
         if (mergesEnabled == false) {
             logger.warn("[{}] is set to false, this should only be used in tests and can cause serious problems in production environments", INDEX_MERGE_ENABLED);
@@ -176,9 +182,10 @@ public final class MergePolicyConfig {
         mergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
         mergePolicy.setMaxMergedSegmentMB(maxMergedSegment.getMbFrac());
         mergePolicy.setSegmentsPerTier(segmentsPerTier);
+        mergePolicy.setDeletesPctAllowed(deletesPctAllowed);
         if (logger.isTraceEnabled()) {
-            logger.trace("using [tiered] merge mergePolicy with expunge_deletes_allowed[{}], floor_segment[{}], max_merge_at_once[{}], max_merge_at_once_explicit[{}], max_merged_segment[{}], segments_per_tier[{}], reclaim_deletes_weight[{}]",
-                forceMergeDeletesPctAllowed, floorSegment, maxMergeAtOnce, maxMergeAtOnceExplicit, maxMergedSegment, segmentsPerTier, reclaimDeletesWeight);
+            logger.trace("using [tiered] merge mergePolicy with expunge_deletes_allowed[{}], floor_segment[{}], max_merge_at_once[{}], max_merge_at_once_explicit[{}], max_merged_segment[{}], segments_per_tier[{}], deletes_pct_allowed[{}]",
+                forceMergeDeletesPctAllowed, floorSegment, maxMergeAtOnce, maxMergeAtOnceExplicit, maxMergedSegment, segmentsPerTier, deletesPctAllowed);
         }
     }
 
@@ -208,6 +215,10 @@ public final class MergePolicyConfig {
 
     void setNoCFSRatio(Double noCFSRatio) {
         mergePolicy.setNoCFSRatio(noCFSRatio);
+    }
+
+    void setDeletesPctAllowed(Double deletesPctAllowed) {
+        mergePolicy.setDeletesPctAllowed(deletesPctAllowed);
     }
 
     private int adjustMaxMergeAtOnceIfNeeded(int maxMergeAtOnce, double segmentsPerTier) {

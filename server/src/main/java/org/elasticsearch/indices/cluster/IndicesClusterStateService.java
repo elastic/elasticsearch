@@ -456,7 +456,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             AllocatedIndex<? extends Shard> indexService = null;
             try {
                 indexService = indicesService.createIndex(indexMetaData, buildInIndexListener);
-                if (indexService.updateMapping(indexMetaData) && sendRefreshMapping) {
+                if (indexService.updateMapping(null, indexMetaData) && sendRefreshMapping) {
                     nodeMappingRefreshAction.nodeMappingRefresh(state.nodes().getMasterNode(),
                         new NodeMappingRefreshAction.NodeMappingRefreshRequest(indexMetaData.getIndex().getName(),
                             indexMetaData.getIndexUUID(), state.nodes().getLocalNodeId())
@@ -490,7 +490,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (ClusterChangedEvent.indexMetaDataChanged(currentIndexMetaData, newIndexMetaData)) {
                 indexService.updateMetaData(newIndexMetaData);
                 try {
-                    if (indexService.updateMapping(newIndexMetaData) && sendRefreshMapping) {
+                    if (indexService.updateMapping(currentIndexMetaData, newIndexMetaData) && sendRefreshMapping) {
                         nodeMappingRefreshAction.nodeMappingRefresh(state.nodes().getMasterNode(),
                             new NodeMappingRefreshAction.NodeMappingRefreshRequest(newIndexMetaData.getIndex().getName(),
                                 newIndexMetaData.getIndexUUID(), state.nodes().getLocalNodeId())
@@ -778,7 +778,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         /**
          * Checks if index requires refresh from master.
          */
-        boolean updateMapping(IndexMetaData indexMetaData) throws IOException;
+        boolean updateMapping(IndexMetaData currentIndexMetaData, IndexMetaData newIndexMetaData) throws IOException;
 
         /**
          * Returns shard with given id.

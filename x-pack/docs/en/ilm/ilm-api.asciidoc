@@ -1,0 +1,4 @@
+[[index-lifecycle-management-api]]
+== {ilm} API
+
+TBD

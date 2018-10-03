@@ -20,9 +20,10 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
 
-public class PutStoredScriptAction extends Action<PutStoredScriptResponse> {
+public class PutStoredScriptAction extends Action<AcknowledgedResponse> {
 
     public static final PutStoredScriptAction INSTANCE = new PutStoredScriptAction();
     public static final String NAME = "cluster:admin/script/put";
@@ -34,7 +35,7 @@ public class PutStoredScriptAction extends Action<PutStoredScriptResponse> {
 
 
     @Override
-    public PutStoredScriptResponse newResponse() {
-        return new PutStoredScriptResponse();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 }

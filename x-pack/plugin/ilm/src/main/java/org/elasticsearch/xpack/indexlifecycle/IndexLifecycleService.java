@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.indexlifecycle;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Client;
@@ -13,17 +14,21 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.protocol.xpack.indexlifecycle.OperationMode;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
+import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
@@ -38,9 +43,11 @@ import java.util.function.LongSupplier;
  * A service which runs the {@link LifecyclePolicy}s associated with indexes.
  */
 public class IndexLifecycleService extends AbstractComponent
-        implements ClusterStateListener, ClusterStateApplier, SchedulerEngine.Listener, Closeable {
-    private static final Logger logger = ESLoggerFactory.getLogger(IndexLifecycleService.class);
+        implements ClusterStateListener, ClusterStateApplier, SchedulerEngine.Listener, Closeable, LocalNodeMasterListener {
+    private static final Logger logger = LogManager.getLogger(IndexLifecycleService.class);
     private static final Set<String> IGNORE_ACTIONS_MAINTENANCE_REQUESTED = Collections.singleton(ShrinkAction.NAME);
+    private volatile boolean isMaster = false;
+    private volatile TimeValue pollInterval;
 
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
     private final Clock clock;
@@ -51,17 +58,22 @@ public class IndexLifecycleService extends AbstractComponent
     private LongSupplier nowSupplier;
     private SchedulerEngine.Job scheduledJob;
 
-    public IndexLifecycleService(Settings settings, Client client, ClusterService clusterService, Clock clock, LongSupplier nowSupplier) {
+    public IndexLifecycleService(Settings settings, Client client, ClusterService clusterService, Clock clock, LongSupplier nowSupplier,
+                                 NamedXContentRegistry xContentRegistry) {
         super(settings);
         this.client = client;
         this.clusterService = clusterService;
         this.clock = clock;
         this.nowSupplier = nowSupplier;
         this.scheduledJob = null;
-        this.policyRegistry = new PolicyStepsRegistry();
+        this.policyRegistry = new PolicyStepsRegistry(xContentRegistry, client);
         this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, clusterService, nowSupplier);
+        this.pollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
         clusterService.addStateApplier(this);
         clusterService.addListener(this);
+        clusterService.addLocalNodeMasterListener(this);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING,
+            this::updatePollInterval);
     }
 
     public ClusterState moveClusterStateToStep(ClusterState currentState, String indexName, StepKey currentStepKey, StepKey nextStepKey) {
@@ -73,46 +85,87 @@ public class IndexLifecycleService extends AbstractComponent
         return lifecycleRunner.moveClusterStateToFailedStep(currentState, indices);
     }
 
+    @Override
+    public void onMaster() {
+        this.isMaster = true;
+        maybeScheduleJob();
+
+        ClusterState clusterState = clusterService.state();
+        IndexLifecycleMetadata currentMetadata = clusterState.metaData().custom(IndexLifecycleMetadata.TYPE);
+        if (currentMetadata != null) {
+            OperationMode currentMode = currentMetadata.getOperationMode();
+            if (OperationMode.STOPPED.equals(currentMode)) {
+                return;
+            }
+
+            boolean safeToStop = true; // true until proven false by a run policy
+
+            // If we just became master, we need to kick off any async actions that
+            // may have not been run due to master rollover
+            for (ObjectCursor<IndexMetaData> cursor : clusterState.metaData().indices().values()) {
+                IndexMetaData idxMeta = cursor.value;
+                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
+                if (Strings.isNullOrEmpty(policyName) == false) {
+                    StepKey stepKey = IndexLifecycleRunner.getCurrentStepKey(LifecycleExecutionState.fromIndexMetadata(idxMeta));
+                    if (OperationMode.STOPPING == currentMode &&
+                        stepKey != null &&
+                        IGNORE_ACTIONS_MAINTENANCE_REQUESTED.contains(stepKey.getAction()) == false) {
+                        logger.info("skipping policy [{}] for index [{}]. stopping Index Lifecycle execution",
+                            policyName, idxMeta.getIndex().getName());
+                        continue;
+                    }
+                    lifecycleRunner.maybeRunAsyncAction(clusterState, idxMeta, policyName, stepKey);
+                    safeToStop = false; // proven false!
+                }
+            }
+            if (safeToStop && OperationMode.STOPPING == currentMode) {
+                submitOperationModeUpdate(OperationMode.STOPPED);
+            }
+        }
+    }
+
+    @Override
+    public void offMaster() {
+        this.isMaster = false;
+        cancelJob();
+    }
+
+    @Override
+    public String executorName() {
+        return ThreadPool.Names.MANAGEMENT;
+    }
+
+    private void updatePollInterval(TimeValue newInterval) {
+        this.pollInterval = newInterval;
+        maybeScheduleJob();
+    }
+
+    // pkg-private for testing
     SchedulerEngine getScheduler() {
         return scheduler.get();
     }
 
+    // pkg-private for testing
     SchedulerEngine.Job getScheduledJob() {
         return scheduledJob;
     }
 
-    public LongSupplier getNowSupplier() {
-        return nowSupplier;
-    }
-
-    public PolicyStepsRegistry getPolicyRegistry() {
-        return policyRegistry;
+    private void maybeScheduleJob() {
+        if (this.isMaster) {
+            if (scheduler.get() == null) {
+                scheduler.set(new SchedulerEngine(settings, clock));
+                scheduler.get().register(this);
+            }
+            scheduledJob = new SchedulerEngine.Job(XPackField.INDEX_LIFECYCLE, new TimeValueSchedule(pollInterval));
+            scheduler.get().add(scheduledJob);
+        }
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         IndexLifecycleMetadata lifecycleMetadata = event.state().metaData().custom(IndexLifecycleMetadata.TYPE);
-        if (event.localNodeMaster() && lifecycleMetadata != null) {
-            TimeValue pollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING
-                .get(event.state().getMetaData().settings());
-            TimeValue previousPollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING
-                .get(event.previousState().getMetaData().settings());
-
-            boolean pollIntervalSettingChanged = !pollInterval.equals(previousPollInterval);
-
-            if (scheduler.get() == null) { // metadata installed and scheduler should be kicked off. start your engines.
-                scheduler.set(new SchedulerEngine(clock));
-                scheduler.get().register(this);
-                scheduleJob(pollInterval);
-            } else if (scheduledJob == null) {
-                scheduleJob(pollInterval);
-            } else if (pollIntervalSettingChanged) { // all engines are running, just need to update with latest interval
-                scheduleJob(pollInterval);
-            }
-
+        if (this.isMaster && lifecycleMetadata != null) {
             triggerPolicies(event.state(), true);
-        } else {
-            cancelJob();
         }
     }
 
@@ -120,30 +173,23 @@ public class IndexLifecycleService extends AbstractComponent
     public void applyClusterState(ClusterChangedEvent event) {
         if (event.localNodeMaster()) { // only act if we are master, otherwise
                                        // keep idle until elected
-            IndexLifecycleMetadata lifecycleMetadata = event.state().metaData().custom(IndexLifecycleMetadata.TYPE);
-            if (lifecycleMetadata != null) {
-                // update policy steps registry
-                policyRegistry.update(lifecycleMetadata, client, nowSupplier);
+            if (event.state().metaData().custom(IndexLifecycleMetadata.TYPE) != null) {
+                policyRegistry.update(event.state());
             }
         }
     }
 
     private void cancelJob() {
         if (scheduler.get() != null) {
-            scheduler.get().remove(IndexLifecycle.NAME);
+            scheduler.get().remove(XPackField.INDEX_LIFECYCLE);
             scheduledJob = null;
         }
     }
 
-    private void scheduleJob(TimeValue pollInterval) {
-        scheduledJob = new SchedulerEngine.Job(IndexLifecycle.NAME, new TimeValueSchedule(pollInterval));
-        scheduler.get().add(scheduledJob);
-    }
-
     @Override
     public void triggered(SchedulerEngine.Event event) {
-        if (event.getJobName().equals(IndexLifecycle.NAME)) {
-            logger.debug("Job triggered: " + event.getJobName() + ", " + event.getScheduledTime() + ", " + event.getTriggeredTime());
+        if (event.getJobName().equals(XPackField.INDEX_LIFECYCLE)) {
+            logger.trace("job triggered: " + event.getJobName() + ", " + event.getScheduledTime() + ", " + event.getTriggeredTime());
             triggerPolicies(clusterService.state(), false);
         }
     }
@@ -179,14 +225,18 @@ public class IndexLifecycleService extends AbstractComponent
             IndexMetaData idxMeta = cursor.value;
             String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
             if (Strings.isNullOrEmpty(policyName) == false) {
-                StepKey stepKey = IndexLifecycleRunner.getCurrentStepKey(idxMeta.getSettings());
+                StepKey stepKey = IndexLifecycleRunner.getCurrentStepKey(LifecycleExecutionState.fromIndexMetadata(idxMeta));
                 if (OperationMode.STOPPING == currentMode && stepKey != null
                         && IGNORE_ACTIONS_MAINTENANCE_REQUESTED.contains(stepKey.getAction()) == false) {
                     logger.info("skipping policy [" + policyName + "] for index [" + idxMeta.getIndex().getName()
                         + "]. stopping Index Lifecycle execution");
                     continue;
                 }
-                lifecycleRunner.runPolicy(policyName, idxMeta, clusterState, fromClusterStateChange);
+                if (fromClusterStateChange) {
+                    lifecycleRunner.runPolicyAfterStateChange(policyName, idxMeta);
+                } else {
+                    lifecycleRunner.runPeriodicStep(policyName, idxMeta);
+                }
                 safeToStop = false; // proven false!
             }
         }

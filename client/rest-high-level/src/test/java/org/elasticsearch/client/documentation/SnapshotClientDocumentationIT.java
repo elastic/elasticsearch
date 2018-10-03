@@ -22,27 +22,25 @@ package org.elasticsearch.client.documentation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -163,7 +161,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::create-repository-request-verify
 
         // tag::create-repository-execute
-        PutRepositoryResponse response = client.snapshot().createRepository(request, RequestOptions.DEFAULT);
+        AcknowledgedResponse response = client.snapshot().createRepository(request, RequestOptions.DEFAULT);
         // end::create-repository-execute
 
         // tag::create-repository-response
@@ -178,10 +176,10 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             PutRepositoryRequest request = new PutRepositoryRequest(repositoryName);
 
             // tag::create-repository-execute-listener
-            ActionListener<PutRepositoryResponse> listener =
-                new ActionListener<PutRepositoryResponse>() {
+            ActionListener<AcknowledgedResponse> listener =
+                new ActionListener<AcknowledgedResponse>() {
                     @Override
-                    public void onResponse(PutRepositoryResponse putRepositoryResponse) {
+                    public void onResponse(AcknowledgedResponse putRepositoryResponse) {
                         // <1>
                     }
 
@@ -388,7 +386,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::delete-repository-request-timeout
 
         // tag::delete-repository-execute
-        DeleteRepositoryResponse response = client.snapshot().deleteRepository(request, RequestOptions.DEFAULT);
+        AcknowledgedResponse response = client.snapshot().deleteRepository(request, RequestOptions.DEFAULT);
         // end::delete-repository-execute
 
         // tag::delete-repository-response
@@ -403,10 +401,10 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             DeleteRepositoryRequest request = new DeleteRepositoryRequest();
 
             // tag::delete-repository-execute-listener
-            ActionListener<DeleteRepositoryResponse> listener =
-                new ActionListener<DeleteRepositoryResponse>() {
+            ActionListener<AcknowledgedResponse> listener =
+                new ActionListener<AcknowledgedResponse>() {
                     @Override
-                    public void onResponse(DeleteRepositoryResponse deleteRepositoryResponse) {
+                    public void onResponse(AcknowledgedResponse deleteRepositoryResponse) {
                         // <1>
                     }
 
@@ -579,6 +577,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         }
     }
 
+    @SuppressWarnings("unused")
     public void testSnapshotGetSnapshots() throws IOException {
         RestHighLevelClient client = highLevelClient();
 
@@ -752,7 +751,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::delete-snapshot-request-masterTimeout
 
         // tag::delete-snapshot-execute
-        DeleteSnapshotResponse response = client.snapshot().delete(request, RequestOptions.DEFAULT);
+        AcknowledgedResponse response = client.snapshot().delete(request, RequestOptions.DEFAULT);
         // end::delete-snapshot-execute
 
         // tag::delete-snapshot-response
@@ -767,10 +766,10 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             DeleteSnapshotRequest request = new DeleteSnapshotRequest();
 
             // tag::delete-snapshot-execute-listener
-            ActionListener<DeleteSnapshotResponse> listener =
-                new ActionListener<DeleteSnapshotResponse>() {
+            ActionListener<AcknowledgedResponse> listener =
+                new ActionListener<AcknowledgedResponse>() {
                     @Override
-                    public void onResponse(DeleteSnapshotResponse deleteSnapshotResponse) {
+                    public void onResponse(AcknowledgedResponse deleteSnapshotResponse) {
                         // <1>
                     }
 

@@ -28,7 +28,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.LongSupplier;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -47,26 +48,135 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-                Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new),
-                        new NamedWriteableRegistry.Entry(LifecycleType.class, TestLifecycleType.TYPE, (in) -> TestLifecycleType.INSTANCE)));
+            Arrays.asList(
+                new NamedWriteableRegistry.Entry(LifecycleType.class, TimeseriesLifecycleType.TYPE,
+                    (in) -> TimeseriesLifecycleType.INSTANCE),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, AllocateAction.NAME, AllocateAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ReadOnlyAction.NAME, ReadOnlyAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new)
+            ));
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
-        entries.add(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MockAction.NAME), MockAction::parse));
-        entries.add(new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TestLifecycleType.TYPE),
-                (p) -> TestLifecycleType.INSTANCE));
+        entries.addAll(Arrays.asList(
+            new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TimeseriesLifecycleType.TYPE),
+                (p) -> TimeseriesLifecycleType.INSTANCE),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse)
+        ));
         return new NamedXContentRegistry(entries);
     }
 
     @Override
     protected LifecyclePolicy createTestInstance() {
         lifecycleName = randomAlphaOfLength(5);
-        return randomLifecyclePolicy(lifecycleName);
+        return randomTimeseriesLifecyclePolicy(lifecycleName);
     }
 
-    public static LifecyclePolicy randomLifecyclePolicy(@Nullable String lifecycleName) {
+    /**
+     * The same as {@link #randomTimeseriesLifecyclePolicy(String)} but ensures
+     * that the resulting policy has all valid phases and all valid actions.
+     */
+    public static LifecyclePolicy randomTimeseriesLifecyclePolicyWithAllPhases(@Nullable String lifecycleName) {
+        List<String> phaseNames = TimeseriesLifecycleType.VALID_PHASES;
+        Map<String, Phase> phases = new HashMap<>(phaseNames.size());
+        Function<String, Set<String>> validActions = (phase) ->  {
+            switch (phase) {
+                case "hot":
+                    return TimeseriesLifecycleType.VALID_HOT_ACTIONS;
+                case "warm":
+                    return TimeseriesLifecycleType.VALID_WARM_ACTIONS;
+                case "cold":
+                    return TimeseriesLifecycleType.VALID_COLD_ACTIONS;
+                case "delete":
+                    return TimeseriesLifecycleType.VALID_DELETE_ACTIONS;
+                default:
+                    throw new IllegalArgumentException("invalid phase [" + phase + "]");
+            }};
+        Function<String, LifecycleAction> randomAction = (action) ->  {
+            switch (action) {
+                case AllocateAction.NAME:
+                    return AllocateActionTests.randomInstance();
+                case DeleteAction.NAME:
+                    return new DeleteAction();
+                case ForceMergeAction.NAME:
+                    return ForceMergeActionTests.randomInstance();
+                case ReadOnlyAction.NAME:
+                    return new ReadOnlyAction();
+                case RolloverAction.NAME:
+                    return RolloverActionTests.randomInstance();
+                case ShrinkAction.NAME:
+                    return ShrinkActionTests.randomInstance();
+                default:
+                    throw new IllegalArgumentException("invalid action [" + action + "]");
+            }};
+        for (String phase : phaseNames) {
+            TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
+            Map<String, LifecycleAction> actions = new HashMap<>();
+            Set<String> actionNames = validActions.apply(phase);
+            for (String action : actionNames) {
+                actions.put(action, randomAction.apply(action));
+            }
+            phases.put(phase, new Phase(phase, after, actions));
+        }
+        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases);
+    }
+
+    public static LifecyclePolicy randomTimeseriesLifecyclePolicy(@Nullable String lifecycleName) {
+        List<String> phaseNames = randomSubsetOf(TimeseriesLifecycleType.VALID_PHASES);
+        Map<String, Phase> phases = new HashMap<>(phaseNames.size());
+        Function<String, Set<String>> validActions = (phase) ->  {
+            switch (phase) {
+                case "hot":
+                    return TimeseriesLifecycleType.VALID_HOT_ACTIONS;
+                case "warm":
+                    return TimeseriesLifecycleType.VALID_WARM_ACTIONS;
+                case "cold":
+                    return TimeseriesLifecycleType.VALID_COLD_ACTIONS;
+                case "delete":
+                    return TimeseriesLifecycleType.VALID_DELETE_ACTIONS;
+                default:
+                    throw new IllegalArgumentException("invalid phase [" + phase + "]");
+            }};
+        Function<String, LifecycleAction> randomAction = (action) ->  {
+            switch (action) {
+                case AllocateAction.NAME:
+                    return AllocateActionTests.randomInstance();
+                case DeleteAction.NAME:
+                    return new DeleteAction();
+                case ForceMergeAction.NAME:
+                    return ForceMergeActionTests.randomInstance();
+                case ReadOnlyAction.NAME:
+                    return new ReadOnlyAction();
+                case RolloverAction.NAME:
+                    return RolloverActionTests.randomInstance();
+                case ShrinkAction.NAME:
+                    return ShrinkActionTests.randomInstance();
+                default:
+                    throw new IllegalArgumentException("invalid action [" + action + "]");
+            }};
+        for (String phase : phaseNames) {
+            TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
+            Map<String, LifecycleAction> actions = new HashMap<>();
+            List<String> actionNames = randomSubsetOf(validActions.apply(phase));
+            for (String action : actionNames) {
+                actions.put(action, randomAction.apply(action));
+            }
+            phases.put(phase, new Phase(phase, after, actions));
+        }
+        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases);
+    }
+
+    public static LifecyclePolicy randomTestLifecyclePolicy(@Nullable String lifecycleName) {
         int numberPhases = randomInt(5);
         Map<String, Phase> phases = new HashMap<>(numberPhases);
         for (int i = 0; i < numberPhases; i++) {
@@ -91,14 +201,14 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             name = name + randomAlphaOfLengthBetween(1, 5);
             break;
         case 1:
+            String phaseName = randomValueOtherThanMany(phases::containsKey, () -> randomFrom(TimeseriesLifecycleType.VALID_PHASES));
             phases = new LinkedHashMap<>(phases);
-            String phaseName = randomAlphaOfLengthBetween(1, 10);
             phases.put(phaseName, new Phase(phaseName, TimeValue.timeValueSeconds(randomIntBetween(1, 1000)), Collections.emptyMap()));
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new LifecyclePolicy(TestLifecycleType.INSTANCE, name, phases);
+        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phases);
     }
 
     @Override
@@ -106,28 +216,21 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         return LifecyclePolicy::new;
     }
 
-    public void testDefaultLifecycleType() {
-        LifecyclePolicy policy = new LifecyclePolicy(null, randomAlphaOfLength(10), Collections.emptyMap());
-        assertSame(TimeseriesLifecycleType.INSTANCE, policy.getType());
-    }
-
     public void testFirstAndLastSteps() {
         Client client = mock(Client.class);
-        LongSupplier nowSupplier = () -> 0L;
         lifecycleName = randomAlphaOfLengthBetween(1, 20);
         Map<String, Phase> phases = new LinkedHashMap<>();
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
-        List<Step> steps = policy.toSteps(client, nowSupplier);
+        List<Step> steps = policy.toSteps(client);
         assertThat(steps.size(), equalTo(2));
         assertThat(steps.get(0), instanceOf(InitializePolicyContextStep.class));
-        assertThat(steps.get(0).getKey(), equalTo(new StepKey("pre-phase", "pre-action", "init")));
+        assertThat(steps.get(0).getKey(), equalTo(new StepKey("new", "init", "init")));
         assertThat(steps.get(0).getNextStepKey(), equalTo(TerminalPolicyStep.KEY));
         assertSame(steps.get(1), TerminalPolicyStep.INSTANCE);
     }
 
     public void testToStepsWithOneStep() {
         Client client = mock(Client.class);
-        LongSupplier nowSupplier = () -> 0L;
         MockStep mockStep = new MockStep(
             new Step.StepKey("test", "test", "test"), TerminalPolicyStep.KEY);
 
@@ -139,8 +242,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         phases.put(firstPhase.getName(), firstPhase);
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
         StepKey firstStepKey = InitializePolicyContextStep.KEY;
-        StepKey secondStepKey = new StepKey("new", PhaseAfterStep.NAME, PhaseAfterStep.NAME);
-        List<Step> steps = policy.toSteps(client, nowSupplier);
+        StepKey secondStepKey = new StepKey("new", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME);
+        List<Step> steps = policy.toSteps(client);
         assertThat(steps.size(), equalTo(4));
         assertSame(steps.get(0).getKey(), firstStepKey);
         assertThat(steps.get(0).getNextStepKey(), equalTo(secondStepKey));
@@ -153,13 +256,12 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
 
     public void testToStepsWithTwoPhases() {
         Client client = mock(Client.class);
-        LongSupplier nowSupplier = () -> 0L;
         MockStep secondActionStep = new MockStep(new StepKey("second_phase", "test2", "test"), TerminalPolicyStep.KEY);
-        MockStep secondAfter = new MockStep(new StepKey("first_phase", PhaseAfterStep.NAME, PhaseAfterStep.NAME),
+        MockStep secondAfter = new MockStep(new StepKey("first_phase", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME),
                 secondActionStep.getKey());
         MockStep firstActionAnotherStep = new MockStep(new StepKey("first_phase", "test", "bar"), secondAfter.getKey());
         MockStep firstActionStep = new MockStep(new StepKey("first_phase", "test", "foo"), firstActionAnotherStep.getKey());
-        MockStep firstAfter = new MockStep(new StepKey("new", PhaseAfterStep.NAME, PhaseAfterStep.NAME), firstActionStep.getKey());
+        MockStep firstAfter = new MockStep(new StepKey("new", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME), firstActionStep.getKey());
         MockStep init = new MockStep(InitializePolicyContextStep.KEY, firstAfter.getKey());
 
         lifecycleName = randomAlphaOfLengthBetween(1, 20);
@@ -174,17 +276,17 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         phases.put(secondPhase.getName(), secondPhase);
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
 
-        List<Step> steps = policy.toSteps(client, nowSupplier);
+        List<Step> steps = policy.toSteps(client);
         assertThat(steps.size(), equalTo(7));
         assertThat(steps.get(0).getClass(), equalTo(InitializePolicyContextStep.class));
         assertThat(steps.get(0).getKey(), equalTo(init.getKey()));
         assertThat(steps.get(0).getNextStepKey(), equalTo(init.getNextStepKey()));
-        assertThat(steps.get(1).getClass(), equalTo(PhaseAfterStep.class));
+        assertThat(steps.get(1).getClass(), equalTo(PhaseCompleteStep.class));
         assertThat(steps.get(1).getKey(), equalTo(firstAfter.getKey()));
         assertThat(steps.get(1).getNextStepKey(), equalTo(firstAfter.getNextStepKey()));
         assertThat(steps.get(2), equalTo(firstActionStep));
         assertThat(steps.get(3), equalTo(firstActionAnotherStep));
-        assertThat(steps.get(4).getClass(), equalTo(PhaseAfterStep.class));
+        assertThat(steps.get(4).getClass(), equalTo(PhaseCompleteStep.class));
         assertThat(steps.get(4).getKey(), equalTo(secondAfter.getKey()));
         assertThat(steps.get(4).getNextStepKey(), equalTo(secondAfter.getNextStepKey()));
         assertThat(steps.get(5), equalTo(secondActionStep));
@@ -280,7 +382,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         currentStep = new StepKey("phase_1", "action_3", "step_missing");
         nextStep = policy.getNextValidStep(currentStep);
         assertNotNull(nextStep);
-        assertEquals(new StepKey("phase_1", PhaseAfterStep.NAME, PhaseAfterStep.NAME), nextStep);
+        assertEquals(new StepKey("phase_1", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME), nextStep);
 
         // current action exists but step does not and action is last in the
         // last phase
@@ -299,7 +401,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         currentStep = new StepKey("phase_1", "action_4", "step_2");
         nextStep = policy.getNextValidStep(currentStep);
         assertNotNull(nextStep);
-        assertEquals(new StepKey("phase_1", PhaseAfterStep.NAME, PhaseAfterStep.NAME), nextStep);
+        assertEquals(new StepKey("phase_1", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME), nextStep);
 
         // current action no longer exists and action was last in the last phase
         currentStep = new StepKey("phase_4", "action_4", "step_2");
@@ -311,7 +413,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         currentStep = new StepKey("phase_3", "action_2", "step_2");
         nextStep = policy.getNextValidStep(currentStep);
         assertNotNull(nextStep);
-        assertEquals(new StepKey("phase_2", PhaseAfterStep.NAME, PhaseAfterStep.NAME), nextStep);
+        assertEquals(new StepKey("phase_2", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME), nextStep);
 
         // current phase no longer exists and was last phase
         currentStep = new StepKey("phase_5", "action_2", "step_2");

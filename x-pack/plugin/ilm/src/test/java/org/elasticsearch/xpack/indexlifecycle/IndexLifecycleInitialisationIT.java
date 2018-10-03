@@ -7,10 +7,11 @@ package org.elasticsearch.xpack.indexlifecycle;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -26,18 +28,26 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
+import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleRequest;
+import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleResponse;
+import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleExplainResponse;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.MockAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
+import org.elasticsearch.xpack.core.indexlifecycle.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
+import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -52,14 +62,27 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTestsUtils.newLockableLifecyclePolicy;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.core.CombinableMatcher.both;
+import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
     private Settings settings;
     private LifecyclePolicy lifecyclePolicy;
+    private Phase mockPhase;
+    private static final ObservableAction OBSERVABLE_ACTION;
+    static {
+        List<Step> steps = new ArrayList<>();
+        Step.StepKey key = new Step.StepKey("mock", ObservableAction.NAME, ObservableClusterStateWaitStep.NAME);
+        steps.add(new ObservableClusterStateWaitStep(key, TerminalPolicyStep.KEY));
+        OBSERVABLE_ACTION = new ObservableAction(steps, true);
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -110,9 +133,10 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         List<Step> steps = new ArrayList<>();
         Step.StepKey key = new Step.StepKey("mock", ObservableAction.NAME, ObservableClusterStateWaitStep.NAME);
         steps.add(new ObservableClusterStateWaitStep(key, TerminalPolicyStep.KEY));
-        Map<String, LifecycleAction> actions = Collections.singletonMap(ObservableAction.NAME, new ObservableAction(steps, true));
-        Map<String, Phase> phases = Collections.singletonMap("mock", new Phase("mock", TimeValue.timeValueSeconds(0), actions));
-        lifecyclePolicy = new LifecyclePolicy(LockableLifecycleType.INSTANCE, "test", phases);
+        Map<String, LifecycleAction> actions = Collections.singletonMap(ObservableAction.NAME, OBSERVABLE_ACTION);
+        mockPhase = new Phase("mock", TimeValue.timeValueSeconds(0), actions);
+        Map<String, Phase> phases = Collections.singletonMap("mock", mockPhase);
+        lifecyclePolicy = newLockableLifecyclePolicy("test", phases);
     }
 
     public void testSingleNodeCluster() throws Exception {
@@ -123,8 +147,22 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         final String node1 = getLocalNodeId(server_1);
         logger.info("Creating lifecycle [test_lifecycle]");
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
+        long lowerBoundModifiedDate = Instant.now().toEpochMilli();
         PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
         assertAcked(putLifecycleResponse);
+        long upperBoundModifiedDate = Instant.now().toEpochMilli();
+
+        // assert version and modified_date
+        GetLifecycleAction.Response getLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE,
+            new GetLifecycleAction.Request()).get();
+        assertThat(getLifecycleResponse.getPolicies().size(), equalTo(1));
+        GetLifecycleAction.LifecyclePolicyResponseItem responseItem = getLifecycleResponse.getPolicies().get(0);
+        assertThat(responseItem.getLifecyclePolicy(), equalTo(lifecyclePolicy));
+        assertThat(responseItem.getVersion(), equalTo(1L));
+        long actualModifiedDate = Instant.parse(responseItem.getModifiedDate()).toEpochMilli();
+        assertThat(actualModifiedDate,
+            is(both(greaterThanOrEqualTo(lowerBoundModifiedDate)).and(lessThanOrEqualTo(upperBoundModifiedDate))));
+
         logger.info("Creating index [test]");
         CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test").settings(settings))
                 .actionGet();
@@ -135,22 +173,89 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         assertBusy(() -> {
             assertEquals(true, client().admin().indices().prepareExists("test").get().isExists());
         });
+        IndexLifecycleService indexLifecycleService = internalCluster().getInstance(IndexLifecycleService.class, server_1);
+        assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
+        assertNotNull(indexLifecycleService.getScheduledJob());
         assertBusy(() -> {
-            GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("test").get();
-            String step = settingsResponse.getSetting("test", "index.lifecycle.step");
-            assertThat(step, equalTo(TerminalPolicyStep.KEY.getName()));
+            LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(client().admin().cluster()
+                .prepareState().execute().actionGet().getState().getMetaData().index("test"));
+            assertThat(lifecycleState.getStep(), equalTo(TerminalPolicyStep.KEY.getName()));
         });
+    }
+
+    public void testExplainExecution() throws Exception {
+        // start node
+        logger.info("Starting server1");
+        final String server_1 = internalCluster().startNode();
+        logger.info("Creating lifecycle [test_lifecycle]");
+        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
+        PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
+        assertAcked(putLifecycleResponse);
+
+        GetLifecycleAction.Response getLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE,
+            new GetLifecycleAction.Request()).get();
+        assertThat(getLifecycleResponse.getPolicies().size(), equalTo(1));
+        GetLifecycleAction.LifecyclePolicyResponseItem responseItem = getLifecycleResponse.getPolicies().get(0);
+        assertThat(responseItem.getLifecyclePolicy(), equalTo(lifecyclePolicy));
+        assertThat(responseItem.getVersion(), equalTo(1L));
+        long actualModifiedDate = Instant.parse(responseItem.getModifiedDate()).toEpochMilli();
+
+        logger.info("Creating index [test]");
+        CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test").settings(settings))
+            .actionGet();
+        assertAcked(createIndexResponse);
+
+        {
+            PhaseExecutionInfo expectedExecutionInfo = new PhaseExecutionInfo(lifecyclePolicy.getName(), mockPhase, 1L, actualModifiedDate);
+            assertBusy(() -> {
+                ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest();
+                ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
+                assertThat(explainResponse.getIndexResponses().size(), equalTo(1));
+                IndexLifecycleExplainResponse indexResponse = explainResponse.getIndexResponses().get("test");
+                assertThat(indexResponse.getStep(), equalTo("observable_cluster_state_action"));
+                assertThat(indexResponse.getPhaseExecutionInfo(), equalTo(expectedExecutionInfo));
+            });
+        }
+
+        // complete the step
+        client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Collections.singletonMap("index.lifecycle.test.complete", true)).get();
+
+        {
+            PhaseExecutionInfo expectedExecutionInfo = new PhaseExecutionInfo(lifecyclePolicy.getName(), null, 1L, actualModifiedDate);
+            assertBusy(() -> {
+                ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest();
+                ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
+                assertThat(explainResponse.getIndexResponses().size(), equalTo(1));
+                IndexLifecycleExplainResponse indexResponse = explainResponse.getIndexResponses().get("test");
+                assertThat(indexResponse.getPhase(), equalTo(TerminalPolicyStep.COMPLETED_PHASE));
+                assertThat(indexResponse.getStep(), equalTo(TerminalPolicyStep.KEY.getName()));
+                assertThat(indexResponse.getPhaseExecutionInfo(), equalTo(expectedExecutionInfo));
+            });
+        }
     }
 
     public void testMasterDedicatedDataDedicated() throws Exception {
         settings = Settings.builder().put(settings).put("index.lifecycle.test.complete", true).build();
         // start master node
-        logger.info("Starting sever1");
-        internalCluster().startMasterOnlyNode();
+        logger.info("Starting master-only server1");
+        final String server_1 = internalCluster().startMasterOnlyNode();
         // start data node
-        logger.info("Starting sever1");
+        logger.info("Starting data-only server2");
         final String server_2 = internalCluster().startDataOnlyNode();
         final String node2 = getLocalNodeId(server_2);
+
+        // check that the scheduler was started on the appropriate node
+        {
+            IndexLifecycleService indexLifecycleService = internalCluster().getInstance(IndexLifecycleService.class, server_1);
+            assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
+            assertNotNull(indexLifecycleService.getScheduledJob());
+        }
+        {
+            IndexLifecycleService indexLifecycleService = internalCluster().getInstance(IndexLifecycleService.class, server_2);
+            assertNull(indexLifecycleService.getScheduler());
+            assertNull(indexLifecycleService.getScheduledJob());
+        }
 
         logger.info("Creating lifecycle [test_lifecycle]");
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
@@ -169,9 +274,9 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
             assertEquals(true, client().admin().indices().prepareExists("test").get().isExists());
         });
         assertBusy(() -> {
-            GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("test").get();
-            String step = settingsResponse.getSetting("test", "index.lifecycle.step");
-            assertThat(step, equalTo(TerminalPolicyStep.KEY.getName()));
+            LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(client().admin().cluster()
+                .prepareState().execute().actionGet().getState().getMetaData().index("test"));
+            assertThat(lifecycleState.getStep(), equalTo(TerminalPolicyStep.KEY.getName()));
         });
     }
 
@@ -209,10 +314,20 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
 
         // check step in progress in lifecycle
         assertBusy(() -> {
-            GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("test").get();
-            String step = settingsResponse.getSetting("test", "index.lifecycle.step");
-            assertThat(step, equalTo(ObservableClusterStateWaitStep.NAME));
+            LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(client().admin().cluster()
+                .prepareState().execute().actionGet().getState().getMetaData().index("test"));
+            assertThat(lifecycleState.getStep(), equalTo(ObservableClusterStateWaitStep.NAME));
         });
+
+        if (randomBoolean()) {
+            // this checks that the phase execution is picked up from the phase definition settings
+            logger.info("updating lifecycle [test_lifecycle] to be empty");
+            PutLifecycleAction.Request updateLifecycleRequest = new PutLifecycleAction.Request
+                (newLockableLifecyclePolicy(lifecyclePolicy.getName(), Collections.emptyMap()));
+            PutLifecycleAction.Response updateLifecycleResponse = client()
+                .execute(PutLifecycleAction.INSTANCE, updateLifecycleRequest).get();
+            assertAcked(updateLifecycleResponse);
+        }
 
 
         logger.info("Closing server1");
@@ -221,20 +336,46 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
 
         // check that index lifecycle picked back up where it
         assertBusy(() -> {
-            GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("test").get();
-            String step = settingsResponse.getSetting("test", "index.lifecycle.step");
-            assertThat(step, equalTo(ObservableClusterStateWaitStep.NAME));
+            LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(client().admin().cluster()
+                .prepareState().execute().actionGet().getState().getMetaData().index("test"));
+            assertThat(lifecycleState.getStep(), equalTo(ObservableClusterStateWaitStep.NAME));
         });
 
+        logger.info("new master is operation");
         // complete the step
-        client().admin().indices().prepareUpdateSettings("test")
+        AcknowledgedResponse repsonse = client().admin().indices().prepareUpdateSettings("test")
             .setSettings(Collections.singletonMap("index.lifecycle.test.complete", true)).get();
 
         assertBusy(() -> {
-            GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("test").get();
-            String step = settingsResponse.getSetting("test", "index.lifecycle.step");
-            assertThat(step, equalTo(TerminalPolicyStep.KEY.getName()));
+            LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(client().admin().cluster()
+                .prepareState().execute().actionGet().getState().getMetaData().index("test"));
+            assertThat(lifecycleState.getStep(), equalTo(TerminalPolicyStep.KEY.getName()));
         });
+    }
+
+    public void testPollIntervalUpdate() throws Exception {
+        TimeValue pollInterval = TimeValue.timeValueSeconds(randomLongBetween(1, 5));
+        final String server_1 = internalCluster().startMasterOnlyNode(
+            Settings.builder().put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, pollInterval.getStringRep()).build());
+        IndexLifecycleService indexLifecycleService = internalCluster().getInstance(IndexLifecycleService.class, server_1);
+        assertBusy(() -> {
+            assertNotNull(indexLifecycleService.getScheduler());
+            assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
+        });
+        {
+            TimeValueSchedule schedule = (TimeValueSchedule) indexLifecycleService.getScheduledJob().getSchedule();
+            assertThat(schedule.getInterval(), equalTo(pollInterval));
+        }
+
+        // update the poll interval
+        TimeValue newPollInterval = TimeValue.timeValueHours(randomLongBetween(6, 1000));
+        Settings newIntervalSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL,
+            newPollInterval.getStringRep()).build();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(newIntervalSettings));
+        {
+            TimeValueSchedule schedule = (TimeValueSchedule) indexLifecycleService.getScheduledJob().getSchedule();
+            assertThat(schedule.getInterval(), equalTo(newPollInterval));
+        }
     }
 
     private String getLocalNodeId(String name) {
@@ -253,6 +394,18 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
                 Setting.Property.Dynamic, Setting.Property.IndexScope);
             return Collections.singletonList(COMPLETE_SETTING);
         }
+
+        @Override
+        public List<NamedXContentRegistry.Entry> getNamedXContent() {
+            return Arrays.asList(
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ObservableAction.NAME), (p) -> {
+                    MockAction.parse(p);
+                    return OBSERVABLE_ACTION;
+                })
+            );
+        }
+
+        @Override
         public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
             return Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleType.class, LockableLifecycleType.TYPE,
                     (in) -> LockableLifecycleType.INSTANCE),

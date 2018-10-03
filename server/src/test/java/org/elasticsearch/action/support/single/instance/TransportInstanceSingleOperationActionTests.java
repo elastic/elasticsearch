@@ -23,7 +23,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
@@ -144,16 +143,15 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
-        transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet()
-        );
+        transportService = transport.createCapturingTransportService(clusterService.getSettings(), THREAD_POOL,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
         action = new TestTransportInstanceSingleOperationAction(
                 Settings.EMPTY,
                 "indices:admin/test",
                 transportService,
-                new ActionFilters(new HashSet<ActionFilter>()),
+                new ActionFilters(new HashSet<>()),
                 new MyResolver(),
                 Request::new
         );

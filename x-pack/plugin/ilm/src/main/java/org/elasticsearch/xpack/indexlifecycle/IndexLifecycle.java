@@ -10,8 +10,10 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
@@ -32,8 +34,17 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
+import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
+import org.elasticsearch.xpack.core.indexlifecycle.ForceMergeAction;
+import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
+import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
+import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
+import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
@@ -79,7 +90,6 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 
 public class IndexLifecycle extends Plugin implements ActionPlugin {
-    public static final String NAME = "index_lifecycle";
     private final SetOnce<IndexLifecycleService> indexLifecycleInitialisationService = new SetOnce<>();
     private Settings settings;
     private boolean enabled;
@@ -113,15 +123,6 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         return Arrays.asList(
             LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING,
             LifecycleSettings.LIFECYCLE_NAME_SETTING,
-            LifecycleSettings.LIFECYCLE_PHASE_SETTING,
-            LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE_SETTING,
-            LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING,
-            LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING,
-            LifecycleSettings.LIFECYCLE_ACTION_SETTING,
-            LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING,
-            LifecycleSettings.LIFECYCLE_STEP_SETTING,
-            LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING,
-            LifecycleSettings.LIFECYCLE_FAILED_STEP_SETTING,
             LifecycleSettings.LIFECYCLE_SKIP_SETTING,
             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING);
     }
@@ -135,7 +136,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             return emptyList();
         }
         indexLifecycleInitialisationService
-            .set(new IndexLifecycleService(settings, client, clusterService, getClock(), System::currentTimeMillis));
+            .set(new IndexLifecycleService(settings, client, clusterService, getClock(), System::currentTimeMillis, xContentRegistry));
         return Collections.singletonList(indexLifecycleInitialisationService.get());
     }
 
@@ -146,7 +147,21 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
 
     @Override
     public List<org.elasticsearch.common.xcontent.NamedXContentRegistry.Entry> getNamedXContent() {
-        return Arrays.asList();
+        return Arrays.asList(
+            // Custom Metadata
+            new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(IndexLifecycleMetadata.TYPE),
+                parser -> IndexLifecycleMetadata.PARSER.parse(parser, null)),
+            // Lifecycle Types
+            new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TimeseriesLifecycleType.TYPE),
+                (p, c) -> TimeseriesLifecycleType.INSTANCE),
+            // Lifecycle Actions
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse)
+        );
     }
 
     @Override

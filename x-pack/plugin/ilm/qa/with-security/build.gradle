@@ -13,7 +13,7 @@ task copyILMRestTests(type: Copy) {
   include 'rest-api-spec/test/ilm/**'
 }
 
-def clusterCredentials = [username: System.getProperty('tests.rest.cluster.username', 'test_user'),
+def clusterCredentials = [username: System.getProperty('tests.rest.cluster.username', 'test_admin'),
                           password: System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')]
 
 integTestRunner {
@@ -29,6 +29,11 @@ integTestCluster {
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
+  extraConfigFile 'roles.yml', 'roles.yml'
+  setupCommand 'setupIlmUser',
+          'bin/elasticsearch-users',
+          'useradd', "test_ilm",
+          '-p', 'x-pack-test-password', '-r', "ilm"
   setupCommand 'setupDummyUser',
                'bin/elasticsearch-users',
                'useradd', clusterCredentials.username,

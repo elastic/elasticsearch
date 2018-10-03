@@ -9,11 +9,15 @@ package org.elasticsearch.xpack.indexlifecycle;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
@@ -27,10 +31,10 @@ import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
-import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -41,6 +45,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
 
 public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     private String index;
@@ -76,8 +81,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createNewSingletonPolicy(randomFrom("warm", "cold"), allocateAction);
         updatePolicy(index, policy);
         assertBusy(() -> {
-            Map<String, Object> settings = getOnlyIndexSettings(index);
-            assertThat(getStepKey(settings), equalTo(TerminalPolicyStep.KEY));
+            assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
         });
         ensureGreen(index);
     }
@@ -93,7 +97,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         updatePolicy(index, policy);
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(index);
-            assertThat(getStepKey(settings), equalTo(TerminalPolicyStep.KEY));
+            assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
             assertThat(settings.get(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()), equalTo(String.valueOf(finalNumReplicas)));
         });
     }
@@ -106,6 +110,19 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertFalse(indexExists(index)));
     }
 
+    public void testDeleteOnlyShouldNotMakeIndexReadonly() throws Exception {
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        createNewSingletonPolicy("delete", new DeleteAction(), TimeValue.timeValueHours(1));
+        updatePolicy(index, policy);
+        assertBusy(() -> {
+            assertThat(getStepKeyForIndex(index).getAction(), equalTo("complete"));
+            Map<String, Object> settings = getOnlyIndexSettings(index);
+            assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), not("true"));
+        });
+        indexDocument();
+    }
+
     public void testReadOnly() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
@@ -113,7 +130,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         updatePolicy(index, policy);
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(index);
-            assertThat(getStepKey(settings), equalTo(TerminalPolicyStep.KEY));
+            assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
             assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
         });
     }
@@ -147,9 +164,12 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         updatePolicy(index, policy);
 
         assertBusy(() -> {
-            assertThat(getStepKey(getOnlyIndexSettings(index)), equalTo(TerminalPolicyStep.KEY));
+            assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
+            Map<String, Object> settings = getOnlyIndexSettings(index);
             assertThat(numSegments.get(), equalTo(1));
+            assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
         });
+        expectThrows(ResponseException.class, this::indexDocument);
     }
 
     public void testShrinkAction() throws Exception {
@@ -165,15 +185,20 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertTrue(indexExists(shrunkenIndex));
             assertTrue(aliasExists(shrunkenIndex, index));
             Map<String, Object> settings = getOnlyIndexSettings(shrunkenIndex);
-            assertThat(getStepKey(settings), equalTo(TerminalPolicyStep.KEY));
+            assertThat(getStepKeyForIndex(shrunkenIndex), equalTo(TerminalPolicyStep.KEY));
             assertThat(settings.get(IndexMetaData.SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
+            assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
         });
+        expectThrows(ResponseException.class, this::indexDocument);
     }
 
     private void createNewSingletonPolicy(String phaseName, LifecycleAction action) throws IOException {
-        Phase phase = new Phase(phaseName, TimeValue.ZERO, singletonMap(action.getWriteableName(), action));
-        LifecyclePolicy lifecyclePolicy =
-            new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, policy, singletonMap(phase.getName(), phase));
+        createNewSingletonPolicy(phaseName, action, TimeValue.ZERO);
+    }
+
+    private void createNewSingletonPolicy(String phaseName, LifecycleAction action, TimeValue after) throws IOException {
+        Phase phase = new Phase(phaseName, after, singletonMap(action.getWriteableName(), action));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, singletonMap(phase.getName(), phase));
         XContentBuilder builder = jsonBuilder();
         lifecyclePolicy.toXContent(builder, null);
         final StringEntity entity = new StringEntity(
@@ -200,10 +225,29 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         return (Map<String, Object>) response.get("settings");
     }
 
-    private StepKey getStepKey(Map<String, Object> settings) {
-        String phase = (String) settings.get(LifecycleSettings.LIFECYCLE_PHASE);
-        String action = (String) settings.get(LifecycleSettings.LIFECYCLE_ACTION);
-        String step = (String) settings.get(LifecycleSettings.LIFECYCLE_STEP);
+    private StepKey getStepKeyForIndex(String indexName) throws IOException {
+        Request explainRequest = new Request("GET", indexName + "/_ilm/explain");
+        Response response = client().performRequest(explainRequest);
+        Map<String, Object> responseMap;
+        try (InputStream is = response.getEntity().getContent()) {
+            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+        }
+
+        @SuppressWarnings("unchecked") Map<String, String> indexResponse = ((Map<String, Map<String, String>>) responseMap.get("indices"))
+            .get(indexName);
+        if (indexResponse == null) {
+            return new StepKey(null, null, null);
+        }
+        String phase = indexResponse.get("phase");
+        String action = indexResponse.get("action");
+        String step = indexResponse.get("step");
         return new StepKey(phase, action, step);
+    }
+
+    private void indexDocument() throws IOException {
+        Request indexRequest = new Request("POST", index + "/_doc");
+        indexRequest.setEntity(new StringEntity("{\"a\": \"test\"}", ContentType.APPLICATION_JSON));
+        Response response = client().performRequest(indexRequest);
+        logger.info(response.getStatusLine());
     }
 }

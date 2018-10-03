@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.notification.pagerduty;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -29,15 +28,13 @@ public class PagerDutyAccount {
     private final String serviceKey;
     private final HttpClient httpClient;
     private final IncidentEventDefaults eventDefaults;
-    private final Logger logger;
 
-    PagerDutyAccount(String name, Settings accountSettings, Settings serviceSettings, HttpClient httpClient, Logger logger) {
+    PagerDutyAccount(String name, Settings accountSettings, Settings serviceSettings, HttpClient httpClient) {
         this.name = name;
         this.serviceKey = getServiceKey(name, accountSettings, serviceSettings);
         this.httpClient = httpClient;
 
         this.eventDefaults = new IncidentEventDefaults(accountSettings.getAsSettings(TRIGGER_DEFAULTS_SETTING));
-        this.logger = logger;
     }
 
     public String getName() {
@@ -48,8 +45,8 @@ public class PagerDutyAccount {
         return eventDefaults;
     }
 
-    public SentEvent send(IncidentEvent event, Payload payload) throws IOException {
-        HttpRequest request = event.createRequest(serviceKey, payload);
+    public SentEvent send(IncidentEvent event, Payload payload, String watchId) throws IOException {
+        HttpRequest request = event.createRequest(serviceKey, payload, watchId);
         HttpResponse response = httpClient.execute(request);
         return SentEvent.responded(event, request, response);
     }

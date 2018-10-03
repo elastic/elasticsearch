@@ -21,12 +21,18 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
-import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleResponse;
-import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
-import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyResponse;
-import org.elasticsearch.protocol.xpack.indexlifecycle.StartILMRequest;
-import org.elasticsearch.protocol.xpack.indexlifecycle.StopILMRequest;
+import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyResponse;
+import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
+import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusResponse;
+import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
+import org.elasticsearch.client.indexlifecycle.ExplainLifecycleResponse;
+import org.elasticsearch.client.indexlifecycle.SetIndexLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.SetIndexLifecyclePolicyResponse;
+import org.elasticsearch.client.indexlifecycle.StartILMRequest;
+import org.elasticsearch.client.indexlifecycle.StopILMRequest;
 
 import java.io.IOException;
 
@@ -37,6 +43,93 @@ public class IndexLifecycleClient {
 
     IndexLifecycleClient(RestHighLevelClient restHighLevelClient) {
         this.restHighLevelClient = restHighLevelClient;
+    }
+
+    /**
+     * Retrieve one or more lifecycle policy definition
+     * See <a href="https://fix-me-when-we-have-docs.com">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetLifecyclePolicyResponse getLifecyclePolicy(GetLifecyclePolicyRequest request,
+                                                         RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::getLifecyclePolicy, options,
+            GetLifecyclePolicyResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously retrieve one or more lifecycle policy definition
+     * See <a href="https://fix-me-when-we-have-docs.com">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getLifecyclePolicyAsync(GetLifecyclePolicyRequest request, RequestOptions options,
+                                        ActionListener<GetLifecyclePolicyResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::getLifecyclePolicy, options,
+            GetLifecyclePolicyResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Create or modify a lifecycle definition
+     * See <a href="https://fix-me-when-we-have-docs.com">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse putLifecyclePolicy(PutLifecyclePolicyRequest request,
+                                                   RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::putLifecyclePolicy, options,
+            AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously create or modify a lifecycle definition
+     * See <a href="https://fix-me-when-we-have-docs.com">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void putLifecyclePolicyAsync(PutLifecyclePolicyRequest request, RequestOptions options,
+                                        ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::putLifecyclePolicy, options,
+            AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Delete a lifecycle definition
+     * See <a href="https://fix-me-when-we-have-docs.com">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse deleteLifecyclePolicy(DeleteLifecyclePolicyRequest request,
+                                                      RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::deleteLifecyclePolicy, options,
+            AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously delete a lifecycle definition
+     * See <a href="https://fix-me-when-we-have-docs.com">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void deleteLifecyclePolicyAsync(DeleteLifecyclePolicyRequest request, RequestOptions options,
+                                           ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::deleteLifecyclePolicy, options,
+            AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -107,6 +200,35 @@ public class IndexLifecycleClient {
     public AcknowledgedResponse stopILM(StopILMRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::stopILM, options,
                 AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Get the status of index lifecycle management
+     * See <a href="https://fix-me-when-we-have-docs.com">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public LifecycleManagementStatusResponse lifecycleManagementStatus(LifecycleManagementStatusRequest request, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::lifecycleManagementStatus, options,
+            LifecycleManagementStatusResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously get the status of index lifecycle management
+     * See <a href="https://fix-me-when-we-have-docs.com">
+     * the docs</a> for more.
+     *
+     * @param request  the request
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void lifecycleManagementStatusAsync(LifecycleManagementStatusRequest request, RequestOptions options,
+                                               ActionListener<LifecycleManagementStatusResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::lifecycleManagementStatus, options,
+            LifecycleManagementStatusResponse::fromXContent, listener, emptySet());
     }
 
     /**

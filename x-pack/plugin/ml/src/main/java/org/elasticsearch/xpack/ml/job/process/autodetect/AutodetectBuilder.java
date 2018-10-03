@@ -61,7 +61,6 @@ public class AutodetectBuilder {
     public static final String LENGTH_ENCODED_INPUT_ARG = "--lengthEncodedInput";
     public static final String MODEL_CONFIG_ARG = "--modelconfig=";
     public static final String QUANTILES_STATE_PATH_ARG = "--quantilesState=";
-    public static final String PER_PARTITION_NORMALIZATION = "--perPartitionNormalization";
 
     private static final String CONF_EXTENSION = ".conf";
     static final String JOB_ID_ARG = "--jobid=";
@@ -84,8 +83,16 @@ public class AutodetectBuilder {
     /**
      * The maximum number of anomaly records that will be written each bucket
      */
+    @Deprecated
     public static final Setting<Integer> MAX_ANOMALY_RECORDS_SETTING = Setting.intSetting("max.anomaly.records", DEFAULT_MAX_NUM_RECORDS,
-            Setting.Property.NodeScope);
+            Setting.Property.NodeScope, Setting.Property.Deprecated);
+    // Though this setting is dynamic, it is only set when a new job is opened. So, already runnin jobs will not get the updated value.
+    public static final Setting<Integer> MAX_ANOMALY_RECORDS_SETTING_DYNAMIC = Setting.intSetting(
+        "xpack.ml.max_anomaly_records",
+        MAX_ANOMALY_RECORDS_SETTING,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic);
 
     /**
      * Config setting storing the flag that disables model persistence
@@ -207,10 +214,6 @@ public class AutodetectBuilder {
             if (Boolean.TRUE.equals(analysisConfig.getMultivariateByFields())) {
                 command.add(MULTIVARIATE_BY_FIELDS_ARG);
             }
-
-            if (analysisConfig.getUsePerPartitionNormalization()) {
-                command.add(PER_PARTITION_NORMALIZATION);
-            }
         }
 
         // Input is always length encoded
@@ -249,9 +252,8 @@ public class AutodetectBuilder {
         return command;
     }
 
-
     static String maxAnomalyRecordsArg(Settings settings) {
-        return "--maxAnomalyRecords=" + MAX_ANOMALY_RECORDS_SETTING.get(settings);
+        return "--maxAnomalyRecords=" + MAX_ANOMALY_RECORDS_SETTING_DYNAMIC.get(settings);
     }
 
     private static String getTimeFieldOrDefault(Job job) {

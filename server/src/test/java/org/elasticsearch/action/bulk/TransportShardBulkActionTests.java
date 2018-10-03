@@ -472,6 +472,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(primaryResponse.getResponse(), equalTo(noopUpdateResponse));
         assertThat(primaryResponse.getResponse().getResult(),
             equalTo(DocWriteResponse.Result.NOOP));
+        assertThat(bulkShardRequest.items().length, equalTo(1));
+        assertEquals(primaryRequest, bulkShardRequest.items()[0]); // check that bulk item was not mutated
         assertThat(primaryResponse.getResponse().getSeqNo(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
     }
 

@@ -29,6 +29,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -107,6 +108,38 @@ public class MetaDataTests extends ESTestCase {
             ImmutableOpenMap<String, List<AliasMetaData>> aliases = metaData.findAllAliases(Strings.EMPTY_ARRAY);
             assertThat(aliases.size(), equalTo(0));
         }
+    }
+
+    public void testFindAliasWithExclusion() {
+        MetaData metaData = MetaData.builder().put(
+            IndexMetaData.builder("index")
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putAlias(AliasMetaData.builder("alias1").build())
+                .putAlias(AliasMetaData.builder("alias2").build())
+        ).build();
+        List<AliasMetaData> aliases =
+            metaData.findAliases(new GetAliasesRequest().aliases("*", "-alias1"), new String[] {"index"}).get("index");
+        assertThat(aliases.size(), equalTo(1));
+        assertThat(aliases.get(0).alias(), equalTo("alias2"));
+    }
+
+    public void testFindAliasWithExclusionAndOverride() {
+        MetaData metaData = MetaData.builder().put(
+            IndexMetaData.builder("index")
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putAlias(AliasMetaData.builder("aa").build())
+                .putAlias(AliasMetaData.builder("ab").build())
+                .putAlias(AliasMetaData.builder("bb").build())
+        ).build();
+        List<AliasMetaData> aliases =
+            metaData.findAliases(new GetAliasesRequest().aliases("a*", "-*b", "b*"), new String[] {"index"}).get("index");
+        assertThat(aliases.size(), equalTo(2));
+        assertThat(aliases.get(0).alias(), equalTo("aa"));
+        assertThat(aliases.get(1).alias(), equalTo("bb"));
     }
 
     public void testIndexAndAliasWithSameName() {
@@ -762,4 +795,12 @@ public class MetaDataTests extends ESTestCase {
             "    }\n" +
             "  }\n" +
             "}";
+
+    public void testTransientSettingsOverridePersistentSettings() {
+        final Setting setting = Setting.simpleString("key");
+        final MetaData metaData = MetaData.builder()
+            .persistentSettings(Settings.builder().put(setting.getKey(), "persistent-value").build())
+            .transientSettings(Settings.builder().put(setting.getKey(), "transient-value").build()).build();
+        assertThat(setting.get(metaData.settings()), equalTo("transient-value"));
+    }
 }

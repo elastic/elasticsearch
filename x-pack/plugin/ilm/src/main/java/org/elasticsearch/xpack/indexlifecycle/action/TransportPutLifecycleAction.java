@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.indexlifecycle.action;
 
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -19,7 +18,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.protocol.xpack.indexlifecycle.OperationMode;
+import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -28,8 +27,8 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction.Request;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction.Response;
-import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunner;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -59,7 +58,14 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
     }
 
     @Override
-    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
+        // headers from the thread context stored by the AuthenticationService to be shared between the
+        // REST layer and the Transport layer here must be accessed within this thread and not in the
+        // cluster state thread in the ClusterStateUpdateTask below since that thread does not share the
+        // same context, and therefore does not have access to the appropriate security headers.
+        Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
+            .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         clusterService.submitStateUpdateTask("put-lifecycle-" + request.getPolicy().getName(),
                 new AckedClusterStateUpdateTask<Response>(request, listener) {
                     @Override
@@ -74,18 +80,12 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                         if (currentMetadata == null) { // first time using index-lifecycle feature, bootstrap metadata
                             currentMetadata = IndexLifecycleMetadata.EMPTY;
                         }
-                        if (currentMetadata.getPolicyMetadatas().containsKey(request.getPolicy().getName()) && IndexLifecycleRunner
-                                .canUpdatePolicy(request.getPolicy().getName(), request.getPolicy(), currentState) == false) {
-                            throw new ResourceAlreadyExistsException("Lifecycle policy already exists: {}",
-                                    request.getPolicy().getName());
-                        }
-                        // NORELEASE Check if current step exists in new policy and if not move to next available step
+                        LifecyclePolicyMetadata existingPolicyMetadata = currentMetadata.getPolicyMetadatas()
+                            .get(request.getPolicy().getName());
+                        long nextVersion = (existingPolicyMetadata == null) ? 1L : existingPolicyMetadata.getVersion() + 1L;
                         SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.getPolicyMetadatas());
-
-                        Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
-                                .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                        LifecyclePolicyMetadata lifecyclePolicyMetadata = new LifecyclePolicyMetadata(request.getPolicy(), filteredHeaders);
+                        LifecyclePolicyMetadata lifecyclePolicyMetadata = new LifecyclePolicyMetadata(request.getPolicy(), filteredHeaders,
+                            nextVersion, Instant.now().toEpochMilli());
                         newPolicies.put(lifecyclePolicyMetadata.getName(), lifecyclePolicyMetadata);
                         IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, OperationMode.RUNNING);
                         newState.metaData(MetaData.builder(currentState.getMetaData())

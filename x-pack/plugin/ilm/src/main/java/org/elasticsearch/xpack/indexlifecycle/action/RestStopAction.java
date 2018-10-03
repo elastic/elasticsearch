@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.indexlifecycle.action;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.protocol.xpack.indexlifecycle.StopILMRequest;
+import org.elasticsearch.xpack.core.indexlifecycle.StopILMRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;

@@ -54,6 +54,7 @@ import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -633,6 +634,9 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
 
         final Nested nested;
         if (nestedSort != null) {
+            if (context.indexVersionCreated().before(Version.V_6_5_0) && nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
+                throw new QueryShardException(context, "max_children is only supported on v6.5.0 or higher");
+            }
             // new nested sorts takes priority
             nested = resolveNested(context, nestedSort);
         } else {

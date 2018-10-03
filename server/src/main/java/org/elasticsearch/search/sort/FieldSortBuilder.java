@@ -332,6 +332,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
             final Nested nested;
             if (nestedSort != null) {
+                if (context.indexVersionCreated().before(Version.V_6_5_0) && nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
+                    throw new QueryShardException(context, "max_children is only supported on v6.5.0 or higher");
+                }
                 // new nested sorts takes priority
                 nested = resolveNested(context, nestedSort);
             } else {

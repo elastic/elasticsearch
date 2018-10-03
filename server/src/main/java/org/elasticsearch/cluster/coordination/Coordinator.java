@@ -770,7 +770,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             this.publishListener = publishListener;
         }
 
-        private void failPublicationAndPossiblyBecomeCandidate(String reason) {
+        private void removePublicationAndPossiblyBecomeCandidate(String reason) {
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
 
             assert currentPublication.get() == this;
@@ -785,7 +785,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         @Override
         protected void onCompletion(boolean committed) {
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-            assert currentPublication.get() == this;
 
             localNodeAckEvent.addListener(new ActionListener<Void>() {
                 @Override
@@ -798,7 +797,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                             @Override
                             public void onFailure(String source, Exception e) {
                                 synchronized (mutex) {
-                                    failPublicationAndPossiblyBecomeCandidate("clusterApplier#onNewClusterState");
+                                    removePublicationAndPossiblyBecomeCandidate("clusterApplier#onNewClusterState");
                                 }
                                 ackListener.onNodeAck(getLocalNode(), e);
                                 publishListener.onFailure(e);
@@ -812,7 +811,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                     // trigger term bump if new term was found during publication
                                     updateMaxTermSeen(getCurrentTerm());
                                 }
-
                                 ackListener.onNodeAck(getLocalNode(), null);
                                 publishListener.onResponse(null);
                             }
@@ -822,7 +820,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 @Override
                 public void onFailure(Exception e) {
                     assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-                    failPublicationAndPossiblyBecomeCandidate("Publication.onCompletion(false)");
+                    removePublicationAndPossiblyBecomeCandidate("Publication.onCompletion(false)");
 
                     FailedToCommitClusterStateException exception = new FailedToCommitClusterStateException(
                         "publication failed", e);

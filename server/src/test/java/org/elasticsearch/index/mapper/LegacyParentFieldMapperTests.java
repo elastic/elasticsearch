@@ -38,7 +38,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import java.io.IOException;
 
 import static org.elasticsearch.index.mapper.ParentFieldMapperTests.getNumberOfFieldWithParentPrefix;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LegacyParentFieldMapperTests extends ESSingleNodeTestCase {

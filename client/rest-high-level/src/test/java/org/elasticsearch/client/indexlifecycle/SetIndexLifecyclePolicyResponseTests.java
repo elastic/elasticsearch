@@ -19,8 +19,9 @@
 
 package org.elasticsearch.client.indexlifecycle;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,34 +29,35 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-public class SetIndexLifecyclePolicyResponseTests extends AbstractStreamableXContentTestCase<SetIndexLifecyclePolicyResponse> {
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
-    @Override
-    protected SetIndexLifecyclePolicyResponse createBlankInstance() {
-        return new SetIndexLifecyclePolicyResponse();
-    }
+public class SetIndexLifecyclePolicyResponseTests extends ESTestCase {
 
-    @Override
-    protected SetIndexLifecyclePolicyResponse createTestInstance() {
+    private SetIndexLifecyclePolicyResponse createTestInstance() {
         List<String> failedIndexes = Arrays.asList(generateRandomStringArray(20, 20, false));
         return new SetIndexLifecyclePolicyResponse(failedIndexes);
     }
 
-    @Override
-    protected SetIndexLifecyclePolicyResponse mutateInstance(SetIndexLifecyclePolicyResponse instance) throws IOException {
+    private SetIndexLifecyclePolicyResponse mutateInstance(SetIndexLifecyclePolicyResponse instance) throws IOException {
         List<String> failedIndices = randomValueOtherThan(instance.getFailedIndexes(),
                 () -> Arrays.asList(generateRandomStringArray(20, 20, false)));
         return new SetIndexLifecyclePolicyResponse(failedIndices);
     }
 
-    @Override
-    protected SetIndexLifecyclePolicyResponse doParseInstance(XContentParser parser) throws IOException {
-        return SetIndexLifecyclePolicyResponse.PARSER.apply(parser, null);
+    private SetIndexLifecyclePolicyResponse copyInstance(final SetIndexLifecyclePolicyResponse original) {
+        List<String> failedIndexesCopy = new ArrayList<>(original.getFailedIndexes());
+        return new SetIndexLifecyclePolicyResponse(failedIndexesCopy);
     }
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    private void toXContent(SetIndexLifecyclePolicyResponse response, XContentBuilder builder) throws IOException {
+        builder.startObject();
+        builder.field(SetIndexLifecyclePolicyResponse.HAS_FAILURES_FIELD.getPreferredName(), response.hasFailures());
+        builder.field(SetIndexLifecyclePolicyResponse.FAILED_INDEXES_FIELD.getPreferredName(), response.getFailedIndexes());
+        builder.endObject();
+    }
+
+    public void testEqualsAndHashcode() {
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(), this::copyInstance, this::mutateInstance);
     }
 
     public void testNullFailedIndices() {
@@ -76,6 +78,16 @@ public class SetIndexLifecyclePolicyResponseTests extends AbstractStreamableXCon
         response = new SetIndexLifecyclePolicyResponse(failedIndexes);
         assertTrue(response.hasFailures());
         assertEquals(failedIndexes, response.getFailedIndexes());
+    }
+
+    public void testFromXContent() throws IOException {
+        xContentTester(
+            this::createParser,
+            this::createTestInstance,
+            this::toXContent,
+            SetIndexLifecyclePolicyResponse::fromXContent)
+            .supportsUnknownFields(false)
+            .test();
     }
 
 }

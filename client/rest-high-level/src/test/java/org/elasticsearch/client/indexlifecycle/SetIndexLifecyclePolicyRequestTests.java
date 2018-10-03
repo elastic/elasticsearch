@@ -20,15 +20,15 @@
 package org.elasticsearch.client.indexlifecycle;
 
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
 
-public class SetIndexLifecyclePolicyRequestTests extends AbstractStreamableTestCase<SetIndexLifecyclePolicyRequest> {
+public class SetIndexLifecyclePolicyRequestTests extends ESTestCase {
 
-    @Override
-    protected SetIndexLifecyclePolicyRequest createTestInstance() {
+    private SetIndexLifecyclePolicyRequest createTestInstance() {
         SetIndexLifecyclePolicyRequest request = new SetIndexLifecyclePolicyRequest(randomAlphaOfLength(20),
             generateRandomStringArray(20, 20, false));
         if (randomBoolean()) {
@@ -39,13 +39,7 @@ public class SetIndexLifecyclePolicyRequestTests extends AbstractStreamableTestC
         return request;
     }
 
-    @Override
-    protected SetIndexLifecyclePolicyRequest createBlankInstance() {
-        return new SetIndexLifecyclePolicyRequest();
-    }
-
-    @Override
-    protected SetIndexLifecyclePolicyRequest mutateInstance(SetIndexLifecyclePolicyRequest instance) throws IOException {
+    private SetIndexLifecyclePolicyRequest mutateInstance(SetIndexLifecyclePolicyRequest instance) throws IOException {
         String[] indices = instance.indices();
         IndicesOptions indicesOptions = instance.indicesOptions();
         String policy = instance.policy();
@@ -69,6 +63,16 @@ public class SetIndexLifecyclePolicyRequestTests extends AbstractStreamableTestC
         return newRequest;
     }
 
+    private SetIndexLifecyclePolicyRequest copyInstance(final SetIndexLifecyclePolicyRequest original) {
+        SetIndexLifecyclePolicyRequest copy = new SetIndexLifecyclePolicyRequest(original.policy(), original.indices());
+        copy.indicesOptions(original.indicesOptions());
+        return copy;
+    }
+
+    public void testEqualsAndHashcode() {
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(), this::copyInstance, this::mutateInstance);
+    }
+
     public void testNullIndices() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
                 () -> new SetIndexLifecyclePolicyRequest(randomAlphaOfLength(20), (String[]) null));
@@ -83,6 +87,6 @@ public class SetIndexLifecyclePolicyRequestTests extends AbstractStreamableTestC
 
     public void testValidate() {
         SetIndexLifecyclePolicyRequest request = createTestInstance();
-        assertNull(request.validate());
+        assertFalse(request.validate().isPresent());
     }
 }

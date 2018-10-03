@@ -24,15 +24,13 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class SetIndexLifecyclePolicyResponse extends ActionResponse implements ToXContentObject {
+public class SetIndexLifecyclePolicyResponse extends ActionResponse {
 
     public static final ParseField HAS_FAILURES_FIELD = new ParseField("has_failures");
     public static final ParseField FAILED_INDEXES_FIELD = new ParseField("failed_indexes");
@@ -63,15 +61,6 @@ public class SetIndexLifecyclePolicyResponse extends ActionResponse implements T
 
     public boolean hasFailures() {
         return failedIndexes.isEmpty() == false;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(HAS_FAILURES_FIELD.getPreferredName(), hasFailures());
-        builder.field(FAILED_INDEXES_FIELD.getPreferredName(), failedIndexes);
-        builder.endObject();
-        return builder;
     }
 
     public static SetIndexLifecyclePolicyResponse fromXContent(XContentParser parser) {

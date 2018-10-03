@@ -1515,7 +1515,7 @@ public class RequestConvertersTests extends ESTestCase {
         req.policy(policyName);
         req.indices(indices);
         Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(req, expectedParams);
+        setRandomMasterTimeout(req::setMasterTimeout, SetIndexLifecyclePolicyRequest.DEFAULT_MASTER_TIMEOUT, expectedParams);
         setRandomIndicesOptions(req::indicesOptions, req::indicesOptions, expectedParams);
 
         Request request = RequestConverters.setIndexLifecyclePolicy(req);

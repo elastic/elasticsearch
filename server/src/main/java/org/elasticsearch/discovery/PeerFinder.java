@@ -62,7 +62,7 @@ public abstract class PeerFinder extends AbstractComponent {
 
     public static final Setting<TimeValue> DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING =
         Setting.timeSetting("discovery.request_peers_timeout",
-            TimeValue.timeValueMillis(10000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+            TimeValue.timeValueMillis(3000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
 
     private final TimeValue findPeersInterval;
     private final TimeValue requestPeersTimeout;

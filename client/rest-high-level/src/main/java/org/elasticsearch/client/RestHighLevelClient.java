@@ -529,6 +529,62 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
+     * Executes a delete by query rethrottle request.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html">
+     *     Delete By Query API on elastic.co</a>
+     * @param rethrottleRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final ListTasksResponse deleteByQueryRethrottle(RethrottleRequest rethrottleRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(rethrottleRequest, RequestConverters::rethrottleDeleteByQuery, options,
+                ListTasksResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously execute an delete by query rethrottle request.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html">
+     *     Delete By Query API on elastic.co</a>
+     * @param rethrottleRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void deleteByQueryRethrottleAsync(RethrottleRequest rethrottleRequest, RequestOptions options,
+            ActionListener<ListTasksResponse> listener) {
+        performRequestAsyncAndParseEntity(rethrottleRequest, RequestConverters::rethrottleDeleteByQuery, options,
+                ListTasksResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Executes a update by query rethrottle request.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html">
+     *     Update By Query API on elastic.co</a>
+     * @param rethrottleRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final ListTasksResponse updateByQueryRethrottle(RethrottleRequest rethrottleRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(rethrottleRequest, RequestConverters::rethrottleUpdateByQuery, options,
+                ListTasksResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously execute an update by query rethrottle request.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html">
+     *     Update By Query API on elastic.co</a>
+     * @param rethrottleRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void updateByQueryRethrottleAsync(RethrottleRequest rethrottleRequest, RequestOptions options,
+            ActionListener<ListTasksResponse> listener) {
+        performRequestAsyncAndParseEntity(rethrottleRequest, RequestConverters::rethrottleUpdateByQuery, options,
+                ListTasksResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
      * Executes a reindex rethrottling request.
      * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html#docs-reindex-rethrottle">
      * Reindex rethrottling API on elastic.co</a>
@@ -539,8 +595,8 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final ListTasksResponse reindexRethrottle(RethrottleRequest rethrottleRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(rethrottleRequest, RequestConverters::rethrottle, options, ListTasksResponse::fromXContent,
-            emptySet());
+        return performRequestAndParseEntity(rethrottleRequest, RequestConverters::rethrottleReindex, options,
+                ListTasksResponse::fromXContent, emptySet());
     }
 
     /**
@@ -553,9 +609,9 @@ public class RestHighLevelClient implements Closeable {
      * @param listener          the listener to be notified upon request completion
      */
     public final void reindexRethrottleAsync(RethrottleRequest rethrottleRequest, RequestOptions options,
-                                             ActionListener<ListTasksResponse> listener) {
-        performRequestAsyncAndParseEntity(rethrottleRequest, RequestConverters::rethrottle, options, ListTasksResponse::fromXContent,
-            listener, emptySet());
+            ActionListener<ListTasksResponse> listener) {
+        performRequestAsyncAndParseEntity(rethrottleRequest, RequestConverters::rethrottleReindex, options, ListTasksResponse::fromXContent,
+                listener, emptySet());
     }
 
     /**

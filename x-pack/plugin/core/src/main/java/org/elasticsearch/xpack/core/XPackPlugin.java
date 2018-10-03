@@ -102,6 +102,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
                 public Void run() {
                     try {
                         Class.forName("com.unboundid.util.Debug");
+                        Class.forName("com.unboundid.ldap.sdk.LDAPConnectionOptions");
                     } catch (ClassNotFoundException e) {
                         throw new RuntimeException(e);
                     }

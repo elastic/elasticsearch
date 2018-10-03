@@ -131,7 +131,8 @@ public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
 
             String[] unicastHosts = new String[unicastHostOrdinals.length];
             if (nodeOrdinal >= unicastHostPorts.length) {
-                throw new ElasticsearchException("nodeOrdinal [" + nodeOrdinal + "] is greater than the number unicast ports [" + unicastHostPorts.length + "]");
+                throw new ElasticsearchException("nodeOrdinal [" + nodeOrdinal + "] is greater than the number unicast ports ["
+                        + unicastHostPorts.length + "]");
             } else {
                 // we need to pin the node port & host so we'd know where to point things
                 builder.put(TcpTransport.PORT.getKey(), unicastHostPorts[nodeOrdinal]);
@@ -174,7 +175,8 @@ public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
                 }
 
                 if (!foundPortInRange) {
-                    throw new ElasticsearchException("could not find enough open ports in range [" + basePort + "-" + maxPort + "]. required [" + unicastHostPorts.length + "] ports");
+                    throw new ElasticsearchException("could not find enough open ports in range [" + basePort + "-" + maxPort
+                            + "]. required [" + unicastHostPorts.length + "] ports");
                 }
             }
             return unicastHostPorts;

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
+import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
+
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -12,6 +14,11 @@ public class TextLogFileStructureFinderFactory implements FileStructureFinderFac
 
     // This works because, by default, dot doesn't match newlines
     private static final Pattern TWO_NON_BLANK_LINES_PATTERN = Pattern.compile(".\n+.");
+
+    @Override
+    public boolean canFindFormat(FileStructure.Format format) {
+        return format == null || format == FileStructure.Format.SEMI_STRUCTURED_TEXT;
+    }
 
     /**
      * This format matches if the sample contains at least one newline and at least two
@@ -33,7 +40,9 @@ public class TextLogFileStructureFinderFactory implements FileStructureFinderFac
     }
 
     @Override
-    public FileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker) {
-        return TextLogFileStructureFinder.makeTextLogFileStructureFinder(explanation, sample, charsetName, hasByteOrderMarker);
+    public FileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker,
+                                                FileStructureOverrides overrides, TimeoutChecker timeoutChecker) {
+        return TextLogFileStructureFinder.makeTextLogFileStructureFinder(explanation, sample, charsetName, hasByteOrderMarker,
+            overrides, timeoutChecker);
     }
 }

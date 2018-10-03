@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
 
 public class DeleteAutoFollowPatternRequestTests extends AbstractStreamableTestCase<DeleteAutoFollowPatternAction.Request> {
 

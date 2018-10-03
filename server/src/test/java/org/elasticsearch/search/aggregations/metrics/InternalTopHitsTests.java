@@ -79,7 +79,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         int requestedSize = between(1, 40);
         int actualSize = between(0, requestedSize);
 
-        float maxScore = Float.MIN_VALUE;
+        float maxScore = Float.NEGATIVE_INFINITY;
         ScoreDoc[] scoreDocs = new ScoreDoc[actualSize];
         SearchHit[] hits = new SearchHit[actualSize];
         Set<Integer> usedDocIds = new HashSet<>();
@@ -112,7 +112,8 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         } else {
             topDocs = new TopDocs(new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), scoreDocs);
         }
-        TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(topDocs, maxScore);
+        // Lucene's TopDocs initializes the maxScore to Float.NaN, if there is no maxScore
+        TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(topDocs, maxScore == Float.NEGATIVE_INFINITY ? Float.NaN : maxScore);
 
         return new InternalTopHits(name, from, requestedSize, topDocsAndMaxScore, searchHits, pipelineAggregators, metaData);
     }
@@ -177,7 +178,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
     protected void assertReduced(InternalTopHits reduced, List<InternalTopHits> inputs) {
         SearchHits actualHits = reduced.getHits();
         List<Tuple<ScoreDoc, SearchHit>> allHits = new ArrayList<>();
-        float maxScore = Float.MIN_VALUE;
+        float maxScore = Float.NEGATIVE_INFINITY;
         long totalHits = 0;
         for (int input = 0; input < inputs.size(); input++) {
             SearchHits internalHits = inputs.get(input).getHits();
@@ -199,7 +200,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             expectedHitsHits[i] = allHits.get(i).v2();
         }
         // Lucene's TopDocs initializes the maxScore to Float.NaN, if there is no maxScore
-        SearchHits expectedHits = new SearchHits(expectedHitsHits, totalHits, maxScore == Float.MIN_VALUE ? Float.NaN : maxScore);
+        SearchHits expectedHits = new SearchHits(expectedHitsHits, totalHits, maxScore == Float.NEGATIVE_INFINITY ? Float.NaN : maxScore);
         assertEqualsWithErrorMessageFromXContent(expectedHits, actualHits);
     }
 

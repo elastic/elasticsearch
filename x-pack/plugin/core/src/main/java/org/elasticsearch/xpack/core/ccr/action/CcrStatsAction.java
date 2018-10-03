@@ -19,17 +19,18 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 
-public class CcrStatsAction extends Action<CcrStatsAction.TasksResponse> {
+public class CcrStatsAction extends Action<CcrStatsAction.StatsResponses> {
 
     public static final String NAME = "cluster:monitor/ccr/stats";
 
@@ -40,41 +41,45 @@ public class CcrStatsAction extends Action<CcrStatsAction.TasksResponse> {
     }
 
     @Override
-    public TasksResponse newResponse() {
-        return new TasksResponse();
+    public StatsResponses newResponse() {
+        return new StatsResponses();
     }
 
-    public static class TasksResponse extends BaseTasksResponse implements ToXContentObject {
+    public static class StatsResponses extends BaseTasksResponse implements ToXContentObject {
 
-        private final List<TaskResponse> taskResponses;
+        private List<StatsResponse> statsResponse;
 
-        public TasksResponse() {
+        public List<StatsResponse> getStatsResponses() {
+            return statsResponse;
+        }
+
+        public StatsResponses() {
             this(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
         }
 
-        public TasksResponse(
+        public StatsResponses(
                 final List<TaskOperationFailure> taskFailures,
                 final List<? extends FailedNodeException> nodeFailures,
-                final List<TaskResponse> taskResponses) {
+                final List<StatsResponse> statsResponse) {
             super(taskFailures, nodeFailures);
-            this.taskResponses = taskResponses;
+            this.statsResponse = statsResponse;
         }
 
         @Override
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
             // sort by index name, then shard ID
-            final Map<String, Map<Integer, TaskResponse>> taskResponsesByIndex = new TreeMap<>();
-            for (final TaskResponse taskResponse : taskResponses) {
+            final Map<String, Map<Integer, StatsResponse>> taskResponsesByIndex = new TreeMap<>();
+            for (final StatsResponse statsResponse : statsResponse) {
                 taskResponsesByIndex.computeIfAbsent(
-                        taskResponse.followerShardId().getIndexName(),
-                        k -> new TreeMap<>()).put(taskResponse.followerShardId().getId(), taskResponse);
+                        statsResponse.status().followerIndex(),
+                        k -> new TreeMap<>()).put(statsResponse.status().getShardId(), statsResponse);
             }
             builder.startObject();
             {
-                for (final Map.Entry<String, Map<Integer, TaskResponse>> index : taskResponsesByIndex.entrySet()) {
+                for (final Map.Entry<String, Map<Integer, StatsResponse>> index : taskResponsesByIndex.entrySet()) {
                     builder.startArray(index.getKey());
                     {
-                        for (final Map.Entry<Integer, TaskResponse> shard : index.getValue().entrySet()) {
+                        for (final Map.Entry<Integer, StatsResponse> shard : index.getValue().entrySet()) {
                             shard.getValue().status().toXContent(builder, params);
                         }
                     }
@@ -84,9 +89,34 @@ public class CcrStatsAction extends Action<CcrStatsAction.TasksResponse> {
             builder.endObject();
             return builder;
         }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            statsResponse = in.readList(StatsResponse::new);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeList(statsResponse);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            StatsResponses that = (StatsResponses) o;
+            return Objects.equals(statsResponse, that.statsResponse);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(statsResponse);
+        }
     }
 
-    public static class TasksRequest extends BaseTasksRequest<TasksRequest> implements IndicesRequest {
+    public static class StatsRequest extends BaseTasksRequest<StatsRequest> implements IndicesRequest {
 
         private String[] indices;
 
@@ -99,15 +129,9 @@ public class CcrStatsAction extends Action<CcrStatsAction.TasksResponse> {
             this.indices = indices;
         }
 
-        private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
-
         @Override
         public IndicesOptions indicesOptions() {
-            return indicesOptions;
-        }
-
-        public void setIndicesOptions(final IndicesOptions indicesOptions) {
-            this.indicesOptions = indicesOptions;
+            return IndicesOptions.strictExpand();
         }
 
         @Override
@@ -131,49 +155,62 @@ public class CcrStatsAction extends Action<CcrStatsAction.TasksResponse> {
         @Override
         public void readFrom(final StreamInput in) throws IOException {
             super.readFrom(in);
-            indices = in.readStringArray();
-            indicesOptions = IndicesOptions.readIndicesOptions(in);
+            indices = in.readOptionalStringArray();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeStringArray(indices);
-            indicesOptions.writeIndicesOptions(out);
+            out.writeOptionalStringArray(indices);
         }
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            StatsRequest that = (StatsRequest) o;
+            return Arrays.equals(indices, that.indices);
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(indices);
+        }
     }
 
-    public static class TaskResponse implements Writeable {
-
-        private final ShardId followerShardId;
-
-        ShardId followerShardId() {
-            return followerShardId;
-        }
+    public static class StatsResponse implements Writeable {
 
         private final ShardFollowNodeTaskStatus status;
 
-        ShardFollowNodeTaskStatus status() {
+        public ShardFollowNodeTaskStatus status() {
             return status;
         }
 
-        public TaskResponse(final ShardId followerShardId, final ShardFollowNodeTaskStatus status) {
-            this.followerShardId = followerShardId;
+        public StatsResponse(final ShardFollowNodeTaskStatus status) {
             this.status = status;
         }
 
-        public TaskResponse(final StreamInput in) throws IOException {
-            this.followerShardId = ShardId.readShardId(in);
+        public StatsResponse(final StreamInput in) throws IOException {
             this.status = new ShardFollowNodeTaskStatus(in);
         }
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
-            followerShardId.writeTo(out);
             status.writeTo(out);
         }
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            StatsResponse that = (StatsResponse) o;
+            return Objects.equals(status, that.status);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(status);
+        }
     }
 
 }

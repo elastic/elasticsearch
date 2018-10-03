@@ -140,6 +140,7 @@ artifacts {
 }
 sourceSets.test.resources {
     srcDir '../core/src/test/resources'
+    srcDir '../core/src/main/config'
 }
 dependencyLicenses {
     mapping from: /java-support|opensaml-.*/, to: 'shibboleth'

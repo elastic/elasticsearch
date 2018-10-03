@@ -605,3 +605,150 @@ teardown:
   - length: { docs.0.processor_results.1: 2 }
   - match: { docs.0.processor_results.1.tag: "rename-1" }
   - match: { docs.0.processor_results.1.doc._source.new_status: 200 }
+
+---
+"Test verbose simulate with Pipeline Processor with Circular Pipelines":
+- do:
+    ingest.put_pipeline:
+      id: "outer"
+      body:  >
+        {
+          "description" : "outer pipeline",
+          "processors" : [
+            {
+              "pipeline" : {
+                "pipeline": "inner"
+              }
+            }
+          ]
+        }
+- match: { acknowledged: true }
+
+- do:
+    ingest.put_pipeline:
+      id: "inner"
+      body:  >
+        {
+          "description" : "inner pipeline",
+          "processors" : [
+            {
+              "pipeline" : {
+                "pipeline": "outer"
+              }
+            }
+          ]
+        }
+- match: { acknowledged: true }
+
+- do:
+    catch: /illegal_state_exception/
+    ingest.simulate:
+      verbose: true
+      body: >
+        {
+          "pipeline": {
+            "processors" : [
+            {
+              "pipeline" : {
+                "pipeline": "outer"
+              }
+            }
+            ]
+          }
+          ,
+          "docs": [
+          {
+            "_index": "index",
+            "_type": "type",
+            "_id": "id",
+            "_source": {
+              "field1": "123.42 400 <foo>"
+            }
+          }
+          ]
+        }
+- match: { error.root_cause.0.type: "illegal_state_exception" }
+- match: { error.root_cause.0.reason: "Cycle detected for pipeline: inner" }
+
+---
+"Test verbose simulate with Pipeline Processor with Multiple Pipelines":
+- do:
+    ingest.put_pipeline:
+      id: "pipeline1"
+      body:  >
+        {
+          "processors": [
+          {
+            "set": {
+              "field": "pipeline1",
+              "value": true
+            }
+          },
+          {
+            "pipeline": {
+              "pipeline": "pipeline2"
+            }
+          }
+          ]
+        }
+- match: { acknowledged: true }
+
+- do:
+    ingest.put_pipeline:
+      id: "pipeline2"
+      body:  >
+        {
+          "processors": [
+          {
+            "set": {
+              "field": "pipeline2",
+              "value": true
+            }
+          }
+          ]
+        }
+- match: { acknowledged: true }
+
+- do:
+    ingest.simulate:
+      verbose: true
+      body: >
+        {
+          "pipeline": {
+            "processors": [
+            {
+              "set": {
+                "field": "pipeline0",
+                "value": true
+              }
+            },
+            {
+              "pipeline": {
+                "pipeline": "pipeline1"
+              }
+            }
+            ]
+          },
+          "docs": [
+          {
+            "_index": "index",
+            "_type": "type",
+            "_id": "id",
+            "_source": {
+              "field1": "123.42 400 <foo>"
+            }
+          }
+          ]
+        }
+- length: { docs: 1 }
+- length: { docs.0.processor_results: 3 }
+- match: { docs.0.processor_results.0.doc._source.pipeline0: true }
+- is_false: docs.0.processor_results.0.doc._source.pipeline1
+- is_false: docs.0.processor_results.0.doc._source.pipeline2
+- match: { docs.0.processor_results.1.doc._source.pipeline0: true }
+- match: { docs.0.processor_results.1.doc._source.pipeline1: true }
+- is_false: docs.0.processor_results.1.doc._source.pipeline2
+- match: { docs.0.processor_results.2.doc._source.pipeline0: true }
+- match: { docs.0.processor_results.2.doc._source.pipeline1: true }
+- match: { docs.0.processor_results.2.doc._source.pipeline2: true }
+

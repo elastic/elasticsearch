@@ -18,7 +18,8 @@ public class XmlFileStructureFinderTests extends FileStructureTestCase {
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = factory.createFromSample(explanation, XML_SAMPLE, charset, hasByteOrderMarker);
+        FileStructureFinder structureFinder = factory.createFromSample(explanation, XML_SAMPLE, charset, hasByteOrderMarker,
+            FileStructureOverrides.EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER);
 
         FileStructure structure = structureFinder.getStructure();
 
@@ -32,10 +33,11 @@ public class XmlFileStructureFinderTests extends FileStructureTestCase {
         assertNull(structure.getExcludeLinesPattern());
         assertEquals("^\\s*<log4j:event", structure.getMultilineStartPattern());
         assertNull(structure.getDelimiter());
+        assertNull(structure.getQuote());
         assertNull(structure.getHasHeaderRow());
         assertNull(structure.getShouldTrimFields());
         assertNull(structure.getGrokPattern());
         assertEquals("timestamp", structure.getTimestampField());
-        assertEquals(Collections.singletonList("UNIX_MS"), structure.getTimestampFormats());
+        assertEquals(Collections.singletonList("UNIX_MS"), structure.getJodaTimestampFormats());
     }
 }

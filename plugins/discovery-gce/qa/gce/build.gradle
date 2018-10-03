@@ -71,7 +71,7 @@ integTestCluster {
         gceDiscoveryFile.setText(integTest.nodes.collect { n -> "${n.transportUri()}" }.join('\n'), 'UTF-8')
 
         File tmpFile = new File(node.cwd, 'wait.success')
-        ant.get(src: "http://${node.httpUri()}/",
+        ant.get(src: "http://${node.httpUri()}/_cluster/health",
                 dest: tmpFile.toString(),
                 ignoreerrors: true,
                 retries: 10)

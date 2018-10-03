@@ -380,20 +380,31 @@ public class CoordinatorTests extends ESTestCase {
                     } else if (rarely()) {
                         final ClusterNode clusterNode = getAnyNode();
                         final String id = clusterNode.getId();
-                        disconnectedNodes.remove(id);
-                        blackholedNodes.remove(id);
 
                         switch (randomInt(2)) {
                             case 0:
-                                logger.debug("----> [runRandomly {}] connecting {}", step, id);
+                                boolean reconnected = disconnectedNodes.remove(id) | blackholedNodes.remove(id); // NB no short-circuit
+                                if (reconnected) {
+                                    logger.debug("----> [runRandomly {}] connecting {}", step, id);
+                                }
                                 break;
                             case 1:
-                                logger.debug("----> [runRandomly {}] disconnecting {}", step, id);
-                                disconnectedNodes.add(id);
+                                boolean unBlackholed = blackholedNodes.remove(id);
+                                boolean disconnected = disconnectedNodes.add(id);
+                                if (disconnected) {
+                                    logger.debug("----> [runRandomly {}] disconnecting {}", step, id);
+                                } else {
+                                    assert unBlackholed == false;
+                                }
                                 break;
                             case 2:
-                                logger.debug("----> [runRandomly {}] blackholing {}", step, id);
-                                blackholedNodes.add(id);
+                                boolean unDisconnected = disconnectedNodes.remove(id);
+                                boolean blackholed = blackholedNodes.add(id);
+                                if (blackholed) {
+                                    logger.debug("----> [runRandomly {}] blackholing {}", step, id);
+                                } else {
+                                    assert unDisconnected == false;
+                                }
                                 break;
                         }
                     } else {

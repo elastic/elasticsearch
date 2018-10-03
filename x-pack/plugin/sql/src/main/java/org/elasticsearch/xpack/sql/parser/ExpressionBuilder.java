@@ -291,7 +291,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                 }
                 return new Neg(source(ctx.operator), value);
             default:
-                throw new ParsingException(loc, "Unknown arithemtic {}", ctx.operator.getText());
+                throw new ParsingException(loc, "Unknown arithmetic {}", ctx.operator.getText());
         }
     }
 
@@ -314,7 +314,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             case SqlBaseParser.MINUS:
                 return new Sub(loc, left, right);
             default:
-                throw new ParsingException(loc, "Unknown arithemtic {}", ctx.operator.getText());
+                throw new ParsingException(loc, "Unknown arithmetic {}", ctx.operator.getText());
         }
     }
 

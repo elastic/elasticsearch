@@ -218,11 +218,9 @@ primaryExpression
     : castExpression                                                                 #cast
     | extractExpression                                                              #extract
     | constant                                                                       #constantDefault
-    | ASTERISK                                                                       #star
     | (qualifiedName DOT)? ASTERISK                                                  #star
     | functionExpression                                                             #function
     | '(' query ')'                                                                  #subqueryExpression
-    | identifier                                                                     #columnReference
     | qualifiedName                                                                  #dereference
     | '(' expression ')'                                                             #parenthesizedExpression
     ;
@@ -309,8 +307,8 @@ unquoteIdentifier
     ;
 
 number
-    : (PLUS | MINUS)? DECIMAL_VALUE  #decimalLiteral
-    | (PLUS | MINUS)? INTEGER_VALUE  #integerLiteral
+    : DECIMAL_VALUE         #decimalLiteral
+    | INTEGER_VALUE         #integerLiteral
     ;
 
 string
@@ -456,7 +454,7 @@ DIGIT_IDENTIFIER
     ;
 
 TABLE_IDENTIFIER
-    : (LETTER | DIGIT | '_' | '@' | ASTERISK)+
+    : (LETTER | DIGIT | '_')+
     ;
 
 QUOTED_IDENTIFIER

@@ -37,7 +37,7 @@ publishing {
 }
 
 //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
-Task copyRestSpec = RestIntegTestTask.createCopyRestSpecTask(project, Providers.FALSE)
+Task copyRestSpec = RestIntegTestTask.createCopyRestSpecTask(project, false)
 test.dependsOn(copyRestSpec)
 
 dependencies {

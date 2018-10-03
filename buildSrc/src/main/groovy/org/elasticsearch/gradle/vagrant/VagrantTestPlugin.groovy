@@ -461,9 +461,9 @@ class VagrantTestPlugin implements Plugin<Project> {
              * execution.
              */
             final String vagrantDestroyProperty = project.getProperties().get('vagrant.destroy', 'true')
-            final boolean vagrantDestroy
+            boolean vagrantDestroy
             if ("true".equals(vagrantDestroyProperty)) {
-                vagrantDestroy = true;
+                vagrantDestroy = true
             } else if ("false".equals(vagrantDestroyProperty)) {
                 vagrantDestroy = false
             } else {

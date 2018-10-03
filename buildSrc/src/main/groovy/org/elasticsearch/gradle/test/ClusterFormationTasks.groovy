@@ -563,7 +563,7 @@ class ClusterFormationTasks {
     }
 
     static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, String pluginName, String prefix) {
-        final FileCollection pluginZip;
+        FileCollection pluginZip;
         if (node.nodeVersion != VersionProperties.elasticsearch) {
             pluginZip = project.configurations.getByName(pluginBwcConfigurationName(prefix, pluginName))
         } else {

@@ -57,7 +57,7 @@ subprojects {
 
   final String remote = System.getProperty("tests.bwc.remote", "elastic")
 
-  final boolean gitFetchLatest
+  boolean gitFetchLatest
   final String gitFetchLatestProperty = System.getProperty("tests.bwc.git_fetch_latest", "true")
   if ("true".equals(gitFetchLatestProperty)) {
     gitFetchLatest = true

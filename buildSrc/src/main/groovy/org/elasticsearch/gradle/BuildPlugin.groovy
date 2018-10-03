@@ -69,7 +69,7 @@ class BuildPlugin implements Plugin<Project> {
                 + 'elasticearch.standalone-rest-test, and elasticsearch.build '
                 + 'are mutually exclusive')
         }
-        final String minimumGradleVersion
+        String minimumGradleVersion = null
         InputStream is = getClass().getResourceAsStream("/minimumGradleVersion")
         try { minimumGradleVersion = IOUtils.toString(is, StandardCharsets.UTF_8.toString()) } finally { is.close() }
         if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion.trim())) {
@@ -234,7 +234,7 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     private static String findCompilerJavaHome() {
-        final String compilerJavaHome = System.getenv('JAVA_HOME')
+        String compilerJavaHome = System.getenv('JAVA_HOME')
         final String compilerJavaProperty = System.getProperty('compiler.java')
         if (compilerJavaProperty != null) {
             compilerJavaHome = findJavaHome(compilerJavaProperty)

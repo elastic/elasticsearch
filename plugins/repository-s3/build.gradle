@@ -141,8 +141,8 @@ final String minioBinDir = "${buildDir}/minio/bin"
 final String minioDataDir = "${buildDir}/minio/data"
 final String minioAddress = "127.0.0.1"
 
-final String minioDistribution
-final String minioCheckSum
+String minioDistribution
+String minioCheckSum
 if (Os.isFamily(Os.FAMILY_MAC)) {
   minioDistribution = 'darwin-amd64'
   minioCheckSum = '96b0bcb2f590e8e65fb83d5c3e221f9bd1106b49fa6f22c6b726b80b845d7c60'

@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -274,8 +276,10 @@ public class AutoDetectResultProcessor {
         ModelSnapshot modelSnapshot = result.getModelSnapshot();
         if (modelSnapshot != null) {
             // We need to refresh in order for the snapshot to be available when we try to update the job with it
-            persister.persistModelSnapshot(modelSnapshot, WriteRequest.RefreshPolicy.IMMEDIATE);
-            updateModelSnapshotIdOnJob(modelSnapshot);
+            IndexResponse indexResponse = persister.persistModelSnapshot(modelSnapshot, WriteRequest.RefreshPolicy.IMMEDIATE);
+            if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
+                updateModelSnapshotIdOnJob(modelSnapshot);
+            }
         }
         Quantiles quantiles = result.getQuantiles();
         if (quantiles != null) {

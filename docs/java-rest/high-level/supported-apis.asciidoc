@@ -21,7 +21,7 @@ Multi-document APIs::
 * <<{upid}-reindex>>
 * <<{upid}-update-by-query>>
 * <<{upid}-delete-by-query>>
-* <<{upid}-reindex-rethrottle>>
+* <<{upid}-rethrottle>>
 
 include::document/index.asciidoc[]
 include::document/get.asciidoc[]

@@ -26,6 +26,12 @@ dependencyLicenses {
   mapping from: /google-.*/, to: 'google'
 }
 
+// Awaitsfix: https://github.com/elastic/elasticsearch/issues/34272
+//check {
+  // also execute the QA tests when testing the plugin
+//  dependsOn 'qa:gce:check'
+//}
+
 test {
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name 

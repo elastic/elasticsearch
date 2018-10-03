@@ -112,6 +112,7 @@ teardown:
   - match: { indices.my_index.phase: "new" }
   - match: { indices.my_index.action: "complete" }
   - match: { indices.my_index.step: "complete" }
+  - is_true: indices.my_index.phase_time
   - is_false: indices.my_index.failed_step
   - is_false: indices.my_index.step_info
   - is_false: indices.my_index.phase_execution
@@ -134,6 +135,7 @@ teardown:
   - match: { indices.my_index.phase: "new" }
   - match: { indices.my_index.action: "complete" }
   - match: { indices.my_index.step: "complete" }
+  - is_true: indices.my_index.phase_time
   - is_false: indices.my_index.failed_step
   - is_false: indices.my_index.step_info
   - is_false: indices.my_index.phase_execution
@@ -144,6 +146,7 @@ teardown:
   - match: { indices.my_index2.phase: "new" }
   - match: { indices.my_index2.action: "complete" }
   - match: { indices.my_index2.step: "complete" }
+  - is_true: indices.my_index2.phase_time
   - is_false: indices.my_index2.failed_step
   - is_false: indices.my_index2.step_info
   - is_false: indices.my_index2.phase_execution
@@ -166,6 +169,7 @@ teardown:
   - match: { indices.my_index.phase: "new" }
   - match: { indices.my_index.action: "complete" }
   - match: { indices.my_index.step: "complete" }
+  - is_true: indices.my_index.phase_time
   - is_false: indices.my_index.failed_step
   - is_false: indices.my_index.step_info
   - is_false: indices.my_index.phase_execution
@@ -176,6 +180,7 @@ teardown:
   - match: { indices.my_index2.phase: "new" }
   - match: { indices.my_index2.action: "complete" }
   - match: { indices.my_index2.step: "complete" }
+  - is_true: indices.my_index2.phase_time
   - is_false: indices.my_index2.failed_step
   - is_false: indices.my_index2.step_info
   - is_false: indices.my_index2.phase_execution
@@ -186,6 +191,7 @@ teardown:
   - match: { indices.another_index.phase: "new" }
   - match: { indices.another_index.action: "complete" }
   - match: { indices.another_index.step: "complete" }
+  - is_true: indices.another_index.phase_time
   - is_false: indices.another_index.failed_step
   - is_false: indices.another_index.step_info
   - is_false: indices.another_index.phase_execution
@@ -219,3 +225,53 @@ teardown:
   - is_false: indices.my_index
   - is_false: indices.my_index2
   - is_false: indices.another_index
+
+---
+"Test new phase still has phase_time":
+
+  - do:
+      acknowlege: true
+      ilm.put_lifecycle:
+        policy: "mypolicy"
+        body: |
+           {
+             "policy": {
+               "phases": {
+                 "hot": {
+                   "minimum_age": "1000s",
+                   "actions": {}
+                 },
+                 "warm": {
+                   "minimum_age": "2000s",
+                   "actions": {
+                     "forcemerge": {
+                       "max_num_segments": 10000
+                     }
+                   }
+                 }
+               }
+             }
+           }
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            index.lifecycle.name: "mypolicy"
+
+  - do:
+      acknowledge: true
+      ilm.explain_lifecycle:
+        index: "foo"
+
+  - is_true: indices.foo.managed
+  - match: { indices.foo.index: "foo" }
+  - match: { indices.foo.policy: "mypolicy" }
+  - match: { indices.foo.phase: "new" }
+  - match: { indices.foo.action: "complete" }
+  - match: { indices.foo.step: "complete" }
+  - is_true: indices.foo.phase_time
+  - is_false: indices.foo.failed_step
+  - is_false: indices.foo.step_info
+  - is_false: indices.foo.phase_execution

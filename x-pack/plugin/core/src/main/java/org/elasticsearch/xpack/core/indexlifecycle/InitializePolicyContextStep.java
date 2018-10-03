@@ -41,6 +41,10 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
 
         LifecycleExecutionState.Builder newCustomData = LifecycleExecutionState.builder(lifecycleState);
         newCustomData.setIndexCreationDate(indexMetaData.getCreationDate());
+        // The "new" phase is initialized now, usually the phase time would be
+        // set on phase transition, but since there is no transition into the
+        // "new" phase, we set it when initializing the context
+        newCustomData.setPhaseTime(System.currentTimeMillis());
         newClusterStateBuilder.metaData(MetaData.builder(clusterState.getMetaData()).put(IndexMetaData
             .builder(indexMetaData)
             .putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap())));

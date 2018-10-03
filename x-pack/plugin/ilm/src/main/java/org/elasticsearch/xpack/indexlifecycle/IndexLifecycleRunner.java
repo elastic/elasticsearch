@@ -82,100 +82,146 @@ public class IndexLifecycleRunner {
         return now >= lifecycleDate + after.getMillis();
     }
 
-    public void runPolicy(String policy, IndexMetaData indexMetaData, ClusterState currentState,
-                          boolean fromClusterStateChange) {
+    /**
+     * Run the current step, only if it is an asynchronous wait step. These
+     * wait criteria are checked periodically from the ILM scheduler
+     */
+    public void runPeriodicStep(String policy, IndexMetaData indexMetaData) {
         Settings indexSettings = indexMetaData.getSettings();
+        String index = indexMetaData.getIndex().getName();
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
         if (LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(indexSettings)) {
-            logger.info("skipping policy [" + policy + "] for index [" + indexMetaData.getIndex().getName() + "]."
-                + LifecycleSettings.LIFECYCLE_SKIP + "== true");
+            logger.info("skipping policy [{}] for index [{}]: {} == true", policy, index, LifecycleSettings.LIFECYCLE_SKIP);
             return;
         }
         Step currentStep = getCurrentStep(stepRegistry, policy, indexMetaData, lifecycleState);
         if (currentStep == null) {
-            // This may happen in the case that there is invalid ilm-step index settings or the stepRegistry is out of
-            // sync with the current cluster state
-            logger.warn("current step [" + getCurrentStepKey(lifecycleState) + "] for index [" + indexMetaData.getIndex().getName()
-                + "] with policy [" + policy + "] is not recognized");
+            logger.warn("current step [{}] for index [{}] with policy [{}] is not recognized",
+                getCurrentStepKey(lifecycleState), index, policy);
             return;
         }
-        logger.debug("running policy with current-step [" + currentStep.getKey() + "]");
+
         if (currentStep instanceof TerminalPolicyStep) {
-            logger.debug("policy [" + policy + "] for index [" + indexMetaData.getIndex().getName() + "] complete, skipping execution");
+            logger.debug("policy [{}] for index [{}] complete, skipping execution", policy, index);
             return;
         } else if (currentStep instanceof ErrorStep) {
-            logger.debug(
-                "policy [" + policy + "] for index [" + indexMetaData.getIndex().getName() + "] on an error step, skipping execution");
+            logger.debug("policy [{}] for index [{}] on an error step, skipping execution", policy, index);
             return;
-        } else if (currentStep instanceof PhaseCompleteStep) {
+        }
+
+        // Only phase changing and async wait steps should be run through periodic polling
+        if (currentStep instanceof PhaseCompleteStep) {
             // Only proceed to the next step if enough time has elapsed to go into the next phase
             if (isReadyToTransitionToThisPhase(policy, indexMetaData, currentStep.getNextStepKey().getPhase())) {
                 moveToStep(indexMetaData.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
             }
-            return;
-        }
-
-        if (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
-            executeClusterStateSteps(indexMetaData.getIndex(), policy, currentStep);
         } else if (currentStep instanceof AsyncWaitStep) {
-            if (fromClusterStateChange == false) {
-                ((AsyncWaitStep) currentStep).evaluateCondition(indexMetaData.getIndex(), new AsyncWaitStep.Listener() {
+            logger.debug("running periodic policy with current-step [{}]", currentStep.getKey());
+            ((AsyncWaitStep) currentStep).evaluateCondition(indexMetaData, new AsyncWaitStep.Listener() {
 
-                    @Override
-                    public void onResponse(boolean conditionMet, ToXContentObject stepInfo) {
-                        logger.debug("cs-change-async-wait-callback. current-step:" + currentStep.getKey());
-                        if (conditionMet) {
-                            moveToStep(indexMetaData.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
-                        } else if (stepInfo != null) {
-                            setStepInfo(indexMetaData.getIndex(), policy, currentStep.getKey(), stepInfo);
-                        }
+                @Override
+                public void onResponse(boolean conditionMet, ToXContentObject stepInfo) {
+                    logger.debug("cs-change-async-wait-callback, current-step: " + currentStep.getKey());
+                    if (conditionMet) {
+                        moveToStep(indexMetaData.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
+                    } else if (stepInfo != null) {
+                        setStepInfo(indexMetaData.getIndex(), policy, currentStep.getKey(), stepInfo);
                     }
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        moveToErrorStep(indexMetaData.getIndex(), policy, currentStep.getKey(), e);
-                    }
-
-                });
-            }
-        } else if (currentStep instanceof AsyncActionStep) {
-            if (fromClusterStateChange == false) {
-                ((AsyncActionStep) currentStep).performAction(indexMetaData, currentState, new AsyncActionStep.Listener() {
-
-                    @Override
-                    public void onResponse(boolean complete) {
-                        logger.debug("cs-change-async-action-callback. current-step:" + currentStep.getKey());
-                        if (complete && ((AsyncActionStep) currentStep).indexSurvives()) {
-                            moveToStep(indexMetaData.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        moveToErrorStep(indexMetaData.getIndex(), policy, currentStep.getKey(), e);
-                    }
-                });
-            }
+                @Override
+                public void onFailure(Exception e) {
+                    moveToErrorStep(indexMetaData.getIndex(), policy, currentStep.getKey(), e);
+                }
+            });
         } else {
-            throw new IllegalStateException(
-                "Step with key [" + currentStep.getKey() + "] is not a recognised type: [" + currentStep.getClass().getName() + "]");
+            logger.trace("ignoring non periodic step execution from step transition [{}]", currentStep.getKey());
         }
     }
 
-    private void runPolicy(IndexMetaData indexMetaData, ClusterState currentState) {
-        if (indexMetaData == null) {
-            // This index doesn't exist any more, there's nothing to execute
+    /**
+     * If the current step (matching the expected step key) is an asynchronous action step, run it
+     */
+    public void maybeRunAsyncAction(ClusterState currentState, IndexMetaData indexMetaData, String policy, StepKey expectedStepKey) {
+        Settings indexSettings = indexMetaData.getSettings();
+        String index = indexMetaData.getIndex().getName();
+        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
+        if (LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(indexSettings)) {
+            logger.info("skipping policy [{}] for index [{}]: {} == true", policy, index, LifecycleSettings.LIFECYCLE_SKIP);
             return;
         }
-        Settings indexSettings = indexMetaData.getSettings();
-        String policy = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
-        runPolicy(policy, indexMetaData, currentState, false);
+        Step currentStep = getCurrentStep(stepRegistry, policy, indexMetaData, lifecycleState);
+        if (currentStep == null) {
+            logger.warn("current step [{}] for index [{}] with policy [{}] is not recognized",
+                getCurrentStepKey(lifecycleState), index, policy);
+            return;
+        }
+
+        if (currentStep.getKey().equals(expectedStepKey) == false) {
+            throw new IllegalStateException("expected index [" + indexMetaData.getIndex().getName() + "] with policy [" + policy +
+                "] to have current step consistent with provided step key (" + expectedStepKey + ") but it was " + currentStep.getKey());
+        }
+        if (currentStep instanceof AsyncActionStep) {
+            logger.debug("running policy with async action step [{}]", currentStep.getKey());
+            ((AsyncActionStep) currentStep).performAction(indexMetaData, currentState, new AsyncActionStep.Listener() {
+
+                @Override
+                public void onResponse(boolean complete) {
+                    logger.debug("cs-change-async-action-callback, current-step: [{}]", currentStep.getKey());
+                    if (complete && ((AsyncActionStep) currentStep).indexSurvives()) {
+                        moveToStep(indexMetaData.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    moveToErrorStep(indexMetaData.getIndex(), policy, currentStep.getKey(), e);
+                }
+            });
+        } else {
+            logger.trace("ignoring non async action step execution from step transition [{}]", currentStep.getKey());
+        }
     }
 
-    private void executeClusterStateSteps(Index index, String policy, Step step) {
-        assert step instanceof ClusterStateActionStep || step instanceof ClusterStateWaitStep;
-        clusterService.submitStateUpdateTask("ilm-execute-cluster-state-steps",
-            new ExecuteStepsUpdateTask(policy, index, step, stepRegistry, nowSupplier));
+    /**
+     * Run the current step that either waits for index age, or updates/waits-on cluster state.
+     * Invoked after the cluster state has been changed
+     */
+    public void runPolicyAfterStateChange(String policy, IndexMetaData indexMetaData) {
+        Settings indexSettings = indexMetaData.getSettings();
+        String index = indexMetaData.getIndex().getName();
+        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
+        if (LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(indexSettings)) {
+            logger.info("skipping policy [{}] for index [{}]: {} == true", policy, index, LifecycleSettings.LIFECYCLE_SKIP);
+            return;
+        }
+        Step currentStep = getCurrentStep(stepRegistry, policy, indexMetaData, lifecycleState);
+        if (currentStep == null) {
+            logger.warn("current step [{}] for index [{}] with policy [{}] is not recognized",
+                getCurrentStepKey(lifecycleState), index, policy);
+            return;
+        }
+
+        if (currentStep instanceof TerminalPolicyStep) {
+            logger.debug("policy [{}] for index [{}] complete, skipping execution", policy, index);
+            return;
+        } else if (currentStep instanceof ErrorStep) {
+            logger.debug("policy [{}] for index [{}] on an error step, skipping execution", policy, index);
+            return;
+        }
+
+        if (currentStep instanceof PhaseCompleteStep) {
+            // Only proceed to the next step if enough time has elapsed to go into the next phase
+            if (isReadyToTransitionToThisPhase(policy, indexMetaData, currentStep.getNextStepKey().getPhase())) {
+                moveToStep(indexMetaData.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
+            }
+        } else if (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
+            logger.debug("[{}] running policy with current-step [{}]", indexMetaData.getIndex().getName(), currentStep.getKey());
+            clusterService.submitStateUpdateTask("ilm-execute-cluster-state-steps",
+                new ExecuteStepsUpdateTask(policy, indexMetaData.getIndex(), currentStep, stepRegistry, this, nowSupplier));
+        } else {
+            logger.trace("ignoring step execution from cluster state change event [{}]", currentStep.getKey());
+        }
     }
 
     /**
@@ -384,8 +430,14 @@ public class IndexLifecycleRunner {
     private void moveToStep(Index index, String policy, StepKey currentStepKey, StepKey nextStepKey) {
         logger.debug("moveToStep[" + policy + "] [" + index.getName() + "]" + currentStepKey + " -> "
             + nextStepKey);
-        clusterService.submitStateUpdateTask("ilm-move-to-step", new MoveToNextStepUpdateTask(index, policy, currentStepKey,
-            nextStepKey, nowSupplier));
+        clusterService.submitStateUpdateTask("ilm-move-to-step",
+            new MoveToNextStepUpdateTask(index, policy, currentStepKey, nextStepKey, nowSupplier, clusterState ->
+            {
+                IndexMetaData indexMetaData = clusterState.metaData().index(index);
+                if (nextStepKey != null && nextStepKey != TerminalPolicyStep.KEY && indexMetaData != null) {
+                    maybeRunAsyncAction(clusterState, indexMetaData, policy, nextStepKey);
+                }
+            }));
     }
 
     private void moveToErrorStep(Index index, String policy, StepKey currentStepKey, Exception e) {

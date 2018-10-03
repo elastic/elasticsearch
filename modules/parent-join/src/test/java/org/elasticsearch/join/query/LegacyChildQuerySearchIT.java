@@ -54,6 +54,12 @@ public class LegacyChildQuerySearchIT extends ChildQuerySearchIT {
         return true;
     }
 
+    public void testSelfReferentialIsForbidden() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            prepareCreate("test").addMapping("type", "_parent", "type=type").get());
+        assertThat(e.getMessage(), equalTo("The [_parent.type] option can't point to the same type"));
+    }
+
     public void testIndexChildDocWithNoParentMapping() throws IOException {
         assertAcked(prepareCreate("test")
             .addMapping("parent")

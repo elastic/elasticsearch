@@ -87,13 +87,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class ChildQuerySearchIT extends ParentChildTestCase {
-
-    public void testSelfReferentialIsForbidden() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            prepareCreate("test").addMapping("type", "_parent", "type=type").get());
-        assertThat(e.getMessage(), equalTo("The [_parent.type] option can't point to the same type"));
-    }
-
     public void testMultiLevelChild() throws Exception {
         if (legacy()) {
             assertAcked(prepareCreate("test")

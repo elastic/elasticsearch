@@ -76,6 +76,8 @@ PUT my_index
     "index.lifecycle.name": "my_policy"
   }
 }
+
+GET /_cluster/health?wait_for_status=green&timeout=10s
 --------------------------------------------------
 // CONSOLE
 // TEST

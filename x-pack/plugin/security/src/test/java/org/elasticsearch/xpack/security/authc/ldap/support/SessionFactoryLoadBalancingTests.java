@@ -115,7 +115,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                 // of the ldap server and the opening of the socket
                 logger.debug("opening mock server socket listening on [{}]", port);
                 Runnable runnable = () -> {
-                    try (Socket socket = openMockServerSocket(local, mockServerSocket.getLocalPort(), local, port)) {
+                    try (Socket socket = openMockSocket(local, mockServerSocket.getLocalPort(), local, port)) {
                         logger.debug("opened socket [{}]", socket);
                         latch.countDown();
                         closeLatch.await();
@@ -153,10 +153,10 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
     }
 
     @SuppressForbidden(reason = "Allow opening socket for test")
-    private MockSocket openMockServerSocket(InetAddress remoteAddress, int remotePort, InetAddress localAddress, int localPort)
+    private MockSocket openMockSocket(InetAddress remoteAddress, int remotePort, InetAddress localAddress, int localPort)
             throws IOException {
         final MockSocket socket = new MockSocket();
-        socket.setReuseAddress(true); // allow binding even if the previous socket is in timed state.
+        socket.setReuseAddress(true); // allow binding even if the previous socket is in timed wait state.
         socket.setSoLinger(true, 0); // close immediately as we are not writing anything here.
         socket.bind(new InetSocketAddress(localAddress, localPort));
         SocketAccess.doPrivileged(() -> socket.connect(new InetSocketAddress(localAddress, remotePort)));

@@ -48,19 +48,28 @@ public class Reconfigurator extends AbstractComponent {
      * where a single node's failure can cause permanent unavailability. This setting determines the size of the smallest set of master
      * nodes required to process a cluster state update.
      */
-    public static final Setting<Integer> MINIMUM_VOTING_MASTER_NODES_SETTING =
-        Setting.intSetting("cluster.minimum_voting_master_nodes", 1, 1, Property.NodeScope, Property.Dynamic);
+    public static final Setting<MasterResilienceLevel> CLUSTER_MASTER_RESILIENCE_LEVEL_SETTING =
+        new Setting<>("cluster.master_resilience_level", MasterResilienceLevel.recommended.toString(), MasterResilienceLevel::valueOf,
+            Property.NodeScope, Property.Dynamic);
 
-    private int minVotingMasterNodes;
+    public enum MasterResilienceLevel {
+        fragile(1), recommended(2), excessive(3);
+        final int minimumVotingNodes;
+        MasterResilienceLevel(int minimumVotingNodes) {
+            this.minimumVotingNodes = minimumVotingNodes;
+        }
+    }
+
+    private MasterResilienceLevel masterResilienceLevel;
 
     public Reconfigurator(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
-        minVotingMasterNodes = MINIMUM_VOTING_MASTER_NODES_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(MINIMUM_VOTING_MASTER_NODES_SETTING, this::setMinVotingMasterNodes);
+        masterResilienceLevel = CLUSTER_MASTER_RESILIENCE_LEVEL_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_MASTER_RESILIENCE_LEVEL_SETTING, this::setMasterResilienceLevel);
     }
 
-    public void setMinVotingMasterNodes(int minVotingMasterNodes) {
-        this.minVotingMasterNodes = minVotingMasterNodes;
+    public void setMasterResilienceLevel(MasterResilienceLevel masterResilienceLevel) {
+        this.masterResilienceLevel = masterResilienceLevel;
     }
 
     private static int roundDownToOdd(int size) {
@@ -70,17 +79,19 @@ public class Reconfigurator extends AbstractComponent {
     @Override
     public String toString() {
         return "Reconfigurator{" +
-            "minVotingMasterNodes=" + minVotingMasterNodes +
+            "masterResilienceLevel=" + masterResilienceLevel +
             '}';
     }
 
     /**
      * Compute an optimal configuration for the cluster.
-     * @param liveNodes The live nodes in the cluster. The optimal configuration prefers live nodes over non-live nodes as far as possible.
+     *
+     * @param liveNodes      The live nodes in the cluster. The optimal configuration prefers live nodes over non-live nodes as far as
+     *                       possible.
      * @param retiredNodeIds Nodes that are leaving the cluster and which should not appear in the configuration if possible. Nodes that are
      *                       retired and not in the current configuration will never appear in the resulting configuration; this is useful
      *                       for shifting the vote in a 2-node cluster so one of the nodes can be restarted without harming availability.
-     * @param currentConfig The current configuration. As far as possible, we prefer to keep the current config as-is.
+     * @param currentConfig  The current configuration. As far as possible, we prefer to keep the current config as-is.
      * @return An optimal configuration, or leave the current configuration unchanged if the optimal configuration has no live quorum.
      */
     public ClusterState.VotingConfiguration reconfigure(Set<DiscoveryNode> liveNodes, Set<String> retiredNodeIds,
@@ -133,9 +144,8 @@ public class Reconfigurator extends AbstractComponent {
         final int votingNodeCount = roundDownToOdd(nonRetiredLiveNodeCount);
 
         // ... except that if the current configuration satisfies MINIMUM_VOTING_MASTER_NODES_SETTING then the new one must too:
-        final int safeConfigurationSize = 2 * minVotingMasterNodes - 1;
-        final int targetSize;
-        targetSize = currentConfig.getNodeIds().size() >= safeConfigurationSize && votingNodeCount < safeConfigurationSize
+        final int safeConfigurationSize = 2 * masterResilienceLevel.minimumVotingNodes - 1;
+        final int targetSize = currentConfig.getNodeIds().size() >= safeConfigurationSize && votingNodeCount < safeConfigurationSize
             ? safeConfigurationSize : votingNodeCount;
 
         /*

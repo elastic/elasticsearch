@@ -102,6 +102,10 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
         if (pointConverter != null) {
             Number segMin = findLeafMinValue(ctx.reader(), pointField, pointConverter);
             if (segMin != null) {
+                /**
+                 * There is no parent aggregator (see {@link MinAggregator#getPointReaderOrNull}
+                 * so the ordinal for the bucket is always 0.
+                 */
                 double min = mins.get(0);
                 min = Math.min(min, segMin.doubleValue());
                 mins.set(0, min);

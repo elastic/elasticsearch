@@ -64,6 +64,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
@@ -476,7 +477,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertToXContentBody(deleteByQueryRequest, request.getEntity());
     }
 
-    public void testRethrottle() throws IOException {
+    public void testRethrottle() {
         TaskId taskId = new TaskId(randomAlphaOfLength(10), randomIntBetween(1, 100));
         RethrottleRequest rethrottleRequest;
         Float requestsPerSecond;
@@ -490,11 +491,20 @@ public class RequestConvertersTests extends ESTestCase {
             expectedParams.put(RethrottleRequest.REQUEST_PER_SECOND_PARAMETER, "-1");
         }
         expectedParams.put("group_by", "none");
-        Request request = RequestConverters.rethrottle(rethrottleRequest);
-        assertEquals("/_reindex/" + taskId + "/_rethrottle", request.getEndpoint());
-        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertEquals(expectedParams, request.getParameters());
-        assertNull(request.getEntity());
+        List<Tuple<String, Supplier<Request>>> variants = new ArrayList<>();
+        variants.add(new Tuple<String, Supplier<Request>>("_reindex", () -> RequestConverters.rethrottleReindex(rethrottleRequest)));
+        variants.add(new Tuple<String, Supplier<Request>>("_update_by_query",
+                () -> RequestConverters.rethrottleUpdateByQuery(rethrottleRequest)));
+        variants.add(new Tuple<String, Supplier<Request>>("_delete_by_query",
+                () -> RequestConverters.rethrottleDeleteByQuery(rethrottleRequest)));
+
+        for (Tuple<String, Supplier<Request>> variant : variants) {
+            Request request = variant.v2().get();
+            assertEquals("/" + variant.v1() + "/" + taskId + "/_rethrottle", request.getEndpoint());
+            assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+            assertEquals(expectedParams, request.getParameters());
+            assertNull(request.getEntity());
+        }
 
         // test illegal RethrottleRequest values
         Exception e = expectThrows(NullPointerException.class, () -> new RethrottleRequest(null, 1.0f));

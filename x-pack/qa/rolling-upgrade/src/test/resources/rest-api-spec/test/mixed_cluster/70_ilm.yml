@@ -3,8 +3,8 @@
   - do:
       acknowledge: true
       ilm.get_lifecycle:
-        lifecycle: "my_lifecycle"
-  - match: { my_timeseries_lifecycle.phases.warm.after: "1000d" }
+        policy: "my_lifecycle"
+  - match: { my_timeseries_lifecycle.phases.warm.minimum_age: "1000d" }
 
   - do:
       indices.create:

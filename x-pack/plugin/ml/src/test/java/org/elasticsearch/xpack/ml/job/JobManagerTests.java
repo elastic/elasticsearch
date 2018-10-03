@@ -216,19 +216,6 @@ public class JobManagerTests extends ESTestCase {
         assertThat(jobsHolder.get().results(), hasSize(3));
         jobIds = jobsHolder.get().results().stream().map(Job::getId).collect(Collectors.toList());
         assertThat(jobIds, contains("foo-cs-1", "foo-cs-2", "foo-index"));
-
-
-        jobsHolder.set(null);
-        jobManager.expandJobs("foo-index", true, ActionListener.wrap(
-                jobs -> jobsHolder.set(jobs),
-                e -> fail(e.getMessage())
-        ));
-
-        assertNotNull(jobsHolder.get());
-        assertThat(jobsHolder.get().results(), hasSize(1));
-        jobIds = jobsHolder.get().results().stream().map(Job::getId).collect(Collectors.toList());
-        assertThat(jobIds, contains("foo-index"));
-
     }
 
     @SuppressWarnings("unchecked")

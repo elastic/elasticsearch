@@ -56,6 +56,8 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.count.CountRequest;
+import org.elasticsearch.client.count.CountResponse;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
@@ -747,6 +749,29 @@ public class RestHighLevelClient implements Closeable {
     public final void indexAsync(IndexRequest indexRequest, RequestOptions options, ActionListener<IndexResponse> listener) {
         performRequestAsyncAndParseEntity(indexRequest, RequestConverters::index, options, IndexResponse::fromXContent, listener,
                 emptySet());
+    }
+
+    /**
+     * Executes a count request using the Count API
+     * @param countRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final CountResponse count(CountRequest countRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(countRequest, RequestConverters::count, options, CountResponse::fromXContent,
+        emptySet());
+    }
+
+    /**
+     * Asynchronously executes a count request using the Count API
+     * @param countRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void countAsync(CountRequest countRequest, RequestOptions options, ActionListener<CountResponse> listener) {
+        performRequestAsyncAndParseEntity(countRequest, RequestConverters::count,  options,CountResponse::fromXContent,
+            listener, emptySet());
     }
 
     /**

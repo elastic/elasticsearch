@@ -49,6 +49,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.count.CountRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Nullable;
@@ -424,6 +425,16 @@ final class RequestConverters {
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, xContent);
         request.setEntity(new ByteArrayEntity(source, createContentType(xContent.type())));
+        return request;
+    }
+
+    static Request count(CountRequest countRequest) throws IOException {
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint(countRequest.indices(), countRequest.types(), "_count"));
+        Params params = new Params(request);
+        params.withRouting(countRequest.routing());
+        params.withPreference(countRequest.preference());
+        params.withIndicesOptions(countRequest.indicesOptions());
+        request.setEntity(createEntity(countRequest.source(), REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

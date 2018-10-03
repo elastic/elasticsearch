@@ -39,6 +39,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -52,6 +53,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
@@ -66,6 +68,7 @@ import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -79,6 +82,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -115,6 +119,11 @@ public class ShardChangesIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateCcr.class, CommonAnalysisPlugin.class);
+    }
+
+    @After
+    public void assertConsistentHistory() throws Exception {
+        internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
     }
 
     @Override
@@ -679,6 +688,58 @@ public class ShardChangesIT extends ESIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertThat(client().prepareSearch("index2").get().getHits().getTotalHits(), equalTo(2L));
+    }
+
+    public void testFailOverOnFollower() throws Exception {
+        int numberOfReplicas = between(1, 2);
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNodes(numberOfReplicas + between(1, 2));
+        String leaderIndexSettings = getIndexSettings(1, numberOfReplicas,
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(client().admin().indices().prepareCreate("leader-index").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureGreen("leader-index");
+        AtomicBoolean stopped = new AtomicBoolean();
+        Thread[] threads = new Thread[between(1, 8)];
+        AtomicInteger docID = new AtomicInteger();
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                while (stopped.get() == false) {
+                    try {
+                        if (frequently()) {
+                            String id = Integer.toString(frequently() ? docID.incrementAndGet() : between(0, 10)); // sometimes update
+                            client().prepareIndex("leader-index", "doc", id).setSource("{\"f\":" + id + "}", XContentType.JSON).get();
+                        } else {
+                            String id = Integer.toString(between(0, docID.get()));
+                            client().prepareDelete("leader-index", "doc", id).get();
+                        }
+                    } catch (ElasticsearchException ignored) {
+
+                    }
+                }
+            });
+            threads[i].start();
+        }
+        PutFollowAction.Request follow = follow("leader-index", "follower-index");
+        client().execute(PutFollowAction.INSTANCE, follow).get();
+        ensureGreen("follower-index");
+        atLeastDocsIndexed("follower-index", between(20, 60));
+        for (String nodeName : internalCluster().nodesInclude("follower-index")) {
+            IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
+            IndexService indexService = indicesService.indexServiceSafe(resolveIndex("follower-index"));
+            for (IndexShard shard : indexService) {
+                if (shard.routingEntry().primary()) {
+                    internalCluster().restartNode(nodeName, new InternalTestCluster.RestartCallback());
+                }
+            }
+        }
+        ensureGreen("follower-index");
+        atLeastDocsIndexed("follower-index", between(80, 150));
+        stopped.set(true);
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        assertSameDocCount("leader-index", "follower-index");
+        unfollowIndex("follower-index");
     }
 
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {

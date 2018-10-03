@@ -21,6 +21,7 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.watcher.AckWatchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
@@ -30,6 +31,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.ByteArrayOutputStream;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.StringJoiner;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -73,6 +75,26 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         Request request = WatcherRequestConverters.deleteWatch(deleteWatchRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
+        assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testAckWatch() {
+        String watchId = randomAlphaOfLength(10);
+        String[] actionIds = generateRandomStringArray(5, 10, false, true);
+
+        AckWatchRequest ackWatchRequest = new AckWatchRequest(watchId, actionIds);
+        Request request = WatcherRequestConverters.ackWatch(ackWatchRequest);
+
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+
+        StringJoiner expectedEndpoint = new StringJoiner("/", "/", "")
+            .add("_xpack").add("watcher").add("watch").add(watchId).add("_ack");
+        if (ackWatchRequest.getActionIds().length > 0) {
+            String actionsParam = String.join(",", ackWatchRequest.getActionIds());
+            expectedEndpoint.add(actionsParam);
+        }
+
+        assertEquals(expectedEndpoint.toString(), request.getEndpoint());
         assertThat(request.getEntity(), nullValue());
     }
 }

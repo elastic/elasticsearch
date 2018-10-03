@@ -1,0 +1,57 @@
+[[java-rest-high-watcher-ack-watch]]
+=== Ack Watch API
+
+[[java-rest-high-watcher-ack-watch-execution]]
+==== Execution
+
+{xpack-ref}/actions.html#actions-ack-throttle[Acknowledging a watch] enables you
+to manually throttle execution of a watch's actions. A watch can be acknowledged
+through the following request:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/WatcherDocumentationIT.java[ack-watch-execute]
+--------------------------------------------------
+<1> The ID of the watch to ack.
+<2> An optional list of IDs representing the watch actions that should be acked.
+If no action IDs are provided, then all of the watch's actions will be acked.
+
+[[java-rest-high-watcher-ack-watch-response]]
+==== Response
+
+The returned `AckWatchResponse` contains the new status of the requested watch:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/WatcherDocumentationIT.java[ack-watch-response]
+--------------------------------------------------
+<1> The status of a specific action that was acked.
+<2> The acknowledgement state of the action. If the action was successfully
+acked, this state will be equal to `AckStatus.State.ACKED`.
+
+[[java-rest-high-watcher-ack-watch-async]]
+==== Asynchronous Execution
+
+This request can be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/WatcherDocumentationIT.java[ack-watch-execute-async]
+--------------------------------------------------
+<1> The `AckWatchRequest` to execute and the `ActionListener` to use when
+the execution completes.
+
+The asynchronous method does not block and returns immediately. Once the request
+completes, the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A listener for `AckWatchResponse` can be constructed as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/WatcherDocumentationIT.java[ack-watch-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument.
+<2> Called in case of failure. The raised exception is provided as an argument.

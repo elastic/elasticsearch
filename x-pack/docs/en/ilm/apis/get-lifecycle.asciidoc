@@ -86,8 +86,8 @@ If the request does not encounter errors, you receive the following result:
 --------------------------------------------------
 {
   "my_policy": {
-    "version": 1,
-    "modified_date": 82392349,
+    "version": 1, <1>
+    "modified_date": 82392349, <2>
     "policy": {
       "phases": {
         "warm": {
@@ -109,5 +109,7 @@ If the request does not encounter errors, you receive the following result:
   }
 }
 --------------------------------------------------
+<1> The version of the policy. This is increased whenever the policy is updated
+<2> The timestamp when this policy was last modified
 // CONSOLE
 // TESTRESPONSE[s/"modified_date": 82392349/"modified_date": $body.my_policy.modified_date/]

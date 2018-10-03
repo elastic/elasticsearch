@@ -17,8 +17,8 @@ Shows the current lifecycle staus for an index.
 This API returns information relating to the current lifecycle state of an
 index. This includes information such as the currently executing phase, action,
 and step and the timestamp when the index entered them. It also shows the
-version of the current phase that is being run and in the event that there has
-been a failure, information regarding the failure.
+definitiom of the current phase that is being run and in the event that there
+has been a failure, information regarding the failure.
 
 ==== Path Parameters
 
@@ -99,20 +99,31 @@ If the request does not encounter errors, you receive the following result:
   "indices": {
     "my_index": {
       "index": "my_index",
-      "managed": true,
-      "policy": "my_policy",
-      "skip": false,
-      "lifecycle_date": 1538475653281,
-      "phase": "new",
-      "phase_time": 1538475653317,
-      "action": "complete",
-      "action_time": 1538475653317,
-      "step": "complete",
-      "step_time": 1538475653317
+      "managed": true, <1>
+      "policy": "my_policy", <2>
+      "skip": false, <3>
+      "lifecycle_date": 1538475653281, <4>
+      "phase": "new", <5>
+      "phase_time": 1538475653317, <6>
+      "action": "complete", <7>
+      "action_time": 1538475653317, <8>
+      "step": "complete", <9>
+      "step_time": 1538475653317 <10>
     }
   }
 }
 --------------------------------------------------
+<1> Shows if the index is being managed by ILM. If the index is not managed by
+ILM the other fields will not be shown
+<2> The name of the policy which ILM is using for this index
+<3> Shows whether ILM execution for the index is currently set to be skipped
+<4> The timestamp used for the `minimum_age`
+<5> The current phase
+<6> The timestamp for when the index entered the current phase
+<7> The current action
+<8> The timestamp for when the index entered the current action
+<9> The current step
+<10> The timestamp for when the index entered the current step
 // CONSOLE
 // TESTRESPONSE[s/"lifecycle_date": 1538475653281/"lifecycle_date": $body.indices.my_index.lifecycle_date/]
 // TESTRESPONSE[s/"phase_time": 1538475653317/"phase_time": null/]

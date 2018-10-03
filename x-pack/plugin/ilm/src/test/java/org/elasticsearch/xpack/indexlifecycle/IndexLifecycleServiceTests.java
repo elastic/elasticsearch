@@ -177,7 +177,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             return null;
         }).when(clusterService).submitStateUpdateTask(anyString(), any(ExecuteStepsUpdateTask.class));
         indexLifecycleService.applyClusterState(event);
-        indexLifecycleService.triggerPolicies(currentState, randomBoolean());
+        indexLifecycleService.triggerPolicies(currentState, true);
         assertTrue(executedShrink.get());
     }
 

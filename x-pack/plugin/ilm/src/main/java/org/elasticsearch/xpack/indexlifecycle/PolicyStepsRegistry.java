@@ -140,7 +140,11 @@ public class PolicyStepsRegistry {
 
     private List<Step> parseStepsFromPhase(String policy, String currentPhase, String phaseDef) throws IOException {
         final PhaseExecutionInfo phaseExecutionInfo;
-        LifecyclePolicy currentPolicy = lifecyclePolicyMap.get(policy).getPolicy();
+        LifecyclePolicyMetadata policyMetadata = lifecyclePolicyMap.get(policy);
+        if (policyMetadata == null) {
+            throw new IllegalStateException("unable to parse steps for policy [" + policy + "] as it doesn't exist");
+        }
+        LifecyclePolicy currentPolicy = policyMetadata.getPolicy();
         final LifecyclePolicy policyToExecute;
         if (InitializePolicyContextStep.INITIALIZATION_PHASE.equals(phaseDef)
             || TerminalPolicyStep.COMPLETED_PHASE.equals(phaseDef)) {
@@ -200,7 +204,7 @@ public class PolicyStepsRegistry {
             throw new ElasticsearchException("failed to load cached steps for " + stepKey, e);
         } catch (XContentParseException parseErr) {
             throw new XContentParseException(parseErr.getLocation(),
-                "failed to load cached steps for " + stepKey + " from [" + phaseJson + "]", parseErr);
+                "failed to load steps for " + stepKey + " from [" + phaseJson + "]", parseErr);
         }
 
         assert phaseSteps.stream().allMatch(step -> step.getKey().getPhase().equals(phase)) :

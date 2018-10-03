@@ -91,7 +91,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
 
     @Override
     public Attachment toAttachment(WatchExecutionContext context, Payload payload, ReportingAttachment attachment) throws IOException {
-        Map<String, Object> model = Variables.createCtxModel(context, payload);
+        Map<String, Object> model = Variables.createCtxParamsMap(context, payload);
 
         String initialUrl = templateEngine.render(new TextTemplate(attachment.url()), model);
 

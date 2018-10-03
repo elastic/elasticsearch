@@ -219,9 +219,9 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         steps.add(new InitializePolicyContextStep(InitializePolicyContextStep.KEY, lastStepKey));
 
         Collections.reverse(steps);
-        logger.debug("STEP COUNT: " + steps.size());
+        logger.trace("STEP COUNT: " + steps.size());
         for (Step step : steps) {
-            logger.debug(step.getKey() + " -> " + step.getNextStepKey());
+            logger.trace(step.getKey() + " -> " + step.getNextStepKey());
         }
 
         return steps;

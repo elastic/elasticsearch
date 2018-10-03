@@ -668,10 +668,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                                    ActionListener<Empty> responseActionListener) {
                         publicationHandler.sendApplyCommit(destination, applyCommit, wrapWithMutex(responseActionListener));
                     }
-
-                    private String publicationDescription() {
-                        return toString();
-                    }
                 };
 
                 assert currentPublication.isPresent() == false

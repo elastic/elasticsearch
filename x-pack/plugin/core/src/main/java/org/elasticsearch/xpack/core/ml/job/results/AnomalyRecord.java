@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
+import org.elasticsearch.Version;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,7 +45,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
      * Result fields (all detector types)
      */
     public static final ParseField PROBABILITY = new ParseField("probability");
-    public static final ParseField IMPACT = new ParseField("multi_bucket_impact");
+    public static final ParseField MULTI_BUCKET_IMPACT = new ParseField("multi_bucket_impact");
     public static final ParseField BY_FIELD_NAME = new ParseField("by_field_name");
     public static final ParseField BY_FIELD_VALUE = new ParseField("by_field_value");
     public static final ParseField CORRELATED_BY_FIELD_VALUE = new ParseField("correlated_by_field_value");
@@ -101,7 +102,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         parser.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         parser.declareString((anomalyRecord, s) -> {}, Result.RESULT_TYPE);
         parser.declareDouble(AnomalyRecord::setProbability, PROBABILITY);
-        parser.declareDouble(AnomalyRecord::setImpact, IMPACT);
+        parser.declareDouble(AnomalyRecord::setMultiBucketImpact, MULTI_BUCKET_IMPACT);
         parser.declareDouble(AnomalyRecord::setRecordScore, RECORD_SCORE);
         parser.declareDouble(AnomalyRecord::setInitialRecordScore, INITIAL_RECORD_SCORE);
         parser.declareInt(AnomalyRecord::setDetectorIndex, Detector.DETECTOR_INDEX);
@@ -129,7 +130,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
     private final String jobId;
     private int detectorIndex;
     private double probability;
-    private double impact;
+    private Double multiBucketImpact;
     private String byFieldName;
     private String byFieldValue;
     private String correlatedByFieldValue;
@@ -167,7 +168,9 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         jobId = in.readString();
         detectorIndex = in.readInt();
         probability = in.readDouble();
-        impact = in.readDouble();
+        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
+            multiBucketImpact = in.readOptionalDouble();
+        }
         byFieldName = in.readOptionalString();
         byFieldValue = in.readOptionalString();
         correlatedByFieldValue = in.readOptionalString();
@@ -202,7 +205,9 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         out.writeString(jobId);
         out.writeInt(detectorIndex);
         out.writeDouble(probability);
-        out.writeDouble(impact);
+        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
+            out.writeOptionalDouble(multiBucketImpact);
+        }
         out.writeOptionalString(byFieldName);
         out.writeOptionalString(byFieldValue);
         out.writeOptionalString(correlatedByFieldValue);
@@ -252,7 +257,9 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         builder.field(PROBABILITY.getPreferredName(), probability);
-        builder.field(IMPACT.getPreferredName(), impact);
+        if (multiBucketImpact != null) {
+            builder.field(MULTI_BUCKET_IMPACT.getPreferredName(), multiBucketImpact);
+        }
         builder.field(RECORD_SCORE.getPreferredName(), recordScore);
         builder.field(INITIAL_RECORD_SCORE.getPreferredName(), initialRecordScore);
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
@@ -395,12 +402,12 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         probability = value;
     }
 
-    public double getImpact() {
-        return impact;
+    public double getMultiBucketImpact() {
+        return multiBucketImpact;
     }
 
-    public void setImpact(double value) {
-        impact = value;
+    public void setMultiBucketImpact(double value) {
+        multiBucketImpact = value;
     }
 
     public String getByFieldName() {
@@ -533,7 +540,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, detectorIndex, bucketSpan, probability, impact, recordScore,
+        return Objects.hash(jobId, detectorIndex, bucketSpan, probability, multiBucketImpact, recordScore,
                 initialRecordScore, typical, actual,function, functionDescription, fieldName,
                 byFieldName, byFieldValue, correlatedByFieldValue, partitionFieldName,
                 partitionFieldValue, overFieldName, overFieldValue, timestamp, isInterim,
@@ -557,7 +564,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
                 && this.detectorIndex == that.detectorIndex
                 && this.bucketSpan == that.bucketSpan
                 && this.probability == that.probability
-                && this.impact == that.impact
+                && Objects.equals(this.multiBucketImpact, that.multiBucketImpact)
                 && this.recordScore == that.recordScore
                 && this.initialRecordScore == that.initialRecordScore
                 && Objects.deepEquals(this.typical, that.typical)

@@ -372,7 +372,7 @@ public class ElasticsearchMappings {
         .startObject(AnomalyRecord.PROBABILITY.getPreferredName())
             .field(TYPE, DOUBLE)
         .endObject()
-        .startObject(AnomalyRecord.IMPACT.getPreferredName())
+        .startObject(AnomalyRecord.MULTI_BUCKET_IMPACT.getPreferredName())
             .field(TYPE, DOUBLE)
         .endObject()
         .startObject(AnomalyRecord.FUNCTION.getPreferredName())

@@ -176,8 +176,8 @@ public class CoordinatorTests extends ESTestCase {
         cluster.stabilise();
 
         final ClusterNode originalLeader = cluster.getAnyLeader();
-        logger.info("--> partitioning leader {}", originalLeader);
-        originalLeader.partition();
+        logger.info("--> blackholing leader {}", originalLeader);
+        originalLeader.blackhole();
 
         cluster.stabilise(Math.max(
             // first wait for all the followers to notice the leader has gone
@@ -239,8 +239,8 @@ public class CoordinatorTests extends ESTestCase {
 
         final ClusterNode leader = cluster.getAnyLeader();
         final ClusterNode follower = cluster.getAnyNodeExcept(leader);
-        logger.info("--> partitioning follower {}", follower);
-        follower.partition();
+        logger.info("--> blackholing follower {}", follower);
+        follower.blackhole();
 
         cluster.stabilise(Math.max(
             // wait for the leader to notice that the follower is unresponsive
@@ -379,31 +379,21 @@ public class CoordinatorTests extends ESTestCase {
                         }
                     } else if (rarely()) {
                         final ClusterNode clusterNode = getAnyNode();
-                        final String id = clusterNode.getId();
 
                         switch (randomInt(2)) {
                             case 0:
-                                boolean reconnected = disconnectedNodes.remove(id) | blackholedNodes.remove(id); // NB no short-circuit
-                                if (reconnected) {
-                                    logger.debug("----> [runRandomly {}] connecting {}", step, id);
+                                if (clusterNode.connect()) {
+                                    logger.debug("----> [runRandomly {}] connecting {}", step, clusterNode.getId());
                                 }
                                 break;
                             case 1:
-                                boolean unBlackholed = blackholedNodes.remove(id);
-                                boolean disconnected = disconnectedNodes.add(id);
-                                if (disconnected) {
-                                    logger.debug("----> [runRandomly {}] disconnecting {}", step, id);
-                                } else {
-                                    assert unBlackholed == false;
+                                if (clusterNode.disconnect()) {
+                                    logger.debug("----> [runRandomly {}] disconnecting {}", step, clusterNode.getId());
                                 }
                                 break;
                             case 2:
-                                boolean unDisconnected = disconnectedNodes.remove(id);
-                                boolean blackholed = blackholedNodes.add(id);
-                                if (blackholed) {
-                                    logger.debug("----> [runRandomly {}] blackholing {}", step, id);
-                                } else {
-                                    assert unDisconnected == false;
+                                if (clusterNode.blackhole()) {
+                                    logger.debug("----> [runRandomly {}] blackholing {}", step, clusterNode.getId());
                                 }
                                 break;
                         }
@@ -700,12 +690,25 @@ public class CoordinatorTests extends ESTestCase {
                 return localNode.toString();
             }
 
-            void disconnect() {
-                disconnectedNodes.add(localNode.getId());
+            boolean connect() {
+                boolean unBlackholed = blackholedNodes.remove(localNode.getId());
+                boolean unDisconnected = disconnectedNodes.remove(localNode.getId());
+                assert unBlackholed == false || unDisconnected == false;
+                return unBlackholed || unDisconnected;
             }
 
-            void partition() {
-                blackholedNodes.add(localNode.getId());
+            boolean disconnect() {
+                boolean unBlackholed = blackholedNodes.remove(localNode.getId());
+                boolean disconnected = disconnectedNodes.add(localNode.getId());
+                assert disconnected || unBlackholed == false;
+                return disconnected;
+            }
+
+            boolean blackhole() {
+                boolean unDisconnected = disconnectedNodes.remove(localNode.getId());
+                boolean blackholed = blackholedNodes.add(localNode.getId());
+                assert blackholed || unDisconnected == false;
+                return blackholed;
             }
         }
 

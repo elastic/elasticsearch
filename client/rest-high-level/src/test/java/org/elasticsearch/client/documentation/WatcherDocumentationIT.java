@@ -29,6 +29,8 @@ import org.elasticsearch.client.watcher.AckWatchRequest;
 import org.elasticsearch.client.watcher.AckWatchResponse;
 import org.elasticsearch.client.watcher.ActionStatus;
 import org.elasticsearch.client.watcher.ActionStatus.AckStatus;
+import org.elasticsearch.client.watcher.DeactivateWatchRequest;
+import org.elasticsearch.client.watcher.DeactivateWatchResponse;
 import org.elasticsearch.client.watcher.WatchStatus;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -41,6 +43,8 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+
+import static org.hamcrest.Matchers.is;
 
 public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
 
@@ -198,6 +202,56 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::ack-watch-execute-async
             client.watcher().ackWatchAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::ack-watch-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testDeactivateWatch() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            BytesReference watch = new BytesArray("{ \n" +
+                "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n" +
+                "  \"input\": { \"simple\": { \"foo\" : \"bar\" } },\n" +
+                "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n" +
+                "}");
+            PutWatchRequest putWatchRequest = new PutWatchRequest("my_watch_id", watch, XContentType.JSON);
+            client.watcher().putWatch(putWatchRequest, RequestOptions.DEFAULT);
+        }
+
+        {
+            //tag::deactivate-watch-execute
+            DeactivateWatchRequest request = new DeactivateWatchRequest("my_watch_id");
+            DeactivateWatchResponse response = client.watcher().deactivateWatch(request, RequestOptions.DEFAULT);
+            //end::deactivate-watch-execute
+
+            assertThat(response.getStatus().state().isActive(), is(false));
+        }
+
+        {
+            DeactivateWatchRequest request = new DeactivateWatchRequest("my_watch_id");
+            // tag::deactivate-watch-execute-listener
+            ActionListener<DeactivateWatchResponse> listener = new ActionListener<DeactivateWatchResponse>() {
+                @Override
+                public void onResponse(DeactivateWatchResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::deactivate-watch-execute-listener
+
+            // For testing, replace the empty listener by a blocking listener.
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::deactivate-watch-execute-async
+            client.watcher().deactivateWatchAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::deactivate-watch-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

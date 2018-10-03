@@ -39,6 +39,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -607,7 +608,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         currentPublication = Optional.empty();
                         updateMaxTermSeen(getCurrentTerm()); // triggers term bump if new term was found during publication
 
-                        localNodeAckEvent.addListener(wrapWithMutex(new ActionListener<Void>() {
+                        localNodeAckEvent.addListener(new ActionListener<Void>() {
                             @Override
                             public void onResponse(Void ignore) {
                                 assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
@@ -635,7 +636,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                 ackListener.onNodeAck(getLocalNode(), exception); // other nodes have acked, but not the master.
                                 publishListener.onFailure(exception);
                             }
-                        }), transportService.getThreadPool().generic());
+                        }, EsExecutors.newDirectExecutorService());
                     }
 
                     @Override

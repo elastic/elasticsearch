@@ -22,7 +22,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -71,7 +71,7 @@ public class PreviewDatafeedResponse extends ActionResponse implements ToXConten
     public List<Map<String, Object>> getDataList() throws IOException {
         try(StreamInput streamInput = preview.streamInput();
             XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, streamInput)) {
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, streamInput)) {
             XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.START_ARRAY) {
                 return parser.listOrderedMap().stream().map(obj -> (Map<String, Object>)obj).collect(Collectors.toList());

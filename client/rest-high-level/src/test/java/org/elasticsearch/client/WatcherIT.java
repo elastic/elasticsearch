@@ -55,21 +55,19 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
 
     public void testDeactivateWatch() throws Exception {
         // Deactivate a watch that exists
-        {
-            String watchId = randomAlphaOfLength(10);
-            createWatch(watchId);
-            DeactivateWatchResponse response = highLevelClient().watcher().deactivateWatch(
-                new DeactivateWatchRequest(watchId), RequestOptions.DEFAULT);
-            assertThat(response.getStatus().state().isActive(), is(false));
-        }
+        String watchId = randomAlphaOfLength(10);
+        createWatch(watchId);
+        DeactivateWatchResponse response = highLevelClient().watcher().deactivateWatch(
+            new DeactivateWatchRequest(watchId), RequestOptions.DEFAULT);
+        assertThat(response.getStatus().state().isActive(), is(false));
+    }
+    public void testDeactivateWatch404() throws Exception {
         // Deactivate a watch that does not exist
-        {
-            String watchId = randomAlphaOfLength(10);
-            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
-                () -> highLevelClient().watcher().deactivateWatch(new DeactivateWatchRequest(watchId), RequestOptions.DEFAULT));
-            assertEquals(RestStatus.NOT_FOUND, exception.status());
+        String watchId = randomAlphaOfLength(10);
+        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+            () -> highLevelClient().watcher().deactivateWatch(new DeactivateWatchRequest(watchId), RequestOptions.DEFAULT));
+        assertEquals(RestStatus.NOT_FOUND, exception.status());
 
-        }
     }
 
     public void testDeleteWatch() throws Exception {

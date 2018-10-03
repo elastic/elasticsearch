@@ -28,6 +28,20 @@ import java.util.Objects;
 public class DeactivateWatchResponse {
     private WatchStatus status;
 
+    private static final ParseField STATUS_FIELD = new ParseField("status");
+    private static final ConstructingObjectParser<DeactivateWatchResponse, Void> PARSER
+        = new ConstructingObjectParser<>("x_pack_deactivate_watch_response", true,
+        (fields) -> new DeactivateWatchResponse((WatchStatus) fields[0]));
+    static {
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(),
+            (parser, context) -> WatchStatus.parse(parser),
+            STATUS_FIELD);
+    }
+
+    public static DeactivateWatchResponse fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
+    }
+
     public DeactivateWatchResponse(WatchStatus status) {
         this.status = status;
     }
@@ -47,19 +61,5 @@ public class DeactivateWatchResponse {
 
     public WatchStatus getStatus() {
         return status;
-    }
-
-    private static final ParseField STATUS_FIELD = new ParseField("status");
-    private static final ConstructingObjectParser<DeactivateWatchResponse, Void> PARSER
-        = new ConstructingObjectParser<>("x_pack_deactivate_watch_response", true,
-        (fields) -> new DeactivateWatchResponse((WatchStatus) fields[0]));
-    static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(),
-            (parser, context) -> WatchStatus.parse(parser),
-            STATUS_FIELD);
-    }
-
-    public static DeactivateWatchResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
     }
 }

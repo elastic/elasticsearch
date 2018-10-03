@@ -28,6 +28,17 @@ public class DeactivateWatchRequest implements Validatable {
     private final String watchId;
 
     public DeactivateWatchRequest(String watchId) {
+
+        if (watchId == null) {
+            ValidationException exception = new ValidationException();
+            exception.addValidationError("watch id is missing");
+            throw exception;
+        } else if (PutWatchRequest.isValidId(watchId) == false) {
+            ValidationException exception = new ValidationException();
+            exception.addValidationError("watch id contains whitespace");
+            throw exception;
+        }
+
         this.watchId = watchId;
     }
 
@@ -35,18 +46,9 @@ public class DeactivateWatchRequest implements Validatable {
         return watchId;
     }
 
+     // as per discussion https://github.com/elastic/elasticsearch/pull/34192/files#r221994527, keeping validate method as a no-op relic
     @Override
     public Optional<ValidationException> validate() {
-        ValidationException exception = new ValidationException();
-
-        if (watchId == null) {
-            exception.addValidationError("watch id is missing");
-        } else if (PutWatchRequest.isValidId(watchId) == false) {
-            exception.addValidationError("watch id contains whitespace");
-        }
-
-        return exception.validationErrors().isEmpty()
-            ? Optional.empty()  // empty indicates no validation errors
-            : Optional.of(exception);
+        return Optional.empty();  // empty indicates no validation errors
     }
 }

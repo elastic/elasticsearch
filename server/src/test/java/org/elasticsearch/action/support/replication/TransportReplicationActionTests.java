@@ -1020,7 +1020,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         // publish a new state (same as the old state with the version incremented)
         setState(clusterService, stateWithNodes);
 
-        // Assert that the request was retried, this time successfull
+        // Assert that the request was retried, this time successful
         assertTrue("action should have been successfully called on retry but was not", calledSuccessfully.get());
         transportService.stop();
     }

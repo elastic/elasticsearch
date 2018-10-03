@@ -28,8 +28,10 @@ import org.elasticsearch.common.unit.TimeValue;
  */
 public class TimedRequest implements Validatable {
 
+    public static final TimeValue DEFAULT_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
+
     private TimeValue timeout;
-    private TimeValue masterTimeout;
+    private TimeValue masterTimeout = DEFAULT_MASTER_NODE_TIMEOUT;
 
     public void setTimeout(TimeValue timeout) {
         this.timeout = timeout;

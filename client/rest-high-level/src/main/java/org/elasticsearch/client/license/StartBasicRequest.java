@@ -18,10 +18,9 @@
  */
 package org.elasticsearch.client.license;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.client.TimedRequest;
 
-public class StartBasicRequest extends AcknowledgedRequest<StartBasicRequest> {
+public class StartBasicRequest extends TimedRequest {
     private final boolean acknowledge;
 
     public StartBasicRequest() {
@@ -30,11 +29,6 @@ public class StartBasicRequest extends AcknowledgedRequest<StartBasicRequest> {
 
     public StartBasicRequest(boolean acknowledge) {
         this.acknowledge = acknowledge;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     public boolean isAcknowledge() {

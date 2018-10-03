@@ -41,7 +41,7 @@ public class LicenseRequestConvertersTests extends ESTestCase {
             expectedParams.put("acknowledge", Boolean.TRUE.toString());
         }
 
-        setRandomTimeout(startBasicRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomTimeout(startBasicRequest, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         setRandomMasterTimeout(startBasicRequest, expectedParams);
         Request request = LicenseRequestConverters.startBasic(startBasicRequest);
 

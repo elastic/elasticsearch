@@ -21,6 +21,9 @@ package org.elasticsearch.indices;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.ObjectSet;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.Accountable;
@@ -75,6 +78,8 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
     public static final Setting<TimeValue> INDICES_CACHE_QUERY_EXPIRE =
         Setting.positiveTimeSetting("indices.requests.cache.expire", new TimeValue(0), Property.NodeScope);
 
+    private static final Logger LOGGER = LogManager.getLogger(IndicesRequestCache.class);
+
     private final ConcurrentMap<CleanupKey, Boolean> registeredClosedListeners = ConcurrentCollections.newConcurrentMap();
     private final Set<CleanupKey> keysToClean = ConcurrentCollections.newConcurrentSet();
     private final ByteSizeValue size;
@@ -109,13 +114,19 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
         notification.getKey().entity.onRemoval(notification);
     }
 
+    // NORELEASE The cacheKeyRenderer has been added in order to debug
+    // https://github.com/elastic/elasticsearch/issues/32827, it should be
+    // removed when this issue is solved
     BytesReference getOrCompute(CacheEntity cacheEntity, Supplier<BytesReference> loader,
-            DirectoryReader reader, BytesReference cacheKey) throws Exception {
+            DirectoryReader reader, BytesReference cacheKey, Supplier<String> cacheKeyRenderer) throws Exception {
         final Key key =  new Key(cacheEntity, reader.getVersion(), cacheKey);
         Loader cacheLoader = new Loader(cacheEntity, loader);
         BytesReference value = cache.computeIfAbsent(key, cacheLoader);
         if (cacheLoader.isLoaded()) {
             key.entity.onMiss();
+            if (logger.isTraceEnabled()) {
+                logger.trace("Cache miss for reader version [{}] and request:\n {}", reader.getVersion(), cacheKeyRenderer.get());
+            }
             // see if its the first time we see this reader, and make sure to register a cleanup key
             CleanupKey cleanupKey = new CleanupKey(cacheEntity, reader.getVersion());
             if (!registeredClosedListeners.containsKey(cleanupKey)) {
@@ -126,6 +137,9 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
             }
         } else {
             key.entity.onHit();
+            if (logger.isTraceEnabled()) {
+                logger.trace("Cache hit for reader version [{}] and request:\n {}", reader.getVersion(), cacheKeyRenderer.get());
+            }
         }
         return value;
     }

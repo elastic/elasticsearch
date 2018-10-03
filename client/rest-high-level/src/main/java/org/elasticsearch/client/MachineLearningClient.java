@@ -38,6 +38,8 @@ import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetCategoriesResponse;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedResponse;
+import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
+import org.elasticsearch.client.ml.GetDatafeedStatsResponse;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetInfluencersResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
@@ -181,7 +183,7 @@ public final class MachineLearningClient {
     }
 
     /**
-     * Gets one or more Machine Learning job configuration info, asynchronously.
+     * Gets usage statistics for one or more Machine Learning jobs, asynchronously.
      * <p>
      * For additional info
      * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job-stats.html">Get job stats docs</a>
@@ -645,6 +647,47 @@ public final class MachineLearningClient {
             MLRequestConverters::stopDatafeed,
             options,
             StopDatafeedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets statistics for one or more Machine Learning datafeeds
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-datafeed-stats.html">Get datafeed stats docs</a>
+     *
+     * @param request {@link GetDatafeedStatsRequest} Request containing a list of datafeedId(s) and additional options
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return {@link GetDatafeedStatsResponse} response object containing
+     * the {@link org.elasticsearch.client.ml.datafeed.DatafeedStats} objects and the number of datafeeds found
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public GetDatafeedStatsResponse getDatafeedStats(GetDatafeedStatsRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::getDatafeedStats,
+            options,
+            GetDatafeedStatsResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets statistics for one or more Machine Learning datafeeds, asynchronously.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-datafeed-stats.html">Get datafeed stats docs</a>
+     *
+     * @param request  {@link GetDatafeedStatsRequest} Request containing a list of datafeedId(s) and additional options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified with {@link GetDatafeedStatsResponse} upon request completion
+     */
+    public void getDatafeedStatsAsync(GetDatafeedStatsRequest request,
+                                      RequestOptions options,
+                                      ActionListener<GetDatafeedStatsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::getDatafeedStats,
+            options,
+            GetDatafeedStatsResponse::fromXContent,
             listener,
             Collections.emptySet());
     }

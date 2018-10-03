@@ -34,6 +34,7 @@ import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
+import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
@@ -291,6 +292,23 @@ public class MLRequestConvertersTests extends ESTestCase {
             StopDatafeedRequest parsedDatafeedRequest = StopDatafeedRequest.PARSER.apply(parser, null);
             assertThat(parsedDatafeedRequest, equalTo(datafeedRequest));
         }
+    }
+
+    public void testGetDatafeedStats() {
+        GetDatafeedStatsRequest getDatafeedStatsRequestRequest = new GetDatafeedStatsRequest();
+
+        Request request = MLRequestConverters.getDatafeedStats(getDatafeedStatsRequestRequest);
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/datafeeds/_stats", request.getEndpoint());
+        assertFalse(request.getParameters().containsKey("allow_no_datafeeds"));
+
+        getDatafeedStatsRequestRequest = new GetDatafeedStatsRequest("datafeed1", "datafeeds*");
+        getDatafeedStatsRequestRequest.setAllowNoDatafeeds(true);
+        request = MLRequestConverters.getDatafeedStats(getDatafeedStatsRequestRequest);
+
+        assertEquals("/_xpack/ml/datafeeds/datafeed1,datafeeds*/_stats", request.getEndpoint());
+        assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_datafeeds"));
     }
 
     public void testDeleteForecast() {

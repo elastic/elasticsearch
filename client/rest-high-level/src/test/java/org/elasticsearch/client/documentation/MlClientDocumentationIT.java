@@ -51,6 +51,8 @@ import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetCategoriesResponse;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedResponse;
+import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
+import org.elasticsearch.client.ml.GetDatafeedStatsResponse;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetInfluencersResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
@@ -79,6 +81,7 @@ import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.client.ml.datafeed.DatafeedStats;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisLimits;
 import org.elasticsearch.client.ml.job.config.DataDescription;
@@ -817,6 +820,82 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::x-pack-ml-stop-datafeed-execute-async
             client.machineLearning().stopDatafeedAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::x-pack-ml-stop-datafeed-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetDatafeedStats() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        Job job = MachineLearningIT.buildJob("get-machine-learning-datafeed-stats1");
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        Job secondJob = MachineLearningIT.buildJob("get-machine-learning-datafeed-stats2");
+        client.machineLearning().putJob(new PutJobRequest(secondJob), RequestOptions.DEFAULT);
+        String datafeedId1 = job.getId() + "-feed";
+        String indexName = "datafeed_stats_data_2";
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId1, job.getId())
+            .setTypes(Arrays.asList("doc"))
+            .setIndices(indexName)
+            .build();
+        client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
+
+        String datafeedId2 = secondJob.getId() + "-feed";
+        DatafeedConfig secondDatafeed = DatafeedConfig.builder(datafeedId2, secondJob.getId())
+            .setTypes(Arrays.asList("doc"))
+            .setIndices(indexName)
+            .build();
+        client.machineLearning().putDatafeed(new PutDatafeedRequest(secondDatafeed), RequestOptions.DEFAULT);
+
+        {
+            //tag::x-pack-ml-get-datafeed-stats-request
+            GetDatafeedStatsRequest request =
+                new GetDatafeedStatsRequest("get-machine-learning-datafeed-stats1-feed", "get-machine-learning-datafeed*"); // <1>
+            request.setAllowNoDatafeeds(true); // <2>
+            //end::x-pack-ml-get-datafeed-stats-request
+
+            //tag::x-pack-ml-get-datafeed-stats-execute
+            GetDatafeedStatsResponse response = client.machineLearning().getDatafeedStats(request, RequestOptions.DEFAULT);
+            //end::x-pack-ml-get-datafeed-stats-execute
+
+            //tag::x-pack-ml-get-datafeed-stats-response
+            long numberOfDatafeedStats = response.count(); // <1>
+            List<DatafeedStats> datafeedStats = response.datafeedStats(); // <2>
+            //end::x-pack-ml-get-datafeed-stats-response
+
+            assertEquals(2, response.count());
+            assertThat(response.datafeedStats(), hasSize(2));
+            assertThat(response.datafeedStats().stream().map(DatafeedStats::getDatafeedId).collect(Collectors.toList()),
+                containsInAnyOrder(datafeed.getId(), secondDatafeed.getId()));
+        }
+        {
+            GetDatafeedStatsRequest request = new GetDatafeedStatsRequest("*");
+
+            // tag::x-pack-ml-get-datafeed-stats-listener
+            ActionListener<GetDatafeedStatsResponse> listener = new ActionListener<GetDatafeedStatsResponse>() {
+                @Override
+                public void onResponse(GetDatafeedStatsResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::x-pack-ml-get-datafeed-stats-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-get-datafeed-stats-execute-async
+            client.machineLearning().getDatafeedStatsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::x-pack-ml-get-datafeed-stats-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

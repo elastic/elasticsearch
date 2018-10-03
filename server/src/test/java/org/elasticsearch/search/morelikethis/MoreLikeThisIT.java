@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.morelikethis;
 
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -61,6 +62,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class MoreLikeThisIT extends ESIntegTestCase {
@@ -674,5 +676,28 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         moreLikeThisQueryBuilder.minDocFreq(1);
         SearchResponse searchResponse = client().prepareSearch("index").setQuery(moreLikeThisQueryBuilder).get();
         assertEquals(2, searchResponse.getHits().totalHits);
+    }
+
+    //Issue #29678
+    public void testWithMissingRouting() throws IOException {
+        logger.info("Creating index test with routing required for type1");
+        assertAcked(prepareCreate("test").addMapping("type1",
+            jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("text").field("type", "text").endObject().endObject()
+                .startObject("_routing").field("required", true).endObject()
+            .endObject().endObject()));
+
+        logger.info("Running Cluster Health");
+        assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
+
+        logger.info("Running moreLikeThis");
+        SearchPhaseExecutionException exception = expectThrows(SearchPhaseExecutionException.class, () ->
+            client().prepareSearch().setQuery(new MoreLikeThisQueryBuilder(null, new Item[]{
+                new Item("test", "type1", "1")
+            }).minTermFreq(1).minDocFreq(1)).get());
+
+        Throwable cause = exception.getCause();
+        assertThat(cause, instanceOf(RoutingMissingException.class));
+        assertThat(cause.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
     }
 }

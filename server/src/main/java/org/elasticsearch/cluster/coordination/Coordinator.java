@@ -428,7 +428,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             ClusterState initialState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
                 .blocks(ClusterBlocks.builder()
                     .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
-                    .addGlobalBlock(NO_MASTER_BLOCK_WRITES))
+                    .addGlobalBlock(NO_MASTER_BLOCK_WRITES)) // TODO: allow dynamically configuring NO_MASTER_BLOCK_ALL
                 .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()))
                 .build();
             applierState = initialState;

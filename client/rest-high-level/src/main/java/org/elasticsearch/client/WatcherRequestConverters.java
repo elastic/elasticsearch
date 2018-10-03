@@ -61,8 +61,7 @@ public class WatcherRequestConverters {
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         return request;
     }
-
-
+    
     public static Request ackWatch(AckWatchRequest ackWatchRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_xpack")

@@ -24,6 +24,7 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.elasticsearch.client.watcher.ActivateWatchRequest;
+import org.elasticsearch.client.watcher.AckWatchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
@@ -61,6 +62,20 @@ public class WatcherRequestConverters {
         return request;
     }
 
+
+    public static Request ackWatch(AckWatchRequest ackWatchRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("watcher")
+            .addPathPartAsIs("watch")
+            .addPathPart(ackWatchRequest.getWatchId())
+            .addPathPartAsIs("_ack")
+            .addCommaSeparatedPathParts(ackWatchRequest.getActionIds())
+            .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        return request;
+    }
+
     static Request activateWatch(ActivateWatchRequest activateWatchRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_xpack")
@@ -69,7 +84,6 @@ public class WatcherRequestConverters {
             .addPathPart(activateWatchRequest.getWatchId())
             .addPathPartAsIs("_activate")
             .build();
-
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         return request;
     }

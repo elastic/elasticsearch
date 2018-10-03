@@ -614,7 +614,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                 assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
                                 assert coordinationState.get().getLastAcceptedTerm() == publishRequest.getAcceptedState().term()
                                     && coordinationState.get().getLastAcceptedVersion() == publishRequest.getAcceptedState().version()
-                                    : "onPossibleCompletion: term or version mismatch when publishing [" + this
+                                    : "onPossibleCompletion: term or version mismatch when publishing [" + publicationDescription()
                                     + "]: current version is now [" + coordinationState.get().getLastAcceptedVersion()
                                     + "] in term [" + coordinationState.get().getLastAcceptedTerm() + "]";
                                 assert committed;
@@ -672,6 +672,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     protected void sendApplyCommit(DiscoveryNode destination, ApplyCommitRequest applyCommit,
                                                    ActionListener<Empty> responseActionListener) {
                         publicationHandler.sendApplyCommit(destination, applyCommit, wrapWithMutex(responseActionListener));
+                    }
+
+                    private String publicationDescription() {
+                        return toString();
                     }
                 };
 

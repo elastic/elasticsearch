@@ -372,7 +372,7 @@ GET /test_index/_search
     "percolate" : {
       "field" : "query",
       "document" : {
-        "body" : "Bicycles are missing"
+        "body" : "Bycicles are missing"
       }
     }
   }

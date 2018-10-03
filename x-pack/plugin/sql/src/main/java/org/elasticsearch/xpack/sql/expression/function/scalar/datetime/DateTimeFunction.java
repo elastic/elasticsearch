@@ -6,13 +6,13 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.UnaryProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
+import org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.joda.time.DateTime;
@@ -24,8 +24,7 @@ import java.time.temporal.ChronoField;
 import java.util.Objects;
 import java.util.TimeZone;
 
-import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
+import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 public abstract class DateTimeFunction extends BaseDateTimeFunction {
 
@@ -49,7 +48,7 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
     }
 
     @Override
-    protected ScriptTemplate asScriptFrom(FieldAttribute field) {
+    public ScriptTemplate scriptWithField(FieldAttribute field) {
         ParamsBuilder params = paramsBuilder();
 
         String template = null;
@@ -67,9 +66,8 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
     protected abstract ChronoField chronoField();
 
     @Override
-    protected ProcessorDefinition makeProcessorDefinition() {
-        return new UnaryProcessorDefinition(location(), this, ProcessorDefinitions.toProcessorDefinition(field()),
-                new DateTimeProcessor(extractor(), timeZone()));
+    protected Pipe makePipe() {
+        return new UnaryPipe(location(), this, Expressions.pipe(field()), new DateTimeProcessor(extractor(), timeZone()));
     }
 
     protected abstract DateTimeExtractor extractor();

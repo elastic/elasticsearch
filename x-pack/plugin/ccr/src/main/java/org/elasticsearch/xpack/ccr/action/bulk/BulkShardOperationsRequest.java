@@ -16,30 +16,49 @@ import java.util.List;
 
 public final class BulkShardOperationsRequest extends ReplicatedWriteRequest<BulkShardOperationsRequest> {
 
+    private String historyUUID;
     private List<Translog.Operation> operations;
+    private long maxSeqNoOfUpdatesOrDeletes;
 
     public BulkShardOperationsRequest() {
     }
 
-    public BulkShardOperationsRequest(final ShardId shardId, final List<Translog.Operation> operations) {
+    public BulkShardOperationsRequest(final ShardId shardId,
+                                      final String historyUUID,
+                                      final List<Translog.Operation> operations,
+                                      long maxSeqNoOfUpdatesOrDeletes) {
         super(shardId);
         setRefreshPolicy(RefreshPolicy.NONE);
+        this.historyUUID = historyUUID;
         this.operations = operations;
+        this.maxSeqNoOfUpdatesOrDeletes = maxSeqNoOfUpdatesOrDeletes;
+    }
+
+    public String getHistoryUUID() {
+        return historyUUID;
     }
 
     public List<Translog.Operation> getOperations() {
         return operations;
     }
 
+    public long getMaxSeqNoOfUpdatesOrDeletes() {
+        return maxSeqNoOfUpdatesOrDeletes;
+    }
+
     @Override
     public void readFrom(final StreamInput in) throws IOException {
         super.readFrom(in);
+        historyUUID = in.readString();
+        maxSeqNoOfUpdatesOrDeletes = in.readZLong();
         operations = in.readList(Translog.Operation::readOperation);
     }
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeString(historyUUID);
+        out.writeZLong(maxSeqNoOfUpdatesOrDeletes);
         out.writeVInt(operations.size());
         for (Translog.Operation operation : operations) {
             Translog.Operation.writeOperation(out, operation);
@@ -49,7 +68,9 @@ public final class BulkShardOperationsRequest extends ReplicatedWriteRequest<Bul
     @Override
     public String toString() {
         return "BulkShardOperationsRequest{" +
-                "operations=" + operations.size()+
+                "historyUUID=" + historyUUID +
+                ", operations=" + operations.size() +
+                ", maxSeqNoUpdates=" + maxSeqNoOfUpdatesOrDeletes +
                 ", shardId=" + shardId +
                 ", timeout=" + timeout +
                 ", index='" + index + '\'' +

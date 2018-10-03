@@ -38,7 +38,7 @@ public class PreAnalyzerTests extends ESTestCase {
     }
 
     public void testWildIndexWithCatalog() {
-        LogicalPlan plan = parser.createStatement("SELECT * FROM elastic:index*");
+        LogicalPlan plan = parser.createStatement("SELECT * FROM elastic:\"index*\"");
         PreAnalysis result = preAnalyzer.preAnalyze(plan);
         assertThat(plan.preAnalyzed(), is(true));
         assertThat(result.indices, hasSize(1));

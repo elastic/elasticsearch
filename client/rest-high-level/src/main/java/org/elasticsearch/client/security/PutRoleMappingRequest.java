@@ -37,13 +37,13 @@ import java.util.Objects;
  */
 public final class PutRoleMappingRequest implements Validatable, ToXContentObject {
 
-    private String name;
-    private boolean enabled;
-    private List<String> roles;
-    private RoleMapperExpression rules;
+    private final String name;
+    private final boolean enabled;
+    private final List<String> roles;
+    private final RoleMapperExpression rules;
 
-    @Nullable private Map<String, Object> metadata;
-    @Nullable private RefreshPolicy refreshPolicy;
+    private final Map<String, Object> metadata;
+    private final RefreshPolicy refreshPolicy;
 
     public PutRoleMappingRequest(final String name, final boolean enabled, final List<String> roles, final RoleMapperExpression rules,
             @Nullable final Map<String, Object> metadata, @Nullable final RefreshPolicy refreshPolicy) {

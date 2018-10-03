@@ -41,43 +41,62 @@ import static org.hamcrest.Matchers.equalTo;
 public class PutRoleMappingRequestTests extends ESTestCase {
 
     public void testPutRoleMappingRequest() {
-        final String name = randomFrom(randomAlphaOfLength(5), null, "");
+        final String name = randomAlphaOfLength(5);
         final boolean enabled = randomBoolean();
-        final boolean nullorEmptyRoles = randomBoolean();
-        final List<String> roles = nullorEmptyRoles ? (randomBoolean() ? null : Collections.emptyList())
-                : Collections.singletonList("superuser");
-        final RoleMapperExpression rules = randomFrom(FieldRoleMapperExpression.ofUsername("user"), null);
-        final boolean nullorEmptyMetadata = randomBoolean();
-        final Map<String, Object> metadata;
-        if (nullorEmptyMetadata) {
-            metadata = randomBoolean() ? null : Collections.emptyMap();
-        } else {
-            metadata = new HashMap<>();
-            metadata.put("k1", "v1");
-        }
-        final RefreshPolicy refreshPolicy = randomFrom(randomFrom(RefreshPolicy.values()), null);
+        final List<String> roles = Collections.singletonList("superuser");
+        final RoleMapperExpression rules = FieldRoleMapperExpression.ofUsername("user");
+        final Map<String, Object> metadata = new HashMap<>();
+        metadata.put("k1", "v1");
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
 
-        if (Strings.hasText(name) == false) {
-            final IllegalArgumentException ile = expectThrows(IllegalArgumentException.class, () -> new PutRoleMappingRequest(name, enabled,
-                    roles, rules, metadata, refreshPolicy));
-            assertThat(ile.getMessage(), equalTo("role-mapping name is missing"));
-        } else if (roles == null || roles.isEmpty()) {
-            final IllegalArgumentException ile = expectThrows(IllegalArgumentException.class, () -> new PutRoleMappingRequest(name, enabled,
-                    roles, rules, metadata, refreshPolicy));
-            assertThat(ile.getMessage(), equalTo("role-mapping roles are missing"));
-        } else if (rules == null) {
-            expectThrows(NullPointerException.class, () -> new PutRoleMappingRequest(name, enabled, roles, rules, metadata, refreshPolicy));
-        } else {
-            PutRoleMappingRequest putRoleMappingRequest = new PutRoleMappingRequest(name, enabled, roles, rules, metadata, refreshPolicy);
-            assertNotNull(putRoleMappingRequest);
-            assertThat(putRoleMappingRequest.getName(), equalTo(name));
-            assertThat(putRoleMappingRequest.isEnabled(), equalTo(enabled));
-            assertThat(putRoleMappingRequest.getRefreshPolicy(), equalTo((refreshPolicy == null) ? RefreshPolicy.getDefault()
-                    : refreshPolicy));
-            assertThat(putRoleMappingRequest.getRules(), equalTo(rules));
-            assertThat(putRoleMappingRequest.getRoles(), equalTo(roles));
-            assertThat(putRoleMappingRequest.getMetadata(), equalTo((metadata == null) ? Collections.emptyMap() : metadata));
-        }
+        PutRoleMappingRequest putRoleMappingRequest = new PutRoleMappingRequest(name, enabled, roles, rules, metadata, refreshPolicy);
+        assertNotNull(putRoleMappingRequest);
+        assertThat(putRoleMappingRequest.getName(), equalTo(name));
+        assertThat(putRoleMappingRequest.isEnabled(), equalTo(enabled));
+        assertThat(putRoleMappingRequest.getRefreshPolicy(), equalTo((refreshPolicy == null) ? RefreshPolicy.getDefault() : refreshPolicy));
+        assertThat(putRoleMappingRequest.getRules(), equalTo(rules));
+        assertThat(putRoleMappingRequest.getRoles(), equalTo(roles));
+        assertThat(putRoleMappingRequest.getMetadata(), equalTo((metadata == null) ? Collections.emptyMap() : metadata));
+    }
+
+    public void testPutRoleMappingRequestThrowsExceptionForNullOrEmptyName() {
+        final String name = randomBoolean() ? null : "";
+        final boolean enabled = randomBoolean();
+        final List<String> roles = Collections.singletonList("superuser");
+        final RoleMapperExpression rules = FieldRoleMapperExpression.ofUsername("user");
+        final Map<String, Object> metadata = new HashMap<>();
+        metadata.put("k1", "v1");
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+
+        final IllegalArgumentException ile = expectThrows(IllegalArgumentException.class, () -> new PutRoleMappingRequest(name, enabled,
+                roles, rules, metadata, refreshPolicy));
+        assertThat(ile.getMessage(), equalTo("role-mapping name is missing"));
+    }
+
+    public void testPutRoleMappingRequestThrowsExceptionForNullOrEmptyRoles() {
+        final String name = randomAlphaOfLength(5);
+        final boolean enabled = randomBoolean();
+        final List<String> roles = randomBoolean() ? null : Collections.emptyList();
+        final RoleMapperExpression rules = FieldRoleMapperExpression.ofUsername("user");
+        final Map<String, Object> metadata = new HashMap<>();
+        metadata.put("k1", "v1");
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+
+        final IllegalArgumentException ile = expectThrows(IllegalArgumentException.class, () -> new PutRoleMappingRequest(name, enabled,
+                roles, rules, metadata, refreshPolicy));
+        assertThat(ile.getMessage(), equalTo("role-mapping roles are missing"));
+    }
+
+    public void testPutRoleMappingRequestThrowsExceptionForNullRules() {
+        final String name = randomAlphaOfLength(5);
+        final boolean enabled = randomBoolean();
+        final List<String> roles = Collections.singletonList("superuser");
+        final RoleMapperExpression rules = null;
+        final Map<String, Object> metadata = new HashMap<>();
+        metadata.put("k1", "v1");
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+
+        expectThrows(NullPointerException.class, () -> new PutRoleMappingRequest(name, enabled, roles, rules, metadata, refreshPolicy));
     }
 
     public void testPutRoleMappingRequestToXContent() throws IOException {

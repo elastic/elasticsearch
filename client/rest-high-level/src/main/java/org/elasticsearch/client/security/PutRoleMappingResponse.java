@@ -34,7 +34,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  */
 public final class PutRoleMappingResponse {
 
-    private boolean created;
+    private final boolean created;
 
     public PutRoleMappingResponse(boolean created) {
         this.created = created;

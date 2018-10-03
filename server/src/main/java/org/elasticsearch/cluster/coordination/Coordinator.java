@@ -619,134 +619,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     getLocalNode() + " should be in published " + clusterState;
 
                 final PublishRequest publishRequest = coordinationState.get().handleClientValue(clusterState);
-
-                final ListenableFuture<Void> localNodeAckEvent = new ListenableFuture<>();
-                final AckListener wrappedAckListener = new AckListener() {
-                    @Override
-                    public void onCommit(TimeValue commitTime) {
-                        ackListener.onCommit(commitTime);
-                    }
-
-                    @Override
-                    public void onNodeAck(DiscoveryNode node, Exception e) {
-                        // acking and cluster state application for local node is handled specially
-                        if (node.equals(getLocalNode())) {
-                            synchronized (mutex) {
-                                if (e == null) {
-                                    localNodeAckEvent.onResponse(null);
-                                } else {
-                                    localNodeAckEvent.onFailure(e);
-                                }
-                            }
-                        } else {
-                            ackListener.onNodeAck(node, e);
-                        }
-                    }
-                };
-
-                final Publication publication = new Publication(settings, publishRequest, wrappedAckListener,
-                    transportService.getThreadPool()::relativeTimeInMillis) {
-
-                    final Publication thisPublication = this;
-
-                    private void failPublicationAndPossiblyBecomeCandidate(String reason) {
-                        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-
-                        assert currentPublication.get() == this;
-                        currentPublication = Optional.empty();
-
-                        // check if node has not already switched modes (by bumping term)
-                        if (mode == Mode.LEADER && publishRequest.getAcceptedState().term() == getCurrentTerm()) {
-                            becomeCandidate(reason);
-                        }
-                    }
-
-                    @Override
-                    protected void onCompletion(boolean committed) {
-                        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-                        assert currentPublication.get() == this;
-
-                        localNodeAckEvent.addListener(new ActionListener<Void>() {
-                            @Override
-                            public void onResponse(Void ignore) {
-                                assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-                                assert committed;
-
-                                clusterApplier.onNewClusterState(thisPublication.toString(), () -> applierState,
-                                    new ClusterApplyListener() {
-                                        @Override
-                                        public void onFailure(String source, Exception e) {
-                                            synchronized (mutex) {
-                                                failPublicationAndPossiblyBecomeCandidate("clusterApplier#onNewClusterState");
-                                            }
-                                            ackListener.onNodeAck(getLocalNode(), e);
-                                            publishListener.onFailure(e);
-                                        }
-
-                                        @Override
-                                        public void onSuccess(String source) {
-                                            synchronized (mutex) {
-                                                assert currentPublication.get() == thisPublication;
-                                                currentPublication = Optional.empty();
-                                                // trigger term bump if new term was found during publication
-                                                updateMaxTermSeen(getCurrentTerm());
-                                            }
-
-                                            ackListener.onNodeAck(getLocalNode(), null);
-                                            publishListener.onResponse(null);
-                                        }
-                                    });
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-                                failPublicationAndPossiblyBecomeCandidate("Publication.onCompletion(false)");
-
-                                FailedToCommitClusterStateException exception = new FailedToCommitClusterStateException(
-                                    "publication failed", e);
-                                ackListener.onNodeAck(getLocalNode(), exception); // other nodes have acked, but not the master.
-                                publishListener.onFailure(exception);
-                            }
-                        }, EsExecutors.newDirectExecutorService());
-                    }
-
-                    @Override
-                    protected boolean isPublishQuorum(CoordinationState.VoteCollection votes) {
-                        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-                        return coordinationState.get().isPublishQuorum(votes);
-                    }
-
-                    @Override
-                    protected Optional<ApplyCommitRequest> handlePublishResponse(DiscoveryNode sourceNode,
-                                                                                 PublishResponse publishResponse) {
-                        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-                        assert getCurrentTerm() >= publishResponse.getTerm();
-                        return coordinationState.get().handlePublishResponse(sourceNode, publishResponse);
-                    }
-
-                    @Override
-                    protected void onJoin(Join join) {
-                        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-                        if (join.getTerm() == getCurrentTerm()) {
-                            handleJoin(join);
-                        }
-                        // TODO: what to do on missing join?
-                    }
-
-                    @Override
-                    protected void sendPublishRequest(DiscoveryNode destination, PublishRequest publishRequest,
-                                                      ActionListener<PublishWithJoinResponse> responseActionListener) {
-                        publicationHandler.sendPublishRequest(destination, publishRequest, wrapWithMutex(responseActionListener));
-                    }
-
-                    @Override
-                    protected void sendApplyCommit(DiscoveryNode destination, ApplyCommitRequest applyCommit,
-                                                   ActionListener<Empty> responseActionListener) {
-                        publicationHandler.sendApplyCommit(destination, applyCommit, wrapWithMutex(responseActionListener));
-                    }
-                };
-
+                final Publication publication = new CoordinatorPublication(publishRequest, new ListenableFuture<>(), ackListener,
+                    publishListener);
                 currentPublication = Optional.of(publication);
 
                 transportService.getThreadPool().schedule(publishTimeout, Names.GENERIC, new Runnable() {
@@ -854,6 +728,143 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     }
                 }
             }
+        }
+    }
+
+    class CoordinatorPublication extends Publication {
+
+        private final PublishRequest publishRequest;
+        private final ListenableFuture<Void> localNodeAckEvent;
+        private final AckListener ackListener;
+        private final ActionListener<Void> publishListener;
+
+        CoordinatorPublication(PublishRequest publishRequest, ListenableFuture<Void> localNodeAckEvent, AckListener ackListener,
+                               ActionListener<Void> publishListener) {
+            super(Coordinator.this.settings, publishRequest,
+                new AckListener() {
+                    @Override
+                    public void onCommit(TimeValue commitTime) {
+                        ackListener.onCommit(commitTime);
+                    }
+
+                    @Override
+                    public void onNodeAck(DiscoveryNode node, Exception e) {
+                        // acking and cluster state application for local node is handled specially
+                        if (node.equals(getLocalNode())) {
+                            synchronized (mutex) {
+                                if (e == null) {
+                                    localNodeAckEvent.onResponse(null);
+                                } else {
+                                    localNodeAckEvent.onFailure(e);
+                                }
+                            }
+                        } else {
+                            ackListener.onNodeAck(node, e);
+                        }
+                    }
+                },
+                transportService.getThreadPool()::relativeTimeInMillis);
+            this.publishRequest = publishRequest;
+            this.localNodeAckEvent = localNodeAckEvent;
+            this.ackListener = ackListener;
+            this.publishListener = publishListener;
+        }
+
+        private void failPublicationAndPossiblyBecomeCandidate(String reason) {
+            assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+
+            assert currentPublication.get() == this;
+            currentPublication = Optional.empty();
+
+            // check if node has not already switched modes (by bumping term)
+            if (mode == Mode.LEADER && publishRequest.getAcceptedState().term() == getCurrentTerm()) {
+                becomeCandidate(reason);
+            }
+        }
+
+        @Override
+        protected void onCompletion(boolean committed) {
+            assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+            assert currentPublication.get() == this;
+
+            localNodeAckEvent.addListener(new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void ignore) {
+                    assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+                    assert committed;
+
+                    clusterApplier.onNewClusterState(CoordinatorPublication.this.toString(), () -> applierState,
+                        new ClusterApplyListener() {
+                            @Override
+                            public void onFailure(String source, Exception e) {
+                                synchronized (mutex) {
+                                    failPublicationAndPossiblyBecomeCandidate("clusterApplier#onNewClusterState");
+                                }
+                                ackListener.onNodeAck(getLocalNode(), e);
+                                publishListener.onFailure(e);
+                            }
+
+                            @Override
+                            public void onSuccess(String source) {
+                                synchronized (mutex) {
+                                    assert currentPublication.get() == CoordinatorPublication.this;
+                                    currentPublication = Optional.empty();
+                                    // trigger term bump if new term was found during publication
+                                    updateMaxTermSeen(getCurrentTerm());
+                                }
+
+                                ackListener.onNodeAck(getLocalNode(), null);
+                                publishListener.onResponse(null);
+                            }
+                        });
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+                    failPublicationAndPossiblyBecomeCandidate("Publication.onCompletion(false)");
+
+                    FailedToCommitClusterStateException exception = new FailedToCommitClusterStateException(
+                        "publication failed", e);
+                    ackListener.onNodeAck(getLocalNode(), exception); // other nodes have acked, but not the master.
+                    publishListener.onFailure(exception);
+                }
+            }, EsExecutors.newDirectExecutorService());
+        }
+
+        @Override
+        protected boolean isPublishQuorum(CoordinationState.VoteCollection votes) {
+            assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+            return coordinationState.get().isPublishQuorum(votes);
+        }
+
+        @Override
+        protected Optional<ApplyCommitRequest> handlePublishResponse(DiscoveryNode sourceNode,
+                                                                     PublishResponse publishResponse) {
+            assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+            assert getCurrentTerm() >= publishResponse.getTerm();
+            return coordinationState.get().handlePublishResponse(sourceNode, publishResponse);
+        }
+
+        @Override
+        protected void onJoin(Join join) {
+            assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+            if (join.getTerm() == getCurrentTerm()) {
+                handleJoin(join);
+            }
+            // TODO: what to do on missing join?
+        }
+
+        @Override
+        protected void sendPublishRequest(DiscoveryNode destination, PublishRequest publishRequest,
+                                          ActionListener<PublishWithJoinResponse> responseActionListener) {
+            publicationHandler.sendPublishRequest(destination, publishRequest, wrapWithMutex(responseActionListener));
+        }
+
+        @Override
+        protected void sendApplyCommit(DiscoveryNode destination, ApplyCommitRequest applyCommit,
+                                       ActionListener<Empty> responseActionListener) {
+            publicationHandler.sendApplyCommit(destination, applyCommit, wrapWithMutex(responseActionListener));
         }
     }
 }

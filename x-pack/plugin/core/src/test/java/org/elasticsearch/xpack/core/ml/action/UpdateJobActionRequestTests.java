@@ -19,7 +19,6 @@ public class UpdateJobActionRequestTests
         JobUpdate.Builder jobUpdate = new JobUpdate.Builder(jobId);
         jobUpdate.setAnalysisLimits(new AnalysisLimits(100L, 100L));
         UpdateJobAction.Request request = new UpdateJobAction.Request(jobId, jobUpdate.build());
-        request.setWaitForAck(randomBoolean());
         return request;
     }
 

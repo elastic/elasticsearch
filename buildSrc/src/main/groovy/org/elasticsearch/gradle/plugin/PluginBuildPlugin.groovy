@@ -18,12 +18,18 @@
  */
 package org.elasticsearch.gradle.plugin
 
+import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import nebula.plugin.publishing.maven.MavenScmPlugin
 import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.Distribution
 import org.elasticsearch.gradle.NoticeTask
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.testclusters.ElasticsearchNode
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RunTask
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.gradle.api.NamedDomainObjectContainer
 import org.gradle.api.Project
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
@@ -42,12 +48,24 @@ public class PluginBuildPlugin extends BuildPlugin {
     @Override
     public void apply(Project project) {
         super.apply(project)
+        project.pluginManager.apply(TestClustersPlugin.class)
+        NamedDomainObjectContainer<ElasticsearchNode> nodeExtension =
+                TestClustersPlugin.getNodeExtension(project)
+        ElasticsearchNode esNode = nodeExtension.create("${project.getPath()}##node") {
+            // TODO: change this to INTEG_TEST_ZIP when we add support to install plugins
+            it.distribution = Distribution.ZIP
+            it.version = VersionProperties.elasticsearch
+        }
+
         configureDependencies(project)
         // this afterEvaluate must happen before the afterEvaluate added by integTest creation,
         // so that the file name resolution for installing the plugin will be setup
+        createIntegTestTask(project, esNode)
+        createBundleTask(project)
+        project.configurations.getByName('default').extendsFrom(project.configurations.getByName('runtime'))
+        project.tasks.create('run', RunTask) // allow running ES with this plugin in the foreground of a build
         project.afterEvaluate {
-            boolean isXPackModule = project.path.startsWith(':x-pack:plugin')
-            boolean isModule = project.path.startsWith(':modules:') || isXPackModule
+            boolean isModule = project.path.startsWith(':modules:') || project.path.startsWith(':x-pack:plugin')
             String name = project.pluginProperties.extension.name
             project.archivesBaseName = name
 
@@ -56,20 +74,17 @@ public class PluginBuildPlugin extends BuildPlugin {
 
             configurePublishing(project)
 
-            project.integTestCluster.dependsOn(project.bundlePlugin)
             project.tasks.run.dependsOn(project.bundlePlugin)
             if (isModule) {
-                project.integTestCluster.module(project)
                 project.tasks.run.clusterConfig.module(project)
                 project.tasks.run.clusterConfig.distribution = System.getProperty(
                         'run.distribution', 'integ-test-zip'
                 )
             } else {
-                project.integTestCluster.plugin(project.path)
                 project.tasks.run.clusterConfig.plugin(project.path)
             }
 
-            if (isModule == false || isXPackModule) {
+            if (isModule == false || project.path.startsWith(':x-pack:plugin')) {
                 addNoticeGeneration(project)
             }
 
@@ -78,10 +93,6 @@ public class PluginBuildPlugin extends BuildPlugin {
                 skipIntegTestInDisguise = true
             }
         }
-        createIntegTestTask(project)
-        createBundleTask(project)
-        project.configurations.getByName('default').extendsFrom(project.configurations.getByName('runtime'))
-        project.tasks.create('run', RunTask) // allow running ES with this plugin in the foreground of a build
     }
 
     private void configurePublishing(Project project) {
@@ -125,10 +136,33 @@ public class PluginBuildPlugin extends BuildPlugin {
     }
 
     /** Adds an integTest task which runs rest tests */
-    private static void createIntegTestTask(Project project) {
-        RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
+    private static void createIntegTestTask(Project project, ElasticsearchNode esNode) {
+        final RestIntegTestTask integTest
+        if (System.hasProperty('enableTestClusters')) {
+            // emulate external cluster
+            System.properties.put("tests.rest.cluster", "future")
+            System.properties.put("tests.cluster", "future")
+            integTest = project.tasks.create('integTest', RestIntegTestTask.class)
+            RandomizedTestingTask runner = project.tasks.getByName('integTestRunner')
+            runner.configure {
+                useCluster esNode
+                systemProperty('tests.rest.cluster', {-> esNode.getHttpSocketURI()})
+                systemProperty('tests.config.dir', {-> esNode.getCopyOfConfDir()})
+                systemProperty('tests.cluster', {-> esNode.getTransportPortURI()})
+            }
+        } else {
+            integTest = project.tasks.create('integTest', RestIntegTestTask.class)
+            project.integTestCluster.distribution = System.getProperty('tests.distribution', 'integ-test-zip')
+            project.afterEvaluate {
+                project.integTestCluster.dependsOn(project.bundlePlugin)
+                if (project.path.startsWith(':modules:') || project.path.startsWith(':x-pack:plugin')) {
+                    project.integTestCluster.module(project)
+                } else {
+                    project.integTestCluster.plugin(project.path)
+                }
+            }
+        }
         integTest.mustRunAfter(project.precommit, project.test)
-        project.integTestCluster.distribution = System.getProperty('tests.distribution', 'integ-test-zip')
         project.check.dependsOn(integTest)
     }
 

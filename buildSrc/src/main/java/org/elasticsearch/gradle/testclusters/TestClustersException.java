@@ -16,31 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gradle.clusterformation;
+package org.elasticsearch.gradle.testclusters;
 
-import org.elasticsearch.gradle.Distribution;
-import org.elasticsearch.gradle.Version;
-
-import java.util.concurrent.Future;
-
-public interface ElasticsearchConfiguration {
-    String getName();
-
-    Version getVersion();
-
-    void setVersion(Version version);
-
-    default void setVersion(String version) {
-        setVersion(Version.fromString(version));
+public class TestClustersException extends RuntimeException {
+    public TestClustersException(String message) {
+        super(message);
     }
 
-    Distribution getDistribution();
-
-    void setDistribution(Distribution distribution);
-
-    void claim();
-
-    Future<Void> start();
-
-    void unClaimAndStop();
+    public TestClustersException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

@@ -1,0 +1,21 @@
+plugins {
+    id 'elasticsearch.testclusters'
+}
+
+testClusters {
+    myTestCluster
+}
+
+task user1 {
+    useCluster testClusters.myTestCluster
+    doLast {
+        println "Cluster running @ ${testClusters.myTestCluster.httpSocketURI}"
+    }
+}
+
+task user2 {
+    useCluster testClusters.myTestCluster
+    doLast {
+        println "Cluster running @ ${testClusters.myTestCluster.httpSocketURI}"
+    }
+}

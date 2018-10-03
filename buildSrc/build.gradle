@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 import java.nio.file.Files
-import org.gradle.util.GradleVersion
 
 plugins {
   id 'java-gradle-plugin'
@@ -31,8 +31,10 @@ if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion)) {
     throw new GradleException("Gradle ${minimumGradleVersion}+ is required to build elasticsearch")
 }
 
-if (JavaVersion.current() < JavaVersion.VERSION_1_8) {
-  throw new GradleException('Java 1.8 is required to build elasticsearch gradle tools')
+// TODO this will not work in CI as of this writing
+// take advantage of the new Process API in 9
+if (JavaVersion.current() < JavaVersion.VERSION_1_9) {
+  throw new GradleException('Java 1.9 is required to build elasticsearch gradle tools')
 }
 
 if (project == rootProject) {
@@ -130,6 +132,7 @@ if (project == rootProject) {
     }
     mavenCentral()
   }
+
   test {
     include "**/*Tests.class"
     exclude "**/*IT.class"
@@ -181,6 +184,10 @@ if (project != rootProject) {
     systemProperty 'test.lucene-snapshot-revision', (versions.lucene =~ /\w+-snapshot-([a-z0-9]+)/)[0][1]
   }
   check.dependsOn(integTest)
+
+  // TODO needs to be updated in CI, needs update in NamingConventions
+  targetCompatibility = "1.9"
+  sourceCompatibility = "1.9"
 
   // TODO: re-enable once randomizedtesting gradle code is published and removed from here
   licenseHeaders.enabled = false

@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+
 public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
 
     protected File getProjectDir(String name) {
@@ -125,6 +126,13 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
                 "\n\nOutput is:\n" + result.getOutput(),
             Files.exists(absPath)
         );
+    }
+
+    public void assertOutputOnlyOnce(String output, String text) {
+        if(output.indexOf(text) !=
+            output.lastIndexOf(text)) {
+            fail("Expected `" + text + "` to appear at most once, but it did multiple times.\n\nOutout is:\n"+ output);
+        }
     }
 
     protected String getLocalTestRepoPath() {

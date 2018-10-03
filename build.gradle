@@ -37,7 +37,7 @@ if (properties.get("org.elasticsearch.acceptScanTOS", "false") == "true") {
 }
 
 // common maven publishing configuration
-subprojects {
+allprojects {
   group = 'org.elasticsearch'
   version = VersionProperties.elasticsearch.toString()
   description = "Elasticsearch subproject ${project.path}"
@@ -51,6 +51,8 @@ if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
   licenseCommit = "v${version}"
 }
 String elasticLicenseUrl = "https://raw.githubusercontent.com/elastic/elasticsearch/${licenseCommit}/licenses/ELASTIC-LICENSE.txt"
+
+BuildPlugin.configureRepositories(project)
 
 subprojects {
   // Default to the apache license
@@ -199,7 +201,7 @@ task branchConsistency {
   dependsOn verifyVersions, verifyBwcTestsEnabled
 }
 
-subprojects {
+allprojects {
   // ignore missing javadocs
   tasks.withType(Javadoc) { Javadoc javadoc ->
     // the -quiet here is because of a bug in gradle, in that adding a string option
@@ -370,7 +372,7 @@ gradle.projectsEvaluated {
         return
       }
       dependencies.all { Dependency dep ->
-        Project upstreamProject = dependencyToProject(dep)
+        Project upstreamProject = project.ext.dependencyToProject(dep)
         if (upstreamProject != null) {
           if (project.path == upstreamProject.path) {
             // TODO: distribution integ tests depend on themselves (!), fix that

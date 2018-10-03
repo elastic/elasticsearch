@@ -21,28 +21,23 @@ package org.elasticsearch;
 import org.gradle.api.Action;
 import org.gradle.api.Project;
 import org.gradle.api.file.CopySpec;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.tasks.WorkResult;
-import org.gradle.process.ExecResult;
-import org.gradle.process.JavaExecSpec;
 
 import java.io.File;
 
-/**
- * Facilitate access to Gradle services without a direct dependency on Project.
- *
- * In a future release Gradle will offer service injection, this adapter plays that role until that time.
+/*
+ * In a future release Gradle will offer service injection, this is a temporary measure until that that time.
  * It exposes the service methods that are part of the public API as the classes implementing them are not.
  * Today service injection is <a href="https://github.com/gradle/gradle/issues/2363">not available</a> for
- * extensions.
+ * plugins.
  *
- * Everything exposed here must be thread safe. That is the very reason why project is not passed in directly.
  */
 public class GradleServicesAdapter {
+    private final Project project;
 
-    public final Project project;
-
-    public GradleServicesAdapter(Project project) {
+    private GradleServicesAdapter(Project project) {
         this.project = project;
     }
 
@@ -58,11 +53,12 @@ public class GradleServicesAdapter {
         return project.sync(action);
     }
 
-    public ExecResult javaexec(Action<? super JavaExecSpec> action) {
-        return project.javaexec(action);
-    }
 
     public FileTree zipTree(File zipPath) {
         return project.zipTree(zipPath);
+    }
+
+    public FileCollection fileTree(File dir) {
+        return project.fileTree(dir);
     }
 }

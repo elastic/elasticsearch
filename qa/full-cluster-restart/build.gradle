@@ -87,6 +87,9 @@ for (Version version : bwcVersions.indexCompatible) {
   Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
     dependsOn = [upgradedClusterTest]
   }
+  if (bwcTest.dependsOn[-1] != null) {
+    versionBwcTest.dependsOn bwcTest.dependsOn[-1]
+  }
 
   if (project.bwc_tests_enabled) {
     bwcTest.dependsOn(versionBwcTest)

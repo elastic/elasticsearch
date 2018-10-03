@@ -21,6 +21,9 @@ package org.elasticsearch.indices;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.ObjectSet;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.Accountable;
@@ -52,7 +55,7 @@ import java.util.function.Supplier;
 /**
  * The indices request cache allows to cache a shard level request stage responses, helping with improving
  * similar requests that are potentially expensive (because of aggs for example). The cache is fully coherent
- * with the semantics of NRT (the index reader version is part of the cache key), and relies on size based
+ * with the semantics of NRT (the index reader cache key is part of the cache key), and relies on size based
  * eviction to evict old reader associated cache entries as well as scheduler reaper to clean readers that
  * are no longer used or closed shards.
  * <p>
@@ -75,6 +78,8 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
         Setting.memorySizeSetting("indices.requests.cache.size", "1%", Property.NodeScope);
     public static final Setting<TimeValue> INDICES_CACHE_QUERY_EXPIRE =
         Setting.positiveTimeSetting("indices.requests.cache.expire", new TimeValue(0), Property.NodeScope);
+
+    private static final Logger LOGGER = LogManager.getLogger(IndicesRequestCache.class);
 
     private final ConcurrentMap<CleanupKey, Boolean> registeredClosedListeners = ConcurrentCollections.newConcurrentMap();
     private final Set<CleanupKey> keysToClean = ConcurrentCollections.newConcurrentSet();
@@ -110,14 +115,20 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
         notification.getKey().entity.onRemoval(notification);
     }
 
+    // NORELEASE The cacheKeyRenderer has been added in order to debug
+    // https://github.com/elastic/elasticsearch/issues/32827, it should be
+    // removed when this issue is solved
     BytesReference getOrCompute(CacheEntity cacheEntity, Supplier<BytesReference> loader,
-            DirectoryReader reader, BytesReference cacheKey) throws Exception {
+            DirectoryReader reader, BytesReference cacheKey, Supplier<String> cacheKeyRenderer) throws Exception {
         assert reader.getReaderCacheHelper() != null;
         final Key key =  new Key(cacheEntity, reader.getReaderCacheHelper().getKey(), cacheKey);
         Loader cacheLoader = new Loader(cacheEntity, loader);
         BytesReference value = cache.computeIfAbsent(key, cacheLoader);
         if (cacheLoader.isLoaded()) {
             key.entity.onMiss();
+            if (logger.isTraceEnabled()) {
+                logger.trace("Cache miss for reader version [{}] and request:\n {}", reader.getVersion(), cacheKeyRenderer.get());
+            }
             // see if its the first time we see this reader, and make sure to register a cleanup key
             CleanupKey cleanupKey = new CleanupKey(cacheEntity, reader.getReaderCacheHelper().getKey());
             if (!registeredClosedListeners.containsKey(cleanupKey)) {
@@ -128,6 +139,9 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
             }
         } else {
             key.entity.onHit();
+            if (logger.isTraceEnabled()) {
+                logger.trace("Cache hit for reader version [{}] and request:\n {}", reader.getVersion(), cacheKeyRenderer.get());
+            }
         }
         return value;
     }
@@ -139,9 +153,8 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
      * @param cacheKey the cache key to invalidate
      */
     void invalidate(CacheEntity cacheEntity, DirectoryReader reader, BytesReference cacheKey) {
-        if (reader.getReaderCacheHelper() != null) {
-            cache.invalidate(new Key(cacheEntity, reader.getReaderCacheHelper().getKey(), cacheKey));
-        }
+        assert reader.getReaderCacheHelper() != null;
+        cache.invalidate(new Key(cacheEntity, reader.getReaderCacheHelper().getKey(), cacheKey));
     }
 
     private static class Loader implements CacheLoader<Key, BytesReference> {

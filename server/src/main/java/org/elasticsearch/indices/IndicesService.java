@@ -1167,9 +1167,8 @@ public class IndicesService extends AbstractLifecycleComponent
             return false;
         }
         // We use the cacheKey of the index reader as a part of a key of the IndicesRequestCache.
-        if (context.searcher().getIndexReader().getReaderCacheHelper() == null) {
-            return false;
-        }
+        assert context.searcher().getIndexReader().getReaderCacheHelper() != null;
+
         // if now in millis is used (or in the future, a more generic "isDeterministic" flag
         // then we can't cache based on "now" key within the search request, as it is not deterministic
         if (context.getQueryShardContext().isCachable() == false) {
@@ -1191,7 +1190,9 @@ public class IndicesService extends AbstractLifecycleComponent
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
 
         boolean[] loadedFromCache = new boolean[] { true };
-        BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(), out -> {
+        BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(), () -> {
+            return "Shard: " + request.shardId() + "\nSource:\n" + request.source();
+        }, out -> {
             queryPhase.execute(context);
             try {
                 context.queryResult().writeToNoId(out);
@@ -1217,6 +1218,10 @@ public class IndicesService extends AbstractLifecycleComponent
             // running a search that times out concurrently will likely timeout again if it's run while we have this `stale` result in the
             // cache. One other option is to not cache requests with a timeout at all...
             indicesRequestCache.invalidate(new IndexShardCacheEntity(context.indexShard()), directoryReader, request.cacheKey());
+            if (logger.isTraceEnabled()) {
+                logger.trace("Query timed out, invalidating cache entry for request on shard [{}]:\n {}", request.shardId(),
+                        request.source());
+            }
         }
     }
 
@@ -1232,8 +1237,8 @@ public class IndicesService extends AbstractLifecycleComponent
      * @param loader loads the data into the cache if needed
      * @return the contents of the cache or the result of calling the loader
      */
-    private BytesReference cacheShardLevelResult(IndexShard shard, DirectoryReader reader, BytesReference cacheKey, Consumer<StreamOutput> loader)
-            throws Exception {
+    private BytesReference cacheShardLevelResult(IndexShard shard, DirectoryReader reader, BytesReference cacheKey,
+            Supplier<String> cacheKeyRenderer, Consumer<StreamOutput> loader) throws Exception {
         IndexShardCacheEntity cacheEntity = new IndexShardCacheEntity(shard);
         Supplier<BytesReference> supplier = () -> {
             /* BytesStreamOutput allows to pass the expected size but by default uses
@@ -1251,7 +1256,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 return out.bytes();
             }
         };
-        return indicesRequestCache.getOrCompute(cacheEntity, supplier, reader, cacheKey);
+        return indicesRequestCache.getOrCompute(cacheEntity, supplier, reader, cacheKey, cacheKeyRenderer);
     }
 
     static final class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {

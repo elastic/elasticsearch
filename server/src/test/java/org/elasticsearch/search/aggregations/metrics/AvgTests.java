@@ -23,7 +23,7 @@ public class AvgTests extends AbstractNumericMetricTestCase<AvgAggregationBuilde
 
     @Override
     protected AvgAggregationBuilder doCreateTestAggregatorFactory() {
-        return new AvgAggregationBuilder("foo");
+        return new AvgAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
     }
 
 }

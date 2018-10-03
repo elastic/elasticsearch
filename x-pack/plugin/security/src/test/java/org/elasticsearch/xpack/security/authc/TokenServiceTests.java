@@ -55,8 +55,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import javax.crypto.SecretKey;
-
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
@@ -66,6 +64,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
+
+import javax.crypto.SecretKey;
 
 import static java.time.Clock.systemUTC;
 import static org.elasticsearch.repositories.ESBlobStoreTestCase.randomBytes;
@@ -253,7 +253,7 @@ public class TokenServiceTests extends ESTestCase {
 
     public void testKeyExchange() throws Exception {
         TokenService tokenService = new TokenService(tokenServiceEnabledSettings, systemUTC(), client, securityIndex, clusterService);
-        int numRotations = 0;randomIntBetween(1, 5);
+        int numRotations = randomIntBetween(1, 5);
         for (int i = 0; i < numRotations; i++) {
             rotateKeys(tokenService);
         }

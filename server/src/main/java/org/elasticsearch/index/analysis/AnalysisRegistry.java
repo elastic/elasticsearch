@@ -158,16 +158,8 @@ public final class AnalysisRegistry implements Closeable {
 
     public Map<String, TokenFilterFactory> buildTokenFilterFactories(IndexSettings indexSettings) throws IOException {
         final Map<String, Settings> tokenFiltersSettings = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_FILTER);
-        Map<String, AnalysisModule.AnalysisProvider<TokenFilterFactory>> tokenFilters = new HashMap<>(this.tokenFilters);
-        /*
-         * synonym and synonym_graph are different than everything else since they need access to the tokenizer factories for the index.
-         * instead of building the infrastructure for plugins we rather make it a real exception to not pollute the general interface and
-         * hide internal data-structures as much as possible.
-         */
-        tokenFilters.put("synonym", requiresAnalysisSettings((is, env, name, settings) -> new SynonymTokenFilterFactory(is, env, this, name, settings)));
-        tokenFilters.put("synonym_graph", requiresAnalysisSettings((is, env, name, settings) -> new SynonymGraphTokenFilterFactory(is, env, this, name, settings)));
-
-        return buildMapping(Component.FILTER, indexSettings, tokenFiltersSettings, Collections.unmodifiableMap(tokenFilters), prebuiltAnalysis.preConfiguredTokenFilters);
+        return buildMapping(Component.FILTER, indexSettings, tokenFiltersSettings,
+            Collections.unmodifiableMap(this.tokenFilters), prebuiltAnalysis.preConfiguredTokenFilters);
     }
 
     public Map<String, TokenizerFactory> buildTokenizerFactories(IndexSettings indexSettings) throws IOException {
@@ -222,18 +214,7 @@ public final class AnalysisRegistry implements Closeable {
         if (tokenFilterSettings.containsKey(tokenFilter)) {
             Settings currentSettings = tokenFilterSettings.get(tokenFilter);
             String typeName = currentSettings.get("type");
-            /*
-             * synonym and synonym_graph are different than everything else since they need access to the tokenizer factories for the index.
-             * instead of building the infrastructure for plugins we rather make it a real exception to not pollute the general interface and
-             * hide internal data-structures as much as possible.
-             */
-            if ("synonym".equals(typeName)) {
-                return requiresAnalysisSettings((is, env, name, settings) -> new SynonymTokenFilterFactory(is, env, this, name, settings));
-            } else if ("synonym_graph".equals(typeName)) {
-                return requiresAnalysisSettings((is, env, name, settings) -> new SynonymGraphTokenFilterFactory(is, env, this, name, settings));
-            } else {
-                return getAnalysisProvider(Component.FILTER, tokenFilters, tokenFilter, typeName);
-            }
+            return getAnalysisProvider(Component.FILTER, tokenFilters, tokenFilter, typeName);
         } else {
             return getTokenFilterProvider(tokenFilter);
         }
@@ -255,19 +236,6 @@ public final class AnalysisRegistry implements Closeable {
         } else {
             return getCharFilterProvider(charFilter);
         }
-    }
-
-    private static <T> AnalysisModule.AnalysisProvider<T> requiresAnalysisSettings(AnalysisModule.AnalysisProvider<T> provider) {
-        return new AnalysisModule.AnalysisProvider<T>() {
-            @Override
-            public T get(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {
-                return provider.get(indexSettings, environment, name, settings);
-            }
-            @Override
-            public boolean requiresAnalysisSettings() {
-                return true;
-            }
-        };
     }
 
     enum Component {

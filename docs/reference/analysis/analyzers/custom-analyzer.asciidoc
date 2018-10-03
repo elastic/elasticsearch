@@ -59,7 +59,7 @@ PUT my_index
     "analysis": {
       "analyzer": {
         "my_custom_analyzer": {
-          "type":      "custom",
+          "type":      "custom", <1>
           "tokenizer": "standard",
           "char_filter": [
             "html_strip"
@@ -81,6 +81,11 @@ POST my_index/_analyze
 }
 --------------------------------
 // CONSOLE
+
+<1> Setting `type` to `custom` tells Elasticsearch that we are defining a custom analyzer.
+    Compare this to how <<configuring-analyzers,built-in analyzers can be configured>>:
+    `type` will be set to the name of the built-in analyzer, like
+    <<analysis-standard-analyzer,`standard`>> or <<analysis-simple-analyzer,`simple`>>.
 
 /////////////////////
 

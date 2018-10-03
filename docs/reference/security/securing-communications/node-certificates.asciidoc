@@ -44,7 +44,7 @@ the file and key. If you plan to add more nodes to your cluster in the future,
 retain a copy of the file and remember its password.
 --
 
-. Generate a certificate and private key for for each node in your cluster.
+. Generate a certificate and private key for each node in your cluster.
 +
 --
 For example, use the `elasticsearch-certutil cert` command:

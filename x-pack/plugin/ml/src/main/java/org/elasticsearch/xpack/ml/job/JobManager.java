@@ -170,7 +170,7 @@ public class JobManager extends AbstractComponent {
      * @param jobsListener The jobs listener
      */
     public void expandJobs(String expression, boolean allowNoJobs, ActionListener<QueryPage<Job>> jobsListener) {
-        Map<String, Job> clusterStateJobs = expandJobsFromClusterState(expression, allowNoJobs, clusterService.state());
+        Map<String, Job> clusterStateJobs = expandJobsFromClusterState(expression, clusterService.state());
 
         jobConfigProvider.expandJobs(expression, allowNoJobs, ActionListener.wrap(
                 jobBuilders -> {
@@ -197,12 +197,20 @@ public class JobManager extends AbstractComponent {
         ));
     }
 
-    private Map<String, Job> expandJobsFromClusterState(String expression, boolean allowNoJobs, ClusterState clusterState) {
-        Set<String> expandedJobIds = MlMetadata.getMlMetadata(clusterState).expandJobIds(expression, allowNoJobs);
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
+    private Map<String, Job> expandJobsFromClusterState(String expression, ClusterState clusterState) {
         Map<String, Job> jobIdToJob = new HashMap<>();
-        for (String expandedJobId : expandedJobIds) {
-            jobIdToJob.put(expandedJobId, mlMetadata.getJobs().get(expandedJobId));
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
+        try {
+            // This call will throw if the expression is not a wild card
+            // and the job does not exist. This is not the behaviour we
+            // want as the job may exist in the index.
+            // TODO jindex review the use of this function. Can it be changed not to throw in a BWC manner?
+            Set<String> expandedJobIds = mlMetadata.expandJobIds(expression, true);
+            for (String expandedJobId : expandedJobIds) {
+                jobIdToJob.put(expandedJobId, mlMetadata.getJobs().get(expandedJobId));
+            }
+        } catch (ResourceNotFoundException e) {
+            return jobIdToJob;
         }
         return jobIdToJob;
     }

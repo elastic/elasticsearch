@@ -42,6 +42,7 @@ import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -341,6 +342,11 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
                 jobConfigProvider.expandJobs("tom,harry", false, actionListener));
         expandedJobs = expandedJobsBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
         assertThat(expandedJobs, containsInAnyOrder(tom, harry));
+
+        expandedJobsBuilders = blockingCall(actionListener ->
+                jobConfigProvider.expandJobs("tom", false, actionListener));
+        expandedJobs = expandedJobsBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
+        assertThat(expandedJobs, contains(tom));
 
         expandedJobsBuilders = blockingCall(actionListener ->
                 jobConfigProvider.expandJobs("", false, actionListener));

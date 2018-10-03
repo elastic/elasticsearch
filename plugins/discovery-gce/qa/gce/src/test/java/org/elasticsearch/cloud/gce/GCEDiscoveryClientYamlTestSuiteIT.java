@@ -17,35 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.cloud.gce;
 
-import org.elasticsearch.script.ExecutableScript;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
-import java.util.Map;
-import java.util.function.Consumer;
+public class GCEDiscoveryClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-
-public class SimpleExecutableScript implements ExecutableScript {
-    private final Consumer<Map<String, Object>> script;
-    private Map<String, Object> ctx;
-
-    public SimpleExecutableScript(Consumer<Map<String, Object>> script) {
-        this.script = script;
+    public GCEDiscoveryClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+        super(testCandidate);
     }
 
-    @Override
-    public Object run() {
-        script.accept(ctx);
-        return null;
-    }
-
-    @Override
-    @SuppressWarnings("unchecked")
-    public void setNextVar(String name, Object value) {
-        if ("ctx".equals(name)) {
-            ctx = (Map<String, Object>) value;
-        } else {
-            throw new IllegalArgumentException("Unsupported var [" + name + "]");
-        }
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return ESClientYamlSuiteTestCase.createParameters();
     }
 }

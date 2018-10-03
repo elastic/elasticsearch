@@ -2,23 +2,26 @@
 
 == Document APIs
 
+:upid: {mainid}-document
+:doc-tests-file: {doc-tests}/CRUDDocumentationIT.java
+
 The Java High Level REST Client supports the following Document APIs:
 
 [[single-doc]]
 Single document APIs::
-* <<java-rest-high-document-index>>
-* <<java-rest-high-document-get>>
-* <<java-rest-high-document-delete>>
-* <<java-rest-high-document-update>>
+* <<{upid}-index>>
+* <<{upid}-get>>
+* <<{upid}-delete>>
+* <<{upid}-update>>
 
 [[multi-doc]]
 Multi-document APIs::
-* <<java-rest-high-document-bulk>>
-* <<java-rest-high-document-multi-get>>
-* <<java-rest-high-document-reindex>>
-* <<java-rest-high-document-update-by-query>>
-* <<java-rest-high-document-delete-by-query>>
-* <<java-rest-high-document-reindex-rethrottle>>
+* <<{upid}-bulk>>
+* <<{upid}-multi-get>>
+* <<{upid}-reindex>>
+* <<{upid}-update-by-query>>
+* <<{upid}-delete-by-query>>
+* <<{upid}-rethrottle>>
 
 include::document/index.asciidoc[]
 include::document/get.asciidoc[]
@@ -30,24 +33,25 @@ include::document/multi-get.asciidoc[]
 include::document/reindex.asciidoc[]
 include::document/update-by-query.asciidoc[]
 include::document/delete-by-query.asciidoc[]
-include::document/reindex-rethrottle.asciidoc[]
+include::document/rethrottle.asciidoc[]
 
 == Search APIs
 
-The Java High Level REST Client supports the following Search APIs:
-
-* <<java-rest-high-search>>
-* <<java-rest-high-search-scroll>>
-* <<java-rest-high-clear-scroll>>
-* <<java-rest-high-search-template>>
-* <<java-rest-high-multi-search-template>>
-* <<java-rest-high-multi-search>>
-* <<java-rest-high-field-caps>>
-* <<java-rest-high-rank-eval>>
-* <<java-rest-high-explain>>
-
 :upid: {mainid}
 :doc-tests-file: {doc-tests}/SearchDocumentationIT.java
+
+The Java High Level REST Client supports the following Search APIs:
+
+* <<{upid}-search>>
+* <<{upid}-search-scroll>>
+* <<{upid}-clear-scroll>>
+* <<{upid}-search-template>>
+* <<{upid}-multi-search-template>>
+* <<{upid}-multi-search>>
+* <<{upid}-field-caps>>
+* <<{upid}-rank-eval>>
+* <<{upid}-explain>>
+
 include::search/search.asciidoc[]
 include::search/scroll.asciidoc[]
 include::search/multi-search.asciidoc[]
@@ -281,8 +285,10 @@ include::migration/get-assistance.asciidoc[]
 The Java High Level REST Client supports the following Rollup APIs:
 
 * <<java-rest-high-x-pack-rollup-put-job>>
+* <<java-rest-high-x-pack-rollup-get-job>>
 
 include::rollup/put_job.asciidoc[]
+include::rollup/get_job.asciidoc[]
 
 == Security APIs
 
@@ -291,10 +297,12 @@ The Java High Level REST Client supports the following Security APIs:
 * <<java-rest-high-security-put-user>>
 * <<java-rest-high-security-enable-user>>
 * <<java-rest-high-security-disable-user>>
+* <<java-rest-high-security-change-password>>
 
 include::security/put-user.asciidoc[]
 include::security/enable-user.asciidoc[]
 include::security/disable-user.asciidoc[]
+include::security/change-password.asciidoc[]
 
 == Watcher APIs
 
@@ -302,9 +310,11 @@ The Java High Level REST Client supports the following Watcher APIs:
 
 * <<java-rest-high-x-pack-watcher-put-watch>>
 * <<java-rest-high-x-pack-watcher-delete-watch>>
+* <<java-rest-high-watcher-ack-watch>>
 
 include::watcher/put-watch.asciidoc[]
 include::watcher/delete-watch.asciidoc[]
+include::watcher/ack-watch.asciidoc[]
 
 == Graph APIs
 

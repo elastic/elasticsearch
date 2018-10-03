@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep.Listener;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -148,10 +148,10 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(indexMetaData, null, new Listener() {
+        step.evaluateCondition(indexMetaData, new AsyncWaitStep.Listener() {
 
             @Override
-            public void onResponse(boolean complete) {
+            public void onResponse(boolean complete, ToXContentObject obj) {
                 actionCompleted.set(complete);
             }
 
@@ -205,10 +205,10 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(indexMetaData, null, new Listener() {
+        step.evaluateCondition(indexMetaData, new AsyncWaitStep.Listener() {
 
             @Override
-            public void onResponse(boolean complete) {
+            public void onResponse(boolean complete, ToXContentObject obj) {
                 actionCompleted.set(complete);
             }
 
@@ -263,10 +263,10 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, null, new Listener() {
+        step.evaluateCondition(indexMetaData, new AsyncWaitStep.Listener() {
 
             @Override
-            public void onResponse(boolean complete) {
+            public void onResponse(boolean complete, ToXContentObject obj) {
                 throw new AssertionError("Unexpected method call");
             }
 
@@ -292,9 +292,9 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         RolloverStep step = createRandomInstance();
 
         SetOnce<Exception> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, null, new Listener() {
+        step.evaluateCondition(indexMetaData, new AsyncWaitStep.Listener() {
             @Override
-            public void onResponse(boolean complete) {
+            public void onResponse(boolean complete, ToXContentObject obj) {
                 throw new AssertionError("Unexpected method call");
             }
 

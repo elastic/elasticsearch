@@ -1284,7 +1284,7 @@ If the request does not encounter errors, you receive the following result:
 
 If you try to analyze a lot of data then the analysis will take a long time.
 If you want to limit the amount of processing your {es} cluster performs for
-a request, use the timeout query parameter. The analysis will be aborted and
+a request, use the `timeout` query parameter. The analysis will be aborted and
 an error returned when the timeout expires. For example, you can replace 20000
 lines in the previous example with 200000 and set a 1 second timeout on the
 analysis:

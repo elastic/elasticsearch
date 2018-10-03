@@ -123,7 +123,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
     //private final Environment env;
     protected boolean transportClientMode;
     protected final Licensing licensing;
-    // These should not be directly accessed as they cannot be overriden in tests. Please use the getters so they can be overridden.
+    // These should not be directly accessed as they cannot be overridden in tests. Please use the getters so they can be overridden.
     private static final SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
     private static final SetOnce<SSLService> sslService = new SetOnce<>();
     private static final SetOnce<LicenseService> licenseService = new SetOnce<>();

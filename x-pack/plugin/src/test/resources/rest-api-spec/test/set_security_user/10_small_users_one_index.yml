@@ -91,7 +91,7 @@ teardown:
         ignore: 404
 
 ---
-"Test shared index seperating user by using DLS":
+"Test shared index separating user by using DLS":
   - do:
       headers:
         Authorization: "Basic am9lOngtcGFjay10ZXN0LXBhc3N3b3Jk"

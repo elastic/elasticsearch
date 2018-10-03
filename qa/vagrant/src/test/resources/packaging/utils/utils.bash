@@ -556,7 +556,7 @@ run_elasticsearch_tests() {
 move_config() {
     local oldConfig="$ESCONFIG"
     # The custom config directory is not under /tmp or /var/tmp because
-    # systemd's private temp directory functionaly means different
+    # systemd's private temp directory functionally means different
     # processes can have different views of what's in these directories
     export ESCONFIG="${1:-$(mktemp -p /etc -d -t 'config.XXXX')}"
     echo "Moving configuration directory from $oldConfig to $ESCONFIG"

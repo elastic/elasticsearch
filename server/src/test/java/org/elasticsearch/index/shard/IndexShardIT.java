@@ -579,7 +579,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         // Generate a couple of segments
         client().prepareIndex("test", "_doc", "1").setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
                 .setRefreshPolicy(IMMEDIATE).get();
-        // Use routing so 2 documents are guarenteed to be on the same shard
+        // Use routing so 2 documents are guaranteed to be on the same shard
         String routing = randomAlphaOfLength(5);
         client().prepareIndex("test", "_doc", "2").setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
                 .setRefreshPolicy(IMMEDIATE).setRouting(routing).get();

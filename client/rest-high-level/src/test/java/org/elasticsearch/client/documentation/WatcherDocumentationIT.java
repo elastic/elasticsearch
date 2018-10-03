@@ -150,21 +150,21 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            //tag::activate-watch-execute
+            //tag::activate-watch-request
             ActivateWatchRequest request = new ActivateWatchRequest("my_watch_id");
             ActivateWatchResponse response = client.watcher().activateWatch(request, RequestOptions.DEFAULT);
-            //end::activate-watch-execute
+            //end::activate-watch-request
 
-            //tag::activate-watch-response
+            //tag::activate-watch-request
             WatchStatus watchStatus = response.getStatus(); // <1>
-            //end::activate-watch-response
+            //end::activate-watch-request
 
             assertTrue(watchStatus.state().isActive());
         }
 
         {
             ActivateWatchRequest request = new ActivateWatchRequest("my_watch_id");
-            //tag::activate-watch-execute-listener
+            //tag::activate-watch-request-listener
             ActionListener<ActivateWatchResponse> listener = new ActionListener<ActivateWatchResponse>() {
                 @Override
                 public void onResponse(ActivateWatchResponse response) {
@@ -176,15 +176,15 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
                     // <2>
                 }
             };
-            //end::activate-watch-execute-listener
+            //end::activate-watch-request-listener
 
             //Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
-            //tag::activate-watch-execute-async
+            //tag::activate-watch-request-async
             client.watcher().activateWatchAsync(request, RequestOptions.DEFAULT, listener); // <1>
-            //end::activate-watch-execute-async
+            //end::activate-watch-request-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
 

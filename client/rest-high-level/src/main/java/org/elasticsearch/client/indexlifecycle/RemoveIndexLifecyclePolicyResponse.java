@@ -21,38 +21,32 @@ package org.elasticsearch.client.indexlifecycle;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
-import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-public class RemoveIndexLifecyclePolicyResponse implements ToXContentObject {
+public class RemoveIndexLifecyclePolicyResponse {
 
     public static final ParseField HAS_FAILURES_FIELD = new ParseField("has_failures");
     public static final ParseField FAILED_INDEXES_FIELD = new ParseField("failed_indexes");
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<RemoveIndexLifecyclePolicyResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "change_policy_for_index_response", a -> new RemoveIndexLifecyclePolicyResponse((List<String>) a[0]));
+            "change_policy_for_index_response", args -> new RemoveIndexLifecyclePolicyResponse((List<String>)args[0]));
     static {
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), FAILED_INDEXES_FIELD);
         // Needs to be declared but not used in constructing the response object
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), HAS_FAILURES_FIELD);
     }
 
-    private List<String> failedIndexes;
-
-    public RemoveIndexLifecyclePolicyResponse() {
-    }
+    private final List<String> failedIndexes;
 
     public RemoveIndexLifecyclePolicyResponse(List<String> failedIndexes) {
         if (failedIndexes == null) {
             throw new IllegalArgumentException(FAILED_INDEXES_FIELD.getPreferredName() + " cannot be null");
         }
-        this.failedIndexes = failedIndexes;
+        this.failedIndexes = Collections.unmodifiableList(failedIndexes);
     }
 
     public List<String> getFailedIndexes() {
@@ -61,15 +55,6 @@ public class RemoveIndexLifecyclePolicyResponse implements ToXContentObject {
 
     public boolean hasFailures() {
         return failedIndexes.isEmpty() == false;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject();
-        builder.field(HAS_FAILURES_FIELD.getPreferredName(), hasFailures());
-        builder.field(FAILED_INDEXES_FIELD.getPreferredName(), failedIndexes);
-        builder.endObject();
-        return builder;
     }
 
     public static RemoveIndexLifecyclePolicyResponse fromXContent(XContentParser parser) {

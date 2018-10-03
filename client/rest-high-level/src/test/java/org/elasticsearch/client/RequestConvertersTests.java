@@ -1529,12 +1529,11 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     public void testRemoveIndexLifecyclePolicy() {
-        RemoveIndexLifecyclePolicyRequest req = new RemoveIndexLifecyclePolicyRequest();
-        String[] indices = randomIndicesNames(0, 10);
-        req.indices(indices);
         Map<String, String> expectedParams = new HashMap<>();
+        String[] indices = randomIndicesNames(0, 10);
+        IndicesOptions indicesOptions = setRandomIndicesOptions(IndicesOptions.strictExpandOpen(), expectedParams);
+        RemoveIndexLifecyclePolicyRequest req = new RemoveIndexLifecyclePolicyRequest(Arrays.asList(indices), indicesOptions);
         setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_TIMEOUT, expectedParams);
-        setRandomIndicesOptions(req::indicesOptions, req::indicesOptions, expectedParams);
 
         Request request = RequestConverters.removeIndexLifecyclePolicy(req);
         assertThat(request.getMethod(), equalTo(HttpDelete.METHOD_NAME));
@@ -1673,6 +1672,24 @@ public class RequestConvertersTests extends ESTestCase {
         } else {
             expectedParams.put("expand_wildcards", "none");
         }
+    }
+
+    static IndicesOptions setRandomIndicesOptions(IndicesOptions indicesOptions, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+        }
+        expectedParams.put("ignore_unavailable", Boolean.toString(indicesOptions.ignoreUnavailable()));
+        expectedParams.put("allow_no_indices", Boolean.toString(indicesOptions.allowNoIndices()));
+        if (indicesOptions.expandWildcardsOpen() && indicesOptions.expandWildcardsClosed()) {
+            expectedParams.put("expand_wildcards", "open,closed");
+        } else if (indicesOptions.expandWildcardsOpen()) {
+            expectedParams.put("expand_wildcards", "open");
+        } else if (indicesOptions.expandWildcardsClosed()) {
+            expectedParams.put("expand_wildcards", "closed");
+        } else {
+            expectedParams.put("expand_wildcards", "none");
+        }
+        return indicesOptions;
     }
 
     static void setRandomIncludeDefaults(GetIndexRequest request, Map<String, String> expectedParams) {

@@ -54,6 +54,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -112,7 +113,10 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         assertThat(settingsResponse.getSetting("baz", "index.lifecycle.name"), equalTo(policyName));
         assertThat(settingsResponse.getSetting("rbh", "index.lifecycle.name"), equalTo(policyName));
 
-        RemoveIndexLifecyclePolicyRequest removeReq = new RemoveIndexLifecyclePolicyRequest("foo", "rbh");
+        List<String> indices = new ArrayList<>();
+        indices.add("foo");
+        indices.add("rbh");
+        RemoveIndexLifecyclePolicyRequest removeReq = new RemoveIndexLifecyclePolicyRequest(indices);
         RemoveIndexLifecyclePolicyResponse removeResp = execute(removeReq, highLevelClient().indexLifecycle()::removeIndexLifecyclePolicy,
                 highLevelClient().indexLifecycle()::removeIndexLifecyclePolicyAsync);
         assertThat(removeResp.hasFailures(), is(false));

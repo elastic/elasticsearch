@@ -19,8 +19,9 @@
 
 package org.elasticsearch.client.indexlifecycle;
 
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,23 +29,24 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-public class RemoveIndexLifecyclePolicyResponseTests extends AbstractXContentTestCase<RemoveIndexLifecyclePolicyResponse> {
+public class RemoveIndexLifecyclePolicyResponseTests extends ESTestCase {
 
-    @Override
-    protected RemoveIndexLifecyclePolicyResponse createTestInstance() {
+    private RemoveIndexLifecyclePolicyResponse createTestInstance() {
         List<String> failedIndexes = Arrays.asList(generateRandomStringArray(20, 20, false));
         return new RemoveIndexLifecyclePolicyResponse(failedIndexes);
     }
 
-    @Override
-    protected RemoveIndexLifecyclePolicyResponse doParseInstance(XContentParser parser) throws IOException {
+    private RemoveIndexLifecyclePolicyResponse doParseInstance(XContentParser parser) throws IOException {
         return RemoveIndexLifecyclePolicyResponse.PARSER.apply(parser, null);
     }
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    private void toXContent(RemoveIndexLifecyclePolicyResponse response, XContentBuilder builder) throws IOException {
+        builder.startObject();
+        builder.field(RemoveIndexLifecyclePolicyResponse.HAS_FAILURES_FIELD.getPreferredName(), response.hasFailures());
+        builder.field(RemoveIndexLifecyclePolicyResponse.FAILED_INDEXES_FIELD.getPreferredName(), response.getFailedIndexes());
+        builder.endObject();
     }
+
 
     public void testNullFailedIndices() {
         IllegalArgumentException exception =

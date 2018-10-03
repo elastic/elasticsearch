@@ -19,41 +19,40 @@
 
 package org.elasticsearch.client.indexlifecycle;
 
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.TimedRequest;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
-public class RemoveIndexLifecyclePolicyRequest extends TimedRequest implements IndicesRequest.Replaceable {
+public class RemoveIndexLifecyclePolicyRequest extends TimedRequest {
 
-    private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private final List<String> indices;
+    private final IndicesOptions indicesOptions;
 
-    public RemoveIndexLifecyclePolicyRequest() {
-    }
-
-    public RemoveIndexLifecyclePolicyRequest(String... indices) {
+    public RemoveIndexLifecyclePolicyRequest(List<String> indices) {
         if (indices == null) {
             throw new IllegalArgumentException("indices cannot be null");
         }
-        this.indices = indices;
+        this.indices = Collections.unmodifiableList(indices);
+        this.indicesOptions = IndicesOptions.strictExpandOpen();
     }
 
-    @Override
-    public RemoveIndexLifecyclePolicyRequest indices(String... indices) {
-        this.indices = indices;
-        return this;
-    }
-
-    @Override
-    public String[] indices() {
-        return indices;
-    }
-
-    public void indicesOptions(IndicesOptions indicesOptions) {
+    public RemoveIndexLifecyclePolicyRequest(List<String> indices, IndicesOptions indicesOptions) {
+        if (indices == null) {
+            throw new IllegalArgumentException("indices cannot be null");
+        }
+        if (indicesOptions == null) {
+            throw new IllegalArgumentException("indices options cannot be null");
+        }
+        this.indices = Collections.unmodifiableList(indices);
         this.indicesOptions = indicesOptions;
+    }
+
+    public List<String> indices() {
+        return indices;
     }
 
     public IndicesOptions indicesOptions() {
@@ -62,7 +61,7 @@ public class RemoveIndexLifecyclePolicyRequest extends TimedRequest implements I
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.hashCode(indices), indicesOptions);
+        return Objects.hash(indices, indicesOptions);
     }
 
     @Override

@@ -20,6 +20,7 @@
 package org.elasticsearch.client.indexlifecycle;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 public class RemoveIndexLifecyclePolicyRequestTests extends ESTestCase {

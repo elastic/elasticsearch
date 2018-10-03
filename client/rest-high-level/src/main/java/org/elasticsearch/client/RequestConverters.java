@@ -654,7 +654,7 @@ final class RequestConverters {
     }
 
     static Request removeIndexLifecyclePolicy(RemoveIndexLifecyclePolicyRequest setPolicyRequest) {
-        String[] indices = setPolicyRequest.indices() == null ? Strings.EMPTY_ARRAY : setPolicyRequest.indices();
+        String[] indices = setPolicyRequest.indices() == null ? Strings.EMPTY_ARRAY : setPolicyRequest.indices().toArray(new String[] {});
         Request request = new Request(HttpDelete.METHOD_NAME,
                 new EndpointBuilder()
                         .addCommaSeparatedPathParts(indices)

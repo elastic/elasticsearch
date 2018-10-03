@@ -211,6 +211,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * Sets the type of the indexed document.
      */
+    @Override
     public IndexRequest type(String type) {
         this.type = type;
         return this;

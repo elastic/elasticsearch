@@ -90,10 +90,19 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
     private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
+    private String defaultPipelineId;
+    private String defaultRouting;
+    private String defaultIndex;
+    private String defaultType;
 
     private long sizeInBytes = 0;
 
     public BulkRequest() {
+    }
+
+    public BulkRequest(@Nullable String defaultIndex, @Nullable String defaultType) {
+        this.defaultIndex = defaultIndex;
+        this.defaultType = defaultType;
     }
 
     /**
@@ -154,6 +163,8 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     BulkRequest internalAdd(IndexRequest request, @Nullable Object payload) {
         Objects.requireNonNull(request, "'request' must not be null");
+        applyGlobalParameters(request);
+
         requests.add(request);
         addPayload(payload);
         // lack of source is validated in validate() method
@@ -175,6 +186,8 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     BulkRequest internalAdd(UpdateRequest request, @Nullable Object payload) {
         Objects.requireNonNull(request, "'request' must not be null");
+        applyGlobalParameters(request);
+
         requests.add(request);
         addPayload(payload);
         if (request.doc() != null) {
@@ -199,6 +212,8 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     public BulkRequest add(DeleteRequest request, @Nullable Object payload) {
         Objects.requireNonNull(request, "'request' must not be null");
+        applyGlobalParameters(request);
+
         requests.add(request);
         addPayload(payload);
         sizeInBytes += REQUEST_OVERHEAD;
@@ -500,6 +515,15 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         return this;
     }
 
+    public final BulkRequest pipeline(String defaultPipelineId) {
+        this.defaultPipelineId = defaultPipelineId;
+        return this;
+    }
+
+    public final BulkRequest routing(String defaultRouting){
+        this.defaultRouting = defaultRouting;
+        return this;
+    }
     /**
      * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
@@ -509,6 +533,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     public TimeValue timeout() {
         return timeout;
+    }
+
+    public String pipeline() {
+        return defaultPipelineId;
     }
 
     private int findNextMarker(byte marker, int from, BytesReference data, int length) {
@@ -576,4 +604,16 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         return "requests[" + requests.size() + "], indices[" + Strings.collectionToDelimitedString(indices, ", ") + "]";
     }
 
+    private void applyGlobalParameters(DocWriteRequest<?> request) {
+        request.index(valueOrDefault(request.index(), defaultIndex));
+        request.routing(valueOrDefault(request.routing(), defaultRouting));
+        request.type(valueOrDefault(request.type(), defaultType));
+    }
+
+    private static String valueOrDefault(String value, String globalDefault) {
+        if (Strings.isNullOrEmpty(value)) {
+            return globalDefault;
+        }
+        return value;
+    }
 }

@@ -23,7 +23,7 @@ public class FunctionDefinition {
     private final List<String> aliases;
     private final Class<? extends Function> clazz;
     /**
-     * Is this a datetime function comaptible with {@code EXTRACT}.
+     * Is this a datetime function compatible with {@code EXTRACT}.
      */
     private final boolean datetime;
     private final Builder builder;
@@ -60,7 +60,7 @@ public class FunctionDefinition {
     }
 
     /**
-     * Is this a datetime function comaptible with {@code EXTRACT}.
+     * Is this a datetime function compatible with {@code EXTRACT}.
      */
     boolean datetime() {
         return datetime;

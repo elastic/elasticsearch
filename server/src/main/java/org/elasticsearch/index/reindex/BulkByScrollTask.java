@@ -322,7 +322,7 @@ public class BulkByScrollTask extends CancellableTask {
     /**
      * Status of the reindex, update by query, or delete by query. While in
      * general we allow {@linkplain Task.Status} implementations to make
-     * backwards incompatible changes to their {@link ToXContent#toXContent}
+     * backwards incompatible changes to their {@link Task.Status#toXContent}
      * implementations, this one has become defacto standardized because Kibana
      * parses it. As such, we should be very careful about removing things from
      * this.

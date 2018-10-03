@@ -16,6 +16,8 @@ Retry executing the policy for an index which has errored.
 
 This API will re-run a policy is currently in the ERROR step. It will set the
 policy back to the step where the error occurred and attempt to re-execute it.
+Information on whether an index is in the ERROR step can be obtained from the 
+<<ilm-explain, ILM Explain API>>
 
 ==== Path Parameters
 

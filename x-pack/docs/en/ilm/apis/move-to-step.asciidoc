@@ -88,18 +88,20 @@ PUT my_index
 --------------------------------------------------
 POST _ilm/move/my_index
 {
-  "current_step": {
+  "current_step": { <1>
     "phase": "new",
     "action": "complete",
     "name": "complete"
   },
-  "next_step": {
+  "next_step": { <2>
     "phase": "warm",
     "action": "forcemerge",
     "name": "forcemerge"
   }
 }
 --------------------------------------------------
+<1> The step that the index is currently expected to be executing
+<1> The step that the index should move to when executing this request
 // CONSOLE
 // TEST[continued]
 

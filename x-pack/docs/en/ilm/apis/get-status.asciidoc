@@ -37,39 +37,6 @@ and <<ilm-stop, Stop ILM>> APIs.
 
 The following example stops the ILM plugin.
 
-//////////////////////////
-
-[source,js]
---------------------------------------------------
-PUT _ilm/my_policy
-{
-  "policy": {
-    "phases": {
-      "warm": {
-        "minimum_age": "10d",
-        "actions": {
-          "forcemerge": {
-            "max_num_segments": 1
-          }
-        }
-      },
-      "delete": {
-        "minimum_age": "30d",
-        "actions": {
-          "delete": {}
-        }
-      }
-    }
-  }
-}
-
-PUT my_index
---------------------------------------------------
-// CONSOLE
-// TEST
-
-//////////////////////////
-
 [source,js]
 --------------------------------------------------
 GET _ilm/status

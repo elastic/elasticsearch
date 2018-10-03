@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-put-policy]]
-=== Delete Policy API
+=== Delete Lifecycle Policy API
 ++++
 <titleabbrev>Delete Policy</titleabbrev>
 ++++
@@ -14,7 +14,7 @@ Deletes an existing policy
 
 ==== Description
 
-Deletes an existing policy
+Deletes an existing lifecycle policy
 
 ==== Path Parameters
 

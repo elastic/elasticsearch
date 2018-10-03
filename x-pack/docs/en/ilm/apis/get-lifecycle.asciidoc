@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-put-policy]]
-=== Get Policy API
+=== Get Lifecycle Policy API
 ++++
 <titleabbrev>Get Policy</titleabbrev>
 ++++

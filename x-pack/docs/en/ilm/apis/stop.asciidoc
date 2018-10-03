@@ -10,7 +10,7 @@ Stop the ILM plugin.
 
 ==== Request
 
-`POST /_ilm/start`
+`POST /_ilm/stop`
 
 ==== Description
 

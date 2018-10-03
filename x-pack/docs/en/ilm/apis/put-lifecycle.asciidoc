@@ -1,12 +1,12 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-put-policy]]
-=== Put Policy API
+=== Put Lifecycle Policy API
 ++++
 <titleabbrev>Put Policy</titleabbrev>
 ++++
 
-Creates a new ILM Policy
+Creates or updates an ILM Policy
 
 ==== Request
 

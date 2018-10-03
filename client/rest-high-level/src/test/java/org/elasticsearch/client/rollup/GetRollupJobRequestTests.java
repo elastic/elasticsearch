@@ -16,27 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.client.rollup;
 
-package org.elasticsearch.index.translog;
+import org.elasticsearch.test.ESTestCase;
 
-import org.elasticsearch.cli.LoggingAwareMultiCommand;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.index.shard.RemoveCorruptedShardDataCommand;
-
-/**
- * Class encapsulating and dispatching commands from the {@code elasticsearch-translog} command line tool
- */
-@Deprecated
-public class TranslogToolCli extends LoggingAwareMultiCommand {
-
-    private TranslogToolCli() {
-        // that's only for 6.x branch for bwc with elasticsearch-translog
-        super("A CLI tool for various Elasticsearch translog actions");
-        subcommands.put("truncate", new RemoveCorruptedShardDataCommand(true));
+public class GetRollupJobRequestTests extends ESTestCase {
+    public void testRequiresJob() {
+        final NullPointerException e = expectThrows(NullPointerException.class, () -> new GetRollupJobRequest(null));
+        assertEquals("jobId is required", e.getMessage());
     }
 
-    public static void main(String[] args) throws Exception {
-        exit(new TranslogToolCli().main(args, Terminal.DEFAULT));
+    public void testDoNotUseAll() {
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new GetRollupJobRequest("_all"));
+        assertEquals("use the default ctor to ask for all jobs", e.getMessage());
     }
-
 }

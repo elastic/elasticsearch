@@ -56,8 +56,8 @@ public class SnifferDocumentation {
         {
             //tag::sniffer-init
             RestClient restClient = RestClient.builder(
-                    new HttpHost("localhost", 9200, "http"))
-                    .build();
+                new HttpHost("localhost", 9200, "http"))
+                .build();
             Sniffer sniffer = Sniffer.builder(restClient).build();
             //end::sniffer-init
 
@@ -69,21 +69,23 @@ public class SnifferDocumentation {
         {
             //tag::sniffer-interval
             RestClient restClient = RestClient.builder(
-                    new HttpHost("localhost", 9200, "http"))
-                    .build();
+                new HttpHost("localhost", 9200, "http"))
+                .build();
             Sniffer sniffer = Sniffer.builder(restClient)
-                    .setSniffIntervalMillis(60000).build();
+                .setSniffIntervalMillis(60000).build();
             //end::sniffer-interval
         }
         {
             //tag::sniff-on-failure
-            SniffOnFailureListener sniffOnFailureListener = new SniffOnFailureListener();
-            RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
-                    .setFailureListener(sniffOnFailureListener) // <1>
-                    .build();
+            SniffOnFailureListener sniffOnFailureListener =
+                new SniffOnFailureListener();
+            RestClient restClient = RestClient.builder(
+                new HttpHost("localhost", 9200))
+                .setFailureListener(sniffOnFailureListener) // <1>
+                .build();
             Sniffer sniffer = Sniffer.builder(restClient)
-                    .setSniffAfterFailureDelayMillis(30000) // <2>
-                    .build();
+                .setSniffAfterFailureDelayMillis(30000) // <2>
+                .build();
             sniffOnFailureListener.setSniffer(sniffer); // <3>
             //end::sniff-on-failure
         }
@@ -103,29 +105,29 @@ public class SnifferDocumentation {
         {
             //tag::sniff-request-timeout
             RestClient restClient = RestClient.builder(
-                    new HttpHost("localhost", 9200, "http"))
-                    .build();
+                new HttpHost("localhost", 9200, "http"))
+                .build();
             NodesSniffer nodesSniffer = new ElasticsearchNodesSniffer(
-                    restClient,
-                    TimeUnit.SECONDS.toMillis(5),
-                    ElasticsearchNodesSniffer.Scheme.HTTP);
+                restClient,
+                TimeUnit.SECONDS.toMillis(5),
+                ElasticsearchNodesSniffer.Scheme.HTTP);
             Sniffer sniffer = Sniffer.builder(restClient)
-                    .setNodesSniffer(nodesSniffer).build();
+                .setNodesSniffer(nodesSniffer).build();
             //end::sniff-request-timeout
         }
         {
             //tag::custom-nodes-sniffer
             RestClient restClient = RestClient.builder(
-                    new HttpHost("localhost", 9200, "http"))
-                    .build();
+                new HttpHost("localhost", 9200, "http"))
+                .build();
             NodesSniffer nodesSniffer = new NodesSniffer() {
-                @Override
-                public List<Node> sniff() throws IOException {
-                    return null; // <1>
-                }
-            };
+                    @Override
+                    public List<Node> sniff() throws IOException {
+                        return null; // <1>
+                    }
+                };
             Sniffer sniffer = Sniffer.builder(restClient)
-                    .setNodesSniffer(nodesSniffer).build();
+                .setNodesSniffer(nodesSniffer).build();
             //end::custom-nodes-sniffer
         }
     }

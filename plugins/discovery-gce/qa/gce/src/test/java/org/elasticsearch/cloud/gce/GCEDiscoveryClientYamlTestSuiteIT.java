@@ -17,28 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.gce;
+package org.elasticsearch.cloud.gce;
 
-import com.google.api.client.http.HttpTransport;
-import org.elasticsearch.cloud.gce.GceInstancesServiceImpl;
-import org.elasticsearch.common.settings.Settings;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
-import java.io.IOException;
-import java.security.GeneralSecurityException;
+public class GCEDiscoveryClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-public class GceInstancesServiceMock extends GceInstancesServiceImpl {
-
-    protected HttpTransport mockHttpTransport;
-
-    public GceInstancesServiceMock(Settings settings) {
-        super(settings);
+    public GCEDiscoveryClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+        super(testCandidate);
     }
 
-    @Override
-    protected HttpTransport getGceHttpTransport() throws GeneralSecurityException, IOException {
-        if (this.mockHttpTransport == null) {
-            this.mockHttpTransport = GceMockUtils.configureMock();
-        }
-        return this.mockHttpTransport;
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return ESClientYamlSuiteTestCase.createParameters();
     }
 }

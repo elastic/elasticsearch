@@ -446,9 +446,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         = currentPublication.map(Publication::publishedState).orElse(coordinationState.get().getLastAcceptedState());
                     lastPublishedState.nodes().forEach(lastPublishedNodes::add);
                     assert lastPublishedNodes.remove(getLocalNode());
+                    assert lastPublishedNodes.equals(knownFollowers) : lastPublishedNodes + " != " + knownFollowers
+                        + " [becomingMaster=" + becomingMaster + ", publicationInProgress=" + publicationInProgress() + "]";
+                    // TODO instead assert that knownFollowers is updated appropriately at the end of each publication
                 }
-                assert lastPublishedNodes.equals(knownFollowers) : lastPublishedNodes + " != " + knownFollowers
-                    + " [becomingMaster=" + becomingMaster + ", publicationInProgress=" + publicationInProgress() + "]";
             } else if (mode == Mode.FOLLOWER) {
                 assert coordinationState.get().electionWon() == false : getLocalNode() + " is FOLLOWER so electionWon() should be false";
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);

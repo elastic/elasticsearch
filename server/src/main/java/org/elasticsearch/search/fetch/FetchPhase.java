@@ -30,6 +30,7 @@ import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -344,6 +346,7 @@ public class FetchPhase implements SearchPhase {
         ObjectMapper current = nestedObjectMapper;
         String originalName = nestedObjectMapper.name();
         SearchHit.NestedIdentity nestedIdentity = null;
+        final IndexSettings indexSettings = context.getQueryShardContext().getIndexSettings();
         do {
             Query parentFilter;
             nestedParentObjectMapper = current.getParentObjectMapper(mapperService);
@@ -374,12 +377,32 @@ public class FetchPhase implements SearchPhase {
             BitSet parentBits = context.bitsetFilterCache().getBitSetProducer(parentFilter).getBitSet(subReaderContext);
 
             int offset = 0;
-            int nextParent = parentBits.nextSetBit(currentParent);
-            for (int docId = childIter.advance(currentParent + 1); docId < nextParent && docId != DocIdSetIterator.NO_MORE_DOCS;
-                 docId = childIter.nextDoc()) {
-                offset++;
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+                /**
+                 * Starts from the previous parent and finds the offset of the
+                 * <code>nestedSubDocID</code> within the nested children. Nested documents
+                 * are indexed in the same order than in the source array so the offset
+                 * of the nested child is the number of nested document with the same parent
+                 * that appear before him.
+                 */
+                int previousParent = parentBits.prevSetBit(currentParent);
+                for (int docId = childIter.advance(previousParent + 1); docId < nestedSubDocId && docId != DocIdSetIterator.NO_MORE_DOCS;
+                        docId = childIter.nextDoc()) {
+                    offset++;
+                }
+                currentParent = nestedSubDocId;
+            } else {
+                /**
+                 * Nested documents are in reverse order in this version so we start from the current nested document
+                 * and find the number of documents with the same parent that appear after it.
+                 */
+                int nextParent = parentBits.nextSetBit(currentParent);
+                for (int docId = childIter.advance(currentParent + 1); docId < nextParent && docId != DocIdSetIterator.NO_MORE_DOCS;
+                        docId = childIter.nextDoc()) {
+                    offset++;
+                }
+                currentParent = nextParent;
             }
-            currentParent = nextParent;
             current = nestedObjectMapper = nestedParentObjectMapper;
             int currentPrefix = current == null ? 0 : current.name().length() + 1;
             nestedIdentity = new SearchHit.NestedIdentity(originalName.substring(currentPrefix), offset, nestedIdentity);

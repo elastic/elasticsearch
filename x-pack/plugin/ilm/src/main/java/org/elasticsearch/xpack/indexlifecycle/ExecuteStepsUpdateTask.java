@@ -107,6 +107,8 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                         index.getName(), currentStep.getClass().getSimpleName(), currentStep.getKey(), currentStep.getNextStepKey());
                     ClusterStateWaitStep.Result result = ((ClusterStateWaitStep) currentStep).isConditionMet(index, state);
                     if (result.isComplete()) {
+                        logger.trace("[{}] cluster state step condition met successfully ({}) [{}], moving to next step {}",
+                            index.getName(), currentStep.getClass().getSimpleName(), currentStep.getKey(), currentStep.getNextStepKey());
                         if (currentStep.getNextStepKey() == null) {
                             return state;
                         } else {
@@ -114,7 +116,13 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                                 currentStep.getNextStepKey(), nowSupplier);
                         }
                     } else {
-                        logger.debug("[{}] condition not met ({}), returning existing state", index.getName(), currentStep.getKey());
+                        logger.trace("[{}] condition not met ({}) [{}], returning existing state",
+                            index.getName(), currentStep.getClass().getSimpleName(), currentStep.getKey());
+                        // We may have executed a step and set "nextStepKey" to
+                        // a value, but in this case, since the condition was
+                        // not met, we can't advance any way, so don't attempt
+                        // to run the current step
+                        nextStepKey = null;
                         ToXContentObject stepInfo = result.getInfomationContext();
                         if (stepInfo == null) {
                             return state;
@@ -146,6 +154,8 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
         if (oldState.equals(newState) == false) {
             IndexMetaData indexMetaData = newState.metaData().index(index);
             if (nextStepKey != null && nextStepKey != TerminalPolicyStep.KEY && indexMetaData != null) {
+                logger.trace("[{}] step sequence starting with {} has completed, running next step {} if it is an async action",
+                    index.getName(), startStep.getKey(), nextStepKey);
                 // After the cluster state has been processed and we have moved
                 // to a new step, we need to conditionally execute the step iff
                 // it is an `AsyncAction` so that it is executed exactly once.

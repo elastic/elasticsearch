@@ -403,13 +403,15 @@ public class CoordinatorTests extends ESTestCase {
         return setting.get(Settings.EMPTY);
     }
 
-    // Updating the cluster state involves up to 5 delays:
+    // Updating the cluster state involves up to 7 delays:
     // 1. submit the task to the master service
     // 2. send PublishRequest
     // 3. receive PublishResponse
     // 4. send ApplyCommitRequest
-    // 5. receive ApplyCommitResponse and apply committed state
-    private static final long DEFAULT_CLUSTER_STATE_UPDATE_DELAY = 5 * DEFAULT_DELAY_VARIABILITY;
+    // 5. apply committed cluster state
+    // 6. receive ApplyCommitResponse
+    // 7. apply committed state on master (last one to apply cluster state)
+    private static final long DEFAULT_CLUSTER_STATE_UPDATE_DELAY = 7 * DEFAULT_DELAY_VARIABILITY;
 
     private static final int ELECTION_RETRIES = 10;
 

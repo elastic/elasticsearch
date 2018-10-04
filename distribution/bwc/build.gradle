@@ -157,8 +157,10 @@ subprojects {
       environment('JAVA_HOME', getJavaHome(it, 8))
     } else if ("6.2".equals(bwcBranch)) {
       environment('JAVA_HOME', getJavaHome(it, 9))
-    } else if (["6.3", "6.4", "6.x"].contains(bwcBranch)) {
+    } else if (["6.3", "6.4"].contains(bwcBranch)) {
       environment('JAVA_HOME', getJavaHome(it, 10))
+    } else if (["6.x"].contains(bwcBranch)) {
+      environment('JAVA_HOME', getJavaHome(it, 11))
     } else {
       environment('JAVA_HOME', project.compilerJavaHome)
     }

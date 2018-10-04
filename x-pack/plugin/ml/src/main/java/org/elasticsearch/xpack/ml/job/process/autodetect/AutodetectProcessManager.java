@@ -9,7 +9,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -131,13 +130,12 @@ public class AutodetectProcessManager extends AbstractComponent {
     private final NamedXContentRegistry xContentRegistry;
 
     private final Auditor auditor;
-    private final ClusterService clusterService;
 
     public AutodetectProcessManager(Environment environment, Settings settings, Client client, ThreadPool threadPool,
                                     JobManager jobManager, JobResultsProvider jobResultsProvider, JobResultsPersister jobResultsPersister,
                                     JobDataCountsPersister jobDataCountsPersister,
                                     AutodetectProcessFactory autodetectProcessFactory, NormalizerFactory normalizerFactory,
-                                    NamedXContentRegistry xContentRegistry, Auditor auditor, ClusterService clusterService) {
+                                    NamedXContentRegistry xContentRegistry, Auditor auditor) {
         super(settings);
         this.environment = environment;
         this.client = client;
@@ -152,7 +150,6 @@ public class AutodetectProcessManager extends AbstractComponent {
         this.jobDataCountsPersister = jobDataCountsPersister;
         this.auditor = auditor;
         this.nativeStorageProvider = new NativeStorageProvider(environment, MIN_DISK_SPACE_OFF_HEAP.get(settings));
-        this.clusterService = clusterService;
     }
 
     public void onNodeStartup() {
@@ -499,8 +496,7 @@ public class AutodetectProcessManager extends AbstractComponent {
         DataCountsReporter dataCountsReporter = new DataCountsReporter(settings,
             job,
             autodetectParams.dataCounts(),
-            jobDataCountsPersister,
-            clusterService);
+            jobDataCountsPersister);
         ScoresUpdater scoresUpdater = new ScoresUpdater(job, jobResultsProvider,
                 new JobRenormalizedResultsPersister(job.getId(), settings, client), normalizerFactory);
         ExecutorService renormalizerExecutorService = threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME);

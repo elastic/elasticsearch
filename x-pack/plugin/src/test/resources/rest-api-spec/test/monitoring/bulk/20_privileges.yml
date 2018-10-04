@@ -34,7 +34,7 @@ setup:
   # read the monitoring indices.
   - do:
       xpack.security.put_role:
-        name: "unkown_agent_role"
+        name: "unknown_agent_role"
         body:  >
             {
               "cluster": ["monitor"],
@@ -51,7 +51,7 @@ setup:
         body:  >
           {
             "password": "s3krit",
-            "roles" : [ "unkown_agent_role" ]
+            "roles" : [ "unknown_agent_role" ]
           }
 
 ---
@@ -70,7 +70,7 @@ teardown:
         ignore: 404
   - do:
       xpack.security.delete_role:
-        name: "unkown_agent_role"
+        name: "unknown_agent_role"
         ignore: 404
 
 ---

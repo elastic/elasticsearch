@@ -19,10 +19,12 @@
 
 package org.elasticsearch.search.aggregations.metrics.scripted;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -33,6 +35,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.common.logging.DeprecationLogger;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -41,6 +44,8 @@ import java.util.Objects;
 
 public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder<ScriptedMetricAggregationBuilder> {
     public static final String NAME = "scripted_metric";
+    private static final Logger logger = Loggers.getLogger(ScriptedMetricAggregationBuilder.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     private static final ParseField INIT_SCRIPT_FIELD = new ParseField("init_script");
     private static final ParseField MAP_SCRIPT_FIELD = new ParseField("map_script");
@@ -195,6 +200,13 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     @Override
     protected ScriptedMetricAggregatorFactory doBuild(SearchContext context, AggregatorFactory<?> parent,
             Builder subfactoriesBuilder) throws IOException {
+
+        if (combineScript == null) {
+            deprecationLogger.deprecated("[combineScript] must be provided for metric aggregations.");
+        }
+        if(reduceScript == null) {
+            deprecationLogger.deprecated("[reduceScript] must be provided for metric aggregations.");
+        }
 
         QueryShardContext queryShardContext = context.getQueryShardContext();
 

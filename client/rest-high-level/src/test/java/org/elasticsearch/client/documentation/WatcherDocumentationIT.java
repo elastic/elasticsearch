@@ -21,8 +21,17 @@ package org.elasticsearch.client.documentation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.watcher.ActivateWatchRequest;
+import org.elasticsearch.client.watcher.ActivateWatchResponse;
+import org.elasticsearch.client.watcher.AckWatchRequest;
+import org.elasticsearch.client.watcher.AckWatchResponse;
+import org.elasticsearch.client.watcher.ActionStatus;
+import org.elasticsearch.client.watcher.ActionStatus.AckStatus;
+import org.elasticsearch.client.watcher.WatchStatus;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -30,6 +39,7 @@ import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
+import org.elasticsearch.rest.RestStatus;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -129,6 +139,125 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::x-pack-delete-watch-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testAckWatch() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            BytesReference watch = new BytesArray("{ \n" +
+                "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n" +
+                "  \"input\": { \"simple\": { \"foo\" : \"bar\" } },\n" +
+                "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n" +
+                "}");
+            PutWatchRequest putWatchRequest = new PutWatchRequest("my_watch_id", watch, XContentType.JSON);
+            client.watcher().putWatch(putWatchRequest, RequestOptions.DEFAULT);
+
+            // TODO: use the high-level REST client here once it supports 'execute watch'.
+            Request executeWatchRequest = new Request("POST", "_xpack/watcher/watch/my_watch_id/_execute");
+            executeWatchRequest.setJsonEntity("{ \"record_execution\": true }");
+            Response executeResponse = client().performRequest(executeWatchRequest);
+            assertEquals(RestStatus.OK.getStatus(), executeResponse.getStatusLine().getStatusCode());
+        }
+
+        {
+            //tag::ack-watch-execute
+            AckWatchRequest request = new AckWatchRequest("my_watch_id", // <1>
+                "logme", "emailme"); // <2>
+            AckWatchResponse response = client.watcher().ackWatch(request, RequestOptions.DEFAULT);
+            //end::ack-watch-execute
+
+            //tag::ack-watch-response
+            WatchStatus watchStatus = response.getStatus();
+            ActionStatus actionStatus = watchStatus.actionStatus("logme"); // <1>
+            AckStatus.State ackState = actionStatus.ackStatus().state(); // <2>
+            //end::ack-watch-response
+
+            assertEquals(AckStatus.State.ACKED, ackState);
+        }
+
+        {
+            AckWatchRequest request = new AckWatchRequest("my_watch_id");
+            // tag::ack-watch-execute-listener
+            ActionListener<AckWatchResponse> listener = new ActionListener<AckWatchResponse>() {
+                @Override
+                public void onResponse(AckWatchResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::ack-watch-execute-listener
+
+            // For testing, replace the empty listener by a blocking listener.
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::ack-watch-execute-async
+            client.watcher().ackWatchAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::ack-watch-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testActivateWatch() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            BytesReference watch = new BytesArray("{ \n" +
+                "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n" +
+                "  \"input\": { \"simple\": { \"foo\" : \"bar\" } },\n" +
+                "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n" +
+                "}");
+            PutWatchRequest request = new PutWatchRequest("my_watch_id", watch, XContentType.JSON);
+            request.setActive(false); // <1>
+            PutWatchResponse response = client.watcher().putWatch(request, RequestOptions.DEFAULT);
+        }
+
+        {
+            //tag::activate-watch-request
+            ActivateWatchRequest request = new ActivateWatchRequest("my_watch_id");
+            ActivateWatchResponse response = client.watcher().activateWatch(request, RequestOptions.DEFAULT);
+            //end::activate-watch-request
+
+            //tag::activate-watch-response
+            WatchStatus watchStatus = response.getStatus(); // <1>
+            //end::activate-watch-response
+
+            assertTrue(watchStatus.state().isActive());
+        }
+
+        {
+            ActivateWatchRequest request = new ActivateWatchRequest("my_watch_id");
+            //tag::activate-watch-request-listener
+            ActionListener<ActivateWatchResponse> listener = new ActionListener<ActivateWatchResponse>() {
+                @Override
+                public void onResponse(ActivateWatchResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::activate-watch-request-listener
+
+            //Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            //tag::activate-watch-request-async
+            client.watcher().activateWatchAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            //end::activate-watch-request-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
         }
     }
 

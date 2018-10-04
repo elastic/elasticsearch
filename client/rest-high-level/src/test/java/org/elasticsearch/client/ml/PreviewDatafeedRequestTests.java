@@ -16,27 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.client.ml;
 
-package org.elasticsearch.index.translog;
+import org.elasticsearch.client.ml.datafeed.DatafeedConfigTests;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
-import org.elasticsearch.cli.LoggingAwareMultiCommand;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.index.shard.RemoveCorruptedShardDataCommand;
+import java.io.IOException;
 
-/**
- * Class encapsulating and dispatching commands from the {@code elasticsearch-translog} command line tool
- */
-@Deprecated
-public class TranslogToolCli extends LoggingAwareMultiCommand {
+public class PreviewDatafeedRequestTests extends AbstractXContentTestCase<PreviewDatafeedRequest> {
 
-    private TranslogToolCli() {
-        // that's only for 6.x branch for bwc with elasticsearch-translog
-        super("A CLI tool for various Elasticsearch translog actions");
-        subcommands.put("truncate", new RemoveCorruptedShardDataCommand(true));
+    @Override
+    protected PreviewDatafeedRequest createTestInstance() {
+        return new PreviewDatafeedRequest(DatafeedConfigTests.randomValidDatafeedId());
     }
 
-    public static void main(String[] args) throws Exception {
-        exit(new TranslogToolCli().main(args, Terminal.DEFAULT));
+    @Override
+    protected PreviewDatafeedRequest doParseInstance(XContentParser parser) throws IOException {
+        return PreviewDatafeedRequest.fromXContent(parser);
     }
 
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
 }

@@ -175,8 +175,8 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     @After
     public final void cleanUpCluster() throws Exception {
-        boolean hasXPack = hasXPack();
         if (preserveClusterUponCompletion() == false) {
+            boolean hasXPack = hasXPack();
             wipeCluster(hasXPack);
             waitForClusterStateUpdatesToFinish();
             if (hasXPack) {

@@ -143,7 +143,7 @@ final class WatcherIndexingListener extends AbstractComponent implements Indexin
      *
      * @param shardId   The shard id object of the document being processed
      * @param index     The index operation
-     * @param ex        The exception occured during indexing
+     * @param ex        The exception occurred during indexing
      */
     @Override
     public void postIndex(ShardId shardId, Engine.Index index, Exception ex) {

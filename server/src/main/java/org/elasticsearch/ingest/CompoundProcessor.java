@@ -21,15 +21,14 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.metrics.Metric;
 
-import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 /**
@@ -45,10 +44,10 @@ public class CompoundProcessor implements Processor {
     private final List<Processor> processors;
     private final List<Processor> onFailureProcessors;
     private final List<Tuple<Processor, IngestMetric>> processorsWithMetrics;
-    private final Clock clock;
+    private final LongSupplier relativeTimeProvider;
 
-    CompoundProcessor(Clock clock, Processor... processor) {
-        this(false, Arrays.asList(processor), Collections.emptyList(), clock);
+    CompoundProcessor(LongSupplier relativeTimeProvider, Processor... processor) {
+        this(false, Arrays.asList(processor), Collections.emptyList(), relativeTimeProvider);
     }
 
     public CompoundProcessor(Processor... processor) {
@@ -56,14 +55,15 @@ public class CompoundProcessor implements Processor {
     }
 
     public CompoundProcessor(boolean ignoreFailure, List<Processor> processors, List<Processor> onFailureProcessors) {
-        this(ignoreFailure, processors, onFailureProcessors, Clock.systemUTC());
+        this(ignoreFailure, processors, onFailureProcessors, System::nanoTime);
     }
-    CompoundProcessor(boolean ignoreFailure, List<Processor> processors, List<Processor> onFailureProcessors, Clock clock) {
+    CompoundProcessor(boolean ignoreFailure, List<Processor> processors, List<Processor> onFailureProcessors,
+                      LongSupplier relativeTimeProvider) {
         super();
         this.ignoreFailure = ignoreFailure;
         this.processors = processors;
         this.onFailureProcessors = onFailureProcessors;
-        this.clock = clock;
+        this.relativeTimeProvider = relativeTimeProvider;
         this.processorsWithMetrics = new ArrayList<>(processors.size());
         processors.forEach(p -> processorsWithMetrics.add(new Tuple<>(p, new IngestMetric())));
     }
@@ -117,7 +117,7 @@ public class CompoundProcessor implements Processor {
         for (Tuple<Processor, IngestMetric> processorWithMetric : processorsWithMetrics) {
             Processor processor = processorWithMetric.v1();
             IngestMetric metric = processorWithMetric.v2();
-            long startTimeInMillis = clock.millis();
+            long startTimeInNanos = relativeTimeProvider.getAsLong();
             try {
                 metric.preIngest();
                 if (processor.execute(ingestDocument) == null) {
@@ -138,7 +138,7 @@ public class CompoundProcessor implements Processor {
                     break;
                 }
             } finally {
-                long ingestTimeInMillis = clock.millis() - startTimeInMillis;
+                long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
                 metric.postIngest(ingestTimeInMillis);
             }
         }

@@ -42,6 +42,7 @@ import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PostDataRequest;
+import org.elasticsearch.client.ml.PreviewDatafeedRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
@@ -309,6 +310,13 @@ public class MLRequestConvertersTests extends ESTestCase {
 
         assertEquals("/_xpack/ml/datafeeds/datafeed1,datafeeds*/_stats", request.getEndpoint());
         assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_datafeeds"));
+    }
+
+    public void testPreviewDatafeed() {
+        PreviewDatafeedRequest datafeedRequest = new PreviewDatafeedRequest("datafeed_1");
+        Request request = MLRequestConverters.previewDatafeed(datafeedRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/datafeeds/" + datafeedRequest.getDatafeedId() + "/_preview", request.getEndpoint());
     }
 
     public void testDeleteForecast() {

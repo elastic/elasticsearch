@@ -67,6 +67,8 @@ import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
+import org.elasticsearch.client.ml.PreviewDatafeedRequest;
+import org.elasticsearch.client.ml.PreviewDatafeedResponse;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
@@ -100,6 +102,7 @@ import org.elasticsearch.client.ml.job.results.Influencer;
 import org.elasticsearch.client.ml.job.results.OverallBucket;
 import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.client.ml.job.util.PageParams;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -706,6 +709,66 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             DeleteDatafeedRequest deleteDatafeedRequest = new DeleteDatafeedRequest(datafeedId);
             client.machineLearning().deleteDatafeedAsync(deleteDatafeedRequest, RequestOptions.DEFAULT, listener); // <1>
             //end::x-pack-delete-ml-datafeed-request-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testPreviewDatafeed() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        Job job = MachineLearningIT.buildJob("preview-datafeed-job");
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        String datafeedId = job.getId() + "-feed";
+        String indexName = "preview_data_2";
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, job.getId())
+            .setTypes(Arrays.asList("doc"))
+            .setIndices(indexName)
+            .build();
+        client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
+        {
+            //tag::preview-datafeed-request
+            PreviewDatafeedRequest request = new PreviewDatafeedRequest(datafeedId); // <1>
+            //end::preview-datafeed-request
+
+            //tag::preview-datafeed-execute
+            PreviewDatafeedResponse response = client.machineLearning().previewDatafeed(request, RequestOptions.DEFAULT);
+            //end::preview-datafeed-execute
+
+            //tag::preview-datafeed-response
+            BytesReference rawPreview = response.getPreview(); // <1>
+            List<Map<String, Object>> semiParsedPreview = response.getDataList(); // <2>
+            //end::preview-datafeed-response
+
+            assertTrue(semiParsedPreview.isEmpty());
+        }
+        {
+            PreviewDatafeedRequest request = new PreviewDatafeedRequest(datafeedId);
+
+            // tag::preview-datafeed-execute-listener
+            ActionListener<PreviewDatafeedResponse> listener = new ActionListener<PreviewDatafeedResponse>() {
+                @Override
+                public void onResponse(PreviewDatafeedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::preview-datafeed-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::preview-datafeed-execute-async
+            client.machineLearning().previewDatafeedAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::preview-datafeed-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

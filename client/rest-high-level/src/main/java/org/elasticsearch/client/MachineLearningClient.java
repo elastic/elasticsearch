@@ -54,6 +54,8 @@ import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
+import org.elasticsearch.client.ml.PreviewDatafeedRequest;
+import org.elasticsearch.client.ml.PreviewDatafeedResponse;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
@@ -672,6 +674,27 @@ public final class MachineLearningClient {
     }
 
     /**
+     * Previews the given Machine Learning Datafeed
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-preview-datafeed.html">
+     *     ML Preview Datafeed documentation</a>
+     *
+     * @param request The request to preview the datafeed
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return {@link PreviewDatafeedResponse} object containing a {@link org.elasticsearch.common.bytes.BytesReference} of the data in
+     * JSON format
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PreviewDatafeedResponse previewDatafeed(PreviewDatafeedRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::previewDatafeed,
+            options,
+            PreviewDatafeedResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
      * Gets statistics for one or more Machine Learning datafeeds, asynchronously.
      * <p>
      * For additional info
@@ -688,6 +711,28 @@ public final class MachineLearningClient {
             MLRequestConverters::getDatafeedStats,
             options,
             GetDatafeedStatsResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Previews the given Machine Learning Datafeed asynchronously and notifies the listener on completion
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-preview-datafeed.html">
+     *         ML Preview Datafeed documentation</a>
+     *
+     * @param request The request to preview the datafeed
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void previewDatafeedAsync(PreviewDatafeedRequest request,
+                                     RequestOptions options,
+                                     ActionListener<PreviewDatafeedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::previewDatafeed,
+            options,
+            PreviewDatafeedResponse::fromXContent,
             listener,
             Collections.emptySet());
     }

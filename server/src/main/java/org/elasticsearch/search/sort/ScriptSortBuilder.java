@@ -319,10 +319,13 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
         final Nested nested;
         if (nestedSort != null) {
-            if ((context.indexVersionCreated().before(Version.V_6_5_0) || nestedSort.getNestedSort() != null) &&
-                nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
+            if (context.indexVersionCreated().before(Version.V_6_5_0) && nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
                 throw new QueryShardException(context,
-                    "max_children is only supported on v6.5.0 or higher and last level of nested sort");
+                    "max_children is only supported on v6.5.0 or higher");
+            }
+            if (nestedSort.getNestedSort() != null && nestedSort.getMaxChildren() != Integer.MAX_VALUE)  {
+                throw new QueryShardException(context,
+                    "max_children is only supported on last level of nested sort");
             }
             // new nested sorts takes priority
             nested = resolveNested(context, nestedSort);

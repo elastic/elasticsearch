@@ -28,7 +28,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class DatafeedStatsTests  extends AbstractXContentTestCase<DatafeedStats> {
+public class DatafeedStatsTests extends AbstractXContentTestCase<DatafeedStats> {
 
     public static DatafeedStats createRandomInstance() {
         String datafeedId = DatafeedConfigTests.randomValidDatafeedId();

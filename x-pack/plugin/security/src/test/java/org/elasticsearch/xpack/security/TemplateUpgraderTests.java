@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * This test ensures, that the plugin template upgrader can add and remove
  * templates when started within security, as this requires certain
- * system priviliges
+ * system privileges
  */
 @ClusterScope(maxNumDataNodes = 1, scope = Scope.SUITE, numClientNodes = 0)
 public class TemplateUpgraderTests extends SecurityIntegTestCase {

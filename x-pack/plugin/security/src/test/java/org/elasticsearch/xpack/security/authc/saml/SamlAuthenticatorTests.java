@@ -1636,7 +1636,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         /*
         Permutation 7 - Mangle the contents of the response to be
            <Response>
-               <Extentions>
+               <Extensions>
                    <ForgedAssertion><?ForgedAssertion>
                <LegitimateAssertion>
                    <LegitimateAssertionSignature></LegitimateAssertionSignature>
@@ -1645,16 +1645,16 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         */
         final Element response = (Element) legitimateDocument.
                 getElementsByTagNameNS(SAML20P_NS, "Response").item(0);
-        final Element extentions = legitimateDocument.createElement("Extensions");
+        final Element extensions = legitimateDocument.createElement("Extensions");
         final Element assertion = (Element) legitimateDocument.
                 getElementsByTagNameNS(SAML20_NS, "Assertion").item(0);
-        response.insertBefore(extentions, assertion);
+        response.insertBefore(extensions, assertion);
         final Element forgedAssertion = (Element) assertion.cloneNode(true);
         forgedAssertion.setAttribute("ID", "_forged_assertion_id");
         final Element forgedSignature = (Element) forgedAssertion.
                 getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature").item(0);
         forgedAssertion.removeChild(forgedSignature);
-        extentions.appendChild(forgedAssertion);
+        extensions.appendChild(forgedAssertion);
         final SamlToken forgedToken = token(SamlUtils.toString((legitimateDocument.getDocumentElement())));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(forgedToken));
         assertThat(exception.getMessage(), containsString("Failed to parse SAML"));

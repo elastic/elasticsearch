@@ -400,8 +400,9 @@ The path to the Java Keystore file that contains a private key and certificate.
 `ssl.key` and `ssl.keystore.path` may not be used at the same time.
 
 `ssl.keystore.type`::
-The format of the keystore file. Should be either `jks` to use the Java
-Keystore format, or `PKCS12` to use PKCS#12 files. The default is `jks`.
+The format of the keystore file. Should be `jks` to use the Java
+Keystore format, `PKCS12` to use PKCS#12 files, or `PKCS11` to use a PKCS#11 token.
+The default is `jks`.
 
 `ssl.keystore.password`::
 The password to the keystore.
@@ -426,8 +427,9 @@ The password to the truststore.
 The password to the truststore.
 
 `ssl.truststore.type`::
-The format of the keystore file. Should be either `jks` to use the Java
-Keystore format, or `PKCS12` to use PKCS#12 files. The default is `jks`.
+The format of the keystore file. Should be `jks` to use the Java
+Keystore format, `PKCS12` to use PKCS#12 files, or `PKCS11` to use a PKCS#11 token.
+The default is `jks`.
 
 `ssl.verification_mode`::
 Indicates the type of verification when using `ldaps` to protect against man
@@ -649,8 +651,9 @@ The path to the Java Keystore file that contains a private key and certificate.
 `ssl.key` and `ssl.keystore.path` cannot be used at the same time.
 
 `ssl.keystore.type`::
-The format of the keystore file. Should be either `jks` to use the Java
-Keystore format, or `PKCS12` to use PKCS#12 files. The default is `jks`.
+The format of the keystore file. Should be `jks` to use the Java
+Keystore format, `PKCS12` to use PKCS#12 files, or `PKCS11` to use a PKCS#11 token.
+The default is `jks`.
 
 `ssl.truststore.password`::
 The password to the truststore.
@@ -664,8 +667,9 @@ The path to the Java Keystore file that contains the certificates to trust.
 same time.
 
 `ssl.truststore.type`::
-The format of the truststore file. Should be either `jks` to use the Java
-Keystore format, or `PKCS12` to use PKCS#12 files. The default is `jks`.
+The format of the truststore file. Should be `jks` to use the Java
+Keystore format, `PKCS12` to use PKCS#12 files, or `PKCS11` to use a PKCS#11 token.
+The default is `jks`.
 
 `ssl.verification_mode`::
 Indicates the type of verification when using `ldaps` to protect against man
@@ -1062,7 +1066,7 @@ Must be either a Java Keystore (jks) or a PKCS#12 file.
 same time.
 
 `ssl.truststore.type`::
-The type of the truststore (`ssl.truststore.path`). Must be either `jks` or 
+The type of the truststore (`ssl.truststore.path`). Must be either `jks` or
 `PKCS12`. If the keystore path ends in ".p12", ".pfx" or "pkcs12", this setting 
 defaults to `PKCS12`. Otherwise, it defaults to `jks`.
 
@@ -1315,6 +1319,32 @@ a PKCS#12 container includes trusted certificate ("anchor") entries look for
 `2.16.840.1.113894.746875.1.1: <Unsupported tag 6>` in the
 `openssl pkcs12 -info` output, or `trustedCertEntry` in the
 `keytool -list` output.
+
+===== PKCS#11 tokens
+
+When using a PKCS#11 cryptographic token, which contains the
+private key, certificate, and certificates that should be trusted, use
+the following settings:
+
+`xpack.ssl.keystore.type`::
+Set this to `PKCS11`.
+
+`xpack.ssl.truststore.type`::
+Set this to `PKCS11`.
+
+
+[[pkcs11-truststore-note]]
+[NOTE]
+When configuring the PKCS#11 token that your JVM is configured to use as
+a keystore or a truststore for Elasticsearch, the PIN for the token can be
+configured by setting the appropriate value to `xpack.ssl.truststore.password`
+or `xpack.ssl.truststore.secure_password`. In the absence of the above, {es} will
+fallback to use he appropriate JVM setting (`-Djavax.net.ssl.trustStorePassword`)
+if that s set.
+Since there can only be one PKCS#11 token configured, only one keystore and
+truststore will be usable for configuration in {es}. This in turn means
+that only one certificate can be used for TLS both in the transport and the
+http layer.
 
 [[http-tls-ssl-settings]]
 :ssl-prefix:             xpack.security.http

@@ -176,12 +176,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     @After
     public final void cleanUpCluster() throws Exception {
         if (preserveClusterUponCompletion() == false) {
-            boolean hasXPack = hasXPack();
-            wipeCluster(hasXPack);
+            wipeCluster();
             waitForClusterStateUpdatesToFinish();
-            if (hasXPack) {
-                waitForPendingRollupTasks();
-            }
             logIfThereAreRunningTasks();
         }
     }
@@ -213,8 +209,8 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     /**
      * Returns whether to preserve the state of the cluster upon completion of this test. Defaults to false. If true, overrides the value of
-     * {@link #preserveIndicesUponCompletion()}, {@link #preserveTemplatesUponCompletion()}, {@link #preserveReposUponCompletion()}, and
-     * {@link #preserveSnapshotsUponCompletion()}.
+     * {@link #preserveIndicesUponCompletion()}, {@link #preserveTemplatesUponCompletion()}, {@link #preserveReposUponCompletion()},
+     * {@link #preserveSnapshotsUponCompletion()}, and {@link #preserveRollupJobsUponCompletion()}.
      *
      * @return true if the state of the cluster should be preserved
      */
@@ -279,7 +275,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         return false;
     }
 
-    private void wipeCluster(boolean hasXPack) throws IOException {
+    private void wipeCluster() throws Exception {
+        boolean hasXPack = hasXPack();
+
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
             try {
@@ -329,6 +327,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         if (hasXPack && false == preserveRollupJobsUponCompletion()) {
             wipeRollupJobs();
+            waitForPendingRollupTasks();
         }
     }
 

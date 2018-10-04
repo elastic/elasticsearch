@@ -18,20 +18,29 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.client.ml.job.config.JobTests;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
-public class DeleteJobRequestTests extends ESTestCase {
+import java.io.IOException;
 
-    private DeleteJobRequest createTestInstance() {
-        return new DeleteJobRequest(JobTests.randomValidJobId());
+public class DeleteJobResponseTests extends AbstractXContentTestCase<DeleteJobResponse> {
+
+    @Override
+    protected DeleteJobResponse createTestInstance() {
+        if (randomBoolean()) {
+            return new DeleteJobResponse(randomBoolean(), null);
+        }
+        return new DeleteJobResponse(null, new TaskId(randomAlphaOfLength(20) + ":" + randomIntBetween(1, 100)));
     }
 
-    public void test_WithNullJobId() {
-        NullPointerException ex = expectThrows(NullPointerException.class, () -> new DeleteJobRequest(null));
-        assertEquals("[job_id] must not be null", ex.getMessage());
+    @Override
+    protected DeleteJobResponse doParseInstance(XContentParser parser) throws IOException {
+        return DeleteJobResponse.PARSER.apply(parser, null);
+    }
 
-        ex = expectThrows(NullPointerException.class, () -> createTestInstance().setJobId(null));
-        assertEquals("[job_id] must not be null", ex.getMessage());
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
     }
 }

@@ -26,6 +26,7 @@ import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
+import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -211,14 +212,15 @@ public final class MachineLearningClient {
      *
      * @param request The request to delete the job
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return action acknowledgement
+     * @return The action response which contains the acknowledgement or the task id depending on whether the action was set to wait for
+     * completion
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
-    public AcknowledgedResponse deleteJob(DeleteJobRequest request, RequestOptions options) throws IOException {
+    public DeleteJobResponse deleteJob(DeleteJobRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request,
             MLRequestConverters::deleteJob,
             options,
-            AcknowledgedResponse::fromXContent,
+            DeleteJobResponse::fromXContent,
             Collections.emptySet());
     }
 
@@ -232,11 +234,11 @@ public final class MachineLearningClient {
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      */
-    public void deleteJobAsync(DeleteJobRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+    public void deleteJobAsync(DeleteJobRequest request, RequestOptions options, ActionListener<DeleteJobResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request,
             MLRequestConverters::deleteJob,
             options,
-            AcknowledgedResponse::fromXContent,
+            DeleteJobResponse::fromXContent,
             listener,
             Collections.emptySet());
     }

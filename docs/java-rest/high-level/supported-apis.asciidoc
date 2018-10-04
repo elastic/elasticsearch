@@ -238,6 +238,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-preview-datafeed>>
 * <<{upid}-start-datafeed>>
 * <<{upid}-stop-datafeed>>
+* <<{upid}-get-datafeed-stats>>
 * <<{upid}-forecast-job>>
 * <<{upid}-delete-forecast>>
 * <<{upid}-get-buckets>>
@@ -263,6 +264,7 @@ include::ml/delete-datafeed.asciidoc[]
 include::ml/preview-datafeed.asciidoc[]
 include::ml/start-datafeed.asciidoc[]
 include::ml/stop-datafeed.asciidoc[]
+include::ml/get-datafeed-stats.asciidoc[]
 include::ml/get-job-stats.asciidoc[]
 include::ml/forecast-job.asciidoc[]
 include::ml/delete-forecast.asciidoc[]
@@ -310,15 +312,20 @@ include::security/change-password.asciidoc[]
 
 == Watcher APIs
 
+:upid: {mainid}-watcher
+:doc-tests-file: {doc-tests}/WatcherDocumentationIT.java
+
 The Java High Level REST Client supports the following Watcher APIs:
 
 * <<java-rest-high-x-pack-watcher-put-watch>>
 * <<java-rest-high-x-pack-watcher-delete-watch>>
-* <<java-rest-high-watcher-ack-watch>>
+* <<{upid}-ack-watch>>
+* <<{upid}-activate-watch>>
 
 include::watcher/put-watch.asciidoc[]
 include::watcher/delete-watch.asciidoc[]
 include::watcher/ack-watch.asciidoc[]
+include::watcher/activate-watch.asciidoc[]
 
 == Graph APIs
 

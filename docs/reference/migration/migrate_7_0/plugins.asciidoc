@@ -1,6 +1,8 @@
+[float]
 [[breaking_70_plugins_changes]]
 === Plugins changes
 
+[float]
 ==== Azure Repository plugin
 
 * The legacy azure settings which where starting with `cloud.azure.storage.` prefix have been removed.
@@ -12,6 +14,7 @@ You must set it per azure client instead. Like `azure.client.default.timeout: 10
 
 See {plugins}/repository-azure-repository-settings.html#repository-azure-repository-settings[Azure Repository settings].
 
+[float]
 ==== Google Cloud Storage Repository plugin
 
 * The repository settings `application_name`, `connect_timeout` and `read_timeout` have been removed and
@@ -19,11 +22,13 @@ must now be specified in the client settings instead.
 
 See {plugins}/repository-gcs-client.html#repository-gcs-client[Google Cloud Storage Client Settings].
 
+[float]
 ==== Analysis Plugin changes
 
 * The misspelled helper method `requriesAnalysisSettings(AnalyzerProvider<T> provider)` has been
 renamed to `requiresAnalysisSettings`
 
+[float]
 ==== File-based discovery plugin
 
 * This plugin has been removed since its functionality is now part of

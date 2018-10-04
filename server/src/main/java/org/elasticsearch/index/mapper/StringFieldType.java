@@ -19,20 +19,24 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.util.List;
-
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.support.QueryParsers;
+
+import java.util.List;
 
 /** Base class for {@link MappedFieldType} implementations that use the same
  * representation for internal index terms as the external representation so
@@ -71,6 +75,19 @@ public abstract class StringFieldType extends TermBasedFieldType {
         if (method != null) {
             query.setRewriteMethod(method);
         }
+        return query;
+    }
+
+    @Override
+    public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        Query termQuery = termQuery(value, context);
+        if (termQuery instanceof MatchNoDocsQuery || termQuery instanceof MatchAllDocsQuery) {
+            return termQuery;
+        }
+        Term term = MappedFieldType.extractTerm(termQuery);
+
+        WildcardQuery query = new WildcardQuery(term);
+        QueryParsers.setRewriteMethod(query, method);
         return query;
     }
 

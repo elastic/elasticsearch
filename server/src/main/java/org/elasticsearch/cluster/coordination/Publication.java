@@ -91,8 +91,8 @@ public abstract class Publication extends AbstractComponent {
         onPossibleCompletion();
     }
 
-    public boolean isCompleted() {
-        return isCompleted;
+    public boolean isCommitted() {
+        return applyCommitRequest.isPresent();
     }
 
     private void onPossibleCompletion() {

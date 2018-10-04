@@ -421,7 +421,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     // package-visible for testing
     boolean activePublicationInProgress() {
         synchronized (mutex) {
-            return currentPublication.map(p -> p.isCompleted() == false).orElse(false);
+            return currentPublication.isPresent();
         }
     }
 
@@ -490,12 +490,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert leaderCheckScheduler == null : leaderCheckScheduler;
                 assert applierState.nodes().getMasterNodeId() == null || getLocalNode().equals(applierState.nodes().getMasterNode());
 
-                if (becomingMaster && activePublicationInProgress() == false) {
+                if (becomingMaster && currentPublication.isPresent() == false) {
                     // cluster state update task to become master is submitted to MasterService, but publication has not started yet
                     assert followersChecker.getKnownFollowers().isEmpty() : followersChecker.getKnownFollowers();
                 } else {
                     final ClusterState lastPublishedState;
-                    if (activePublicationInProgress()) {
+                    if (currentPublication.isPresent()) {
                         // active publication in progress: followersChecker is up-to-date with nodes that we're actively publishing to
                         lastPublishedState = currentPublication.get().publishedState();
                     } else {
@@ -519,7 +519,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert leaderChecker.currentNodeIsMaster() == false;
                 assert leaderCheckScheduler != null;
                 assert followersChecker.getKnownFollowers().isEmpty();
-                assert activePublicationInProgress() == false;
+                assert currentPublication.map(Publication::isCommitted).orElse(true);
             } else {
                 assert mode == Mode.CANDIDATE;
                 assert joinAccumulator instanceof JoinHelper.CandidateJoinAccumulator;
@@ -530,7 +530,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert leaderCheckScheduler == null : leaderCheckScheduler;
                 assert followersChecker.getKnownFollowers().isEmpty();
                 assert applierState.nodes().getMasterNodeId() == null;
-                assert activePublicationInProgress() == false;
+                assert currentPublication.map(Publication::isCommitted).orElse(true);
             }
         }
     }

@@ -266,6 +266,7 @@ public class CoordinatorTests extends ESTestCase {
 
     public void testAckListenerReceivesAcksFromAllNodes() {
         final Cluster cluster = new Cluster(randomIntBetween(3, 5));
+        cluster.runRandomly();
         cluster.stabilise();
         final ClusterNode leader = cluster.getAnyLeader();
         AckCollector ackCollector = leader.submitValue(randomLong());
@@ -279,6 +280,7 @@ public class CoordinatorTests extends ESTestCase {
 
     public void testAckListenerReceivesNackFromFollower() {
         final Cluster cluster = new Cluster(3);
+        cluster.runRandomly();
         cluster.stabilise();
         final ClusterNode leader = cluster.getAnyLeader();
         final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
@@ -295,6 +297,7 @@ public class CoordinatorTests extends ESTestCase {
 
     public void testAckListenerReceivesNackFromLeader() {
         final Cluster cluster = new Cluster(3);
+        cluster.runRandomly();
         cluster.stabilise();
         final ClusterNode leader = cluster.getAnyLeader();
         final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
@@ -315,6 +318,7 @@ public class CoordinatorTests extends ESTestCase {
 
     public void testAckListenerReceivesNoAckFromHangingFollower() {
         final Cluster cluster = new Cluster(3);
+        cluster.runRandomly();
         cluster.stabilise();
         final ClusterNode leader = cluster.getAnyLeader();
         final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
@@ -332,6 +336,7 @@ public class CoordinatorTests extends ESTestCase {
 
     public void testAckListenerReceivesNacksIfPublicationTimesOut() {
         final Cluster cluster = new Cluster(3);
+        cluster.runRandomly();
         cluster.stabilise();
         final ClusterNode leader = cluster.getAnyLeader();
         final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
@@ -355,6 +360,7 @@ public class CoordinatorTests extends ESTestCase {
     public void testAckListenerReceivesNacksIfLeaderStandsDown() {
         // TODO: needs support for handling disconnects
 //        final Cluster cluster = new Cluster(3);
+//        cluster.runRandomly();
 //        cluster.stabilise();
 //        final ClusterNode leader = cluster.getAnyLeader();
 //        final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
@@ -376,6 +382,7 @@ public class CoordinatorTests extends ESTestCase {
     public void testAckListenerReceivesNacksFromFollowerInHigherTerm() {
         // TODO: needs auto-term bumping for cluster to form again
 //        final Cluster cluster = new Cluster(3);
+//        cluster.runRandomly();
 //        cluster.stabilise();
 //        final ClusterNode leader = cluster.getAnyLeader();
 //        final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);

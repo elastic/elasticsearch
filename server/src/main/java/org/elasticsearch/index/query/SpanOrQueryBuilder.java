@@ -27,7 +27,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -50,7 +49,7 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
         if (initialClause == null) {
             throw new IllegalArgumentException("[" + NAME + "] must include at least one clause");
         }
-        addClause(initialClause);
+        clauses.add(initialClause);
     }
 
     /**
@@ -59,7 +58,7 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
     public SpanOrQueryBuilder(StreamInput in) throws IOException {
         super(in);
         for (QueryBuilder clause: readQueries(in)) {
-            addClause((SpanQueryBuilder) clause);
+            clauses.add((SpanQueryBuilder) clause);
         }
     }
 
@@ -75,21 +74,8 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
         if (clause == null) {
             throw new IllegalArgumentException("[" + NAME + "] inner clause cannot be null");
         }
-        checkBoostValue(clause);
         clauses.add(clause);
         return this;
-    }
-
-    private static void checkBoostValue(SpanQueryBuilder clause) {
-        if (clause.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-            throw new IllegalArgumentException("spanOr [clauses] can't have boost value");
-        }
-    }
-
-    private static void checkBoostValue(XContentLocation location, SpanQueryBuilder clause) {
-        if (clause.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-            throw new ParsingException(location, "spanOr [clauses] can't have boost value");
-        }
     }
 
     /**
@@ -129,9 +115,7 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
                         if (query instanceof SpanQueryBuilder == false) {
                             throw new ParsingException(parser.getTokenLocation(), "spanOr [clauses] must be of type span query");
                         }
-                        final SpanQueryBuilder clause = (SpanQueryBuilder) query;
-                        checkBoostValue(parser.getTokenLocation(), clause);
-                        clauses.add(clause);
+                        clauses.add((SpanQueryBuilder) query);
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_or] query does not support [" + currentFieldName + "]");

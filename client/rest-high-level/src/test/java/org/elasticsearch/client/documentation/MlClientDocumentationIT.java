@@ -937,20 +937,20 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putDatafeed(new PutDatafeedRequest(secondDatafeed), RequestOptions.DEFAULT);
 
         {
-            //tag::x-pack-ml-get-datafeed-stats-request
+            //tag::get-datafeed-stats-request
             GetDatafeedStatsRequest request =
                 new GetDatafeedStatsRequest("get-machine-learning-datafeed-stats1-feed", "get-machine-learning-datafeed*"); // <1>
             request.setAllowNoDatafeeds(true); // <2>
-            //end::x-pack-ml-get-datafeed-stats-request
+            //end::get-datafeed-stats-request
 
-            //tag::x-pack-ml-get-datafeed-stats-execute
+            //tag::get-datafeed-stats-execute
             GetDatafeedStatsResponse response = client.machineLearning().getDatafeedStats(request, RequestOptions.DEFAULT);
-            //end::x-pack-ml-get-datafeed-stats-execute
+            //end::get-datafeed-stats-execute
 
-            //tag::x-pack-ml-get-datafeed-stats-response
+            //tag::get-datafeed-stats-response
             long numberOfDatafeedStats = response.count(); // <1>
             List<DatafeedStats> datafeedStats = response.datafeedStats(); // <2>
-            //end::x-pack-ml-get-datafeed-stats-response
+            //end::get-datafeed-stats-response
 
             assertEquals(2, response.count());
             assertThat(response.datafeedStats(), hasSize(2));
@@ -960,7 +960,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             GetDatafeedStatsRequest request = new GetDatafeedStatsRequest("*");
 
-            // tag::x-pack-ml-get-datafeed-stats-listener
+            // tag::get-datafeed-stats-execute-listener
             ActionListener<GetDatafeedStatsResponse> listener = new ActionListener<GetDatafeedStatsResponse>() {
                 @Override
                 public void onResponse(GetDatafeedStatsResponse response) {
@@ -972,15 +972,15 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                     // <2>
                 }
             };
-            // end::x-pack-ml-get-datafeed-stats-listener
+            // end::get-datafeed-stats-execute-listener
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
-            // tag::x-pack-ml-get-datafeed-stats-execute-async
+            // tag::get-datafeed-stats-execute-async
             client.machineLearning().getDatafeedStatsAsync(request, RequestOptions.DEFAULT, listener); // <1>
-            // end::x-pack-ml-get-datafeed-stats-execute-async
+            // end::get-datafeed-stats-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

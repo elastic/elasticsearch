@@ -504,7 +504,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 if (getMaxSeqNoOfUpdatesOrDeletes() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
                                     // If the old primary was on an old version that did not replicate the msu,
                                     // we need to bootstrap it manually from its local history.
-                                    assert indexSettings.getIndexVersionCreated().before(Version.V_7_0_0_alpha1);
+                                    assert indexSettings.getIndexVersionCreated().before(Version.V_6_5_0);
                                     engine.advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats().getMaxSeqNo());
                                 }
                                 engine.restoreLocalHistoryFromTranslog((resettingEngine, snapshot) ->
@@ -791,7 +791,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             + "]";
         ensureWriteAllowed(origin);
         // When there is a single type, the unique identifier is only composed of the _id,
-        // so there is no way to differenciate foo#1 from bar#1. This is especially an issue
+        // so there is no way to differentiate foo#1 from bar#1. This is especially an issue
         // if a user first deletes foo#1 and then indexes bar#1: since we do not encode the
         // _type in the uid it might look like we are reindexing the same document, which
         // would fail if bar#1 is indexed with a lower version than foo#1 was deleted with.
@@ -1957,7 +1957,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (getMaxSeqNoOfUpdatesOrDeletes() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
                 // If the old primary was on an old version that did not replicate the msu,
                 // we need to bootstrap it manually from its local history.
-                assert indexSettings.getIndexVersionCreated().before(Version.V_7_0_0_alpha1);
+                assert indexSettings.getIndexVersionCreated().before(Version.V_6_5_0);
                 getEngine().advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats().getMaxSeqNo());
             }
         }

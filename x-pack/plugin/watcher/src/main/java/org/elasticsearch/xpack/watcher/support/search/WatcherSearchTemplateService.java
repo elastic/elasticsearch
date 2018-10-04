@@ -45,7 +45,7 @@ public class WatcherSearchTemplateService extends AbstractComponent {
     public String renderTemplate(Script source, WatchExecutionContext ctx, Payload payload) throws IOException {
         // Due the inconsistency with templates in ES 1.x, we maintain our own template format.
         // This template format we use now, will become the template structure in ES 2.0
-        Map<String, Object> watcherContextParams = Variables.createCtxModel(ctx, payload);
+        Map<String, Object> watcherContextParams = Variables.createCtxParamsMap(ctx, payload);
         // Here we convert watcher template into a ES core templates. Due to the different format we use, we
         // convert to the template format used in ES core
         if (source.getParams() != null) {

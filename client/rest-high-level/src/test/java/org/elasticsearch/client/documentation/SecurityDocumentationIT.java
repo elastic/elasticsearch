@@ -24,6 +24,7 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.PutUserRequest;
@@ -42,7 +43,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             //tag::put-user-execute
-            char[] password = new char[] { 'p', 'a', 's', 's', 'w', 'o', 'r', 'd' };
+            char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
             PutUserRequest request =
                 new PutUserRequest("example", password, Collections.singletonList("superuser"), null, null, true, null, RefreshPolicy.NONE);
             PutUserResponse response = client.security().putUser(request, RequestOptions.DEFAULT);
@@ -56,7 +57,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            char[] password = new char[] { 'p', 'a', 's', 's', 'w', 'o', 'r', 'd' };
+            char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
             PutUserRequest request = new PutUserRequest("example2", password, Collections.singletonList("superuser"), null, null, true,
                 null, RefreshPolicy.NONE);
             // tag::put-user-execute-listener
@@ -169,6 +170,50 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::disable-user-execute-async
             client.security().disableUserAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::disable-user-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testChangePassword() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
+        char[] newPassword = new char[]{'n', 'e', 'w', 'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
+        PutUserRequest putUserRequest = new PutUserRequest("change_password_user", password, Collections.singletonList("superuser"),
+            null, null, true, null, RefreshPolicy.NONE);
+        PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
+        assertTrue(putUserResponse.isCreated());
+        {
+            //tag::change-password-execute
+            ChangePasswordRequest request = new ChangePasswordRequest("change_password_user", newPassword, RefreshPolicy.NONE);
+            EmptyResponse response = client.security().changePassword(request, RequestOptions.DEFAULT);
+            //end::change-password-execute
+
+            assertNotNull(response);
+        }
+        {
+            //tag::change-password-execute-listener
+            ChangePasswordRequest request = new ChangePasswordRequest("change_password_user", password, RefreshPolicy.NONE);
+            ActionListener<EmptyResponse> listener = new ActionListener<EmptyResponse>() {
+                @Override
+                public void onResponse(EmptyResponse emptyResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::change-password-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            //tag::change-password-execute-async
+            client.security().changePasswordAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            //end::change-password-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

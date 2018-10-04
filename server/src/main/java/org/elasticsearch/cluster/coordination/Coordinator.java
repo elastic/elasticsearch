@@ -420,7 +420,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     // package-visible for testing
-    boolean activePublicationInProgress() {
+    boolean publicationInProgress() {
         synchronized (mutex) {
             return currentPublication.isPresent();
         }

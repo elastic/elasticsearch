@@ -116,8 +116,8 @@ public class CoordinatorTests extends ESTestCase {
 
         for (final ClusterNode clusterNode : cluster.clusterNodes) {
             final String nodeId = clusterNode.getId();
-            final ClusterState applierState = clusterNode.coordinator.getApplierState();
-            assertThat(nodeId + " has the committed value", value(applierState), is(finalValue));
+            final ClusterState appliedState = clusterNode.getLastAppliedClusterState();
+            assertThat(nodeId + " has the applied value", value(appliedState), is(finalValue));
         }
     }
 
@@ -305,7 +305,7 @@ public class CoordinatorTests extends ESTestCase {
 
         leader.setClusterStateApplyResponse(ClusterStateApplyResponse.FAIL);
         AckCollector ackCollector = leader.submitValue(randomLong());
-        cluster.runUntil(cluster.getCurrentTimeMillis() + DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+        cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
         assertTrue(leader.coordinator.getMode() != Coordinator.Mode.LEADER || leader.coordinator.getCurrentTerm() > startingTerm);
         leader.setClusterStateApplyResponse(ClusterStateApplyResponse.SUCCEED);
         cluster.stabilise();
@@ -325,7 +325,7 @@ public class CoordinatorTests extends ESTestCase {
 
         follower0.setClusterStateApplyResponse(ClusterStateApplyResponse.HANG);
         AckCollector ackCollector = leader.submitValue(randomLong());
-        cluster.runUntil(cluster.getCurrentTimeMillis() + DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+        cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
         assertTrue("expected immediate ack from " + follower1, ackCollector.hasAckedSuccessfully(follower1));
         assertFalse("expected no ack from " + leader, ackCollector.hasAckedSuccessfully(leader));
         cluster.stabilise();
@@ -344,7 +344,7 @@ public class CoordinatorTests extends ESTestCase {
         follower0.blackhole();
         follower1.blackhole();
         AckCollector ackCollector = leader.submitValue(randomLong());
-        cluster.runUntil(cluster.getCurrentTimeMillis() + DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+        cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
         assertFalse("expected no immediate ack from " + leader, ackCollector.hasAcked(leader));
         assertFalse("expected no immediate ack from " + follower0, ackCollector.hasAcked(follower0));
         assertFalse("expected no immediate ack from " + follower1, ackCollector.hasAcked(follower1));
@@ -588,13 +588,9 @@ public class CoordinatorTests extends ESTestCase {
         }
 
         void stabilise(long stabiliationDurationMillis) {
-            final long stabilisationStartTime = deterministicTaskQueue.getCurrentTimeMillis();
-            final long stabilisationEndTime = stabilisationStartTime + stabiliationDurationMillis;
-            logger.info("--> stabilising until [{}ms]", stabilisationEndTime);
-
+            logger.info("--> stabilising until [{}ms]", deterministicTaskQueue.getCurrentTimeMillis() + stabiliationDurationMillis);
             deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
-
-            runUntil(stabilisationEndTime);
+            runFor(stabiliationDurationMillis);
 
             // TODO remove when term-bumping is enabled
             final long maxTerm = clusterNodes.stream().map(n -> n.coordinator.getCurrentTerm()).max(Long::compare).orElse(0L);
@@ -608,15 +604,17 @@ public class CoordinatorTests extends ESTestCase {
                     leader.coordinator.ensureTermAtLeast(leader.localNode, maxTerm + 1);
                 }
                 leader.coordinator.startElection();
-                final long termBumpEndTime = stabilisationEndTime + DEFAULT_ELECTION_DELAY;
-                logger.info("--> re-stabilising after term bump until [{}ms]", termBumpEndTime);
-                runUntil(termBumpEndTime);
+                logger.info("--> re-stabilising after term bump until [{}ms]",
+                    deterministicTaskQueue.getCurrentTimeMillis() + DEFAULT_ELECTION_DELAY);
+                runFor(DEFAULT_ELECTION_DELAY);
             }
 
             assertUniqueLeaderAndExpectedModes();
         }
 
-        void runUntil(long endTime) {
+        void runFor(long runDurationMillis) {
+            final long endTime = deterministicTaskQueue.getCurrentTimeMillis() + runDurationMillis;
+
             while (deterministicTaskQueue.getCurrentTimeMillis() < endTime) {
 
                 while (deterministicTaskQueue.hasRunnableTasks()) {
@@ -653,12 +651,12 @@ public class CoordinatorTests extends ESTestCase {
             Matcher<Long> isPresentAndEqualToLeaderVersion
                 = equalTo(leader.coordinator.getLastAcceptedState().getVersion());
 
-            assertThat(leader.coordinator.getApplierState().getVersion(), isPresentAndEqualToLeaderVersion);
-            assertTrue(leader.coordinator.getApplierState().getNodes().nodeExists(leader.getId()));
+            assertTrue(leader.getLastAppliedClusterState().getNodes().nodeExists(leader.getId()));
+            assertThat(leader.getLastAppliedClusterState().getVersion(), isPresentAndEqualToLeaderVersion);
 
             for (final ClusterNode clusterNode : clusterNodes) {
                 final String nodeId = clusterNode.getId();
-                assertFalse(nodeId + " should not have an active publication", clusterNode.coordinator.activePublicationInProgress());
+                assertFalse(nodeId + " should not have an active publication", clusterNode.coordinator.publicationInProgress());
 
                 if (clusterNode == leader) {
                     continue;
@@ -670,17 +668,17 @@ public class CoordinatorTests extends ESTestCase {
                     // TODO assert that this node has actually voted for the leader in this term
                     // TODO assert that this node's accepted and committed states are the same as the leader's
 
-                    assertTrue(nodeId + " is in the leader's applier state",
-                        leader.coordinator.getApplierState().getNodes().nodeExists(nodeId));
+                    assertTrue(nodeId + " is in the leader's applied state",
+                        leader.getLastAppliedClusterState().getNodes().nodeExists(nodeId));
                 } else {
                     assertThat(nodeId + " is a candidate", clusterNode.coordinator.getMode(), is(CANDIDATE));
-                    assertFalse(nodeId + " is not in the leader's applier state",
-                        leader.coordinator.getApplierState().getNodes().nodeExists(nodeId));
+                    assertFalse(nodeId + " is not in the leader's applied state",
+                        leader.getLastAppliedClusterState().getNodes().nodeExists(nodeId));
                 }
             }
 
             int connectedNodeCount = Math.toIntExact(clusterNodes.stream().filter(n -> isConnectedPair(leader, n)).count());
-            assertThat(leader.coordinator.getApplierState().getNodes().getSize(), equalTo(connectedNodeCount));
+            assertThat(leader.getLastAppliedClusterState().getNodes().getSize(), equalTo(connectedNodeCount));
         }
 
         ClusterNode getAnyLeader() {
@@ -711,10 +709,6 @@ public class CoordinatorTests extends ESTestCase {
                 = this.clusterNodes.stream().filter(n -> forbiddenIds.contains(n.getId()) == false).collect(Collectors.toList());
             assert acceptableNodes.isEmpty() == false;
             return randomFrom(acceptableNodes);
-        }
-
-        public long getCurrentTimeMillis() {
-            return deterministicTaskQueue.getCurrentTimeMillis();
         }
 
         ClusterNode getAnyNodePreferringLeaders() {

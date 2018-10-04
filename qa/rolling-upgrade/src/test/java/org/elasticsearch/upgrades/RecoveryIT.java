@@ -111,7 +111,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
         return future;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/27650")
     public void testRecoveryWithConcurrentIndexing() throws Exception {
         final String index = "recovery_with_concurrent_indexing";
         Response response = client().performRequest(new Request("GET", "_nodes"));

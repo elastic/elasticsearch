@@ -31,16 +31,24 @@ import java.util.List;
 
 /**
  * A helper class for {@link JsonFieldMapper} parses a JSON object
- * and produces an indexable field for each leaf value.
+ * and produces a pair of indexable fields for each leaf value.
  */
 public class JsonFieldParser {
+    private static final String SEPARATOR = "\0";
+
     private final MappedFieldType fieldType;
     private final int ignoreAbove;
+
+    private final String rootFieldName;
+    private final String keyedFieldName;
 
     JsonFieldParser(MappedFieldType fieldType,
                     int ignoreAbove) {
         this.fieldType = fieldType;
         this.ignoreAbove = ignoreAbove;
+
+        this.rootFieldName = fieldType.name();
+        this.keyedFieldName = fieldType.name() + JsonFieldMapper.KEYED_FIELD_SUFFIX;
     }
 
     public List<IndexableField> parse(XContentParser parser) throws IOException {
@@ -48,36 +56,91 @@ public class JsonFieldParser {
             parser.currentToken(),
             parser::getTokenLocation);
 
+        ContentPath path = new ContentPath();
         List<IndexableField> fields = new ArrayList<>();
-        int openObjects = 1;
 
+        parseObject(parser, path, fields);
+        return fields;
+    }
+
+    private void parseObject(XContentParser parser,
+                             ContentPath path,
+                             List<IndexableField> fields) throws IOException {
+        String currentName = null;
         while (true) {
-            if (openObjects == 0) {
-                return fields;
+            XContentParser.Token token = parser.nextToken();
+            if (token == XContentParser.Token.END_OBJECT) {
+                return;
             }
 
-            XContentParser.Token token = parser.nextToken();
-            assert token != null;
-
-            if (token == XContentParser.Token.START_OBJECT) {
-                openObjects++;
-            } else if (token == XContentParser.Token.END_OBJECT) {
-                openObjects--;
-            } else if (token.isValue()) {
-                String value = parser.text();
-                addField(value, fields);
-            } else if (token == XContentParser.Token.VALUE_NULL) {
-                String value = fieldType.nullValueAsString();
-                if (value != null) {
-                    addField(value, fields);
-                }
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentName = parser.currentName();
+            } else {
+                assert currentName != null;
+                parseFieldValue(token, parser, path, currentName, fields);
             }
         }
     }
 
-    private void addField(String value, List<IndexableField> fields) {
-        if (value.length() <= ignoreAbove) {
-            fields.add(new Field(fieldType.name(), new BytesRef(value), fieldType));
+    private void parseArray(XContentParser parser,
+                            ContentPath path,
+                            String currentName,
+                            List<IndexableField> fields) throws IOException {
+        while (true) {
+            XContentParser.Token token = parser.nextToken();
+            if (token == XContentParser.Token.END_ARRAY) {
+                return;
+            }
+            parseFieldValue(token, parser, path, currentName, fields);
         }
+    }
+
+    private void parseFieldValue(XContentParser.Token token,
+                                 XContentParser parser,
+                                 ContentPath path,
+                                 String currentName,
+                                 List<IndexableField> fields) throws IOException {
+        if (token == XContentParser.Token.START_OBJECT) {
+            path.add(currentName);
+            parseObject(parser, path, fields);
+            path.remove();
+        } else if (token == XContentParser.Token.START_ARRAY) {
+            parseArray(parser, path, currentName, fields);
+        } else if (token.isValue()) {
+            String value = parser.text();
+            addField(path, currentName, value, fields);
+        } else if (token == XContentParser.Token.VALUE_NULL) {
+            String value = fieldType.nullValueAsString();
+            if (value != null) {
+                addField(path, currentName, value, fields);
+            }
+        } else {
+            // Note that we throw an exception here just to be safe. We don't actually expect to reach
+            // this case, since XContentParser verifies that the input is well-formed as it parses.
+            throw new IllegalArgumentException("Encountered unexpected token [" + token.toString() + "].");
+        }
+    }
+
+    private void addField(ContentPath path,
+                          String currentName,
+                          String value,
+                          List<IndexableField> fields) {
+        if (value.length() > ignoreAbove) {
+            return;
+        }
+
+        String key = path.pathAsText(currentName);
+        if (key.contains(SEPARATOR)) {
+            throw new IllegalArgumentException("Keys in [json] fields cannot contain the reserved character \\0."
+                + " Offending key: [" + key + "].");
+        }
+        String keyedValue = createKeyedValue(key, value);
+
+        fields.add(new Field(rootFieldName, new BytesRef(value), fieldType));
+        fields.add(new Field(keyedFieldName, new BytesRef(keyedValue), fieldType));
+    }
+
+    private static String createKeyedValue(String key, String value) {
+        return key + SEPARATOR + value;
     }
 }

@@ -366,10 +366,12 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         for (int i = 0; i < 100; i++) {
             deterministicTaskQueue.scheduleAt(delayMillis, () -> {});
         }
+        final long expectedEndTime = deterministicTaskQueue.getLatestDeferredExecutionTime();
 
         final long startTime = deterministicTaskQueue.getCurrentTimeMillis();
         deterministicTaskQueue.runAllTasks();
         final long elapsedTime = deterministicTaskQueue.getCurrentTimeMillis() - startTime;
+        assertThat(deterministicTaskQueue.getCurrentTimeMillis(), is(expectedEndTime));
         assertThat(elapsedTime, greaterThan(delayMillis)); // fails with negligible probability
         assertThat(elapsedTime, lessThanOrEqualTo(delayMillis + variabilityMillis));
     }

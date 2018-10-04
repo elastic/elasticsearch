@@ -213,6 +213,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         synchronized (mutex) {
             final DiscoveryNode sourceNode = publishRequest.getAcceptedState().nodes().getMasterNode();
             logger.trace("handlePublishRequest: handling [{}] from [{}]", publishRequest, sourceNode);
+
+            if (sourceNode.equals(getLocalNode()) && mode != Mode.LEADER) {
+                // Rare case in which we stood down as leader between starting this publication and receiving it ourselves. The publication
+                // is already failed so there is no point in proceeding.
+                throw new CoordinationStateRejectedException("no longer leading this publication's term: " + publishRequest);
+            }
+
             ensureTermAtLeast(sourceNode, publishRequest.getAcceptedState().term());
             final PublishResponse publishResponse = coordinationState.get().handlePublishRequest(publishRequest);
 

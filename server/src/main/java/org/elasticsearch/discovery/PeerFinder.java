@@ -36,6 +36,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
@@ -59,7 +60,12 @@ public abstract class PeerFinder extends AbstractComponent {
         Setting.timeSetting("discovery.find_peers_interval",
             TimeValue.timeValueMillis(1000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
 
-    private final TimeValue findPeersDelay;
+    public static final Setting<TimeValue> DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING =
+        Setting.timeSetting("discovery.request_peers_timeout",
+            TimeValue.timeValueMillis(3000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+
+    private final TimeValue findPeersInterval;
+    private final TimeValue requestPeersTimeout;
 
     private final Object mutex = new Object();
     private final TransportService transportService;
@@ -75,7 +81,8 @@ public abstract class PeerFinder extends AbstractComponent {
     public PeerFinder(Settings settings, TransportService transportService, TransportAddressConnector transportAddressConnector,
                       ConfiguredHostsResolver configuredHostsResolver) {
         super(settings);
-        findPeersDelay = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
+        findPeersInterval = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
+        requestPeersTimeout = DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
         this.transportAddressConnector = transportAddressConnector;
         this.configuredHostsResolver = configuredHostsResolver;
@@ -241,7 +248,7 @@ public abstract class PeerFinder extends AbstractComponent {
             }
         });
 
-        transportService.getThreadPool().schedule(findPeersDelay, Names.GENERIC, new AbstractRunnable() {
+        transportService.getThreadPool().schedule(findPeersInterval, Names.GENERIC, new AbstractRunnable() {
             @Override
             public boolean isForceExecution() {
                 return true;
@@ -360,9 +367,11 @@ public abstract class PeerFinder extends AbstractComponent {
             });
         }
 
-        private void removePeer() {
+        void removePeer() {
             final Peer removed = peersByAddress.remove(transportAddress);
-            assert removed == Peer.this;
+            // assert removed == Peer.this : removed + " != " + Peer.this;
+            // ^ This assertion sometimes trips if we are deactivated and reactivated while a request is in flight.
+            // TODO be more careful about avoiding multiple active Peer objects for each address
         }
 
         private void requestPeers() {
@@ -380,6 +389,7 @@ public abstract class PeerFinder extends AbstractComponent {
 
             transportService.sendRequest(discoveryNode, REQUEST_PEERS_ACTION_NAME,
                 new PeersRequest(getLocalNode(), knownNodes),
+                TransportRequestOptions.builder().withTimeout(requestPeersTimeout).build(),
                 new TransportResponseHandler<PeersResponse>() {
 
                     @Override

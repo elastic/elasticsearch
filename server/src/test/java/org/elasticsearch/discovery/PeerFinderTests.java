@@ -663,6 +663,51 @@ public class PeerFinderTests extends ESTestCase {
         assertFoundPeers(otherNode);
     }
 
+    public void testTimesOutAndRetriesConnectionsToBlackholedNodes() {
+        final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
+        final DiscoveryNode nodeToFind = newDiscoveryNode("node-to-find");
+
+        providedAddresses.add(otherNode.getAddress());
+        transportAddressConnector.reachableNodes.add(otherNode);
+        transportAddressConnector.reachableNodes.add(nodeToFind);
+
+        peerFinder.activate(lastAcceptedNodes);
+
+        while (true) {
+            deterministicTaskQueue.advanceTime();
+            runAllRunnableTasks(); // MockTransportAddressConnector verifies no multiple connection attempts
+            if (capturingTransport.getCapturedRequestsAndClear().length > 0) {
+                break;
+            }
+        }
+
+        final long timeoutAtMillis = deterministicTaskQueue.getCurrentTimeMillis()
+            + PeerFinder.DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING.get(Settings.EMPTY).millis();
+        while (deterministicTaskQueue.getCurrentTimeMillis() < timeoutAtMillis) {
+            assertFoundPeers(otherNode);
+            deterministicTaskQueue.advanceTime();
+            runAllRunnableTasks();
+        }
+
+        // need to wait for the connection to timeout, then for another wakeup, before discovering the peer
+        final long expectedTime = timeoutAtMillis + PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(Settings.EMPTY).millis();
+
+        while (deterministicTaskQueue.getCurrentTimeMillis() < expectedTime) {
+            deterministicTaskQueue.advanceTime();
+            runAllRunnableTasks();
+        }
+
+        respondToRequests(node -> {
+            assertThat(node, is(otherNode));
+            return new PeersResponse(Optional.empty(), singletonList(nodeToFind), randomNonNegativeLong());
+        });
+
+        deterministicTaskQueue.advanceTime();
+        runAllRunnableTasks();
+
+        assertFoundPeers(nodeToFind, otherNode);
+    }
+
     public void testReconnectsToDisconnectedNodes() {
         final DiscoveryNode otherNode = newDiscoveryNode("original-node");
         providedAddresses.add(otherNode.getAddress());

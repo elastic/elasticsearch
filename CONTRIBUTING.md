@@ -68,6 +68,7 @@ Once your changes and tests are ready to submit for review:
 3. Rebase your changes
 
     Update your local repository with the most recent code from the main Elasticsearch repository, and rebase your branch on top of the latest master branch. We prefer your initial changes to be squashed into a single commit. Later, if we ask you to make changes, add them as separate commits.  This makes them easier to review.  As a final step before merging we will either ask you to squash all commits yourself or we'll do it for you.
+	See [cli example](CONTRIB_REBASE_EG.md)
 
 
 4. Submit a pull request

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.tree;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -418,7 +417,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             }
         } else if (toBuildClass == ChildrenAreAProperty.class) {
             /*
-             * While any subclass of Dummy will do here we want to prevent
+             * While any subclass of DummyFunction will do here we want to prevent
              * stack overflow so we use the one without children.
              */
             if (argClass == Dummy.class) {

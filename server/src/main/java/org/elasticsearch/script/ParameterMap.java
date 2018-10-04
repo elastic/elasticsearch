@@ -19,11 +19,12 @@
 
 package org.elasticsearch.script;
 
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationLogger;
+
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.logging.DeprecationLogger;
 
 public final class ParameterMap implements Map<String, Object> {
 
@@ -34,7 +35,7 @@ public final class ParameterMap implements Map<String, Object> {
 
     private final Map<String, String> deprecations;
 
-    ParameterMap(Map<String, Object> params, Map<String, String> deprecations) {
+    public ParameterMap(Map<String, Object> params, Map<String, String> deprecations) {
         this.params = params;
         this.deprecations = deprecations;
     }

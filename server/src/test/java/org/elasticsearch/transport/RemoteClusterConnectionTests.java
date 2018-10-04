@@ -53,6 +53,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -389,10 +390,27 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
-        ActionListener<Void> listener = ActionListener.wrap(x -> latch.countDown(), x -> {
-            exceptionAtomicReference.set(x);
-            latch.countDown();
-        });
+        ActionListener<Void> listener = ActionListener.wrap(
+            x -> latch.countDown(),
+            x -> {
+                /*
+                 * This can occur on a thread submitted to the thread pool while we are closing the
+                 * remote cluster connection at the end of the test.
+                 */
+                if (x instanceof CancellableThreads.ExecutionCancelledException) {
+                    try {
+                        // we should already be shutting down
+                        assertEquals(0L, latch.getCount());
+                    } finally {
+                        // ensure we count down the latch on failure as well to not prevent failing tests from ending
+                        latch.countDown();
+                    }
+                    return;
+                }
+                exceptionAtomicReference.set(x);
+                latch.countDown();
+            }
+        );
         connection.updateSeedNodes(proxyAddress, seedNodes, listener);
         latch.await();
         if (exceptionAtomicReference.get() != null) {
@@ -817,6 +835,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         }
     }
 
+    @TestLogging("_root:DEBUG, org.elasticsearch.transport:TRACE")
     public void testCloseWhileConcurrentlyConnecting() throws IOException, InterruptedException, BrokenBarrierException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);

@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -69,6 +70,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -579,7 +581,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         // Generate a couple of segments
         client().prepareIndex("test", "_doc", "1").setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
                 .setRefreshPolicy(IMMEDIATE).get();
-        // Use routing so 2 documents are guarenteed to be on the same shard
+        // Use routing so 2 documents are guaranteed to be on the same shard
         String routing = randomAlphaOfLength(5);
         client().prepareIndex("test", "_doc", "2").setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
                 .setRefreshPolicy(IMMEDIATE).setRouting(routing).get();
@@ -747,7 +749,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             final int index = i;
             final AtomicLong globalCheckpoint = new AtomicLong();
             shard.addGlobalCheckpointListener(
-                    i - 1,
+                    i,
                     (g, e) -> {
                         assertThat(g, greaterThanOrEqualTo(NO_OPS_PERFORMED));
                         assertNull(e);
@@ -759,7 +761,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             // adding a listener expecting a lower global checkpoint should fire immediately
             final AtomicLong immediateGlobalCheckpint = new AtomicLong();
             shard.addGlobalCheckpointListener(
-                    randomLongBetween(NO_OPS_PERFORMED, i - 1),
+                    randomLongBetween(0, i),
                     (g, e) -> {
                         assertThat(g, greaterThanOrEqualTo(NO_OPS_PERFORMED));
                         assertNull(e);
@@ -770,7 +772,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
         final AtomicBoolean invoked = new AtomicBoolean();
         shard.addGlobalCheckpointListener(
-                numberOfUpdates - 1,
+                numberOfUpdates,
                 (g, e) -> {
                     invoked.set(true);
                     assertThat(g, equalTo(UNASSIGNED_SEQ_NO));
@@ -792,7 +794,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final TimeValue timeout = TimeValue.timeValueMillis(randomIntBetween(1, 50));
         shard.addGlobalCheckpointListener(
-                NO_OPS_PERFORMED,
+                0,
                 (g, e) -> {
                     try {
                         notified.set(true);
@@ -807,6 +809,39 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 timeout);
         latch.await();
         assertTrue(notified.get());
+    }
+
+    public void testInvalidateIndicesRequestCacheWhenRollbackEngine() throws Exception {
+        createIndex("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
+            .put("index.refresh_interval", -1).build());
+        ensureGreen();
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexShard shard = indicesService.getShardOrNull(new ShardId(resolveIndex("test"), 0));
+        final SearchRequest countRequest = new SearchRequest("test").source(new SearchSourceBuilder().size(0));
+        final long numDocs = between(10, 20);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test", "_doc", Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            if (randomBoolean()) {
+                shard.refresh("test");
+            }
+        }
+        shard.refresh("test");
+        assertThat(client().search(countRequest).actionGet().getHits().totalHits, equalTo(numDocs));
+        assertThat(shard.getLocalCheckpoint(), equalTo(shard.seqNoStats().getMaxSeqNo()));
+        shard.resetEngineToGlobalCheckpoint();
+        final long moreDocs = between(10, 20);
+        for (int i = 0; i < moreDocs; i++) {
+            client().prepareIndex("test", "_doc", Long.toString(i + numDocs)).setSource("{}", XContentType.JSON).get();
+            if (randomBoolean()) {
+                shard.refresh("test");
+            }
+        }
+        shard.refresh("test");
+        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            assertThat("numDocs=" + numDocs + " moreDocs=" + moreDocs, (long) searcher.reader().numDocs(), equalTo(numDocs + moreDocs));
+        }
+        assertThat("numDocs=" + numDocs + " moreDocs=" + moreDocs,
+            client().search(countRequest).actionGet().getHits().totalHits, equalTo(numDocs + moreDocs));
     }
 
 }

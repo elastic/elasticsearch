@@ -523,8 +523,8 @@ public class CoordinatorTests extends ESTestCase {
 
                         switch (randomInt(2)) {
                             case 0:
-                                if (clusterNode.connect()) {
-                                    logger.debug("----> [runRandomly {}] connecting {}", step, clusterNode.getId());
+                                if (clusterNode.heal()) {
+                                    logger.debug("----> [runRandomly {}] healing {}", step, clusterNode.getId());
                                 }
                                 break;
                             case 1:
@@ -869,7 +869,7 @@ public class CoordinatorTests extends ESTestCase {
                 return localNode.toString();
             }
 
-            boolean connect() {
+            boolean heal() {
                 boolean unBlackholed = blackholedNodes.remove(localNode.getId());
                 boolean unDisconnected = disconnectedNodes.remove(localNode.getId());
                 assert unBlackholed == false || unDisconnected == false;
@@ -888,12 +888,6 @@ public class CoordinatorTests extends ESTestCase {
                 boolean blackholed = blackholedNodes.add(localNode.getId());
                 assert blackholed || unDisconnected == false;
                 return blackholed;
-            }
-
-            void heal() {
-                boolean unDisconnected = disconnectedNodes.remove(localNode.getId());
-                boolean unBlackholed = blackholedNodes.remove(localNode.getId());
-                assert unDisconnected || unBlackholed;
             }
 
             ClusterState getLastAppliedClusterState() {

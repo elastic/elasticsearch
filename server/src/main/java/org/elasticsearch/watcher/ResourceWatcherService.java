@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.watcher;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
@@ -199,6 +200,15 @@ public class ResourceWatcherService extends AbstractLifecycleComponent {
                     logger.trace("failed to check resource watcher", e);
                 }
             }
+        }
+    }
+
+    /**
+     * Checks for a removed setting and logs the correct alternative
+     */
+    private void logRemovedSetting(String settingName, String alternativeName) {
+        if (!Strings.isNullOrEmpty(settings.get(settingName))) {
+            deprecationLogger.deprecated("Setting [{}] has been removed, use [{}] instead", settingName, alternativeName);
         }
     }
 }

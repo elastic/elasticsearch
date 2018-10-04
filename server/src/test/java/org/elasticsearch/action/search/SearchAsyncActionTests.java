@@ -21,7 +21,6 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -83,7 +82,7 @@ public class SearchAsyncActionTests extends ESTestCase {
 
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter("idx",
-            new OriginalIndices(new String[]{"idx"}, IndicesOptions.strictExpandOpenAndForbidClosed()),
+            new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
             10, randomBoolean(), primaryNode, replicaNode);
         int numSkipped = 0;
         for (SearchShardIterator iter : shardsIter) {
@@ -183,7 +182,7 @@ public class SearchAsyncActionTests extends ESTestCase {
 
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter("idx",
-            new OriginalIndices(new String[]{"idx"}, IndicesOptions.strictExpandOpenAndForbidClosed()),
+            new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
             10, randomBoolean(), primaryNode, replicaNode);
         SearchTransportService transportService = new SearchTransportService(Settings.EMPTY, null, null);
         Map<String, Transport.Connection> lookup = new HashMap<>();
@@ -283,7 +282,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         Map<DiscoveryNode, Set<Long>> nodeToContextMap = newConcurrentMap();
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter("idx",
-                new OriginalIndices(new String[]{"idx"}, IndicesOptions.strictExpandOpenAndForbidClosed()),
+                new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
                 randomIntBetween(1, 10), randomBoolean(), primaryNode, replicaNode);
         AtomicInteger numFreedContext = new AtomicInteger();
         SearchTransportService transportService = new SearchTransportService(Settings.EMPTY, null, null) {

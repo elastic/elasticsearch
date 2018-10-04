@@ -21,7 +21,6 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -74,7 +73,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
         GroupShardsIterator<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter("idx",
-            new OriginalIndices(new String[]{"idx"}, IndicesOptions.strictExpandOpenAndForbidClosed()),
+            new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
             2, randomBoolean(), primaryNode, replicaNode);
         final SearchRequest searchRequest = new SearchRequest();
         searchRequest.allowPartialSearchResults(true);
@@ -143,7 +142,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
         GroupShardsIterator<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter("idx",
-            new OriginalIndices(new String[]{"idx"}, IndicesOptions.strictExpandOpenAndForbidClosed()),
+            new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
             2, randomBoolean(), primaryNode, replicaNode);
 
         final SearchRequest searchRequest = new SearchRequest();
@@ -199,7 +198,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 };
 
         final CountDownLatch latch = new CountDownLatch(1);
-        final OriginalIndices originalIndices = new OriginalIndices(new String[]{"idx"}, IndicesOptions.strictExpandOpenAndForbidClosed());
+        final OriginalIndices originalIndices = new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS);
         final GroupShardsIterator<SearchShardIterator> shardsIter =
                 SearchAsyncActionTests.getShardsIter("idx", originalIndices, 4096, randomBoolean(), primaryNode, replicaNode);
         final ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, Runtime.getRuntime().availableProcessors()));

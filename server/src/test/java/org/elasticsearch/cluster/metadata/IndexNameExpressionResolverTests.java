@@ -35,12 +35,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.function.Function;
@@ -518,7 +520,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     private static IndexMetaData.Builder indexBuilder(String index) {
-        return IndexMetaData.builder(index).settings(settings(Version.CURRENT).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        return IndexMetaData.builder(index).settings(settings());
+    }
+
+    private static Settings.Builder settings() {
+        return settings(Version.CURRENT).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData
+            .SETTING_NUMBER_OF_REPLICAS, 0);
     }
 
     public void testConcreteIndicesIgnoreIndicesOneMissingIndex() {
@@ -649,7 +656,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         // when ignoreAliases option is set, concreteIndexNames resolves the provided expressions
         // only against the defined indices
-        IndicesOptions ignoreAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, true);
+        IndicesOptions ignoreAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, true, false);
 
         String[] indexNamesIndexWildcard = indexNameExpressionResolver.concreteIndexNames(state, ignoreAliasesOptions, "foo*");
 
@@ -673,7 +680,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         // when ignoreAliases option is not set, concreteIndexNames resolves the provided
         // expressions against the defined indices and aliases
-        IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, false);
+        IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, false, false);
 
         List<String> indexNames = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(state, indicesAndAliasesOptions, "foo*"));
         assertEquals(2, indexNames.size());
@@ -1171,13 +1178,13 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest("test-alias");
-            deleteIndexRequest.indicesOptions(IndicesOptions.fromOptions(true, true, true, true, false, false, true));
+            deleteIndexRequest.indicesOptions(IndicesOptions.fromOptions(true, true, true, true, false, false, true, false));
             String[] indices = indexNameExpressionResolver.concreteIndexNames(state, deleteIndexRequest);
             assertEquals(0, indices.length);
         }
         {
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest("test-a*");
-            deleteIndexRequest.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, true, false, false, true));
+            deleteIndexRequest.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, true, false, false, true, false));
             IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
                     () -> indexNameExpressionResolver.concreteIndexNames(state, deleteIndexRequest));
             assertEquals(infe.getIndex().getName(), "test-a*");
@@ -1290,5 +1297,46 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         InvalidIndexNameException iine = expectThrows(InvalidIndexNameException.class,
             () -> indexNameExpressionResolver.concreteIndexNames(context, "_foo"));
         assertEquals("Invalid index name [_foo], must not start with '_'.", iine.getMessage());
+    }
+
+    public void testIgnoreThrottled() {
+        MetaData.Builder mdBuilder = MetaData.builder()
+            .put(indexBuilder("test-index").state(State.OPEN)
+                .settings(settings().put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), true))
+                .putAlias(AliasMetaData.builder("test-alias")))
+            .put(indexBuilder("index").state(State.OPEN)
+                .putAlias(AliasMetaData.builder("test-alias2")));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        {
+            Index[] indices = indexNameExpressionResolver.concreteIndices(state,
+                IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "*");
+            assertEquals(1, indices.length);
+            assertEquals("index", indices[0].getName());
+        }
+        {
+            Index[] indices = indexNameExpressionResolver.concreteIndices(state,
+                IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED, "test-alias");
+            assertEquals(1, indices.length);
+            assertEquals("test-index", indices[0].getName());
+        }
+        {
+            Index[] indices = indexNameExpressionResolver.concreteIndices(state,
+                IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "test-alias");
+            assertEquals(0, indices.length);
+        }
+        {
+            Index[] indices = indexNameExpressionResolver.concreteIndices(state,
+                IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "test-*");
+            assertEquals(1, indices.length);
+            assertEquals("index", indices[0].getName());
+        }
+        {
+            Index[] indices = indexNameExpressionResolver.concreteIndices(state,
+                IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "ind*", "test-index");
+            assertEquals(2, indices.length);
+            Arrays.sort(indices, Comparator.comparing(Index::getName));
+            assertEquals("index", indices[0].getName());
+            assertEquals("test-index", indices[1].getName());
+        }
     }
 }

@@ -20,9 +20,12 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.watcher.ActivateWatchRequest;
 import org.elasticsearch.client.watcher.AckWatchRequest;
+import org.elasticsearch.client.watcher.StartWatchServiceRequest;
+import org.elasticsearch.client.watcher.StopWatchServiceRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
@@ -38,6 +41,18 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class WatcherRequestConvertersTests extends ESTestCase {
+
+    public void testStartWatchService() {
+        Request request = WatcherRequestConverters.startWatchService(new StartWatchServiceRequest());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/watcher/_start", request.getEndpoint());
+    }
+
+    public void testStopWatchService() {
+        Request request = WatcherRequestConverters.stopWatchService(new StopWatchServiceRequest());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/watcher/_stop", request.getEndpoint());
+    }
 
     public void testPutWatch() throws Exception {
         PutWatchRequest putWatchRequest = new PutWatchRequest();

@@ -1,0 +1,53 @@
+[[java-rest-high-watcher-start-watch-service]]
+=== Start Watch Service API
+
+[[java-rest-high-watcher-start-watch-service-execution]]
+==== Execution
+
+{xpack-ref}/watcher-api-start.html[Start watcher] enables you
+to manually start the watch service. Submit the following request
+to start the watch service:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/WatcherDocumentationIT.java[start-watch-service-execute]
+--------------------------------------------------
+
+[[java-rest-high-watcher-start-watch-service-response]]
+==== Response
+
+The returned `AcknowledgeResponse` contains a value on whether or not the request
+was received:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/WatcherDocumentationIT.java[start-watch-service-response]
+--------------------------------------------------
+<1> A boolean value of `true` if successfully received, `false` otherwise.
+
+[[java-rest-high-watcher-start-watch-service-async]]
+==== Asynchronous Execution
+
+This request can be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/WatcherDocumentationIT.java[start-watch-service-execute-async]
+--------------------------------------------------
+<1> The `StartWatchRequest` to execute and the `ActionListener` to use when
+the execution completes.
+
+The asynchronous method does not block and returns immediately. Once the request
+completes, the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A listener for `AcknowledgedResponse` can be constructed as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/WatcherDocumentationIT.java[start-watch-service-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument.
+<2> Called in case of failure. The raised exception is provided as an argument.

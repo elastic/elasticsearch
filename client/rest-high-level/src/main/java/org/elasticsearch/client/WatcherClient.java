@@ -19,10 +19,13 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.watcher.ActivateWatchRequest;
 import org.elasticsearch.client.watcher.ActivateWatchResponse;
 import org.elasticsearch.client.watcher.AckWatchRequest;
 import org.elasticsearch.client.watcher.AckWatchResponse;
+import org.elasticsearch.client.watcher.StartWatchServiceRequest;
+import org.elasticsearch.client.watcher.StopWatchServiceRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
@@ -39,6 +42,59 @@ public final class WatcherClient {
 
     WatcherClient(RestHighLevelClient restHighLevelClient) {
         this.restHighLevelClient = restHighLevelClient;
+    }
+
+    /**
+     * Start the watch service
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-start.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse startWatchService(StartWatchServiceRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+                request, WatcherRequestConverters::startWatchService, options, AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously start the watch service
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-start.html">
+     * the docs</a> for more.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public void startWatchServiceAsync(StartWatchServiceRequest request, RequestOptions options,
+            ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(
+                request, WatcherRequestConverters::startWatchService, options, AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Stop the watch service
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-start.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse stopWatchService(StopWatchServiceRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+                request, WatcherRequestConverters::stopWatchService, options, AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously stop the watch service
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-start.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public void stopWatchServiceAsync(StopWatchServiceRequest request, RequestOptions options,
+            ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(
+                request, WatcherRequestConverters::stopWatchService, options, AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
     /**

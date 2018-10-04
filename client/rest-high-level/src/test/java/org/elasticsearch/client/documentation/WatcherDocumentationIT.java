@@ -20,6 +20,7 @@ package org.elasticsearch.client.documentation;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -31,6 +32,8 @@ import org.elasticsearch.client.watcher.AckWatchRequest;
 import org.elasticsearch.client.watcher.AckWatchResponse;
 import org.elasticsearch.client.watcher.ActionStatus;
 import org.elasticsearch.client.watcher.ActionStatus.AckStatus;
+import org.elasticsearch.client.watcher.StartWatchServiceRequest;
+import org.elasticsearch.client.watcher.StopWatchServiceRequest;
 import org.elasticsearch.client.watcher.WatchStatus;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -45,6 +48,86 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
+
+    public void testStartStopWatchService() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            //tag::start-watch-service-execute
+            StartWatchServiceRequest request = new StartWatchServiceRequest();
+            AcknowledgedResponse response = client.watcher().startWatchService(request, RequestOptions.DEFAULT);
+            //end::start-watch-service-execute
+
+            //tag::start-watch-service-response
+            boolean isAcknowledged = response.isAcknowledged(); // <1>
+            //end::start-watch-service-response
+        }
+
+        {
+            //tag::stop-watch-service-execute
+            StopWatchServiceRequest request = new StopWatchServiceRequest();
+            AcknowledgedResponse response = client.watcher().stopWatchService(request, RequestOptions.DEFAULT);
+            //end::stop-watch-service-execute
+
+            //tag::stop-watch-service-response
+            boolean isAcknowledged = response.isAcknowledged(); // <1>
+            //end::stop-watch-service-response
+        }
+
+        {
+            StartWatchServiceRequest request = new StartWatchServiceRequest();
+
+            // tag::start-watch-service-execute-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::start-watch-service-execute-listener
+            
+            CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::start-watch-service-execute-async
+            client.watcher().startWatchServiceAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::start-watch-service-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        {
+            StopWatchServiceRequest request = new StopWatchServiceRequest();
+
+            // tag::stop-watch-service-execute-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::stop-watch-service-execute-listener
+
+            CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::stop-watch-service-execute-async
+            client.watcher().stopWatchServiceAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::stop-watch-service-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
 
     public void testWatcher() throws Exception {
         RestHighLevelClient client = highLevelClient();

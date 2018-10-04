@@ -511,7 +511,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Mockito.verifyZeroInteractions(clusterService);
     }
 
-    public void testRunPolicyWithNoStepsInRegistry() {
+    public void testRunPolicyThatDoesntExist() {
         String policyName = "cluster_state_action_policy";
         ClusterService clusterService = mock(ClusterService.class);
         IndexLifecycleRunner runner = new IndexLifecycleRunner(new PolicyStepsRegistry(NamedXContentRegistry.EMPTY, null),
@@ -520,7 +520,16 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         // verify that no exception is thrown
         runner.runPolicyAfterStateChange(policyName, indexMetaData);
-        Mockito.verifyZeroInteractions(clusterService);
+        Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ilm-set-step-info"),
+            Mockito.argThat(new SetStepInfoUpdateTaskMatcher(indexMetaData.getIndex(), policyName, null,
+                (builder, params) -> {
+                    builder.startObject();
+                    builder.field("reason", "policy [does_not_exist] does not exist");
+                    builder.field("type", "illegal_argument_exception");
+                    builder.endObject();
+                    return builder;
+                })));
+        Mockito.verifyNoMoreInteractions(clusterService);
     }
 
     public void testGetCurrentStepKey() {
@@ -1602,7 +1611,17 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             return Objects.equals(index, task.getIndex()) &&
                     Objects.equals(policy, task.getPolicy())&&
                     Objects.equals(currentStepKey, task.getCurrentStepKey()) &&
-                    Objects.equals(stepInfo, task.getStepInfo());
+                    Objects.equals(xContentToString(stepInfo), xContentToString(task.getStepInfo()));
+        }
+
+        private String xContentToString(ToXContentObject xContent) {
+            try {
+                XContentBuilder builder = JsonXContent.contentBuilder();
+                stepInfo.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                return BytesReference.bytes(builder).utf8ToString();
+            } catch (IOException ex) {
+                throw new RuntimeException(ex);
+            }
         }
 
     }

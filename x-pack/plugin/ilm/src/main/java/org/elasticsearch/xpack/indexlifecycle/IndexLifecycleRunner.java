@@ -96,9 +96,14 @@ public class IndexLifecycleRunner {
         }
         Step currentStep = getCurrentStep(stepRegistry, policy, indexMetaData, lifecycleState);
         if (currentStep == null) {
-            logger.warn("current step [{}] for index [{}] with policy [{}] is not recognized",
-                getCurrentStepKey(lifecycleState), index, policy);
-            return;
+            if (stepRegistry.policyExists(policy) == false) {
+                markPolicyDoesNotExist(policy, indexMetaData.getIndex(), lifecycleState);
+                return;
+            } else {
+                logger.error("current step [{}] for index [{}] with policy [{}] is not recognized",
+                    getCurrentStepKey(lifecycleState), index, policy);
+                return;
+            }
         }
 
         if (currentStep instanceof TerminalPolicyStep) {
@@ -197,9 +202,14 @@ public class IndexLifecycleRunner {
         }
         Step currentStep = getCurrentStep(stepRegistry, policy, indexMetaData, lifecycleState);
         if (currentStep == null) {
-            logger.warn("current step [{}] for index [{}] with policy [{}] is not recognized",
-                getCurrentStepKey(lifecycleState), index, policy);
-            return;
+            if (stepRegistry.policyExists(policy) == false) {
+                markPolicyDoesNotExist(policy, indexMetaData.getIndex(), lifecycleState);
+                return;
+            } else {
+                logger.error("current step [{}] for index [{}] with policy [{}] is not recognized",
+                    getCurrentStepKey(lifecycleState), index, policy);
+                return;
+            }
         }
 
         if (currentStep instanceof TerminalPolicyStep) {
@@ -535,5 +545,13 @@ public class IndexLifecycleRunner {
         IndexMetaData.Builder builder = IndexMetaData.builder(indexMetadata);
         builder.removeCustom(ILM_CUSTOM_METADATA_KEY);
         return builder.settings(newSettings);
+    }
+
+    private void markPolicyDoesNotExist(String policyName, Index index, LifecycleExecutionState executionState) {
+        logger.debug("policy [{}] for index [{}] does not exist, recording this in step_info for this index",
+            policyName, index.getName());
+        setStepInfo(index, policyName, getCurrentStepKey(executionState),
+            new SetStepInfoUpdateTask.ExceptionWrapper(
+                new IllegalArgumentException("policy [" + policyName + "] does not exist")));
     }
 }

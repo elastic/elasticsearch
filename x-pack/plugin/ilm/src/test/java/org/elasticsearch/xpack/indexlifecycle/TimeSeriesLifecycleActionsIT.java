@@ -238,6 +238,60 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         expectThrows(ResponseException.class, this::indexDocument);
     }
 
+    @SuppressWarnings("unchecked")
+    public void testNonexistentPolicy() throws Exception {
+        String indexPrefix = randomAlphaOfLengthBetween(5,15).toLowerCase(Locale.ROOT);
+        final StringEntity template = new StringEntity("{\n" +
+            "  \"index_patterns\": \"" + indexPrefix + "*\",\n" +
+            "  \"settings\": {\n" +
+            "    \"index\": {\n" +
+            "      \"lifecycle\": {\n" +
+            "        \"name\": \"does_not_exist\",\n" +
+            "        \"rollover_alias\": \"test_alias\"\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }\n" +
+            "}", ContentType.APPLICATION_JSON);
+        Request templateRequest = new Request("PUT", "_template/test");
+        templateRequest.setEntity(template);
+        client().performRequest(templateRequest);
+
+        policy = randomAlphaOfLengthBetween(5,20);
+        createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
+
+        index = indexPrefix + "-000001";
+        final StringEntity putIndex = new StringEntity("{\n" +
+            "  \"aliases\": {\n" +
+            "    \"test_alias\": {\n" +
+            "      \"is_write_index\": true\n" +
+            "    }\n" +
+            "  }\n" +
+            "}", ContentType.APPLICATION_JSON);
+        Request putIndexRequest = new Request("PUT", index);
+        putIndexRequest.setEntity(putIndex);
+        client().performRequest(putIndexRequest);
+        indexDocument();
+
+        assertBusy(() -> {
+            Request explainRequest = new Request("GET", index + "/_ilm/explain");
+            Response response = client().performRequest(explainRequest);
+            Map<String, Object> responseMap;
+            try (InputStream is = response.getEntity().getContent()) {
+                responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+            }
+            logger.info(responseMap);
+            Map<String, Object> indexStatus = (Map<String, Object>)((Map<String, Object>) responseMap.get("indices")).get(index);
+            assertNull(indexStatus.get("phase"));
+            assertNull(indexStatus.get("action"));
+            assertNull(indexStatus.get("step"));
+            assertEquals("policy [does_not_exist] does not exist",
+                ((Map<String, String>)indexStatus.get("step_info")).get("reason"));
+            assertEquals("illegal_argument_exception",
+                ((Map<String, String>)indexStatus.get("step_info")).get("type"));
+        });
+
+    }
+
     private void createNewSingletonPolicy(String phaseName, LifecycleAction action) throws IOException {
         createNewSingletonPolicy(phaseName, action, TimeValue.ZERO);
     }

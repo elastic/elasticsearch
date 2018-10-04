@@ -79,14 +79,14 @@ public class TransportOpenJobActionTests extends ESTestCase {
         expectThrows(ResourceNotFoundException.class, () -> TransportOpenJobAction.validate("job_id2", mlBuilder.build()));
     }
 
-    public void testValidate_jobMarkedAsDeleted() {
+    public void testValidate_jobMarkedAsDeleting() {
         MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
         Job.Builder jobBuilder = buildJobBuilder("job_id");
-        jobBuilder.setDeleted(true);
+        jobBuilder.setDeleting(true);
         mlBuilder.putJob(jobBuilder.build(), false);
         Exception e = expectThrows(ElasticsearchStatusException.class,
                 () -> TransportOpenJobAction.validate("job_id", mlBuilder.build()));
-        assertEquals("Cannot open job [job_id] because it has been marked as deleted", e.getMessage());
+        assertEquals("Cannot open job [job_id] because it is being deleted", e.getMessage());
     }
 
     public void testValidate_jobWithoutVersion() {

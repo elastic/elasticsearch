@@ -44,21 +44,6 @@ public interface DeprecationHandler {
     };
 
     /**
-     * Ignores deprecation warnings. This can be used when parsing responses
-     * from Elasticsearch. and when any warnings emitted there just mean that
-     * you are talking to an old version of Elasticsearch.
-     */
-    DeprecationHandler IGNORE_DEPRECATION_HANDLER = new DeprecationHandler() {
-        @Override
-        public void usedDeprecatedName(String usedName, String modernName) {
-        }
-
-        @Override
-        public void usedDeprecatedField(String usedName, String replacedWith) {
-        }
-    };
-
-    /**
      * Called when the provided field name matches a deprecated name for the field.
      * @param usedName the provided field name
      * @param modernName the modern name for the field

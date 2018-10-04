@@ -49,6 +49,8 @@ import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
+import org.elasticsearch.client.ml.PreviewDatafeedRequest;
+import org.elasticsearch.client.ml.PreviewDatafeedResponse;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
@@ -76,8 +78,11 @@ import org.elasticsearch.rest.RestStatus;
 import org.junit.After;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -562,6 +567,56 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 () -> execute(request, machineLearningClient::stopDatafeed, machineLearningClient::stopDatafeedAsync));
             assertThat(exception.status().getStatus(), equalTo(404));
         }
+    }
+
+    public void testPreviewDatafeed() throws Exception {
+        String jobId = "test-preview-datafeed";
+        String indexName = "preview_data_1";
+
+        // Set up the index and docs
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        BulkRequest bulk = new BulkRequest();
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        long now = (System.currentTimeMillis()/1000)*1000;
+        long thePast = now - 60000;
+        int i = 0;
+        List<Integer> totalTotals = new ArrayList<>(60);
+        while(thePast < now) {
+            Integer total = randomInt(1000);
+            IndexRequest doc = new IndexRequest();
+            doc.index(indexName);
+            doc.type("doc");
+            doc.id("id" + i);
+            doc.source("{\"total\":" + total + ",\"timestamp\":"+ thePast +"}", XContentType.JSON);
+            bulk.add(doc);
+            thePast += 1000;
+            i++;
+            totalTotals.add(total);
+        }
+        highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        // create the job and the datafeed
+        Job job = buildJob(jobId);
+        putJob(job);
+        openJob(job);
+
+        String datafeedId = jobId + "-feed";
+        DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, jobId)
+            .setIndices(indexName)
+            .setQueryDelay(TimeValue.timeValueSeconds(1))
+            .setTypes(Collections.singletonList("doc"))
+            .setFrequency(TimeValue.timeValueSeconds(1)).build();
+        machineLearningClient.putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
+
+        PreviewDatafeedResponse response = execute(new PreviewDatafeedRequest(datafeedId),
+            machineLearningClient::previewDatafeed,
+            machineLearningClient::previewDatafeedAsync);
+
+        Integer[] totals = response.getDataList().stream().map(map -> (Integer)map.get("total")).toArray(Integer[]::new);
+        assertThat(totalTotals, containsInAnyOrder(totals));
     }
 
     public void testDeleteForecast() throws Exception {

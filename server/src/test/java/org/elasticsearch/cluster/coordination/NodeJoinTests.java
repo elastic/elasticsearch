@@ -165,17 +165,8 @@ public class NodeJoinTests extends ESTestCase {
             ESAllocationTestCase.createAllocationService(Settings.EMPTY),
             masterService,
             () -> new CoordinationStateTests.InMemoryPersistedState(term, initialState), r -> emptyList(),
-            new ClusterApplier() {
-                @Override
-                public void setInitialState(ClusterState initialState) {
-
-                }
-
-                @Override
-                public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterApplyListener listener) {
-                    listener.onSuccess(source);
-                }
-            }, random);
+            new NoOpClusterApplier(),
+            random);
         transportService.start();
         transportService.acceptIncomingRequests();
         transportRequestHandler = capturingTransport.getRequestHandler(JoinHelper.JOIN_ACTION_NAME);
@@ -527,5 +518,17 @@ public class NodeJoinTests extends ESTestCase {
 
     private boolean clusterStateHasNode(DiscoveryNode node) {
         return node.equals(MasterServiceTests.discoveryState(masterService).nodes().get(node.getId()));
+    }
+
+    private static class NoOpClusterApplier implements ClusterApplier {
+        @Override
+        public void setInitialState(ClusterState initialState) {
+
+        }
+
+        @Override
+        public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterApplyListener listener) {
+            listener.onSuccess(source);
+        }
     }
 }

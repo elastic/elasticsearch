@@ -275,26 +275,36 @@ class IndicesAndAliasesResolver {
     }
 
     private List<String> replaceWildcardsWithAuthorizedAliases(String[] aliases, List<String> authorizedAliases) {
-        List<String> finalAliases = new ArrayList<>();
+        final List<String> finalAliases = new ArrayList<>();
 
-        //IndicesAliasesRequest doesn't support empty aliases (validation fails) but GetAliasesRequest does (in which case empty means _all)
-        boolean matchAllAliases = aliases.length == 0;
-        if (matchAllAliases) {
+        // IndicesAliasesRequest doesn't support empty aliases (validation fails) but
+        // GetAliasesRequest does (in which case empty means _all)
+        if (aliases.length == 0) {
             finalAliases.addAll(authorizedAliases);
         }
 
-        for (String aliasPattern : aliases) {
-            if (aliasPattern.equals(MetaData.ALL)) {
-                matchAllAliases = true;
-                finalAliases.addAll(authorizedAliases);
-            } else if (Regex.isSimpleMatchPattern(aliasPattern)) {
-                for (String authorizedAlias : authorizedAliases) {
-                    if (Regex.simpleMatch(aliasPattern, authorizedAlias)) {
-                        finalAliases.add(authorizedAlias);
+        for (String aliasExpression : aliases) {
+            boolean include = true;
+            if (aliasExpression.charAt(0) == '-') {
+                include = false;
+                aliasExpression = aliasExpression.substring(1);
+            }
+            if (MetaData.ALL.equals(aliasExpression) || Regex.isSimpleMatchPattern(aliasExpression)) {
+                final Set<String> resolvedAliases = new HashSet<>();
+                for (final String authorizedAlias : authorizedAliases) {
+                    if (MetaData.ALL.equals(aliasExpression) || Regex.simpleMatch(aliasExpression, authorizedAlias)) {
+                        resolvedAliases.add(authorizedAlias);
                     }
                 }
+                if (include) {
+                    finalAliases.addAll(resolvedAliases);
+                } else {
+                    finalAliases.removeAll(resolvedAliases);
+                }
+            } else if (include) {
+                finalAliases.add(aliasExpression);
             } else {
-                finalAliases.add(aliasPattern);
+                finalAliases.remove(aliasExpression);
             }
         }
 
@@ -304,9 +314,10 @@ class IndicesAndAliasesResolver {
         //a special expression to replace empty set with, which gives us the guarantee that nothing will be returned.
         //This is because existing aliases can contain all kinds of special characters, they are only validated since 5.1.
         if (finalAliases.isEmpty()) {
-            String indexName = matchAllAliases ? MetaData.ALL : Arrays.toString(aliases);
+            String indexName = aliases.length == 0 ? MetaData.ALL : Arrays.toString(aliases);
             throw new IndexNotFoundException(indexName);
         }
+
         return finalAliases;
     }
 

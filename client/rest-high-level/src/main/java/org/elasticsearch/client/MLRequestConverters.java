@@ -148,7 +148,12 @@ final class MLRequestConverters {
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params(request);
-        params.putParam("force", Boolean.toString(deleteJobRequest.isForce()));
+        if (deleteJobRequest.getForce() != null) {
+            params.putParam("force", Boolean.toString(deleteJobRequest.getForce()));
+        }
+        if (deleteJobRequest.getWaitForCompletion() != null) {
+            params.putParam("wait_for_completion", Boolean.toString(deleteJobRequest.getWaitForCompletion()));
+        }
 
         return request;
     }

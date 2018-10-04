@@ -33,6 +33,7 @@ import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
+import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -151,17 +152,33 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(response.jobs().stream().map(Job::getId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
     }
 
-    public void testDeleteJob() throws Exception {
+    public void testDeleteJob_GivenWaitForCompletionIsTrue() throws Exception {
         String jobId = randomValidJobId();
         Job job = buildJob(jobId);
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
-        AcknowledgedResponse response = execute(new DeleteJobRequest(jobId),
+        DeleteJobResponse response = execute(new DeleteJobRequest(jobId),
             machineLearningClient::deleteJob,
             machineLearningClient::deleteJobAsync);
 
-        assertTrue(response.isAcknowledged());
+        assertTrue(response.getAcknowledged());
+        assertNull(response.getTask());
+    }
+
+    public void testDeleteJob_GivenWaitForCompletionIsFalse() throws Exception {
+        String jobId = randomValidJobId();
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        DeleteJobRequest deleteJobRequest = new DeleteJobRequest(jobId);
+        deleteJobRequest.setWaitForCompletion(false);
+
+        DeleteJobResponse response = execute(deleteJobRequest, machineLearningClient::deleteJob, machineLearningClient::deleteJobAsync);
+
+        assertNull(response.getAcknowledged());
+        assertNotNull(response.getTask());
     }
 
     public void testOpenJob() throws Exception {

@@ -164,11 +164,18 @@ public class MLRequestConvertersTests extends ESTestCase {
         Request request = MLRequestConverters.deleteJob(deleteJobRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/ml/anomaly_detectors/" + jobId, request.getEndpoint());
-        assertEquals(Boolean.toString(false), request.getParameters().get("force"));
+        assertNull(request.getParameters().get("force"));
+        assertNull(request.getParameters().get("wait_for_completion"));
 
+        deleteJobRequest = new DeleteJobRequest(jobId);
         deleteJobRequest.setForce(true);
         request = MLRequestConverters.deleteJob(deleteJobRequest);
         assertEquals(Boolean.toString(true), request.getParameters().get("force"));
+
+        deleteJobRequest = new DeleteJobRequest(jobId);
+        deleteJobRequest.setWaitForCompletion(false);
+        request = MLRequestConverters.deleteJob(deleteJobRequest);
+        assertEquals(Boolean.toString(false), request.getParameters().get("wait_for_completion"));
     }
 
     public void testFlushJob() throws Exception {

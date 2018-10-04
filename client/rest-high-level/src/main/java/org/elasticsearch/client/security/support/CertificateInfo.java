@@ -88,7 +88,6 @@ public final class CertificateInfo {
         return expiry;
     }
 
-
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<CertificateInfo, Void> PARSER = new ConstructingObjectParser<>("certificate_info",
         true, args -> new CertificateInfo((String) args[0], (String) args[1], (String) args[2], (String) args[3], (String) args[4],
@@ -127,7 +126,6 @@ public final class CertificateInfo {
     public int hashCode() {
         return Objects.hash(path, format, alias, subjectDn, serialNumber, hasPrivateKey, expiry);
     }
-
 
     public static CertificateInfo fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);

@@ -20,18 +20,12 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.security.support.CertificateInfo;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -60,21 +54,10 @@ public final class GetSslCertificatesResponse {
     }
 
     public static GetSslCertificatesResponse fromXContent(XContentParser parser) throws IOException {
-        List<Object> unparsedCerts = parser.list();
-        if (unparsedCerts.isEmpty()) {
-            return new GetSslCertificatesResponse(Collections.emptyList());
-        }
         List<CertificateInfo> certificates = new ArrayList<>();
-        for (Object cert : unparsedCerts) {
-            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                @SuppressWarnings("unchecked")
-                Map<String, ?> value = (Map<String, ?>) cert;
-                builder.map(value);
-                try (XContentParser certificateInfoParser = XContentFactory.xContent(builder.contentType()).createParser(
-                    NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATION_HANDLER, Strings.toString(builder))) {
-                    certificates.add(CertificateInfo.PARSER.parse(certificateInfoParser, null));
-                }
-            }
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+            certificates.add(CertificateInfo.PARSER.parse(parser, null));
         }
         return new GetSslCertificatesResponse(certificates);
     }

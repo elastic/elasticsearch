@@ -421,7 +421,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     // package-visible for testing
     boolean activePublicationInProgress() {
         synchronized (mutex) {
-            return currentPublication.map(CoordinatorPublication::isActive).orElse(false);
+            return currentPublication.map(p -> p.isCompleted() == false).orElse(false);
         }
     }
 
@@ -754,7 +754,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         private final ListenableFuture<Void> localNodeAckEvent;
         private final AckListener ackListener;
         private final ActionListener<Void> publishListener;
-        private boolean completed;
 
         CoordinatorPublication(PublishRequest publishRequest, ListenableFuture<Void> localNodeAckEvent, AckListener ackListener,
                                ActionListener<Void> publishListener) {
@@ -804,8 +803,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         protected void onCompletion(boolean committed) {
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
 
-            completed = true;
-
             localNodeAckEvent.addListener(new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void ignore) {
@@ -848,10 +845,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     publishListener.onFailure(exception);
                 }
             }, EsExecutors.newDirectExecutorService());
-        }
-
-        boolean isActive() {
-            return completed == false;
         }
 
         @Override

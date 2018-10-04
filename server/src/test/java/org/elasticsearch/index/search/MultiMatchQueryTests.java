@@ -73,11 +73,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() throws IOException {
-        Settings settings = Settings.builder()
-            .put("index.analysis.filter.syns.type","synonym")
-            .putList("index.analysis.filter.syns.synonyms","quick,fast")
-            .put("index.analysis.analyzer.syns.tokenizer","standard")
-            .put("index.analysis.analyzer.syns.filter","syns").build();
+        Settings settings = Settings.builder().build();
         IndexService indexService = createIndex("test", settings);
         MapperService mapperService = indexService.mapperService();
         String mapping = "{\n" +
@@ -87,11 +83,11 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
                 "                  \"properties\":{\n" +
                 "                        \"first\": {\n" +
                 "                            \"type\":\"text\",\n" +
-                "                            \"analyzer\":\"syns\"\n" +
+                "                            \"analyzer\":\"standard\"\n" +
                 "                        }," +
                 "                        \"last\": {\n" +
                 "                            \"type\":\"text\",\n" +
-                "                            \"analyzer\":\"syns\"\n" +
+                "                            \"analyzer\":\"standard\"\n" +
                 "                        }" +
                 "                   }" +
                 "            }\n" +
@@ -221,25 +217,27 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         QueryShardContext queryShardContext = indexService.newQueryShardContext(
             randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null);
 
+        MultiMatchQuery parser = new MultiMatchQuery(queryShardContext);
+        parser.setAnalyzer(new MockSynonymAnalyzer());
+        Map<String, Float> fieldNames = new HashMap<>();
+        fieldNames.put("name.first", 1.0f);
+
         // check that synonym query is used for a single field
-        Query parsedQuery =
-            multiMatchQuery("quick").field("name.first")
-                .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS).toQuery(queryShardContext);
+        Query parsedQuery = parser.parse(MultiMatchQueryBuilder.Type.CROSS_FIELDS, fieldNames, "dogs", null);
         Term[] terms = new Term[2];
-        terms[0] = new Term("name.first", "quick");
-        terms[1] = new Term("name.first", "fast");
+        terms[0] = new Term("name.first", "dog");
+        terms[1] = new Term("name.first", "dogs");
         Query expectedQuery = new SynonymQuery(terms);
         assertThat(parsedQuery, equalTo(expectedQuery));
 
         // check that blended term query is used for multiple fields
-        parsedQuery =
-            multiMatchQuery("quick").field("name.first").field("name.last")
-                .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS).toQuery(queryShardContext);
+        fieldNames.put("name.last", 1.0f);
+        parsedQuery = parser.parse(MultiMatchQueryBuilder.Type.CROSS_FIELDS, fieldNames, "dogs", null);
         terms = new Term[4];
-        terms[0] = new Term("name.first", "quick");
-        terms[1] = new Term("name.first", "fast");
-        terms[2] = new Term("name.last", "quick");
-        terms[3] = new Term("name.last", "fast");
+        terms[0] = new Term("name.first", "dog");
+        terms[1] = new Term("name.first", "dogs");
+        terms[2] = new Term("name.last", "dog");
+        terms[3] = new Term("name.last", "dogs");
         float[] boosts = new float[4];
         Arrays.fill(boosts, 1.0f);
         expectedQuery = BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f);

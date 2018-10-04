@@ -29,7 +29,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.stream.Collectors;
 
 /**
@@ -64,9 +64,9 @@ public interface EvaluationMetric extends ToXContentObject, NamedWriteable {
             DocumentKey key = new DocumentKey(hit.getIndex(), hit.getId());
             RatedDocument ratedDoc = ratedDocumentMap.get(key);
             if (ratedDoc != null) {
-                ratedSearchHits.add(new RatedSearchHit(hit, Optional.of(ratedDoc.getRating())));
+                ratedSearchHits.add(new RatedSearchHit(hit, OptionalInt.of(ratedDoc.getRating())));
             } else {
-                ratedSearchHits.add(new RatedSearchHit(hit, Optional.empty()));
+                ratedSearchHits.add(new RatedSearchHit(hit, OptionalInt.empty()));
             }
         }
         return ratedSearchHits;
@@ -93,7 +93,7 @@ public interface EvaluationMetric extends ToXContentObject, NamedWriteable {
      * this method. The default implementation returns an empty optional.
      * @return the number of search hits this metrics requests
      */
-    default Optional<Integer> forcedSearchSize() {
-        return Optional.empty();
+    default OptionalInt forcedSearchSize() {
+        return OptionalInt.empty();
     }
 }

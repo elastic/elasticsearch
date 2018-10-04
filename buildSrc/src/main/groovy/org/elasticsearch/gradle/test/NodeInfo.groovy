@@ -337,7 +337,7 @@ class NodeInfo {
             case 'deb':
                 return new File(baseDir, "${distro}-extracted/etc/elasticsearch")
             default:
-                throw new InvalidUserDataException("Unkown distribution: ${distro}")
+                throw new InvalidUserDataException("Unknown distribution: ${distro}")
         }
     }
 }

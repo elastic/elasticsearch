@@ -571,18 +571,20 @@ public class ReservedRolesStoreTests extends ESTestCase {
     }
 
     public void testBeatsAdminRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
         final RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("beats_admin");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         final Role beatsAdminRole = Role.builder(roleDescriptor, null).build();
-        assertThat(beatsAdminRole.cluster().check(ClusterHealthAction.NAME), is(false));
-        assertThat(beatsAdminRole.cluster().check(ClusterStateAction.NAME), is(false));
-        assertThat(beatsAdminRole.cluster().check(ClusterStatsAction.NAME), is(false));
-        assertThat(beatsAdminRole.cluster().check(PutIndexTemplateAction.NAME), is(false));
-        assertThat(beatsAdminRole.cluster().check(ClusterRerouteAction.NAME), is(false));
-        assertThat(beatsAdminRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
-        assertThat(beatsAdminRole.cluster().check(MonitoringBulkAction.NAME), is(false));
+        assertThat(beatsAdminRole.cluster().check(ClusterHealthAction.NAME, request), is(false));
+        assertThat(beatsAdminRole.cluster().check(ClusterStateAction.NAME, request), is(false));
+        assertThat(beatsAdminRole.cluster().check(ClusterStatsAction.NAME, request), is(false));
+        assertThat(beatsAdminRole.cluster().check(PutIndexTemplateAction.NAME, request), is(false));
+        assertThat(beatsAdminRole.cluster().check(ClusterRerouteAction.NAME, request), is(false));
+        assertThat(beatsAdminRole.cluster().check(ClusterUpdateSettingsAction.NAME, request), is(false));
+        assertThat(beatsAdminRole.cluster().check(MonitoringBulkAction.NAME, request), is(false));
 
         assertThat(beatsAdminRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 

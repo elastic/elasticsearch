@@ -1452,7 +1452,10 @@ public class FieldSortIT extends ESIntegTestCase {
         // We sort on nested fields with max_children limit
         searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
-            .addSort(SortBuilders.fieldSort("nested.foo").setNestedSort(new NestedSortBuilder("nested").setMaxChildren(1)).order(SortOrder.DESC))
+            .addSort(SortBuilders
+                .fieldSort("nested.foo")
+                .setNestedSort(new NestedSortBuilder("nested").setMaxChildren(1))
+                .order(SortOrder.DESC))
             .execute().actionGet();
         assertNoFailures(searchResponse);
         hits = searchResponse.getHits().getHits();

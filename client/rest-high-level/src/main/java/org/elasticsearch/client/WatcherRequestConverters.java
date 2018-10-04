@@ -20,9 +20,11 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
+import org.elasticsearch.client.watcher.ExecuteWatchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
@@ -57,6 +59,30 @@ public class WatcherRequestConverters {
             .build();
 
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        return request;
+    }
+
+    static Request executeWatch(ExecuteWatchRequest executeWatchRequest) {
+        RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder()
+            .addPathPart("_xpack", "watcher", "watch");
+        if (executeWatchRequest.getId() != null) {
+            builder.addPathPart(executeWatchRequest.getId());
+        }
+        String endpoint = builder.addPathPart("_execute").build();
+
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        if (executeWatchRequest.isDebug()) {
+            params.putParam("debug", "true");
+        }
+        if (executeWatchRequest.isIgnoreCondition()) {
+            params.putParam("ignore_condition", "true");
+        }
+        if (executeWatchRequest.isRecordExecution()) {
+            params.putParam("record_execution", "true");
+        }
+
+        request.setEntity(executeWatchRequest.toHttpEntity());
         return request;
     }
 }

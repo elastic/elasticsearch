@@ -306,7 +306,7 @@ include::security/change-password.asciidoc[]
 
 == Watcher APIs
 
-:upid: {mainid}-document
+:upid: {mainid}-watcher
 :doc-tests-file: {doc-tests}/WatcherDocumentationIT.java
 
 The Java High Level REST Client supports the following Watcher APIs:

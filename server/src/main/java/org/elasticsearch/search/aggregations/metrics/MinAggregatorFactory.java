@@ -43,12 +43,12 @@ class MinAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Nu
     @Override
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        return new MinAggregator(name, null, config.format(), context, parent, pipelineAggregators, metaData);
+        return new MinAggregator(name, config, null, context, parent, pipelineAggregators, metaData);
     }
 
     @Override
     protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new MinAggregator(name, valuesSource, config.format(), context, parent, pipelineAggregators, metaData);
+        return new MinAggregator(name, config, valuesSource, context, parent, pipelineAggregators, metaData);
     }
 }

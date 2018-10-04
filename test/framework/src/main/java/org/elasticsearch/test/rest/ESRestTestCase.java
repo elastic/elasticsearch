@@ -270,6 +270,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         return false;
     }
 
+    /**
+     * Returns whether to preserve the rollup jobs of this test. Defaults to
+     * not preserving them. Only runs at all if xpack is installed on the
+     * cluster being tested.
+     */
+    protected boolean preserveRollupJobsUponCompletion() {
+        return false;
+    }
+
     private void wipeCluster(boolean hasXPack) throws IOException {
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
@@ -318,7 +327,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             wipeClusterSettings();
         }
 
-        if (hasXPack) {
+        if (hasXPack && false == preserveRollupJobsUponCompletion()) {
             wipeRollupJobs();
         }
     }

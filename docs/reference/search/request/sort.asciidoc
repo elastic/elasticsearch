@@ -127,6 +127,9 @@ field support has a `nested` sort option with the following properties:
     should match with in order for its field values to be taken into account
     by sorting. Common case is to repeat the query / filter inside the
     nested filter or query. By default no `nested_filter` is active.
+`max_children`::
+    Defines on how many children to populate in nested fields. 
+    Working with initial order and by default `Interger.MAX`.
 `nested`::
     Same as top-level `nested` but applies to another nested path within the
     current nested object.

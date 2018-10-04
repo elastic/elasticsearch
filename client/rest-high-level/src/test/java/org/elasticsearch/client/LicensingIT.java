@@ -24,6 +24,7 @@ import org.elasticsearch.client.license.StartBasicResponse;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -33,7 +34,10 @@ import static org.hamcrest.Matchers.empty;
 
 public class LicensingIT extends ESRestHighLevelClientTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/33406")
     public void testStartBasic() throws Exception {
+        // TODO: remove @AwaitsFix when a start trial license is implemented, and start trial licence after basic or in @AfterClass
+
         // we don't test the case where we successfully start a basic because the integ test cluster generates one on startup
         // and we don't have a good way to prevent that / work around it in this test project
         // case where we don't acknowledge basic license conditions

@@ -218,7 +218,9 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/33406")
     public void testPostStartBasic() throws Exception {
+        // TODO: remove @AwaitsFix when a start trial license is implemented, and start trial licence after basic or in @AfterClass
         RestHighLevelClient client = highLevelClient();
         {
             //tag::start-basic-execute

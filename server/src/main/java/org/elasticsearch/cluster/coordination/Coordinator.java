@@ -486,12 +486,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert leaderCheckScheduler == null : leaderCheckScheduler;
                 assert applierState.nodes().getMasterNodeId() == null || getLocalNode().equals(applierState.nodes().getMasterNode());
 
-                if (becomingMaster && currentPublication.isPresent() == false) {
+                final boolean activePublication = currentPublication.map(CoordinatorPublication::isActiveForCurrentLeader).orElse(false);
+                if (becomingMaster && activePublication == false) {
                     // cluster state update task to become master is submitted to MasterService, but publication has not started yet
                     assert followersChecker.getKnownFollowers().isEmpty() : followersChecker.getKnownFollowers();
                 } else {
                     final ClusterState lastPublishedState;
-                    if (currentPublication.isPresent()) {
+                    if (activePublication) {
                         // active publication in progress: followersChecker is up-to-date with nodes that we're actively publishing to
                         lastPublishedState = currentPublication.get().publishedState();
                     } else {
@@ -791,9 +792,14 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             currentPublication = Optional.empty();
 
             // check if node has not already switched modes (by bumping term)
-            if (mode == Mode.LEADER && publishRequest.getAcceptedState().term() == getCurrentTerm()) {
+            if (isActiveForCurrentLeader()) {
                 becomeCandidate(reason);
             }
+        }
+
+        boolean isActiveForCurrentLeader() {
+            // checks if this publication can still influence the mode of the current publication
+            return mode == Mode.LEADER && publishRequest.getAcceptedState().term() == getCurrentTerm();
         }
 
         @Override

@@ -131,6 +131,9 @@ public class TransportBulkShardOperationsAction
                 location = locationToSync(location, result.getTranslogLocation());
             } else {
                 if (result.getFailure() instanceof AlreadyProcessedFollowingEngineException) {
+                    // Skipped operations will be delivered to replicas via primary-replica resync or peer-recovery.
+                    // The primary must not acknowledge this request until the global checkpoint is at least the highest
+                    // seqno of all skipped operations (i.e., all skipped operations have been processed on every replica).
                     waitingForGlobalCheckpoint = SequenceNumbers.max(waitingForGlobalCheckpoint, targetOp.seqNo());
                 } else {
                     assert false : "Only already-processed error should happen; op=[" + targetOp + "] error=[" + result.getFailure() + "]";

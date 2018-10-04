@@ -40,7 +40,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         {
             // should fail, because leader index does not exist
             Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, null, null, null, null));
-            assertThat(e.getMessage(), equalTo("leader index [index1] does not exist"));
+            assertThat(e.getMessage(), equalTo("leader index [leader_cluster:index1] does not exist"));
         }
         {
             // should fail, because follow index does not exist
@@ -83,7 +83,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             IndexMetaData leaderIMD = createIMD("index1", 5, Settings.EMPTY, null);
             IndexMetaData followIMD = createIMD("index2", 5, Settings.EMPTY, customMetaData);
             Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
-            assertThat(e.getMessage(), equalTo("leader index [index1] does not have soft deletes enabled"));
+            assertThat(e.getMessage(), equalTo("leader index [leader_cluster:index1] does not have soft deletes enabled"));
         }
         {
             // should fail because the number of primary shards between leader and follow index are not equal

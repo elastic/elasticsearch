@@ -59,6 +59,40 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class ScopedSettingsTests extends ESTestCase {
 
+    private static class FooLowSettingValidator implements Setting.Validator<Integer> {
+        @Override
+        public void validate(Integer value, Map<Setting<Integer>, Integer> settings) {
+            if (settings.containsKey(SETTING_FOO_HIGH) && value > settings.get(SETTING_FOO_HIGH)) {
+                throw new IllegalArgumentException("[low]=" + value + " is higher than [high]=" + settings.get(SETTING_FOO_HIGH));
+            }
+        }
+
+        @Override
+        public Iterator<Setting<Integer>> settings() {
+            return Arrays.asList(SETTING_FOO_LOW, SETTING_FOO_HIGH).iterator();
+        }
+    }
+
+    private static class FooHighSettingValidator implements Setting.Validator<Integer> {
+        @Override
+        public void validate(Integer value, Map<Setting<Integer>, Integer> settings) {
+            if (settings.containsKey(SETTING_FOO_LOW) && value < settings.get(SETTING_FOO_LOW)) {
+                throw new IllegalArgumentException("[high]=" + value + " is lower than [low]=" + settings.get(SETTING_FOO_LOW));
+            }
+        }
+
+        @Override
+        public Iterator<Setting<Integer>> settings() {
+            return Arrays.asList(SETTING_FOO_LOW, SETTING_FOO_HIGH).iterator();
+        }
+    }
+
+    private static final Setting<Integer> SETTING_FOO_LOW = new Setting<Integer>("foo.low", "10",
+        Integer::valueOf, new FooLowSettingValidator(), Setting.Property.NodeScope);
+    private static final Setting<Integer> SETTING_FOO_HIGH = new Setting<Integer>("foo.high", "100",
+        Integer::valueOf, new FooHighSettingValidator(), Setting.Property.NodeScope);
+
+
     public void testResetSetting() {
         Setting<Integer> dynamicSetting = Setting.intSetting("some.dyn.setting", 1, Property.Dynamic, Property.NodeScope);
         Setting<Integer> staticSetting = Setting.intSetting("some.static.setting", 1, Property.NodeScope);
@@ -1221,4 +1255,43 @@ public class ScopedSettingsTests extends ESTestCase {
                 equalTo(oldSetting.get(settings).stream().map(s -> "new." + s).collect(Collectors.toList())));
     }
 
+    public void testUpdateOfValidationDependantSettings() {
+        ClusterSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(SETTING_FOO_LOW, SETTING_FOO_HIGH)));
+
+        Settings.Builder target = Settings.builder();
+        Settings.Builder updates;
+        boolean updated;
+
+        updates = Settings.builder();
+        updated = service.updateSettings(
+            Settings.builder().put(SETTING_FOO_LOW.getKey(), 20).build(),
+            target,
+            updates,
+            "transient"
+        );
+        assertTrue(updated);
+        assertThat(target.get(SETTING_FOO_LOW.getKey()), equalTo("20"));
+        assertThat(updates.get(SETTING_FOO_LOW.getKey()), equalTo("20"));
+
+        updates = Settings.builder();
+        updated = service.updateSettings(
+            Settings.builder().put(SETTING_FOO_HIGH.getKey(), 40).build(),
+            target,
+            updates,
+            "transient"
+        );
+        assertTrue(updated);
+        assertThat(target.get(SETTING_FOO_LOW.getKey()), equalTo("20"));
+        assertThat(target.get(SETTING_FOO_HIGH.getKey()), equalTo("40"));
+        assertNull(updates.get(SETTING_FOO_LOW.getKey()));
+        assertThat(updates.get(SETTING_FOO_HIGH.getKey()), equalTo("40"));
+
+        Exception exception = expectThrows(IllegalArgumentException.class, () -> service.updateSettings(
+            Settings.builder().put(SETTING_FOO_HIGH.getKey(), 10).build(),
+            target,
+            Settings.builder(),
+            "transient"
+        ));
+        assertThat(exception.getMessage(), equalTo("[high]=10 is lower than [low]=20"));
+    }
 }

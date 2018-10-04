@@ -58,6 +58,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
     private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
     private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+[*](?:[.][-\\w]+)+$");
+    private static final Predicate<String> NOT_WILDCARD_SETTING = s -> !s.endsWith("*");
 
     protected AbstractScopedSettings(
             final Settings settings,
@@ -716,7 +717,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             } else if (get(key) == null) {
                 throw new IllegalArgumentException(type + " setting [" + key + "], not recognized");
             } else if (isDelete == false && canUpdate.test(key)) {
-                validate(key, toApply, target.build());
+                validate(toApply, target.build());
                 settingsBuilder.copy(key, toApply);
                 updates.copy(key, toApply);
                 changed = true;
@@ -733,23 +734,22 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         return changed;
     }
 
-    private void validate(String key, Settings toApply, Settings target) {
-        Settings.Builder toValidate = Settings.builder();
-        validateAndCopy(target, toValidate);
-        validateAndCopy(toApply, toValidate);
-        toValidate.copy(key, toApply);
-        validate(toValidate.build(), false);
+    private void validate(Settings toApply, Settings target) {
+        Settings toValidate = copyValidSettings(target).put(toApply.filter(NOT_WILDCARD_SETTING)).build();
+        validate(toValidate, false);
     }
 
-    private void validateAndCopy(Settings toCopy, Settings.Builder toValidate) {
-        toCopy.keySet().forEach(key -> {
+    private Settings.Builder copyValidSettings(Settings settings) {
+        Settings.Builder validSettings = Settings.builder();
+        settings.keySet().stream().filter(NOT_WILDCARD_SETTING).forEach(key -> {
             try {
-                validate(key, toCopy, false);
-                toValidate.copy(key, toCopy);
+                validate(key, settings, false);
+                validSettings.copy(key, settings);
             } catch (Exception ignored) {
                 // Don't add invalid settings for validation
             }
         });
+        return validSettings;
     }
 
     private static boolean applyDeletes(Set<String> deletes, Settings.Builder builder, Predicate<String> canRemove) {

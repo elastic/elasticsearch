@@ -727,22 +727,25 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             .build();
         client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
         {
-            //tag::x-pack-ml-preview-datafeed-request
+            //tag::preview-datafeed-request
             PreviewDatafeedRequest request = new PreviewDatafeedRequest(datafeedId); // <1>
-            //end::x-pack-ml-preview-datafeed-request
+            //end::preview-datafeed-request
 
-            //tag::x-pack-ml-preview-datafeed-execute
+            //tag::preview-datafeed-execute
             PreviewDatafeedResponse response = client.machineLearning().previewDatafeed(request, RequestOptions.DEFAULT);
+            //end::preview-datafeed-execute
+
+            //tag::preview-datafeed-response
             BytesReference rawPreview = response.getPreview(); // <1>
             List<Map<String, Object>> semiParsedPreview = response.getDataList(); // <2>
-            //end::x-pack-ml-preview-datafeed-execute
+            //end::preview-datafeed-response
 
             assertTrue(semiParsedPreview.isEmpty());
         }
         {
             PreviewDatafeedRequest request = new PreviewDatafeedRequest(datafeedId);
 
-            // tag::x-pack-ml-preview-datafeed-listener
+            // tag::preview-datafeed-execute-listener
             ActionListener<PreviewDatafeedResponse> listener = new ActionListener<PreviewDatafeedResponse>() {
                 @Override
                 public void onResponse(PreviewDatafeedResponse response) {
@@ -754,15 +757,15 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                     // <2>
                 }
             };
-            // end::x-pack-ml-preview-datafeed-listener
+            // end::preview-datafeed-execute-listener
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
-            // tag::x-pack-ml-preview-datafeed-execute-async
+            // tag::preview-datafeed-execute-async
             client.machineLearning().previewDatafeedAsync(request, RequestOptions.DEFAULT, listener); // <1>
-            // end::x-pack-ml-preview-datafeed-execute-async
+            // end::preview-datafeed-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

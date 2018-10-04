@@ -185,11 +185,11 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
                     // way to know this is for aggregations and so _value is ok to have...
 
                 } else if (vars != null && vars.containsKey(variable)) {
-                    bindFromVars(vars, bindings, variable);
+                    bindFromParams(vars, bindings, variable);
                 } else {
                     // delegate valuesource creation based on field's type
                     // there are three types of "fields" to expressions, and each one has a different "api" of variables and methods.
-                    final ValueSource valueSource = getValueSource(variable, lookup);
+                    final ValueSource valueSource = getDocValueSource(variable, lookup);
                     needsScores |= valueSource.getSortField(false).needsScores();
                     bindings.add(variable, valueSource.asDoubleValuesSource());
                 }
@@ -209,11 +209,11 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
         for (String variable : expr.variables) {
             try {
                 if (vars != null && vars.containsKey(variable)) {
-                    bindFromVars(vars, bindings, variable);
+                    bindFromParams(vars, bindings, variable);
                 } else {
                     // delegate valuesource creation based on field's type
                     // there are three types of "fields" to expressions, and each one has a different "api" of variables and methods.
-                    final ValueSource valueSource = getValueSource(variable, lookup);
+                    final ValueSource valueSource = getDocValueSource(variable, lookup);
                     bindings.add(variable, valueSource.asDoubleValuesSource());
                 }
             } catch (Exception e) {
@@ -300,7 +300,7 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
         throw new ScriptException(message, cause, stack, source, NAME);
     }
 
-    private static ValueSource getValueSource(String variable, SearchLookup lookup) throws ParseException {
+    private static ValueSource getDocValueSource(String variable, SearchLookup lookup) throws ParseException {
         VariableContext[] parts = VariableContext.parse(variable);
         if (parts[0].text.equals("doc") == false) {
             throw new ParseException("Unknown variable [" + parts[0].text + "]", 0);
@@ -388,13 +388,13 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
         return valueSource;
     }
 
-    // TODO: document and/or error if vars contains _score?
-    // NOTE: by checking for the variable in vars first, it allows masking document fields with a global constant,
+    // TODO: document and/or error if params contains _score?
+    // NOTE: by checking for the variable in params first, it allows masking document fields with a global constant,
     // but if we were to reverse it, we could provide a way to supply dynamic defaults for documents missing the field?
-    private static void bindFromVars(@Nullable final Map<String, Object> vars, final SimpleBindings bindings, final String variable) throws ParseException {
+    private static void bindFromParams(@Nullable final Map<String, Object> params, final SimpleBindings bindings, final String variable) throws ParseException {
         // NOTE: by checking for the variable in vars first, it allows masking document fields with a global constant,
         // but if we were to reverse it, we could provide a way to supply dynamic defaults for documents missing the field?
-        Object value = vars.get(variable);
+        Object value = params.get(variable);
         if (value instanceof Number) {
             bindings.add(variable, new DoubleConstValueSource(((Number) value).doubleValue()).asDoubleValuesSource());
         } else {

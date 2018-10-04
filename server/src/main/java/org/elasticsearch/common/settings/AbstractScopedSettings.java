@@ -735,22 +735,21 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
 
     private void validate(String key, Settings toApply, Settings target) {
         Settings.Builder toValidate = Settings.builder();
-        // Reuse target settings to have a bigger picture,
-        // this helps to validate runtime dependencies
-        // (e.g. "low", "high" and "flood_stage" disk watermarks).
-        // Only valid target settings are kept.
-        target.keySet().forEach(targetKey -> {
+        validateAndCopy(target, toValidate);
+        validateAndCopy(toApply, toValidate);
+        toValidate.copy(key, toApply);
+        validate(toValidate.build(), false);
+    }
+
+    private void validateAndCopy(Settings toCopy, Settings.Builder toValidate) {
+        toCopy.keySet().forEach(key -> {
             try {
-                validate(targetKey, target, false);
-                toValidate.copy(targetKey, target);
+                validate(key, toCopy, false);
+                toValidate.copy(key, toCopy);
             } catch (Exception ignored) {
                 // Don't add invalid settings for validation
             }
         });
-        // Put last to override existing target setting
-        toValidate.copy(key, toApply);
-        // We might not have a full picture here do to a dependency validation
-        validate(toValidate.build(), false);
     }
 
     private static boolean applyDeletes(Set<String> deletes, Settings.Builder builder, Predicate<String> canRemove) {

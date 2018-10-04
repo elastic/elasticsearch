@@ -51,8 +51,10 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseField;
  * of keys.
  *
  * Currently the mapper extracts all leaf values of the JSON object, converts them to their text
- * representations, and indexes each one as a keyword. As an example, given a json field called
- * 'json_field' and the following input
+ * representations, and indexes each one as a keyword. It creates both a 'keyed' version of the token
+ * to allow searches on particular key-value pairs, as well as a 'root' token without the key
+ *
+ * As an example, given a json field called 'json_field' and the following input
  *
  * {
  *   "json_field: {
@@ -63,13 +65,18 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseField;
  *   }
  * }
  *
- * the mapper will produce untokenized string fields with the values "some value" and "true".
+ * the mapper will produce untokenized string fields called "json_field" with values "some value" and "true",
+ * as well as string fields called "json_field._keyed" with values "key\0some value" and "key2.key3\0true".
+ *
+ * Note that \0 is a reserved separator character, and cannot be used in the keys of the JSON object
+ * (see {@link JsonFieldParser#SEPARATOR}).
  */
 public final class JsonFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "json";
     public static final NamedAnalyzer WHITESPACE_ANALYZER = new NamedAnalyzer(
         "whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer());
+    public static final String KEYED_FIELD_SUFFIX = "._keyed";
 
     private static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new JsonFieldType();

@@ -88,7 +88,7 @@ public class MlAssignmentNotifier extends AbstractComponent implements ClusterSt
                 }
             } else if (MlTasks.DATAFEED_TASK_NAME.equals(currentTask.getTaskName())) {
                 StartDatafeedAction.DatafeedParams datafeedParams = (StartDatafeedAction.DatafeedParams) currentTask.getParams();
-                String jobId = datafeedParams.getJob() != null ? datafeedParams.getJob().getId() : null;
+                String jobId = datafeedParams.getJobId();
                 if (currentAssignment.getExecutorNode() == null) {
                     String msg = "No node found to start datafeed [" + datafeedParams.getDatafeedId() +"]. Reasons [" +
                             currentAssignment.getExplanation() + "]";

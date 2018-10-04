@@ -28,11 +28,12 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
@@ -196,8 +197,8 @@ public class StartDatafeedAction
             endTime = in.readOptionalLong();
             timeout = TimeValue.timeValueMillis(in.readVLong());
             if (in.getVersion().onOrAfter(Version.CURRENT)) {
-                datafeedConfig = in.readOptionalWriteable(DatafeedConfig::new);
-                job = in.readOptionalWriteable(Job::new);
+                jobId = in.readOptionalString();
+                datafeedIndices = in.readList(StreamInput::readString);
             }
         }
 
@@ -208,8 +209,9 @@ public class StartDatafeedAction
         private long startTime;
         private Long endTime;
         private TimeValue timeout = TimeValue.timeValueSeconds(20);
-        private DatafeedConfig datafeedConfig;
-        private Job job;
+        private List<String> datafeedIndices = Collections.emptyList();
+        private String jobId;
+
 
         public String getDatafeedId() {
             return datafeedId;
@@ -239,20 +241,20 @@ public class StartDatafeedAction
             this.timeout = timeout;
         }
 
-        public DatafeedConfig getDatafeedConfig() {
-            return datafeedConfig;
+        public String getJobId() {
+            return jobId;
         }
 
-        public void setDatafeedConfig(DatafeedConfig datafeedConfig) {
-            this.datafeedConfig = datafeedConfig;
+        public void setJobId(String jobId) {
+            this.jobId = jobId;
         }
 
-        public Job getJob() {
-            return job;
+        public List<String> getDatafeedIndices() {
+            return datafeedIndices;
         }
 
-        public void setJob(Job job) {
-            this.job = job;
+        public void setDatafeedIndices(List<String> datafeedIndices) {
+            this.datafeedIndices = datafeedIndices;
         }
 
         @Override
@@ -272,8 +274,8 @@ public class StartDatafeedAction
             out.writeOptionalLong(endTime);
             out.writeVLong(timeout.millis());
             if (out.getVersion().onOrAfter(Version.CURRENT)) {
-                out.writeOptionalWriteable(datafeedConfig);
-                out.writeOptionalWriteable(job);
+                out.writeOptionalString(jobId);
+                out.writeStringList(datafeedIndices);
             }
         }
 
@@ -292,7 +294,7 @@ public class StartDatafeedAction
 
         @Override
         public int hashCode() {
-            return Objects.hash(datafeedId, startTime, endTime, timeout, datafeedConfig, job);
+            return Objects.hash(datafeedId, startTime, endTime, timeout, jobId, datafeedIndices);
         }
 
         @Override
@@ -308,8 +310,8 @@ public class StartDatafeedAction
                     Objects.equals(startTime, other.startTime) &&
                     Objects.equals(endTime, other.endTime) &&
                     Objects.equals(timeout, other.timeout) &&
-                    Objects.equals(datafeedConfig, other.datafeedConfig) &&
-                    Objects.equals(job, other.job);
+                    Objects.equals(jobId, other.jobId) &&
+                    Objects.equals(datafeedIndices, other.datafeedIndices);
         }
     }
 

@@ -15,7 +15,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.ml.MlTasks;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -27,15 +26,20 @@ public class DatafeedNodeSelector {
 
     private static final Logger LOGGER = Loggers.getLogger(DatafeedNodeSelector.class);
 
-    private final DatafeedConfig datafeed;
+    private final String datafeedId;
+    private final String jobId;
+    private final List<String> datafeedIndices;
     private final PersistentTasksCustomMetaData.PersistentTask<?> jobTask;
     private final ClusterState clusterState;
     private final IndexNameExpressionResolver resolver;
 
-    public DatafeedNodeSelector(ClusterState clusterState, IndexNameExpressionResolver resolver, DatafeedConfig datafeed) {
+    public DatafeedNodeSelector(ClusterState clusterState, IndexNameExpressionResolver resolver, String datafeedId,
+                                String jobId, List<String> datafeedIndices) {
         PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        this.datafeed = datafeed;
-        this.jobTask = MlTasks.getJobTask(datafeed.getJobId(), tasks);
+        this.datafeedId = datafeedId;
+        this.jobId = jobId;
+        this.datafeedIndices = datafeedIndices;
+        this.jobTask = MlTasks.getJobTask(jobId, tasks);
         this.clusterState = Objects.requireNonNull(clusterState);
         this.resolver = Objects.requireNonNull(resolver);
     }
@@ -43,7 +47,7 @@ public class DatafeedNodeSelector {
     public void checkDatafeedTaskCanBeCreated() {
         AssignmentFailure assignmentFailure = checkAssignment();
         if (assignmentFailure != null && assignmentFailure.isCriticalForTaskCreation) {
-            String msg = "No node found to start datafeed [" + datafeed.getId() + "], " +
+            String msg = "No node found to start datafeed [" + datafeedId + "], " +
                     "allocation explanation [" + assignmentFailure.reason + "]";
             LOGGER.debug(msg);
             throw ExceptionsHelper.conflictStatusException(msg);
@@ -73,14 +77,14 @@ public class DatafeedNodeSelector {
 
         if (jobState.isAnyOf(JobState.OPENING, JobState.OPENED) == false) {
             // lets try again later when the job has been opened:
-            String reason = "cannot start datafeed [" + datafeed.getId() + "], because the job's [" + datafeed.getJobId() +
-                    "] state is [" + jobState +  "] while state [" + JobState.OPENED + "] is required";
+            String reason = "cannot start datafeed [" + datafeedId + "], because the job's [" + jobId
+                    + "] state is [" + jobState +  "] while state [" + JobState.OPENED + "] is required";
             priorityFailureCollector.add(new AssignmentFailure(reason, true));
         }
 
         if (jobTaskState != null && jobTaskState.isStatusStale(jobTask)) {
-            String reason = "cannot start datafeed [" + datafeed.getId() + "], because the job's [" + datafeed.getJobId() +
-                    "] state is stale";
+            String reason = "cannot start datafeed [" + datafeedId + "], because the job's [" + jobId
+                    + "] state is stale";
             priorityFailureCollector.add(new AssignmentFailure(reason, true));
         }
 
@@ -89,8 +93,7 @@ public class DatafeedNodeSelector {
 
     @Nullable
     private AssignmentFailure verifyIndicesActive() {
-        List<String> indices = datafeed.getIndices();
-        for (String index : indices) {
+        for (String index : datafeedIndices) {
 
             if (RemoteClusterLicenseChecker.isRemoteIndex(index)) {
                 // We cannot verify remote indices
@@ -98,7 +101,7 @@ public class DatafeedNodeSelector {
             }
 
             String[] concreteIndices;
-            String reason = "cannot start datafeed [" + datafeed.getId() + "] because index ["
+            String reason = "cannot start datafeed [" + datafeedId + "] because index ["
                     + index + "] does not exist, is closed, or is still initializing.";
 
             try {
@@ -114,7 +117,7 @@ public class DatafeedNodeSelector {
             for (String concreteIndex : concreteIndices) {
                 IndexRoutingTable routingTable = clusterState.getRoutingTable().index(concreteIndex);
                 if (routingTable == null || !routingTable.allPrimaryShardsActive()) {
-                    reason = "cannot start datafeed [" + datafeed.getId() + "] because index ["
+                    reason = "cannot start datafeed [" + datafeedId + "] because index ["
                             + concreteIndex + "] does not have all primary shards active yet.";
                     return new AssignmentFailure(reason, false);
                 }

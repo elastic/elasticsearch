@@ -55,6 +55,9 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
         return startStep;
     }
 
+    Step.StepKey getNextStepKey() {
+        return nextStepKey;
+    }
 
     /**
      * {@link Step}s for the current index and policy are executed in succession until the next step to be

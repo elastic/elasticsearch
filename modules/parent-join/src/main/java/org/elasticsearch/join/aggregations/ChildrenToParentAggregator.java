@@ -121,9 +121,15 @@ public class ChildrenToParentAggregator extends BucketsAggregator implements Sin
                     long globalOrdinal = globalOrdinals.nextOrd();
                     assert globalOrdinals.nextOrd() == SortedSetDocValues.NO_MORE_ORDS;
                     if (globalOrdinal != -1) {
-                        if (childrenOrdToBuckets.get(globalOrdinal) == -1) {
+                        long bucketPrev = childrenOrdToBuckets.get(globalOrdinal);
+
+                        // add bucket if none is set,
+                        if (bucketPrev == -1) {
                             childrenOrdToBuckets.set(globalOrdinal, bucket);
-                        } else {
+                        } else if (bucketPrev != bucket) {
+                            // otherwise store it in the array, but only if the bucket is different than
+                            // the previous one for this childDoc, as we only need one occurrence
+                            // of child -> parent for this aggregation
                             long[] bucketOrds = childrenOrdToOtherBuckets.get(globalOrdinal);
                             if (bucketOrds != null) {
                                 bucketOrds = Arrays.copyOf(bucketOrds, bucketOrds.length + 1);

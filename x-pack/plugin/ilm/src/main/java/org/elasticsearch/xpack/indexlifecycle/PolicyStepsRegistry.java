@@ -227,6 +227,10 @@ public class PolicyStepsRegistry {
         }
     }
 
+    public boolean policyExists(final String policy) {
+        return lifecyclePolicyMap.containsKey(policy);
+    }
+
     public Step getFirstStep(String policy) {
         return firstStepMap.get(policy);
     }

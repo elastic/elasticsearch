@@ -187,9 +187,9 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
      * possible values:
      * <ol>
      * <li><code>score</code> - Sort should first be based on score, then
-     * document frequency and then the term itself.
-     * <li><code>frequency</code> - Sort should first be based on document
-     * frequency, then score and then the term itself.
+     * document totalTermFrequency and then the term itself.
+     * <li><code>totalTermFrequency</code> - Sort should first be based on document
+     * totalTermFrequency, then score and then the term itself.
      * </ol>
      * <p>
      * What the score is depends on the suggester being used.
@@ -268,8 +268,8 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
      * frequencies. If an value higher than 1 is specified then fractional
      * can not be specified. Defaults to {@code 0.01}.
      * <p>
-     * This can be used to exclude high frequency terms from being
-     * suggested. High frequency terms are usually spelled correctly on top
+     * This can be used to exclude high totalTermFrequency terms from being
+     * suggested. High totalTermFrequency terms are usually spelled correctly on top
      * of this this also improves the suggest performance.
      */
     public DirectCandidateGeneratorBuilder maxTermFreq(float maxTermFreq) {
@@ -313,7 +313,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
      * Sets a minimal threshold in number of documents a suggested term
      * should appear in. This can be specified as an absolute number or as a
      * relative percentage of number of documents. This can improve quality
-     * by only suggesting high frequency terms. Defaults to 0f and is not
+     * by only suggesting high totalTermFrequency terms. Defaults to 0f and is not
      * enabled. If a value higher than 1 is specified then the number cannot
      * be fractional.
      */

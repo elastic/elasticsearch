@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
+import org.apache.lucene.codecs.TermStats;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -84,9 +85,9 @@ public final class NoisyChannelSpellChecker {
                 anyUnigram = true;
                 if (posIncAttr.getPositionIncrement() == 0 && typeAttribute.type() == SynonymFilter.TYPE_SYNONYM) {
                     assert currentSet != null;
-                    long freq = 0;
-                    if ((freq = generator.frequency(term)) > 0) {
-                        currentSet.addOneCandidate(generator.createCandidate(BytesRef.deepCopyOf(term), freq, realWordLikelihood));
+                    TermStats termStats = generator.termStats(term);
+                    if (termStats.docFreq > 0) {
+                        currentSet.addOneCandidate(generator.createCandidate(BytesRef.deepCopyOf(term), termStats, realWordLikelihood));
                     }
                 } else {
                     if (currentSet != null) {
@@ -131,9 +132,11 @@ public final class NoisyChannelSpellChecker {
     }
 
     public Result getCorrections(Analyzer analyzer, BytesRef query, CandidateGenerator generator,
-            float maxErrors, int numCorrections, IndexReader reader, String analysisField, WordScorer scorer, float confidence, int gramSize) throws IOException {
+                                    float maxErrors, int numCorrections, IndexReader reader, String analysisField,
+                                    WordScorer scorer, float confidence, int gramSize) throws IOException {
 
-        return getCorrections(tokenStream(analyzer, query, new CharsRefBuilder(), analysisField), generator, maxErrors, numCorrections, scorer, confidence, gramSize);
+        return getCorrections(tokenStream(analyzer, query, new CharsRefBuilder(), analysisField), generator, maxErrors,
+            numCorrections, scorer, confidence, gramSize);
 
     }
 

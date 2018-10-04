@@ -181,14 +181,22 @@ public class ThirdPartyAuditTask extends DefaultTask {
                 // exclude classes from multi release jars
                 spec.exclude("META-INF/versions/**");
             });
+            // Deal with multi release jars:
             // The order is important, we iterate here so we don't depend on the order in which Gradle executes the spec
+            // We extract multi release jar classes ( if these exist ) going from 9 - the first to support them, to the
+            // current `targetCompatibility` version.
+            // Each extract will overwrite the top level classes that existed before it, the result is that we end up
+            // with a single version of the class in `jarExpandDir`.
+            // This will be the closes version to `targetCompatibility`, the same class that would be loaded in a JVM
+            // that has `targetCompatibility` version.
+            // This means we only scan classes that would be loaded into `targetCompatibility`, and don't look at any
+            // pther version specific implementation of said classes.
             IntStream.rangeClosed(
                 Integer.parseInt(JavaVersion.VERSION_1_9.getMajorVersion()),
                 Integer.parseInt(targetCompatibility.getMajorVersion())
             ).forEach(majorVersion -> getProject().copy(spec -> {
                 spec.from(getProject().zipTree(jar));
                 spec.into(jarExpandDir);
-                // exclude classes from multi release jars
                 String metaInfPrefix = "META-INF/versions/" + majorVersion;
                 spec.include(metaInfPrefix + "/**");
                 // Drop the version specific prefix

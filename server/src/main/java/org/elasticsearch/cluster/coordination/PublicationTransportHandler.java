@@ -18,10 +18,11 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -33,17 +34,17 @@ import java.io.IOException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-public class PublicationTransportHandler {
+public class PublicationTransportHandler extends AbstractComponent {
 
     public static final String PUBLISH_STATE_ACTION_NAME = "internal:cluster/coordination/publish_state";
     public static final String COMMIT_STATE_ACTION_NAME = "internal:cluster/coordination/commit_state";
 
     private final TransportService transportService;
 
-    public PublicationTransportHandler(TransportService transportService,
+    public PublicationTransportHandler(Settings settings, TransportService transportService,
                                        Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest,
-                                       BiConsumer<ApplyCommitRequest, ActionListener<Void>> handleApplyCommit,
-                                       Logger logger) {
+                                       BiConsumer<ApplyCommitRequest, ActionListener<Void>> handleApplyCommit) {
+        super(settings);
         this.transportService = transportService;
 
         transportService.registerRequestHandler(PUBLISH_STATE_ACTION_NAME, ThreadPool.Names.GENERIC, false, false,

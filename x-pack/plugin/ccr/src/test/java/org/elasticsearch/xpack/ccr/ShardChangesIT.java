@@ -28,6 +28,8 @@ import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -39,7 +41,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -723,13 +724,12 @@ public class ShardChangesIT extends ESIntegTestCase {
         client().execute(PutFollowAction.INSTANCE, follow).get();
         ensureGreen("follower-index");
         atLeastDocsIndexed("follower-index", between(20, 60));
-        for (String nodeName : internalCluster().nodesInclude("follower-index")) {
-            IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
-            IndexService indexService = indicesService.indexServiceSafe(resolveIndex("follower-index"));
-            for (IndexShard shard : indexService) {
-                if (shard.routingEntry().primary()) {
-                    internalCluster().restartNode(nodeName, new InternalTestCluster.RestartCallback());
-                }
+        final ClusterState clusterState = clusterService().state();
+        for (ShardRouting shardRouting : clusterState.routingTable().allShards("follower-index")) {
+            if (shardRouting.primary()) {
+                DiscoveryNode assignedNode = clusterState.nodes().get(shardRouting.currentNodeId());
+                internalCluster().restartNode(assignedNode.getName(), new InternalTestCluster.RestartCallback());
+                break;
             }
         }
         ensureGreen("follower-index");

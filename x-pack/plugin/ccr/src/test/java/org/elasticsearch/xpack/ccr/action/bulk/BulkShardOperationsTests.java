@@ -27,10 +27,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.xpack.ccr.action.bulk.TransportBulkShardOperationsAction.CcrWritePrimaryResult;
 
 public class BulkShardOperationsTests extends IndexShardTestCase {
 
@@ -107,15 +107,16 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
         BulkShardOperationsRequest request = new BulkShardOperationsRequest();
         {
             PlainActionFuture<BulkShardOperationsResponse> listener = new PlainActionFuture<>();
-            new TransportBulkShardOperationsAction.CcrWritePrimaryResult(request, null, shard, -2, logger).respond(listener);
+            CcrWritePrimaryResult primaryResult = new CcrWritePrimaryResult(request, null, shard, -2, logger);
+            primaryResult.respond(listener);
             assertThat("should return intermediately if waiting_global_checkpoint is not specified",
                 listener.actionGet(TimeValue.ZERO).getMaxSeqNo(), equalTo(shard.seqNoStats().getMaxSeqNo()));
         }
         {
             PlainActionFuture<BulkShardOperationsResponse> listener = new PlainActionFuture<>();
             long waitingForGlobalCheckpoint = randomLongBetween(shard.getGlobalCheckpoint() + 1, shard.getLocalCheckpoint());
-            new TransportBulkShardOperationsAction.CcrWritePrimaryResult(request, null, shard, waitingForGlobalCheckpoint, logger)
-                .respond(listener);
+            CcrWritePrimaryResult primaryResult = new CcrWritePrimaryResult(request, null, shard, waitingForGlobalCheckpoint, logger);
+            primaryResult.respond(listener);
             expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TimeValue.timeValueMillis(1)));
 
             shard.updateGlobalCheckpointOnReplica(randomLongBetween(shard.getGlobalCheckpoint(), waitingForGlobalCheckpoint - 1), "test");
@@ -127,8 +128,8 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
         {
             PlainActionFuture<BulkShardOperationsResponse> listener = new PlainActionFuture<>();
             long waitingForGlobalCheckpoint = randomLongBetween(-1, shard.getGlobalCheckpoint());
-            new TransportBulkShardOperationsAction.CcrWritePrimaryResult(request, null, shard, waitingForGlobalCheckpoint, logger)
-                .respond(listener);
+            CcrWritePrimaryResult primaryResult = new CcrWritePrimaryResult(request, null, shard, waitingForGlobalCheckpoint, logger);
+            primaryResult.respond(listener);
             assertThat(listener.actionGet(TimeValue.timeValueMillis(10)).getMaxSeqNo(), equalTo(shard.seqNoStats().getMaxSeqNo()));
         }
         closeShards(shard);
@@ -153,41 +154,45 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
 
         List<Translog.Operation> firstBulk = randomSubsetOf(ops);
         ops.removeAll(firstBulk);
-        final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> fullResult =
-            TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(), primary.getHistoryUUID(),
-                firstBulk, seqno, primary, logger);
+        final CcrWritePrimaryResult fullResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(),
+            primary.getHistoryUUID(), firstBulk, seqno, primary, logger);
         assertThat(fullResult.replicaRequest().getOperations(),
-            equalTo(firstBulk.stream().map(op -> rewriteWithTerm(op, primary.getOperationPrimaryTerm())).collect(Collectors.toList())));
+            equalTo(rewriteWithPrimaryTerm(firstBulk, primary.getOperationPrimaryTerm())));
+        assertThat(fullResult.waitingForGlobalCheckpoint, equalTo(-2));
 
-        final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> emptyResult =
-            TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(), primary.getHistoryUUID(),
-                randomSubsetOf(firstBulk), numOps - 1, primary, logger);
+        List<Translog.Operation> subOfFirstBulk = randomSubsetOf(firstBulk);
+        final CcrWritePrimaryResult emptyResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(),
+            primary.getHistoryUUID(), subOfFirstBulk, seqno, primary, logger);
         assertThat(emptyResult.replicaRequest().getOperations(), empty());
+        assertThat(fullResult.waitingForGlobalCheckpoint, equalTo(subOfFirstBulk.stream().mapToLong(o -> o.seqNo()).max().orElse(-2)));
 
-        final List<Translog.Operation> secondBulk = Stream.concat(randomSubsetOf(firstBulk).stream(), ops.stream())
-            .collect(Collectors.toList());
-        final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> partialResult =
-            TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(), primary.getHistoryUUID(),
-                secondBulk, seqno, primary, logger);
-        assertThat(partialResult.replicaRequest().getOperations(),
-            equalTo(ops.stream().map(op -> rewriteWithTerm(op, primary.getOperationPrimaryTerm())).collect(Collectors.toList())));
+        final List<Translog.Operation> secondBulk = new ArrayList<>(ops);
+        subOfFirstBulk = randomSubsetOf(firstBulk);
+        secondBulk.addAll(subOfFirstBulk);
+        final CcrWritePrimaryResult partialResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(),
+            primary.getHistoryUUID(), secondBulk, seqno, primary, logger);
+        assertThat(partialResult.replicaRequest().getOperations(), equalTo(rewriteWithPrimaryTerm(ops, primary.getOperationPrimaryTerm())));
+        assertThat(partialResult.waitingForGlobalCheckpoint, equalTo(subOfFirstBulk.stream().mapToLong(o -> o.seqNo()).max().orElse(-2)));
+
         closeShards(primary);
     }
 
-    private Translog.Operation rewriteWithTerm(Translog.Operation op, long primaryTerm) {
-        switch (op.opType()) {
-            case INDEX:
-                final Translog.Index index = (Translog.Index) op;
-                return new Translog.Index(index.type(), index.id(), index.seqNo(), primaryTerm,
-                    index.version(), BytesReference.toBytes(index.source()), index.routing(), index.getAutoGeneratedIdTimestamp());
-            case DELETE:
-                final Translog.Delete delete = (Translog.Delete) op;
-                return new Translog.Delete(delete.type(), delete.id(), delete.uid(), delete.seqNo(), primaryTerm, delete.version());
-            case NO_OP:
-                final Translog.NoOp noOp = (Translog.NoOp) op;
-                return new Translog.NoOp(noOp.seqNo(), primaryTerm, noOp.reason());
-            default:
-                throw new IllegalStateException("unexpected operation type [" + op.opType() + "]");
-        }
+    private List<Translog.Operation> rewriteWithPrimaryTerm(List<Translog.Operation> sourceOperations, long primaryTerm) {
+        return sourceOperations.stream().map(op -> {
+            switch (op.opType()) {
+                case INDEX:
+                    final Translog.Index index = (Translog.Index) op;
+                    return new Translog.Index(index.type(), index.id(), index.seqNo(), primaryTerm,
+                        index.version(), BytesReference.toBytes(index.source()), index.routing(), index.getAutoGeneratedIdTimestamp());
+                case DELETE:
+                    final Translog.Delete delete = (Translog.Delete) op;
+                    return new Translog.Delete(delete.type(), delete.id(), delete.uid(), delete.seqNo(), primaryTerm, delete.version());
+                case NO_OP:
+                    final Translog.NoOp noOp = (Translog.NoOp) op;
+                    return new Translog.NoOp(noOp.seqNo(), primaryTerm, noOp.reason());
+                default:
+                    throw new IllegalStateException("unexpected operation type [" + op.opType() + "]");
+            }
+        }).collect(Collectors.toList());
     }
 }

@@ -69,7 +69,7 @@ public class TransportBulkShardOperationsAction
     }
 
     // public for testing purposes only
-    public static WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> shardOperationOnPrimary(
+    public static CcrWritePrimaryResult shardOperationOnPrimary(
             final ShardId shardId,
             final String historyUUID,
             final List<Translog.Operation> sourceOperations,
@@ -182,7 +182,7 @@ public class TransportBulkShardOperationsAction
      * Custom write result to include global checkpoint after ops have been replicated.
      */
     static final class CcrWritePrimaryResult extends WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> {
-        private final long waitingForGlobalCheckpoint;
+        final long waitingForGlobalCheckpoint;
 
         CcrWritePrimaryResult(BulkShardOperationsRequest request, Translog.Location location, IndexShard primary,
                               long waitingForGlobalCheckpoint, Logger logger) {

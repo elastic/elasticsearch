@@ -21,6 +21,7 @@ package org.elasticsearch.client.indexlifecycle;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,15 +40,24 @@ public class RemoveIndexLifecyclePolicyResponseTests extends ESTestCase {
         builder.endObject();
     }
 
-    private RemoveIndexLifecyclePolicyResponse createTestInstance() {
+    private RemoveIndexLifecyclePolicyResponse createInstance() {
         List<String> failedIndexes = Arrays.asList(generateRandomStringArray(20, 20, false));
         return new RemoveIndexLifecyclePolicyResponse(failedIndexes);
+    }
+
+    private RemoveIndexLifecyclePolicyResponse copyInstance(RemoveIndexLifecyclePolicyResponse req) {
+        return new RemoveIndexLifecyclePolicyResponse(new ArrayList<>(req.getFailedIndexes()));
+    }
+
+    private RemoveIndexLifecyclePolicyResponse mutateInstance(RemoveIndexLifecyclePolicyResponse req) {
+        return new RemoveIndexLifecyclePolicyResponse(randomValueOtherThan(req.getFailedIndexes(),
+                () -> Arrays.asList(generateRandomStringArray(20, 20, false))));
     }
 
     public void testFromXContent() throws IOException {
         xContentTester(
                 this::createParser,
-                this::createTestInstance,
+                this::createInstance,
                 this::toXContent,
                 RemoveIndexLifecyclePolicyResponse::fromXContent)
                 .supportsUnknownFields(true)
@@ -76,45 +86,8 @@ public class RemoveIndexLifecyclePolicyResponseTests extends ESTestCase {
     }
 
     public void testEqualsAndHashCode() {
-        RemoveIndexLifecyclePolicyResponse resp0 = new RemoveIndexLifecyclePolicyResponse(Collections.emptyList());
-        RemoveIndexLifecyclePolicyResponse resp1 = new RemoveIndexLifecyclePolicyResponse(Collections.emptyList());
-        RemoveIndexLifecyclePolicyResponse resp2 = new RemoveIndexLifecyclePolicyResponse(Collections.singletonList("baz"));
-        RemoveIndexLifecyclePolicyResponse resp3 = new RemoveIndexLifecyclePolicyResponse(Collections.singletonList("baz"));
-        RemoveIndexLifecyclePolicyResponse resp4 = new RemoveIndexLifecyclePolicyResponse(Collections.singletonList("rbh"));
-        RemoveIndexLifecyclePolicyResponse resp5 = new RemoveIndexLifecyclePolicyResponse(Arrays.asList("baz", "rbh"));
-        RemoveIndexLifecyclePolicyResponse resp6 = new RemoveIndexLifecyclePolicyResponse(Arrays.asList("baz", "rbh"));
-        RemoveIndexLifecyclePolicyResponse resp7 = new RemoveIndexLifecyclePolicyResponse(Arrays.asList("baz", "foo"));
-
-        assertEquals(resp0, resp1);
-        assertEquals(resp0.hashCode(), resp1.hashCode());
-        assertEquals(resp2, resp3);
-        assertEquals(resp2.hashCode(), resp3.hashCode());
-        assertEquals(resp5, resp6);
-        assertEquals(resp5.hashCode(), resp6.hashCode());
-
-        assertNotEquals(resp0, resp2);
-        assertNotEquals(resp0, resp3);
-        assertNotEquals(resp0, resp4);
-        assertNotEquals(resp0, resp5);
-        assertNotEquals(resp0, resp6);
-        assertNotEquals(resp0, resp7);
-        assertNotEquals(resp1, resp2);
-        assertNotEquals(resp1, resp3);
-        assertNotEquals(resp1, resp4);
-        assertNotEquals(resp1, resp5);
-        assertNotEquals(resp1, resp6);
-        assertNotEquals(resp1, resp7);
-        assertNotEquals(resp2, resp4);
-        assertNotEquals(resp2, resp5);
-        assertNotEquals(resp2, resp6);
-        assertNotEquals(resp2, resp7);
-        assertNotEquals(resp3, resp4);
-        assertNotEquals(resp3, resp5);
-        assertNotEquals(resp3, resp6);
-        assertNotEquals(resp3, resp7);
-        assertNotEquals(resp4, resp6);
-        assertNotEquals(resp4, resp7);
-        assertNotEquals(resp5, resp7);
-        assertNotEquals(resp6, resp7);
+        for (int count = 0; count < 100; ++count) {
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(createInstance(), this::copyInstance, this::mutateInstance);
+        }
     }
 }

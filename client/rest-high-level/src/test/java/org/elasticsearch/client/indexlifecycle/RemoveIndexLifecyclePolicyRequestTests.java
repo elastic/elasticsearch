@@ -21,7 +21,9 @@ package org.elasticsearch.client.indexlifecycle;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -44,39 +46,39 @@ public class RemoveIndexLifecyclePolicyRequestTests extends ESTestCase {
         assertFalse(request.validate().isPresent());
     }
 
+    protected RemoveIndexLifecyclePolicyRequest createInstance() {
+        if (randomBoolean()) {
+            return new RemoveIndexLifecyclePolicyRequest(Arrays.asList(generateRandomStringArray(20, 20, false)),
+                    IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
+                    randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+        } else {
+            return new RemoveIndexLifecyclePolicyRequest(Arrays.asList(generateRandomStringArray(20, 20, false)));
+        }
+    }
+
+    private RemoveIndexLifecyclePolicyRequest copyInstance(RemoveIndexLifecyclePolicyRequest req) {
+        return new RemoveIndexLifecyclePolicyRequest(new ArrayList<>(req.indices()), IndicesOptions.fromOptions(
+                req.indicesOptions().ignoreUnavailable(), req.indicesOptions().allowNoIndices(),
+                req.indicesOptions().expandWildcardsOpen(), req.indicesOptions().expandWildcardsClosed(),
+                req.indicesOptions().allowAliasesToMultipleIndices(), req.indicesOptions().forbidClosedIndices(),
+                req.indicesOptions().ignoreAliases()));
+    }
+
+    private RemoveIndexLifecyclePolicyRequest mutateInstance(RemoveIndexLifecyclePolicyRequest req) {
+        if (randomBoolean()) {
+            return new RemoveIndexLifecyclePolicyRequest(req.indices(),
+                    randomValueOtherThan(req.indicesOptions(), () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(),
+                    randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())));
+        } else {
+            return new RemoveIndexLifecyclePolicyRequest(
+                    randomValueOtherThan(req.indices(), () -> Arrays.asList(generateRandomStringArray(20, 20, false))),
+                    req.indicesOptions());
+        }
+    }
+
     public void testEqualsAndHashCode() {
-        RemoveIndexLifecyclePolicyRequest req0 = new RemoveIndexLifecyclePolicyRequest(Collections.singletonList("rbh"));
-        RemoveIndexLifecyclePolicyRequest req1 = new RemoveIndexLifecyclePolicyRequest(Collections.singletonList("rbh"));
-        RemoveIndexLifecyclePolicyRequest req2 = new RemoveIndexLifecyclePolicyRequest(Collections.singletonList("baz"));
-        RemoveIndexLifecyclePolicyRequest req3 =
-                new RemoveIndexLifecyclePolicyRequest(Collections.singletonList("rbh"), IndicesOptions.lenientExpandOpen());
-        RemoveIndexLifecyclePolicyRequest req4 =
-                new RemoveIndexLifecyclePolicyRequest(Collections.singletonList("rbh"), IndicesOptions.lenientExpandOpen());
-        RemoveIndexLifecyclePolicyRequest req5 =
-                new RemoveIndexLifecyclePolicyRequest(Arrays.asList("rbh", "baz"), IndicesOptions.lenientExpandOpen());
-        RemoveIndexLifecyclePolicyRequest req6 =
-                new RemoveIndexLifecyclePolicyRequest(Arrays.asList("rbh", "baz"), IndicesOptions.lenientExpandOpen());
-
-        assertEquals(req0, req1);
-        assertEquals(req0.hashCode(), req1.hashCode());
-        assertEquals(req3, req4);
-        assertEquals(req3.hashCode(), req4.hashCode());
-        assertEquals(req5, req6);
-        assertEquals(req5.hashCode(), req6.hashCode());
-
-        assertNotEquals(req0, req2);
-        assertNotEquals(req0, req3);
-        assertNotEquals(req0, req4);
-        assertNotEquals(req0, req5);
-        assertNotEquals(req0, req6);
-        assertNotEquals(req1, req2);
-        assertNotEquals(req1, req3);
-        assertNotEquals(req1, req4);
-        assertNotEquals(req1, req5);
-        assertNotEquals(req1, req6);
-        assertNotEquals(req3, req5);
-        assertNotEquals(req3, req6);
-        assertNotEquals(req4, req5);
-        assertNotEquals(req4, req6);
+        for (int count = 0; count < 100; ++count) {
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(createInstance(), this::copyInstance, this::mutateInstance);
+        }
     }
 }

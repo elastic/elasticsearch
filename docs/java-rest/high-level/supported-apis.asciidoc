@@ -314,6 +314,7 @@ The Java High Level REST Client supports the following Security APIs:
 * <<java-rest-high-security-change-password>>
 * <<java-rest-high-security-get-certificates>>
 * <<java-rest-high-security-put-role-mapping>>
+* <<java-rest-high-security-delete-role-mapping>>
 
 include::security/put-user.asciidoc[]
 include::security/enable-user.asciidoc[]
@@ -321,6 +322,7 @@ include::security/disable-user.asciidoc[]
 include::security/change-password.asciidoc[]
 include::security/get-certificates.asciidoc[]
 include::security/put-role-mapping.asciidoc[]
+include::security/delete-role-mapping.asciidoc[]
 
 == Watcher APIs
 

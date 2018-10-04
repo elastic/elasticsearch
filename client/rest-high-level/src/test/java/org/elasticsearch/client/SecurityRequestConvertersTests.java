@@ -19,11 +19,13 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.ChangePasswordRequest;
+import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
@@ -155,4 +157,25 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(changePasswordRequest, request.getEntity());
     }
+
+    public void testDeleteRoleMapping() throws IOException {
+        final String roleMappingName = randomAlphaOfLengthBetween(4, 7);
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, String> expectedParams;
+        if (refreshPolicy != RefreshPolicy.NONE) {
+            expectedParams = Collections.singletonMap("refresh", refreshPolicy.getValue());
+        } else {
+            expectedParams = Collections.emptyMap();
+        }
+        final DeleteRoleMappingRequest deleteRoleMappingRequest = new DeleteRoleMappingRequest(roleMappingName, refreshPolicy);
+
+        final Request request = SecurityRequestConverters.deleteRoleMapping(deleteRoleMappingRequest);
+
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/role_mapping/" + roleMappingName, request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertNull(request.getEntity());
+    }
+
+
 }

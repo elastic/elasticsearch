@@ -83,7 +83,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     // These tests can be rewritten to use public methods once Coordinator is more feature-complete
     final Object mutex = new Object();
     final SetOnce<CoordinationState> coordinationState = new SetOnce<>(); // initialized on start-up (see doStart)
-    private volatile Optional<ClusterState> lastCommittedState = Optional.empty();
     private volatile ClusterState applierState; // the state that should be exposed to the cluster state applier
 
     private final PeerFinder peerFinder;
@@ -183,8 +182,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             logger.trace("handleApplyCommit: applying commit {}", applyCommitRequest);
 
             coordinationState.get().handleCommit(applyCommitRequest);
-            lastCommittedState = Optional.of(coordinationState.get().getLastAcceptedState());
-            applierState = mode == Mode.CANDIDATE ? clusterStateWithNoMasterBlock(lastCommittedState.get()) : lastCommittedState.get();
+            final ClusterState committedState = coordinationState.get().getLastAcceptedState();
+            applierState = mode == Mode.CANDIDATE ? clusterStateWithNoMasterBlock(committedState) : committedState;
             if (applyCommitRequest.getSourceNode().equals(getLocalNode())) {
                 // master node applies the committed state at the end of the publication process, not here.
                 applyListener.onResponse(null);
@@ -471,11 +470,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             assert peerFinder.getCurrentTerm() == getCurrentTerm();
             assert followersChecker.getFastResponseState().term == getCurrentTerm() : followersChecker.getFastResponseState();
             assert followersChecker.getFastResponseState().mode == getMode() : followersChecker.getFastResponseState();
-            if (lastCommittedState.isPresent()) {
-                assert applierState != null;
-                assert lastCommittedState.get().term() == applierState.term();
-                assert lastCommittedState.get().version() == applierState.version();
-            }
             assert (applierState.nodes().getMasterNodeId() == null) == applierState.blocks().hasGlobalBlock(NO_MASTER_BLOCK_WRITES.id());
             if (mode == Mode.LEADER) {
                 final boolean becomingMaster = getStateForMasterService().term() != getCurrentTerm();
@@ -564,8 +558,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
-    public Optional<ClusterState> getLastCommittedState() {
-        return lastCommittedState;
+    @Nullable
+    public ClusterState getApplierState() {
+        return applierState;
     }
 
     private List<DiscoveryNode> getDiscoveredNodes() {

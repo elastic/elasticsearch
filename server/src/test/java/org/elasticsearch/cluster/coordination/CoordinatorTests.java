@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.coordination.CoordinationStateTests.InMemoryPer
 import org.elasticsearch.cluster.coordination.CoordinatorTests.Cluster.ClusterNode;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
@@ -117,8 +116,8 @@ public class CoordinatorTests extends ESTestCase {
 
         for (final ClusterNode clusterNode : cluster.clusterNodes) {
             final String nodeId = clusterNode.getId();
-            final ClusterState committedState = clusterNode.coordinator.getLastCommittedState().get();
-            assertThat(nodeId + " has the committed value", value(committedState), is(finalValue));
+            final ClusterState applierState = clusterNode.coordinator.getApplierState();
+            assertThat(nodeId + " has the committed value", value(applierState), is(finalValue));
         }
     }
 
@@ -571,15 +570,13 @@ public class CoordinatorTests extends ESTestCase {
 
         private void updateCommittedStates() {
             for (final ClusterNode clusterNode : clusterNodes) {
-                Optional<ClusterState> committedState = clusterNode.coordinator.getLastCommittedState();
-                if (committedState.isPresent()) {
-                    ClusterState storedState = committedStatesByVersion.get(committedState.get().getVersion());
-                    if (storedState == null) {
-                        committedStatesByVersion.put(committedState.get().getVersion(), committedState.get());
-                    } else {
-                        assertEquals("expected " + committedState.get() + " but got " + storedState,
-                            value(committedState.get()), value(storedState));
-                    }
+                ClusterState applierState = clusterNode.coordinator.getApplierState();
+                ClusterState storedState = committedStatesByVersion.get(applierState.getVersion());
+                if (storedState == null) {
+                    committedStatesByVersion.put(applierState.getVersion(), applierState);
+                } else {
+                    assertEquals("expected " + applierState + " but got " + storedState,
+                        value(applierState), value(storedState));
                 }
             }
         }
@@ -634,12 +631,11 @@ public class CoordinatorTests extends ESTestCase {
         private void assertUniqueLeaderAndExpectedModes() {
             final ClusterNode leader = getAnyLeader();
             final long leaderTerm = leader.coordinator.getCurrentTerm();
-            Matcher<Optional<Long>> isPresentAndEqualToLeaderVersion
-                = equalTo(Optional.of(leader.coordinator.getLastAcceptedState().getVersion()));
+            Matcher<Long> isPresentAndEqualToLeaderVersion
+                = equalTo(leader.coordinator.getLastAcceptedState().getVersion());
 
-            assertThat(leader.coordinator.getLastCommittedState().map(ClusterState::getVersion), isPresentAndEqualToLeaderVersion);
-            assertThat(leader.coordinator.getLastCommittedState().map(ClusterState::getNodes).map(dn -> dn.nodeExists(leader.getId())),
-                equalTo(Optional.of(true)));
+            assertThat(leader.coordinator.getApplierState().getVersion(), isPresentAndEqualToLeaderVersion);
+            assertTrue(leader.coordinator.getApplierState().getNodes().nodeExists(leader.getId()));
 
             for (final ClusterNode clusterNode : clusterNodes) {
                 final String nodeId = clusterNode.getId();
@@ -655,20 +651,17 @@ public class CoordinatorTests extends ESTestCase {
                     // TODO assert that this node has actually voted for the leader in this term
                     // TODO assert that this node's accepted and committed states are the same as the leader's
 
-                    assertThat(nodeId + " is in the leader's committed state",
-                        leader.coordinator.getLastCommittedState().map(ClusterState::getNodes).map(dn -> dn.nodeExists(nodeId)),
-                        equalTo(Optional.of(true)));
+                    assertTrue(nodeId + " is in the leader's applier state",
+                        leader.coordinator.getApplierState().getNodes().nodeExists(nodeId));
                 } else {
                     assertThat(nodeId + " is a candidate", clusterNode.coordinator.getMode(), is(CANDIDATE));
-                    assertThat(nodeId + " is not in the leader's committed state",
-                        leader.coordinator.getLastCommittedState().map(ClusterState::getNodes).map(dn -> dn.nodeExists(nodeId)),
-                        equalTo(Optional.of(false)));
+                    assertFalse(nodeId + " is not in the leader's applier state",
+                        leader.coordinator.getApplierState().getNodes().nodeExists(nodeId));
                 }
             }
 
             int connectedNodeCount = Math.toIntExact(clusterNodes.stream().filter(n -> isConnectedPair(leader, n)).count());
-            assertThat(leader.coordinator.getLastCommittedState().map(ClusterState::getNodes).map(DiscoveryNodes::getSize),
-                equalTo(Optional.of(connectedNodeCount)));
+            assertThat(leader.coordinator.getApplierState().getNodes().getSize(), equalTo(connectedNodeCount));
         }
 
         ClusterNode getAnyLeader() {

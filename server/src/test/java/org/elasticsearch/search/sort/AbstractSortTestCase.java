@@ -84,7 +84,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         Map<String, Function<Map<String, Object>, Object>> scripts = Collections.singletonMap(MOCK_SCRIPT_NAME, p -> null);
-        ScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts);
+        ScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts, Collections.emptyMap());
         scriptService = new ScriptService(baseSettings, Collections.singletonMap(engine.getType(), engine), ScriptModule.CORE_CONTEXTS);
 
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());

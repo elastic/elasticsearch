@@ -53,6 +53,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -213,7 +214,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
                         mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
                         new XPackLicenseState(SECURITY_ENABLED_SETTINGS));
-        verify(fileRolesStore).addListener(any(Runnable.class)); // adds a listener in ctor
+        verify(fileRolesStore).addListener(any(Consumer.class)); // adds a listener in ctor
 
         final String roleName = randomAlphaOfLengthBetween(1, 10);
         PlainActionFuture<Role> future = new PlainActionFuture<>();

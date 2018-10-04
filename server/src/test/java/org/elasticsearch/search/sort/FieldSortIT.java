@@ -1462,7 +1462,7 @@ public class FieldSortIT extends ESIntegTestCase {
         assertThat(hits.length, is(2));
         assertThat(hits[0].getSortValues().length, is(1));
         assertThat(hits[1].getSortValues().length, is(1));
-        assertThat(hits[0].getSortValues()[0], is("cba"));
+        assertThat(hits[0].getSortValues()[0], is("bar"));
         assertThat(hits[1].getSortValues()[0], is("abc"));
 
         // We sort on nested sub field

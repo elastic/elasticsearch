@@ -44,7 +44,8 @@ public abstract class CandidateGenerator {
         return createCandidate(term, termStats, channelScore, false);
     }
 
-    public abstract Candidate createCandidate(BytesRef term, TermStats termStats, double channelScore, boolean userInput) throws IOException;
+    public abstract Candidate createCandidate(BytesRef term, TermStats termStats,
+                                                double channelScore, boolean userInput) throws IOException;
 
     public abstract CandidateSet drawCandidates(CandidateSet set) throws IOException;
 }

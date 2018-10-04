@@ -726,7 +726,8 @@ public class SSLDriver2 implements AutoCloseable {
             try {
                 engine.closeInbound();
             } catch (SSLException e) {
-                if (e.getMessage().startsWith("Inbound closed before receiving peer's close_notify") == false) {
+                if (e.getMessage().startsWith("Inbound closed before receiving peer's close_notify") == false &&
+                    e.getMessage().startsWith("closing inbound before receiving peer's close_notify") == false) {
                     throw e;
                 }
             }

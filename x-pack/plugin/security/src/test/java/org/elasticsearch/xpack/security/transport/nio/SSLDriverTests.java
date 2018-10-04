@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
@@ -171,11 +172,48 @@ public class SSLDriverTests extends ESTestCase {
         }
         // Prior to JDK11 we still need to send a close alert
         if (serverDriver.isClosed() == false) {
-            failedCloseAlert(serverDriver, clientDriver);
+            List<String> messages = Arrays.asList("Received fatal alert: handshake_failure", "Received close_notify during handshake");
+            failedCloseAlert(serverDriver, clientDriver, messages);
         }
     }
 
-    public void testCloseDuringHandshake() throws Exception {
+    public void testCloseDuringHandshakeJDK11() throws Exception {
+        assumeTrue("this tests ssl engine for JDK11", JavaVersion.current().compareTo(JavaVersion.parse("11")) >= 0);
+        SSLContext sslContext = getSSLContext();
+        SSLDriver2 clientDriver = getDriver(sslContext.createSSLEngine(), true);
+        SSLDriver2 serverDriver = getDriver(sslContext.createSSLEngine(), false);
+
+        clientDriver.init();
+        serverDriver.init();
+
+        assertTrue(clientDriver.needsNonApplicationWrite());
+        assertFalse(serverDriver.needsNonApplicationWrite());
+        sendHandshakeMessages(clientDriver, serverDriver);
+        sendHandshakeMessages(serverDriver, clientDriver);
+
+        sendData(clientDriver, serverDriver);
+
+        assertTrue(clientDriver.isHandshaking());
+        assertTrue(serverDriver.isHandshaking());
+
+        assertFalse(serverDriver.needsNonApplicationWrite());
+        serverDriver.initiateClose();
+        assertTrue(serverDriver.needsNonApplicationWrite());
+        assertFalse(serverDriver.isClosed());
+        sendNeededWrites(serverDriver, clientDriver);
+        // We are immediately fully closed due to SSLEngine inconsistency
+        assertTrue(serverDriver.isClosed());
+        // This should not throw exception yet as the SSLEngine will not UNWRAP data while attempting to WRAP
+        clientDriver.read(clientBuffer);
+        sendNeededWrites(clientDriver, serverDriver);
+        clientDriver.read(clientBuffer);
+        sendNeededWrites(clientDriver, serverDriver);
+        serverDriver.read(serverBuffer);
+        assertTrue(clientDriver.isClosed());
+    }
+
+    public void testCloseDuringHandshakePreJDK11() throws Exception {
+        assumeTrue("this tests ssl engine for pre-JDK11", JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0);
         SSLContext sslContext = getSSLContext();
         SSLDriver2 clientDriver = getDriver(sslContext.createSSLEngine(), true);
         SSLDriver2 serverDriver = getDriver(sslContext.createSSLEngine(), false);

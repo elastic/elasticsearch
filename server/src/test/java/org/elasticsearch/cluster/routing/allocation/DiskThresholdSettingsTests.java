@@ -203,4 +203,20 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertThat(cause, hasToString(containsString("low disk watermark [85%] more than high disk watermark [75%]")));
     }
 
+    public void testSequenceOfUpdates() {
+        Settings settings = Settings.EMPTY;
+
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        new DiskThresholdSettings(settings, clusterSettings); // this has the effect of registering the settings updater
+
+        settings = clusterSettings.applySettings(Settings.builder()
+            .put(settings)
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "99%")
+            .build());
+        settings = clusterSettings.applySettings(Settings.builder()
+            .put(settings)
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "97%")
+            .build());
+    }
+
 }

@@ -30,11 +30,14 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -56,9 +59,15 @@ public class JoinHelper extends AbstractComponent {
     public static final String JOIN_ACTION_NAME = "internal:cluster/coordination/join";
     public static final String START_JOIN_ACTION_NAME = "internal:cluster/coordination/start_join";
 
+    // the timeout for each join attempt
+    public static final Setting<TimeValue> JOIN_TIMEOUT_SETTING =
+        Setting.timeSetting("cluster.join.timeout",
+            TimeValue.timeValueMillis(60000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+
     private final MasterService masterService;
     private final TransportService transportService;
     private final JoinTaskExecutor joinTaskExecutor;
+    private final TimeValue joinTimeout;
 
     final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = ConcurrentCollections.newConcurrentSet();
 
@@ -68,6 +77,7 @@ public class JoinHelper extends AbstractComponent {
         super(settings);
         this.masterService = masterService;
         this.transportService = transportService;
+        this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
         this.joinTaskExecutor = new JoinTaskExecutor(allocationService, logger) {
 
             @Override
@@ -130,29 +140,31 @@ public class JoinHelper extends AbstractComponent {
         final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
         if (pendingOutgoingJoins.add(dedupKey)) {
             logger.debug("attempting to join {} with {}", destination, joinRequest);
-            transportService.sendRequest(destination, JOIN_ACTION_NAME, joinRequest, new TransportResponseHandler<Empty>() {
-                @Override
-                public Empty read(StreamInput in) {
-                    return Empty.INSTANCE;
-                }
+            transportService.sendRequest(destination, JOIN_ACTION_NAME, joinRequest,
+                TransportRequestOptions.builder().withTimeout(joinTimeout).build(),
+                new TransportResponseHandler<Empty>() {
+                    @Override
+                    public Empty read(StreamInput in) {
+                        return Empty.INSTANCE;
+                    }
 
-                @Override
-                public void handleResponse(Empty response) {
-                    pendingOutgoingJoins.remove(dedupKey);
-                    logger.debug("successfully joined {} with {}", destination, joinRequest);
-                }
+                    @Override
+                    public void handleResponse(Empty response) {
+                        pendingOutgoingJoins.remove(dedupKey);
+                        logger.debug("successfully joined {} with {}", destination, joinRequest);
+                    }
 
-                @Override
-                public void handleException(TransportException exp) {
-                    pendingOutgoingJoins.remove(dedupKey);
-                    logger.info(() -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest), exp);
-                }
+                    @Override
+                    public void handleException(TransportException exp) {
+                        pendingOutgoingJoins.remove(dedupKey);
+                        logger.info(() -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest), exp);
+                    }
 
-                @Override
-                public String executor() {
-                    return Names.SAME;
-                }
-            });
+                    @Override
+                    public String executor() {
+                        return Names.SAME;
+                    }
+                });
         } else {
             logger.debug("already attempting to join {} with request {}, not sending request", destination, joinRequest);
         }

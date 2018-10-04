@@ -39,6 +39,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -184,6 +185,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         synchronized (mutex) {
             final DiscoveryNode sourceNode = publishRequest.getAcceptedState().nodes().getMasterNode();
             logger.trace("handlePublishRequest: handling [{}] from [{}]", publishRequest, sourceNode);
+
+            if (sourceNode.equals(getLocalNode()) && mode != Mode.LEADER) {
+                // Rare case in which we stood down as leader between starting this publication and receiving it ourselves. The publication
+                // is already failed so there is no point in proceeding.
+                throw new CoordinationStateRejectedException("no longer leading this publication's term: " + publishRequest);
+            }
+
             ensureTermAtLeast(sourceNode, publishRequest.getAcceptedState().term());
             final PublishResponse publishResponse = coordinationState.get().handlePublishRequest(publishRequest);
 
@@ -438,8 +446,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         = currentPublication.map(Publication::publishedState).orElse(coordinationState.get().getLastAcceptedState());
                     lastPublishedState.nodes().forEach(lastPublishedNodes::add);
                     assert lastPublishedNodes.remove(getLocalNode());
+                    assert lastPublishedNodes.equals(knownFollowers) : lastPublishedNodes + " != " + knownFollowers
+                        + " [becomingMaster=" + becomingMaster + ", publicationInProgress=" + publicationInProgress() + "]";
+                    // TODO instead assert that knownFollowers is updated appropriately at the end of each publication
                 }
-                assert lastPublishedNodes.equals(knownFollowers) : lastPublishedNodes + " != " + knownFollowers;
             } else if (mode == Mode.FOLLOWER) {
                 assert coordinationState.get().electionWon() == false : getLocalNode() + " is FOLLOWER so electionWon() should be false";
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);
@@ -604,11 +614,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                             @Override
                             public void onResponse(Void ignore) {
                                 assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-                                assert coordinationState.get().getLastAcceptedTerm() == publishRequest.getAcceptedState().term()
-                                    && coordinationState.get().getLastAcceptedVersion() == publishRequest.getAcceptedState().version()
-                                    : "onPossibleCompletion: term or version mismatch when publishing [" + this
-                                    + "]: current version is now [" + coordinationState.get().getLastAcceptedVersion()
-                                    + "] in term [" + coordinationState.get().getLastAcceptedTerm() + "]";
                                 assert committed;
 
                                 // TODO: send to applier
@@ -628,7 +633,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                 ackListener.onNodeAck(getLocalNode(), exception); // other nodes have acked, but not the master.
                                 publishListener.onFailure(exception);
                             }
-                        }, transportService.getThreadPool().generic());
+                        }, EsExecutors.newDirectExecutorService());
                     }
 
                     @Override

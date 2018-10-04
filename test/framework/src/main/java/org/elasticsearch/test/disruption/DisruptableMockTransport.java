@@ -115,7 +115,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
     protected String getRequestDescription(long requestId, String action, DiscoveryNode destination) {
         return new ParameterizedMessage("[{}][{}] from {} to {}",
-            action, requestId, getLocalNode(), destination).getFormattedMessage();
+            requestId, action, getLocalNode(), destination).getFormattedMessage();
     }
 
     protected void onBlackholedDuringSend(long requestId, String action, DiscoveryNode destination) {

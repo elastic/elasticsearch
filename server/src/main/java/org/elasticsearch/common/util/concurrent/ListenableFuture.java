@@ -82,7 +82,7 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
 
     private void notifyListener(ActionListener<V> listener, ExecutorService executorService) {
         try {
-            executorService.submit(new Runnable() {
+            executorService.execute(new Runnable() {
                 @Override
                 public void run() {
                     try {

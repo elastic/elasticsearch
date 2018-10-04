@@ -145,7 +145,7 @@ public class CompositeRolesStore extends AbstractComponent {
                         logger.trace("Building role from descriptors [{}] for names [{}]", effectiveDescriptors, roleNames);
                         buildRoleFromDescriptors(effectiveDescriptors, fieldPermissionsCache, privilegeStore, ActionListener.wrap(role -> {
                             if (role != null) {
-                                if (rolesRetrievalResult.hadFailures() == false) {
+                                if (rolesRetrievalResult.isFailure() == false) {
                                     try (ReleasableLock ignored = readLock.acquire()) {
                                         /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold
                                          * the write lock (fetching stats for instance - which is kinda overkill?) but since we fetching
@@ -215,7 +215,7 @@ public class CompositeRolesStore extends AbstractComponent {
                 }
             } else {
                 logger.warn("role retrieval failed from the native roles store", result.getFailure());
-                rolesResult.setUnsuccessful();
+                rolesResult.setFailure();
                 callCustomRoleProvidersIfEnabled(rolesResult, roleNames, listener);
             }
         }, listener::onFailure));
@@ -238,7 +238,7 @@ public class CompositeRolesStore extends AbstractComponent {
                         remainingRoleNames.remove(descriptor.getName());
                     }
                 } else {
-                    rolesResult.setUnsuccessful();
+                    rolesResult.setFailure();
                 }
                 return remainingRoleNames.isEmpty() == false;
             };
@@ -470,7 +470,7 @@ public class CompositeRolesStore extends AbstractComponent {
 
         private final Set<RoleDescriptor> roleDescriptors = new HashSet<>();
         private Set<String> missingRoles = Collections.emptySet();
-        private boolean allSuccessful = true;
+        private boolean failure = false;
 
         private void addDescriptors(Set<RoleDescriptor> descriptors) {
             roleDescriptors.addAll(descriptors);
@@ -480,12 +480,12 @@ public class CompositeRolesStore extends AbstractComponent {
             return roleDescriptors;
         }
 
-        private void setUnsuccessful() {
-            allSuccessful = false;
+        private void setFailure() {
+            failure = true;
         }
 
-        private boolean hadFailures() {
-            return allSuccessful == false;
+        private boolean isFailure() {
+            return failure;
         }
 
         private void setMissingRoles(Set<String> missingRoles) {

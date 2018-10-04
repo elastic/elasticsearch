@@ -379,7 +379,7 @@ public class CoordinatorTests extends ESTestCase {
     }
 
     public void testAckListenerReceivesNacksFromFollowerInHigherTerm() {
-        // TODO: needs auto-term bumping for cluster to form again
+        // TODO: needs proper term bumping
 //        final Cluster cluster = new Cluster(3);
 //        cluster.runRandomly();
 //        cluster.stabilise();
@@ -389,7 +389,7 @@ public class CoordinatorTests extends ESTestCase {
 //
 //        follower0.coordinator.joinLeaderInTerm(new StartJoinRequest(follower0.localNode, follower0.coordinator.getCurrentTerm() + 1));
 //        AckCollector ackCollector = leader.submitValue(randomLong());
-//        cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, 0L);
+//        cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
 //        assertTrue("expected ack from " + leader, ackCollector.hasAckedSuccessfully(leader));
 //        assertTrue("expected nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));
 //        assertTrue("expected ack from " + follower1, ackCollector.hasAckedSuccessfully(follower1));
@@ -593,6 +593,23 @@ public class CoordinatorTests extends ESTestCase {
             deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
 
             runUntil(stabilisationEndTime);
+
+            // TODO remove when term-bumping is enabled
+            final long maxTerm = clusterNodes.stream().map(n -> n.coordinator.getCurrentTerm()).max(Long::compare).orElse(0L);
+            final long maxLeaderTerm = clusterNodes.stream().filter(n -> n.coordinator.getMode() == Coordinator.Mode.LEADER)
+                .map(n -> n.coordinator.getCurrentTerm()).max(Long::compare).orElse(0L);
+
+            if (maxLeaderTerm < maxTerm) {
+                logger.info("--> forcing a term bump, maxTerm={}, maxLeaderTerm={}", maxTerm, maxLeaderTerm);
+                final ClusterNode leader = getAnyLeader();
+                synchronized (leader.coordinator.mutex) {
+                    leader.coordinator.ensureTermAtLeast(leader.localNode, maxTerm + 1);
+                }
+                leader.coordinator.startElection();
+                final long termBumpEndTime = stabilisationEndTime + DEFAULT_ELECTION_DELAY;
+                logger.info("--> re-stabilising after term bump until [{}ms]", termBumpEndTime);
+                runUntil(termBumpEndTime);
+            }
 
             assertUniqueLeaderAndExpectedModes();
         }

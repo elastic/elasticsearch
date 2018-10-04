@@ -70,6 +70,6 @@ public class DatafeedStatsTests  extends AbstractXContentTestCase<DatafeedStats>
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.equals("attributes");
+        return field -> field.equals("node.attributes");
     }
 }

@@ -285,7 +285,7 @@ public class NodeStatsTests extends ESTestCase {
                         List<Tuple<String, IngestStats.Stats>> deserializedProcessorStats =
                             deserializedIngestStats.getProcessorStatsForPipeline(pipelineName);
                         Iterator<Tuple<String, IngestStats.Stats>> it = deserializedProcessorStats.iterator();
-                        for(Tuple<String, IngestStats.Stats> processorTuple : processorStats){
+                        for (Tuple<String, IngestStats.Stats> processorTuple : processorStats) {
                             Tuple<String, IngestStats.Stats> deserializedTuple = it.next();
                             assertEquals(processorTuple.v1(), deserializedTuple.v1());
                             IngestStats.Stats pStats = processorTuple.v2();

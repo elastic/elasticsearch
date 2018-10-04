@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.elasticsearch.script.IngestConditionalScript;
 import org.elasticsearch.script.Script;
@@ -47,8 +46,8 @@ public class ConditionalProcessor extends AbstractProcessor {
     private final IngestMetric metric;
     private final Clock clock;
 
-   ConditionalProcessor(String tag, Script script, ScriptService scriptService, Processor processor) {
-      this(tag, script, scriptService, processor, Clock.systemUTC());
+    ConditionalProcessor(String tag, Script script, ScriptService scriptService, Processor processor) {
+        this(tag, script, scriptService, processor, Clock.systemUTC());
     }
 
     ConditionalProcessor(String tag, Script script, ScriptService scriptService, Processor processor, Clock clock) {

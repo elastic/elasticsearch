@@ -80,7 +80,7 @@ public class IngestStats implements Writeable, ToXContentFragment {
             pipelineStats.writeTo(out);
             List<Tuple<String, Stats>> processorStats = entry.getValue().v2();
             out.writeVInt(processorStats.size());
-            for(Tuple<String, Stats> processorTuple : processorStats){
+            for (Tuple<String, Stats> processorTuple : processorStats) {
                 String processorName = processorTuple.v1();
                 Stats processorStat = processorTuple.v2();
                 out.writeString(processorName);

@@ -64,7 +64,7 @@ public class CompoundProcessor implements Processor {
         this.processors = processors;
         this.onFailureProcessors = onFailureProcessors;
         this.clock = clock;
-        processorsWithMetrics = new ArrayList<>(processors.size());
+        this.processorsWithMetrics = new ArrayList<>(processors.size());
         processors.forEach(p -> processorsWithMetrics.add(new Tuple<>(p, new IngestMetric())));
     }
 

@@ -270,7 +270,7 @@ public class IngestService implements ClusterStateApplier {
                     //Best attempt to populate new processor metrics using a parallel array of the old metrics. This is not ideal since
                     //the per processor metrics may get reset when the arrays don't match. However, to get to an ideal model, unique and
                     //consistent id's per processor and/or semantic equals for each processor will be needed.
-                    if(newPerProcessMetrics.size() == oldPerProcessMetrics.size()) {
+                    if (newPerProcessMetrics.size() == oldPerProcessMetrics.size()) {
                         Iterator<Tuple<Processor, IngestMetric>> oldMetricsIterator = oldPerProcessMetrics.iterator();
                         for (Tuple<Processor, IngestMetric> compositeMetric : newPerProcessMetrics) {
                             String type = compositeMetric.v1().getType();

@@ -225,9 +225,9 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
             ActivateWatchResponse response = client.watcher().activateWatch(request, RequestOptions.DEFAULT);
             //end::activate-watch-request
 
-            //tag::activate-watch-request
+            //tag::activate-watch-response
             WatchStatus watchStatus = response.getStatus(); // <1>
-            //end::activate-watch-request
+            //end::activate-watch-response
 
             assertTrue(watchStatus.state().isActive());
         }

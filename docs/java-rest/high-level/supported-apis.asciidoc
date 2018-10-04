@@ -238,6 +238,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-preview-datafeed>>
 * <<{upid}-start-datafeed>>
 * <<{upid}-stop-datafeed>>
+* <<{upid}-get-datafeed-stats>>
 * <<{upid}-forecast-job>>
 * <<{upid}-delete-forecast>>
 * <<{upid}-get-buckets>>
@@ -263,6 +264,7 @@ include::ml/delete-datafeed.asciidoc[]
 include::ml/preview-datafeed.asciidoc[]
 include::ml/start-datafeed.asciidoc[]
 include::ml/stop-datafeed.asciidoc[]
+include::ml/get-datafeed-stats.asciidoc[]
 include::ml/get-job-stats.asciidoc[]
 include::ml/forecast-job.asciidoc[]
 include::ml/delete-forecast.asciidoc[]

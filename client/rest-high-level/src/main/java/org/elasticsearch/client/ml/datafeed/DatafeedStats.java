@@ -129,7 +129,7 @@ public class DatafeedStats implements ToXContentObject {
         }
         DatafeedStats other = (DatafeedStats) obj;
         return Objects.equals(datafeedId, other.datafeedId) &&
-            Objects.equals(this.datafeedState.toString(), other.datafeedState.toString()) &&
+            Objects.equals(this.datafeedState, other.datafeedState) &&
             Objects.equals(this.node, other.node) &&
             Objects.equals(this.assignmentExplanation, other.assignmentExplanation);
     }

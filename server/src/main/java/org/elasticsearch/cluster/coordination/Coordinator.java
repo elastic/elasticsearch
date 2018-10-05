@@ -260,8 +260,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         // do check for this after the publication completes)
     }
 
-    // TODO: make private again after removing term-bump workaround
-    void startElection() {
+    private void startElection() {
         synchronized (mutex) {
             // The preVoteCollector is only active while we are candidate, but it does not call this method with synchronisation, so we have
             // to check our mode again here.
@@ -273,8 +272,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
-    // TODO: make private again after removing term-bump workaround
-    Optional<Join> ensureTermAtLeast(DiscoveryNode sourceNode, long targetTerm) {
+    private Optional<Join> ensureTermAtLeast(DiscoveryNode sourceNode, long targetTerm) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         if (getCurrentTerm() < targetTerm) {
             return Optional.of(joinLeaderInTerm(new StartJoinRequest(sourceNode, targetTerm)));

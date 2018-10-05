@@ -599,25 +599,6 @@ public class CoordinatorTests extends ESTestCase {
             assertThat("stabilisation requires default delay variability (and proper cleanup of raised variability)",
                 deterministicTaskQueue.getExecutionDelayVariabilityMillis(), lessThanOrEqualTo(DEFAULT_DELAY_VARIABILITY));
             runFor(stabilisationDurationMillis, "stabilising");
-
-            // TODO remove when term-bumping is enabled
-            final long maxTerm = clusterNodes.stream().map(n -> n.coordinator.getCurrentTerm()).max(Long::compare).orElse(0L);
-            final long maxLeaderTerm = clusterNodes.stream().filter(n -> n.coordinator.getMode() == Coordinator.Mode.LEADER)
-                .map(n -> n.coordinator.getCurrentTerm()).max(Long::compare).orElse(0L);
-
-            if (maxLeaderTerm < maxTerm) {
-                logger.info("--> forcing a term bump, maxTerm={}, maxLeaderTerm={}", maxTerm, maxLeaderTerm);
-                final ClusterNode leader = getAnyLeader();
-                onNode(leader.getLocalNode(), () -> {
-                    synchronized (leader.coordinator.mutex) {
-                        leader.coordinator.ensureTermAtLeast(leader.localNode, maxTerm + 1);
-                    }
-                    leader.coordinator.startElection();
-                }).run();
-                runFor(DEFAULT_ELECTION_DELAY, "re-stabilising after term bump");
-            }
-            logger.info("--> end of stabilisation");
-
             assertUniqueLeaderAndExpectedModes();
         }
 

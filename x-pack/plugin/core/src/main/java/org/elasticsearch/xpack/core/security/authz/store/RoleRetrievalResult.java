@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.security.authz.store;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.util.Objects;
@@ -21,9 +22,11 @@ import java.util.Set;
 public final class RoleRetrievalResult {
 
     private final Set<RoleDescriptor> descriptors;
+
+    @Nullable
     private final Exception failure;
 
-    private RoleRetrievalResult(Set<RoleDescriptor> descriptors, Exception failure) {
+    private RoleRetrievalResult(Set<RoleDescriptor> descriptors, @Nullable Exception failure) {
         if (descriptors != null && failure != null) {
             throw new IllegalArgumentException("either descriptors or failure must be null");
         }
@@ -41,6 +44,7 @@ public final class RoleRetrievalResult {
     /**
      * @return the failure or {@code null} if retrieval succeeded
      */
+    @Nullable
     public Exception getFailure() {
         return failure;
     }

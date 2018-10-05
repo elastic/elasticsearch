@@ -222,8 +222,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             ensureTermAtLeast(sourceNode, publishRequest.getAcceptedState().term());
             final PublishResponse publishResponse = coordinationState.get().handlePublishRequest(publishRequest);
 
-            if (sourceNode.equals(getLocalNode()) == false) {
-                becomeFollower("handlePublishRequest", sourceNode);
+            if (sourceNode.equals(getLocalNode())) {
+                preVoteCollector.update(getPreVoteResponse(), getLocalNode());
+            } else {
+                becomeFollower("handlePublishRequest", sourceNode); // updates preVoteCollector
             }
 
             return new PublishWithJoinResponse(publishResponse,

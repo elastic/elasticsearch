@@ -155,11 +155,7 @@ public class PreVoteCollector extends AbstractComponent {
 
                     @Override
                     public void handleException(TransportException exp) {
-                        if (exp.getRootCause() instanceof CoordinationStateRejectedException) {
-                            logger.debug("{} failed: {}", this, exp.getRootCause().getMessage());
-                        } else {
-                            logger.debug(new ParameterizedMessage("{} failed", this), exp);
-                        }
+                        logger.debug("{} failed: {}", this, exp.getRootCause().getMessage());
                     }
 
                     @Override

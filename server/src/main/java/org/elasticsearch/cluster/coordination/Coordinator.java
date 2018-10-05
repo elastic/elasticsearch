@@ -832,12 +832,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
                     assert committed;
 
-                    receivedJoins.forEach(join -> {
-                        if (join.getTerm() == getCurrentTerm() && hasJoinVoteFrom(join.getSourceNode()) == false) {
-                            logger.trace("handling {}", join);
-                            handleJoin(join);
-                        }
-                    });
+                    receivedJoins.forEach(CoordinatorPublication.this::handleAssociatedJoin);
                     assert receivedJoinsProcessed == false;
                     receivedJoinsProcessed = true;
 
@@ -880,6 +875,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             }, EsExecutors.newDirectExecutorService());
         }
 
+        private void handleAssociatedJoin(Join join) {
+            if (join.getTerm() == getCurrentTerm() && hasJoinVoteFrom(join.getSourceNode()) == false) {
+                logger.trace("handling {}", join);
+                handleJoin(join);
+            }
+        }
+
         @Override
         protected boolean isPublishQuorum(CoordinationState.VoteCollection votes) {
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
@@ -900,7 +902,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             if (receivedJoinsProcessed) {
                 // a late response may arrive after the state has been locally applied, meaning that receivedJoins has already been
                 // processed, so we have to handle this late response here.
-                handleJoin(join);
+                handleAssociatedJoin(join);
             } else {
                 receivedJoins.add(join);
             }

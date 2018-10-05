@@ -765,6 +765,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         private final AckListener ackListener;
         private final ActionListener<Void> publishListener;
 
+        // We may not have accepted our own state before receiving a join from another node, causing its join to be rejected (we cannot
+        // safely accept a join whose last-accepted term/version is ahead of ours), so store them up and process them at the end.
+        // TODO this is unpleasant, is there a better way?
+        private final List<Join> receivedJoins = new ArrayList<>();
+
         CoordinatorPublication(PublishRequest publishRequest, ListenableFuture<Void> localNodeAckEvent, AckListener ackListener,
                                ActionListener<Void> publishListener) {
             super(Coordinator.this.settings, publishRequest,
@@ -817,6 +822,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         @Override
         protected void onCompletion(boolean committed) {
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+
+            receivedJoins.forEach(join -> {
+                if (join.getTerm() == getCurrentTerm() && hasJoinVoteFrom(join.getSourceNode()) == false) {
+                    logger.trace("handling {}", join);
+                    handleJoin(join);
+                }
+            });
 
             localNodeAckEvent.addListener(new ActionListener<Void>() {
                 @Override
@@ -879,9 +891,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         @Override
         protected void onJoin(Join join) {
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-            if (join.getTerm() == getCurrentTerm()) {
-                handleJoin(join);
-            }
+            receivedJoins.add(join);
         }
 
         @Override

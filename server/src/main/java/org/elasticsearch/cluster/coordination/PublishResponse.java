@@ -30,8 +30,8 @@ import java.io.IOException;
  */
 public class PublishResponse implements Writeable {
 
-    protected final long term;
-    protected final long version;
+    private final long term;
+    private final long version;
 
     public PublishResponse(long term, long version) {
         assert term >= 0;

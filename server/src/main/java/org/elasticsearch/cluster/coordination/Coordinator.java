@@ -871,6 +871,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                                                      PublishResponse publishResponse) {
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
             assert getCurrentTerm() >= publishResponse.getTerm();
+
+            if (hasJoinVoteFrom(sourceNode) == false) {
+                // process the join in the publish response, if present; if not then the node voted for someone else and we need to bump
+                // term by 1
+                throw new AssertionError("TODO");
+            }
+
             return coordinationState.get().handlePublishResponse(sourceNode, publishResponse);
         }
 

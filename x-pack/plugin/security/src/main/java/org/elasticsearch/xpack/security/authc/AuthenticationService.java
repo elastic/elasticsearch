@@ -9,6 +9,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -294,9 +295,9 @@ public class AuthenticationService extends AbstractComponent {
                     }
                 };
                 final IteratingActionListener<User, Realm> authenticatingListener =
-                        new IteratingActionListener<>(ActionListener.wrap(
-                                (user) -> consumeUser(user, messages),
-                                (e) -> listener.onFailure(request.exceptionProcessingRequest(e, token))),
+                    new IteratingActionListener<>(ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(
+                        (user) -> consumeUser(user, messages),
+                        (e) -> listener.onFailure(request.exceptionProcessingRequest(e, token))), threadContext),
                         realmAuthenticatingConsumer, realmsList, threadContext);
                 try {
                     authenticatingListener.run();

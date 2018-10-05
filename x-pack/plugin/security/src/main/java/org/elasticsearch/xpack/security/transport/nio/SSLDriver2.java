@@ -431,13 +431,6 @@ public class SSLDriver2 implements AutoCloseable {
             return "HANDSHAKE";
         }
 
-        private void runTasks() {
-            Runnable delegatedTask;
-            while ((delegatedTask = engine.getDelegatedTask()) != null) {
-                delegatedTask.run();
-            }
-        }
-
         private void maybeFinishHandshake() {
             if (engine.isOutboundDone() || engine.isInboundDone()) {
                 // If the engine is partially closed, immediate transition to close mode.
@@ -521,125 +514,6 @@ public class SSLDriver2 implements AutoCloseable {
         }
     }
 
-    private class NonApplicationMode implements Mode {
-
-        private SSLEngineResult.HandshakeStatus handshakeStatus;
-
-        private void executeNonApplication() throws SSLException {
-            boolean continueNonApplication = true;
-            while (continueNonApplication) {
-                switch (handshakeStatus) {
-                    case NEED_UNWRAP:
-                        // We UNWRAP as much as possible immediately after a read. Do not need to do it here.
-                        continueNonApplication = false;
-                        break;
-                    case NEED_WRAP:
-                        if (hasFlushPending() == false) {
-                            handshakeStatus = wrap(EMPTY_BUFFER_ARRAY).getHandshakeStatus();
-                        }
-                        // If we need NEED_TASK we should run the tasks immediately
-                        if (handshakeStatus != SSLEngineResult.HandshakeStatus.NEED_TASK) {
-                            continueNonApplication = false;
-                        }
-                        break;
-                    case NEED_TASK:
-                        runTasks();
-                        handshakeStatus = engine.getHandshakeStatus();
-                        break;
-                    case NOT_HANDSHAKING:
-                        maybeFinishHandshake();
-                        continueNonApplication = false;
-                        break;
-                    case FINISHED:
-                        maybeFinishHandshake();
-                        continueNonApplication = false;
-                        break;
-                }
-            }
-        }
-
-        private void runTasks() {
-            Runnable delegatedTask;
-            while ((delegatedTask = engine.getDelegatedTask()) != null) {
-                delegatedTask.run();
-            }
-        }
-
-        private void maybeFinishHandshake() {
-            if (engine.isOutboundDone() || engine.isInboundDone()) {
-                // If the engine is partially closed, immediate transition to close mode.
-                if (currentMode.isHandshake()) {
-                    currentMode = new NonApplicationMode();
-                } else {
-                    String message = "Expected to be in handshaking mode. Instead in non-handshaking mode: " + currentMode;
-                    throw new AssertionError(message);
-                }
-            } else if (hasFlushPending() == false) {
-                // We only acknowledge that we are done handshaking if there are no bytes that need to be written
-                if (currentMode.isHandshake()) {
-                    currentMode = new ApplicationMode();
-                } else {
-                    String message = "Attempted to transition to application mode from non-handshaking mode: " + currentMode;
-                    throw new AssertionError(message);
-                }
-            }
-        }
-
-        @Override
-        public void read(InboundChannelBuffer buffer) throws SSLException {
-            ensureApplicationBufferSize(buffer);
-            boolean continueUnwrap = true;
-            while (continueUnwrap && networkReadBuffer.position() > 0) {
-                networkReadBuffer.flip();
-                try {
-                    SSLEngineResult result = unwrap(buffer);
-                    handshakeStatus = result.getHandshakeStatus();
-                    executeNonApplication();
-                    // If we are done handshaking we should exit the handshake read
-                    continueUnwrap = result.bytesConsumed() > 0 && currentMode.isHandshake();
-                } catch (SSLException e) {
-                    closingInternal();
-                    throw e;
-                }
-            }
-        }
-
-        @Override
-        public int write(ByteBuffer[] buffers) throws SSLException {
-            return 0;
-        }
-
-        @Override
-        public boolean needsNonApplicationWrite() {
-            return false;
-        }
-
-        @Override
-        public boolean isHandshake() {
-            return false;
-        }
-
-        @Override
-        public boolean isApplication() {
-            return false;
-        }
-
-        @Override
-        public boolean isClose() {
-            return false;
-        }
-
-        @Override
-        public String modeName() {
-            return "NON_APPLICATION";
-        }
-
-        @Override
-        public boolean isNonApplication() {
-            return true;
-        }
-    }
-
     private class CloseMode implements Mode {
 
         private boolean needToSendClose = true;
@@ -661,7 +535,6 @@ public class SSLDriver2 implements AutoCloseable {
             } else {
                 engine.closeOutbound();
             }
-
         }
 
         @Override
@@ -671,7 +544,10 @@ public class SSLDriver2 implements AutoCloseable {
             while (continueUnwrap && networkReadBuffer.position() > 0) {
                 networkReadBuffer.flip();
                 SSLEngineResult result = unwrap(buffer);
-                continueUnwrap = result.bytesProduced() > 0;
+                if (result.getHandshakeStatus() == SSLEngineResult.HandshakeStatus.NEED_TASK) {
+                    runTasks();
+                }
+                continueUnwrap = result.bytesProduced() > 0 || result.bytesConsumed() > 0;
             }
             if (engine.isInboundDone()) {
                 needToReceiveClose = false;
@@ -731,6 +607,13 @@ public class SSLDriver2 implements AutoCloseable {
                     throw e;
                 }
             }
+        }
+    }
+
+    private void runTasks() {
+        Runnable delegatedTask;
+        while ((delegatedTask = engine.getDelegatedTask()) != null) {
+            delegatedTask.run();
         }
     }
 }

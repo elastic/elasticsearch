@@ -102,9 +102,10 @@ public class PreVoteCollector extends AbstractComponent {
         assert state != null : "received pre-vote request before fully initialised";
 
         final DiscoveryNode leader = state.v1();
+        final PreVoteResponse response = state.v2();
 
         if (leader == null) {
-            return state.v2();
+            return response;
         }
 
         if (leader.equals(request.getSourceNode())) {
@@ -113,7 +114,7 @@ public class PreVoteCollector extends AbstractComponent {
             // major drawback in offering a join to our old leader. The advantage of this is that it makes it slightly more likely that the
             // leader won't change, and also that its re-election will happen more quickly than if it had to wait for a quorum of followers
             // to also detect its failure.
-            return state.v2();
+            return response;
         }
 
         throw new CoordinationStateRejectedException("rejecting " + request + " as there is already a leader");

@@ -240,7 +240,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         simulateResponse.set(true);
         task.coordinateReads();
 
-        // NUmber of requests is equal to initial request + retried attempts
+        // number of requests is equal to initial request + retried attempts
         assertThat(shardChangesRequests.size(), equalTo(2));
         for (long[] shardChangesRequest : shardChangesRequests) {
             assertThat(shardChangesRequest[0], equalTo(0L));

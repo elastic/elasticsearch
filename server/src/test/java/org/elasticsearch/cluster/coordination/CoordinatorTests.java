@@ -658,7 +658,7 @@ public class CoordinatorTests extends ESTestCase {
                 if (isConnectedPair(leader, clusterNode)) {
                     assertThat(nodeId + " is a follower", clusterNode.coordinator.getMode(), is(FOLLOWER));
                     assertThat(nodeId + " has the same term as the leader", clusterNode.coordinator.getCurrentTerm(), is(leaderTerm));
-                    // TODO assert that this node has actually voted for the leader in this term
+                    assertTrue(nodeId + " has voted for the leader", leader.coordinator.hasJoinVoteFrom(clusterNode.getLocalNode()));
                     // TODO assert that this node's accepted and committed states are the same as the leader's
 
                     assertTrue(nodeId + " is in the leader's applied state",

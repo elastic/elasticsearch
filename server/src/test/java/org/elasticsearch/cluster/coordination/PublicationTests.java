@@ -101,6 +101,7 @@ public class PublicationTests extends ESTestCase {
         Map<DiscoveryNode, ActionListener<PublishWithJoinResponse>> pendingPublications = new HashMap<>();
         Map<DiscoveryNode, ActionListener<TransportResponse.Empty>> pendingCommits = new HashMap<>();
         Map<DiscoveryNode, Join> joins = new HashMap<>();
+        Set<DiscoveryNode> missingJoins = new HashSet<>();
 
         MockPublication(Settings settings, PublishRequest publishRequest, Discovery.AckListener ackListener,
                                LongSupplier currentTimeSupplier) {
@@ -118,6 +119,11 @@ public class PublicationTests extends ESTestCase {
         @Override
         protected void onJoin(Join join) {
             assertNull(joins.put(join.getSourceNode(), join));
+        }
+
+        @Override
+        protected void onMissingJoin(DiscoveryNode discoveryNode) {
+            assertTrue(missingJoins.add(discoveryNode));
         }
 
         @Override
@@ -182,14 +188,16 @@ public class PublicationTests extends ESTestCase {
             assertNotEquals(processedNode1PublishResponse.get(), publication.pendingCommits.isEmpty());
             assertFalse(publication.joins.containsKey(e.getKey()));
             PublishWithJoinResponse publishWithJoinResponse = new PublishWithJoinResponse(publishResponse,
-                randomBoolean() ? Optional.empty() : Optional.of(new Join(e.getKey(), randomFrom(n1, n2, n3), randomNonNegativeLong(),
+                randomBoolean() ? Optional.empty() : Optional.of(new Join(e.getKey(), randomFrom(n1, n2, n3), publishResponse.getTerm(),
                     randomNonNegativeLong(), randomNonNegativeLong())));
             e.getValue().onResponse(publishWithJoinResponse);
             if (publishWithJoinResponse.getJoin().isPresent()) {
                 assertTrue(publication.joins.containsKey(e.getKey()));
+                assertFalse(publication.missingJoins.contains(e.getKey()));
                 assertEquals(publishWithJoinResponse.getJoin().get(), publication.joins.get(e.getKey()));
             } else {
                 assertFalse(publication.joins.containsKey(e.getKey()));
+                assertTrue(publication.missingJoins.contains(e.getKey()));
             }
             if (e.getKey().equals(n1)) {
                 processedNode1PublishResponse.set(true);

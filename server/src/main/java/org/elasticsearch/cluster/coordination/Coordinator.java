@@ -887,7 +887,17 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             if (join.getTerm() == getCurrentTerm()) {
                 handleJoin(join);
             }
-            // TODO: what to do on missing join?
+        }
+
+        @Override
+        protected void onMissingJoin(DiscoveryNode discoveryNode) {
+            assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+            // The remote node did not include a join vote in its publish response. We do not persist joins, so it could be that the remote
+            // node voted for us and then rebooted, or it could be that it voted for a different node in this term. If we don't have a copy
+            // of a join from this node then we assume the latter and bump our term to obtain a vote from this node.
+            if (hasJoinVoteFrom(discoveryNode) == false) {
+                updateMaxTermSeen(publishRequest.getAcceptedState().term() + 1);
+            }
         }
 
         @Override

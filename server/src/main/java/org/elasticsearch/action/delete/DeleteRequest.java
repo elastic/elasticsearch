@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -54,6 +55,8 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> impleme
     private String routing;
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
+    private long compareAndWriteSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+    private long compareAndWriteTerm = 0;
 
     public DeleteRequest() {
     }
@@ -93,6 +96,12 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> impleme
         }
         if (versionType == VersionType.FORCE) {
             validationException = addValidationError("version type [force] may no longer be used", validationException);
+        }
+
+        if (compareAndWriteSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO && (
+            versionType != VersionType.INTERNAL || version != Versions.MATCH_ANY
+        )) {
+            validationException = addValidationError("compare and write operations can not use versioning", validationException);
         }
         return validationException;
     }
@@ -169,6 +178,26 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> impleme
         return this;
     }
 
+    public long compareAndWriteSeqNo() {
+        return compareAndWriteSeqNo;
+    }
+
+    public long compareAndWriteTerm() {
+        return compareAndWriteTerm;
+    }
+
+    public DeleteRequest compareAndWrite(long seqNo, long term) {
+        if (seqNo < 0) {
+            throw new IllegalArgumentException("sequence numbers must be non negative. got [" +  seqNo + "].");
+        }
+        if (term <= 0) {
+            throw new IllegalArgumentException("primary term must be positive. got [" + term + "]");
+        }
+        compareAndWriteSeqNo = seqNo;
+        compareAndWriteTerm = term;
+        return this;
+    }
+
     @Override
     public VersionType versionType() {
         return this.versionType;
@@ -190,6 +219,13 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> impleme
         }
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            compareAndWriteSeqNo = in.readZLong();
+            compareAndWriteTerm = in.readVLong();
+        } else {
+            compareAndWriteSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            compareAndWriteTerm = 0;
+        }
     }
 
     @Override
@@ -203,6 +239,15 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> impleme
         }
         out.writeLong(version);
         out.writeByte(versionType.getValue());
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeZLong(compareAndWriteSeqNo);
+            out.writeVLong(compareAndWriteTerm);
+        } else if (compareAndWriteSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO || compareAndWriteTerm != 0) {
+            assert false : "compareAndWrite [" + compareAndWriteSeqNo + "], currentDocTem [" + compareAndWriteTerm + "]";
+            throw new IllegalStateException(
+                "sequence number based compare and write is not supported until all nodes are on version 7.0 or higher. " +
+                    "Stream version [" + out.getVersion() + "]");
+        }
     }
 
     @Override

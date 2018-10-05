@@ -196,7 +196,7 @@ public class FollowingEngineTests extends ESTestCase {
                         randomNonNegativeLong(),
                         VersionType.EXTERNAL,
                         origin,
-                        System.currentTimeMillis());
+                        System.currentTimeMillis(), SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
 
                 consumer.accept(followingEngine, delete);
             }
@@ -285,7 +285,7 @@ public class FollowingEngineTests extends ESTestCase {
         final long version = randomBoolean() ? 1 : randomNonNegativeLong();
         final ParsedDocument parsedDocument = EngineTestCase.createParsedDoc(id, null);
         return new Engine.Index(EngineTestCase.newUid(parsedDocument), parsedDocument, seqNo, primaryTerm.get(), version,
-            VersionType.EXTERNAL, origin, System.currentTimeMillis(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, randomBoolean());
+            VersionType.EXTERNAL, origin, System.currentTimeMillis(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, randomBoolean(), SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
     }
 
     private Engine.Index indexForPrimary(String id) {

@@ -50,7 +50,7 @@ public class CapturingLogger {
         // careful, don't "bury" this on the call stack, unless you know what you're doing
         final StackTraceElement caller = Thread.currentThread().getStackTrace()[2];
         final String name = caller.getClassName() + "." + caller.getMethodName() + "." + level.toString();
-        final Logger logger = ESLoggerFactory.getLogger(name);
+        final Logger logger = LogManager.getLogger(name);
         Loggers.setLevel(logger, level);
         final MockAppender appender = new MockAppender(name, layout);
         appender.start();

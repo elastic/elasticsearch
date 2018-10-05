@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.WatcherConditionScript;
 import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
@@ -55,6 +56,7 @@ import org.elasticsearch.xpack.watcher.notification.email.HtmlSanitizer;
 import org.elasticsearch.xpack.watcher.notification.email.Profile;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
+import org.elasticsearch.xpack.watcher.transform.script.WatcherTransformScript;
 import org.elasticsearch.xpack.watcher.transform.search.ExecutableSearchTransform;
 import org.elasticsearch.xpack.watcher.transform.search.SearchTransform;
 import org.elasticsearch.xpack.watcher.trigger.schedule.CronSchedule;
@@ -157,10 +159,10 @@ public final class WatcherTestUtils {
                 .buildMock();
     }
 
-    public static WatchExecutionContext createWatchExecutionContext(Logger logger) throws Exception {
+    public static WatchExecutionContext createWatchExecutionContext() throws Exception {
         Watch watch = new Watch("test-watch",
                 new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
-                new ExecutableSimpleInput(new SimpleInput(new Payload.Simple()), logger),
+                new ExecutableSimpleInput(new SimpleInput(new Payload.Simple())),
                 InternalAlwaysCondition.INSTANCE,
                 null,
                 null,
@@ -206,7 +208,7 @@ public final class WatcherTestUtils {
         return new Watch(
                 watchName,
                 new ScheduleTrigger(new CronSchedule("0/5 * * * * ? *")),
-                new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(Collections.singletonMap("bar", "foo"))), logger),
+                new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(Collections.singletonMap("bar", "foo")))),
                 InternalAlwaysCondition.INSTANCE,
                 new ExecutableSearchTransform(searchTransform, logger, client, searchTemplateService, TimeValue.timeValueMinutes(1)),
                 new TimeValue(0),
@@ -220,7 +222,8 @@ public final class WatcherTestUtils {
                 .put("path.home", createTempDir())
                 .build();
         Map<String, ScriptContext> contexts = new HashMap<>(ScriptModule.CORE_CONTEXTS);
-        contexts.put(Watcher.SCRIPT_EXECUTABLE_CONTEXT.name, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
+        contexts.put(WatcherTransformScript.CONTEXT.name, WatcherTransformScript.CONTEXT);
+        contexts.put(WatcherConditionScript.CONTEXT.name, WatcherConditionScript.CONTEXT);
         contexts.put(Watcher.SCRIPT_TEMPLATE_CONTEXT.name, Watcher.SCRIPT_TEMPLATE_CONTEXT);
         return new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap());
     }

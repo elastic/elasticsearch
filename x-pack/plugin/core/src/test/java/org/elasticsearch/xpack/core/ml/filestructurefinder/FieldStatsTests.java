@@ -32,8 +32,13 @@ public class FieldStatsTests extends AbstractSerializingTestCase<FieldStats> {
         Double medianValue = null;
         boolean isMetric = randomBoolean();
         if (isMetric) {
-            minValue = randomDouble();
-            maxValue = randomDouble();
+            if (randomBoolean()) {
+                minValue = randomDouble();
+                maxValue = randomDouble();
+            } else {
+                minValue = (double) randomInt();
+                maxValue = (double) randomInt();
+            }
             meanValue = randomDouble();
             medianValue = randomDouble();
         }
@@ -42,7 +47,7 @@ public class FieldStatsTests extends AbstractSerializingTestCase<FieldStats> {
         for (int i = 0; i < Math.min(10, cardinality); ++i) {
             Map<String, Object> topHit = new LinkedHashMap<>();
             if (isMetric) {
-                topHit.put("value", randomDouble());
+                topHit.put("value", randomBoolean() ? randomDouble() : (double) randomInt());
             } else {
                 topHit.put("value", randomAlphaOfLength(20));
             }

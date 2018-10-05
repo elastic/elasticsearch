@@ -96,7 +96,7 @@ fi
 
     rm -rf "$ESPLUGINS"
     # The custom plugins directory is not under /tmp or /var/tmp because
-    # systemd's private temp directory functionaly means different
+    # systemd's private temp directory functionally means different
     # processes can have different views of what's in these directories
     local es_plugins=$(mktemp -p /var -d -t 'plugins.XXXX')
     chown -R elasticsearch:elasticsearch "$es_plugins"
@@ -265,6 +265,10 @@ fi
     install_and_check_plugin mapper murmur3
 }
 
+@test "[$GROUP] install annotated-text mapper plugin" {
+    install_and_check_plugin mapper annotated-text
+}
+
 @test "[$GROUP] check reindex module" {
     check_module reindex
 }
@@ -373,6 +377,10 @@ fi
 
 @test "[$GROUP] remove murmur3 mapper plugin" {
     remove_plugin mapper-murmur3
+}
+
+@test "[$GROUP] remove annotated-text mapper plugin" {
+    remove_plugin mapper-annotated-text
 }
 
 @test "[$GROUP] remove size mapper plugin" {

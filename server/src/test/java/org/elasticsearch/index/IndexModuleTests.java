@@ -78,6 +78,7 @@ import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.engine.MockEngineFactory;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -297,10 +298,11 @@ public class IndexModuleTests extends ESTestCase {
 
         IndexService indexService = newIndexService(module);
         SimilarityService similarityService = indexService.similarityService();
-        assertNotNull(similarityService.getSimilarity("my_similarity"));
-        assertTrue(similarityService.getSimilarity("my_similarity").get() instanceof TestSimilarity);
+        Similarity similarity = similarityService.getSimilarity("my_similarity").get();
+        assertNotNull(similarity);
+        assertThat(similarity, Matchers.instanceOf(TestSimilarity.class));
         assertEquals("my_similarity", similarityService.getSimilarity("my_similarity").name());
-        assertEquals("there is a key", ((TestSimilarity) similarityService.getSimilarity("my_similarity").get()).key);
+        assertEquals("there is a key", ((TestSimilarity) similarity).key);
         indexService.close("simon says", false);
     }
 

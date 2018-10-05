@@ -347,17 +347,39 @@ public final class MethodWriter extends GeneratorAdapter {
         }
 
         switch (operation) {
-            case MUL:   math(GeneratorAdapter.MUL,  getType(clazz)); break;
-            case DIV:   math(GeneratorAdapter.DIV,  getType(clazz)); break;
-            case REM:   math(GeneratorAdapter.REM,  getType(clazz)); break;
-            case ADD:   math(GeneratorAdapter.ADD,  getType(clazz)); break;
-            case SUB:   math(GeneratorAdapter.SUB,  getType(clazz)); break;
-            case LSH:   math(GeneratorAdapter.SHL,  getType(clazz)); break;
-            case USH:   math(GeneratorAdapter.USHR, getType(clazz)); break;
-            case RSH:   math(GeneratorAdapter.SHR,  getType(clazz)); break;
-            case BWAND: math(GeneratorAdapter.AND,  getType(clazz)); break;
-            case XOR:   math(GeneratorAdapter.XOR,  getType(clazz)); break;
-            case BWOR:  math(GeneratorAdapter.OR,   getType(clazz)); break;
+            case MUL:
+                math(GeneratorAdapter.MUL, getType(clazz));
+                break;
+            case DIV:
+                math(GeneratorAdapter.DIV, getType(clazz));
+                break;
+            case REM:
+                math(GeneratorAdapter.REM, getType(clazz));
+                break;
+            case ADD:
+                math(GeneratorAdapter.ADD, getType(clazz));
+                break;
+            case SUB:
+                math(GeneratorAdapter.SUB, getType(clazz));
+                break;
+            case LSH:
+                math(GeneratorAdapter.SHL, getType(clazz));
+                break;
+            case USH:
+                math(GeneratorAdapter.USHR, getType(clazz));
+                break;
+            case RSH:
+                math(GeneratorAdapter.SHR, getType(clazz));
+                break;
+            case BWAND:
+                math(GeneratorAdapter.AND, getType(clazz));
+                break;
+            case XOR:
+                math(GeneratorAdapter.XOR, getType(clazz));
+                break;
+            case BWOR:
+                math(GeneratorAdapter.OR, getType(clazz));
+                break;
             default:
                 throw location.createError(new IllegalStateException("Illegal tree structure."));
         }

@@ -50,6 +50,9 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -64,8 +67,8 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_INDEX_FORMAT;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -112,7 +115,8 @@ public class SecurityTests extends ESTestCase {
             protected SSLService getSslService() {
                 return sslService;
             }
-        };        ThreadPool threadPool = mock(ThreadPool.class);
+        };
+        ThreadPool threadPool = mock(ThreadPool.class);
         ClusterService clusterService = mock(ClusterService.class);
         settings = Security.additionalSettings(settings, true, false);
         Set<Setting<?>> allowedSettings = new HashSet<>(Security.getSettings(false, null));
@@ -453,5 +457,64 @@ public class SecurityTests extends ESTestCase {
             assertWarnings("[indices.admin.filtered_fields] setting was deprecated in Elasticsearch and will be removed in a " +
                     "future release! See the breaking changes documentation for the next major version.");
         }
+    }
+
+    /**
+     * Tests the default file comparison check. Note: this will fail when run in an IDE as the
+     * processing of resources isn't handled properly.
+     *
+     * TODO: can we add an assume for whether the test should run if it is an IDE context?
+     */
+    public void testIsDefaultFileCheck() throws Exception {
+        Path homeDir = createTempDir();
+        Path configDir = homeDir.resolve("config");
+        Path xPackConfigDir = configDir.resolve("x-pack");
+        Environment environment = new Environment(Settings.builder().put("path.home", homeDir).build(), configDir);
+
+        List<String> defaultFiles = Arrays.asList("roles.yml", "role_mapping.yml", "users", "users_roles");
+        Files.createDirectories(xPackConfigDir);
+
+        for (String defaultFileName : defaultFiles) {
+            logger.info("testing default file: {}", defaultFileName);
+            Path defaultFile = getDataPath("/config/" + defaultFileName);
+            final byte[] defaultBytes = Files.readAllBytes(defaultFile);
+            final Path defaultFileConfigPath = configDir.resolve(defaultFileName);
+            Path resolvedPath = Security.resolveConfigFile(environment, defaultFileName);
+            assertEquals(defaultFileConfigPath, resolvedPath);
+
+            Files.write(defaultFileConfigPath, defaultBytes);
+            assertTrue(Security.isDefaultFile(defaultFileName, defaultFileConfigPath));
+
+            resolvedPath = Security.resolveConfigFile(environment, defaultFileName);
+            assertEquals(defaultFileConfigPath, resolvedPath);
+
+            // put a file in x-pack dir
+            final Path xPackFilePath = xPackConfigDir.resolve(defaultFileName);
+            Files.write(xPackFilePath, Collections.singletonList(randomAlphaOfLength(8)));
+            resolvedPath = Security.resolveConfigFile(environment, defaultFileName);
+            assertEquals(xPackFilePath, resolvedPath);
+            assertWarnings("Config file [" + defaultFileName + "] exists in a deprecated location and non-deprecated location. The" +
+                " file in the non-deprecated location is the default file. Using file found in the deprecated location. Move " +
+                xPackFilePath + " to " + defaultFileConfigPath);
+
+            // modify file in new location
+            Files.write(defaultFileConfigPath, Collections.singletonList(randomAlphaOfLength(8)),
+                randomBoolean() ? StandardOpenOption.TRUNCATE_EXISTING : StandardOpenOption.APPEND);
+
+            assertFalse(Security.isDefaultFile(defaultFileName, defaultFileConfigPath));
+            resolvedPath = Security.resolveConfigFile(environment, defaultFileName);
+            assertEquals(defaultFileConfigPath, resolvedPath);
+            assertWarnings("Config file [" + defaultFileName + "] exists in a deprecated location and non-deprecated location. " +
+                "Using file found in the non-deprecated location [" + defaultFileConfigPath + "]. Determine which file should be kept and" +
+                    " move it to " + defaultFileConfigPath + ", then remove " + xPackFilePath);
+
+            // remove default file
+            Files.delete(defaultFileConfigPath);
+            resolvedPath = Security.resolveConfigFile(environment, defaultFileName);
+            assertEquals(xPackFilePath, resolvedPath);
+            assertWarnings("Config file [" + defaultFileName + "] is in a deprecated location. Move from " +
+                xPackFilePath + " to " + defaultFileConfigPath);
+        }
+
     }
 }

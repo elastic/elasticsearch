@@ -173,17 +173,7 @@ public final class AnalysisRegistry implements Closeable {
         tokenFilters.put("synonym", requiresAnalysisSettings((is, env, name, settings) -> new SynonymTokenFilterFactory(is, env, this, name, settings)));
         tokenFilters.put("synonym_graph", requiresAnalysisSettings((is, env, name, settings) -> new SynonymGraphTokenFilterFactory(is, env, this, name, settings)));
 
-        Map<String, TokenFilterFactory> mappings
-            = buildMapping(Component.FILTER, indexSettings, tokenFiltersSettings, Collections.unmodifiableMap(tokenFilters), prebuiltAnalysis.preConfiguredTokenFilters);
-
-        // ReferringTokenFilters require references to other tokenfilters, so we pass these in
-        // after all factories have been registered
-        for (TokenFilterFactory tff : mappings.values()) {
-            if (tff instanceof ReferringFilterFactory) {
-                ((ReferringFilterFactory)tff).setReferences(mappings);
-            }
-        }
-        return mappings;
+        return buildMapping(Component.FILTER, indexSettings, tokenFiltersSettings, Collections.unmodifiableMap(tokenFilters), prebuiltAnalysis.preConfiguredTokenFilters);
     }
 
     public Map<String, TokenizerFactory> buildTokenizerFactories(IndexSettings indexSettings) throws IOException {
@@ -465,7 +455,7 @@ public final class AnalysisRegistry implements Closeable {
 
         Index index = indexSettings.getIndex();
         analyzerProviders = new HashMap<>(analyzerProviders);
-        Logger logger = Loggers.getLogger(getClass(), indexSettings.getSettings());
+        Logger logger = Loggers.getLogger(getClass());
         DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
         Map<String, NamedAnalyzer> analyzerAliases = new HashMap<>();
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();

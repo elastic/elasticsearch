@@ -1,6 +1,8 @@
+[float]
 [[breaking_60_analysis_changes]]
 === Analysis changes
 
+[float]
 ==== Synonym Token Filter
 
 In 6.0, Synonym Token Filter tokenizes synonyms with whatever
@@ -11,6 +13,7 @@ and will be ignored when used in new indices.  These parameters
 will continue to function as before when used in indices
 created in 5.x.
 
+[float]
 ==== Limiting the length of an analyzed text during highlighting
 
 Highlighting a text that was indexed without offsets or term vectors,
@@ -22,6 +25,7 @@ is not set. A deprecation warning will be issued when an analyzed text exceeds 1
  The limit can be set for a particular index with the index setting
 `index.highlight.max_analyzed_offset`.
 
+[float]
 ==== `standard` filter has been deprecated
  The `standard` token filter has been deprecated because it doesn't change anything in
  the stream. It will be removed in the next major version.

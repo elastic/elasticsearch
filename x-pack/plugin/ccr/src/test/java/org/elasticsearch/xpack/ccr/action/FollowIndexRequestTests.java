@@ -6,10 +6,12 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
 
@@ -17,21 +19,21 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class FollowIndexRequestTests extends AbstractStreamableXContentTestCase<FollowIndexAction.Request> {
+public class FollowIndexRequestTests extends AbstractStreamableXContentTestCase<ResumeFollowAction.Request> {
 
     @Override
-    protected FollowIndexAction.Request createBlankInstance() {
-        return new FollowIndexAction.Request();
+    protected ResumeFollowAction.Request createBlankInstance() {
+        return new ResumeFollowAction.Request();
     }
 
     @Override
-    protected FollowIndexAction.Request createTestInstance() {
+    protected ResumeFollowAction.Request createTestInstance() {
         return createTestRequest();
     }
 
     @Override
-    protected FollowIndexAction.Request doParseInstance(XContentParser parser) throws IOException {
-        return FollowIndexAction.Request.fromXContent(parser, null);
+    protected ResumeFollowAction.Request doParseInstance(XContentParser parser) throws IOException {
+        return ResumeFollowAction.Request.fromXContent(parser, null);
     }
 
     @Override
@@ -39,25 +41,50 @@ public class FollowIndexRequestTests extends AbstractStreamableXContentTestCase<
         return false;
     }
 
-    static FollowIndexAction.Request createTestRequest() {
-        return new FollowIndexAction.Request(randomAlphaOfLength(4), randomAlphaOfLength(4), randomIntBetween(1, Integer.MAX_VALUE),
-            randomIntBetween(1, Integer.MAX_VALUE), randomNonNegativeLong(), randomIntBetween(1, Integer.MAX_VALUE),
-            randomIntBetween(1, Integer.MAX_VALUE), TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(500));
+    static ResumeFollowAction.Request createTestRequest() {
+        ResumeFollowAction.Request request = new ResumeFollowAction.Request();
+        request.setLeaderIndex(randomAlphaOfLength(4));
+        request.setFollowerIndex(randomAlphaOfLength(4));
+        if (randomBoolean()) {
+            request.setMaxBatchOperationCount(randomIntBetween(1, Integer.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            request.setMaxConcurrentReadBatches(randomIntBetween(1, Integer.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            request.setMaxConcurrentWriteBatches(randomIntBetween(1, Integer.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            request.setMaxBatchSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
+        }
+        if (randomBoolean()) {
+            request.setMaxWriteBufferSize(randomIntBetween(1, Integer.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            request.setMaxRetryDelay(TimeValue.timeValueMillis(500));
+        }
+        if (randomBoolean()) {
+            request.setPollTimeout(TimeValue.timeValueMillis(500));
+        }
+        return request;
     }
 
     public void testValidate() {
-        FollowIndexAction.Request request = new FollowIndexAction.Request("index1", "index2", null, null, null, null,
-            null, TimeValue.ZERO, null);
+        ResumeFollowAction.Request request = new ResumeFollowAction.Request();
+        request.setLeaderIndex("index1");
+        request.setFollowerIndex("index2");
+        request.setMaxRetryDelay(TimeValue.ZERO);
+
         ActionRequestValidationException validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[max_retry_delay] must be positive but was [0ms]"));
 
-        request = new FollowIndexAction.Request("index1", "index2", null, null, null, null, null, TimeValue.timeValueMinutes(10), null);
+        request.setMaxRetryDelay(TimeValue.timeValueMinutes(10));
         validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[max_retry_delay] must be less than [5m] but was [10m]"));
 
-        request = new FollowIndexAction.Request("index1", "index2", null, null, null, null, null, TimeValue.timeValueMinutes(1), null);
+        request.setMaxRetryDelay(TimeValue.timeValueMinutes(1));
         validationException = request.validate();
         assertThat(validationException, nullValue());
     }

@@ -28,7 +28,7 @@ public final class MonitoringTemplateUtils {
      * <p>
      * It may be possible for this to diverge between templates and pipelines, but for now they're the same.
      */
-    public static final int LAST_UPDATED_VERSION = Version.V_6_4_0.id;
+    public static final int LAST_UPDATED_VERSION = Version.V_6_5_0.id;
 
     /**
      * Current version of templates used in their name to differentiate from breaking changes (separate from product version).

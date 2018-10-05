@@ -75,7 +75,7 @@ class DateHistogramAggregator extends BucketsAggregator {
         this.rounding = rounding;
         this.shardRounding = shardRounding;
         this.offset = offset;
-        this.order = InternalOrder.validate(order, this);;
+        this.order = InternalOrder.validate(order, this);
         this.keyed = keyed;
         this.minDocCount = minDocCount;
         this.extendedBounds = extendedBounds;

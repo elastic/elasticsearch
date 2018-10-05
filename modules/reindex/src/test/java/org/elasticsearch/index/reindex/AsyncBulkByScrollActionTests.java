@@ -482,7 +482,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
     /**
      * Execute a bulk retry test case. The total number of failures is random and the number of retries attempted is set to
-     * testRequest.getMaxRetries and controled by the failWithRejection parameter.
+     * testRequest.getMaxRetries and controlled by the failWithRejection parameter.
      */
     private void bulkRetryTestCase(boolean failWithRejection) throws Exception {
         int totalFailures = randomIntBetween(1, testRequest.getMaxRetries());
@@ -673,7 +673,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     private class DummyAsyncBulkByScrollAction extends AbstractAsyncBulkByScrollAction<DummyAbstractBulkByScrollRequest> {
         DummyAsyncBulkByScrollAction() {
             super(testTask, AsyncBulkByScrollActionTests.this.logger, new ParentTaskAssigningClient(client, localNode, testTask),
-                    client.threadPool(), testRequest, null, null, listener, Settings.EMPTY);
+                    client.threadPool(), testRequest, null, null, listener);
         }
 
         @Override

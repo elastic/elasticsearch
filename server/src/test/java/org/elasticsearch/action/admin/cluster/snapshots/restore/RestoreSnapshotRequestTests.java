@@ -75,7 +75,7 @@ public class RestoreSnapshotRequestTests extends AbstractStreamableTestCase<Rest
             int count = randomInt(3) + 1;
 
             for (int i = 0; i < count; ++i) {
-                indexSettings.put(randomAlphaOfLengthBetween(2, 5), randomAlphaOfLengthBetween(2, 5));;
+                indexSettings.put(randomAlphaOfLengthBetween(2, 5), randomAlphaOfLengthBetween(2, 5));
             }
             instance.indexSettings(indexSettings);
         }

@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
 import java.util.List;
+import java.util.function.Function;
 
 public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
@@ -47,6 +48,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     protected final boolean expand;
     protected final boolean lenient;
     protected final Settings settings;
+    protected final Environment environment;
 
     public SynonymTokenFilterFactory(IndexSettings indexSettings, Environment env, AnalysisRegistry analysisRegistry,
                                       String name, Settings settings) throws IOException {
@@ -82,11 +84,66 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
         this.lenient = settings.getAsBoolean("lenient", false);
         this.format = settings.get("format", "");
+        this.environment = env;
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
         throw new IllegalStateException("Call createPerAnalyzerSynonymFactory to specialize this factory for an analysis chain first");
+    }
+
+    @Override
+    public TokenFilterFactory getChainAwareTokenFilterFactory(TokenizerFactory tokenizer, List<CharFilterFactory> charFilters,
+                                                              List<TokenFilterFactory> previousTokenFilters,
+                                                              Function<String, TokenFilterFactory> allFilters) {
+        final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters);
+        final SynonymMap synonyms = buildSynonyms(analyzer, getRulesFromSettings(environment));
+        final String name = name();
+        return new TokenFilterFactory() {
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return synonyms.fst == null ? tokenStream : new SynonymFilter(tokenStream, synonyms, false);
+            }
+        };
+    }
+
+    protected Analyzer buildSynonymAnalyzer(TokenizerFactory tokenizer, List<CharFilterFactory> charFilters,
+                                            List<TokenFilterFactory> tokenFilters) {
+        if (tokenizerFactory != null) {
+            return new Analyzer() {
+                @Override
+                protected TokenStreamComponents createComponents(String fieldName) {
+                    Tokenizer tokenizer = tokenizerFactory.create();
+                    TokenStream stream = ignoreCase ? new LowerCaseFilter(tokenizer) : tokenizer;
+                    return new TokenStreamComponents(tokenizer, stream);
+                }
+            };
+        }
+        return new CustomAnalyzer("synonyms", tokenizer, charFilters.toArray(new CharFilterFactory[0]),
+            tokenFilters.stream()
+                .map(TokenFilterFactory::getSynonymFilter)
+                .toArray(TokenFilterFactory[]::new));
+    }
+
+    protected SynonymMap buildSynonyms(Analyzer analyzer, Reader rules) {
+        try {
+            SynonymMap.Builder parser;
+            if ("wordnet".equalsIgnoreCase(format)) {
+                parser = new ESWordnetSynonymParser(true, expand, lenient, analyzer);
+                ((ESWordnetSynonymParser) parser).parse(rules);
+            } else {
+                parser = new ESSolrSynonymParser(true, expand, lenient, analyzer);
+                ((ESSolrSynonymParser) parser).parse(rules);
+            }
+            return parser.build();
+        } catch (Exception e) {
+            throw new IllegalArgumentException("failed to build synonyms", e);
+        }
     }
 
     protected Reader getRulesFromSettings(Environment env) {
@@ -106,69 +163,11 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         return rulesReader;
     }
 
-    Factory createPerAnalyzerSynonymFactory(Analyzer analyzerForParseSynonym, Environment env){
-        return new Factory("synonym", analyzerForParseSynonym, getRulesFromSettings(env));
-    }
-
     // for backward compatibility
     /**
      * @deprecated This filter tokenize synonyms with whatever tokenizer and token filters appear before it in the chain in 6.0.
      */
     @Deprecated
     protected final TokenizerFactory tokenizerFactory;
-
-    public class Factory implements TokenFilterFactory{
-
-        private final String name;
-        private final SynonymMap synonymMap;
-
-        public Factory(String name, Analyzer analyzerForParseSynonym, Reader rulesReader) {
-
-            this.name = name;
-
-            Analyzer analyzer;
-            if (tokenizerFactory != null) {
-                analyzer = new Analyzer() {
-                    @Override
-                    protected TokenStreamComponents createComponents(String fieldName) {
-                        Tokenizer tokenizer = tokenizerFactory.create();
-                        TokenStream stream = ignoreCase ? new LowerCaseFilter(tokenizer) : tokenizer;
-                        return new TokenStreamComponents(tokenizer, stream);
-                    }
-                };
-            } else {
-                analyzer = analyzerForParseSynonym;
-            }
-
-            try {
-                SynonymMap.Builder parser;
-                if ("wordnet".equalsIgnoreCase(format)) {
-                    parser = new ESWordnetSynonymParser(true, expand, lenient, analyzerForParseSynonym);
-                    ((ESWordnetSynonymParser) parser).parse(rulesReader);
-                } else {
-                    parser = new ESSolrSynonymParser(true, expand, lenient, analyzerForParseSynonym);
-                    ((ESSolrSynonymParser) parser).parse(rulesReader);
-                }
-                synonymMap = parser.build();
-            } catch (Exception e) {
-                throw new IllegalArgumentException("failed to build synonyms", e);
-            } finally {
-                if (tokenizerFactory != null) {
-                    analyzer.close();
-                }
-            }
-        }
-
-        @Override
-        public String name() {
-            return this.name;
-        }
-
-        @Override
-        public TokenStream create(TokenStream tokenStream) {
-            // fst is null means no synonyms
-            return synonymMap.fst == null ? tokenStream : new SynonymFilter(tokenStream, synonymMap, ignoreCase);
-        }
-    }
 
 }

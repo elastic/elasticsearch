@@ -384,7 +384,7 @@ public class SearchActionTests extends ESTestCase {
         SearchRequest rollup = msearch.requests().get(1);
         assertThat(rollup.indices().length, equalTo(1));
         assertThat(rollup.indices()[0], equalTo(rollupIndices[0]));
-        assert(rollup.source().aggregations().getAggregatorFactories().get(0) instanceof FilterAggregationBuilder);
+        assert(rollup.source().aggregations().getAggregatorFactories().iterator().next() instanceof FilterAggregationBuilder);
     }
 
     public void testGoodButNullQuery() {
@@ -417,7 +417,7 @@ public class SearchActionTests extends ESTestCase {
         SearchRequest rollup = msearch.requests().get(1);
         assertThat(rollup.indices().length, equalTo(1));
         assertThat(rollup.indices()[0], equalTo(rollupIndices[0]));
-        assert(rollup.source().aggregations().getAggregatorFactories().get(0) instanceof FilterAggregationBuilder);
+        assert(rollup.source().aggregations().getAggregatorFactories().iterator().next() instanceof FilterAggregationBuilder);
     }
 
     public void testTwoMatchingJobs() {
@@ -460,7 +460,7 @@ public class SearchActionTests extends ESTestCase {
         SearchRequest rollup = msearch.requests().get(1);
         assertThat(rollup.indices().length, equalTo(1));
         assertThat(rollup.indices()[0], equalTo(rollupIndices[0]));
-        assert(rollup.source().aggregations().getAggregatorFactories().get(0) instanceof FilterAggregationBuilder);
+        assert(rollup.source().aggregations().getAggregatorFactories().iterator().next() instanceof FilterAggregationBuilder);
 
         assertThat(msearch.requests().size(), equalTo(2));
     }
@@ -507,7 +507,7 @@ public class SearchActionTests extends ESTestCase {
         SearchRequest rollup = msearch.requests().get(1);
         assertThat(rollup.indices().length, equalTo(1));
         assertThat(rollup.indices()[0], equalTo(rollupIndices[0]));
-        assert(rollup.source().aggregations().getAggregatorFactories().get(0) instanceof FilterAggregationBuilder);
+        assert(rollup.source().aggregations().getAggregatorFactories().iterator().next() instanceof FilterAggregationBuilder);
 
 
         // The executed query should match the first job ("foo") because the second job contained a histo and the first didn't,

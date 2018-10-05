@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.StorageClass;
 import org.elasticsearch.client.node.NodeClient;
@@ -60,7 +61,6 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
     // all nodes must see the same content
     private static final ConcurrentMap<String, byte[]> blobs = new ConcurrentHashMap<>();
     private static String bucket;
-    private static String client;
     private static String accessKey;
     private static String secureKey;
     private static ByteSizeValue bufferSize;
@@ -71,7 +71,6 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
     @BeforeClass
     public static void setUpRepositorySettings() {
         bucket = "bucket_" + randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
-        client = "client_" + randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
         accessKey = "accessKey_" + randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
         secureKey = "secureKey_" + randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
         bufferSize = new ByteSizeValue(randomIntBetween(5, 50), ByteSizeUnit.MB);
@@ -96,7 +95,6 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
             .setVerify(verify)
             .setSettings(Settings.builder()
                 .put(S3Repository.BUCKET_SETTING.getKey(), bucket)
-                .put(S3Repository.CLIENT_NAME.getKey(), client)
                 .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), bufferSize)
                 .put(S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getKey(), serverSideEncryption)
                 .put(S3Repository.CANNED_ACL_SETTING.getKey(), cannedACL)
@@ -126,14 +124,10 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
             return Collections.singletonMap(S3Repository.TYPE,
                     (metadata) -> new S3Repository(metadata, env.settings(), registry, new S3Service(env.settings()) {
                         @Override
-                        public synchronized AmazonS3Reference client(String clientName) {
-                            return new AmazonS3Reference(new MockAmazonS3(blobs, bucket, serverSideEncryption, cannedACL, storageClass));
+                        AmazonS3 buildClient(S3ClientSettings clientSettings) {
+                            return new MockAmazonS3(blobs, bucket, serverSideEncryption, cannedACL, storageClass);
                         }
-                    }) {
-                        @Override
-                        void overrideCredentialsFromClusterState(S3Service awsService) {
-                        }
-                    });
+                    }));
         }
     }
 
@@ -153,7 +147,6 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
                 try {
                     final String responseContent = response.content().utf8ToString();
                     assertThat(responseContent, containsString(bucket));
-                    assertThat(responseContent, containsString(client));
                     assertThat(responseContent, not(containsString(accessKey)));
                     assertThat(responseContent, not(containsString(secureKey)));
                 } catch (final AssertionError ex) {

@@ -38,8 +38,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -365,6 +365,12 @@ public abstract class MappedFieldType extends FieldType {
 
     public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         throw new QueryShardException(context, "Can only use prefix queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
+    }
+
+    public Query wildcardQuery(String value,
+                               @Nullable MultiTermQuery.RewriteMethod method,
+                               QueryShardContext context) {
+        throw new QueryShardException(context, "Can only use wildcard queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
     }
 
     public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {

@@ -7,8 +7,6 @@ package org.elasticsearch.xpack.ml.job.process;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -38,19 +36,6 @@ import java.util.function.Function;
  * function returns {@code true} the usage is logged.
  */
 public class DataCountsReporter extends AbstractComponent {
-    /**
-     * The max percentage of date parse errors allowed before
-     * an exception is thrown.
-     */
-    public static final Setting<Integer> ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING = Setting.intSetting("max.percent.date.errors", 25,
-            Property.NodeScope);
-
-    /**
-     * The max percentage of out of order records allowed before
-     * an exception is thrown.
-     */
-    public static final Setting<Integer> ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING = Setting
-            .intSetting("max.percent.outoforder.errors", 25, Property.NodeScope);
 
     private static final TimeValue PERSIST_INTERVAL = TimeValue.timeValueMillis(10_000L);
 
@@ -66,9 +51,6 @@ public class DataCountsReporter extends AbstractComponent {
     private long logEvery = 1;
     private long logCount = 0;
 
-    private final int acceptablePercentDateParseErrors;
-    private final int acceptablePercentOutOfOrderErrors;
-
     private Function<Long, Boolean> reportingBoundaryFunction;
 
     private DataStreamDiagnostics diagnostics;
@@ -83,9 +65,6 @@ public class DataCountsReporter extends AbstractComponent {
         totalRecordStats = counts;
         incrementalRecordStats = new DataCounts(job.getId());
         diagnostics = new DataStreamDiagnostics(job, counts);
-
-        acceptablePercentDateParseErrors = ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING.get(settings);
-        acceptablePercentOutOfOrderErrors = ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING.get(settings);
 
         reportingBoundaryFunction = this::reportEvery10000Records;
     }
@@ -242,14 +221,6 @@ public class DataCountsReporter extends AbstractComponent {
         return totalRecordStats.getInputFieldCount();
     }
 
-    public int getAcceptablePercentDateParseErrors() {
-        return acceptablePercentDateParseErrors;
-    }
-
-    public int getAcceptablePercentOutOfOrderErrors() {
-        return acceptablePercentOutOfOrderErrors;
-    }
-
     public void setAnalysedFieldsPerRecord(long value) {
         analyzedFieldsPerRecord = value;
     }
@@ -352,4 +323,5 @@ public class DataCountsReporter extends AbstractComponent {
 
         diagnostics.resetCounts();
     }
+
 }

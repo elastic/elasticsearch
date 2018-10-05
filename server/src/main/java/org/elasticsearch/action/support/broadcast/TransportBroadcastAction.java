@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -56,6 +57,7 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
     protected final TransportService transportService;
 
     final String transportShardAction;
+    private final String shardExecutor;
 
     protected TransportBroadcastAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService,
                                        TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
@@ -64,8 +66,9 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.transportShardAction = actionName + "[s]";
+        this.shardExecutor = shardExecutor;
 
-        transportService.registerRequestHandler(transportShardAction, shardRequest, shardExecutor, new ShardTransportHandler());
+        transportService.registerRequestHandler(transportShardAction, shardRequest, ThreadPool.Names.SAME, new ShardTransportHandler());
     }
 
     @Override
@@ -280,7 +283,26 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
 
         @Override
         public void messageReceived(ShardRequest request, TransportChannel channel, Task task) throws Exception {
-            channel.sendResponse(shardOperation(request, task));
+            asyncShardOperation(request, task,  new ActionListener<ShardResponse>() {
+                @Override
+                public void onResponse(ShardResponse response) {
+                    try {
+                        channel.sendResponse(response);
+                    } catch (Exception e) {
+                        onFailure(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        channel.sendResponse(e);
+                    } catch (Exception e1) {
+                        logger.warn(() -> new ParameterizedMessage(
+                            "Failed to send error response for action [{}] and request [{}]", actionName, request), e1);
+                    }
+                }
+            });
         }
 
         @Override
@@ -288,4 +310,23 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
             throw new UnsupportedOperationException("the task parameter is required");
         }
     }
+
+    protected void asyncShardOperation(ShardRequest request, Task task, ActionListener<ShardResponse> listener) {
+        transportService.getThreadPool().executor(getExecutor(request)).execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                listener.onResponse(shardOperation(request, task));
+            }
+        });
+    }
+
+    protected String getExecutor(ShardRequest request) {
+        return shardExecutor;
+    }
+
 }

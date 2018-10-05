@@ -139,6 +139,9 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 assertEquals(AGG_NAME, scriptedMetric.getName());
                 assertNotNull(scriptedMetric.aggregation());
                 assertEquals(0, ((HashMap<Object, String>) scriptedMetric.aggregation()).size());
+            } finally {
+                assertWarnings("[combineScript] must be provided for metric aggregations.",
+                    "[reduceScript] must be provided for metric aggregations.");
             }
         }
     }
@@ -163,6 +166,9 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 assertNotNull(scriptedMetric.aggregation());
                 Map<String, Object> agg = (Map<String, Object>) scriptedMetric.aggregation();
                 assertEquals(numDocs, ((List<Integer>) agg.get("collector")).size());
+            } finally {
+                assertWarnings("[combineScript] must be provided for metric aggregations.",
+                    "[reduceScript] must be provided for metric aggregations.");
             }
         }
     }
@@ -185,6 +191,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 assertEquals(AGG_NAME, scriptedMetric.getName());
                 assertNotNull(scriptedMetric.aggregation());
                 assertEquals(numDocs, scriptedMetric.aggregation());
+            } finally {
+                assertWarnings("[reduceScript] must be provided for metric aggregations.");
             }
         }
     }
@@ -208,6 +216,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 assertNotNull(scriptedMetric.aggregation());
                 // all documents have score of 1.0
                 assertEquals((double) numDocs, scriptedMetric.aggregation());
+            } finally {
+                assertWarnings("[reduceScript] must be provided for metric aggregations.");
             }
         }
     }
@@ -227,6 +237,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
 
                 // The result value depends on the script params.
                 assertEquals(306, scriptedMetric.aggregation());
+            } finally {
+                assertWarnings("[reduceScript] must be provided for metric aggregations.");
             }
         }
     }
@@ -250,6 +262,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 );
                 assertEquals("Parameter name \"" + CONFLICTING_PARAM_NAME + "\" used in both aggregation and script parameters",
                     ex.getMessage());
+            } finally {
+                assertWarnings("[reduceScript] must be provided for metric aggregations.");
             }
         }
     }
@@ -261,7 +275,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
      */
     @Override
     protected QueryShardContext queryShardContextMock(MapperService mapperService) {
-        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS);
+        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
         ScriptService scriptService =  new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
         return new QueryShardContext(0, mapperService.getIndexSettings(), null, null, mapperService, null, scriptService,

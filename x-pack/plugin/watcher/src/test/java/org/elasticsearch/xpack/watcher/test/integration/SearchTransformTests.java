@@ -205,7 +205,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         XContentParser parser = createParser(builder);
         parser.nextToken();
 
-        final MockScriptEngine engine = new MockScriptEngine("mock", Collections.emptyMap());
+        final MockScriptEngine engine = new MockScriptEngine("mock", Collections.emptyMap(), Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
         ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
 
@@ -230,7 +230,7 @@ public class SearchTransformTests extends ESIntegTestCase {
     }
 
     public void testDifferentSearchType() throws Exception {
-        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         SearchSourceBuilder searchSourceBuilder = searchSource().query(boolQuery()
               .must(matchQuery("event_type", "a")));
         final SearchType searchType = getRandomSupportedSearchType();

@@ -51,9 +51,13 @@ coming[6.5.0]
 
 Also see <<breaking-changes-6.5>>.
 
-// [float]
-// [[breaking-6.5.0]]
-// === Breaking Changes
+[float]
+[[breaking-6.5.0]]
+=== Breaking Changes
+
+Mapping::
+* Disallow `enabled` attribute changes for types in mapping updates
+{pull}33933[#33933] (issue: {issue}33566[#33566])
 
 [float]
 [[breaking-java-6.5.0]]
@@ -78,9 +82,17 @@ location of the hosts file has moved from
 // [[feature-6.5.0]]
 // === New Features
 
-// [float]
-// [[enhancement-6.5.0]]
-// === Enhancements
+[float]
+[[enhancement-6.5.0]]
+=== Enhancements
+
+Merging::
+* The default merge policy (`tiered`) used to allow up to 50% of deleted
+documents per shard, possibly more in the case of a
+<<indices-forcemerge,force-merged index>>. This threshold is now 33%, meaning
+that deleted documents may only make an index up to about 50% larger than the
+same index without deleted document, versus 2x previously. Also this threshold
+now also applies to indices that have been force-merged in the past.
 
 // [float]
 // [[bug-6.5.0]]

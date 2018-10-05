@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
@@ -125,6 +126,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         jobDataCountsPersister = mock(JobDataCountsPersister.class);
         normalizerFactory = mock(NormalizerFactory.class);
         auditor = mock(Auditor.class);
+
 
         when(jobManager.getJobOrThrowIfUnknown("foo")).thenReturn(createJobDetails("foo"));
         doAnswer(invocationOnMock -> {

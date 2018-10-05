@@ -37,10 +37,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -237,7 +238,7 @@ public class DateFieldMapper extends FieldMapper {
         public void setDateTimeFormatter(FormatDateTimeFormatter dateTimeFormatter) {
             checkIfFrozen();
             this.dateTimeFormatter = dateTimeFormatter;
-            this.dateMathParser = new DateMathParser(dateTimeFormatter);
+            this.dateMathParser = dateTimeFormatter.toDateMathParser();
         }
 
         protected DateMathParser dateMathParser() {
@@ -268,7 +269,7 @@ public class DateFieldMapper extends FieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, ShapeRelation relation,
-                @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
+                                @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
             failIfNotIndexed();
             if (relation == ShapeRelation.DISJOINT) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
@@ -302,8 +303,8 @@ public class DateFieldMapper extends FieldMapper {
             return query;
         }
 
-        public long parseToMilliseconds(Object value, boolean roundUp,
-                @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser, QueryRewriteContext context) {
+        public long parseToMilliseconds(Object value, boolean roundUp, @Nullable DateTimeZone zone,
+                                        @Nullable DateMathParser forcedDateParser, QueryRewriteContext context) {
             DateMathParser dateParser = dateMathParser();
             if (forcedDateParser != null) {
                 dateParser = forcedDateParser;
@@ -315,13 +316,13 @@ public class DateFieldMapper extends FieldMapper {
             } else {
                 strValue = value.toString();
             }
-            return dateParser.parse(strValue, context::nowInMillis, roundUp, zone);
+            return dateParser.parse(strValue, context::nowInMillis, roundUp, DateUtils.dateTimeZoneToZoneId(zone));
         }
 
         @Override
-        public Relation isFieldWithinQuery(IndexReader reader,
-                Object from, Object to, boolean includeLower, boolean includeUpper,
-                DateTimeZone timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
+        public Relation isFieldWithinQuery(IndexReader reader, Object from, Object to, boolean includeLower, boolean includeUpper,
+                                           DateTimeZone timeZone, DateMathParser dateParser,
+                                           QueryRewriteContext context) throws IOException {
             if (dateParser == null) {
                 dateParser = this.dateMathParser;
             }

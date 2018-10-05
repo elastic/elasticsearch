@@ -25,6 +25,7 @@ import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.EmptyResponse;
+import org.elasticsearch.client.security.ChangePasswordRequest;
 
 import java.io.IOException;
 
@@ -47,6 +48,7 @@ public final class SecurityClient {
      * Create/update a user in the native realm synchronously.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-users.html">
      * the docs</a> for more.
+     *
      * @param request the request with the user's information
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response from the put user call
@@ -61,8 +63,9 @@ public final class SecurityClient {
      * Asynchronously create/update a user in the native realm.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-users.html">
      * the docs</a> for more.
-     * @param request the request with the user's information
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     *
+     * @param request  the request with the user's information
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
     public void putUserAsync(PutUserRequest request, RequestOptions options, ActionListener<PutUserResponse> listener) {
@@ -74,6 +77,7 @@ public final class SecurityClient {
      * Enable a native realm or built-in user synchronously.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-enable-user.html">
      * the docs</a> for more.
+     *
      * @param request the request with the user to enable
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response from the enable user call
@@ -88,12 +92,13 @@ public final class SecurityClient {
      * Enable a native realm or built-in user asynchronously.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-enable-user.html">
      * the docs</a> for more.
-     * @param request the request with the user to enable
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     *
+     * @param request  the request with the user to enable
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
     public void enableUserAsync(EnableUserRequest request, RequestOptions options,
-                                    ActionListener<EmptyResponse> listener) {
+                                ActionListener<EmptyResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::enableUser, options,
             EmptyResponse::fromXContent, listener, emptySet());
     }
@@ -102,6 +107,7 @@ public final class SecurityClient {
      * Disable a native realm or built-in user synchronously.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-disable-user.html">
      * the docs</a> for more.
+     *
      * @param request the request with the user to disable
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response from the enable user call
@@ -116,13 +122,44 @@ public final class SecurityClient {
      * Disable a native realm or built-in user asynchronously.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-disable-user.html">
      * the docs</a> for more.
-     * @param request the request with the user to disable
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     *
+     * @param request  the request with the user to disable
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
     public void disableUserAsync(DisableUserRequest request, RequestOptions options,
-                                ActionListener<EmptyResponse> listener) {
+                                 ActionListener<EmptyResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::disableUser, options,
+            EmptyResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Change the password of a user of a native realm or built-in user synchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-change-password.html">
+     * the docs</a> for more.
+     *
+     * @param request the request with the user's new password
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the change user password call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public EmptyResponse changePassword(ChangePasswordRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::changePassword, options,
+            EmptyResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Change the password of a user of a native realm or built-in user asynchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-change-password.html">
+     * the docs</a> for more.
+     *
+     * @param request  the request with the user's new password
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void changePasswordAsync(ChangePasswordRequest request, RequestOptions options,
+                                    ActionListener<EmptyResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::changePassword, options,
             EmptyResponse::fromXContent, listener, emptySet());
     }
 }

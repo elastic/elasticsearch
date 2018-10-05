@@ -205,9 +205,9 @@ public class InnerHitsIT extends ESIntegTestCase {
         int size = randomIntBetween(0, numDocs);
         BoolQueryBuilder boolQuery = new BoolQueryBuilder();
         boolQuery.should(nestedQuery("field1", matchAllQuery(), ScoreMode.Avg).innerHit(new InnerHitBuilder("a").setSize(size)
-                .addSort(new FieldSortBuilder("_doc").order(SortOrder.DESC))));
+                .addSort(new FieldSortBuilder("_doc").order(SortOrder.ASC))));
         boolQuery.should(nestedQuery("field2", matchAllQuery(), ScoreMode.Avg).innerHit(new InnerHitBuilder("b")
-                .addSort(new FieldSortBuilder("_doc").order(SortOrder.DESC)).setSize(size)));
+                .addSort(new FieldSortBuilder("_doc").order(SortOrder.ASC)).setSize(size)));
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(boolQuery)
                 .setSize(numDocs)
@@ -471,7 +471,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                         .innerHit(new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(false)))).get();
         assertNoFailures(response);
         assertHitCount(response, 1);
-        hit = response.getHits().getAt(0);;
+        hit = response.getHits().getAt(0);
         assertThat(hit.getId(), equalTo("1"));
         messages = hit.getInnerHits().get("comments.messages");
         assertThat(messages.getTotalHits(), equalTo(1L));

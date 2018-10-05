@@ -754,11 +754,15 @@ public class DateFormatters {
     /////////////////////////////////////////
 
     private static final DateTimeFormatter DATE_FORMATTER = new DateTimeFormatterBuilder()
-        .appendValue(ChronoField.YEAR, 1, 4, SignStyle.NORMAL)
+        .appendValue(ChronoField.YEAR, 1, 5, SignStyle.NORMAL)
+        .optionalStart()
         .appendLiteral('-')
         .appendValue(MONTH_OF_YEAR, 1, 2, SignStyle.NOT_NEGATIVE)
+        .optionalStart()
         .appendLiteral('-')
         .appendValue(DAY_OF_MONTH, 1, 2, SignStyle.NOT_NEGATIVE)
+        .optionalEnd()
+        .optionalEnd()
         .toFormatter(Locale.ROOT);
 
     private static final DateTimeFormatter HOUR_MINUTE_FORMATTER = new DateTimeFormatterBuilder()
@@ -777,7 +781,11 @@ public class DateFormatters {
             .append(DATE_FORMATTER)
             .optionalStart()
             .appendLiteral('T')
-            .append(HOUR_MINUTE_FORMATTER)
+            .optionalStart()
+            .appendValue(HOUR_OF_DAY, 1, 2, SignStyle.NOT_NEGATIVE)
+            .optionalStart()
+            .appendLiteral(':')
+            .appendValue(MINUTE_OF_HOUR, 1, 2, SignStyle.NOT_NEGATIVE)
             .optionalStart()
             .appendLiteral(':')
             .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
@@ -787,12 +795,18 @@ public class DateFormatters {
             .optionalEnd()
             .optionalStart().appendZoneOrOffsetId().optionalEnd()
             .optionalEnd()
+            .optionalEnd()
+            .optionalEnd()
             .toFormatter(Locale.ROOT),
         new DateTimeFormatterBuilder()
             .append(DATE_FORMATTER)
             .optionalStart()
             .appendLiteral('T')
-            .append(HOUR_MINUTE_FORMATTER)
+            .optionalStart()
+            .appendValue(HOUR_OF_DAY, 1, 2, SignStyle.NOT_NEGATIVE)
+            .optionalStart()
+            .appendLiteral(':')
+            .appendValue(MINUTE_OF_HOUR, 1, 2, SignStyle.NOT_NEGATIVE)
             .optionalStart()
             .appendLiteral(':')
             .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
@@ -801,6 +815,8 @@ public class DateFormatters {
             .appendFraction(MILLI_OF_SECOND, 1, 3, true)
             .optionalEnd()
             .optionalStart().appendOffset("+HHmm", "Z").optionalEnd()
+            .optionalEnd()
+            .optionalEnd()
             .optionalEnd()
             .toFormatter(Locale.ROOT));
 
@@ -873,17 +889,6 @@ public class DateFormatters {
      */
     private static final DateFormatter YEAR = new JavaDateFormatter("year",
         new DateTimeFormatterBuilder().appendValue(ChronoField.YEAR).toFormatter(Locale.ROOT));
-
-    /*
-     * Returns a formatter for parsing the seconds since the epoch
-     */
-    private static final DateFormatter EPOCH_SECOND = new JavaDateFormatter("epoch_second",
-        new DateTimeFormatterBuilder().appendValue(ChronoField.INSTANT_SECONDS).toFormatter(Locale.ROOT));
-
-    /*
-     * Parses the milliseconds since/before the epoch
-     */
-    private static final DateFormatter EPOCH_MILLIS = EpochMillisDateFormatter.INSTANCE;
 
     /*
      * Returns a formatter that combines a full date and two digit hour of
@@ -1359,9 +1364,9 @@ public class DateFormatters {
         } else if ("yearMonthDay".equals(input) || "year_month_day".equals(input)) {
             return YEAR_MONTH_DAY;
         } else if ("epoch_second".equals(input)) {
-            return EPOCH_SECOND;
+            return EpochSecondsDateFormatter.INSTANCE;
         } else if ("epoch_millis".equals(input)) {
-            return EPOCH_MILLIS;
+            return EpochMillisDateFormatter.INSTANCE;
         // strict date formats here, must be at least 4 digits for year and two for months and two for day
         } else if ("strictBasicWeekDate".equals(input) || "strict_basic_week_date".equals(input)) {
             return STRICT_BASIC_WEEK_DATE;

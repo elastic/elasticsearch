@@ -1371,6 +1371,7 @@ a PKCS#12 container includes trusted certificate ("anchor") entries look for
 `openssl pkcs12 -info` output, or `trustedCertEntry` in the
 `keytool -list` output.
 
+[float]
 ===== PKCS#11 tokens
 
 When using a PKCS#11 cryptographic token, which contains the
@@ -1391,7 +1392,7 @@ a keystore or a truststore for Elasticsearch, the PIN for the token can be
 configured by setting the appropriate value to `xpack.ssl.truststore.password`
 or `xpack.ssl.truststore.secure_password`. In the absence of the above, {es} will
 fallback to use he appropriate JVM setting (`-Djavax.net.ssl.trustStorePassword`)
-if that s set.
+if that is set.
 Since there can only be one PKCS#11 token configured, only one keystore and
 truststore will be usable for configuration in {es}. This in turn means
 that only one certificate can be used for TLS both in the transport and the

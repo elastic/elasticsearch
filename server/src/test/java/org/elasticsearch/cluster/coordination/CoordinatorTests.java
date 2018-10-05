@@ -612,7 +612,7 @@ public class CoordinatorTests extends ESTestCase {
 
         void runFor(long runDurationMillis, String description) {
             final long endTime = deterministicTaskQueue.getCurrentTimeMillis() + runDurationMillis;
-            logger.info("----> runFor({}ms) running until [{}ms]: {}", runDurationMillis, endTime, description);
+            logger.info("--> runFor({}ms) running until [{}ms]: {}", runDurationMillis, endTime, description);
 
             while (deterministicTaskQueue.getCurrentTimeMillis() < endTime) {
 
@@ -637,7 +637,7 @@ public class CoordinatorTests extends ESTestCase {
                 deterministicTaskQueue.advanceTime();
             }
 
-            logger.info("----> runFor({}ms) completed run until [{}ms]: {}", runDurationMillis, endTime, description);
+            logger.info("--> runFor({}ms) completed run until [{}ms]: {}", runDurationMillis, endTime, description);
         }
 
         private boolean isConnectedPair(ClusterNode n1, ClusterNode n2) {

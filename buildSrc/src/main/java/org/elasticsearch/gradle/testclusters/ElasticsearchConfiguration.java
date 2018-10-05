@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gradle.clusterformation;
+package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.Distribution;
 import org.elasticsearch.gradle.Version;

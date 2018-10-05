@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gradle.clusterformation;
+package org.elasticsearch.gradle.testclusters;
 
 import groovy.lang.Closure;
 import org.elasticsearch.GradleServicesAdapter;
@@ -37,12 +37,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class ClusterformationPlugin implements Plugin<Project> {
+public class TestClustersPlugin implements Plugin<Project> {
 
     public static final String LIST_TASK_NAME = "listElasticSearchClusters";
     public static final String EXTENSION_NAME = "elasticSearchClusters";
 
-    private final Logger logger =  Logging.getLogger(ClusterformationPlugin.class);
+    private final Logger logger =  Logging.getLogger(TestClustersPlugin.class);
 
     @Override
     public void apply(Project project) {

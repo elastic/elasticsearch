@@ -42,6 +42,17 @@ import static org.hamcrest.CoreMatchers.instanceOf;
  */
 
 public class SpanGapQueryBuilderTests extends AbstractQueryTestCase<SpanNearQueryBuilder> {
+
+    @Override
+    protected boolean supportsBoost() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsQueryName() {
+        return true;
+    }
+
     @Override
     protected SpanNearQueryBuilder doCreateTestQueryBuilder() {
         SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(randomIntBetween(1, 6));

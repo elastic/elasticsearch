@@ -31,6 +31,16 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 public class MatchAllQueryBuilderTests extends AbstractQueryTestCase<MatchAllQueryBuilder> {
 
     @Override
+    protected boolean supportsBoost() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsQueryName() {
+        return true;
+    }
+
+    @Override
     protected MatchAllQueryBuilder doCreateTestQueryBuilder() {
         return new MatchAllQueryBuilder();
     }

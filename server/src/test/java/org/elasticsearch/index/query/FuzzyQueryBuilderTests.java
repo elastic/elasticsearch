@@ -40,6 +40,16 @@ import static org.hamcrest.Matchers.instanceOf;
 public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuilder> {
 
     @Override
+    protected boolean supportsBoost() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsQueryName() {
+        return true;
+    }
+
+    @Override
     protected FuzzyQueryBuilder doCreateTestQueryBuilder() {
         String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
         FuzzyQueryBuilder query = new FuzzyQueryBuilder(fieldName, getRandomValueForFieldName(fieldName));

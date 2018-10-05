@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -32,14 +33,21 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBuilder> {
+
     @Override
     protected boolean supportsBoost() {
         return false;
     }
 
     @Override
+    protected boolean supportsQueryName() {
+        return true;
+    }
+
+    @Override
     protected SpanOrQueryBuilder doCreateTestQueryBuilder() {
-        SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(randomIntBetween(1, 6));
+        SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(
+            randomIntBetween(1, 6), false, true);
         SpanOrQueryBuilder queryBuilder = new SpanOrQueryBuilder(spanTermQueries[0]);
         for (int i = 1; i < spanTermQueries.length; i++) {
             queryBuilder.addClause(spanTermQueries[i]);
@@ -107,5 +115,43 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
         checkGeneratedJson(json, parsed);
 
         assertEquals(json, 3, parsed.clauses().size());
+    }
+
+    public void testFromJson_withBoost_inInnerQuery() {
+        String json =
+            "{\n" +
+                "  \"span_or\" : {\n" +
+                "    \"clauses\" : [ {\n" +
+                "      \"span_term\" : {\n" +
+                "        \"field\" : {\n" +
+                "          \"value\" : \"value1\",\n" +
+                "          \"boost\" : 2.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    } ]\n" +
+                "  }\n" +
+                "}";
+
+        Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertThat(exception.getMessage(), equalTo("spanOr [clauses] can't have boost value"));
+    }
+
+    public void testFromJson_withBoost_inOuterQuery() {
+        String json =
+            "{\n" +
+                "  \"span_or\" : {\n" +
+                "    \"clauses\" : [ {\n" +
+                "      \"span_term\" : {\n" +
+                "        \"field\" : {\n" +
+                "          \"value\" : \"value1\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    } ],\n" +
+                "    \"boost\" : 2.0\n" +
+                "  }\n" +
+                "}";
+
+        Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertThat(exception.getMessage(), equalTo("spanOr [clauses] can't have boost value"));
     }
 }

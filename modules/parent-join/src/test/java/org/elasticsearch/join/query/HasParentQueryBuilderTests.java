@@ -68,6 +68,16 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
     boolean requiresRewrite = false;
 
     @Override
+    protected boolean supportsBoost() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsQueryName() {
+        return true;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Collections.singletonList(ParentJoinPlugin.class);
     }

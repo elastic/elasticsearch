@@ -72,6 +72,16 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     @Override
+    protected boolean supportsBoost() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsQueryName() {
+        return true;
+    }
+
+    @Override
     protected TermsQueryBuilder doCreateTestQueryBuilder() {
         TermsQueryBuilder query;
         // terms query or lookup query

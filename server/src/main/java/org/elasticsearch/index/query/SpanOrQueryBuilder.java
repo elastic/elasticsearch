@@ -114,7 +114,11 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
                         if (query instanceof SpanQueryBuilder == false) {
                             throw new ParsingException(parser.getTokenLocation(), "spanOr [clauses] must be of type span query");
                         }
-                        clauses.add((SpanQueryBuilder) query);
+                        final SpanQueryBuilder clause = (SpanQueryBuilder) query;
+                        if (clause.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
+                            throw new ParsingException(parser.getTokenLocation(), "spanOr [clauses] can't have boost value");
+                        }
+                        clauses.add(clause);
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_or] query does not support [" + currentFieldName + "]");

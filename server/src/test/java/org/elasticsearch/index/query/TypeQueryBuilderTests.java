@@ -36,6 +36,16 @@ import static org.hamcrest.Matchers.equalTo;
 public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilder> {
 
     @Override
+    protected boolean supportsBoost() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsQueryName() {
+        return true;
+    }
+
+    @Override
     protected TypeQueryBuilder doCreateTestQueryBuilder() {
         return new TypeQueryBuilder("_doc");
     }

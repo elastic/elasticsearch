@@ -31,6 +31,16 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 public class MatchNoneQueryBuilderTests extends AbstractQueryTestCase<MatchNoneQueryBuilder> {
 
     @Override
+    protected boolean supportsBoost() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsQueryName() {
+        return true;
+    }
+
+    @Override
     protected MatchNoneQueryBuilder doCreateTestQueryBuilder() {
         return new MatchNoneQueryBuilder();
     }

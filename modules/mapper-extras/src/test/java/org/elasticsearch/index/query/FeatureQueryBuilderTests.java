@@ -44,6 +44,16 @@ import static org.hamcrest.Matchers.either;
 public class FeatureQueryBuilderTests extends AbstractQueryTestCase<FeatureQueryBuilder> {
 
     @Override
+    protected boolean supportsBoost() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsQueryName() {
+        return true;
+    }
+
+    @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
             "my_feature_field", "type=feature",

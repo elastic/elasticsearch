@@ -71,6 +71,16 @@ import static org.hamcrest.Matchers.instanceOf;
 public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQueryBuilder> {
 
     @Override
+    protected boolean supportsBoost() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsQueryName() {
+        return true;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Collections.singleton(CustomScriptPlugin.class);
     }

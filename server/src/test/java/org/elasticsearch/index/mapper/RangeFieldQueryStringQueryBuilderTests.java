@@ -54,6 +54,16 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
     private static final String IP_RANGE_FIELD_NAME = "mapped_ip_range";
 
     @Override
+    protected boolean supportsBoost() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsQueryName() {
+        return true;
+    }
+
+    @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
             INTEGER_RANGE_FIELD_NAME, "type=integer_range",

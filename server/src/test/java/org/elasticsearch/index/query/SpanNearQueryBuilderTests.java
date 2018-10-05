@@ -37,6 +37,17 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQueryBuilder> {
+
+    @Override
+    protected boolean supportsBoost() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsQueryName() {
+        return true;
+    }
+
     @Override
     protected SpanNearQueryBuilder doCreateTestQueryBuilder() {
         SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(randomIntBetween(1, 6));
@@ -184,5 +195,4 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
                 () -> parseQuery(json));
         assertThat(e.getMessage(), containsString("[span_near] query does not support [collect_payloads]"));
     }
-
 }

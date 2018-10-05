@@ -36,6 +36,17 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBuilder> {
+
+    @Override
+    protected boolean supportsBoost() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsQueryName() {
+        return true;
+    }
+
     @Override
     protected ScriptQueryBuilder doCreateTestQueryBuilder() {
         String script = "1";

@@ -37,6 +37,16 @@ import static org.hamcrest.Matchers.instanceOf;
 public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBuilder> {
 
     @Override
+    protected boolean supportsBoost() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsQueryName() {
+        return true;
+    }
+
+    @Override
     protected RegexpQueryBuilder doCreateTestQueryBuilder() {
         RegexpQueryBuilder query = randomRegexpQuery();
         if (randomBoolean()) {

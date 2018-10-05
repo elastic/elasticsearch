@@ -63,6 +63,16 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     private static final String MISSING_FIELD_NAME = "missing";
 
     @Override
+    protected boolean supportsBoost() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsQueryName() {
+        return true;
+    }
+
+    @Override
     protected MultiMatchQueryBuilder doCreateTestQueryBuilder() {
         String fieldName = randomFrom(STRING_FIELD_NAME, INT_FIELD_NAME, DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME,
                 MISSING_FIELD_NAME, MISSING_WILDCARD_FIELD_NAME);

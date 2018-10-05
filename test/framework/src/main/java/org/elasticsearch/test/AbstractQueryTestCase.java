@@ -20,7 +20,6 @@
 package org.elasticsearch.test;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -83,17 +82,16 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     private static final int NUMBER_OF_TESTQUERIES = 20;
 
     public final QB createTestQueryBuilder() {
+        return createTestQueryBuilder(supportsBoost(), supportsQueryName());
+    }
+
+    public final QB createTestQueryBuilder(boolean addBoost, boolean addQueryName) {
         QB query = doCreateTestQueryBuilder();
-        //we should not set boost and query name for queries that don't parse it
-        if (supportsBoost()) {
-            if (randomBoolean()) {
-                query.boost(2.0f / randomIntBetween(1, 20));
-            }
+        if (addBoost && randomBoolean()) {
+            query.boost(2.0f / randomIntBetween(1, 20));
         }
-        if (supportsQueryName()) {
-            if (randomBoolean()) {
-                query.queryName(createUniqueRandomName());
-            }
+        if (addQueryName && randomBoolean()) {
+            query.queryName(createUniqueRandomName());
         }
         return query;
     }
@@ -109,7 +107,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      */
     public void testFromXContent() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
-            QB testQuery = createTestQueryBuilder();
+            QB testQuery = createTestQueryBuilder(supportsBoost(), supportsQueryName());
             XContentType xContentType = randomFrom(XContentType.values());
             BytesReference shuffledXContent = toShuffledXContent(testQuery, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean(),
                     shuffleProtectedFields());
@@ -487,13 +485,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * Those queries are easy to identify: their parsers don't parse `boost` and `_name` as they don't apply to the specific query:
      * wrapper query and match_none
      */
-    protected boolean supportsBoost() {
-        return true;
-    }
+    protected abstract boolean supportsBoost();
 
-    protected boolean supportsQueryName() {
-        return true;
-    }
+    protected abstract boolean supportsQueryName();
 
     /**
      * Checks the result of {@link QueryBuilder#toQuery(QueryShardContext)} given the original {@link QueryBuilder}

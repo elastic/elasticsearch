@@ -42,6 +42,16 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDistanceQueryBuilder> {
 
     @Override
+    protected boolean supportsBoost() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsQueryName() {
+        return true;
+    }
+
+    @Override
     protected GeoDistanceQueryBuilder doCreateTestQueryBuilder() {
         String fieldName = randomFrom(GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME);
         GeoDistanceQueryBuilder qb = new GeoDistanceQueryBuilder(fieldName);

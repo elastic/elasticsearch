@@ -19,7 +19,7 @@ The queries in this group are:
 
 <<query-dsl-geo-distance-query,`geo_distance`>> query::
 
-    Finds document with geo-points within the specified distance from a central
+    Finds documents with geo-points within the specified distance of a central
     point.
 
 <<query-dsl-geo-polygon-query,`geo_polygon`>> query::

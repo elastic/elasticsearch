@@ -274,6 +274,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             if (mode == Mode.CANDIDATE) {
                 final StartJoinRequest startJoinRequest
                     = new StartJoinRequest(getLocalNode(), Math.max(getCurrentTerm(), maxTermSeen.get()) + 1);
+                logger.debug("starting election with {}", startJoinRequest);
                 getDiscoveredNodes().forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
             }
         }
@@ -807,6 +808,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
             assert currentPublication.get() == this;
             currentPublication = Optional.empty();
+            logger.debug("publication ended unsuccessfully: {}", this);
 
             // check if node has not already switched modes (by bumping term)
             if (isActiveForCurrentLeader()) {
@@ -852,6 +854,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                 synchronized (mutex) {
                                     assert currentPublication.get() == CoordinatorPublication.this;
                                     currentPublication = Optional.empty();
+                                    logger.debug("publication ended successfully: {}", CoordinatorPublication.this);
                                     // trigger term bump if new term was found during publication
                                     updateMaxTermSeen(getCurrentTerm());
                                 }

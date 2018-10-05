@@ -75,6 +75,7 @@ import static org.elasticsearch.cluster.coordination.CoordinationStateTests.valu
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.FOLLOWER;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.LEADER;
+import static org.elasticsearch.cluster.coordination.Coordinator.PUBLISH_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.CoordinatorTests.Cluster.DEFAULT_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_BACK_OFF_TIME_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING;
@@ -193,9 +194,19 @@ public class CoordinatorTests extends ESTestCase {
                 * defaultInt(LEADER_CHECK_RETRY_COUNT_SETTING)
                 // then wait for a follower to be promoted to leader
                 + DEFAULT_ELECTION_DELAY
-                // then wait for the new leader to notice that the old leader is unresponsive
-                + (defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING))
-                * defaultInt(FOLLOWER_CHECK_RETRY_COUNT_SETTING)
+                // and the first publication times out because of the unresponsive node
+                + defaultMillis(PUBLISH_TIMEOUT_SETTING)
+                // there might be a term bump causing another election
+                + DEFAULT_ELECTION_DELAY
+
+                // then wait for both of:
+                + Math.max(
+                // 1. the term bumping publication to time out
+                defaultMillis(PUBLISH_TIMEOUT_SETTING),
+                // 2. the new leader to notice that the old leader is unresponsive
+                (defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING))
+                    * defaultInt(FOLLOWER_CHECK_RETRY_COUNT_SETTING))
+
                 // then wait for the new leader to commit a state without the old leader
                 + DEFAULT_CLUSTER_STATE_UPDATE_DELAY,
 

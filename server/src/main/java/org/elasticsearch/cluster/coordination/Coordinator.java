@@ -547,7 +547,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         return coordinationState.get().containsJoinVoteFor(localNode);
     }
 
-    void handleJoin(Join join) {
+    private void handleJoin(Join join) {
         synchronized (mutex) {
             ensureTermAtLeast(getLocalNode(), join.getTerm()).ifPresent(this::handleJoin);
 

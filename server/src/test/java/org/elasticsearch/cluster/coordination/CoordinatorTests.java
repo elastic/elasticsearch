@@ -188,6 +188,7 @@ public class CoordinatorTests extends ESTestCase {
         logger.info("--> blackholing leader {}", originalLeader);
         originalLeader.blackhole();
 
+        // This stabilisation time bound is undesirably long. TODO try and reduce it.
         cluster.stabilise(Math.max(
             // first wait for all the followers to notice the leader has gone
             (defaultMillis(LEADER_CHECK_INTERVAL_SETTING) + defaultMillis(LEADER_CHECK_TIMEOUT_SETTING))
@@ -216,6 +217,7 @@ public class CoordinatorTests extends ESTestCase {
                 // then wait for the leader to try and commit a state removing them, causing it to stand down
                 + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
         ));
+
         assertThat(cluster.getAnyLeader().getId(), not(equalTo(originalLeader.getId())));
     }
 

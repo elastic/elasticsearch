@@ -30,8 +30,6 @@ import java.util.List;
  */
 public class CapturingLogger {
 
-    private static final String IMPLICIT_APPENDER_NAME = "__implicit";
-
     /**
      * Constructs a new {@link CapturingLogger} named as the fully qualified name of
      * the invoking method. One name can be assigned to a single logger globally, so
@@ -54,88 +52,42 @@ public class CapturingLogger {
         final String name = caller.getClassName() + "." + caller.getMethodName() + "." + level.toString();
         final Logger logger = ESLoggerFactory.getLogger(name);
         Loggers.setLevel(logger, level);
-        attachNewMockAppender(logger, IMPLICIT_APPENDER_NAME, layout);
+        final MockAppender appender = new MockAppender(name, layout);
+        appender.start();
+        Loggers.addAppender(logger, appender);
         return logger;
     }
 
-    public static void attachNewMockAppender(final Logger logger, final String appenderName, @Nullable StringLayout layout)
-            throws IllegalAccessException {
-        final MockAppender appender = new MockAppender(buildAppenderName(logger.getName(), appenderName), layout);
-        appender.start();
-        Loggers.addAppender(logger, appender);
-    }
-
-    private static String buildAppenderName(final String loggerName, final String appenderName) {
-        // appender name also has to be unique globally (logging context globally)
-        return loggerName + "." + appenderName;
-    }
-
-    private static MockAppender getMockAppender(final String loggerName, final String appenderName) {
+    private static MockAppender getMockAppender(final String name) {
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
         final Configuration config = ctx.getConfiguration();
-        final LoggerConfig loggerConfig = config.getLoggerConfig(loggerName);
-        final String mockAppenderName = buildAppenderName(loggerName, appenderName);
-        return (MockAppender) loggerConfig.getAppenders().get(mockAppenderName);
+        final LoggerConfig loggerConfig = config.getLoggerConfig(name);
+        return (MockAppender) loggerConfig.getAppenders().get(name);
     }
 
     /**
-     * Checks if the logger's appender(s) has captured any events.
+     * Checks if the logger's appender has captured any events.
      *
-     * @param loggerName
+     * @param name
      *            The unique global name of the logger.
-     * @param appenderNames
-     *            Names of other appenders nested under this same logger.
      * @return {@code true} if no event has been captured, {@code false} otherwise.
      */
-    public static boolean isEmpty(final String loggerName, final String... appenderNames) {
-        // check if implicit appender is empty
-        final MockAppender implicitAppender = getMockAppender(loggerName, IMPLICIT_APPENDER_NAME);
-        assert implicitAppender != null;
-        if (false == implicitAppender.isEmpty()) {
-            return false;
-        }
-        if (null == appenderNames) {
-            return true;
-        }
-        // check if any named appenders are empty
-        for (String appenderName : appenderNames) {
-            final MockAppender namedAppender = getMockAppender(loggerName, appenderName);
-            if (namedAppender != null && false == namedAppender.isEmpty()) {
-                return false;
-            }
-        }
-        return true;
+    public static boolean isEmpty(final String name) {
+        final MockAppender appender = getMockAppender(name);
+        return appender.isEmpty();
     }
 
     /**
-     * Gets the captured events for a logger by its name. Events are those of the
-     * implicit appender of the logger.
+     * Gets the captured events for a logger by its name.
      *
-     * @param loggerName
+     * @param name
      *            The unique global name of the logger.
      * @param level
      *            The priority level of the captured events to be returned.
      * @return A list of captured events formated to {@code String}.
      */
-    public static List<String> output(final String loggerName, final Level level) {
-        return output(loggerName, IMPLICIT_APPENDER_NAME, level);
-    }
-
-    /**
-     * Gets the captured events for a logger and an appender by their respective
-     * names. There is a one to many relationship between loggers and appenders.
-     *
-     * @param loggerName
-     *            The unique global name of the logger.
-     * @param appenderName
-     *            The name of an appender associated with the {@code loggerName}
-     *            logger.
-     * @param level
-     *            The priority level of the captured events to be returned.
-     * @return A list of captured events formated to {@code String}.
-     */
-    public static List<String> output(final String loggerName, final String appenderName, final Level level) {
-        final MockAppender appender = getMockAppender(loggerName, appenderName);
+    public static List<String> output(final String name, final Level level) {
+        final MockAppender appender = getMockAppender(name);
         return appender.output(level);
     }
 

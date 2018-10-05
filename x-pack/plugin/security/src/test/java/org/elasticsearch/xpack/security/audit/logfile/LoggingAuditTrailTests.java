@@ -26,7 +26,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.mock.orig.Mockito;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -129,7 +128,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     private static PatternLayout patternLayout;
-    private static PatternLayout deprecatedPatternLayout;
     private Settings settings;
     private DiscoveryNode localNode;
     private ClusterService clusterService;
@@ -138,13 +136,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
     private Map<String, String> commonFields;
     private Logger logger;
     private LoggingAuditTrail auditTrail;
-    // from:
-    // https://www.myintervals.com/blog/2009/05/20/iso-8601-date-validation-that-doesnt-suck/
-    // but stripped off the leading ^ and trailing $ anchors
-    private static final String ISO8601_DATE_REGEXP = "([\\+-]?\\d{4}(?!\\d{2}\\b))((-?)((0[1-9]|1[0-2])(\\3([12]\\d|0[1-9]|3[01]))?|"
-            + "W([0-4]\\d|5[0-2])(-?[1-7])?|(00[1-9]|0[1-9]\\d|[12]\\d{2}|3([0-5]\\d|6[1-6])))([T\\s]((([01]\\d|2[0-3])((:?)"
-            + "[0-5]\\d)?|24\\:?00)([\\.,]\\d+(?!:))?)?(\\17[0-5]\\d([\\.,]\\d+)?)?([zZ]|([\\+-])([01]\\d|2[0-3]):?([0-5]\\d)?)?)?)?";
-    private static final String DEPRECATED_APPENDER_NAME = "deprecated";
 
     @BeforeClass
     public static void lookupPatternLayout() throws Exception {
@@ -159,25 +150,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
         // attached to the LoggingAuditTrail.class logger.
         assertThat(properties.getProperty("logger.xpack_security_audit_logfile.name"), is(LoggingAuditTrail.class.getName()));
         assertThat(properties.getProperty("logger.xpack_security_audit_logfile.appenderRef.audit_rolling.ref"), is("audit_rolling"));
-        assertThat(properties.getProperty("logger.xpack_security_audit_logfile.appenderRef.deprecated_audit_rolling.ref"),
-                is("deprecated_audit_rolling"));
         assertThat(properties.getProperty("appender.audit_rolling.name"), is("audit_rolling"));
-        assertThat(properties.getProperty("appender.deprecated_audit_rolling.name"), is("deprecated_audit_rolling"));
         assertThat(properties.getProperty("appender.audit_rolling.layout.type"), is("PatternLayout"));
-        assertThat(properties.getProperty("appender.deprecated_audit_rolling.layout.type"), is("PatternLayout"));
         final String patternLayoutFormat = properties.getProperty("appender.audit_rolling.layout.pattern");
         assertThat(patternLayoutFormat, is(notNullValue()));
         patternLayout = PatternLayout.newBuilder().withPattern(patternLayoutFormat).withCharset(StandardCharsets.UTF_8).build();
-        final String deprecatedPatternLayoutFormat = properties.getProperty("appender.deprecated_audit_rolling.layout.pattern");
-        assertThat(deprecatedPatternLayoutFormat, is(notNullValue()));
-        deprecatedPatternLayout = PatternLayout.newBuilder().withPattern(deprecatedPatternLayoutFormat).withCharset(StandardCharsets.UTF_8)
-                .build();
     }
 
     @AfterClass
     public static void releasePatternLayout() {
         patternLayout = null;
-        deprecatedPatternLayout = null;
     }
 
     @Before
@@ -187,9 +169,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put("xpack.security.audit.logfile.prefix.emit_node_host_address", randomBoolean())
                 .put("xpack.security.audit.logfile.prefix.emit_node_host_name", randomBoolean())
                 .put("xpack.security.audit.logfile.prefix.emit_node_name", randomBoolean())
-                .put("xpack.security.audit.logfile.prefix.emit_node_id", randomBoolean())
                 .put("xpack.security.audit.logfile.events.emit_request_body", includeRequestBody)
-                .put(Node.NODE_NAME_SETTING.getKey(), randomAlphaOfLength(6))
                 .build();
         localNode = mock(DiscoveryNode.class);
         when(localNode.getAddress()).thenReturn(buildNewFakeTransportAddress());
@@ -208,15 +188,12 @@ public class LoggingAuditTrailTests extends ESTestCase {
             threadContext.putHeader(Task.X_OPAQUE_ID, randomAlphaOfLengthBetween(1, 4));
         }
         logger = CapturingLogger.newCapturingLogger(Level.INFO, patternLayout);
-        CapturingLogger.attachNewMockAppender(logger, DEPRECATED_APPENDER_NAME, deprecatedPatternLayout);
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
     }
 
     @After
     public void clearLog() throws Exception {
-        // clear both the implicit as well as the deprecated appender
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
-        CapturingLogger.output(logger.getName(), DEPRECATED_APPENDER_NAME, Level.INFO).clear();
     }
 
     public void testAnonymousAccessDeniedTransport() throws Exception {
@@ -232,17 +209,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(message, threadContext, checkedFields);
         opaqueId(threadContext, checkedFields);
         assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
-        assertDeprecatedMsg(logger, settings, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
 
         // test disabled
-        clearLog();
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
         settings = Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "anonymous_access_denied")
                 .build();
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         auditTrail.anonymousAccessDenied("_action", message);
-        assertEmptyLog(logger, DEPRECATED_APPENDER_NAME);
+        assertEmptyLog(logger);
     }
 
     public void testAnonymousAccessDeniedRest() throws Exception {
@@ -264,17 +240,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, null);
         opaqueId(threadContext, checkedFields);
         assertMsg(logger, checkedFields.immutableMap());
-        assertDeprecatedMsg(logger, settings, checkedFields.immutableMap());
 
         // test disabled
-        clearLog();
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
         settings = Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "anonymous_access_denied")
                 .build();
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         auditTrail.anonymousAccessDenied(request);
-        assertEmptyLog(logger, DEPRECATED_APPENDER_NAME);
+        assertEmptyLog(logger);
     }
 
     public void testAuthenticationFailed() throws Exception {
@@ -293,17 +268,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
         indicesRequest(message, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
         assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
-        assertDeprecatedMsg(logger, settings, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
 
         // test disabled
-        clearLog();
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
         settings = Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "authentication_failed")
                 .build();
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         auditTrail.authenticationFailed(new MockToken(), "_action", message);
-        assertEmptyLog(logger, DEPRECATED_APPENDER_NAME);
+        assertEmptyLog(logger);
     }
 
     public void testAuthenticationFailedNoToken() throws Exception {
@@ -320,17 +294,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
         indicesRequest(message, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
         assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
-        assertDeprecatedMsg(logger, settings, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
 
         // test disabled
-        clearLog();
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
         settings = Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "authentication_failed")
                 .build();
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         auditTrail.authenticationFailed("_action", message);
-        assertEmptyLog(logger, DEPRECATED_APPENDER_NAME);
+        assertEmptyLog(logger);
     }
 
     public void testAuthenticationFailedRest() throws Exception {
@@ -359,17 +332,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
                      .put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, params.isEmpty() ? null : "foo=bar");
         opaqueId(threadContext, checkedFields);
         assertMsg(logger, checkedFields.immutableMap());
-        assertDeprecatedMsg(logger, settings, checkedFields.immutableMap());
 
         // test disabled
-        clearLog();
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
         settings = Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "authentication_failed")
                 .build();
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         auditTrail.authenticationFailed(new MockToken(), request);
-        assertEmptyLog(logger, DEPRECATED_APPENDER_NAME);
+        assertEmptyLog(logger);
     }
 
     public void testAuthenticationFailedRestNoToken() throws Exception {
@@ -397,17 +369,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
                      .put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, params.isEmpty() ? null : "bar=baz");
         opaqueId(threadContext, checkedFields);
         assertMsg(logger, checkedFields.immutableMap());
-        assertDeprecatedMsg(logger, settings, checkedFields.immutableMap());
 
         // test disabled
-        clearLog();
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
         settings = Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "authentication_failed")
                 .build();
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         auditTrail.authenticationFailed(request);
-        assertEmptyLog(logger, DEPRECATED_APPENDER_NAME);
+        assertEmptyLog(logger);
     }
 
     public void testAuthenticationFailedRealm() throws Exception {
@@ -415,7 +386,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
         final String realm = randomAlphaOfLengthBetween(1, 6);
         auditTrail.authenticationFailed(realm, mockToken, "_action", message);
-        assertEmptyLog(logger, DEPRECATED_APPENDER_NAME);
+        assertEmptyLog(logger);
 
         // test enabled
         settings = Settings.builder()
@@ -436,7 +407,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
         indicesRequest(message, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
         assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
-        assertDeprecatedMsg(logger, settings, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
     }
 
     public void testAuthenticationFailedRealmRest() throws Exception {
@@ -452,7 +422,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final AuthenticationToken mockToken = new MockToken();
         final String realm = randomAlphaOfLengthBetween(1, 6);
         auditTrail.authenticationFailed(realm, mockToken, request);
-        assertEmptyLog(logger, DEPRECATED_APPENDER_NAME);
+        assertEmptyLog(logger);
 
         // test enabled
         settings = Settings.builder()
@@ -475,7 +445,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
                      .put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, params.isEmpty() ? null : "_param=baz");
         opaqueId(threadContext, checkedFields);
         assertMsg(logger, checkedFields.immutableMap());
-        assertDeprecatedMsg(logger, settings, checkedFields.immutableMap());
     }
 
     public void testAccessGranted() throws Exception {
@@ -487,26 +456,25 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-                     .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_granted")
-                     .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
-                     .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName());
+                .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_granted")
+                .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
+                .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName());
         checkedArrayFields.put(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME, roles);
         subject(authentication, checkedFields);
         restOrTransportOrigin(message, threadContext, checkedFields);
         indicesRequest(message, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
         assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
-        assertDeprecatedMsg(logger, settings, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
 
         // test disabled
-        clearLog();
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
         settings = Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "access_granted")
                 .build();
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         auditTrail.accessGranted(authentication, "_action", message, roles);
-        assertEmptyLog(logger, DEPRECATED_APPENDER_NAME);
+        assertEmptyLog(logger);
     }
 
     public void testAccessGrantedInternalSystemAction() throws Exception {
@@ -514,7 +482,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String[] roles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final Authentication authentication = new Authentication(SystemUser.INSTANCE, new RealmRef("_reserved", "test", "foo"), null);
         auditTrail.accessGranted(authentication, "internal:_action", message, roles);
-        assertEmptyLog(logger, DEPRECATED_APPENDER_NAME);
+        assertEmptyLog(logger);
 
         // test enabled
         settings = Settings.builder()
@@ -536,7 +504,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
         indicesRequest(message, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
         assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
-        assertDeprecatedMsg(logger, settings, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
     }
 
     public void testAccessGrantedInternalSystemActionNonSystemUser() throws Exception {
@@ -557,17 +524,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
         indicesRequest(message, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
         assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
-        assertDeprecatedMsg(logger, settings, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
 
         // test disabled
-        clearLog();
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
         settings = Settings.builder()
                     .put(settings)
                     .put("xpack.security.audit.logfile.events.exclude", "access_granted")
                     .build();
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         auditTrail.accessGranted(authentication, "internal:_action", message, roles);
-        assertEmptyLog(logger, DEPRECATED_APPENDER_NAME);
+        assertEmptyLog(logger);
     }
 
     public void testAccessDenied() throws Exception {
@@ -588,17 +554,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
         indicesRequest(message, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
         assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
-        assertDeprecatedMsg(logger, settings, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
 
         // test disabled
-        clearLog();
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
         settings = Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "access_denied")
                 .build();
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         auditTrail.accessDenied(authentication, "_action", message, roles);
-        assertEmptyLog(logger, DEPRECATED_APPENDER_NAME);
+        assertEmptyLog(logger);
     }
 
     public void testTamperedRequestRest() throws Exception {
@@ -623,17 +588,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, params.isEmpty() ? null : "_param=baz");
         opaqueId(threadContext, checkedFields);
         assertMsg(logger, checkedFields.immutableMap());
-        assertDeprecatedMsg(logger, settings, checkedFields.immutableMap());
 
         // test disabled
-        clearLog();
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
         settings = Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "tampered_request")
                 .build();
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         auditTrail.tamperedRequest(request);
-        assertEmptyLog(logger, DEPRECATED_APPENDER_NAME);
+        assertEmptyLog(logger);
     }
 
     public void testTamperedRequest() throws Exception {
@@ -650,17 +614,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
         indicesRequest(message, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
         assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
-        assertDeprecatedMsg(logger, settings, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
 
         // test disabled
-        clearLog();
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
         settings = Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "tampered_request")
                 .build();
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         auditTrail.tamperedRequest("_action", message);
-        assertEmptyLog(logger, DEPRECATED_APPENDER_NAME);
+        assertEmptyLog(logger);
     }
 
     public void testTamperedRequestWithUser() throws Exception {
@@ -690,17 +653,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
         indicesRequest(message, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
         assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
-        assertDeprecatedMsg(logger, settings, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
 
         // test disabled
-        clearLog();
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
         settings = Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "tampered_request")
                 .build();
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         auditTrail.tamperedRequest(user, "_action", message);
-        assertEmptyLog(logger, DEPRECATED_APPENDER_NAME);
+        assertEmptyLog(logger);
     }
 
     public void testConnectionDenied() throws Exception {
@@ -718,17 +680,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put(LoggingAuditTrail.RULE_FIELD_NAME, "deny _all");
         opaqueId(threadContext, checkedFields);
         assertMsg(logger, checkedFields.immutableMap());
-        assertDeprecatedMsg(logger, settings, checkedFields.immutableMap());
 
         // test disabled
-        clearLog();
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
         settings = Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "connection_denied")
                 .build();
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         auditTrail.connectionDenied(inetAddress, profile, rule);
-        assertEmptyLog(logger, DEPRECATED_APPENDER_NAME);
+        assertEmptyLog(logger);
     }
 
     public void testConnectionGranted() throws Exception {
@@ -737,7 +698,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String profile = randomAlphaOfLengthBetween(1, 6);
 
         auditTrail.connectionGranted(inetAddress, profile, rule);
-        assertEmptyLog(logger, DEPRECATED_APPENDER_NAME);
+        assertEmptyLog(logger);
 
         // test enabled
         settings = Settings.builder()
@@ -762,7 +723,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String[] roles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final Authentication authentication = new Authentication(
                 new User("running as", new String[] { "r2" }, new User("_username", new String[] { "r1" })),
-                new RealmRef("authRealm", "test", "foo"), new RealmRef("lookRealm", "up", "by"));
+                new RealmRef("authRealm", "test", "foo"),
+                new RealmRef("lookRealm", "up", "by"));
 
         auditTrail.runAsGranted(authentication, "_action", message, roles);
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
@@ -797,7 +759,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String[] roles = randomArray(0, 4, String[]::new, () -> randomAlphaOfLengthBetween(1, 4));
         final Authentication authentication = new Authentication(
                 new User("running as", new String[] { "r2" }, new User("_username", new String[] { "r1" })),
-                new RealmRef("authRealm", "test", "foo"), new RealmRef("lookRealm", "up", "by"));
+                new RealmRef("authRealm", "test", "foo"),
+                new RealmRef("lookRealm", "up", "by"));
 
         auditTrail.runAsDenied(authentication, "_action", message, roles);
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
@@ -971,107 +934,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertMsg(logger, checkFields, Collections.emptyMap());
     }
 
-    private void assertDeprecatedMsg(Logger logger, Settings settings, Map<String, String> checkFields) {
-        assertDeprecatedMsg(logger, settings, checkFields, Collections.emptyMap());
-    }
-
-    private void assertDeprecatedMsg(Logger logger, Settings settings, Map<String, String> checkFields,
-            Map<String, String[]> checkArrayFields) {
-        final List<String> output = CapturingLogger.output(logger.getName(), DEPRECATED_APPENDER_NAME, Level.INFO);
-        assertThat("Exactly one log line expected. Found: " + output.size(), output.size(), is(1));
-        if (checkFields == null) {
-            // only check msg existence
-            return;
-        }
-        final String logLine = output.get(0);
-        final StringBuilder logLineRegexpBuilder = new StringBuilder();
-        if (LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING.get(settings)) {
-            logLineRegexpBuilder.append(" [").append(checkFields.get(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME)).append("]");
-        }
-        if (LoggingAuditTrail.EMIT_HOST_NAME_SETTING.get(settings)) {
-            logLineRegexpBuilder.append(" [").append(checkFields.get(LoggingAuditTrail.HOST_NAME_FIELD_NAME)).append("]");
-        }
-        if (LoggingAuditTrail.EMIT_NODE_NAME_SETTING.get(settings)) {
-            logLineRegexpBuilder.append(" [").append(checkFields.get(LoggingAuditTrail.NODE_NAME_FIELD_NAME)).append("]");
-        }
-        logLineRegexpBuilder.append(" [").append(checkFields.get(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME)).append("]");
-        logLineRegexpBuilder.append(" [").append(checkFields.get(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME)).append("]");
-        logLineRegexpBuilder.append("  ");
-        if (false == Strings.isNullOrEmpty(checkFields.get(LoggingAuditTrail.REALM_FIELD_NAME))) {
-            logLineRegexpBuilder.append("realm=[").append(checkFields.get(LoggingAuditTrail.REALM_FIELD_NAME)).append("], ");
-        }
-        logLineRegexpBuilder.append("origin_type=[").append(checkFields.get(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME)).append("]");
-        if (false == Strings.isNullOrEmpty(checkFields.get(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME))) {
-            logLineRegexpBuilder.append(", origin_address=[").append(checkFields.get(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME))
-                    .append("]");
-        }
-        if (false == Strings.isNullOrEmpty(checkFields.get(LoggingAuditTrail.PRINCIPAL_FIELD_NAME))) {
-            logLineRegexpBuilder.append(", principal=[").append(checkFields.get(LoggingAuditTrail.PRINCIPAL_FIELD_NAME)).append("]");
-        }
-        if (false == Strings.isNullOrEmpty(checkFields.get(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME))) {
-            logLineRegexpBuilder.append(", realm=[").append(checkFields.get(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME)).append("]");
-        }
-        if (false == Strings.isNullOrEmpty(checkFields.get(LoggingAuditTrail.PRINCIPAL_RUN_BY_FIELD_NAME))) {
-            logLineRegexpBuilder.append(", run_by_principal=[").append(checkFields.get(LoggingAuditTrail.PRINCIPAL_RUN_BY_FIELD_NAME))
-                    .append("]");
-        }
-        if (false == Strings.isNullOrEmpty(checkFields.get(LoggingAuditTrail.PRINCIPAL_RUN_AS_FIELD_NAME))) {
-            logLineRegexpBuilder.append(", run_as_principal=[").append(checkFields.get(LoggingAuditTrail.PRINCIPAL_RUN_AS_FIELD_NAME))
-                    .append("]");
-        }
-        if (false == Strings.isNullOrEmpty(checkFields.get(LoggingAuditTrail.PRINCIPAL_RUN_BY_REALM_FIELD_NAME))) {
-            logLineRegexpBuilder.append(", run_by_realm=[").append(checkFields.get(LoggingAuditTrail.PRINCIPAL_RUN_BY_REALM_FIELD_NAME))
-                    .append("]");
-        }
-        if (false == Strings.isNullOrEmpty(checkFields.get(LoggingAuditTrail.PRINCIPAL_RUN_AS_REALM_FIELD_NAME))) {
-            logLineRegexpBuilder.append(", run_as_realm=[").append(checkFields.get(LoggingAuditTrail.PRINCIPAL_RUN_AS_REALM_FIELD_NAME))
-                    .append("]");
-        }
-        final String[] roles = checkArrayFields.get(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME);
-        if (null != roles && roles.length > 0) {
-            logLineRegexpBuilder.append(", roles=[")
-                    .append(Strings.arrayToCommaDelimitedString(checkArrayFields.get(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME)))
-                    .append("]");
-        }
-        if (false == Strings.isNullOrEmpty(checkFields.get(LoggingAuditTrail.ACTION_FIELD_NAME))) {
-            logLineRegexpBuilder.append(", action=[").append(checkFields.get(LoggingAuditTrail.ACTION_FIELD_NAME)).append("]");
-        }
-        final String[] indices = checkArrayFields.get(LoggingAuditTrail.INDICES_FIELD_NAME);
-        if (null != indices && indices.length > 0) {
-            logLineRegexpBuilder.append(", indices=[")
-                    .append(Strings.arrayToCommaDelimitedString(checkArrayFields.get(LoggingAuditTrail.INDICES_FIELD_NAME))).append("]");
-        }
-        if (false == Strings.isNullOrEmpty(checkFields.get(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME))) {
-            logLineRegexpBuilder.append(", request=[").append(checkFields.get(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME)).append("]");
-        }
-        if (false == Strings.isNullOrEmpty(checkFields.get(LoggingAuditTrail.TRANSPORT_PROFILE_FIELD_NAME))) {
-            logLineRegexpBuilder.append(", transport_profile=[").append(checkFields.get(LoggingAuditTrail.TRANSPORT_PROFILE_FIELD_NAME))
-                    .append("]");
-        }
-        if (false == Strings.isNullOrEmpty(checkFields.get(LoggingAuditTrail.RULE_FIELD_NAME))) {
-            logLineRegexpBuilder.append(", rule=[").append(checkFields.get(LoggingAuditTrail.RULE_FIELD_NAME)).append("]");
-        }
-        if (false == Strings.isNullOrEmpty(checkFields.get(LoggingAuditTrail.URL_PATH_FIELD_NAME))) {
-            String uri = checkFields.get(LoggingAuditTrail.URL_PATH_FIELD_NAME);
-            if (false == Strings.isNullOrEmpty(checkFields.get(LoggingAuditTrail.URL_QUERY_FIELD_NAME))) {
-                uri += "?" + checkFields.get(LoggingAuditTrail.URL_QUERY_FIELD_NAME);
-            }
-            logLineRegexpBuilder.append(", uri=[").append(uri).append("]");
-        }
-        if (false == Strings.isNullOrEmpty(checkFields.get(LoggingAuditTrail.OPAQUE_ID_FIELD_NAME))) {
-            logLineRegexpBuilder.append(", opaque_id=[").append(checkFields.get(LoggingAuditTrail.OPAQUE_ID_FIELD_NAME)).append("]");
-        }
-        if (false == Strings.isNullOrEmpty(checkFields.get(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME))) {
-            logLineRegexpBuilder.append(", request_body=[").append(checkFields.get(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME)).append("]");
-        }
-        logLineRegexpBuilder.append(System.lineSeparator());
-
-        // regex for the date field
-        final String logLineRegexp = "^\\[" + ISO8601_DATE_REGEXP + "\\]" + Pattern.quote(logLineRegexpBuilder.toString()) + "$";
-        assertThat("The regexp does not match the log line: |" + logLineRegexp + "| |" + logLine + "|",
-                Pattern.matches(logLineRegexp, logLine), is(true));
-    }
-
     private void assertMsg(Logger logger, Map<String, String> checkFields, Map<String, String[]> checkArrayFields) {
         final List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat("Exactly one logEntry expected. Found: " + output.size(), output.size(), is(1));
@@ -1114,13 +976,13 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 logLine = logEntryFieldPattern.matcher(logLine).replaceFirst("");
             }
         }
-        logLine = logLine.replaceFirst("\"@timestamp\":\"" + ISO8601_DATE_REGEXP + "\"", "").replaceAll("[{},]", "");
+        logLine = logLine.replaceFirst("\"@timestamp\":\"[^\"]*\"", "").replaceAll("[{},]", "");
         // check no extra fields
         assertThat("Log event has extra unexpected content: " + logLine, Strings.hasText(logLine), is(false));
     }
 
-    private void assertEmptyLog(Logger logger, String... appenderNames) {
-        assertThat("Logger is not empty", CapturingLogger.isEmpty(logger.getName(), appenderNames), is(true));
+    private void assertEmptyLog(Logger logger) {
+        assertThat("Logger is not empty", CapturingLogger.isEmpty(logger.getName()), is(true));
     }
 
     protected Tuple<RestContent, RestRequest> prepareRestContent(String uri, InetSocketAddress remoteAddress) {

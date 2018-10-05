@@ -225,7 +225,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             if (sourceNode.equals(getLocalNode())) {
                 preVoteCollector.update(getPreVoteResponse(), getLocalNode());
             } else {
-                becomeFollower("handlePublishRequest", sourceNode); // updates preVoteCollector
+                becomeFollower("handlePublishRequest", sourceNode); // also updates preVoteCollector
             }
 
             return new PublishWithJoinResponse(publishResponse,
@@ -768,7 +768,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         // We may not have accepted our own state before receiving a join from another node, causing its join to be rejected (we cannot
         // safely accept a join whose last-accepted term/version is ahead of ours), so store them up and process them at the end.
-        // TODO this is unpleasant, is there a better way?
         private final List<Join> receivedJoins = new ArrayList<>();
         private boolean receivedJoinsProcessed;
 

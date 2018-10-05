@@ -770,6 +770,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         // safely accept a join whose last-accepted term/version is ahead of ours), so store them up and process them at the end.
         // TODO this is unpleasant, is there a better way?
         private final List<Join> receivedJoins = new ArrayList<>();
+        private boolean receivedJoinsProcessed;
 
         CoordinatorPublication(PublishRequest publishRequest, ListenableFuture<Void> localNodeAckEvent, AckListener ackListener,
                                ActionListener<Void> publishListener) {
@@ -837,6 +838,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                             handleJoin(join);
                         }
                     });
+                    assert receivedJoinsProcessed == false;
+                    receivedJoinsProcessed = true;
 
                     clusterApplier.onNewClusterState(CoordinatorPublication.this.toString(), () -> applierState,
                         new ClusterApplyListener() {
@@ -894,7 +897,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         @Override
         protected void onJoin(Join join) {
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-            receivedJoins.add(join);
+            if (receivedJoinsProcessed) {
+                // a late response may arrive after the state has been locally applied, meaning that receivedJoins has already been
+                // processed, so we have to handle this late response here.
+                handleJoin(join);
+            } else {
+                receivedJoins.add(join);
+            }
         }
 
         @Override

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -154,7 +155,7 @@ public class PreVoteCollector extends AbstractComponent {
 
                     @Override
                     public void handleException(TransportException exp) {
-                        logger.debug("{} failed: {}", this, exp.getRootCause().getMessage());
+                        logger.debug(new ParameterizedMessage("{} failed", this), exp);
                     }
 
                     @Override

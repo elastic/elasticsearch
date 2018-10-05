@@ -254,10 +254,15 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     private void updateMaxTermSeen(final long term) {
-        maxTermSeen.updateAndGet(oldMaxTerm -> Math.max(oldMaxTerm, term));
-        // TODO if we are leader here, and there is no publication in flight, then we should bump our term
-        // (if we are leader and there _is_ a publication in flight then doing so would cancel the publication, so don't do that, but
-        // do check for this after the publication completes)
+        final long updatedMaxTermSeen = maxTermSeen.updateAndGet(oldMaxTerm -> Math.max(oldMaxTerm, term));
+        synchronized (mutex) {
+            if (mode == Mode.LEADER && publicationInProgress() == false && updatedMaxTermSeen > getCurrentTerm()) {
+                // Bump our term. However if there is a publication in flight then doing so would cancel the publication, so don't do that
+                // since we check whether a term bump is needed at the end of the publication too.
+                ensureTermAtLeast(getLocalNode(), updatedMaxTermSeen);
+                startElection();
+            }
+        }
     }
 
     private void startElection() {

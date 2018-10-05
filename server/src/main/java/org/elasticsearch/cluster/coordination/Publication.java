@@ -307,8 +307,10 @@ public abstract class Publication extends AbstractComponent {
                     final Join join = response.getJoin().get();
                     assert discoveryNode.equals(join.getSourceNode());
                     assert join.getTerm() == response.getPublishResponse().getTerm() : response;
+                    logger.trace("handling join within publish response: {}", join);
                     onJoin(join);
                 } else {
+                    logger.trace("publish response from {} contained no join", discoveryNode);
                     onMissingJoin(discoveryNode);
                 }
 

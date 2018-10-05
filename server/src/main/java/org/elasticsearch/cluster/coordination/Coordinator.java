@@ -891,7 +891,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             // node voted for us and then rebooted, or it could be that it voted for a different node in this term. If we don't have a copy
             // of a join from this node then we assume the latter and bump our term to obtain a vote from this node.
             if (hasJoinVoteFrom(discoveryNode) == false) {
-                updateMaxTermSeen(publishRequest.getAcceptedState().term() + 1);
+                final long term = publishRequest.getAcceptedState().term();
+                logger.debug("onMissingJoin: no join vote from {}, bumping term to exceed {}", discoveryNode, term);
+                updateMaxTermSeen(term + 1);
             }
         }
 

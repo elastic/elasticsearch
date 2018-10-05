@@ -205,7 +205,8 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         return errorScore * (((double)termStats.totalTermFreq + 1) / ((double)dictionarySize +1));
     }
 
-    protected int thresholdTermFrequency(int docFreq) {
+    // package protected for test
+    int thresholdTermFrequency(int docFreq) {
         if (docFreq > 0) {
             return (int) min(
                 max(0, round(docFreq * (log10(docFreq - frequencyPlateau) * (1.0 / log10(LOG_BASE))) + 1)), Integer.MAX_VALUE

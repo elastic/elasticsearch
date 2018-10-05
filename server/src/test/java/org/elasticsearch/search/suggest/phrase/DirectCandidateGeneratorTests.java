@@ -222,6 +222,9 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
                 assertThat(candidateSet.candidates[0].termStats.docFreq, equalTo(numDocs - 1));
                 assertThat(candidateSet.candidates[0].termStats.totalTermFreq, equalTo((long) numDocs - 1));
 
+                // test that it doesn't overflow
+                assertThat(generator.thresholdTermFrequency(Integer.MAX_VALUE), equalTo(Integer.MAX_VALUE));
+
                 spellchecker = new DirectSpellChecker();
                 spellchecker.setThresholdFrequency(0.5f);
                 generator = new DirectCandidateGenerator(spellchecker, "field", SuggestMode.SUGGEST_MORE_POPULAR,
@@ -233,6 +236,9 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
                 assertThat(candidateSet.candidates[0].termStats.docFreq, equalTo(numDocs - 1));
                 assertThat(candidateSet.candidates[0].termStats.totalTermFreq, equalTo((long) numDocs - 1));
 
+                // test that it doesn't overflow
+                assertThat(generator.thresholdTermFrequency(Integer.MAX_VALUE), equalTo(Integer.MAX_VALUE));
+
                 spellchecker = new DirectSpellChecker();
                 spellchecker.setThresholdFrequency(0.5f);
                 generator = new DirectCandidateGenerator(spellchecker, "field", SuggestMode.SUGGEST_ALWAYS,
@@ -241,6 +247,9 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
                     generator.drawCandidates(new DirectCandidateGenerator.CandidateSet(DirectCandidateGenerator.Candidate.EMPTY,
                         generator.createCandidate(new BytesRef("fooz"), false)));
                 assertThat(candidateSet.candidates.length, equalTo(01));
+
+                // test that it doesn't overflow
+                assertThat(generator.thresholdTermFrequency(Integer.MAX_VALUE), equalTo(Integer.MAX_VALUE));
             }
         }
 

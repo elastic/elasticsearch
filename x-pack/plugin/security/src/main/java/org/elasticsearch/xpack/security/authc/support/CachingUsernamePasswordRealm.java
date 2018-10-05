@@ -11,6 +11,7 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -30,6 +31,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
 
     private final Cache<String, ListenableFuture<UserWithHash>> cache;
     private final ThreadPool threadPool;
+    private final boolean authenticationEnabled;
     final Hasher cacheHasher;
 
     protected CachingUsernamePasswordRealm(String type, RealmConfig config, ThreadPool threadPool) {
@@ -45,6 +47,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         } else {
             cache = null;
         }
+        this.authenticationEnabled = CachingUsernamePasswordRealmSettings.AUTHC_ENABLED_SETTING.get(config.settings());
     }
 
     @Override
@@ -63,15 +66,34 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         }
     }
 
+    @Override
+    public UsernamePasswordToken token(ThreadContext threadContext) {
+        if (authenticationEnabled == false) {
+            return null;
+        }
+        return super.token(threadContext);
+    }
+
+    @Override
+    public boolean supports(AuthenticationToken token) {
+        return authenticationEnabled && super.supports(token);
+    }
+
     /**
      * If the user exists in the cache (keyed by the principle name), then the password is validated
      * against a hash also stored in the cache.  Otherwise the subclass authenticates the user via
-     * doAuthenticate
+     * doAuthenticate.
+     * This method will respond with {@link AuthenticationResult#notHandled()} if
+     * {@link CachingUsernamePasswordRealmSettings#AUTHC_ENABLED_SETTING authentication is not enabled}.
      * @param authToken The authentication token
      * @param listener to be called at completion
      */
     @Override
     public final void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult> listener) {
+        if (authenticationEnabled == false) {
+            listener.onResponse(AuthenticationResult.notHandled());
+            return;
+        }
         final UsernamePasswordToken token = (UsernamePasswordToken) authToken;
         try {
             if (cache == null) {

@@ -86,7 +86,6 @@ public class CompositeRolesStore extends AbstractComponent {
 
     private final FileRolesStore fileRolesStore;
     private final NativeRolesStore nativeRolesStore;
-    private final ReservedRolesStore reservedRolesStore;
     private final NativePrivilegeStore privilegeStore;
     private final XPackLicenseState licenseState;
     private final Cache<Set<String>, Role> roleCache;
@@ -104,7 +103,6 @@ public class CompositeRolesStore extends AbstractComponent {
         this.fileRolesStore = fileRolesStore;
         fileRolesStore.addListener(this::invalidate);
         this.nativeRolesStore = nativeRolesStore;
-        this.reservedRolesStore = reservedRolesStore;
         this.privilegeStore = privilegeStore;
         this.licenseState = licenseState;
         CacheBuilder<Set<String>, Role> builder = CacheBuilder.builder();
@@ -124,7 +122,8 @@ public class CompositeRolesStore extends AbstractComponent {
         if (rolesProviders.isEmpty()) {
             this.allRoleProviders = this.builtInRoleProviders;
         } else {
-            List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> allList = new ArrayList<>(3 + rolesProviders.size());
+            List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> allList =
+                new ArrayList<>(builtInRoleProviders.size() + rolesProviders.size());
             allList.addAll(builtInRoleProviders);
             allList.addAll(rolesProviders);
             this.allRoleProviders = Collections.unmodifiableList(allList);

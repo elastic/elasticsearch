@@ -13,13 +13,13 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 
 import java.io.IOException;
 
-public class RestCcrStatsAction extends BaseRestHandler {
+public class RestFollowStatsAction extends BaseRestHandler {
 
-    public RestCcrStatsAction(final Settings settings, final RestController controller) {
+    public RestFollowStatsAction(final Settings settings, final RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.GET, "/_ccr/stats", this);
         controller.registerHandler(RestRequest.Method.GET, "/{index}/_ccr/stats", this);
@@ -32,9 +32,9 @@ public class RestCcrStatsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) throws IOException {
-        final CcrStatsAction.StatsRequest request = new CcrStatsAction.StatsRequest();
+        final FollowStatsAction.StatsRequest request = new FollowStatsAction.StatsRequest();
         request.setIndices(Strings.splitStringByCommaToArray(restRequest.param("index")));
-        return channel -> client.execute(CcrStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(FollowStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
 }

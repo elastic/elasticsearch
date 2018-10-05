@@ -6,18 +6,18 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 
-public class StatsRequestTests extends AbstractStreamableTestCase<CcrStatsAction.StatsRequest> {
+public class StatsRequestTests extends AbstractStreamableTestCase<FollowStatsAction.StatsRequest> {
 
     @Override
-    protected CcrStatsAction.StatsRequest createBlankInstance() {
-        return new CcrStatsAction.StatsRequest();
+    protected FollowStatsAction.StatsRequest createBlankInstance() {
+        return new FollowStatsAction.StatsRequest();
     }
 
     @Override
-    protected CcrStatsAction.StatsRequest createTestInstance() {
-        CcrStatsAction.StatsRequest statsRequest = new CcrStatsAction.StatsRequest();
+    protected FollowStatsAction.StatsRequest createTestInstance() {
+        FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
         if (randomBoolean()) {
             statsRequest.setIndices(generateRandomStringArray(8, 4, false));
         }

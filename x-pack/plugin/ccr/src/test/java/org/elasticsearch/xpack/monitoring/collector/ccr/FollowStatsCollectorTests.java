@@ -15,7 +15,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
-import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.client.CcrClient;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -39,11 +39,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class CcrStatsCollectorTests extends AbstractCcrCollectorTestCase {
+public class FollowStatsCollectorTests extends AbstractCcrCollectorTestCase {
 
     @Override
     AbstractCcrCollector createCollector(Settings settings, ClusterService clusterService, XPackLicenseState licenseState, Client client) {
-        return new CcrStatsCollector(settings, clusterService, licenseState, client);
+        return new FollowStatsCollector(settings, clusterService, licenseState, client);
     }
 
     public void testDoCollect() throws Exception {
@@ -55,18 +55,20 @@ public class CcrStatsCollectorTests extends AbstractCcrCollectorTestCase {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 120));
-        withCollectionTimeout(CcrStatsCollector.CCR_STATS_TIMEOUT, timeout);
+        withCollectionTimeout(FollowStatsCollector.CCR_STATS_TIMEOUT, timeout);
 
-        final CcrStatsCollector collector = new CcrStatsCollector(Settings.EMPTY, clusterService, licenseState, client, threadContext);
+        final FollowStatsCollector collector =
+                new FollowStatsCollector(Settings.EMPTY, clusterService, licenseState, client, threadContext);
         assertEquals(timeout, collector.getCollectionTimeout());
 
-        final List<CcrStatsAction.StatsResponse> statuses = mockStatuses();
+        final List<FollowStatsAction.StatsResponse> statuses = mockStatuses();
 
         @SuppressWarnings("unchecked")
-        final ActionFuture<CcrStatsAction.StatsResponses> future = (ActionFuture<CcrStatsAction.StatsResponses>)mock(ActionFuture.class);
-        final CcrStatsAction.StatsResponses responses = new CcrStatsAction.StatsResponses(emptyList(), emptyList(), statuses);
+        final ActionFuture<FollowStatsAction.StatsResponses> future =
+                (ActionFuture<FollowStatsAction.StatsResponses>)mock(ActionFuture.class);
+        final FollowStatsAction.StatsResponses responses = new FollowStatsAction.StatsResponses(emptyList(), emptyList(), statuses);
 
-        final CcrStatsAction.StatsRequest request = new CcrStatsAction.StatsRequest();
+        final FollowStatsAction.StatsRequest request = new FollowStatsAction.StatsRequest();
         request.setIndices(Strings.EMPTY_ARRAY);
         when(client.stats(statsRequestEq(request))).thenReturn(future);
         when(future.actionGet(timeout)).thenReturn(responses);
@@ -81,26 +83,26 @@ public class CcrStatsCollectorTests extends AbstractCcrCollectorTestCase {
 
         int index = 0;
         for (final Iterator<MonitoringDoc> it = documents.iterator(); it.hasNext(); index++) {
-            final CcrStatsMonitoringDoc document = (CcrStatsMonitoringDoc)it.next();
-            final CcrStatsAction.StatsResponse status = statuses.get(index);
+            final FollowStatsMonitoringDoc document = (FollowStatsMonitoringDoc)it.next();
+            final FollowStatsAction.StatsResponse status = statuses.get(index);
 
             assertThat(document.getCluster(), is(clusterUuid));
             assertThat(document.getTimestamp(), greaterThan(0L));
             assertThat(document.getIntervalMillis(), equalTo(interval));
             assertThat(document.getNode(), equalTo(node));
             assertThat(document.getSystem(), is(MonitoredSystem.ES));
-            assertThat(document.getType(), is(CcrStatsMonitoringDoc.TYPE));
+            assertThat(document.getType(), is(FollowStatsMonitoringDoc.TYPE));
             assertThat(document.getId(), nullValue());
             assertThat(document.status(), is(status.status()));
         }
     }
 
-    private List<CcrStatsAction.StatsResponse> mockStatuses() {
+    private List<FollowStatsAction.StatsResponse> mockStatuses() {
         final int count = randomIntBetween(1, 8);
-        final List<CcrStatsAction.StatsResponse> statuses = new ArrayList<>(count);
+        final List<FollowStatsAction.StatsResponse> statuses = new ArrayList<>(count);
 
         for (int i = 0; i < count; ++i) {
-            CcrStatsAction.StatsResponse statsResponse = mock(CcrStatsAction.StatsResponse.class);
+            FollowStatsAction.StatsResponse statsResponse = mock(FollowStatsAction.StatsResponse.class);
             ShardFollowNodeTaskStatus status = mock(ShardFollowNodeTaskStatus.class);
             when(statsResponse.status()).thenReturn(status);
             statuses.add(statsResponse);
@@ -109,21 +111,21 @@ public class CcrStatsCollectorTests extends AbstractCcrCollectorTestCase {
         return statuses;
     }
 
-    private static CcrStatsAction.StatsRequest statsRequestEq(CcrStatsAction.StatsRequest expected) {
-        return argThat(new StatsRequestMatches(expected));
+    private static FollowStatsAction.StatsRequest statsRequestEq(FollowStatsAction.StatsRequest expected) {
+        return argThat(new FollowStatsRequest(expected));
     }
 
-    private static class StatsRequestMatches extends ArgumentMatcher<CcrStatsAction.StatsRequest> {
+    private static class FollowStatsRequest extends ArgumentMatcher<FollowStatsAction.StatsRequest> {
 
-        private final CcrStatsAction.StatsRequest expected;
+        private final FollowStatsAction.StatsRequest expected;
 
-        private StatsRequestMatches(CcrStatsAction.StatsRequest expected) {
+        private FollowStatsRequest(FollowStatsAction.StatsRequest expected) {
             this.expected = expected;
         }
 
         @Override
         public boolean matches(Object o) {
-            CcrStatsAction.StatsRequest actual = (CcrStatsAction.StatsRequest) o;
+            FollowStatsAction.StatsRequest actual = (FollowStatsAction.StatsRequest) o;
             return Arrays.equals(expected.indices(), actual.indices());
         }
     }

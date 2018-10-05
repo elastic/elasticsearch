@@ -22,7 +22,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
-import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -32,16 +32,16 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 
-public class TransportCcrStatsAction extends TransportTasksAction<
+public class TransportFollowStatsAction extends TransportTasksAction<
         ShardFollowNodeTask,
-        CcrStatsAction.StatsRequest,
-        CcrStatsAction.StatsResponses, CcrStatsAction.StatsResponse> {
+        FollowStatsAction.StatsRequest,
+        FollowStatsAction.StatsResponses, FollowStatsAction.StatsResponse> {
 
     private final IndexNameExpressionResolver resolver;
     private final CcrLicenseChecker ccrLicenseChecker;
 
     @Inject
-    public TransportCcrStatsAction(
+    public TransportFollowStatsAction(
             final Settings settings,
             final ClusterService clusterService,
             final TransportService transportService,
@@ -50,12 +50,12 @@ public class TransportCcrStatsAction extends TransportTasksAction<
             final CcrLicenseChecker ccrLicenseChecker) {
         super(
                 settings,
-                CcrStatsAction.NAME,
+                FollowStatsAction.NAME,
                 clusterService,
                 transportService,
                 actionFilters,
-                CcrStatsAction.StatsRequest::new,
-                CcrStatsAction.StatsResponses::new,
+                FollowStatsAction.StatsRequest::new,
+                FollowStatsAction.StatsResponses::new,
                 Ccr.CCR_THREAD_POOL_NAME);
         this.resolver = Objects.requireNonNull(resolver);
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
@@ -64,8 +64,8 @@ public class TransportCcrStatsAction extends TransportTasksAction<
     @Override
     protected void doExecute(
             final Task task,
-            final CcrStatsAction.StatsRequest request,
-            final ActionListener<CcrStatsAction.StatsResponses> listener) {
+            final FollowStatsAction.StatsRequest request,
+            final ActionListener<FollowStatsAction.StatsResponses> listener) {
         if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
@@ -74,21 +74,21 @@ public class TransportCcrStatsAction extends TransportTasksAction<
     }
 
     @Override
-    protected CcrStatsAction.StatsResponses newResponse(
-            final CcrStatsAction.StatsRequest request,
-            final List<CcrStatsAction.StatsResponse> statsRespons,
+    protected FollowStatsAction.StatsResponses newResponse(
+            final FollowStatsAction.StatsRequest request,
+            final List<FollowStatsAction.StatsResponse> statsRespons,
             final List<TaskOperationFailure> taskOperationFailures,
             final List<FailedNodeException> failedNodeExceptions) {
-        return new CcrStatsAction.StatsResponses(taskOperationFailures, failedNodeExceptions, statsRespons);
+        return new FollowStatsAction.StatsResponses(taskOperationFailures, failedNodeExceptions, statsRespons);
     }
 
     @Override
-    protected CcrStatsAction.StatsResponse readTaskResponse(final StreamInput in) throws IOException {
-        return new CcrStatsAction.StatsResponse(in);
+    protected FollowStatsAction.StatsResponse readTaskResponse(final StreamInput in) throws IOException {
+        return new FollowStatsAction.StatsResponse(in);
     }
 
     @Override
-    protected void processTasks(final CcrStatsAction.StatsRequest request, final Consumer<ShardFollowNodeTask> operation) {
+    protected void processTasks(final FollowStatsAction.StatsRequest request, final Consumer<ShardFollowNodeTask> operation) {
         final ClusterState state = clusterService.state();
         final Set<String> concreteIndices = new HashSet<>(Arrays.asList(resolver.concreteIndexNames(state, request)));
         for (final Task task : taskManager.getTasks().values()) {
@@ -103,10 +103,10 @@ public class TransportCcrStatsAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
-            final CcrStatsAction.StatsRequest request,
+            final FollowStatsAction.StatsRequest request,
             final ShardFollowNodeTask task,
-            final ActionListener<CcrStatsAction.StatsResponse> listener) {
-        listener.onResponse(new CcrStatsAction.StatsResponse(task.getStatus()));
+            final ActionListener<FollowStatsAction.StatsResponse> listener) {
+        listener.onResponse(new FollowStatsAction.StatsResponse(task.getStatus()));
     }
 
 }

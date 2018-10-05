@@ -14,18 +14,18 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackClient;
-import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.client.CcrClient;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 
 import java.util.Collection;
 import java.util.stream.Collectors;
 
-public final class CcrStatsCollector extends AbstractCcrCollector {
+public final class FollowStatsCollector extends AbstractCcrCollector {
 
     public static final Setting<TimeValue> CCR_STATS_TIMEOUT = collectionTimeoutSetting("ccr.stats.timeout");
 
-    public CcrStatsCollector(
+    public FollowStatsCollector(
             final Settings settings,
             final ClusterService clusterService,
             final XPackLicenseState licenseState,
@@ -34,7 +34,7 @@ public final class CcrStatsCollector extends AbstractCcrCollector {
             client.threadPool().getThreadContext());
     }
 
-    CcrStatsCollector(
+    FollowStatsCollector(
             final Settings settings,
             final ClusterService clusterService,
             final XPackLicenseState licenseState,
@@ -51,14 +51,14 @@ public final class CcrStatsCollector extends AbstractCcrCollector {
         MonitoringDoc.Node node) throws Exception {
 
 
-            final CcrStatsAction.StatsRequest request = new CcrStatsAction.StatsRequest();
+            final FollowStatsAction.StatsRequest request = new FollowStatsAction.StatsRequest();
             request.setIndices(getCollectionIndices());
-            final CcrStatsAction.StatsResponses responses = ccrClient.stats(request).actionGet(getCollectionTimeout());
+            final FollowStatsAction.StatsResponses responses = ccrClient.stats(request).actionGet(getCollectionTimeout());
 
         return responses
             .getStatsResponses()
             .stream()
-            .map(stats -> new CcrStatsMonitoringDoc(clusterUuid, timestamp, interval, node, stats.status()))
+            .map(stats -> new FollowStatsMonitoringDoc(clusterUuid, timestamp, interval, node, stats.status()))
             .collect(Collectors.toList());
     }
 

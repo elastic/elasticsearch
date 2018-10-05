@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
-public class CcrStatsMonitoringDocTests extends BaseMonitoringDocTestCase<CcrStatsMonitoringDoc> {
+public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<FollowStatsMonitoringDoc> {
 
     private ShardFollowNodeTaskStatus status;
 
@@ -52,12 +52,12 @@ public class CcrStatsMonitoringDocTests extends BaseMonitoringDocTestCase<CcrSta
 
     public void testConstructorStatusMustNotBeNull() {
         final NullPointerException e =
-                expectThrows(NullPointerException.class, () -> new CcrStatsMonitoringDoc(cluster, timestamp, interval, node, null));
+                expectThrows(NullPointerException.class, () -> new FollowStatsMonitoringDoc(cluster, timestamp, interval, node, null));
         assertThat(e, hasToString(containsString("status")));
     }
 
     @Override
-    protected CcrStatsMonitoringDoc createMonitoringDoc(
+    protected FollowStatsMonitoringDoc createMonitoringDoc(
             final String cluster,
             final long timestamp,
             final long interval,
@@ -65,13 +65,13 @@ public class CcrStatsMonitoringDocTests extends BaseMonitoringDocTestCase<CcrSta
             final MonitoredSystem system,
             final String type,
             final String id) {
-        return new CcrStatsMonitoringDoc(cluster, timestamp, interval, node, status);
+        return new FollowStatsMonitoringDoc(cluster, timestamp, interval, node, status);
     }
 
     @Override
-    protected void assertMonitoringDoc(CcrStatsMonitoringDoc document) {
+    protected void assertMonitoringDoc(FollowStatsMonitoringDoc document) {
         assertThat(document.getSystem(), is(MonitoredSystem.ES));
-        assertThat(document.getType(), is(CcrStatsMonitoringDoc.TYPE));
+        assertThat(document.getType(), is(FollowStatsMonitoringDoc.TYPE));
         assertThat(document.getId(), nullValue());
         assertThat(document.status(), is(status));
     }
@@ -131,7 +131,7 @@ public class CcrStatsMonitoringDocTests extends BaseMonitoringDocTestCase<CcrSta
                 numberOfOperationsIndexed,
                 fetchExceptions,
                 timeSinceLastFetchMillis);
-        final CcrStatsMonitoringDoc document = new CcrStatsMonitoringDoc("_cluster", timestamp, intervalMillis, node, status);
+        final FollowStatsMonitoringDoc document = new FollowStatsMonitoringDoc("_cluster", timestamp, intervalMillis, node, status);
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
         assertThat(
                 xContent.utf8ToString(),
@@ -219,12 +219,12 @@ public class CcrStatsMonitoringDocTests extends BaseMonitoringDocTestCase<CcrSta
 
         Map<String, Object> template =
             XContentHelper.convertToMap(XContentType.JSON.xContent(), MonitoringTemplateUtils.loadTemplate("es"), false);
-        Map<?, ?> ccrStatsMapping = (Map<?, ?>) XContentMapValues.extractValue("mappings.doc.properties.ccr_stats.properties", template);
+        Map<?, ?> followStatsMapping = (Map<?, ?>) XContentMapValues.extractValue("mappings.doc.properties.ccr_stats.properties", template);
 
-        assertThat(serializedStatus.size(), equalTo(ccrStatsMapping.size()));
+        assertThat(serializedStatus.size(), equalTo(followStatsMapping.size()));
         for (Map.Entry<String, Object> entry : serializedStatus.entrySet()) {
             String fieldName = entry.getKey();
-            Map<?, ?> fieldMapping = (Map<?, ?>) ccrStatsMapping.get(fieldName);
+            Map<?, ?> fieldMapping = (Map<?, ?>) followStatsMapping.get(fieldName);
             assertThat(fieldMapping, notNullValue());
 
             Object fieldValue = entry.getValue();

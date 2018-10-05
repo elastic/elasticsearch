@@ -559,7 +559,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 try {
                     coordinationState.get().handleJoin(join);
                 } catch (CoordinationStateRejectedException e) {
-                    logger.debug("failed to add join, ignoring", e);
+                    logger.debug(new ParameterizedMessage("failed to add {} - ignoring", join), e);
                 }
             } else {
                 coordinationState.get().handleJoin(join); // this might fail and bubble up the exception

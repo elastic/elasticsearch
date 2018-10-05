@@ -19,9 +19,11 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
+import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.test.ESTestCase;
@@ -91,9 +93,34 @@ public class SecurityRequestConvertersTests extends ESTestCase {
 
     private static Map<String, String> getExpectedParamsFromRefreshPolicy(RefreshPolicy refreshPolicy) {
         if (refreshPolicy != RefreshPolicy.NONE) {
-             return Collections.singletonMap("refresh", refreshPolicy.getValue());
+            return Collections.singletonMap("refresh", refreshPolicy.getValue());
         } else {
             return Collections.emptyMap();
         }
+    }
+
+    public void testChangePassword() throws IOException {
+        final String username = randomAlphaOfLengthBetween(4, 12);
+        final char[] password = randomAlphaOfLengthBetween(8, 12).toCharArray();
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, String> expectedParams = getExpectedParamsFromRefreshPolicy(refreshPolicy);
+        ChangePasswordRequest changePasswordRequest = new ChangePasswordRequest(username, password, refreshPolicy);
+        Request request = SecurityRequestConverters.changePassword(changePasswordRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/user/" + changePasswordRequest.getUsername() + "/_password", request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(changePasswordRequest, request.getEntity());
+    }
+
+    public void testSelfChangePassword() throws IOException {
+        final char[] password = randomAlphaOfLengthBetween(8, 12).toCharArray();
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, String> expectedParams = getExpectedParamsFromRefreshPolicy(refreshPolicy);
+        ChangePasswordRequest changePasswordRequest = new ChangePasswordRequest(null, password, refreshPolicy);
+        Request request = SecurityRequestConverters.changePassword(changePasswordRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/user/_password", request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(changePasswordRequest, request.getEntity());
     }
 }

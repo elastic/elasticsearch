@@ -170,7 +170,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         case STRING_VAL:
             return new BytesRef(randomAlphaOfLength(5));
         default:
-            throw new UnsupportedOperationException("Unkown SortField.Type: " + type);
+            throw new UnsupportedOperationException("Unknown SortField.Type: " + type);
         }
     }
 

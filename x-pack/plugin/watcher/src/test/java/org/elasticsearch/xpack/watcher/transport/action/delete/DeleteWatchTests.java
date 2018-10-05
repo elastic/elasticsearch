@@ -83,7 +83,7 @@ public class DeleteWatchTests extends AbstractWatcherIntegrationTestCase {
             // watch has been executed successfully
             String state = ObjectPath.eval("state", source);
             assertThat(state, is("executed"));
-            // no exception occured
+            // no exception occurred
             assertThat(source, not(hasKey("exception")));
         }
     }

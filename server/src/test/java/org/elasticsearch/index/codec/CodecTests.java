@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.codec;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat.Mode;
@@ -30,7 +31,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -95,7 +95,7 @@ public class CodecTests extends ESTestCase {
         MapperRegistry mapperRegistry = new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER);
         MapperService service = new MapperService(settings, indexAnalyzers, xContentRegistry(), similarityService, mapperRegistry,
                 () -> null);
-        return new CodecService(service, ESLoggerFactory.getLogger("test"));
+        return new CodecService(service, LogManager.getLogger("test"));
     }
 
 }

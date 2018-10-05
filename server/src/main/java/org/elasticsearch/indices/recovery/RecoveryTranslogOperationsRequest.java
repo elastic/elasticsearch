@@ -89,7 +89,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         } else {
             maxSeenAutoIdTimestampOnPrimary = IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
             maxSeqNoOfUpdatesOrDeletesOnPrimary = in.readZLong();
         } else {
             // UNASSIGNED_SEQ_NO means uninitialized and replica won't enable optimization using seq_no
@@ -107,7 +107,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
             out.writeZLong(maxSeenAutoIdTimestampOnPrimary);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
             out.writeZLong(maxSeqNoOfUpdatesOrDeletesOnPrimary);
         }
     }

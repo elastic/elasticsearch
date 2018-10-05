@@ -61,9 +61,9 @@ public class ScopedSettingsTests extends ESTestCase {
 
     private static class FooLowSettingValidator implements Setting.Validator<Integer> {
         @Override
-        public void validate(Integer value, Map<Setting<Integer>, Integer> settings) {
-            if (settings.containsKey(SETTING_FOO_HIGH) && value > settings.get(SETTING_FOO_HIGH)) {
-                throw new IllegalArgumentException("[low]=" + value + " is higher than [high]=" + settings.get(SETTING_FOO_HIGH));
+        public void validate(Integer low, Map<Setting<Integer>, Integer> settings) {
+            if (settings.containsKey(SETTING_FOO_HIGH) && low > settings.get(SETTING_FOO_HIGH)) {
+                throw new IllegalArgumentException("[low]=" + low + " is higher than [high]=" + settings.get(SETTING_FOO_HIGH));
             }
         }
 
@@ -75,9 +75,9 @@ public class ScopedSettingsTests extends ESTestCase {
 
     private static class FooHighSettingValidator implements Setting.Validator<Integer> {
         @Override
-        public void validate(Integer value, Map<Setting<Integer>, Integer> settings) {
-            if (settings.containsKey(SETTING_FOO_LOW) && value < settings.get(SETTING_FOO_LOW)) {
-                throw new IllegalArgumentException("[high]=" + value + " is lower than [low]=" + settings.get(SETTING_FOO_LOW));
+        public void validate(Integer high, Map<Setting<Integer>, Integer> settings) {
+            if (settings.containsKey(SETTING_FOO_LOW) && high < settings.get(SETTING_FOO_LOW)) {
+                throw new IllegalArgumentException("[high]=" + high + " is lower than [low]=" + settings.get(SETTING_FOO_LOW));
             }
         }
 

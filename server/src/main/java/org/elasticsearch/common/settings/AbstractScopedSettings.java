@@ -58,7 +58,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
     private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
     private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+[*](?:[.][-\\w]+)+$");
-    private static final Predicate<String> NOT_WILDCARD_SETTING = s -> !s.endsWith("*");
+    private static final Predicate<String> NOT_WILDCARD_SETTING = key -> !key.endsWith("*");
 
     protected AbstractScopedSettings(
             final Settings settings,

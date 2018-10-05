@@ -96,7 +96,7 @@ public class PreVoteCollector extends AbstractComponent {
     }
 
     private PreVoteResponse handlePreVoteRequest(final PreVoteRequest request) {
-        // TODO if we are a leader and the max term seen exceeds our term then we need to bump our term
+        updateMaxTermSeen.accept(request.getCurrentTerm());
 
         Tuple<DiscoveryNode, PreVoteResponse> state = this.state;
         assert state != null : "received pre-vote request before fully initialised";

@@ -626,10 +626,16 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
 
         LogEntryBuilder withRestOrigin(RestRequest request) {
             assert LOCAL_ORIGIN_FIELD_VALUE.equals(logEntry.get(ORIGIN_TYPE_FIELD_NAME)); // this is the default
-            final InetSocketAddress socketAddress = request.getHttpChannel().getRemoteAddress();
+            final String formattedAddress;
+            final SocketAddress socketAddress = request.getRemoteAddress();
+            if (socketAddress instanceof InetSocketAddress) {
+                formattedAddress = NetworkAddress.format(((InetSocketAddress) socketAddress));
+            } else {
+                formattedAddress = socketAddress.toString();
+            }
             if (socketAddress != null) {
                 logEntry.with(ORIGIN_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
-                        .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(socketAddress));
+                        .with(ORIGIN_ADDRESS_FIELD_NAME, formattedAddress);
             }
             // fall through to local_node default
             return this;

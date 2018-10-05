@@ -27,8 +27,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.elasticsearch.xpack.ccr.action.bulk.TransportBulkShardOperationsAction.CcrWritePrimaryResult;
 
@@ -139,40 +139,41 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
         final Settings settings = Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true).build();
         final IndexShard primary = newStartedShard(true, settings, new FollowingEngineFactory());
         long seqno = 0;
-        int numOps = between(1, 100);
-        List<Translog.Operation> ops = new ArrayList<>(numOps);
-        for (int i = 0; i < numOps; i++) {
+        List<Translog.Operation> firstBulk = new ArrayList<>();
+        List<Translog.Operation> secondBulk = new ArrayList<>();
+        for (int numOps = between(1, 100), i = 0; i < numOps; i++) {
             final String id = Integer.toString(between(1, 100));
+            final Translog.Operation op;
             if (randomBoolean()) {
-                ops.add(new Translog.Index("_doc", id, seqno++, primaryTerm, 0, SOURCE, null, -1));
+                op = new Translog.Index("_doc", id, seqno++, primaryTerm, 0, SOURCE, null, -1);
             } else {
-                ops.add(new Translog.Delete("_doc", id, new Term("_id", Uid.encodeId(id)), seqno++, primaryTerm, 0));
+                op = new Translog.Delete("_doc", id, new Term("_id", Uid.encodeId(id)), seqno++, primaryTerm, 0);
+            }
+            if (randomBoolean()) {
+                firstBulk.add(op);
+            } else {
+                secondBulk.add(op);
             }
         }
+        Randomness.shuffle(firstBulk);
+        Randomness.shuffle(secondBulk);
         primary.advanceMaxSeqNoOfUpdatesOrDeletes(seqno);
-        Randomness.shuffle(ops);
 
-        List<Translog.Operation> firstBulk = randomSubsetOf(ops);
-        ops.removeAll(firstBulk);
         final CcrWritePrimaryResult fullResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(),
             primary.getHistoryUUID(), firstBulk, seqno, primary, logger);
         assertThat(fullResult.replicaRequest().getOperations(),
             equalTo(rewriteWithPrimaryTerm(firstBulk, primary.getOperationPrimaryTerm())));
         assertThat(fullResult.waitingForGlobalCheckpoint, equalTo(-2L));
 
-        List<Translog.Operation> subOfFirstBulk = randomSubsetOf(firstBulk);
-        final CcrWritePrimaryResult emptyResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(),
-            primary.getHistoryUUID(), subOfFirstBulk, seqno, primary, logger);
-        assertThat(emptyResult.replicaRequest().getOperations(), empty());
-        assertThat(fullResult.waitingForGlobalCheckpoint, equalTo(subOfFirstBulk.stream().mapToLong(o -> o.seqNo()).max().orElse(-2L)));
-
-        final List<Translog.Operation> secondBulk = new ArrayList<>(ops);
-        subOfFirstBulk = randomSubsetOf(firstBulk);
-        secondBulk.addAll(subOfFirstBulk);
+        // This bulk includes some operations from the first bulk. These operations should not be included in the result.
+        final List<Translog.Operation> existingOps = randomSubsetOf(firstBulk);
         final CcrWritePrimaryResult partialResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(),
-            primary.getHistoryUUID(), secondBulk, seqno, primary, logger);
-        assertThat(partialResult.replicaRequest().getOperations(), equalTo(rewriteWithPrimaryTerm(ops, primary.getOperationPrimaryTerm())));
-        assertThat(partialResult.waitingForGlobalCheckpoint, equalTo(subOfFirstBulk.stream().mapToLong(o -> o.seqNo()).max().orElse(-2L)));
+            primary.getHistoryUUID(), Stream.concat(existingOps.stream(), secondBulk.stream()).collect(Collectors.toList()),
+            seqno, primary, logger);
+        assertThat(partialResult.replicaRequest().getOperations(),
+            equalTo(rewriteWithPrimaryTerm(secondBulk, primary.getOperationPrimaryTerm())));
+        assertThat(partialResult.waitingForGlobalCheckpoint,
+            equalTo(existingOps.stream().mapToLong(Translog.Operation::seqNo).max().orElse(-2L)));
 
         closeShards(primary);
     }

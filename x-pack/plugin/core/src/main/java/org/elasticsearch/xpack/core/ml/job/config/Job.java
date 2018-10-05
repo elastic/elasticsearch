@@ -75,7 +75,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     public static final ParseField MODEL_SNAPSHOT_ID = new ParseField("model_snapshot_id");
     public static final ParseField MODEL_SNAPSHOT_MIN_VERSION = new ParseField("model_snapshot_min_version");
     public static final ParseField RESULTS_INDEX_NAME = new ParseField("results_index_name");
-    public static final ParseField DELETED = new ParseField("deleted");
+    public static final ParseField DELETING = new ParseField("deleting");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("jobs");
@@ -119,7 +119,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         parser.declareStringOrNull(Builder::setModelSnapshotId, MODEL_SNAPSHOT_ID);
         parser.declareStringOrNull(Builder::setModelSnapshotMinVersion, MODEL_SNAPSHOT_MIN_VERSION);
         parser.declareString(Builder::setResultsIndexName, RESULTS_INDEX_NAME);
-        parser.declareBoolean(Builder::setDeleted, DELETED);
+        parser.declareBoolean(Builder::setDeleting, DELETING);
 
         return parser;
     }
@@ -152,14 +152,14 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     private final String modelSnapshotId;
     private final Version modelSnapshotMinVersion;
     private final String resultsIndexName;
-    private final boolean deleted;
+    private final boolean deleting;
 
     private Job(String jobId, String jobType, Version jobVersion, List<String> groups, String description,
                 Date createTime, Date finishedTime, Long establishedModelMemory,
                 AnalysisConfig analysisConfig, AnalysisLimits analysisLimits, DataDescription dataDescription,
                 ModelPlotConfig modelPlotConfig, Long renormalizationWindowDays, TimeValue backgroundPersistInterval,
                 Long modelSnapshotRetentionDays, Long resultsRetentionDays, Map<String, Object> customSettings,
-                String modelSnapshotId, Version modelSnapshotMinVersion, String resultsIndexName, boolean deleted) {
+                String modelSnapshotId, Version modelSnapshotMinVersion, String resultsIndexName, boolean deleting) {
 
         this.jobId = jobId;
         this.jobType = jobType;
@@ -181,7 +181,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         this.modelSnapshotId = modelSnapshotId;
         this.modelSnapshotMinVersion = modelSnapshotMinVersion;
         this.resultsIndexName = resultsIndexName;
-        this.deleted = deleted;
+        this.deleting = deleting;
     }
 
     public Job(StreamInput in) throws IOException {
@@ -224,7 +224,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             modelSnapshotMinVersion = null;
         }
         resultsIndexName = in.readString();
-        deleted = in.readBoolean();
+        deleting = in.readBoolean();
     }
 
     /**
@@ -375,8 +375,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         return modelSnapshotMinVersion;
     }
 
-    public boolean isDeleted() {
-        return deleted;
+    public boolean isDeleting() {
+        return deleting;
     }
 
     /**
@@ -489,7 +489,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             }
         }
         out.writeString(resultsIndexName);
-        out.writeBoolean(deleted);
+        out.writeBoolean(deleting);
     }
 
     @Override
@@ -554,8 +554,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             builder.field(MODEL_SNAPSHOT_MIN_VERSION.getPreferredName(), modelSnapshotMinVersion);
         }
         builder.field(RESULTS_INDEX_NAME.getPreferredName(), resultsIndexName);
-        if (params.paramAsBoolean("all", false)) {
-            builder.field(DELETED.getPreferredName(), deleted);
+        if (deleting) {
+            builder.field(DELETING.getPreferredName(), deleting);
         }
         return builder;
     }
@@ -591,7 +591,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
                 && Objects.equals(this.modelSnapshotMinVersion, that.modelSnapshotMinVersion)
                 && Objects.equals(this.resultsIndexName, that.resultsIndexName)
-                && Objects.equals(this.deleted, that.deleted);
+                && Objects.equals(this.deleting, that.deleting);
     }
 
     @Override
@@ -599,7 +599,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         return Objects.hash(jobId, jobType, jobVersion, groups, description, createTime, finishedTime, establishedModelMemory,
                 analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
-                modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleted);
+                modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting);
     }
 
     // Class already extends from AbstractDiffable, so copied from ToXContentToBytes#toString()
@@ -647,7 +647,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         private String modelSnapshotId;
         private Version modelSnapshotMinVersion;
         private String resultsIndexName;
-        private boolean deleted;
+        private boolean deleting;
 
         public Builder() {
         }
@@ -677,7 +677,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             this.modelSnapshotId = job.getModelSnapshotId();
             this.modelSnapshotMinVersion = job.getModelSnapshotMinVersion();
             this.resultsIndexName = job.getResultsIndexNameNoPrefix();
-            this.deleted = job.isDeleted();
+            this.deleting = job.isDeleting();
         }
 
         public Builder(StreamInput in) throws IOException {
@@ -717,7 +717,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 modelSnapshotMinVersion = null;
             }
             resultsIndexName = in.readOptionalString();
-            deleted = in.readBoolean();
+            deleting = in.readBoolean();
         }
 
         public Builder setId(String id) {
@@ -834,8 +834,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return this;
         }
 
-        public Builder setDeleted(boolean deleted) {
-            this.deleted = deleted;
+        public Builder setDeleting(boolean deleting) {
+            this.deleting = deleting;
             return this;
         }
 
@@ -911,7 +911,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 }
             }
             out.writeOptionalString(resultsIndexName);
-            out.writeBoolean(deleted);
+            out.writeBoolean(deleting);
         }
 
         @Override
@@ -972,8 +972,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             if (resultsIndexName != null) {
                 builder.field(RESULTS_INDEX_NAME.getPreferredName(), resultsIndexName);
             }
-            if (params.paramAsBoolean("all", false)) {
-                builder.field(DELETED.getPreferredName(), deleted);
+            if (deleting) {
+                builder.field(DELETING.getPreferredName(), deleting);
             }
 
             builder.endObject();
@@ -1006,7 +1006,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                     && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
                     && Objects.equals(this.modelSnapshotMinVersion, that.modelSnapshotMinVersion)
                     && Objects.equals(this.resultsIndexName, that.resultsIndexName)
-                    && Objects.equals(this.deleted, that.deleted);
+                    && Objects.equals(this.deleting, that.deleting);
         }
 
         @Override
@@ -1014,7 +1014,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return Objects.hash(id, jobType, jobVersion, groups, description, analysisConfig, analysisLimits, dataDescription,
                     createTime, finishedTime, establishedModelMemory, modelPlotConfig, renormalizationWindowDays,
                     backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId,
-                    modelSnapshotMinVersion, resultsIndexName, deleted);
+                    modelSnapshotMinVersion, resultsIndexName, deleting);
         }
 
         /**
@@ -1127,7 +1127,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                     id, jobType, jobVersion, groups, description, createTime, finishedTime, establishedModelMemory,
                     analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
                     backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
-                    modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleted);
+                    modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting);
         }
 
         private void checkValidBackgroundPersistInterval() {

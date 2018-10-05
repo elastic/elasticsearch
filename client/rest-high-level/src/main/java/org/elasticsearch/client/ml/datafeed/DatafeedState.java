@@ -16,22 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml;
+package org.elasticsearch.client.ml.datafeed;
 
-import org.elasticsearch.client.ml.job.config.JobTests;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.ParseField;
 
-public class DeleteJobRequestTests extends ESTestCase {
+import java.util.Locale;
 
-    private DeleteJobRequest createTestInstance() {
-        return new DeleteJobRequest(JobTests.randomValidJobId());
+/**
+ * Datafeed State POJO
+ */
+public enum DatafeedState {
+
+    STARTED, STOPPED, STARTING, STOPPING;
+
+    public static final ParseField STATE = new ParseField("state");
+
+    public static DatafeedState fromString(String name) {
+        return valueOf(name.trim().toUpperCase(Locale.ROOT));
     }
 
-    public void test_WithNullJobId() {
-        NullPointerException ex = expectThrows(NullPointerException.class, () -> new DeleteJobRequest(null));
-        assertEquals("[job_id] must not be null", ex.getMessage());
-
-        ex = expectThrows(NullPointerException.class, () -> createTestInstance().setJobId(null));
-        assertEquals("[job_id] must not be null", ex.getMessage());
+    @Override
+    public String toString() {
+        return name().toLowerCase(Locale.ROOT);
     }
 }

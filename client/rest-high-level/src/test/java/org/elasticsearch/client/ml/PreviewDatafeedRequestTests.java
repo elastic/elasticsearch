@@ -18,20 +18,26 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.client.ml.job.config.JobTests;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.client.ml.datafeed.DatafeedConfigTests;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
-public class DeleteJobRequestTests extends ESTestCase {
+import java.io.IOException;
 
-    private DeleteJobRequest createTestInstance() {
-        return new DeleteJobRequest(JobTests.randomValidJobId());
+public class PreviewDatafeedRequestTests extends AbstractXContentTestCase<PreviewDatafeedRequest> {
+
+    @Override
+    protected PreviewDatafeedRequest createTestInstance() {
+        return new PreviewDatafeedRequest(DatafeedConfigTests.randomValidDatafeedId());
     }
 
-    public void test_WithNullJobId() {
-        NullPointerException ex = expectThrows(NullPointerException.class, () -> new DeleteJobRequest(null));
-        assertEquals("[job_id] must not be null", ex.getMessage());
+    @Override
+    protected PreviewDatafeedRequest doParseInstance(XContentParser parser) throws IOException {
+        return PreviewDatafeedRequest.fromXContent(parser);
+    }
 
-        ex = expectThrows(NullPointerException.class, () -> createTestInstance().setJobId(null));
-        assertEquals("[job_id] must not be null", ex.getMessage());
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
     }
 }

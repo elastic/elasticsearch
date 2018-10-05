@@ -746,7 +746,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 validate(key, settings, false);
                 validSettings.copy(key, settings);
             } catch (Exception ignored) {
-                // Don't add invalid settings for validation
+                // ignore invalid settings
             }
         });
         return validSettings;

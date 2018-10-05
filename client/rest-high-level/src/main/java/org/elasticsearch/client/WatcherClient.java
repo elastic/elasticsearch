@@ -19,6 +19,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.watcher.ActivateWatchRequest;
+import org.elasticsearch.client.watcher.ActivateWatchResponse;
 import org.elasticsearch.client.watcher.AckWatchRequest;
 import org.elasticsearch.client.watcher.AckWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
@@ -119,6 +121,33 @@ public final class WatcherClient {
     public void ackWatchAsync(AckWatchRequest request, RequestOptions options, ActionListener<AckWatchResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, WatcherRequestConverters::ackWatch, options,
             AckWatchResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Activate a watch from the cluster
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-activate-watch.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public ActivateWatchResponse activateWatch(ActivateWatchRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, WatcherRequestConverters::activateWatch, options,
+            ActivateWatchResponse::fromXContent, singleton(404));
+    }
+
+    /**
+     * Asynchronously activates a watch from the cluster
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-activate-watch.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void activateWatchAsync(ActivateWatchRequest request, RequestOptions options, ActionListener<ActivateWatchResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, WatcherRequestConverters::activateWatch, options,
+            ActivateWatchResponse::fromXContent, listener, singleton(404));
     }
 
 }

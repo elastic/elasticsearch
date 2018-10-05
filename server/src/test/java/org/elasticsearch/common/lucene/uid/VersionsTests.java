@@ -32,7 +32,6 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.ArrayList;

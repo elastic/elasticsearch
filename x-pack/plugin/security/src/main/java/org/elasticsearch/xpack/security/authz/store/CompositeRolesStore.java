@@ -154,24 +154,22 @@ public class CompositeRolesStore extends AbstractComponent {
                         }
                         logger.trace("Building role from descriptors [{}] for names [{}]", effectiveDescriptors, roleNames);
                         buildRoleFromDescriptors(effectiveDescriptors, fieldPermissionsCache, privilegeStore, ActionListener.wrap(role -> {
-                            if (role != null) {
-                                if (rolesRetrievalResult.isFailure() == false) {
-                                    try (ReleasableLock ignored = readLock.acquire()) {
-                                        /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold
-                                         * the write lock (fetching stats for instance - which is kinda overkill?) but since we fetching
-                                         * stuff in an async fashion we need to make sure that if the cache got invalidated since we
-                                         * started the request we don't put a potential stale result in the cache, hence the
-                                         * numInvalidation.get() comparison to the number of invalidation when we started. we just try to
-                                         * be on the safe side and don't cache potentially stale results
-                                         */
-                                        if (invalidationCounter == numInvalidation.get()) {
-                                            roleCache.computeIfAbsent(roleNames, (s) -> role);
-                                        }
+                            if (role != null && rolesRetrievalResult.isSuccess()) {
+                                try (ReleasableLock ignored = readLock.acquire()) {
+                                    /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold
+                                     * the write lock (fetching stats for instance - which is kinda overkill?) but since we fetching
+                                     * stuff in an async fashion we need to make sure that if the cache got invalidated since we
+                                     * started the request we don't put a potential stale result in the cache, hence the
+                                     * numInvalidation.get() comparison to the number of invalidation when we started. we just try to
+                                     * be on the safe side and don't cache potentially stale results
+                                     */
+                                    if (invalidationCounter == numInvalidation.get()) {
+                                        roleCache.computeIfAbsent(roleNames, (s) -> role);
                                     }
+                                }
 
-                                    for (String missingRole : rolesRetrievalResult.getMissingRoles()) {
-                                        negativeLookupCache.computeIfAbsent(missingRole, s -> Boolean.TRUE);
-                                    }
+                                for (String missingRole : rolesRetrievalResult.getMissingRoles()) {
+                                    negativeLookupCache.computeIfAbsent(missingRole, s -> Boolean.TRUE);
                                 }
                             }
                             roleActionListener.onResponse(role);
@@ -414,7 +412,7 @@ public class CompositeRolesStore extends AbstractComponent {
 
         private final Set<RoleDescriptor> roleDescriptors = new HashSet<>();
         private Set<String> missingRoles = Collections.emptySet();
-        private boolean failure = false;
+        private boolean success = true;
 
         private void addDescriptors(Set<RoleDescriptor> descriptors) {
             roleDescriptors.addAll(descriptors);
@@ -425,11 +423,11 @@ public class CompositeRolesStore extends AbstractComponent {
         }
 
         private void setFailure() {
-            failure = true;
+            success = false;
         }
 
-        private boolean isFailure() {
-            return failure;
+        private boolean isSuccess() {
+            return success;
         }
 
         private void setMissingRoles(Set<String> missingRoles) {

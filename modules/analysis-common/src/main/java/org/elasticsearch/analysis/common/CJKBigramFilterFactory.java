@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -89,4 +90,11 @@ public final class CJKBigramFilterFactory extends AbstractTokenFilterFactory {
         return filter;
     }
 
+    @Override
+    public TokenFilterFactory getSynonymFilter() {
+        if (outputUnigrams) {
+            return IDENTITY_FILTER;     // don't combine for synonyms
+        }
+        return this;
+    }
 }

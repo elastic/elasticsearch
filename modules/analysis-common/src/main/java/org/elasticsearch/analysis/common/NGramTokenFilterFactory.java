@@ -26,7 +26,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.Version;
-
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 
 public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
@@ -59,5 +59,10 @@ public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
     public TokenStream create(TokenStream tokenStream) {
         // TODO: Expose preserveOriginal
         return new NGramTokenFilter(tokenStream, minGram, maxGram, false);
+    }
+
+    @Override
+    public TokenFilterFactory getSynonymFilter() {
+        return IDENTITY_FILTER;
     }
 }

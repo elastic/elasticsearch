@@ -63,6 +63,10 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
         return factory.create(tokenStream);
     }
 
+    @Override
+    public TokenFilterFactory getSynonymFilter() {
+        return IDENTITY_FILTER;
+    }
 
     public Factory getInnerFactory() {
         return this.factory;

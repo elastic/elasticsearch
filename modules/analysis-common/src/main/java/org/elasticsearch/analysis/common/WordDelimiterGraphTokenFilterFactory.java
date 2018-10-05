@@ -28,6 +28,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.Analysis;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 import java.util.List;
 import java.util.Set;
@@ -93,6 +94,11 @@ public class WordDelimiterGraphTokenFilterFactory extends AbstractTokenFilterFac
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new WordDelimiterGraphFilter(tokenStream, charTypeTable, flags, protoWords);
+    }
+
+    @Override
+    public TokenFilterFactory getSynonymFilter() {
+        return IDENTITY_FILTER;
     }
 
     private int getFlag(int flag, Settings settings, String key, boolean defaultValue) {

@@ -28,6 +28,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.Analysis;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
 
@@ -57,6 +58,11 @@ public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
         } else {
             return filter;
         }
+    }
+
+    @Override
+    public TokenFilterFactory getSynonymFilter() {
+        return IDENTITY_FILTER;
     }
 }
 

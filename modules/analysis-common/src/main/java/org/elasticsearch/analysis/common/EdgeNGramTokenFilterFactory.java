@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 
 public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
@@ -76,5 +77,10 @@ public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
     @Override
     public boolean breaksFastVectorHighlighter() {
         return true;
+    }
+
+    @Override
+    public TokenFilterFactory getSynonymFilter() {
+        return IDENTITY_FILTER;     // don't apply to synonyms
     }
 }

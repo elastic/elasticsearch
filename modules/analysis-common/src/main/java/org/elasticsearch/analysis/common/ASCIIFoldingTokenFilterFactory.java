@@ -51,7 +51,7 @@ public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory
     }
 
     @Override
-    public Object getMultiTermComponent() {
+    public TokenFilterFactory getSynonymFilter() {
         if (preserveOriginal == false) {
             return this;
         } else {
@@ -67,5 +67,10 @@ public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory
                 }
             };
         }
+    }
+
+    @Override
+    public Object getMultiTermComponent() {
+        return getSynonymFilter();
     }
 }

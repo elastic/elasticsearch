@@ -21,7 +21,11 @@ package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.BaseTokenStreamTestCase;
+import org.apache.lucene.analysis.CannedTokenStream;
+import org.apache.lucene.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.core.KeywordTokenizer;
+import org.apache.lucene.analysis.synonym.SynonymGraphFilterFactory;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -29,6 +33,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;
@@ -37,6 +44,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -137,6 +147,72 @@ public class SynonymsAnalysisTests extends ESTestCase {
         BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("synonymAnalyzer"), "Some developers are odd",
             new String[]{ "some", "developers", "develop", "programm", "are", "odd" },
             new int[]{ 1, 1, 0, 0, 1, 1 });
+    }
+
+    public void testAsciiFoldingFilterForSynonyms() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.synonyms.type", "synonym")
+            .putList("index.analysis.filter.synonyms.synonyms", "hoj, height")
+            .put("index.analysis.analyzer.synonymAnalyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.synonymAnalyzer.filter", "lowercase", "asciifolding", "synonyms")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+
+        BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("synonymAnalyzer"), "høj",
+            new String[]{ "hoj", "height" },
+            new int[]{ 1, 0 });
+    }
+
+    public void testKeywordRepeatAndSynonyms() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.synonyms.type", "synonym")
+            .putList("index.analysis.filter.synonyms.synonyms", "programmer, developer")
+            .put("index.analysis.filter.my_english.type", "stemmer")
+            .put("index.analysis.filter.my_english.language", "porter2")
+            .put("index.analysis.analyzer.synonymAnalyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.synonymAnalyzer.filter", "lowercase", "keyword_repeat", "my_english", "synonyms")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+
+        BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("synonymAnalyzer"), "programmers",
+            new String[]{ "programmers", "programm", "develop" },
+            new int[]{ 1, 0, 0 });
+    }
+
+    public void testTokenFiltersBypassSynonymAnalysis() throws IOException {
+
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("path.home", createTempDir().toString())
+            .putList("common_words", "a", "b")
+            .putList("word_list", "a")
+            .put("hyphenation_patterns_path", "foo")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+
+        String[] bypassingFactories = new String[]{
+            "common_grams", "dictionary_decompounder",
+            "edge_ngram", "ngram", "word_delimiter", "word_delimiter_graph"
+        };
+
+        CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
+        for (String factory : bypassingFactories) {
+            TokenFilterFactory tff = plugin.getTokenFilters().get(factory).get(idxSettings, null, factory, settings);
+            TokenizerFactory tok = new KeywordTokenizerFactory(idxSettings, null, "keyword", settings);
+            Analyzer analyzer = SynonymTokenFilterFactory.buildSynonymAnalyzer(tok,
+                Collections.emptyList(), Collections.singletonList(tff));
+
+            try (TokenStream ts = analyzer.tokenStream("field", "text")) {
+                assertThat(ts, instanceOf(KeywordTokenizer.class));
+            }
+        }
+
     }
 
     private void match(String analyzerName, String source, String target) throws IOException {

@@ -85,10 +85,15 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             public TokenStream create(TokenStream tokenStream) {
                 return synonyms.fst == null ? tokenStream : new SynonymFilter(tokenStream, synonyms, false);
             }
+
+            @Override
+            public TokenFilterFactory getSynonymFilter() {
+                return IDENTITY_FILTER;     // Don't apply synonyms to a synonym file, this will just confuse things
+            }
         };
     }
 
-    Analyzer buildSynonymAnalyzer(TokenizerFactory tokenizer, List<CharFilterFactory> charFilters,
+    static Analyzer buildSynonymAnalyzer(TokenizerFactory tokenizer, List<CharFilterFactory> charFilters,
                                   List<TokenFilterFactory> tokenFilters) {
         return new CustomAnalyzer("synonyms", tokenizer, charFilters.toArray(new CharFilterFactory[0]),
             tokenFilters.stream()

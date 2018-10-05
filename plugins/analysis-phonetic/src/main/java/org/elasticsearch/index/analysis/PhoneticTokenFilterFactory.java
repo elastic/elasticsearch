@@ -116,6 +116,11 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     @Override
+    public TokenFilterFactory getSynonymFilter() {
+        return IDENTITY_FILTER;
+    }
+
+    @Override
     public TokenStream create(TokenStream tokenStream) {
         if (encoder == null) {
             if (isDaitchMokotoff) {

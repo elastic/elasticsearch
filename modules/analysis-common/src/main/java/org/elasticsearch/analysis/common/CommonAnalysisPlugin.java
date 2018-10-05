@@ -427,7 +427,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.add(PreConfiguredTokenFilter.singleton("german_stem", false, GermanStemFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("hindi_normalization", true, HindiNormalizationFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("indic_normalization", true, IndicNormalizationFilter::new));
-        filters.add(PreConfiguredTokenFilter.singleton("keyword_repeat", false, KeywordRepeatFilter::new));
+        filters.add(PreConfiguredTokenFilter.singleton("keyword_repeat", false, false, KeywordRepeatFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("kstem", false, KStemFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("length", false, input ->
                 new LengthFilter(input, 0, Integer.MAX_VALUE)));  // TODO this one seems useless

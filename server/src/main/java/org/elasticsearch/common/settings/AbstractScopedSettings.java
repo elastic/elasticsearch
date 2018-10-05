@@ -34,6 +34,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
@@ -58,7 +59,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
     private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
     private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+[*](?:[.][-\\w]+)+$");
-    private static final Predicate<String> NOT_WILDCARD_SETTING = key -> !key.endsWith("*");
+    private static final Predicate<String> WILDCARD_SETTING = key -> key.endsWith("*");
+    private static final Predicate<String> NOT_WILDCARD_SETTING = key -> !WILDCARD_SETTING.test(key);
 
     protected AbstractScopedSettings(
             final Settings settings,
@@ -717,10 +719,12 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             } else if (get(key) == null) {
                 throw new IllegalArgumentException(type + " setting [" + key + "], not recognized");
             } else if (isDelete == false && canUpdate.test(key)) {
-                validate(toApply, target.build());
-                settingsBuilder.copy(key, toApply);
-                updates.copy(key, toApply);
-                changed = true;
+                changed = hasChanged(toApply, target);
+                if (changed) {
+                    validate(toApply, target.build());
+                    settingsBuilder.copy(key, toApply);
+                    updates.copy(key, toApply);
+                }
             } else {
                 if (isFinalSetting(key)) {
                     throw new IllegalArgumentException("final " + type + " setting [" + key + "], not updateable");
@@ -750,6 +754,17 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             }
         });
         return validSettings;
+    }
+
+    private boolean hasChanged(Settings toApply, Settings.Builder target) {
+        boolean changed = toApply.keySet().stream().anyMatch(k -> k.endsWith("*"));
+        if (!changed) {
+            changed = target.build().keySet().stream().anyMatch(k -> k.endsWith("*"));
+        }
+        if (!changed) {
+            changed = toApply.keySet().stream().anyMatch(k -> !Objects.equals(toApply.get(k), target.get(k)));
+        }
+        return changed;
     }
 
     private static boolean applyDeletes(Set<String> deletes, Settings.Builder builder, Predicate<String> canRemove) {

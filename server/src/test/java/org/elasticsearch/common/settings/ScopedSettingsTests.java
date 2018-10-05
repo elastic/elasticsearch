@@ -54,6 +54,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -1272,6 +1273,17 @@ public class ScopedSettingsTests extends ESTestCase {
         assertTrue(updated);
         assertThat(target.get(SETTING_FOO_LOW.getKey()), equalTo("20"));
         assertThat(updates.get(SETTING_FOO_LOW.getKey()), equalTo("20"));
+
+        updates = Settings.builder();
+        updated = service.updateSettings(
+            Settings.builder().put(SETTING_FOO_LOW.getKey(), 20).build(),
+            target,
+            updates,
+            "transient"
+        );
+        assertFalse(updated);
+        assertThat(target.get(SETTING_FOO_LOW.getKey()), equalTo("20"));
+        assertThat(updates.keys(), empty());
 
         updates = Settings.builder();
         updated = service.updateSettings(

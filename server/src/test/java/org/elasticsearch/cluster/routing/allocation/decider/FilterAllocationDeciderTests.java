@@ -63,7 +63,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
             "node2").build());
         RoutingTable routingTable = state.routingTable();
 
-        // we can initally only allocate on node2
+        // we can initially only allocate on node2
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).currentNodeId(), "node2");
         routingTable = service.applyFailedShard(state, routingTable.index("idx").shard(0).shards().get(0), randomBoolean()).routingTable();

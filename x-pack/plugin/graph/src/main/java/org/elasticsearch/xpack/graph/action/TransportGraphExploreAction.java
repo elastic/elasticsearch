@@ -193,7 +193,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             // A single sample pool of docs is built at the root of the aggs tree.
             // For quality's sake it might have made more sense to sample top docs
             // for each of the terms from the previous hop (e.g. an initial query for "beatles" 
-            // may have seperate doc-sample pools for significant root terms "john", "paul", "yoko" etc)
+            // may have separate doc-sample pools for significant root terms "john", "paul", "yoko" etc)
             // but I found this dramatically slowed down execution - each pool typically had different docs which
             // each had non-overlapping sets of terms that needed frequencies looking up for significant terms.
             // A common sample pool reduces the specialization that can be given to each root term but

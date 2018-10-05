@@ -93,7 +93,8 @@ public class CompositeRolesStore extends AbstractComponent {
     private final Cache<String, Boolean> negativeLookupCache;
     private final ThreadContext threadContext;
     private final AtomicLong numInvalidation = new AtomicLong();
-    private final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> customRolesProviders;
+    private final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> builtInRoleProviders;
+    private final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> allRoleProviders;
 
     public CompositeRolesStore(Settings settings, FileRolesStore fileRolesStore, NativeRolesStore nativeRolesStore,
                                ReservedRolesStore reservedRolesStore, NativePrivilegeStore privilegeStore,
@@ -119,7 +120,15 @@ public class CompositeRolesStore extends AbstractComponent {
             builder.setMaximumWeight(nlcCacheSize);
         }
         this.negativeLookupCache = nlcBuilder.build();
-        this.customRolesProviders = Collections.unmodifiableList(rolesProviders);
+        this.builtInRoleProviders = Collections.unmodifiableList(Arrays.asList(reservedRolesStore, fileRolesStore, nativeRolesStore));
+        if (rolesProviders.isEmpty()) {
+            this.allRoleProviders = this.builtInRoleProviders;
+        } else {
+            List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> allList = new ArrayList<>(3 + rolesProviders.size());
+            allList.addAll(builtInRoleProviders);
+            allList.addAll(rolesProviders);
+            this.allRoleProviders = Collections.unmodifiableList(allList);
+        }
     }
 
     public void roles(Set<String> roleNames, FieldPermissionsCache fieldPermissionsCache, ActionListener<Role> roleActionListener) {
@@ -187,16 +196,8 @@ public class CompositeRolesStore extends AbstractComponent {
 
     private void loadRoleDescriptorsAsync(Set<String> roleNames, ActionListener<RolesRetrievalResult> listener) {
         final RolesRetrievalResult rolesResult = new RolesRetrievalResult();
-        final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> asyncRoleProviders;
-        if (licenseState.isCustomRoleProvidersAllowed() && customRolesProviders.isEmpty() == false) {
-            asyncRoleProviders = new ArrayList<>(3 + customRolesProviders.size());
-            asyncRoleProviders.add(reservedRolesStore);
-            asyncRoleProviders.add(fileRolesStore);
-            asyncRoleProviders.add(nativeRolesStore);
-            asyncRoleProviders.addAll(customRolesProviders);
-        } else {
-            asyncRoleProviders = Arrays.asList(reservedRolesStore, fileRolesStore, nativeRolesStore);
-        }
+        final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> asyncRoleProviders =
+            licenseState.isCustomRoleProvidersAllowed() ? allRoleProviders : builtInRoleProviders;
 
         final ActionListener<RoleRetrievalResult> descriptorsListener =
             ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(ignore -> {

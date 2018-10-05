@@ -67,6 +67,7 @@ import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -113,12 +114,18 @@ public class CompositeRolesStoreTests extends ESTestCase {
                         .build()
         }, null);
         FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(any(Set.class), any(ActionListener.class));
+        ReservedRolesStore reservedRolesStore = mock(ReservedRolesStore.class);
+        doCallRealMethod().when(reservedRolesStore).accept(any(Set.class), any(ActionListener.class));
+        NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doCallRealMethod().when(nativeRolesStore).accept(any(Set.class), any(ActionListener.class));
+
         when(fileRolesStore.roleDescriptors(Collections.singleton("fls"))).thenReturn(Collections.singleton(flsRole));
         when(fileRolesStore.roleDescriptors(Collections.singleton("dls"))).thenReturn(Collections.singleton(dlsRole));
         when(fileRolesStore.roleDescriptors(Collections.singleton("fls_dls"))).thenReturn(Collections.singleton(flsDlsRole));
         when(fileRolesStore.roleDescriptors(Collections.singleton("no_fls_dls"))).thenReturn(Collections.singleton(noFlsDlsRole));
-        CompositeRolesStore compositeRolesStore = new CompositeRolesStore(Settings.EMPTY, fileRolesStore, mock(NativeRolesStore.class),
-                mock(ReservedRolesStore.class), mock(NativePrivilegeStore.class), Collections.emptyList(),
+        CompositeRolesStore compositeRolesStore = new CompositeRolesStore(Settings.EMPTY, fileRolesStore, nativeRolesStore,
+                reservedRolesStore, mock(NativePrivilegeStore.class), Collections.emptyList(),
                 new ThreadContext(Settings.EMPTY), licenseState);
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
@@ -174,12 +181,17 @@ public class CompositeRolesStoreTests extends ESTestCase {
                         .build()
         }, null);
         FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(any(Set.class), any(ActionListener.class));
+        ReservedRolesStore reservedRolesStore = mock(ReservedRolesStore.class);
+        doCallRealMethod().when(reservedRolesStore).accept(any(Set.class), any(ActionListener.class));
+        NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doCallRealMethod().when(nativeRolesStore).accept(any(Set.class), any(ActionListener.class));
         when(fileRolesStore.roleDescriptors(Collections.singleton("fls"))).thenReturn(Collections.singleton(flsRole));
         when(fileRolesStore.roleDescriptors(Collections.singleton("dls"))).thenReturn(Collections.singleton(dlsRole));
         when(fileRolesStore.roleDescriptors(Collections.singleton("fls_dls"))).thenReturn(Collections.singleton(flsDlsRole));
         when(fileRolesStore.roleDescriptors(Collections.singleton("no_fls_dls"))).thenReturn(Collections.singleton(noFlsDlsRole));
-        CompositeRolesStore compositeRolesStore = new CompositeRolesStore(Settings.EMPTY, fileRolesStore, mock(NativeRolesStore.class),
-                mock(ReservedRolesStore.class), mock(NativePrivilegeStore.class), Collections.emptyList(),
+        CompositeRolesStore compositeRolesStore = new CompositeRolesStore(Settings.EMPTY, fileRolesStore, nativeRolesStore,
+                reservedRolesStore, mock(NativePrivilegeStore.class), Collections.emptyList(),
                 new ThreadContext(Settings.EMPTY), licenseState);
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
@@ -202,13 +214,15 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     public void testNegativeLookupsAreCached() {
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
-        when(fileRolesStore.roleDescriptors(anySetOf(String.class))).thenReturn(Collections.emptySet());
+        doCallRealMethod().when(fileRolesStore).accept(any(Set.class), any(ActionListener.class));
         final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doCallRealMethod().when(nativeRolesStore).accept(any(Set.class), any(ActionListener.class));
+        when(fileRolesStore.roleDescriptors(anySetOf(String.class))).thenReturn(Collections.emptySet());
         doAnswer((invocationOnMock) -> {
             ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
             callback.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
             return null;
-        }).when(nativeRolesStore).getRoleDescriptors(isA(String[].class), any(ActionListener.class));
+        }).when(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
         final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
 
         final CompositeRolesStore compositeRolesStore =
@@ -223,9 +237,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
         compositeRolesStore.roles(Collections.singleton(roleName), fieldPermissionsCache, future);
         final Role role = future.actionGet();
         assertEquals(Role.EMPTY, role);
-        verify(reservedRolesStore).roleDescriptors();
+        verify(reservedRolesStore).accept(anySetOf(String.class), any(ActionListener.class));
+        verify(fileRolesStore).accept(anySetOf(String.class), any(ActionListener.class));
         verify(fileRolesStore).roleDescriptors(eq(Collections.singleton(roleName)));
-        verify(nativeRolesStore).getRoleDescriptors(isA(String[].class), any(ActionListener.class));
+        verify(nativeRolesStore).accept(anySetOf(String.class), any(ActionListener.class));
+        verify(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
 
         final int numberOfTimesToCall = scaledRandomIntBetween(0, 32);
         final boolean getSuperuserRole = randomBoolean()
@@ -240,20 +256,22 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         if (getSuperuserRole && numberOfTimesToCall > 0) {
             // the superuser role was requested so we get the role descriptors again
-            verify(reservedRolesStore, times(2)).roleDescriptors();
+            verify(reservedRolesStore, times(2)).accept(anySetOf(String.class), any(ActionListener.class));
         }
         verifyNoMoreInteractions(fileRolesStore, reservedRolesStore, nativeRolesStore);
     }
 
     public void testNegativeLookupsAreNotCachedWithFailures() {
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
-        when(fileRolesStore.roleDescriptors(anySetOf(String.class))).thenReturn(Collections.emptySet());
+        doCallRealMethod().when(fileRolesStore).accept(any(Set.class), any(ActionListener.class));
         final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doCallRealMethod().when(nativeRolesStore).accept(any(Set.class), any(ActionListener.class));
+        when(fileRolesStore.roleDescriptors(anySetOf(String.class))).thenReturn(Collections.emptySet());
         doAnswer((invocationOnMock) -> {
             ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
             callback.onResponse(RoleRetrievalResult.failure(new RuntimeException("intentionally failed!")));
             return null;
-        }).when(nativeRolesStore).getRoleDescriptors(isA(String[].class), any(ActionListener.class));
+        }).when(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
         final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
 
         final CompositeRolesStore compositeRolesStore =
@@ -268,9 +286,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
         compositeRolesStore.roles(Collections.singleton(roleName), fieldPermissionsCache, future);
         final Role role = future.actionGet();
         assertEquals(Role.EMPTY, role);
-        verify(reservedRolesStore).roleDescriptors();
+        verify(reservedRolesStore).accept(anySetOf(String.class), any(ActionListener.class));
+        verify(fileRolesStore).accept(anySetOf(String.class), any(ActionListener.class));
         verify(fileRolesStore).roleDescriptors(eq(Collections.singleton(roleName)));
-        verify(nativeRolesStore).getRoleDescriptors(isA(String[].class), any(ActionListener.class));
+        verify(nativeRolesStore).accept(anySetOf(String.class), any(ActionListener.class));
+        verify(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
 
         final int numberOfTimesToCall = scaledRandomIntBetween(0, 32);
         final Set<String> names = Collections.singleton(roleName);
@@ -280,21 +300,25 @@ public class CompositeRolesStoreTests extends ESTestCase {
             future.actionGet();
         }
 
-        verify(reservedRolesStore, times(numberOfTimesToCall + 1)).roleDescriptors();
+        verify(reservedRolesStore, times(numberOfTimesToCall + 1)).accept(anySetOf(String.class), any(ActionListener.class));
+        verify(fileRolesStore, times(numberOfTimesToCall + 1)).accept(anySetOf(String.class), any(ActionListener.class));
         verify(fileRolesStore, times(numberOfTimesToCall + 1)).roleDescriptors(eq(Collections.singleton(roleName)));
-        verify(nativeRolesStore, times(numberOfTimesToCall + 1)).getRoleDescriptors(isA(String[].class), any(ActionListener.class));
+        verify(nativeRolesStore, times(numberOfTimesToCall + 1)).accept(anySetOf(String.class), any(ActionListener.class));
+        verify(nativeRolesStore, times(numberOfTimesToCall + 1)).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
         verifyNoMoreInteractions(fileRolesStore, reservedRolesStore, nativeRolesStore);
     }
 
     public void testCustomRolesProviders() {
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(any(Set.class), any(ActionListener.class));
         when(fileRolesStore.roleDescriptors(anySetOf(String.class))).thenReturn(Collections.emptySet());
         final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doCallRealMethod().when(nativeRolesStore).accept(any(Set.class), any(ActionListener.class));
         doAnswer((invocationOnMock) -> {
             ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
             callback.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
             return null;
-        }).when(nativeRolesStore).getRoleDescriptors(isA(String[].class), any(ActionListener.class));
+        }).when(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
         final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
 
         final InMemoryRolesProvider inMemoryProvider1 = spy(new InMemoryRolesProvider((roles) -> {
@@ -507,13 +531,15 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     public void testCustomRolesProviderFailures() throws Exception {
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(anySetOf(String.class), any(ActionListener.class));
         when(fileRolesStore.roleDescriptors(anySetOf(String.class))).thenReturn(Collections.emptySet());
         final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doCallRealMethod().when(nativeRolesStore).accept(anySetOf(String.class), any(ActionListener.class));
         doAnswer((invocationOnMock) -> {
             ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
             callback.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
             return null;
-        }).when(nativeRolesStore).getRoleDescriptors(isA(String[].class), any(ActionListener.class));
+        }).when(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
 
         final InMemoryRolesProvider inMemoryProvider1 = new InMemoryRolesProvider((roles) -> {
@@ -549,13 +575,15 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     public void testCustomRolesProvidersLicensing() {
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(anySetOf(String.class), any(ActionListener.class));
         when(fileRolesStore.roleDescriptors(anySetOf(String.class))).thenReturn(Collections.emptySet());
         final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doCallRealMethod().when(nativeRolesStore).accept(anySetOf(String.class), any(ActionListener.class));
         doAnswer((invocationOnMock) -> {
             ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
             callback.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
             return null;
-        }).when(nativeRolesStore).getRoleDescriptors(isA(String[].class), any(ActionListener.class));
+        }).when(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
 
         final InMemoryRolesProvider inMemoryProvider = new InMemoryRolesProvider((roles) -> {
@@ -619,8 +647,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
     public void testCacheClearOnIndexHealthChange() {
         final AtomicInteger numInvalidation = new AtomicInteger(0);
 
+        FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(any(Set.class), any(ActionListener.class));
+        ReservedRolesStore reservedRolesStore = mock(ReservedRolesStore.class);
+        doCallRealMethod().when(reservedRolesStore).accept(any(Set.class), any(ActionListener.class));
+        NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doCallRealMethod().when(nativeRolesStore).accept(any(Set.class), any(ActionListener.class));
         CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
-                Settings.EMPTY, mock(FileRolesStore.class), mock(NativeRolesStore.class), mock(ReservedRolesStore.class),
+                Settings.EMPTY, fileRolesStore, nativeRolesStore, reservedRolesStore,
                 mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(Settings.EMPTY),
                 new XPackLicenseState(SECURITY_ENABLED_SETTINGS)) {
             @Override
@@ -665,8 +699,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
     public void testCacheClearOnIndexOutOfDateChange() {
         final AtomicInteger numInvalidation = new AtomicInteger(0);
 
+        FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(any(Set.class), any(ActionListener.class));
+        ReservedRolesStore reservedRolesStore = mock(ReservedRolesStore.class);
+        doCallRealMethod().when(reservedRolesStore).accept(any(Set.class), any(ActionListener.class));
+        NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doCallRealMethod().when(nativeRolesStore).accept(any(Set.class), any(ActionListener.class));
         CompositeRolesStore compositeRolesStore = new CompositeRolesStore(SECURITY_ENABLED_SETTINGS,
-                mock(FileRolesStore.class), mock(NativeRolesStore.class), mock(ReservedRolesStore.class),
+                fileRolesStore, nativeRolesStore, reservedRolesStore,
                 mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
                 new XPackLicenseState(SECURITY_ENABLED_SETTINGS)) {
             @Override

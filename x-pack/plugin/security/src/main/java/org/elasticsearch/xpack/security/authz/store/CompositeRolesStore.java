@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -180,111 +181,53 @@ public class CompositeRolesStore extends AbstractComponent {
                 return true;
             }
         }).collect(Collectors.toSet());
-        final RolesRetrievalResult retrievalResult = new RolesRetrievalResult();
-        final Set<RoleDescriptor> builtInRoleDescriptors = getBuiltInRoleDescriptors(filteredRoleNames);
-        retrievalResult.addDescriptors(builtInRoleDescriptors);
-        Set<String> remainingRoleNames = difference(filteredRoleNames, builtInRoleDescriptors);
 
-        if (remainingRoleNames.isEmpty()) {
-            rolesResultListener.onResponse(retrievalResult);
-        } else {
-            final Set<RoleDescriptor> fileRoleDescriptors = getDescriptorsFromFileStore(remainingRoleNames);
-            retrievalResult.addDescriptors(fileRoleDescriptors);
-            remainingRoleNames = difference(remainingRoleNames, fileRoleDescriptors);
-            if (remainingRoleNames.isEmpty()) {
-                rolesResultListener.onResponse(retrievalResult);
-            } else {
-                loadNativeRoleDescriptors(retrievalResult, rolesResultListener, remainingRoleNames);
-            }
-        }
+        loadRoleDescriptorsAsync(filteredRoleNames, rolesResultListener);
     }
 
-    private void loadNativeRoleDescriptors(RolesRetrievalResult rolesResult, ActionListener<RolesRetrievalResult> listener,
-                                           Set<String> roleNames) {
-        nativeRolesStore.getRoleDescriptors(roleNames.toArray(Strings.EMPTY_ARRAY), ActionListener.wrap((result) -> {
-            if (result.isSuccess()) {
-                final Set<RoleDescriptor> descriptors = result.getDescriptors();
-                logger.debug(
-                    () -> new ParameterizedMessage("Roles [{}] were resolved from the native index store", names(descriptors)));
-                rolesResult.addDescriptors(descriptors);
-                final Set<String> remainingRoles = difference(roleNames, descriptors);
-                if (remainingRoles.isEmpty()) {
-                    listener.onResponse(rolesResult);
-                } else {
-                    callCustomRoleProvidersIfEnabled(rolesResult, remainingRoles, listener);
-                }
-            } else {
-                logger.warn("role retrieval failed from the native roles store", result.getFailure());
-                rolesResult.setFailure();
-                callCustomRoleProvidersIfEnabled(rolesResult, roleNames, listener);
-            }
-        }, listener::onFailure));
-    }
-
-    private void callCustomRoleProvidersIfEnabled(RolesRetrievalResult rolesResult, Set<String> remainingRoleNames,
-                                                  ActionListener<RolesRetrievalResult> resultListener) {
+    private void loadRoleDescriptorsAsync(Set<String> roleNames, ActionListener<RolesRetrievalResult> listener) {
+        final RolesRetrievalResult rolesResult = new RolesRetrievalResult();
+        final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> asyncRoleProviders;
         if (licenseState.isCustomRoleProvidersAllowed() && customRolesProviders.isEmpty() == false) {
-            final ActionListener<RoleRetrievalResult> descriptorsListener = ActionListener.wrap(ignore -> {
-                    rolesResult.setMissingRoles(remainingRoleNames);
-                    resultListener.onResponse(rolesResult);
-                }, resultListener::onFailure);
+            asyncRoleProviders = new ArrayList<>(3 + customRolesProviders.size());
+            asyncRoleProviders.add(reservedRolesStore);
+            asyncRoleProviders.add(fileRolesStore);
+            asyncRoleProviders.add(nativeRolesStore);
+            asyncRoleProviders.addAll(customRolesProviders);
+        } else {
+            asyncRoleProviders = Arrays.asList(reservedRolesStore, fileRolesStore, nativeRolesStore);
+        }
 
-            final Predicate<RoleRetrievalResult> iterationPredicate = result -> {
+        final ActionListener<RoleRetrievalResult> descriptorsListener =
+            ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(ignore -> {
+                    rolesResult.setMissingRoles(roleNames);
+                    listener.onResponse(rolesResult);
+                }, listener::onFailure), threadContext);
+
+        final Predicate<RoleRetrievalResult> iterationPredicate = result -> roleNames.isEmpty() == false;
+        new IteratingActionListener<>(descriptorsListener, (rolesProvider, providerListener) -> {
+            // try to resolve descriptors with role provider
+            rolesProvider.accept(roleNames, ActionListener.wrap(result -> {
                 if (result.isSuccess()) {
+                    logger.debug(() -> new ParameterizedMessage("Roles [{}] were resolved by [{}]",
+                        names(result.getDescriptors()), rolesProvider));
                     final Set<RoleDescriptor> resolvedDescriptors = result.getDescriptors();
                     rolesResult.addDescriptors(resolvedDescriptors);
                     // remove resolved descriptors from the set of roles still needed to be resolved
                     for (RoleDescriptor descriptor : resolvedDescriptors) {
-                        remainingRoleNames.remove(descriptor.getName());
+                        roleNames.remove(descriptor.getName());
                     }
                 } else {
+                    logger.warn(new ParameterizedMessage("role retrieval failed from [{}]", rolesProvider), result.getFailure());
                     rolesResult.setFailure();
                 }
-                return remainingRoleNames.isEmpty() == false;
-            };
-
-            new IteratingActionListener<>(descriptorsListener, (rolesProvider, listener) -> {
-                // try to resolve descriptors with role provider
-                rolesProvider.accept(remainingRoleNames, ActionListener.wrap(result -> {
-                    if (result.isSuccess()) {
-                        logger.debug(() -> new ParameterizedMessage("Roles [{}] were resolved by [{}]",
-                            names(result.getDescriptors()), rolesProvider));
-                    } else {
-                        logger.warn(new ParameterizedMessage("role retrieval failed from [{}]", rolesProvider), result.getFailure());
-                    }
-                    listener.onResponse(result);
-                }, listener::onFailure));
-            }, customRolesProviders, threadContext, Function.identity(), iterationPredicate).run();
-        } else {
-            rolesResult.setMissingRoles(remainingRoleNames);
-            resultListener.onResponse(rolesResult);
-        }
-    }
-
-    private Set<RoleDescriptor> getBuiltInRoleDescriptors(Set<String> roleNames) {
-        final Set<RoleDescriptor> descriptors = reservedRolesStore.roleDescriptors().stream()
-                .filter((rd) -> roleNames.contains(rd.getName()))
-                .collect(Collectors.toSet());
-        if (descriptors.size() > 0) {
-            logger.debug(() -> new ParameterizedMessage("Roles [{}] are builtin roles", names(descriptors)));
-        }
-        return descriptors;
-    }
-
-    private Set<RoleDescriptor> getDescriptorsFromFileStore(Set<String> roleNames) {
-        final Set<RoleDescriptor> fileRoles = fileRolesStore.roleDescriptors(roleNames);
-        logger.debug(() ->
-            new ParameterizedMessage("Roles [{}] were resolved from [{}]", names(fileRoles), fileRolesStore.getFile()));
-        return fileRoles;
+                providerListener.onResponse(result);
+            }, providerListener::onFailure));
+        }, asyncRoleProviders, threadContext, Function.identity(), iterationPredicate).run();
     }
 
     private String names(Collection<RoleDescriptor> descriptors) {
         return descriptors.stream().map(RoleDescriptor::getName).collect(Collectors.joining(","));
-    }
-
-    private Set<String> difference(Set<String> roleNames, Set<RoleDescriptor> descriptors) {
-        Set<String> foundNames = descriptors.stream().map(RoleDescriptor::getName).collect(Collectors.toSet());
-        return Sets.difference(roleNames, foundNames);
     }
 
     public static void buildRoleFromDescriptors(Collection<RoleDescriptor> roleDescriptors, FieldPermissionsCache fieldPermissionsCache,

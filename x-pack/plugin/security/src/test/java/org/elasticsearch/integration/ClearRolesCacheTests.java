@@ -19,7 +19,9 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
@@ -56,10 +58,11 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
 
         ensureGreen(SecurityIndexManager.SECURITY_INDEX_NAME);
 
+        final Set<String> rolesSet = new HashSet<>(Arrays.asList(roles));
         // warm up the caches on every node
         for (NativeRolesStore rolesStore : internalCluster().getInstances(NativeRolesStore.class)) {
             PlainActionFuture<RoleRetrievalResult> future = new PlainActionFuture<>();
-            rolesStore.getRoleDescriptors(roles, future);
+            rolesStore.getRoleDescriptors(rolesSet, future);
             assertThat(future.actionGet(), notNullValue());
             assertTrue(future.actionGet().isSuccess());
         }

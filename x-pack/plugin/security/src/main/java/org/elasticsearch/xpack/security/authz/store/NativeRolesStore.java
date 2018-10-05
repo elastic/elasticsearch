@@ -56,6 +56,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -76,7 +78,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
  *
  * No caching is done by this class, it is handled at a higher level
  */
-public class NativeRolesStore extends AbstractComponent {
+public class NativeRolesStore extends AbstractComponent implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
 
     // these are no longer used, but leave them around for users upgrading
     private static final Setting<Integer> CACHE_SIZE_SETTING =
@@ -99,22 +101,27 @@ public class NativeRolesStore extends AbstractComponent {
         this.securityIndex = securityIndex;
     }
 
+    @Override
+    public void accept(Set<String> names, ActionListener<RoleRetrievalResult> listener) {
+        getRoleDescriptors(names, listener);
+    }
+
     /**
      * Retrieve a list of roles, if rolesToGet is null or empty, fetch all roles
      */
-    public void getRoleDescriptors(String[] names, final ActionListener<RoleRetrievalResult> listener) {
+    public void getRoleDescriptors(Set<String> names, final ActionListener<RoleRetrievalResult> listener) {
         if (securityIndex.indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
             listener.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
-        } else if (names != null && names.length == 1) {
-            getRoleDescriptor(Objects.requireNonNull(names[0]), listener);
+        } else if (names != null && names.size() == 1) {
+            getRoleDescriptor(Objects.requireNonNull(names.iterator().next()), listener);
         } else {
             securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
                 QueryBuilder query;
-                if (names == null || names.length == 0) {
+                if (names == null || names.isEmpty()) {
                     query = QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE);
                 } else {
-                    final String[] roleNames = Arrays.stream(names).map(s -> getIdForUser(s)).toArray(String[]::new);
+                    final String[] roleNames = names.stream().map(NativeRolesStore::getIdForUser).toArray(String[]::new);
                     query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery(ROLE_DOC_TYPE).addIds(roleNames));
                 }
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
@@ -261,6 +268,11 @@ public class NativeRolesStore extends AbstractComponent {
                         }
                     }, client::multiSearch));
         }
+    }
+
+    @Override
+    public String toString() {
+        return "native roles store";
     }
 
     private void getRoleDescriptor(final String roleId, ActionListener<RoleRetrievalResult> resultListener) {

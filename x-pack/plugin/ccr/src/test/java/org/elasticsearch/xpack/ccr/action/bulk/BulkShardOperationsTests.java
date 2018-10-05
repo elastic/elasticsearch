@@ -158,13 +158,13 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
             primary.getHistoryUUID(), firstBulk, seqno, primary, logger);
         assertThat(fullResult.replicaRequest().getOperations(),
             equalTo(rewriteWithPrimaryTerm(firstBulk, primary.getOperationPrimaryTerm())));
-        assertThat(fullResult.waitingForGlobalCheckpoint, equalTo(-2));
+        assertThat(fullResult.waitingForGlobalCheckpoint, equalTo(-2L));
 
         List<Translog.Operation> subOfFirstBulk = randomSubsetOf(firstBulk);
         final CcrWritePrimaryResult emptyResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(),
             primary.getHistoryUUID(), subOfFirstBulk, seqno, primary, logger);
         assertThat(emptyResult.replicaRequest().getOperations(), empty());
-        assertThat(fullResult.waitingForGlobalCheckpoint, equalTo(subOfFirstBulk.stream().mapToLong(o -> o.seqNo()).max().orElse(-2)));
+        assertThat(fullResult.waitingForGlobalCheckpoint, equalTo(subOfFirstBulk.stream().mapToLong(o -> o.seqNo()).max().orElse(-2L)));
 
         final List<Translog.Operation> secondBulk = new ArrayList<>(ops);
         subOfFirstBulk = randomSubsetOf(firstBulk);
@@ -172,7 +172,7 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
         final CcrWritePrimaryResult partialResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(),
             primary.getHistoryUUID(), secondBulk, seqno, primary, logger);
         assertThat(partialResult.replicaRequest().getOperations(), equalTo(rewriteWithPrimaryTerm(ops, primary.getOperationPrimaryTerm())));
-        assertThat(partialResult.waitingForGlobalCheckpoint, equalTo(subOfFirstBulk.stream().mapToLong(o -> o.seqNo()).max().orElse(-2)));
+        assertThat(partialResult.waitingForGlobalCheckpoint, equalTo(subOfFirstBulk.stream().mapToLong(o -> o.seqNo()).max().orElse(-2L)));
 
         closeShards(primary);
     }

@@ -41,7 +41,7 @@ import java.util.Map;
  *     <li>Call one of the {@code run} methods: {@link #run()} or {@link #runAsDouble()}</li>
  * </ol>
  */
-public abstract class SearchScript implements ScorerAware, ExecutableScript {
+public abstract class SearchScript implements ScorerAware {
 
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
@@ -112,10 +112,9 @@ public abstract class SearchScript implements ScorerAware, ExecutableScript {
         setNextVar("_value", value);
     }
 
-    @Override
     public void setNextVar(String field, Object value) {}
 
-    @Override
+
     public Object run() {
         return runAsDouble();
     }

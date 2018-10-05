@@ -66,12 +66,12 @@ public class ScriptServiceTests extends ESTestCase {
             scripts.put(i + "+" + i, p -> null); // only care about compilation, not execution
         }
         scripts.put("script", p -> null);
-        scriptEngine = new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, scripts);
+        scriptEngine = new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, scripts, Collections.emptyMap());
         //prevent duplicates using map
         contexts = new HashMap<>(ScriptModule.CORE_CONTEXTS);
         engines = new HashMap<>();
         engines.put(scriptEngine.getType(), scriptEngine);
-        engines.put("test", new MockScriptEngine("test", scripts));
+        engines.put("test", new MockScriptEngine("test", scripts, Collections.emptyMap()));
         logger.info("--> setup script service");
     }
 

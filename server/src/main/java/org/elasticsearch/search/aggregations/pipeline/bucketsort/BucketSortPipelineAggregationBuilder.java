@@ -38,6 +38,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -145,8 +146,8 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
     }
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, List<AggregationBuilder> aggFactories,
-                           List<PipelineAggregationBuilder> pipelineAggregatoractories) {
+    public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggFactories,
+                           Collection<PipelineAggregationBuilder> pipelineAggregatoractories) {
         if (sorts.isEmpty() && size == null && from == 0) {
             throw new IllegalStateException("[" + name + "] is configured to perform nothing. Please set either of "
                     + Arrays.asList(SearchSourceBuilder.SORT_FIELD.getPreferredName(), SIZE.getPreferredName(), FROM.getPreferredName())

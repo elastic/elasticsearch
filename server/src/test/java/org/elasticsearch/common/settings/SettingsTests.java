@@ -439,10 +439,7 @@ public class SettingsTests extends ESTestCase {
 
         Settings filteredSettings = builder.build().filter((k) -> false);
         assertEquals(0, filteredSettings.size());
-        for (String k : filteredSettings.keySet()) {
-            fail("no element");
 
-        }
         assertFalse(filteredSettings.keySet().contains("a.c"));
         assertFalse(filteredSettings.keySet().contains("a"));
         assertFalse(filteredSettings.keySet().contains("a.b"));

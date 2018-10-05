@@ -20,6 +20,7 @@ package org.elasticsearch.client.documentation;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -29,14 +30,16 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.MachineLearningGetResultsIT;
 import org.elasticsearch.client.MachineLearningIT;
-import org.elasticsearch.client.MlRestTestStateCleaner;
+import org.elasticsearch.client.MlTestStateCleaner;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
+import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -49,6 +52,8 @@ import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetCategoriesResponse;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedResponse;
+import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
+import org.elasticsearch.client.ml.GetDatafeedStatsResponse;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetInfluencersResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
@@ -63,16 +68,23 @@ import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
+import org.elasticsearch.client.ml.PreviewDatafeedRequest;
+import org.elasticsearch.client.ml.PreviewDatafeedResponse;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutDatafeedResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
+import org.elasticsearch.client.ml.StartDatafeedRequest;
+import org.elasticsearch.client.ml.StartDatafeedResponse;
+import org.elasticsearch.client.ml.StopDatafeedRequest;
+import org.elasticsearch.client.ml.StopDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.client.ml.datafeed.DatafeedStats;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisLimits;
 import org.elasticsearch.client.ml.job.config.DataDescription;
@@ -91,11 +103,13 @@ import org.elasticsearch.client.ml.job.results.Influencer;
 import org.elasticsearch.client.ml.job.results.OverallBucket;
 import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.client.ml.job.util.PageParams;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.TaskId;
 import org.junit.After;
 
 import java.io.IOException;
@@ -120,7 +134,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @After
     public void cleanUp() throws IOException {
-        new MlRestTestStateCleaner(logger, client()).clearMlMetadata();
+        new MlTestStateCleaner(logger, highLevelClient().machineLearning()).clearMlMetadata();
     }
 
     public void testCreateJob() throws Exception {
@@ -269,20 +283,34 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             //tag::x-pack-delete-ml-job-request
-            DeleteJobRequest deleteJobRequest = new DeleteJobRequest("my-first-machine-learning-job");
-            deleteJobRequest.setForce(false); // <1>
-            AcknowledgedResponse deleteJobResponse = client.machineLearning().deleteJob(deleteJobRequest, RequestOptions.DEFAULT);
+            DeleteJobRequest deleteJobRequest = new DeleteJobRequest("my-first-machine-learning-job"); // <1>
             //end::x-pack-delete-ml-job-request
 
+            //tag::x-pack-delete-ml-job-request-force
+            deleteJobRequest.setForce(false); // <1>
+            //end::x-pack-delete-ml-job-request-force
+
+            //tag::x-pack-delete-ml-job-request-wait-for-completion
+            deleteJobRequest.setWaitForCompletion(true); // <1>
+            //end::x-pack-delete-ml-job-request-wait-for-completion
+
+            //tag::x-pack-delete-ml-job-execute
+            DeleteJobResponse deleteJobResponse = client.machineLearning().deleteJob(deleteJobRequest, RequestOptions.DEFAULT);
+            //end::x-pack-delete-ml-job-execute
+
             //tag::x-pack-delete-ml-job-response
-            boolean isAcknowledged = deleteJobResponse.isAcknowledged(); // <1>
+            Boolean isAcknowledged = deleteJobResponse.getAcknowledged(); // <1>
+            TaskId task = deleteJobResponse.getTask(); // <2>
             //end::x-pack-delete-ml-job-response
+
+            assertTrue(isAcknowledged);
+            assertNull(task);
         }
         {
             //tag::x-pack-delete-ml-job-request-listener
-            ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
+            ActionListener<DeleteJobResponse> listener = new ActionListener<DeleteJobResponse>() {
                 @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                public void onResponse(DeleteJobResponse deleteJobResponse) {
                     // <1>
                 }
 
@@ -697,6 +725,256 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             DeleteDatafeedRequest deleteDatafeedRequest = new DeleteDatafeedRequest(datafeedId);
             client.machineLearning().deleteDatafeedAsync(deleteDatafeedRequest, RequestOptions.DEFAULT, listener); // <1>
             //end::x-pack-delete-ml-datafeed-request-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testPreviewDatafeed() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        Job job = MachineLearningIT.buildJob("preview-datafeed-job");
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        String datafeedId = job.getId() + "-feed";
+        String indexName = "preview_data_2";
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, job.getId())
+            .setTypes(Arrays.asList("doc"))
+            .setIndices(indexName)
+            .build();
+        client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
+        {
+            //tag::preview-datafeed-request
+            PreviewDatafeedRequest request = new PreviewDatafeedRequest(datafeedId); // <1>
+            //end::preview-datafeed-request
+
+            //tag::preview-datafeed-execute
+            PreviewDatafeedResponse response = client.machineLearning().previewDatafeed(request, RequestOptions.DEFAULT);
+            //end::preview-datafeed-execute
+
+            //tag::preview-datafeed-response
+            BytesReference rawPreview = response.getPreview(); // <1>
+            List<Map<String, Object>> semiParsedPreview = response.getDataList(); // <2>
+            //end::preview-datafeed-response
+
+            assertTrue(semiParsedPreview.isEmpty());
+        }
+        {
+            PreviewDatafeedRequest request = new PreviewDatafeedRequest(datafeedId);
+
+            // tag::preview-datafeed-execute-listener
+            ActionListener<PreviewDatafeedResponse> listener = new ActionListener<PreviewDatafeedResponse>() {
+                @Override
+                public void onResponse(PreviewDatafeedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::preview-datafeed-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::preview-datafeed-execute-async
+            client.machineLearning().previewDatafeedAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::preview-datafeed-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testStartDatafeed() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        Job job = MachineLearningIT.buildJob("start-datafeed-job");
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        String datafeedId = job.getId() + "-feed";
+        String indexName = "start_data_2";
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, job.getId())
+            .setTypes(Arrays.asList("doc"))
+            .setIndices(indexName)
+            .build();
+        client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
+        client.machineLearning().openJob(new OpenJobRequest(job.getId()), RequestOptions.DEFAULT);
+        {
+            //tag::x-pack-ml-start-datafeed-request
+            StartDatafeedRequest request = new StartDatafeedRequest(datafeedId); // <1>
+            //end::x-pack-ml-start-datafeed-request
+
+            //tag::x-pack-ml-start-datafeed-request-options
+            request.setEnd("2018-08-21T00:00:00Z"); // <1>
+            request.setStart("2018-08-20T00:00:00Z"); // <2>
+            request.setTimeout(TimeValue.timeValueMinutes(10)); // <3>
+            //end::x-pack-ml-start-datafeed-request-options
+
+            //tag::x-pack-ml-start-datafeed-execute
+            StartDatafeedResponse response = client.machineLearning().startDatafeed(request, RequestOptions.DEFAULT);
+            boolean started = response.isStarted(); // <1>
+            //end::x-pack-ml-start-datafeed-execute
+
+            assertTrue(started);
+        }
+        {
+            StartDatafeedRequest request = new StartDatafeedRequest(datafeedId);
+
+            // tag::x-pack-ml-start-datafeed-listener
+            ActionListener<StartDatafeedResponse> listener = new ActionListener<StartDatafeedResponse>() {
+                @Override
+                public void onResponse(StartDatafeedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::x-pack-ml-start-datafeed-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-start-datafeed-execute-async
+            client.machineLearning().startDatafeedAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::x-pack-ml-start-datafeed-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testStopDatafeed() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            //tag::x-pack-ml-stop-datafeed-request
+            StopDatafeedRequest request = new StopDatafeedRequest("datafeed_id1", "datafeed_id*"); // <1>
+            //end::x-pack-ml-stop-datafeed-request
+            request = StopDatafeedRequest.stopAllDatafeedsRequest();
+
+            //tag::x-pack-ml-stop-datafeed-request-options
+            request.setAllowNoDatafeeds(true); // <1>
+            request.setForce(true); // <2>
+            request.setTimeout(TimeValue.timeValueMinutes(10)); // <3>
+            //end::x-pack-ml-stop-datafeed-request-options
+
+            //tag::x-pack-ml-stop-datafeed-execute
+            StopDatafeedResponse response = client.machineLearning().stopDatafeed(request, RequestOptions.DEFAULT);
+            boolean stopped = response.isStopped(); // <1>
+            //end::x-pack-ml-stop-datafeed-execute
+
+            assertTrue(stopped);
+        }
+        {
+            StopDatafeedRequest request = StopDatafeedRequest.stopAllDatafeedsRequest();
+
+            // tag::x-pack-ml-stop-datafeed-listener
+            ActionListener<StopDatafeedResponse> listener = new ActionListener<StopDatafeedResponse>() {
+                @Override
+                public void onResponse(StopDatafeedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::x-pack-ml-stop-datafeed-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-stop-datafeed-execute-async
+            client.machineLearning().stopDatafeedAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::x-pack-ml-stop-datafeed-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetDatafeedStats() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        Job job = MachineLearningIT.buildJob("get-machine-learning-datafeed-stats1");
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        Job secondJob = MachineLearningIT.buildJob("get-machine-learning-datafeed-stats2");
+        client.machineLearning().putJob(new PutJobRequest(secondJob), RequestOptions.DEFAULT);
+        String datafeedId1 = job.getId() + "-feed";
+        String indexName = "datafeed_stats_data_2";
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId1, job.getId())
+            .setTypes(Arrays.asList("doc"))
+            .setIndices(indexName)
+            .build();
+        client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
+
+        String datafeedId2 = secondJob.getId() + "-feed";
+        DatafeedConfig secondDatafeed = DatafeedConfig.builder(datafeedId2, secondJob.getId())
+            .setTypes(Arrays.asList("doc"))
+            .setIndices(indexName)
+            .build();
+        client.machineLearning().putDatafeed(new PutDatafeedRequest(secondDatafeed), RequestOptions.DEFAULT);
+
+        {
+            //tag::x-pack-ml-get-datafeed-stats-request
+            GetDatafeedStatsRequest request =
+                new GetDatafeedStatsRequest("get-machine-learning-datafeed-stats1-feed", "get-machine-learning-datafeed*"); // <1>
+            request.setAllowNoDatafeeds(true); // <2>
+            //end::x-pack-ml-get-datafeed-stats-request
+
+            //tag::x-pack-ml-get-datafeed-stats-execute
+            GetDatafeedStatsResponse response = client.machineLearning().getDatafeedStats(request, RequestOptions.DEFAULT);
+            //end::x-pack-ml-get-datafeed-stats-execute
+
+            //tag::x-pack-ml-get-datafeed-stats-response
+            long numberOfDatafeedStats = response.count(); // <1>
+            List<DatafeedStats> datafeedStats = response.datafeedStats(); // <2>
+            //end::x-pack-ml-get-datafeed-stats-response
+
+            assertEquals(2, response.count());
+            assertThat(response.datafeedStats(), hasSize(2));
+            assertThat(response.datafeedStats().stream().map(DatafeedStats::getDatafeedId).collect(Collectors.toList()),
+                containsInAnyOrder(datafeed.getId(), secondDatafeed.getId()));
+        }
+        {
+            GetDatafeedStatsRequest request = new GetDatafeedStatsRequest("*");
+
+            // tag::x-pack-ml-get-datafeed-stats-listener
+            ActionListener<GetDatafeedStatsResponse> listener = new ActionListener<GetDatafeedStatsResponse>() {
+                @Override
+                public void onResponse(GetDatafeedStatsResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::x-pack-ml-get-datafeed-stats-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-get-datafeed-stats-execute-async
+            client.machineLearning().getDatafeedStatsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::x-pack-ml-get-datafeed-stats-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
@@ -1590,5 +1868,51 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
+    }
+
+    public void testDeleteCalendar() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        Calendar calendar = new Calendar("holidays", Collections.singletonList("job_1"), "A calendar for public holidays");
+        PutCalendarRequest putCalendarRequest = new PutCalendarRequest(calendar);
+        client.machineLearning().putCalendar(putCalendarRequest, RequestOptions.DEFAULT);
+
+        //tag::x-pack-ml-delete-calendar-request
+        DeleteCalendarRequest request = new DeleteCalendarRequest("holidays"); // <1>
+        //end::x-pack-ml-delete-calendar-request
+
+        //tag::x-pack-ml-delete-calendar-execute
+        AcknowledgedResponse response = client.machineLearning().deleteCalendar(request, RequestOptions.DEFAULT);
+        //end::x-pack-ml-delete-calendar-execute
+
+        //tag::x-pack-ml-delete-calendar-response
+        boolean isAcknowledged = response.isAcknowledged(); // <1>
+        //end::x-pack-ml-delete-calendar-response
+
+        assertTrue(isAcknowledged);
+
+        // tag::x-pack-ml-delete-calendar-listener
+        ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
+            @Override
+            public void onResponse(AcknowledgedResponse response) {
+                // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::x-pack-ml-delete-calendar-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::x-pack-ml-delete-calendar-execute-async
+        client.machineLearning().deleteCalendarAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::x-pack-ml-delete-calendar-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 }

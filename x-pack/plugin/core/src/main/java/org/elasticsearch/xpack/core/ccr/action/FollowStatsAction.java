@@ -32,13 +32,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 
-public class CcrStatsAction extends Action<CcrStatsAction.StatsRequest, CcrStatsAction.StatsResponses, CcrStatsAction.StatsRequestBuilder> {
+public class FollowStatsAction
+        extends Action<FollowStatsAction.StatsRequest, FollowStatsAction.StatsResponses, FollowStatsAction.StatsRequestBuilder> {
 
     public static final String NAME = "cluster:monitor/ccr/stats";
 
-    public static final CcrStatsAction INSTANCE = new CcrStatsAction();
+    public static final FollowStatsAction INSTANCE = new FollowStatsAction();
 
-    private CcrStatsAction() {
+    private FollowStatsAction() {
         super(NAME);
     }
 
@@ -142,8 +143,8 @@ public class CcrStatsAction extends Action<CcrStatsAction.StatsRequest, CcrStats
              * This is a limitation of the current tasks API. When the transport action is executed, the tasks API invokes this match method
              * to find the tasks on which to execute the task-level operation (see TransportTasksAction#nodeOperation and
              * TransportTasksAction#processTasks). If we do the matching here, then we can not match index patterns. Therefore, we override
-             * TransportTasksAction#processTasks (see TransportCcrStatsAction#processTasks) and do the matching there. We should never see
-             * this method invoked and since we can not support matching a task on the basis of the request here, we throw that this
+             * TransportTasksAction#processTasks (see TransportFollowStatsAction#processTasks) and do the matching there. We should never
+             * see this method invoked and since we can not support matching a task on the basis of the request here, we throw that this
              * operation is unsupported.
              */
             throw new UnsupportedOperationException();

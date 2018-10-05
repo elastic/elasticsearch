@@ -89,7 +89,7 @@ Response:
     }
 }
 --------------------------------------------------
-// NOTCONSOLE
+// TESTRESPONSE[skip:historically skipped]
 
 The results show that "h5n1" is one of several terms strongly associated with bird flu.
 It only occurs 5 times in our index as a whole (see the `bg_count`) and yet 4 of these 

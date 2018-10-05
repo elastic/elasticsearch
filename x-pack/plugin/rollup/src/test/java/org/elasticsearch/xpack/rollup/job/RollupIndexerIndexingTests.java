@@ -604,9 +604,10 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
             // extract composite agg
             assertThat(request.source().aggregations().getAggregatorFactories().size(), equalTo(1));
-            assertThat(request.source().aggregations().getAggregatorFactories().get(0), instanceOf(CompositeAggregationBuilder.class));
+            assertThat(request.source().aggregations().getAggregatorFactories().iterator().next(),
+                    instanceOf(CompositeAggregationBuilder.class));
             CompositeAggregationBuilder aggBuilder =
-                    (CompositeAggregationBuilder) request.source().aggregations().getAggregatorFactories().get(0);
+                    (CompositeAggregationBuilder) request.source().aggregations().getAggregatorFactories().iterator().next();
 
             CompositeAggregation result = null;
             try {

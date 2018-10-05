@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.util.Objects;
 
@@ -82,6 +83,16 @@ public class CcrClient {
     public ActionFuture<AcknowledgedResponse> pauseFollow(final PauseFollowAction.Request request) {
         final PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(PauseFollowAction.INSTANCE, request, listener);
+        return listener;
+    }
+
+    public void unfollow(final UnfollowAction.Request request, final ActionListener<AcknowledgedResponse> listener) {
+        client.execute(UnfollowAction.INSTANCE, request, listener);
+    }
+
+    public ActionFuture<AcknowledgedResponse> unfollow(final UnfollowAction.Request request) {
+        final PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
+        client.execute(UnfollowAction.INSTANCE, request, listener);
         return listener;
     }
 

@@ -228,7 +228,7 @@ final class JvmOptionsParser {
                         // no range is present, apply the JVM option to the specified major version only
                         upper = lower;
                     } else if (end == null) {
-                        // a range of the form \\d+- is present, apply the JVM option to all major versions larger than the specifed one
+                        // a range of the form \\d+- is present, apply the JVM option to all major versions larger than the specified one
                         upper = Integer.MAX_VALUE;
                     } else {
                         // a range of the form \\d+-\\d+ is present, apply the JVM option to the specified range of major versions

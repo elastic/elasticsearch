@@ -42,7 +42,6 @@ public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
                                        XPackLicenseState licenseState) {
         super(settings, licenseState);
         this.securityContext = securityContext;
-        controller.registerHandler(GET, "/_xpack/security/user/{username}/_privileges", this);
         controller.registerHandler(GET, "/_xpack/security/user/_privileges", this);
     }
 
@@ -53,17 +52,9 @@ public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final String username = getUsername(request);
-        GetUserPrivilegesRequestBuilder requestBuilder = new SecurityClient(client).prepareGetUserPrivileges(username);
+        final String username = securityContext.getUser().principal();
+        final GetUserPrivilegesRequestBuilder requestBuilder = new SecurityClient(client).prepareGetUserPrivileges(username);
         return channel -> requestBuilder.execute(new RestListener(channel));
-    }
-
-    private String getUsername(RestRequest request) {
-        final String username = request.param("username");
-        if (username != null) {
-            return username;
-        }
-        return securityContext.getUser().principal();
     }
 
     // Package protected for testing

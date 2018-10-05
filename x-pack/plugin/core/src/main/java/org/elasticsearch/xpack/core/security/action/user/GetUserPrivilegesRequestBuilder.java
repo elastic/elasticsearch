@@ -21,17 +21,9 @@ public class GetUserPrivilegesRequestBuilder
     }
 
     /**
-     * Set the username of the user that should enabled or disabled. Must not be {@code null}
+     * Set the username of the user whose privileges should be retrieved. Must not be {@code null}
      */
     public GetUserPrivilegesRequestBuilder username(String username) {
-        request.username(username);
-        return this;
-    }
-
-    /**
-     * Set whether the user should be enabled or not
-     */
-    public GetUserPrivilegesRequestBuilder source(String username) throws IOException {
         request.username(username);
         return this;
     }

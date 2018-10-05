@@ -15,7 +15,7 @@ import java.io.IOException;
 /**
  * A request for checking a user's privileges
  */
-public class GetUserPrivilegesRequest extends ActionRequest implements UserRequest {
+public final class GetUserPrivilegesRequest extends ActionRequest implements UserRequest {
 
     private String username;
 

@@ -38,10 +38,10 @@ public final class ConditionalClusterPrivileges {
 
     public static final ConditionalClusterPrivilege[] EMPTY_ARRAY = new ConditionalClusterPrivilege[0];
 
-    public static final Writeable.Reader<ConditionalClusterPrivilege> READER
-        = in1 -> in1.readNamedWriteable(ConditionalClusterPrivilege.class);
-    public static final Writeable.Writer<ConditionalClusterPrivilege> WRITER
-        = (out1, value) -> out1.writeNamedWriteable(value);
+    public static final Writeable.Reader<ConditionalClusterPrivilege> READER =
+        in1 -> in1.readNamedWriteable(ConditionalClusterPrivilege.class);
+    public static final Writeable.Writer<ConditionalClusterPrivilege> WRITER =
+        (out1, value) -> out1.writeNamedWriteable(value);
 
     private ConditionalClusterPrivileges() {
     }

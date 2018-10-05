@@ -10,7 +10,7 @@ import org.elasticsearch.action.Action;
 /**
  * Action that lists the set of privileges held by a user.
  */
-public class GetUserPrivilegesAction extends Action<GetUserPrivilegesResponse> {
+public final class GetUserPrivilegesAction extends Action<GetUserPrivilegesResponse> {
 
     public static final GetUserPrivilegesAction INSTANCE = new GetUserPrivilegesAction();
     public static final String NAME = "cluster:admin/xpack/security/user/list_privileges";

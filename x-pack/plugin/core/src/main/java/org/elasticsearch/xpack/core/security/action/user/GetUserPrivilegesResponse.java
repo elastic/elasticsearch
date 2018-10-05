@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 /**
  * Response for a {@link GetUserPrivilegesRequest}
  */
-public class GetUserPrivilegesResponse extends ActionResponse {
+public final class GetUserPrivilegesResponse extends ActionResponse {
 
     private Set<String> cluster;
     private Set<ConditionalClusterPrivilege> conditionalCluster;
@@ -45,27 +45,27 @@ public class GetUserPrivilegesResponse extends ActionResponse {
                                      Set<Indices> index,
                                      Set<RoleDescriptor.ApplicationResourcePrivileges> application,
                                      Set<String> runAs) {
-        this.cluster = cluster;
-        this.conditionalCluster = conditionalCluster;
-        this.index = index;
-        this.application = application;
-        this.runAs = runAs;
+        this.cluster = Collections.unmodifiableSet(cluster);
+        this.conditionalCluster = Collections.unmodifiableSet(conditionalCluster);
+        this.index = Collections.unmodifiableSet(index);
+        this.application = Collections.unmodifiableSet(application);
+        this.runAs = Collections.unmodifiableSet(runAs);
     }
 
     public Set<String> getClusterPrivileges() {
-        return Collections.unmodifiableSet(cluster);
+        return cluster;
     }
 
     public Set<ConditionalClusterPrivilege> getConditionalClusterPrivileges() {
-        return Collections.unmodifiableSet(conditionalCluster);
+        return conditionalCluster;
     }
 
     public Set<Indices> getIndexPrivileges() {
-        return Collections.unmodifiableSet(index);
+        return index;
     }
 
     public Set<RoleDescriptor.ApplicationResourcePrivileges> getApplicationPrivileges() {
-        return Collections.unmodifiableSet(application);
+        return application;
     }
 
     public Set<String> getRunAs() {
@@ -74,11 +74,11 @@ public class GetUserPrivilegesResponse extends ActionResponse {
 
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        cluster = in.readSet(StreamInput::readString);
-        conditionalCluster = in.readSet(ConditionalClusterPrivileges.READER);
-        index = in.readSet(Indices::new);
-        application = in.readSet(RoleDescriptor.ApplicationResourcePrivileges::createFrom);
-        runAs = in.readSet(StreamInput::readString);
+        cluster = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
+        conditionalCluster = Collections.unmodifiableSet(in.readSet(ConditionalClusterPrivileges.READER));
+        index = Collections.unmodifiableSet(in.readSet(Indices::new));
+        application = Collections.unmodifiableSet(in.readSet(RoleDescriptor.ApplicationResourcePrivileges::createFrom));
+        runAs = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
     }
 
     @Override
@@ -96,13 +96,14 @@ public class GetUserPrivilegesResponse extends ActionResponse {
      */
     public static class Indices implements ToXContentObject, Writeable {
 
-        private final Collection<String> indices;
-        private final Collection<String> privileges;
-        private final Collection<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity;
-        private final Collection<BytesReference> queries;
+        private final Set<String> indices;
+        private final Set<String> privileges;
+        private final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity;
+        private final Set<BytesReference> queries;
 
         public Indices(Collection<String> indices, Collection<String> privileges,
                        Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity, Set<BytesReference> queries) {
+            // The use of TreeSet is to provide a consistent order that can be relied upon in tests
             this.indices = Collections.unmodifiableSet(new TreeSet<>(Objects.requireNonNull(indices)));
             this.privileges = Collections.unmodifiableSet(new TreeSet<>(Objects.requireNonNull(privileges)));
             this.fieldSecurity = Collections.unmodifiableSet(Objects.requireNonNull(fieldSecurity));
@@ -120,19 +121,19 @@ public class GetUserPrivilegesResponse extends ActionResponse {
             queries = Collections.unmodifiableSet(in.readSet(StreamInput::readBytesReference));
         }
 
-        public Collection<String> getIndices() {
+        public Set<String> getIndices() {
             return indices;
         }
 
-        public Collection<String> getPrivileges() {
+        public Set<String> getPrivileges() {
             return privileges;
         }
 
-        public Collection<FieldPermissionsDefinition.FieldGrantExcludeGroup> getFieldSecurity() {
+        public Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> getFieldSecurity() {
             return fieldSecurity;
         }
 
-        public Collection<BytesReference> getQueries() {
+        public Set<BytesReference> getQueries() {
             return queries;
         }
 

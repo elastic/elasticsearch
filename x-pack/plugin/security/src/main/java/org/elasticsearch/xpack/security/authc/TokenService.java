@@ -161,6 +161,7 @@ public final class TokenService extends AbstractComponent {
     static final String INVALIDATED_TOKEN_DOC_TYPE = "invalidated-token";
     static final int MINIMUM_BYTES = VERSION_BYTES + SALT_BYTES + IV_BYTES + 1;
     private static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
+    private static final int MAX_RETRY_ATTEMPTS = 5;
 
     private final SecureRandom secureRandom = new SecureRandom();
     private final ClusterService clusterService;
@@ -262,7 +263,7 @@ public final class TokenService extends AbstractComponent {
                                 .setSource(builder)
                                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                                 .request();
-                securityIndex.prepareIndexIfNeededThenExecute(ex -> listener.onFailure(traceLog("prepare security", documentId, ex)),
+                securityIndex.prepareIndexIfNeededThenExecute(ex -> listener.onFailure(traceLog("prepare security index", documentId, ex)),
                     () -> executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, request,
                         ActionListener.wrap(indexResponse -> listener.onResponse(new Tuple<>(userToken, refreshToken)),
                             listener::onFailure))
@@ -367,7 +368,7 @@ public final class TokenService extends AbstractComponent {
                             // we only have the id and need to get the token from the doc!
                             decryptTokenId(in, cipher, version, ActionListener.wrap(tokenId ->
                                 securityIndex.prepareIndexIfNeededThenExecute(
-                                    ex -> listener.onFailure(traceLog("prepare security", tokenId, ex)),
+                                    ex -> listener.onFailure(traceLog("prepare security index", tokenId, ex)),
                                     () -> {
                                         final GetRequest getRequest =
                                             client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE,
@@ -531,7 +532,7 @@ public final class TokenService extends AbstractComponent {
      */
     private void indexBwcInvalidation(UserToken userToken, ActionListener<Boolean> listener, AtomicInteger attemptCount,
                                       long expirationEpochMilli) {
-        if (attemptCount.get() > 5) {
+        if (attemptCount.get() > MAX_RETRY_ATTEMPTS) {
             logger.warn("Failed to invalidate token [{}] after [{}] attempts", userToken.getId(), attemptCount.get());
             listener.onFailure(invalidGrantException("failed to invalidate token"));
         } else {
@@ -543,8 +544,8 @@ public final class TokenService extends AbstractComponent {
                     .request();
             final String tokenDocId = getTokenDocumentId(userToken);
             final Version version = userToken.getVersion();
-            securityIndex.prepareIndexIfNeededThenExecute(ex -> listener.onFailure(traceLog("prepare index", tokenDocId, ex)), () ->
-                    executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, indexRequest,
+            securityIndex.prepareIndexIfNeededThenExecute(ex -> listener.onFailure(traceLog("prepare security index", tokenDocId, ex)),
+                () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, indexRequest,
                             ActionListener.<IndexResponse>wrap(indexResponse -> {
                                 ActionListener<Boolean> wrappedListener =
                                         ActionListener.wrap(ignore -> listener.onResponse(true), listener::onFailure);
@@ -578,7 +579,7 @@ public final class TokenService extends AbstractComponent {
      */
     private void indexInvalidation(String tokenDocId, Version version, ActionListener<Boolean> listener, AtomicInteger attemptCount,
                                    String srcPrefix, long documentVersion) {
-        if (attemptCount.get() > 5) {
+        if (attemptCount.get() > MAX_RETRY_ATTEMPTS) {
             logger.warn("Failed to invalidate token [{}] after [{}] attempts", tokenDocId, attemptCount.get());
             listener.onFailure(invalidGrantException("failed to invalidate token"));
         } else {
@@ -587,8 +588,8 @@ public final class TokenService extends AbstractComponent {
                     .setVersion(documentVersion)
                     .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                     .request();
-            securityIndex.prepareIndexIfNeededThenExecute(ex -> listener.onFailure(traceLog("prepare index", tokenDocId, ex)), () ->
-                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
+            securityIndex.prepareIndexIfNeededThenExecute(ex -> listener.onFailure(traceLog("prepare security index", tokenDocId, ex)),
+                () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
                     ActionListener.<UpdateResponse>wrap(updateResponse -> {
                         logger.debug("Invalidated [{}] for doc [{}]", srcPrefix, tokenDocId);
                         if (updateResponse.getGetResult() != null
@@ -680,7 +681,7 @@ public final class TokenService extends AbstractComponent {
 
     private void findTokenFromRefreshToken(String refreshToken, ActionListener<Tuple<SearchResponse, AtomicInteger>> listener,
                                            AtomicInteger attemptCount) {
-        if (attemptCount.get() > 5) {
+        if (attemptCount.get() > MAX_RETRY_ATTEMPTS) {
             logger.warn("Failed to find token for refresh token [{}] after [{}] attempts", refreshToken, attemptCount.get());
             listener.onFailure(invalidGrantException("could not refresh the requested token"));
         } else {
@@ -726,7 +727,7 @@ public final class TokenService extends AbstractComponent {
      */
     private void innerRefresh(String tokenDocId, Authentication userAuth, ActionListener<Tuple<UserToken, String>> listener,
                               AtomicInteger attemptCount) {
-        if (attemptCount.getAndIncrement() > 5) {
+        if (attemptCount.getAndIncrement() > MAX_RETRY_ATTEMPTS) {
             logger.warn("Failed to refresh token for doc [{}] after [{}] attempts", tokenDocId, attemptCount.get());
             listener.onFailure(invalidGrantException("could not refresh the requested token"));
         } else {

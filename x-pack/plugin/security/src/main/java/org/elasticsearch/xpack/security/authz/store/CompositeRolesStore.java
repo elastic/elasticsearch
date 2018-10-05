@@ -114,8 +114,8 @@ public class CompositeRolesStore extends AbstractComponent {
         this.threadContext = threadContext;
         CacheBuilder<String, Boolean> nlcBuilder = CacheBuilder.builder();
         final int nlcCacheSize = NEGATIVE_LOOKUP_CACHE_SIZE_SETTING.get(settings);
-        if (cacheSize >= 0) {
-            builder.setMaximumWeight(nlcCacheSize);
+        if (nlcCacheSize >= 0) {
+            nlcBuilder.setMaximumWeight(nlcCacheSize);
         }
         this.negativeLookupCache = nlcBuilder.build();
         this.builtInRoleProviders = Collections.unmodifiableList(Arrays.asList(reservedRolesStore, fileRolesStore, nativeRolesStore));
@@ -370,6 +370,11 @@ public class CompositeRolesStore extends AbstractComponent {
             previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
             invalidateAll();
         }
+    }
+
+    // pkg - private for testing
+    boolean isValueInNegativeLookupCache(String key) {
+        return negativeLookupCache.get(key) != null;
     }
 
     /**

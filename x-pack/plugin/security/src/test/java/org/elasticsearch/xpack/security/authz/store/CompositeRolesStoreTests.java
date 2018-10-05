@@ -261,6 +261,43 @@ public class CompositeRolesStoreTests extends ESTestCase {
         verifyNoMoreInteractions(fileRolesStore, reservedRolesStore, nativeRolesStore);
     }
 
+    public void testNegativeLookupsCacheDisabled() {
+        final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(any(Set.class), any(ActionListener.class));
+        final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doCallRealMethod().when(nativeRolesStore).accept(any(Set.class), any(ActionListener.class));
+        when(fileRolesStore.roleDescriptors(anySetOf(String.class))).thenReturn(Collections.emptySet());
+        doAnswer((invocationOnMock) -> {
+            ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
+            callback.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
+            return null;
+        }).when(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
+        final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
+
+        final Settings settings = Settings.builder().put(SECURITY_ENABLED_SETTINGS)
+            .put("xpack.security.authz.store.roles.negative_lookup_cache.max_size", 0)
+            .build();
+        final CompositeRolesStore compositeRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore,
+            reservedRolesStore, mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(settings),
+            new XPackLicenseState(settings));
+        verify(fileRolesStore).addListener(any(Consumer.class)); // adds a listener in ctor
+
+        final String roleName = randomAlphaOfLengthBetween(1, 10);
+        PlainActionFuture<Role> future = new PlainActionFuture<>();
+        final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+        compositeRolesStore.roles(Collections.singleton(roleName), fieldPermissionsCache, future);
+        final Role role = future.actionGet();
+        assertEquals(Role.EMPTY, role);
+        verify(reservedRolesStore).accept(anySetOf(String.class), any(ActionListener.class));
+        verify(fileRolesStore).accept(anySetOf(String.class), any(ActionListener.class));
+        verify(fileRolesStore).roleDescriptors(eq(Collections.singleton(roleName)));
+        verify(nativeRolesStore).accept(anySetOf(String.class), any(ActionListener.class));
+        verify(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
+
+        assertFalse(compositeRolesStore.isValueInNegativeLookupCache(roleName));
+        verifyNoMoreInteractions(fileRolesStore, reservedRolesStore, nativeRolesStore);
+    }
+
     public void testNegativeLookupsAreNotCachedWithFailures() {
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         doCallRealMethod().when(fileRolesStore).accept(any(Set.class), any(ActionListener.class));
@@ -300,6 +337,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             future.actionGet();
         }
 
+        assertFalse(compositeRolesStore.isValueInNegativeLookupCache(roleName));
         verify(reservedRolesStore, times(numberOfTimesToCall + 1)).accept(anySetOf(String.class), any(ActionListener.class));
         verify(fileRolesStore, times(numberOfTimesToCall + 1)).accept(anySetOf(String.class), any(ActionListener.class));
         verify(fileRolesStore, times(numberOfTimesToCall + 1)).roleDescriptors(eq(Collections.singleton(roleName)));

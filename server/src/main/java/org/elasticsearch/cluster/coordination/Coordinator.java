@@ -289,9 +289,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             lastJoin = Optional.of(join);
             peerFinder.setCurrentTerm(getCurrentTerm());
             if (mode != Mode.CANDIDATE) {
-                becomeCandidate("joinLeaderInTerm"); // updates followersChecker
+                becomeCandidate("joinLeaderInTerm"); // updates followersChecker and preVoteCollector
             } else {
                 followersChecker.updateFastResponseState(getCurrentTerm(), mode);
+                preVoteCollector.update(getPreVoteResponse(), null);
             }
             return join;
         }
@@ -485,6 +486,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert becomingMaster || getStateForMasterService().nodes().getMasterNodeId() != null : getStateForMasterService();
                 assert leaderCheckScheduler == null : leaderCheckScheduler;
                 assert applierState.nodes().getMasterNodeId() == null || getLocalNode().equals(applierState.nodes().getMasterNode());
+                assert preVoteCollector.getLeader() == getLocalNode() : preVoteCollector;
+                assert preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse()) : preVoteCollector;
 
                 final boolean activePublication = currentPublication.map(CoordinatorPublication::isActiveForCurrentLeader).orElse(false);
                 if (becomingMaster && activePublication == false) {
@@ -517,6 +520,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert leaderCheckScheduler != null;
                 assert followersChecker.getKnownFollowers().isEmpty();
                 assert currentPublication.map(Publication::isCommitted).orElse(true);
+                assert preVoteCollector.getLeader().equals(lastKnownLeader.get()) : preVoteCollector;
+                assert preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse()) : preVoteCollector;
             } else {
                 assert mode == Mode.CANDIDATE;
                 assert joinAccumulator instanceof JoinHelper.CandidateJoinAccumulator;
@@ -528,6 +533,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert followersChecker.getKnownFollowers().isEmpty();
                 assert applierState.nodes().getMasterNodeId() == null;
                 assert currentPublication.map(Publication::isCommitted).orElse(true);
+                assert preVoteCollector.getLeader() == null : preVoteCollector;
+                assert preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse()) : preVoteCollector;
             }
         }
     }

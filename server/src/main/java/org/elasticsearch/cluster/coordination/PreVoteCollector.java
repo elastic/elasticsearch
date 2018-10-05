@@ -79,6 +79,17 @@ public class PreVoteCollector extends AbstractComponent {
         return preVotingRound;
     }
 
+    // only for testing
+    PreVoteResponse getPreVoteResponse() {
+        return state.v2();
+    }
+
+    // only for testing
+    @Nullable
+    DiscoveryNode getLeader() {
+        return state.v1();
+    }
+
     public void update(final PreVoteResponse preVoteResponse, @Nullable final DiscoveryNode leader) {
         logger.trace("updating with preVoteResponse={}, leader={}", preVoteResponse, leader);
         state = new Tuple<>(leader, preVoteResponse);
@@ -88,6 +99,8 @@ public class PreVoteCollector extends AbstractComponent {
         // TODO if we are a leader and the max term seen exceeds our term then we need to bump our term
 
         Tuple<DiscoveryNode, PreVoteResponse> state = this.state;
+        assert state != null : "received pre-vote request before fully initialised";
+
         final DiscoveryNode leader = state.v1();
 
         if (leader == null) {

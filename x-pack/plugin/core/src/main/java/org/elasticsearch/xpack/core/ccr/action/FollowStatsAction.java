@@ -79,15 +79,24 @@ public class FollowStatsAction
             }
             builder.startObject();
             {
-                for (final Map.Entry<String, Map<Integer, StatsResponse>> index : taskResponsesByIndex.entrySet()) {
-                    builder.startArray(index.getKey());
-                    {
-                        for (final Map.Entry<Integer, StatsResponse> shard : index.getValue().entrySet()) {
-                            shard.getValue().status().toXContent(builder, params);
+                builder.startArray("indices");
+                {
+                    for (final Map.Entry<String, Map<Integer, StatsResponse>> index : taskResponsesByIndex.entrySet()) {
+                        builder.startObject();
+                        {
+                            builder.field("index", index.getKey());
+                            builder.startArray("shards");
+                            {
+                                for (final Map.Entry<Integer, StatsResponse> shard : index.getValue().entrySet()) {
+                                    shard.getValue().status().toXContent(builder, params);
+                                }
+                            }
+                            builder.endArray();
                         }
+                        builder.endObject();
                     }
-                    builder.endArray();
                 }
+                builder.endArray();
             }
             builder.endObject();
             return builder;

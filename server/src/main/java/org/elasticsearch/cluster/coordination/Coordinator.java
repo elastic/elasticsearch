@@ -823,18 +823,18 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         protected void onCompletion(boolean committed) {
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
 
-            receivedJoins.forEach(join -> {
-                if (join.getTerm() == getCurrentTerm() && hasJoinVoteFrom(join.getSourceNode()) == false) {
-                    logger.trace("handling {}", join);
-                    handleJoin(join);
-                }
-            });
-
             localNodeAckEvent.addListener(new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void ignore) {
                     assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
                     assert committed;
+
+                    receivedJoins.forEach(join -> {
+                        if (join.getTerm() == getCurrentTerm() && hasJoinVoteFrom(join.getSourceNode()) == false) {
+                            logger.trace("handling {}", join);
+                            handleJoin(join);
+                        }
+                    });
 
                     clusterApplier.onNewClusterState(CoordinatorPublication.this.toString(), () -> applierState,
                         new ClusterApplyListener() {

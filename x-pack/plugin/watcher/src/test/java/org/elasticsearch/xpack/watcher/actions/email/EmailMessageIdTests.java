@@ -72,7 +72,7 @@ public class EmailMessageIdTests extends ESTestCase {
         ExecutableEmailAction secondEmailAction = new ExecutableEmailAction(emailAction, logger, emailService, textTemplateEngine,
                 htmlSanitizer, Collections.emptyMap());
 
-        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         firstEmailAction.execute("my_first_action_id", ctx, Payload.EMPTY);
         secondEmailAction.execute("my_second_action_id", ctx, Payload.EMPTY);
 

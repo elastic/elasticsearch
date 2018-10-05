@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
 
@@ -41,14 +40,8 @@ public class AuditMessage implements ToXContentObject, Writeable {
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, LEVEL, ValueType.STRING);
-        PARSER.declareField(AuditMessage::setTimestamp, p -> {
-            if (p.currentToken() == Token.VALUE_NUMBER) {
-                return new Date(p.longValue());
-            } else if (p.currentToken() == Token.VALUE_STRING) {
-                return new Date(TimeUtils.dateStringToEpoch(p.text()));
-            }
-            throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for [" + TIMESTAMP.getPreferredName() + "]");
-        }, TIMESTAMP, ValueType.VALUE);
+        PARSER.declareField(AuditMessage::setTimestamp,
+                p -> TimeUtils.parseTimeField(p, TIMESTAMP.getPreferredName()), TIMESTAMP, ValueType.VALUE);
         PARSER.declareString(AuditMessage::setNodeName, NODE_NAME);
     }
 

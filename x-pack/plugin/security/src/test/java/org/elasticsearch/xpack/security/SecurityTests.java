@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDe
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
+import org.elasticsearch.xpack.security.audit.logfile.DeprecatedLoggingAuditTrail;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.junit.Before;
@@ -65,6 +66,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_INDEX_FORMAT;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -163,8 +165,7 @@ public class SecurityTests extends ESTestCase {
         Collection<Object> components = createComponents(settings);
         AuditTrailService service = findComponent(AuditTrailService.class, components);
         assertNotNull(service);
-        assertEquals(1, service.getAuditTrails().size());
-        assertEquals(LoggingAuditTrail.NAME, service.getAuditTrails().get(0).name());
+        assertThat(service.getAuditTrails(), containsInAnyOrder(LoggingAuditTrail.NAME, DeprecatedLoggingAuditTrail.NAME));
     }
 
     public void testDisabledByDefault() throws Exception {
@@ -180,8 +181,7 @@ public class SecurityTests extends ESTestCase {
         Collection<Object> components = createComponents(settings);
         AuditTrailService service = findComponent(AuditTrailService.class, components);
         assertNotNull(service);
-        assertEquals(1, service.getAuditTrails().size());
-        assertEquals(IndexAuditTrail.NAME, service.getAuditTrails().get(0).name());
+        assertThat(service.getAuditTrails(), containsInAnyOrder(IndexAuditTrail.NAME));
     }
 
     public void testIndexAndLoggingAuditTrail() throws Exception {
@@ -191,9 +191,8 @@ public class SecurityTests extends ESTestCase {
         Collection<Object> components = createComponents(settings);
         AuditTrailService service = findComponent(AuditTrailService.class, components);
         assertNotNull(service);
-        assertEquals(2, service.getAuditTrails().size());
-        assertEquals(IndexAuditTrail.NAME, service.getAuditTrails().get(0).name());
-        assertEquals(LoggingAuditTrail.NAME, service.getAuditTrails().get(1).name());
+        assertThat(service.getAuditTrails(),
+                containsInAnyOrder(LoggingAuditTrail.NAME, DeprecatedLoggingAuditTrail.NAME, IndexAuditTrail.NAME));
     }
 
     public void testUnknownOutput() {

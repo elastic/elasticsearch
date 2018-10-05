@@ -127,20 +127,20 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             Collections.emptyList(), Function.identity(), Property.NodeScope, Property.Dynamic);
     public static final Setting<Boolean> INCLUDE_REQUEST_BODY = Setting.boolSetting(setting("audit.logfile.events.emit_request_body"),
             false, Property.NodeScope, Property.Dynamic);
-    private static final String FILTER_POLICY_PREFIX = setting("audit.logfile.events.ignore_filters.");
+    public static final String FILTER_POLICY_PREFIX = setting("audit.logfile.events.ignore_filters.");
     // because of the default wildcard value (*) for the field filter, a policy with
     // an unspecified filter field will match events that have any value for that
     // particular field, as well as events with that particular field missing
-    private static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_PRINCIPALS = Setting.affixKeySetting(FILTER_POLICY_PREFIX,
+    public static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_PRINCIPALS = Setting.affixKeySetting(FILTER_POLICY_PREFIX,
             "users",
             (key) -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(), Property.NodeScope, Property.Dynamic));
-    private static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_REALMS = Setting.affixKeySetting(FILTER_POLICY_PREFIX,
+    public static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_REALMS = Setting.affixKeySetting(FILTER_POLICY_PREFIX,
             "realms",
             (key) -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(), Property.NodeScope, Property.Dynamic));
-    private static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_ROLES = Setting.affixKeySetting(FILTER_POLICY_PREFIX,
+    public static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_ROLES = Setting.affixKeySetting(FILTER_POLICY_PREFIX,
             "roles",
             (key) -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(), Property.NodeScope, Property.Dynamic));
-    private static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_INDICES = Setting.affixKeySetting(FILTER_POLICY_PREFIX,
+    public static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_INDICES = Setting.affixKeySetting(FILTER_POLICY_PREFIX,
             "indices",
             (key) -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(), Property.NodeScope, Property.Dynamic));
 
@@ -772,7 +772,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
      * Predicates on each field are ANDed together to form the filter predicate of
      * the policy.
      */
-    private static final class EventFilterPolicy {
+    static final class EventFilterPolicy {
         private final String name;
         private final Predicate<String> ignorePrincipalsPredicate;
         private final Predicate<String> ignoreRealmsPredicate;
@@ -800,22 +800,22 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             this.ignoreIndicesPredicate = ignoreIndicesPredicate;
         }
 
-        private EventFilterPolicy changePrincipalsFilter(List<String> filtersList) {
+        EventFilterPolicy changePrincipalsFilter(List<String> filtersList) {
             return new EventFilterPolicy(name, parsePredicate(filtersList), ignoreRealmsPredicate, ignoreRolesPredicate,
                     ignoreIndicesPredicate);
         }
 
-        private EventFilterPolicy changeRealmsFilter(List<String> filtersList) {
+        EventFilterPolicy changeRealmsFilter(List<String> filtersList) {
             return new EventFilterPolicy(name, ignorePrincipalsPredicate, parsePredicate(filtersList), ignoreRolesPredicate,
                     ignoreIndicesPredicate);
         }
 
-        private EventFilterPolicy changeRolesFilter(List<String> filtersList) {
+        EventFilterPolicy changeRolesFilter(List<String> filtersList) {
             return new EventFilterPolicy(name, ignorePrincipalsPredicate, ignoreRealmsPredicate, parsePredicate(filtersList),
                     ignoreIndicesPredicate);
         }
 
-        private EventFilterPolicy changeIndicesFilter(List<String> filtersList) {
+        EventFilterPolicy changeIndicesFilter(List<String> filtersList) {
             return new EventFilterPolicy(name, ignorePrincipalsPredicate, ignoreRealmsPredicate, ignoreRolesPredicate,
                     parsePredicate(filtersList));
         }
@@ -862,7 +862,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
         private volatile Map<String, EventFilterPolicy> policyMap;
         private volatile Predicate<AuditEventMetaInfo> predicate;
 
-        private EventFilterPolicyRegistry(Settings settings) {
+        EventFilterPolicyRegistry(Settings settings) {
             final MapBuilder<String, EventFilterPolicy> mapBuilder = MapBuilder.newMapBuilder();
             for (final String policyName : settings.getGroups(FILTER_POLICY_PREFIX, true).keySet()) {
                 mapBuilder.put(policyName, new EventFilterPolicy(policyName, settings));
@@ -872,11 +872,11 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             predicate = buildIgnorePredicate(policyMap);
         }
 
-        private Optional<EventFilterPolicy> get(String policyName) {
+        Optional<EventFilterPolicy> get(String policyName) {
             return Optional.ofNullable(policyMap.get(policyName));
         }
 
-        private synchronized void set(String policyName, EventFilterPolicy eventFilterPolicy) {
+        synchronized void set(String policyName, EventFilterPolicy eventFilterPolicy) {
             policyMap = MapBuilder.newMapBuilder(policyMap).put(policyName, eventFilterPolicy).immutableMap();
             // precompute predicate
             predicate = buildIgnorePredicate(policyMap);

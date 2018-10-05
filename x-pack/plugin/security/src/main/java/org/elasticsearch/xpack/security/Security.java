@@ -171,6 +171,7 @@ import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.audit.index.IndexNameResolver;
+import org.elasticsearch.xpack.security.audit.logfile.DeprecatedLoggingAuditTrail;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
@@ -417,6 +418,9 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 switch (output) {
                     case LoggingAuditTrail.NAME:
                         auditTrails.add(new LoggingAuditTrail(settings, clusterService, threadPool));
+                        // also enabling the deprecated format. To disable it, remove it's associated
+                        // appender in the log4j2.properties file
+                        auditTrails.add(new DeprecatedLoggingAuditTrail(settings, clusterService, threadPool));
                         break;
                     case IndexAuditTrail.NAME:
                         indexAuditTrail.set(new IndexAuditTrail(settings, client, threadPool, clusterService));

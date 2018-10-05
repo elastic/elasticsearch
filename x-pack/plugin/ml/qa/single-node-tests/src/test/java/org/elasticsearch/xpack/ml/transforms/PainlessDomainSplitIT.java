@@ -197,7 +197,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
             String mapAsJson = Strings.toString(jsonBuilder().map(params));
             logger.info("params={}", mapAsJson);
 
-            Request searchRequest = new Request("GET", "/painless/test/_search");
+            Request searchRequest = new Request("GET", "/painless/_search");
             searchRequest.setJsonEntity(
                     "{\n" +
                     "    \"query\" : {\n" +
@@ -207,7 +207,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                     "        \"domain_split\" : {\n" +
                     "            \"script\" : {\n" +
                     "                \"lang\": \"painless\",\n" +
-                    "                \"inline\": \"" + DomainSplitFunction.function +
+                    "                \"source\": \"" + DomainSplitFunction.function +
                     " return domainSplit(params['host'], params); \",\n" +
                     "                \"params\": " + mapAsJson + "\n" +
                     "            }\n" +

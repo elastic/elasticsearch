@@ -41,6 +41,16 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class FullClusterRestartSettingsUpgradeIT extends AbstractFullClusterRestartTestCase {
 
+    @Override
+    protected boolean getStrictDeprecationMode() {
+        // "search.remote.*" settings are deprecated from v6.5; replaced by "cluster.remote.*"
+        // ignore HTTP warnings returned by the server on a version after 6.5.0
+        if (isRunningAgainstOldCluster() == false || getOldClusterVersion().onOrAfter(Version.V_6_5_0)) {
+            return false;
+        }
+        return super.getStrictDeprecationMode();
+    }
+
     public void testRemoteClusterSettingsUpgraded() throws IOException {
         assumeTrue("skip_unavailable did not exist until 6.1.0", getOldClusterVersion().onOrAfter(Version.V_6_1_0));
         assumeTrue("settings automatically upgraded since 6.5.0", getOldClusterVersion().before(Version.V_6_5_0));

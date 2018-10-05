@@ -408,4 +408,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         configureClient(builder, restClientSettings());
         return builder;
     }
+
+    @Override
+    protected boolean getStrictDeprecationMode() {
+        return false;
+    }
 }

@@ -20,11 +20,15 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * Basic test that indexed documents survive the rolling restart. See
@@ -60,6 +64,20 @@ public class IndexingIT extends AbstractRollingTestCase {
         }
 
         if (CLUSTER_TYPE == ClusterType.OLD) {
+            // TODO prevents 6.x warnings; remove in 8.0
+            XContentBuilder template = jsonBuilder();
+            template.startObject();
+            {
+                template.field("index_patterns", "*");
+                template.startObject("settings");
+                template.field("number_of_shards", 5);
+                template.endObject();
+            }
+            template.endObject();
+            Request createTemplate = new Request("PUT", "/_template/template");
+            createTemplate.setJsonEntity(Strings.toString(template));
+            client().performRequest(createTemplate);
+
             Request createTestIndex = new Request("PUT", "/test_index");
             createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
             client().performRequest(createTestIndex);

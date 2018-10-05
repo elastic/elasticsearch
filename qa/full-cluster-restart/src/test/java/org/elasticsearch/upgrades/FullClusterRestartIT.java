@@ -74,9 +74,38 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private String index;
 
+    @Override
+    protected boolean getStrictDeprecationMode() {
+        // ignore HTTP warnings returned by the server only for a specific test "testSnapshotRestore" on a version after 6.5.0
+        if (getTestName().equals("testSnapshotRestore")
+                && (isRunningAgainstOldCluster() == false || getOldClusterVersion().onOrAfter(Version.V_6_5_0))) {
+            return false;
+        }
+        return super.getStrictDeprecationMode();
+    }
+
     @Before
-    public void setIndex() {
+    public void setIndex() throws IOException {
         index = getTestName().toLowerCase(Locale.ROOT);
+        // init new REST client for every test
+        closeClients();
+        initClient();
+        // TODO prevents 6.x warnings; remove in 8.0
+        if (isRunningAgainstOldCluster()) {
+            XContentBuilder template = jsonBuilder();
+            template.startObject();
+            {
+                template.field("index_patterns", "*");
+                template.field("order", "0");
+                template.startObject("settings");
+                template.field("number_of_shards", 5);
+                template.endObject();
+            }
+            template.endObject();
+            Request createTemplate = new Request("PUT", "/_template/template");
+            createTemplate.setJsonEntity(Strings.toString(template));
+            client().performRequest(createTemplate);
+        }
     }
 
     public void testSearch() throws Exception {
@@ -283,7 +312,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         if (isRunningAgainstOldCluster()) {
             XContentBuilder mappingsAndSettings = jsonBuilder();
             mappingsAndSettings.startObject();
-            mappingsAndSettings.field("template", index);
+            mappingsAndSettings.field("index_patterns", index);
+            mappingsAndSettings.field("order", "1000");
             {
                 mappingsAndSettings.startObject("settings");
                 mappingsAndSettings.field("number_of_shards", 1);
@@ -361,6 +391,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(updateSettingsRequest);
 
             Request shrinkIndexRequest = new Request("PUT", "/" + index + "/_shrink/" + shrunkenIndex);
+            shrinkIndexRequest.addParameter("copy_settings", "true");
             shrinkIndexRequest.setJsonEntity("{\"settings\": {\"index.number_of_shards\": 1}}");
             client().performRequest(shrinkIndexRequest);
 
@@ -843,7 +874,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         // Stick a template into the cluster so we can see it after the restore
         XContentBuilder templateBuilder = JsonXContent.contentBuilder().startObject();
-        templateBuilder.field("template", "evil_*"); // Don't confuse other tests by applying the template
+        templateBuilder.field("index_patterns", "evil_*"); // Don't confuse other tests by applying the template
         templateBuilder.startObject("settings"); {
             templateBuilder.field("number_of_shards", 1);
         }

@@ -451,7 +451,16 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
         RestClientBuilder builder = RestClient.builder(hosts);
         configureClient(builder, settings);
+        builder.setStrictDeprecationMode(getStrictDeprecationMode());
         return builder.build();
+    }
+
+    /**
+     * Whether the used REST client should return any response containing at
+     * least one warning header as a failure.
+     */
+    protected boolean getStrictDeprecationMode() {
+        return true;
     }
 
     protected static void configureClient(RestClientBuilder builder, Settings settings) throws IOException {

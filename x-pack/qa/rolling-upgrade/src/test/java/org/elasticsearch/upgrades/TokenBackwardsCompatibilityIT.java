@@ -13,6 +13,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
@@ -20,10 +22,26 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+
 public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testGeneratingTokenInOldCluster() throws Exception {
         assumeTrue("this test should only run against the old cluster", CLUSTER_TYPE == ClusterType.OLD);
+
+        XContentBuilder template = jsonBuilder();
+        template.startObject();
+        {
+            template.field("index_patterns", "*");
+            template.startObject("settings");
+            template.field("number_of_shards", 5);
+            template.endObject();
+        }
+        template.endObject();
+        Request createTemplate = new Request("PUT", "/_template/template");
+        createTemplate.setJsonEntity(Strings.toString(template));
+        client().performRequest(createTemplate);
+
         Request createTokenRequest = new Request("POST", "_xpack/security/oauth2/token");
         createTokenRequest.setJsonEntity(
                 "{\n" +

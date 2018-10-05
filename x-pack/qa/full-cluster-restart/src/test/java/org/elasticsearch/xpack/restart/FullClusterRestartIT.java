@@ -10,8 +10,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
@@ -41,6 +43,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -59,6 +62,22 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     @Before
     public void waitForMlTemplates() throws Exception {
         XPackRestTestHelper.waitForMlTemplates(client());
+        // TODO prevents 6.x warnings; remove in 8.0
+        if (isRunningAgainstOldCluster()) {
+            XContentBuilder template = jsonBuilder();
+            template.startObject();
+            {
+                template.field("index_patterns", "*");
+                template.field("order", "0");
+                template.startObject("settings");
+                template.field("number_of_shards", 5);
+                template.endObject();
+            }
+            template.endObject();
+            Request createTemplate = new Request("PUT", "/_template/template");
+            createTemplate.setJsonEntity(Strings.toString(template));
+            client().performRequest(createTemplate);
+        }
     }
 
     @Override

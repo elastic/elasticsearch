@@ -222,7 +222,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
                 builder.endArray();
             }
             if (timeout != null) {
-                builder.field(TIMEOUT, timeout);
+                builder.field(TIMEOUT, timeout.getStringRep());
             }
             builder.field(PAGE_SIZE, pageSize);
         }

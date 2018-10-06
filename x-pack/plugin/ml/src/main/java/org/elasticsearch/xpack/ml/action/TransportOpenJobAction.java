@@ -127,8 +127,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         if (job == null) {
             throw ExceptionsHelper.missingJobException(jobId);
         }
-        if (job.isDeleted()) {
-            throw ExceptionsHelper.conflictStatusException("Cannot open job [" + jobId + "] because it has been marked as deleted");
+        if (job.isDeleting()) {
+            throw ExceptionsHelper.conflictStatusException("Cannot open job [" + jobId + "] because it is being deleted");
         }
         if (job.getJobVersion() == null) {
             throw ExceptionsHelper.badRequestException("Cannot open job [" + jobId

@@ -20,6 +20,7 @@
 package org.elasticsearch.action;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
@@ -202,7 +203,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -339,7 +339,7 @@ import static java.util.Collections.unmodifiableMap;
  */
 public class ActionModule extends AbstractModule {
 
-    private static final Logger logger = ESLoggerFactory.getLogger(ActionModule.class);
+    private static final Logger logger = LogManager.getLogger(ActionModule.class);
 
     private final boolean transportClient;
     private final Settings settings;

@@ -1,0 +1,5 @@
+ware_id,category_id,vender_id,title,online_time,stock,brand_id,s1,s2
+1667358,75061110,1,yipeng doc1 test1,2015-12-01 17:06:58.0,0,11111111,NULL,NULL
+1667388,75061110,1,yipeng doc2 test2,2015-12-01 17:09:53.0,0,11111111,NULL,NULL
+1667401,75061002,1,yipeng doc3 test3,2018-04-26 16:21:20.0,0,111111,NULL,NULL
+1667413,75061002,1,yipeng doc4 test3,2017-11-03 17:09:41.0,0,111111,NULL,NULL

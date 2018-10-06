@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="gold"]
 [[configuring-monitoring]]
-=== Configuring monitoring in {es}
+== Configuring monitoring in {es}
 ++++
 <titleabbrev>Configuring monitoring</titleabbrev>
 ++++

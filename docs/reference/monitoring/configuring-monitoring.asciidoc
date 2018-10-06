@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="gold"]
 [[configuring-monitoring]]
-== Configuring monitoring in {es}
+=== Configuring monitoring in {es}
 ++++
 <titleabbrev>Configuring monitoring</titleabbrev>
 ++++
@@ -159,7 +159,8 @@ stored, that is to say the monitoring cluster. To grant all of the necessary per
 . Optional: 
 <<config-monitoring-indices,Configure the indices that store the monitoring data>>. 
 
-. <<monitoring-data,View the monitoring data in {kib}>>. 
+. {kibana-ref}/monitoring-data.html[View the monitoring data in {kib}]. 
 
+include::configuring-metricbeat.asciidoc[]
 include::indices.asciidoc[]
 include::{es-repo-dir}/settings/monitoring-settings.asciidoc[]

@@ -1,8 +1,8 @@
 [role="xpack"]
 [[monitoring-settings]]
-===  Monitoring Settings in Elasticsearch
+===  Monitoring settings in Elasticsearch
 ++++
-<titleabbrev>Monitoring Settings</titleabbrev>
+<titleabbrev>Monitoring settings</titleabbrev>
 ++++
 
 By default, monitoring is enabled but data collection is disabled. To enable

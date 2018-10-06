@@ -28,6 +28,7 @@ PUT _cluster/settings
   }
 }
 ----------------------------------
+// CONSOLE
 
 For more information, see <<monitoring-settings>> and <<cluster-update-settings>>.
 --
@@ -48,6 +49,7 @@ PUT _cluster/settings
   }
 }
 ----------------------------------
+// CONSOLE
 
 Leave `xpack.monitoring.enabled` set to its default value (`true`). 
 --
@@ -133,7 +135,4 @@ For more information about these configuration options, see
 
 . {metricbeat-ref}/metricbeat-starting.html[Start {metricbeat}]. 
 
-. <<monitoring-data,View the monitoring data in {kib}>>. 
-
-include::indices.asciidoc[]
-include::{es-repo-dir}/settings/monitoring-settings.asciidoc[]
+. {kibana-ref}/monitoring-data.html[View the monitoring data in {kib}]. 

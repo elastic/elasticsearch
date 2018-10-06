@@ -16,31 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gradle.clusterformation;
+package org.elasticsearch.client.ml;
 
-import org.elasticsearch.gradle.Distribution;
-import org.elasticsearch.gradle.Version;
+import org.elasticsearch.client.ml.datafeed.DatafeedConfigTests;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
-import java.util.concurrent.Future;
+import java.io.IOException;
 
-public interface ElasticsearchConfiguration {
-    String getName();
+public class PreviewDatafeedRequestTests extends AbstractXContentTestCase<PreviewDatafeedRequest> {
 
-    Version getVersion();
-
-    void setVersion(Version version);
-
-    default void setVersion(String version) {
-        setVersion(Version.fromString(version));
+    @Override
+    protected PreviewDatafeedRequest createTestInstance() {
+        return new PreviewDatafeedRequest(DatafeedConfigTests.randomValidDatafeedId());
     }
 
-    Distribution getDistribution();
+    @Override
+    protected PreviewDatafeedRequest doParseInstance(XContentParser parser) throws IOException {
+        return PreviewDatafeedRequest.fromXContent(parser);
+    }
 
-    void setDistribution(Distribution distribution);
-
-    void claim();
-
-    Future<Void> start();
-
-    void unClaimAndStop();
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;

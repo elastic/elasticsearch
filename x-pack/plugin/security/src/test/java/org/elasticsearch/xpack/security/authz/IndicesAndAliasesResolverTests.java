@@ -39,17 +39,19 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
-import org.elasticsearch.xpack.core.graph.action.GraphExploreRequest;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -61,10 +63,10 @@ import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolver.ResolvedIndices;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.junit.Before;
 
@@ -75,9 +77,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -107,8 +110,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 2))
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
-                .put("search.remote.remote.seeds", "127.0.0.1:" + randomIntBetween(9301, 9350))
-                .put("search.remote.other_remote.seeds", "127.0.0.1:" + randomIntBetween(9351, 9399))
+                .put("cluster.remote.remote.seeds", "127.0.0.1:" + randomIntBetween(9301, 9350))
+                .put("cluster.remote.other_remote.seeds", "127.0.0.1:" + randomIntBetween(9351, 9399))
                 .build();
 
         indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
@@ -149,7 +152,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices(authorizedIndices).privileges("all").build() }, null));
         roleMap.put("dash", new RoleDescriptor("dash", null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices(dashIndices).privileges("all").build() }, null));
-        roleMap.put("test", new RoleDescriptor("role", new String[] { "monitor" }, null, null));
+        roleMap.put("test", new RoleDescriptor("test", new String[] { "monitor" }, null, null));
+        roleMap.put("alias_read_write", new RoleDescriptor("alias_read_write", null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("barbaz", "foofoobar").privileges("read", "write").build() },
+            null));
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         doAnswer((i) -> {
@@ -168,8 +174,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 if (roleDescriptors.isEmpty()) {
                     callback.onResponse(Role.EMPTY);
                 } else {
-                    callback.onResponse(
-                            CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache));
+                    CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, null,
+                            ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure)
+                    );
                 }
                 return Void.TYPE;
             }).when(rolesStore).roles(any(Set.class), any(FieldPermissionsCache.class), any(ActionListener.class));
@@ -651,7 +658,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.addAliasAction(AliasActions.add().alias("alias2").index("bar*"));
         request.addAliasAction(AliasActions.add().alias("alias3").index("non_matching_*"));
         //if a single operation contains wildcards and ends up being resolved to no indices, it makes the whole request fail
-        expectThrows(IndexNotFoundException.class, 
+        expectThrows(IndexNotFoundException.class,
                 () -> resolveIndices(request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME)));
     }
 
@@ -776,10 +783,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testResolveAliasesWildcardsIndicesAliasesRequestDeleteActionsNoAuthorizedIndices() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasActions.remove().index("foo*").alias("foo*"));
-        //no authorized aliases match bar*, hence this action fails and makes the whole request fail
+        //no authorized aliases match bar*, hence aliases are replaced with empty string for that action
         request.addAliasAction(AliasActions.remove().index("*bar").alias("bar*"));
-        expectThrows(IndexNotFoundException.class, () -> resolveIndices(
-                request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME)));
+        resolveIndices(request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME));
+        assertThat(request.getAliasActions().get(0).aliases().length, equalTo(1));
+        assertThat(request.getAliasActions().get(1).aliases().length, equalTo(0));
     }
 
     public void testResolveWildcardsIndicesAliasesRequestAddAndDeleteActions() {
@@ -1081,12 +1089,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveAliasesWildcardsGetAliasesRequestNoAuthorizedIndices() {
         GetAliasesRequest request = new GetAliasesRequest();
-        //no authorized aliases match bar*, hence the request fails
+        //no authorized aliases match bar*, hence aliases are replaced with empty array
         request.aliases("bar*");
         request.indices("*bar");
-        IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
-                () -> resolveIndices(request, buildAuthorizedIndices(user, GetAliasesAction.NAME)));
-        assertEquals("no such index", e.getMessage());
+        resolveIndices(request, buildAuthorizedIndices(user, GetAliasesAction.NAME));
+        assertThat(request.aliases().length, equalTo(0));
     }
 
     public void testResolveAliasesAllGetAliasesRequestNoAuthorizedIndices() {
@@ -1095,10 +1102,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             request.aliases("_all");
         }
         request.indices("non_existing");
-        //current user is not authorized for any index, foo* resolves to no indices, the request fails
-        IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
-                () -> resolveIndices(request, buildAuthorizedIndices(userNoIndices, GetAliasesAction.NAME)));
-        assertEquals("no such index", e.getMessage());
+        //current user is not authorized for any index, foo* resolves to no indices, aliases are replaced with empty array
+        ResolvedIndices resolvedIndices = resolveIndices(request, buildAuthorizedIndices(userNoIndices, GetAliasesAction.NAME));
+        assertThat(resolvedIndices.getLocal(), contains("non_existing"));
+        assertThat(request.aliases().length, equalTo(0));
     }
 
     /**
@@ -1180,10 +1187,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             assertNoIndices(request, resolveIndices(request,
                     buildAuthorizedIndices(userNoIndices, IndicesExistsAction.NAME)));
         }
-        
+
         {
             IndicesExistsRequest request = new IndicesExistsRequest("does_not_exist");
-            
+
             assertNoIndices(request, resolveIndices(request,
                     buildAuthorizedIndices(user, IndicesExistsAction.NAME)));
         }
@@ -1199,14 +1206,14 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         {
             final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(XPackSecurityUser.INSTANCE, SearchAction.NAME);
             List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
-            assertThat(indices, hasItem(SecurityLifecycleService.SECURITY_INDEX_NAME));
+            assertThat(indices, hasItem(SecurityIndexManager.SECURITY_INDEX_NAME));
         }
         {
             IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();
             aliasesRequest.addAliasAction(AliasActions.add().alias("security_alias").index(SECURITY_INDEX_NAME));
             final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(XPackSecurityUser.INSTANCE, IndicesAliasesAction.NAME);
             List<String> indices = resolveIndices(aliasesRequest, authorizedIndices).getLocal();
-            assertThat(indices, hasItem(SecurityLifecycleService.SECURITY_INDEX_NAME));
+            assertThat(indices, hasItem(SecurityIndexManager.SECURITY_INDEX_NAME));
         }
     }
 
@@ -1214,7 +1221,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         SearchRequest request = new SearchRequest();
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(XPackUser.INSTANCE, SearchAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
-        assertThat(indices, not(hasItem(SecurityLifecycleService.SECURITY_INDEX_NAME)));
+        assertThat(indices, not(hasItem(SecurityIndexManager.SECURITY_INDEX_NAME)));
     }
 
     public void testNonXPackUserAccessingSecurityIndex() {
@@ -1226,15 +1233,15 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             SearchRequest request = new SearchRequest();
             final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(allAccessUser, SearchAction.NAME);
             List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
-            assertThat(indices, not(hasItem(SecurityLifecycleService.SECURITY_INDEX_NAME)));
+            assertThat(indices, not(hasItem(SecurityIndexManager.SECURITY_INDEX_NAME)));
         }
-        
+
         {
             IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();
             aliasesRequest.addAliasAction(AliasActions.add().alias("security_alias1").index("*"));
             final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(allAccessUser, IndicesAliasesAction.NAME);
             List<String> indices = resolveIndices(aliasesRequest, authorizedIndices).getLocal();
-            assertThat(indices, not(hasItem(SecurityLifecycleService.SECURITY_INDEX_NAME)));
+            assertThat(indices, not(hasItem(SecurityIndexManager.SECURITY_INDEX_NAME)));
         }
     }
 
@@ -1315,6 +1322,21 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(indices, hasItems(expectedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder("foo", "foofoo"));
         assertThat(request.aliases(), arrayContainingInAnyOrder("<datetime-{now/M}>"));
+    }
+
+    public void testDynamicPutMappingRequestFromAlias() {
+        PutMappingRequest request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index("foofoo", UUIDs.base64UUID()));
+        User user = new User("alias-writer", "alias_read_write");
+        AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, PutMappingAction.NAME);
+
+        String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, authorizedIndices, metaData);
+        assertEquals("barbaz", putMappingIndexOrAlias);
+
+        // multiple indices map to an alias so we can only return the concrete index
+        final String index = randomFrom("foo", "foobar");
+        request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index(index, UUIDs.base64UUID()));
+        putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, authorizedIndices, metaData);
+        assertEquals(index, putMappingIndexOrAlias);
     }
 
     // TODO with the removal of DeleteByQuery is there another way to test resolving a write action?

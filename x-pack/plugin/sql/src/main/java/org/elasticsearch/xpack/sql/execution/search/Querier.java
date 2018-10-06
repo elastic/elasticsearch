@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -92,7 +93,7 @@ public class Querier {
             log.trace("About to execute query {} on {}", StringUtils.toString(sourceBuilder), index);
         }
 
-        SearchRequest search = prepareRequest(client, sourceBuilder, timeout, index);
+        SearchRequest search = prepareRequest(client, sourceBuilder, timeout, Strings.commaDelimitedListToStringArray(index));
 
         ActionListener<SearchResponse> l;
         if (query.isAggsOnly()) {
@@ -341,12 +342,12 @@ public class Querier {
         private HitExtractor createExtractor(FieldExtraction ref) {
             if (ref instanceof SearchHitFieldRef) {
                 SearchHitFieldRef f = (SearchHitFieldRef) ref;
-                return new FieldHitExtractor(f.name(), f.useDocValue(), f.hitName());
+                return new FieldHitExtractor(f.name(), f.getDataType(), f.useDocValue(), f.hitName());
             }
 
             if (ref instanceof ScriptFieldRef) {
                 ScriptFieldRef f = (ScriptFieldRef) ref;
-                return new FieldHitExtractor(f.name(), true);
+                return new FieldHitExtractor(f.name(), null, true);
             }
 
             if (ref instanceof ComputedRef) {

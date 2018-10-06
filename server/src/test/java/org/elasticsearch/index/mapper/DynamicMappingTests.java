@@ -20,8 +20,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BooleanFieldMapper.BooleanFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
@@ -188,25 +189,6 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         assertNotNull(fieldType);
     }
 
-    public void testTypeNotCreatedOnIndexFailure() throws IOException, InterruptedException {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("_default_")
-                .field("dynamic", "strict")
-                .endObject().endObject();
-        Settings settings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_3_0)
-                .build();
-        createIndex("test", settings, "_default_", mapping);
-        try {
-            client().prepareIndex().setIndex("test").setType("type").setSource(jsonBuilder().startObject().field("test", "test").endObject()).get();
-            fail();
-        } catch (StrictDynamicMappingException e) {
-
-        }
-
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
-        assertNull(getMappingsResponse.getMappings().get("test").get("type"));
-    }
-
     private String serialize(ToXContent mapper) throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         mapper.toXContent(builder, new ToXContent.MapParams(emptyMap()));
@@ -214,7 +196,10 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
     }
 
     private Mapper parse(DocumentMapper mapper, DocumentMapperParser parser, XContentBuilder builder) throws Exception {
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        IndexMetaData build = IndexMetaData.builder("")
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1).numberOfReplicas(0).build();
+        IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
         SourceToParse source = SourceToParse.source("test", mapper.type(), "some_id", BytesReference.bytes(builder), builder.contentType());
         try (XContentParser xContentParser = createParser(JsonXContent.jsonXContent, source.source())) {
             ParseContext.InternalParseContext ctx = new ParseContext.InternalParseContext(settings, parser, mapper, source, xContentParser);
@@ -625,11 +610,11 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
             .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
 
         defaultMapper = index.mapperService().documentMapper("type");
-        FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("s_long");
-        assertThat(mapper.fieldType().typeName(), equalTo("long"));
+        Mapper mapper = defaultMapper.mappers().getMapper("s_long");
+        assertThat(mapper.typeName(), equalTo("long"));
 
-        mapper = defaultMapper.mappers().smartNameFieldMapper("s_double");
-        assertThat(mapper.fieldType().typeName(), equalTo("float"));
+        mapper = defaultMapper.mappers().getMapper("s_double");
+        assertThat(mapper.typeName(), equalTo("float"));
     }
 
     public void testNumericDetectionDefault() throws Exception {
@@ -652,10 +637,10 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
             .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get());
 
         defaultMapper = index.mapperService().documentMapper("type");
-        FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("s_long");
+        Mapper mapper = defaultMapper.mappers().getMapper("s_long");
         assertThat(mapper, instanceOf(TextFieldMapper.class));
 
-        mapper = defaultMapper.mappers().smartNameFieldMapper("s_double");
+        mapper = defaultMapper.mappers().getMapper("s_double");
         assertThat(mapper, instanceOf(TextFieldMapper.class));
     }
 
@@ -703,9 +688,9 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
 
         defaultMapper = index.mapperService().documentMapper("type");
 
-        DateFieldMapper dateMapper1 = (DateFieldMapper) defaultMapper.mappers().smartNameFieldMapper("date1");
-        DateFieldMapper dateMapper2 = (DateFieldMapper) defaultMapper.mappers().smartNameFieldMapper("date2");
-        DateFieldMapper dateMapper3 = (DateFieldMapper) defaultMapper.mappers().smartNameFieldMapper("date3");
+        DateFieldMapper dateMapper1 = (DateFieldMapper) defaultMapper.mappers().getMapper("date1");
+        DateFieldMapper dateMapper2 = (DateFieldMapper) defaultMapper.mappers().getMapper("date2");
+        DateFieldMapper dateMapper3 = (DateFieldMapper) defaultMapper.mappers().getMapper("date3");
         // inherited from dynamic date format
         assertEquals("yyyy-MM-dd", dateMapper1.fieldType().dateTimeFormatter().format());
         // inherited from dynamic date format since the mapping in the template did not specify a format
@@ -741,4 +726,13 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         client().prepareIndex("test", "type", "1").setSource("foo", "abc").get();
         assertThat(index.mapperService().fullName("foo"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
     }
+
+    public void testMappingVersionAfterDynamicMappingUpdate() {
+        createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final long previousVersion = clusterService.state().metaData().index("test").getMappingVersion();
+        client().prepareIndex("test", "type", "1").setSource("field", "text").get();
+        assertThat(clusterService.state().metaData().index("test").getMappingVersion(), equalTo(1 + previousVersion));
+    }
+
 }

@@ -23,10 +23,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
@@ -56,7 +57,7 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
         return indexFieldData.load(context).getDoubleValues();
     }
 
-    protected void setScorer(Scorer scorer) {}
+    protected void setScorer(Scorable scorer) {}
 
     @Override
     public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) {
@@ -71,7 +72,7 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
                 final SortedNumericDoubleValues values = getValues(context);
                 final NumericDoubleValues selectedValues;
                 if (nested == null) {
-                    selectedValues = sortMode.select(values, dMissingValue);
+                    selectedValues = FieldData.replaceMissing(sortMode.select(values), dMissingValue);
                 } else {
                     final BitSet rootDocs = nested.rootDocs(context);
                     final DocIdSetIterator innerDocs = nested.innerDocs(context);
@@ -80,7 +81,7 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
                 return selectedValues.getRawDoubleValues();
             }
             @Override
-            public void setScorer(Scorer scorer) {
+            public void setScorer(Scorable scorer) {
                 DoubleValuesComparatorSource.this.setScorer(scorer);
             }
         };

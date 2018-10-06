@@ -25,25 +25,29 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+
 public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteByQueryRequest, BulkByScrollResponse> {
+
+    private final ThreadPool threadPool;
     private final Client client;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
 
     @Inject
-    public TransportDeleteByQueryAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-                                        IndexNameExpressionResolver resolver, Client client, TransportService transportService,
-                                        ScriptService scriptService, ClusterService clusterService) {
-        super(settings, DeleteByQueryAction.NAME, threadPool, transportService, actionFilters, resolver, DeleteByQueryRequest::new);
+    public TransportDeleteByQueryAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters, Client client,
+                                        TransportService transportService, ScriptService scriptService, ClusterService clusterService) {
+        super(settings, DeleteByQueryAction.NAME, transportService, actionFilters,
+            (Writeable.Reader<DeleteByQueryRequest>) DeleteByQueryRequest::new);
+        this.threadPool = threadPool;
         this.client = client;
         this.scriptService = scriptService;
         this.clusterService = clusterService;
@@ -62,10 +66,5 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                     listener).start();
             }
         );
-    }
-
-    @Override
-    protected void doExecute(DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
-        throw new UnsupportedOperationException("task required");
     }
 }

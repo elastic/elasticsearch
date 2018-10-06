@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,6 +43,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -49,6 +52,95 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
 public class MetaDataTests extends ESTestCase {
+
+    public void testFindAliases() {
+        MetaData metaData = MetaData.builder().put(IndexMetaData.builder("index")
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetaData.builder("alias1").build())
+            .putAlias(AliasMetaData.builder("alias2").build())).build();
+
+        {
+            ImmutableOpenMap<String, List<AliasMetaData>> aliases = metaData.findAliases(new GetAliasesRequest(), Strings.EMPTY_ARRAY);
+            assertThat(aliases.size(), equalTo(0));
+        }
+        {
+            ImmutableOpenMap<String, List<AliasMetaData>> aliases = metaData.findAliases(new GetAliasesRequest(), new String[]{"index"});
+            assertThat(aliases.size(), equalTo(1));
+            List<AliasMetaData> aliasMetaDataList = aliases.get("index");
+            assertThat(aliasMetaDataList.size(), equalTo(2));
+            assertThat(aliasMetaDataList.get(0).alias(), equalTo("alias1"));
+            assertThat(aliasMetaDataList.get(1).alias(), equalTo("alias2"));
+        }
+        {
+            GetAliasesRequest getAliasesRequest = new GetAliasesRequest("alias1");
+            getAliasesRequest.replaceAliases(Strings.EMPTY_ARRAY);
+            ImmutableOpenMap<String, List<AliasMetaData>> aliases = metaData.findAliases(getAliasesRequest, new String[]{"index"});
+            assertThat(aliases.size(), equalTo(0));
+        }
+        {
+            ImmutableOpenMap<String, List<AliasMetaData>> aliases =
+                metaData.findAliases(new GetAliasesRequest("alias*"), new String[]{"index"});
+            assertThat(aliases.size(), equalTo(1));
+            List<AliasMetaData> aliasMetaDataList = aliases.get("index");
+            assertThat(aliasMetaDataList.size(), equalTo(2));
+            assertThat(aliasMetaDataList.get(0).alias(), equalTo("alias1"));
+            assertThat(aliasMetaDataList.get(1).alias(), equalTo("alias2"));
+        }
+        {
+            ImmutableOpenMap<String, List<AliasMetaData>> aliases =
+                metaData.findAliases(new GetAliasesRequest("alias1"), new String[]{"index"});
+            assertThat(aliases.size(), equalTo(1));
+            List<AliasMetaData> aliasMetaDataList = aliases.get("index");
+            assertThat(aliasMetaDataList.size(), equalTo(1));
+            assertThat(aliasMetaDataList.get(0).alias(), equalTo("alias1"));
+        }
+        {
+            ImmutableOpenMap<String, List<AliasMetaData>> aliases = metaData.findAllAliases(new String[]{"index"});
+            assertThat(aliases.size(), equalTo(1));
+            List<AliasMetaData> aliasMetaDataList = aliases.get("index");
+            assertThat(aliasMetaDataList.size(), equalTo(2));
+            assertThat(aliasMetaDataList.get(0).alias(), equalTo("alias1"));
+            assertThat(aliasMetaDataList.get(1).alias(), equalTo("alias2"));
+        }
+        {
+            ImmutableOpenMap<String, List<AliasMetaData>> aliases = metaData.findAllAliases(Strings.EMPTY_ARRAY);
+            assertThat(aliases.size(), equalTo(0));
+        }
+    }
+
+    public void testFindAliasWithExclusion() {
+        MetaData metaData = MetaData.builder().put(
+            IndexMetaData.builder("index")
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putAlias(AliasMetaData.builder("alias1").build())
+                .putAlias(AliasMetaData.builder("alias2").build())
+        ).build();
+        List<AliasMetaData> aliases =
+            metaData.findAliases(new GetAliasesRequest().aliases("*", "-alias1"), new String[] {"index"}).get("index");
+        assertThat(aliases.size(), equalTo(1));
+        assertThat(aliases.get(0).alias(), equalTo("alias2"));
+    }
+
+    public void testFindAliasWithExclusionAndOverride() {
+        MetaData metaData = MetaData.builder().put(
+            IndexMetaData.builder("index")
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putAlias(AliasMetaData.builder("aa").build())
+                .putAlias(AliasMetaData.builder("ab").build())
+                .putAlias(AliasMetaData.builder("bb").build())
+        ).build();
+        List<AliasMetaData> aliases =
+            metaData.findAliases(new GetAliasesRequest().aliases("a*", "-*b", "b*"), new String[] {"index"}).get("index");
+        assertThat(aliases.size(), equalTo(2));
+        assertThat(aliases.get(0).alias(), equalTo("aa"));
+        assertThat(aliases.get(1).alias(), equalTo("bb"));
+    }
 
     public void testIndexAndAliasWithSameName() {
         IndexMetaData.Builder builder = IndexMetaData.builder("index")
@@ -99,6 +191,34 @@ public class MetaDataTests extends ESTestCase {
         }
     }
 
+    public void testValidateAliasWriteOnly() {
+        String alias = randomAlphaOfLength(5);
+        String indexA = randomAlphaOfLength(6);
+        String indexB = randomAlphaOfLength(7);
+        Boolean aWriteIndex = randomBoolean() ? null : randomBoolean();
+        Boolean bWriteIndex;
+        if (Boolean.TRUE.equals(aWriteIndex)) {
+            bWriteIndex = randomFrom(Boolean.FALSE, null);
+        } else {
+            bWriteIndex = randomFrom(Boolean.TRUE, Boolean.FALSE, null);
+        }
+        // when only one index/alias pair exist
+        MetaData metaData = MetaData.builder().put(buildIndexMetaData(indexA, alias, aWriteIndex)).build();
+
+        // when alias points to two indices, but valid
+        // one of the following combinations: [(null, null), (null, true), (null, false), (false, false)]
+        MetaData.builder(metaData).put(buildIndexMetaData(indexB, alias, bWriteIndex)).build();
+
+        // when too many write indices
+        Exception exception = expectThrows(IllegalStateException.class,
+            () -> {
+                IndexMetaData.Builder metaA = buildIndexMetaData(indexA, alias, true);
+                IndexMetaData.Builder metaB = buildIndexMetaData(indexB, alias, true);
+                MetaData.builder().put(metaA).put(metaB).build();
+            });
+        assertThat(exception.getMessage(), startsWith("alias [" + alias + "] has more than one write index ["));
+    }
+
     public void testResolveIndexRouting() {
         IndexMetaData.Builder builder = IndexMetaData.builder("index")
                 .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
@@ -144,6 +264,87 @@ public class MetaDataTests extends ESTestCase {
         } catch (IllegalArgumentException ex) {
             assertThat(ex.getMessage(), is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
         }
+
+        IndexMetaData.Builder builder2 = IndexMetaData.builder("index2")
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetaData.builder("alias0").build());
+        MetaData metaDataTwoIndices = MetaData.builder(metaData).put(builder2).build();
+
+        // alias with multiple indices
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> metaDataTwoIndices.resolveIndexRouting("1", "alias0"));
+        assertThat(exception.getMessage(), startsWith("Alias [alias0] has more than one index associated with it"));
+    }
+
+    public void testResolveWriteIndexRouting() {
+        AliasMetaData.Builder aliasZeroBuilder = AliasMetaData.builder("alias0");
+        if (randomBoolean()) {
+            aliasZeroBuilder.writeIndex(true);
+        }
+        IndexMetaData.Builder builder = IndexMetaData.builder("index")
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(aliasZeroBuilder.build())
+            .putAlias(AliasMetaData.builder("alias1").routing("1").build())
+            .putAlias(AliasMetaData.builder("alias2").routing("1,2").build())
+            .putAlias(AliasMetaData.builder("alias3").writeIndex(false).build())
+            .putAlias(AliasMetaData.builder("alias4").routing("1,2").writeIndex(true).build());
+        MetaData metaData = MetaData.builder().put(builder).build();
+
+        // no alias, no index
+        assertEquals(metaData.resolveWriteIndexRouting(null, null), null);
+        assertEquals(metaData.resolveWriteIndexRouting("0", null), "0");
+
+        // index, no alias
+        assertEquals(metaData.resolveWriteIndexRouting(null, "index"), null);
+        assertEquals(metaData.resolveWriteIndexRouting("0", "index"), "0");
+
+        // alias with no index routing
+        assertEquals(metaData.resolveWriteIndexRouting(null, "alias0"), null);
+        assertEquals(metaData.resolveWriteIndexRouting("0", "alias0"), "0");
+
+        // alias with index routing.
+        assertEquals(metaData.resolveWriteIndexRouting(null, "alias1"), "1");
+        Exception exception = expectThrows(IllegalArgumentException.class, () -> metaData.resolveWriteIndexRouting("0", "alias1"));
+        assertThat(exception.getMessage(),
+            is("Alias [alias1] has index routing associated with it [1], and was provided with routing value [0], rejecting operation"));
+
+        // alias with invalid index routing.
+        exception = expectThrows(IllegalArgumentException.class, () -> metaData.resolveWriteIndexRouting(null, "alias2"));
+            assertThat(exception.getMessage(),
+                is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
+        exception = expectThrows(IllegalArgumentException.class, () -> metaData.resolveWriteIndexRouting("1", "alias2"));
+        assertThat(exception.getMessage(),
+            is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
+        exception = expectThrows(IllegalArgumentException.class, () -> metaData.resolveWriteIndexRouting(randomFrom("1", null), "alias4"));
+        assertThat(exception.getMessage(),
+            is("index/alias [alias4] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
+
+        // alias with no write index
+        exception = expectThrows(IllegalArgumentException.class, () -> metaData.resolveWriteIndexRouting("1", "alias3"));
+        assertThat(exception.getMessage(),
+            is("alias [alias3] does not have a write index"));
+
+
+        // aliases with multiple indices
+        AliasMetaData.Builder aliasZeroBuilderTwo = AliasMetaData.builder("alias0");
+        if (randomBoolean()) {
+            aliasZeroBuilder.writeIndex(false);
+        }
+        IndexMetaData.Builder builder2 = IndexMetaData.builder("index2")
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(aliasZeroBuilderTwo.build())
+            .putAlias(AliasMetaData.builder("alias1").routing("0").writeIndex(true).build())
+            .putAlias(AliasMetaData.builder("alias2").writeIndex(true).build());
+        MetaData metaDataTwoIndices = MetaData.builder(metaData).put(builder2).build();
+
+        // verify that new write index is used
+        assertThat("0", equalTo(metaDataTwoIndices.resolveWriteIndexRouting("0", "alias1")));
     }
 
     public void testUnknownFieldClusterMetaData() throws IOException {
@@ -153,8 +354,7 @@ public class MetaDataTests extends ESTestCase {
                     .field("random", "value")
                 .endObject()
             .endObject());
-        XContentParser parser = createParser(JsonXContent.jsonXContent, metadata);
-        try {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, metadata)) {
             MetaData.Builder.fromXContent(parser);
             fail();
         } catch (IllegalArgumentException e) {
@@ -169,8 +369,7 @@ public class MetaDataTests extends ESTestCase {
                     .field("random", "value")
                 .endObject()
             .endObject());
-        XContentParser parser = createParser(JsonXContent.jsonXContent, metadata);
-        try {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, metadata)) {
             IndexMetaData.Builder.fromXContent(parser);
             fail();
         } catch (IllegalArgumentException e) {
@@ -197,9 +396,10 @@ public class MetaDataTests extends ESTestCase {
         builder.startObject();
         originalMeta.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        final MetaData fromXContentMeta = MetaData.fromXContent(parser);
-        assertThat(fromXContentMeta.indexGraveyard(), equalTo(originalMeta.indexGraveyard()));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            final MetaData fromXContentMeta = MetaData.fromXContent(parser);
+            assertThat(fromXContentMeta.indexGraveyard(), equalTo(originalMeta.indexGraveyard()));
+        }
     }
 
     public void testSerializationWithIndexGraveyard() throws IOException {
@@ -428,6 +628,13 @@ public class MetaDataTests extends ESTestCase {
         }
     }
 
+    private IndexMetaData.Builder buildIndexMetaData(String name, String alias, Boolean writeIndex) {
+        return IndexMetaData.builder(name)
+            .settings(settings(Version.CURRENT)).creationDate(randomNonNegativeLong())
+            .putAlias(AliasMetaData.builder(alias).writeIndex(writeIndex))
+            .numberOfShards(1).numberOfReplicas(0);
+    }
+
     @SuppressWarnings("unchecked")
     private static void assertIndexMappingsNoFields(ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings,
                                                     String index) {
@@ -498,7 +705,6 @@ public class MetaDataTests extends ESTestCase {
     public static void assertLeafs(Map<String, Object> properties, String... fields) {
         for (String field : fields) {
             assertTrue(properties.containsKey(field));
-            @SuppressWarnings("unchecked")
             Map<String, Object> fieldProp = (Map<String, Object>)properties.get(field);
             assertNotNull(fieldProp);
             assertFalse(fieldProp.containsKey("properties"));
@@ -589,4 +795,12 @@ public class MetaDataTests extends ESTestCase {
             "    }\n" +
             "  }\n" +
             "}";
+
+    public void testTransientSettingsOverridePersistentSettings() {
+        final Setting setting = Setting.simpleString("key");
+        final MetaData metaData = MetaData.builder()
+            .persistentSettings(Settings.builder().put(setting.getKey(), "persistent-value").build())
+            .transientSettings(Settings.builder().put(setting.getKey(), "transient-value").build()).build();
+        assertThat(setting.get(metaData.settings()), equalTo("transient-value"));
+    }
 }

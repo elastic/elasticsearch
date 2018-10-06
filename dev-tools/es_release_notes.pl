@@ -32,7 +32,7 @@ my @Groups = (
     ">enhancement", ">bug",           ">regression",  ">upgrade"
 );
 my %Ignore = map { $_ => 1 }
-    ( ">non-issue", ">refactoring", ">docs", ">test", ":Core/Build" );
+    ( ">non-issue", ">refactoring", ">docs", ">test", ">test-failure", ":Core/Build" );
 
 my %Group_Labels = (
     '>breaking'      => 'Breaking changes',
@@ -44,6 +44,12 @@ my %Group_Labels = (
     '>regression'    => 'Regressions',
     '>upgrade'       => 'Upgrades',
     'other'          => 'NOT CLASSIFIED',
+);
+
+my %Area_Overrides = (
+    ':ml'            => 'Machine Learning',
+    ':beats'         => 'Beats Plugin',
+    ':Docs'          => 'Docs Infrastructure'
 );
 
 use JSON();
@@ -175,8 +181,14 @@ ISSUE:
         # uncomment for including/excluding PRs already issued in other versions
         # next if grep {$_->{name}=~/^v2/} @{$issue->{labels}};
         my %labels = map { $_->{name} => 1 } @{ $issue->{labels} };
-        my ($header) = map { m{:[^/]+/(.+)} && $1 }
-            grep {/^:/} sort keys %labels;
+        my @area_labels = grep {/^:/} sort keys %labels;
+        my ($header) = map { m{:[^/]+/(.+)} && $1 } @area_labels;
+        if (scalar @area_labels > 1) {
+            $header = "MULTIPLE AREA LABELS";
+        }
+        if (scalar @area_labels == 1 && exists $Area_Overrides{$area_labels[0]}) {
+            $header = $Area_Overrides{$area_labels[0]};
+        }
         $header ||= 'NOT CLASSIFIED';
         for (@Groups) {
             if ( $labels{$_} ) {

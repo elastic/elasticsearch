@@ -42,6 +42,9 @@ public final class Messages {
     public static final String DATAFEED_FREQUENCY_MUST_BE_MULTIPLE_OF_AGGREGATIONS_INTERVAL =
             "Datafeed frequency [{0}] must be a multiple of the aggregation interval [{1}]";
 
+    public static final String FILTER_NOT_FOUND = "No filter with id [{0}] exists";
+    public static final String FILTER_CONTAINS_TOO_MANY_ITEMS = "Filter [{0}] contains too many items; up to [{1}] items are allowed";
+
     public static final String INCONSISTENT_ID =
             "Inconsistent {0}; ''{1}'' specified in the body differs from ''{2}'' specified as a URL argument";
     public static final String INVALID_ID = "Invalid {0}; ''{1}'' can contain lowercase alphanumeric (a-z and 0-9), hyphens or " +
@@ -88,35 +91,14 @@ public final class Messages {
             "categorization_filters require setting categorization_field_name";
     public static final String JOB_CONFIG_CATEGORIZATION_ANALYZER_REQUIRES_CATEGORIZATION_FIELD_NAME =
             "categorization_analyzer requires setting categorization_field_name";
-    public static final String JOB_CONFIG_CONDITION_INVALID_VALUE_NULL = "Invalid condition: the value field cannot be null";
-    public static final String JOB_CONFIG_CONDITION_INVALID_VALUE_NUMBER =
-            "Invalid condition value: cannot parse a double from string ''{0}''";
-    public static final String JOB_CONFIG_CONDITION_INVALID_VALUE_REGEX =
-            "Invalid condition value: ''{0}'' is not a valid regular expression";
-    public static final String JOB_CONFIG_DETECTION_RULE_CONDITION_CATEGORICAL_INVALID_OPTION =
-            "Invalid detector rule: a categorical rule_condition does not support {0}";
-    public static final String JOB_CONFIG_DETECTION_RULE_CONDITION_CATEGORICAL_MISSING_OPTION =
-            "Invalid detector rule: a categorical rule_condition requires {0} to be set";
-    public static final String JOB_CONFIG_DETECTION_RULE_CONDITION_INVALID_FIELD_NAME =
-            "Invalid detector rule: field_name has to be one of {0}; actual was ''{1}''";
-    public static final String JOB_CONFIG_DETECTION_RULE_CONDITION_MISSING_FIELD_NAME =
-            "Invalid detector rule: missing field_name in rule_condition where field_value ''{0}'' is set";
-    public static final String JOB_CONFIG_DETECTION_RULE_CONDITION_NUMERICAL_INVALID_OPERATOR =
-            "Invalid detector rule: operator ''{0}'' is not allowed";
-    public static final String JOB_CONFIG_DETECTION_RULE_CONDITION_NUMERICAL_INVALID_OPTION =
-            "Invalid detector rule: a numerical rule_condition does not support {0}";
-    public static final String JOB_CONFIG_DETECTION_RULE_CONDITION_NUMERICAL_MISSING_OPTION =
-            "Invalid detector rule: a numerical rule_condition requires {0} to be set";
-    public static final String JOB_CONFIG_DETECTION_RULE_CONDITION_NUMERICAL_WITH_FIELD_NAME_REQUIRES_FIELD_VALUE =
-            "Invalid detector rule: a numerical rule_condition with field_name requires that field_value is set";
-    public static final String JOB_CONFIG_DETECTION_RULE_INVALID_TARGET_FIELD_NAME =
-            "Invalid detector rule: target_field_name has to be one of {0}; actual was ''{1}''";
-    public static final String JOB_CONFIG_DETECTION_RULE_MISSING_TARGET_FIELD_NAME =
-            "Invalid detector rule: missing target_field_name where target_field_value ''{0}'' is set";
     public static final String JOB_CONFIG_DETECTION_RULE_NOT_SUPPORTED_BY_FUNCTION =
-            "Invalid detector rule: function {0} does not support rules";
-    public static final String JOB_CONFIG_DETECTION_RULE_REQUIRES_AT_LEAST_ONE_CONDITION =
-            "Invalid detector rule: at least one rule_condition is required";
+            "Invalid detector rule: function {0} only supports conditions that apply to time";
+    public static final String JOB_CONFIG_DETECTION_RULE_REQUIRES_SCOPE_OR_CONDITION =
+            "Invalid detector rule: at least scope or a condition is required";
+    public static final String JOB_CONFIG_DETECTION_RULE_SCOPE_NO_AVAILABLE_FIELDS =
+            "Invalid detector rule: scope field ''{0}'' is invalid; detector has no available fields for scoping";
+    public static final String JOB_CONFIG_DETECTION_RULE_SCOPE_HAS_INVALID_FIELD =
+            "Invalid detector rule: scope field ''{0}'' is invalid; select from {1}";
     public static final String JOB_CONFIG_FIELDNAME_INCOMPATIBLE_FUNCTION = "field_name cannot be used with function ''{0}''";
     public static final String JOB_CONFIG_FIELD_VALUE_TOO_LOW = "{0} cannot be less than {1,number}. Value = {2,number}";
     public static final String JOB_CONFIG_MODEL_MEMORY_LIMIT_TOO_LOW = "model_memory_limit must be at least 1 MiB. Value = {0,number}";
@@ -141,8 +123,6 @@ public final class Messages {
     public static final String JOB_CONFIG_INVALID_TIMEFORMAT = "Invalid Time format string ''{0}''";
     public static final String JOB_CONFIG_MISSING_ANALYSISCONFIG = "An analysis_config must be set";
     public static final String JOB_CONFIG_MISSING_DATA_DESCRIPTION = "A data_description must be set";
-    public static final String JOB_CONFIG_MULTIPLE_BUCKETSPANS_MUST_BE_MULTIPLE =
-            "Multiple bucket_span ''{0}'' must be a multiple of the main bucket_span ''{1}''";
     public static final String JOB_CONFIG_ANALYSIS_FIELD_MUST_BE_SET =
             "Unless a count or temporal function is used one of field_name, by_field_name or over_field_name must be set";
     public static final String JOB_CONFIG_NO_DETECTORS = "No detectors configured";
@@ -150,10 +130,6 @@ public final class Messages {
             "over_field_name cannot be used with function ''{0}''";
     public static final String JOB_CONFIG_OVERLAPPING_BUCKETS_INCOMPATIBLE_FUNCTION =
             "Overlapping buckets cannot be used with function ''{0}''";
-    public static final String JOB_CONFIG_PER_PARTITION_NORMALIZATION_CANNOT_USE_INFLUENCERS =
-            "A job configured with Per-Partition Normalization cannot use influencers";
-    public static final String JOB_CONFIG_PER_PARTITION_NORMALIZATION_REQUIRES_PARTITION_FIELD =
-            "If the job is configured with Per-Partition Normalization enabled a detector must have a partition field";
     public static final String JOB_CONFIG_UNKNOWN_FUNCTION = "Unknown function ''{0}''";
     public static final String JOB_CONFIG_UPDATE_ANALYSIS_LIMITS_MODEL_MEMORY_LIMIT_CANNOT_BE_DECREASED =
             "Invalid update value for analysis_limits: model_memory_limit cannot be decreased below current usage; " +
@@ -185,7 +161,9 @@ public final class Messages {
     public static final String REST_JOB_NOT_CLOSED_REVERT = "Can only revert to a model snapshot when the job is closed.";
     public static final String REST_NO_SUCH_MODEL_SNAPSHOT = "No model snapshot with id [{0}] exists for job [{1}]";
     public static final String REST_START_AFTER_END = "Invalid time range: end time ''{0}'' is earlier than start time ''{1}''.";
-
+    public static final String REST_NO_SUCH_FORECAST = "No forecast(s) [{0}] exists for job [{1}]";
+    public static final String REST_CANNOT_DELETE_FORECAST_IN_CURRENT_STATE =
+        "Forecast(s) [{0}] for job [{1}] needs to be either FAILED or FINISHED to be deleted";
     public static final String FIELD_CANNOT_BE_NULL = "Field [{0}] cannot be null";
 
     private Messages() {

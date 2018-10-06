@@ -25,7 +25,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -673,7 +672,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     private class DummyAsyncBulkByScrollAction extends AbstractAsyncBulkByScrollAction<DummyAbstractBulkByScrollRequest> {
         DummyAsyncBulkByScrollAction() {
             super(testTask, AsyncBulkByScrollActionTests.this.logger, new ParentTaskAssigningClient(client, localNode, testTask),
-                    client.threadPool(), testRequest, null, null, listener, Settings.EMPTY);
+                    client.threadPool(), testRequest, null, null, listener);
         }
 
         @Override
@@ -743,9 +742,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
         @Override
         @SuppressWarnings("unchecked")
-        protected <Request extends ActionRequest, Response extends ActionResponse,
-                RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(
-                Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+        protected <Request extends ActionRequest, Response extends ActionResponse>
+        void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
             if (false == expectedHeaders.equals(threadPool().getThreadContext().getHeaders())) {
                 listener.onFailure(
                         new RuntimeException("Expected " + expectedHeaders + " but got " + threadPool().getThreadContext().getHeaders()));

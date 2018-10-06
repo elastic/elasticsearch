@@ -19,9 +19,11 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.esnative.tool.HttpResponse.HttpResponseBuilder;
 
+import javax.net.ssl.HttpsURLConnection;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -34,8 +36,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.List;
-
-import javax.net.ssl.HttpsURLConnection;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
@@ -86,11 +86,10 @@ public class CommandLineHttpClient {
             final SSLService sslService = new SSLService(settings, env);
             final HttpsURLConnection httpsConn = (HttpsURLConnection) url.openConnection();
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                final Settings sslSettings = SSLService.getHttpTransportSSLSettings(settings);
+                final SSLConfiguration sslConfiguration = sslService.getHttpTransportSSLConfiguration();
                 // Requires permission java.lang.RuntimePermission "setFactory";
-                httpsConn.setSSLSocketFactory(sslService.sslSocketFactory(sslSettings));
-                final boolean isHostnameVerificationEnabled =
-                        sslService.getVerificationMode(sslSettings, Settings.EMPTY).isHostnameVerificationEnabled();
+                httpsConn.setSSLSocketFactory(sslService.sslSocketFactory(sslConfiguration));
+                final boolean isHostnameVerificationEnabled = sslConfiguration.verificationMode().isHostnameVerificationEnabled();
                 if (isHostnameVerificationEnabled == false) {
                     httpsConn.setHostnameVerifier((hostname, session) -> true);
                 }

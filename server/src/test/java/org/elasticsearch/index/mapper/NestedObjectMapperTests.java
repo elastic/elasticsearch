@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import java.util.HashSet;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;

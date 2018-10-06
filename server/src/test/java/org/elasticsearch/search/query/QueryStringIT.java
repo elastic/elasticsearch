@@ -31,17 +31,13 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -51,16 +47,13 @@ import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class QueryStringIT extends ESIntegTestCase {
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class); // uses index.version.created
-    }
 
     @Before
     public void setup() throws Exception {
@@ -374,6 +367,70 @@ public class QueryStringIT extends ESIntegTestCase {
                 });
         assertThat(ExceptionsHelper.detailedMessage(e),
                 containsString("field expansion matches too many fields, limit: 1024, got: 1025"));
+    }
+
+    public void testFieldAlias() throws Exception {
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
+        indexRequests.add(client().prepareIndex("test", "_doc", "1").setSource("f3", "text", "f2", "one"));
+        indexRequests.add(client().prepareIndex("test", "_doc", "2").setSource("f3", "value", "f2", "two"));
+        indexRequests.add(client().prepareIndex("test", "_doc", "3").setSource("f3", "another value", "f2", "three"));
+        indexRandom(true, false, indexRequests);
+
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(queryStringQuery("value").field("f3_alias"))
+            .execute().actionGet();
+
+        assertNoFailures(response);
+        assertHitCount(response, 2);
+        assertHits(response.getHits(), "2", "3");
+    }
+
+    public void testFieldAliasWithEmbeddedFieldNames() throws Exception {
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
+        indexRequests.add(client().prepareIndex("test", "_doc", "1").setSource("f3", "text", "f2", "one"));
+        indexRequests.add(client().prepareIndex("test", "_doc", "2").setSource("f3", "value", "f2", "two"));
+        indexRequests.add(client().prepareIndex("test", "_doc", "3").setSource("f3", "another value", "f2", "three"));
+        indexRandom(true, false, indexRequests);
+
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(queryStringQuery("f3_alias:value AND f2:three"))
+            .execute().actionGet();
+
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+        assertHits(response.getHits(), "3");
+    }
+
+    public void testFieldAliasWithWildcardField() throws Exception {
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
+        indexRequests.add(client().prepareIndex("test", "_doc", "1").setSource("f3", "text", "f2", "one"));
+        indexRequests.add(client().prepareIndex("test", "_doc", "2").setSource("f3", "value", "f2", "two"));
+        indexRequests.add(client().prepareIndex("test", "_doc", "3").setSource("f3", "another value", "f2", "three"));
+        indexRandom(true, false, indexRequests);
+
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(queryStringQuery("value").field("f3_*"))
+            .execute().actionGet();
+
+        assertNoFailures(response);
+        assertHitCount(response, 2);
+        assertHits(response.getHits(), "2", "3");
+    }
+
+    public void testFieldAliasOnDisallowedFieldType() throws Exception {
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
+        indexRequests.add(client().prepareIndex("test", "_doc", "1").setSource("f3", "text", "f2", "one"));
+        indexRandom(true, false, indexRequests);
+
+        // The wildcard field matches aliases for both a text and geo_point field.
+        // By default, the geo_point field should be ignored when building the query.
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(queryStringQuery("text").field("f*_alias"))
+            .execute().actionGet();
+
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+        assertHits(response.getHits(), "1");
     }
 
     private void assertHits(SearchHits hits, String... ids) {

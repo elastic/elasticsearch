@@ -11,7 +11,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Builder for requests to retrieve a role from the security index
  */
-public class GetRolesRequestBuilder extends ActionRequestBuilder<GetRolesRequest, GetRolesResponse, GetRolesRequestBuilder> {
+public class GetRolesRequestBuilder extends ActionRequestBuilder<GetRolesRequest, GetRolesResponse> {
 
     public GetRolesRequestBuilder(ElasticsearchClient client) {
         this(client, GetRolesAction.INSTANCE);

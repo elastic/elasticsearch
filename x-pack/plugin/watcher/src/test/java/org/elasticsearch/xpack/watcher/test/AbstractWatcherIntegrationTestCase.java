@@ -70,10 +70,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -474,8 +477,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             }
 
             throw new AssertionError("unexpected state, retrying with next run");
-        });
-
+        }, 30, TimeUnit.SECONDS);
     }
 
     protected void ensureLicenseEnabled() throws Exception {
@@ -536,24 +538,26 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     protected static class TimeWarp {
 
-        protected final Iterable<ScheduleTriggerEngineMock> schedulers;
-        protected final ClockMock clock;
+        private final List<ScheduleTriggerEngineMock> schedulers;
+        private final ClockMock clock;
 
-        public TimeWarp(Iterable<ScheduleTriggerEngineMock> schedulers, ClockMock clock) {
-            this.schedulers = schedulers;
+        TimeWarp(Iterable<ScheduleTriggerEngineMock> schedulers, ClockMock clock) {
+            this.schedulers = StreamSupport.stream(schedulers.spliterator(), false).collect(Collectors.toList());
             this.clock = clock;
         }
 
         public void trigger(String jobName) {
-            schedulers.forEach(scheduler -> scheduler.trigger(jobName));
+            trigger(jobName, 1, null);
         }
 
         public ClockMock clock() {
             return clock;
         }
 
-        public void trigger(String id, int times, TimeValue timeValue) {
-            schedulers.forEach(scheduler -> scheduler.trigger(id, times, timeValue));
+        public void trigger(String watchId, int times, TimeValue timeValue) {
+            boolean isTriggered = schedulers.stream().anyMatch(scheduler -> scheduler.trigger(watchId, times, timeValue));
+            String msg = String.format(Locale.ROOT, "could not find watch [%s] to trigger", watchId);
+            assertThat(msg, isTriggered, is(true));
         }
     }
 

@@ -34,6 +34,10 @@
             "default" : "open",
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
         },
+        "master_timeout": {
+          "type" : "time",
+          "description" : "Specify timeout for connection to master"
+        },
         "local": {
           "type": "boolean",
           "description": "Return local information, do not retrieve the state from master node (default: false)"

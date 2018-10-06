@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
@@ -23,7 +24,6 @@ import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
@@ -34,7 +34,8 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.process.NativeController;
 import org.elasticsearch.xpack.ml.job.process.NativeControllerHolder;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
-import org.elasticsearch.xpack.ml.utils.StatsAccumulator;
+import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
+import org.elasticsearch.xpack.core.ml.stats.StatsAccumulator;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -132,15 +133,22 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
         ClusterState state = clusterService.state();
-        MlMetadata mlMetadata = state.getMetaData().custom(MLMetadataField.TYPE);
+        new Retriever(client, MlMetadata.getMlMetadata(state), available(), enabled(), mlNodeCount(state)).execute(listener);
+    }
 
-        // Handle case when usage is called but MlMetadata has not been installed yet
-        if (mlMetadata == null) {
-            listener.onResponse(new MachineLearningFeatureSetUsage(available(), enabled,
-                    Collections.emptyMap(), Collections.emptyMap()));
-        } else {
-            new Retriever(client, mlMetadata, available(), enabled()).execute(listener);
+    private int mlNodeCount(final ClusterState clusterState) {
+        if (enabled == false) {
+            return 0;
         }
+
+        int mlNodeCount = 0;
+        for (DiscoveryNode node : clusterState.getNodes()) {
+            String enabled = node.getAttributes().get(MachineLearning.ML_ENABLED_NODE_ATTR);
+            if (Boolean.parseBoolean(enabled)) {
+                ++mlNodeCount;
+            }
+        }
+        return mlNodeCount;
     }
 
     public static class Retriever {
@@ -151,19 +159,22 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
         private final boolean enabled;
         private Map<String, Object> jobsUsage;
         private Map<String, Object> datafeedsUsage;
+        private int nodeCount;
 
-        public Retriever(Client client, MlMetadata mlMetadata, boolean available, boolean enabled) {
+        public Retriever(Client client, MlMetadata mlMetadata, boolean available, boolean enabled, int nodeCount) {
             this.client = Objects.requireNonNull(client);
             this.mlMetadata = mlMetadata;
             this.available = available;
             this.enabled = enabled;
             this.jobsUsage = new LinkedHashMap<>();
             this.datafeedsUsage = new LinkedHashMap<>();
+            this.nodeCount = nodeCount;
         }
 
         public void execute(ActionListener<Usage> listener) {
             if (enabled == false) {
-                listener.onResponse(new MachineLearningFeatureSetUsage(available, enabled, Collections.emptyMap(), Collections.emptyMap()));
+                listener.onResponse(
+                    new MachineLearningFeatureSetUsage(available, enabled, Collections.emptyMap(), Collections.emptyMap(), 0));
                 return;
             }
 
@@ -172,11 +183,9 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
                     ActionListener.wrap(response -> {
                                 addDatafeedsUsage(response);
                                 listener.onResponse(new MachineLearningFeatureSetUsage(
-                                        available, enabled, jobsUsage, datafeedsUsage));
+                                        available, enabled, jobsUsage, datafeedsUsage, nodeCount));
                             },
-                            error -> {
-                                listener.onFailure(error);
-                            }
+                            listener::onFailure
                     );
 
             // Step 1. Extract usage from jobs stats and then request stats for all datafeeds
@@ -189,9 +198,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
                         client.execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest,
                                 datafeedStatsListener);
                     },
-                    error -> {
-                        listener.onFailure(error);
-                    }
+                    listener::onFailure
             );
 
             // Step 0. Kick off the chain of callbacks by requesting jobs stats
@@ -201,10 +208,12 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
         private void addJobsUsage(GetJobsStatsAction.Response response) {
             StatsAccumulator allJobsDetectorsStats = new StatsAccumulator();
             StatsAccumulator allJobsModelSizeStats = new StatsAccumulator();
+            ForecastStats allJobsForecastStats = new ForecastStats();
 
             Map<JobState, Counter> jobCountByState = new HashMap<>();
             Map<JobState, StatsAccumulator> detectorStatsByState = new HashMap<>();
             Map<JobState, StatsAccumulator> modelSizeStatsByState = new HashMap<>();
+            Map<JobState, ForecastStats> forecastStatsByState = new HashMap<>();
 
             Map<String, Job> jobs = mlMetadata.getJobs();
             List<GetJobsStatsAction.Response.JobStats> jobsStats = response.getResponse().results();
@@ -215,6 +224,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
                 double modelSize = modelSizeStats == null ? 0.0
                         : jobStats.getModelSizeStats().getModelBytes();
 
+                allJobsForecastStats.merge(jobStats.getForecastStats());
                 allJobsDetectorsStats.add(detectorsCount);
                 allJobsModelSizeStats.add(modelSize);
 
@@ -224,24 +234,28 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
                         js -> new StatsAccumulator()).add(detectorsCount);
                 modelSizeStatsByState.computeIfAbsent(jobState,
                         js -> new StatsAccumulator()).add(modelSize);
+                forecastStatsByState.merge(jobState, jobStats.getForecastStats(), (f1, f2) -> f1.merge(f2));
             }
 
             jobsUsage.put(MachineLearningFeatureSetUsage.ALL, createJobUsageEntry(jobs.size(), allJobsDetectorsStats,
-                    allJobsModelSizeStats));
+                    allJobsModelSizeStats, allJobsForecastStats));
             for (JobState jobState : jobCountByState.keySet()) {
                 jobsUsage.put(jobState.name().toLowerCase(Locale.ROOT), createJobUsageEntry(
                         jobCountByState.get(jobState).get(),
                         detectorStatsByState.get(jobState),
-                        modelSizeStatsByState.get(jobState)));
+                        modelSizeStatsByState.get(jobState),
+                        forecastStatsByState.get(jobState)));
             }
         }
 
         private Map<String, Object> createJobUsageEntry(long count, StatsAccumulator detectorStats,
-                                                        StatsAccumulator modelSizeStats) {
+                                                        StatsAccumulator modelSizeStats,
+                                                        ForecastStats forecastStats) {
             Map<String, Object> usage = new HashMap<>();
             usage.put(MachineLearningFeatureSetUsage.COUNT, count);
             usage.put(MachineLearningFeatureSetUsage.DETECTORS, detectorStats.asMap());
             usage.put(MachineLearningFeatureSetUsage.MODEL_SIZE, modelSizeStats.asMap());
+            usage.put(MachineLearningFeatureSetUsage.FORECASTS, forecastStats.asMap());
             return usage;
         }
 

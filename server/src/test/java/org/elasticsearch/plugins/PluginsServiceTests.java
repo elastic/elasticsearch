@@ -23,6 +23,7 @@ import org.apache.log4j.Level;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
+import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -443,7 +444,7 @@ public class PluginsServiceTests extends ESTestCase {
             "MyPlugin", Collections.singletonList("dep"), false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
-            PluginsService.checkBundleJarHell(bundle, transitiveDeps));
+            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps));
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell! duplicate codebases with extended plugin"));
     }
@@ -462,7 +463,7 @@ public class PluginsServiceTests extends ESTestCase {
             "MyPlugin", Arrays.asList("dep1", "dep2"), false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
-            PluginsService.checkBundleJarHell(bundle, transitiveDeps));
+            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps));
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
         assertThat(e.getCause().getMessage(), containsString("duplicate codebases"));
@@ -479,7 +480,7 @@ public class PluginsServiceTests extends ESTestCase {
             "MyPlugin", Collections.emptyList(), false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
-            PluginsService.checkBundleJarHell(bundle, new HashMap<>()));
+            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, new HashMap<>()));
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
         assertThat(e.getCause().getMessage(), containsString("Level"));
@@ -498,7 +499,7 @@ public class PluginsServiceTests extends ESTestCase {
             "MyPlugin", Collections.singletonList("dep"), false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
-            PluginsService.checkBundleJarHell(bundle, transitiveDeps));
+            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps));
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
         assertThat(e.getCause().getMessage(), containsString("DummyClass1"));
@@ -521,7 +522,7 @@ public class PluginsServiceTests extends ESTestCase {
             "MyPlugin", Arrays.asList("dep1", "dep2"), false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
-            PluginsService.checkBundleJarHell(bundle, transitiveDeps));
+            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps));
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
         assertThat(e.getCause().getMessage(), containsString("DummyClass2"));
@@ -543,7 +544,7 @@ public class PluginsServiceTests extends ESTestCase {
         PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
             "MyPlugin", Arrays.asList("dep1", "dep2"), false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
-        PluginsService.checkBundleJarHell(bundle, transitiveDeps);
+        PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps);
         Set<URL> deps = transitiveDeps.get("myplugin");
         assertNotNull(deps);
         assertThat(deps, containsInAnyOrder(pluginJar.toUri().toURL(), dep1Jar.toUri().toURL(), dep2Jar.toUri().toURL()));
@@ -589,10 +590,10 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     public void testIncompatibleElasticsearchVersion() throws Exception {
-        PluginInfo info = new PluginInfo("my_plugin", "desc", "1.0", Version.V_5_0_0,
+        PluginInfo info = new PluginInfo("my_plugin", "desc", "1.0", Version.V_6_0_0,
             "1.8", "FakePlugin", Collections.emptyList(), false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsService.verifyCompatibility(info));
-        assertThat(e.getMessage(), containsString("was built for Elasticsearch version 5.0.0"));
+        assertThat(e.getMessage(), containsString("was built for Elasticsearch version 6.0.0"));
     }
 
     public void testIncompatibleJavaVersion() throws Exception {
@@ -620,34 +621,7 @@ public class PluginsServiceTests extends ESTestCase {
             Files.copy(jar, fake.resolve("plugin.jar"));
         }
 
-        final Path fakeMeta = plugins.resolve("fake-meta");
-
-        PluginTestUtil.writeMetaPluginProperties(fakeMeta, "description", "description", "name", "fake-meta");
-
-        final Path fakeMetaCore = fakeMeta.resolve("fake-meta-core");
-        PluginTestUtil.writePluginProperties(
-                fakeMetaCore,
-                "description", "description",
-                "name", "fake-meta-core",
-                "version", "1.0.0",
-                "elasticsearch.version", Version.CURRENT.toString(),
-                "java.version", System.getProperty("java.specification.version"),
-                "classname", "test.DummyPlugin");
-        try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
-            Files.copy(jar, fakeMetaCore.resolve("plugin.jar"));
-        }
-
-        assertThat(PluginsService.findPluginDirs(plugins), containsInAnyOrder(fake, fakeMetaCore));
-    }
-
-    public void testMissingMandatoryPlugin() {
-        final Settings settings =
-                Settings.builder()
-                        .put("path.home", createTempDir())
-                        .put("plugin.mandatory", "fake")
-                        .build();
-        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
-        assertThat(e, hasToString(containsString("missing mandatory plugins [fake]")));
+        assertThat(PluginsService.findPluginDirs(plugins), containsInAnyOrder(fake));
     }
 
     public void testExistingMandatoryClasspathPlugin() {
@@ -696,38 +670,4 @@ public class PluginsServiceTests extends ESTestCase {
                         .build();
         newPluginsService(settings);
     }
-
-    public void testExistingMandatoryMetaPlugin() throws IOException {
-        // This test opens a child classloader, reading a jar under the test temp
-        // dir (a dummy plugin). Classloaders are closed by GC, so when test teardown
-        // occurs the jar is deleted while the classloader is still open. However, on
-        // windows, files cannot be deleted when they are still open by a process.
-        assumeFalse("windows deletion behavior is asinine", Constants.WINDOWS);
-        final Path pathHome = createTempDir();
-        final Path plugins = pathHome.resolve("plugins");
-        final Path fakeMeta = plugins.resolve("fake-meta");
-
-        PluginTestUtil.writeMetaPluginProperties(fakeMeta, "description", "description", "name", "fake-meta");
-
-        final Path fake = fakeMeta.resolve("fake");
-        PluginTestUtil.writePluginProperties(
-                fake,
-                "description", "description",
-                "name", "fake",
-                "version", "1.0.0",
-                "elasticsearch.version", Version.CURRENT.toString(),
-                "java.version", System.getProperty("java.specification.version"),
-                "classname", "test.DummyPlugin");
-        try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
-            Files.copy(jar, fake.resolve("plugin.jar"));
-        }
-
-        final Settings settings =
-                Settings.builder()
-                        .put("path.home", pathHome)
-                        .put("plugin.mandatory", "fake-meta")
-                        .build();
-        newPluginsService(settings);
-    }
-
 }

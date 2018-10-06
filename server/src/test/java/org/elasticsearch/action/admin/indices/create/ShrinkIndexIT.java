@@ -23,6 +23,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
@@ -59,13 +60,11 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -79,11 +78,15 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class ShrinkIndexIT extends ESIntegTestCase {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class);
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
     }
 
+    @TestLogging("org.elasticsearch.index.store:DEBUG")
     public void testCreateShrinkIndexToN() {
+
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/34080", Constants.WINDOWS);
+
         int[][] possibleShardSplits = new int[][] {{8,4,2}, {9, 3, 1}, {4, 2, 1}, {15,5,1}};
         int[] shardSplits = randomFrom(possibleShardSplits);
         assertEquals(shardSplits[0], (shardSplits[0] / shardSplits[1]) * shardSplits[1]);
@@ -111,9 +114,11 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         ensureGreen();
         // now merge source into a 4 shard index
         assertAcked(client().admin().indices().prepareResizeIndex("source", "first_shrink")
-            .setSettings(Settings.builder()
-                .put("index.number_of_replicas", 0)
-                .put("index.number_of_shards", shardSplits[1]).build()).get());
+                .setSettings(Settings.builder()
+                        .put("index.number_of_replicas", 0)
+                        .put("index.number_of_shards", shardSplits[1])
+                        .putNull("index.blocks.write")
+                        .build()).get());
         ensureGreen();
         assertHitCount(client().prepareSearch("first_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
 
@@ -133,9 +138,12 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         ensureGreen();
         // now merge source into a 2 shard index
         assertAcked(client().admin().indices().prepareResizeIndex("first_shrink", "second_shrink")
-            .setSettings(Settings.builder()
-                .put("index.number_of_replicas", 0)
-                .put("index.number_of_shards", shardSplits[2]).build()).get());
+                .setSettings(Settings.builder()
+                        .put("index.number_of_replicas", 0)
+                        .put("index.number_of_shards", shardSplits[2])
+                        .putNull("index.blocks.write")
+                        .putNull("index.routing.allocation.require._name")
+                        .build()).get());
         ensureGreen();
         assertHitCount(client().prepareSearch("second_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
         // let it be allocated anywhere and bump replicas
@@ -270,8 +278,14 @@ public class ShrinkIndexIT extends ESIntegTestCase {
 
         // now merge source into a single shard index
         final boolean createWithReplicas = randomBoolean();
-        assertAcked(client().admin().indices().prepareResizeIndex("source", "target")
-            .setSettings(Settings.builder().put("index.number_of_replicas", createWithReplicas ? 1 : 0).build()).get());
+        assertAcked(
+                client().admin().indices().prepareResizeIndex("source", "target")
+                        .setSettings(
+                                Settings.builder()
+                                        .put("index.number_of_replicas", createWithReplicas ? 1 : 0)
+                                        .putNull("index.blocks.write")
+                                        .putNull("index.routing.allocation.require._name")
+                                        .build()).get());
         ensureGreen();
 
         // resolve true merge node - this is not always the node we required as all shards may be on another node
@@ -442,19 +456,20 @@ public class ShrinkIndexIT extends ESIntegTestCase {
 
         // check that index sort cannot be set on the target index
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
-            () -> client().admin().indices().prepareResizeIndex("source", "target")
-                .setSettings(Settings.builder()
-                    .put("index.number_of_replicas", 0)
-                    .put("index.number_of_shards", "2")
-                    .put("index.sort.field", "foo")
-                    .build()).get());
+                () -> client().admin().indices().prepareResizeIndex("source", "target")
+                        .setSettings(Settings.builder()
+                                .put("index.number_of_replicas", 0)
+                                .put("index.number_of_shards", "2")
+                                .put("index.sort.field", "foo")
+                                .build()).get());
         assertThat(exc.getMessage(), containsString("can't override index sort when resizing an index"));
 
         // check that the index sort order of `source` is correctly applied to the `target`
         assertAcked(client().admin().indices().prepareResizeIndex("source", "target")
-            .setSettings(Settings.builder()
-                .put("index.number_of_replicas", 0)
-                .put("index.number_of_shards", "2").build()).get());
+                .setSettings(Settings.builder()
+                        .put("index.number_of_replicas", 0)
+                        .put("index.number_of_shards", "2")
+                        .putNull("index.blocks.write").build()).get());
         ensureGreen();
         flushAndRefresh();
         GetSettingsResponse settingsResponse =

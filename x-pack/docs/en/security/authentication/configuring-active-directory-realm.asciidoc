@@ -173,7 +173,7 @@ represent user roles for different systems in the organization.
 
 The `active_directory` realm enables you to map Active Directory users to roles
 via their Active Directory groups or other metadata. This role mapping can be
-configured via the <<security-api-role-mapping,role-mapping API>> or by using
+configured via the <<security-role-mapping-apis,role-mapping APIs>> or by using
 a file stored on each node. When a user authenticates against an Active
 Directory realm, the privileges for that user are the union of all privileges
 defined by the roles to which the user is mapped.

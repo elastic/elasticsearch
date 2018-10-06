@@ -28,20 +28,25 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
+import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -57,9 +62,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -68,6 +73,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -78,7 +85,7 @@ import java.util.stream.Collectors;
 import static java.util.stream.Collectors.toList;
 
 public class LocalStateCompositeXPackPlugin extends XPackPlugin implements ScriptPlugin, ActionPlugin, IngestPlugin, NetworkPlugin,
-        ClusterPlugin, DiscoveryPlugin, MapperPlugin, AnalysisPlugin, PersistentTaskPlugin {
+        ClusterPlugin, DiscoveryPlugin, MapperPlugin, AnalysisPlugin, PersistentTaskPlugin, EnginePlugin {
 
     private XPackLicenseState licenseState;
     private SSLService sslService;
@@ -244,8 +251,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
 
 
     @Override
-    public List<ScriptContext> getContexts() {
-        List<ScriptContext> contexts = new ArrayList<>();
+    public List<ScriptContext<?>> getContexts() {
+        List<ScriptContext<?>> contexts = new ArrayList<>();
         contexts.addAll(super.getContexts());
         filterPlugins(ScriptPlugin.class).stream().forEach(p -> contexts.addAll(p.getContexts()));
         return contexts;
@@ -284,14 +291,14 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
 
     @Override
     public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                                        PageCacheRecycler pageCacheRecycler,
                                                                         CircuitBreakerService circuitBreakerService,
-                                                                        NamedWriteableRegistry namedWriteableRegistry,
                                                                         NamedXContentRegistry xContentRegistry,
                                                                         NetworkService networkService,
                                                                         HttpServerTransport.Dispatcher dispatcher) {
         Map<String, Supplier<HttpServerTransport>> transports = new HashMap<>();
         filterPlugins(NetworkPlugin.class).stream().forEach(p -> transports.putAll(p.getHttpTransports(settings, threadPool, bigArrays,
-                circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService, dispatcher)));
+            pageCacheRecycler, circuitBreakerService, xContentRegistry, networkService, dispatcher)));
         return transports;
     }
 
@@ -348,13 +355,6 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
-    public Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() {
-        Map<String, Supplier<ClusterState.Custom>> suppliers = new HashMap<>();
-        filterPlugins(ClusterPlugin.class).stream().forEach(p -> suppliers.putAll(p.getInitialClusterStateCustomSupplier()));
-        return suppliers;
-    }
-
-    @Override
     public Function<String, Predicate<String>> getFieldFilter() {
         List<Function<String, Predicate<String>>> items = filterPlugins(MapperPlugin.class).stream().map(p ->
                 p.getFieldFilter()).collect(Collectors.toList());
@@ -389,6 +389,25 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
                 .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client))
                 .flatMap(List::stream)
                 .collect(toList());
+    }
+
+    @Override
+    public void close() throws IOException {
+        IOUtils.close(plugins);
+    }
+
+    @Override
+    public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
+        List<Optional<EngineFactory>> enginePlugins = filterPlugins(EnginePlugin.class).stream()
+            .map(p -> p.getEngineFactory(indexSettings))
+            .collect(Collectors.toList());
+        if (enginePlugins.size() == 0) {
+            return Optional.empty();
+        } else if (enginePlugins.size() == 1) {
+            return enginePlugins.stream().findFirst().get();
+        } else {
+            throw new IllegalStateException("Only one EngineFactory plugin allowed");
+        }
     }
 
     private <T> List<T> filterPlugins(Class<T> type) {

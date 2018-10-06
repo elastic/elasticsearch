@@ -9,6 +9,7 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -19,24 +20,25 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.ml.job.config.JobTaskStatus;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.groups.GroupOrJobLookup;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NameResolver;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -51,19 +53,20 @@ import java.util.TreeMap;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-public class MlMetadata implements MetaData.Custom {
+public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
+    public static final String TYPE = "ml";
     private static final ParseField JOBS_FIELD = new ParseField("jobs");
     private static final ParseField DATAFEEDS_FIELD = new ParseField("datafeeds");
 
     public static final MlMetadata EMPTY_METADATA = new MlMetadata(Collections.emptySortedMap(), Collections.emptySortedMap());
     // This parser follows the pattern that metadata is parsed leniently (to allow for enhancements)
-    public static final ObjectParser<Builder, Void> METADATA_PARSER = new ObjectParser<>("ml_metadata", true, Builder::new);
+    public static final ObjectParser<Builder, Void> LENIENT_PARSER = new ObjectParser<>("ml_metadata", true, Builder::new);
 
     static {
-        METADATA_PARSER.declareObjectArray(Builder::putJobs, (p, c) -> Job.METADATA_PARSER.apply(p, c).build(), JOBS_FIELD);
-        METADATA_PARSER.declareObjectArray(Builder::putDatafeeds,
-                (p, c) -> DatafeedConfig.METADATA_PARSER.apply(p, c).build(), DATAFEEDS_FIELD);
+        LENIENT_PARSER.declareObjectArray(Builder::putJobs, (p, c) -> Job.LENIENT_PARSER.apply(p, c).build(), JOBS_FIELD);
+        LENIENT_PARSER.declareObjectArray(Builder::putDatafeeds,
+                (p, c) -> DatafeedConfig.LENIENT_PARSER.apply(p, c).build(), DATAFEEDS_FIELD);
     }
 
     private final SortedMap<String, Job> jobs;
@@ -112,12 +115,12 @@ public class MlMetadata implements MetaData.Custom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_5_4_0;
+        return Version.V_6_0_0_alpha1;
     }
 
     @Override
     public String getWriteableName() {
-        return MLMetadataField.TYPE;
+        return TYPE;
     }
 
     @Override
@@ -211,7 +214,7 @@ public class MlMetadata implements MetaData.Custom {
 
         @Override
         public String getWriteableName() {
-            return MLMetadataField.TYPE;
+            return TYPE;
         }
 
         static Diff<Job> readJobDiffFrom(StreamInput in) throws IOException {
@@ -275,7 +278,7 @@ public class MlMetadata implements MetaData.Custom {
         public Builder deleteJob(String jobId, PersistentTasksCustomMetaData tasks) {
             checkJobHasNoDatafeed(jobId);
 
-            JobState jobState = MlMetadata.getJobState(jobId, tasks);
+            JobState jobState = MlTasks.getJobState(jobId, tasks);
             if (jobState.isAnyOf(JobState.CLOSED, JobState.FAILED) == false) {
                 throw ExceptionsHelper.conflictStatusException("Unexpected job state [" + jobState + "], expected [" +
                         JobState.CLOSED + " or " + JobState.FAILED + "]");
@@ -290,7 +293,7 @@ public class MlMetadata implements MetaData.Custom {
             return this;
         }
 
-        public Builder putDatafeed(DatafeedConfig datafeedConfig, ThreadContext threadContext) {
+        public Builder putDatafeed(DatafeedConfig datafeedConfig, Map<String, String> headers) {
             if (datafeeds.containsKey(datafeedConfig.getId())) {
                 throw new ResourceAlreadyExistsException("A datafeed with id [" + datafeedConfig.getId() + "] already exists");
             }
@@ -299,13 +302,13 @@ public class MlMetadata implements MetaData.Custom {
             Job job = jobs.get(jobId);
             DatafeedJobValidator.validate(datafeedConfig, job);
 
-            if (threadContext != null) {
+            if (headers.isEmpty() == false) {
                 // Adjust the request, adding security headers from the current thread context
                 DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedConfig);
-                Map<String, String> headers = threadContext.getHeaders().entrySet().stream()
-                        .filter(e -> MlClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
+                Map<String, String> securityHeaders = headers.entrySet().stream()
+                        .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                builder.setHeaders(headers);
+                builder.setHeaders(securityHeaders);
                 datafeedConfig = builder.build();
             }
 
@@ -325,7 +328,7 @@ public class MlMetadata implements MetaData.Custom {
             }
         }
 
-        public Builder updateDatafeed(DatafeedUpdate update, PersistentTasksCustomMetaData persistentTasks, ThreadContext threadContext) {
+        public Builder updateDatafeed(DatafeedUpdate update, PersistentTasksCustomMetaData persistentTasks, Map<String, String> headers) {
             String datafeedId = update.getId();
             DatafeedConfig oldDatafeedConfig = datafeeds.get(datafeedId);
             if (oldDatafeedConfig == null) {
@@ -333,7 +336,7 @@ public class MlMetadata implements MetaData.Custom {
             }
             checkDatafeedIsStopped(() -> Messages.getMessage(Messages.DATAFEED_CANNOT_UPDATE_IN_CURRENT_STATE, datafeedId,
                     DatafeedState.STARTED), datafeedId, persistentTasks);
-            DatafeedConfig newDatafeedConfig = update.apply(oldDatafeedConfig, threadContext);
+            DatafeedConfig newDatafeedConfig = update.apply(oldDatafeedConfig, headers);
             if (newDatafeedConfig.getJobId().equals(oldDatafeedConfig.getJobId()) == false) {
                 checkJobIsAvailableForDatafeed(newDatafeedConfig.getJobId());
             }
@@ -360,7 +363,7 @@ public class MlMetadata implements MetaData.Custom {
 
         private void checkDatafeedIsStopped(Supplier<String> msg, String datafeedId, PersistentTasksCustomMetaData persistentTasks) {
             if (persistentTasks != null) {
-                if (persistentTasks.getTask(MLMetadataField.datafeedTaskId(datafeedId)) != null) {
+                if (persistentTasks.getTask(MlTasks.datafeedTaskId(datafeedId)) != null) {
                     throw ExceptionsHelper.conflictStatusException(msg.get());
                 }
             }
@@ -397,11 +400,11 @@ public class MlMetadata implements MetaData.Custom {
             checkJobHasNoDatafeed(jobId);
 
             if (allowDeleteOpenJob == false) {
-                PersistentTask<?> jobTask = getJobTask(jobId, tasks);
+                PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
                 if (jobTask != null) {
-                    JobTaskStatus jobTaskStatus = (JobTaskStatus) jobTask.getStatus();
+                    JobTaskState jobTaskState = (JobTaskState) jobTask.getState();
                     throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] because the job is "
-                            + ((jobTaskStatus == null) ? JobState.OPENING : jobTaskStatus.getState()));
+                            + ((jobTaskState == null) ? JobState.OPENING : jobTaskState.getState()));
                 }
             }
             Job.Builder jobBuilder = new Job.Builder(job);
@@ -418,52 +421,14 @@ public class MlMetadata implements MetaData.Custom {
         }
     }
 
-    /**
-     * Namespaces the task ids for jobs.
-     * A datafeed id can be used as a job id, because they are stored separately in cluster state.
-     */
-    public static String jobTaskId(String jobId) {
-        return "job-" + jobId;
-    }
 
-    @Nullable
-    public static PersistentTask<?> getJobTask(String jobId, @Nullable PersistentTasksCustomMetaData tasks) {
-        if (tasks == null) {
-            return null;
-        }
-        return tasks.getTask(jobTaskId(jobId));
-    }
 
-    @Nullable
-    public static PersistentTask<?> getDatafeedTask(String datafeedId, @Nullable PersistentTasksCustomMetaData tasks) {
-        if (tasks == null) {
-            return null;
+    public static MlMetadata getMlMetadata(ClusterState state) {
+        MlMetadata mlMetadata = (state == null) ? null : state.getMetaData().custom(TYPE);
+        if (mlMetadata == null) {
+            return EMPTY_METADATA;
         }
-        return tasks.getTask(MLMetadataField.datafeedTaskId(datafeedId));
-    }
-
-    public static JobState getJobState(String jobId, @Nullable PersistentTasksCustomMetaData tasks) {
-        PersistentTask<?> task = getJobTask(jobId, tasks);
-        if (task != null) {
-            JobTaskStatus jobTaskState = (JobTaskStatus) task.getStatus();
-            if (jobTaskState == null) {
-                return JobState.OPENING;
-            }
-            return jobTaskState.getState();
-        }
-        // If we haven't opened a job than there will be no persistent task, which is the same as if the job was closed
-        return JobState.CLOSED;
-    }
-
-    public static DatafeedState getDatafeedState(String datafeedId, @Nullable PersistentTasksCustomMetaData tasks) {
-        PersistentTask<?> task = getDatafeedTask(datafeedId, tasks);
-        if (task != null && task.getStatus() != null) {
-            return (DatafeedState) task.getStatus();
-        } else {
-            // If we haven't started a datafeed then there will be no persistent task,
-            // which is the same as if the datafeed was't started
-            return DatafeedState.STOPPED;
-        }
+        return mlMetadata;
     }
 
     public static class JobAlreadyMarkedAsDeletedException extends RuntimeException {

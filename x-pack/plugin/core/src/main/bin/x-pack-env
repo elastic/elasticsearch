@@ -5,4 +5,4 @@
 # you may not use this file except in compliance with the Elastic License.
 
 # include x-pack-core jars in classpath
-ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/modules/x-pack/x-pack-core/*"
+ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/modules/x-pack-core/*"

@@ -99,11 +99,13 @@ Note that you can also add arrays with `startArray(String)` and
 other XContentBuilder objects.
 
 If you need to see the generated JSON content, you can use the
-`string()` method.
+`Strings.toString()` method.
 
 [source,java]
 --------------------------------------------------
-String json = builder.string();
+import org.elasticsearch.common.Strings;
+
+String json = Strings.toString(builder);
 --------------------------------------------------
 
 

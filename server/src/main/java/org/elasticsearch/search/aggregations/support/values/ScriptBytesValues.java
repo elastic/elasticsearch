@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.support.values;
 
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -45,7 +45,7 @@ public class ScriptBytesValues extends SortingBinaryDocValues implements ScorerA
         if (o == null) {
             values[i].clear();
         } else {
-            CollectionUtils.ensureNoSelfReferences(o);
+            CollectionUtils.ensureNoSelfReferences(o, "ScriptBytesValues value");
             values[i].copyChars(o.toString());
         }
     }
@@ -85,7 +85,7 @@ public class ScriptBytesValues extends SortingBinaryDocValues implements ScorerA
     }
 
     @Override
-    public void setScorer(Scorer scorer) {
+    public void setScorer(Scorable scorer) {
         script.setScorer(scorer);
     }
 }

@@ -13,12 +13,12 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.metrics.max.Max;
-import org.elasticsearch.search.aggregations.metrics.min.Min;
-import org.elasticsearch.xpack.core.ml.MlClientHelper;
+import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.Min;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
-import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -108,7 +108,7 @@ public class ChunkedDataExtractor implements DataExtractor {
     }
 
     private DataSummary requestDataSummary() throws IOException {
-        SearchRequestBuilder searchRequestBuilder = SearchAction.INSTANCE.newRequestBuilder(client)
+        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
                 .setSize(0)
                 .setIndices(context.indices)
                 .setTypes(context.types)
@@ -135,7 +135,7 @@ public class ChunkedDataExtractor implements DataExtractor {
     }
 
     protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
-        return MlClientHelper.execute(context.headers, client, searchRequestBuilder::get);
+        return ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client, searchRequestBuilder::get);
     }
 
     private Optional<InputStream> getNextStream() throws IOException {

@@ -21,6 +21,8 @@ package org.elasticsearch.indices.analysis;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -36,8 +38,12 @@ public class PreBuiltCacheFactory {
     public enum CachingStrategy { ONE, LUCENE, ELASTICSEARCH };
 
     public interface PreBuiltCache<T> {
+
         T get(Version version);
+
         void put(Version version, T t);
+
+        Collection<T> values();
     }
 
     private PreBuiltCacheFactory() {}
@@ -71,6 +77,11 @@ public class PreBuiltCacheFactory {
         public void put(Version version, T model) {
             this.model = model;
         }
+
+        @Override
+        public Collection<T> values() {
+            return Collections.singleton(model);
+        }
     }
 
     /**
@@ -89,6 +100,11 @@ public class PreBuiltCacheFactory {
         public void put(Version version, T model) {
             mapModel.put(version, model);
         }
+
+        @Override
+        public Collection<T> values() {
+            return mapModel.values();
+        }
     }
 
     /**
@@ -106,6 +122,11 @@ public class PreBuiltCacheFactory {
         @Override
         public void put(org.elasticsearch.Version version, T model) {
             mapModel.put(version.luceneVersion, model);
+        }
+
+        @Override
+        public Collection<T> values() {
+            return mapModel.values();
         }
     }
 }

@@ -47,6 +47,8 @@ include::set-paths-tip.asciidoc[]
 Use the `elasticsearch-plugin` script to install the upgraded version of each
 installed Elasticsearch plugin. All plugins must be upgraded when you upgrade
 a node.
++
+include::remove-xpack.asciidoc[]
 
 . *Start each upgraded node.*
 +
@@ -91,7 +93,7 @@ already have local shard copies.
 +
 --
 When all nodes have joined the cluster and recovered their primary shards,
-reenable allocation by restoring `cluster.routing.allocation.enable` to its 
+reenable allocation by restoring `cluster.routing.allocation.enable` to its
 default:
 
 [source,js]
@@ -123,4 +125,4 @@ GET _cat/recovery
 // CONSOLE
 --
 
-. *Restart machine learning jobs.* 
+. *Restart machine learning jobs.*

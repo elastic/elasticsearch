@@ -300,11 +300,7 @@ Responds:
     "indices": {
       "twitter": {
         "shards": {
-          "0": [{"state": "STARTED"}, {"state": "UNASSIGNED"}],
-          "1": [{"state": "STARTED"}, {"state": "UNASSIGNED"}],
-          "2": [{"state": "STARTED"}, {"state": "UNASSIGNED"}],
-          "3": [{"state": "STARTED"}, {"state": "UNASSIGNED"}],
-          "4": [{"state": "STARTED"}, {"state": "UNASSIGNED"}]
+          "0": [{"state": "STARTED"}, {"state": "UNASSIGNED"}]
         }
       }
     }

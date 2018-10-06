@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.ExternalResource;
 
@@ -97,25 +98,6 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
             IOUtils.closeWhileHandlingException(restClient);
             restClient = null;
         }
-
-        // Wait for the network threads to finish otherwise there is the possibility that one of
-        // the threads lingers and trips the thread leak detector
-        try {
-            GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } catch (IllegalStateException e) {
-            if (e.getMessage().equals("thread was not started") == false) {
-                throw e;
-            }
-            // ignore since the thread was never started
-        }
-
-        try {
-            ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 
     @Rule
@@ -126,6 +108,35 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
             if (customSecuritySettingsSource == null) {
                 customSecuritySettingsSource =
                         new CustomSecuritySettingsSource(transportSSLEnabled(), createTempDir(), ESIntegTestCase.Scope.SUITE);
+            }
+        }
+    };
+
+    /**
+     * A JUnit class level rule that runs after the AfterClass method in {@link ESIntegTestCase},
+     * which stops the cluster. After the cluster is stopped, there are a few netty threads that
+     * can linger, so we wait for them to finish otherwise these lingering threads can intermittently
+     * trigger the thread leak detector
+     */
+    @ClassRule
+    public static final ExternalResource STOP_NETTY_RESOURCE = new ExternalResource() {
+        @Override
+        protected void after() {
+            try {
+                GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (IllegalStateException e) {
+                if (e.getMessage().equals("thread was not started") == false) {
+                    throw e;
+                }
+                // ignore since the thread was never started
+            }
+
+            try {
+                ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
         }
     };

@@ -7,6 +7,8 @@ package org.elasticsearch.test;
 
 import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
+
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -24,6 +26,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -38,13 +41,15 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
-
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.ExternalResource;
 
@@ -62,8 +67,7 @@ import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_S
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
-import static org.elasticsearch.xpack.security.SecurityLifecycleService.securityIndexMappingSufficientToRead;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsCollectionContaining.hasItem;
 
@@ -85,7 +89,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
      * to how {@link #nodeSettings(int)} and {@link #transportClientSettings()} work.
      */
     private static CustomSecuritySettingsSource customSecuritySettingsSource = null;
-
 
     @BeforeClass
     public static void generateBootstrapPassword() {
@@ -162,24 +165,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     public static void destroyDefaultSettings() {
         SECURITY_DEFAULT_SETTINGS = null;
         customSecuritySettingsSource = null;
-        // Wait for the network threads to finish otherwise there is the possibility that one of
-        // the threads lingers and trips the thread leak detector
-        try {
-            GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } catch (IllegalStateException e) {
-            if (e.getMessage().equals("thread was not started") == false) {
-                throw e;
-            }
-            // ignore since the thread was never started
-        }
-
-        try {
-            ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 
     @Rule
@@ -199,6 +184,35 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                     customSecuritySettingsSource =
                             new CustomSecuritySettingsSource(transportSSLEnabled(), createTempDir(), currentClusterScope);
                     break;
+            }
+        }
+    };
+
+    /**
+     * A JUnit class level rule that runs after the AfterClass method in {@link ESIntegTestCase},
+     * which stops the cluster. After the cluster is stopped, there are a few netty threads that
+     * can linger, so we wait for them to finish otherwise these lingering threads can intermittently
+     * trigger the thread leak detector
+     */
+    @ClassRule
+    public static final ExternalResource STOP_NETTY_RESOURCE = new ExternalResource() {
+        @Override
+        protected void after() {
+            try {
+                GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (IllegalStateException e) {
+                if (e.getMessage().equals("thread was not started") == false) {
+                    throw e;
+                }
+                // ignore since the thread was never started
+            }
+
+            try {
+                ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
         }
     };
@@ -229,6 +243,8 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         Settings customSettings = customSecuritySettingsSource.nodeSettings(nodeOrdinal);
         builder.put(customSettings, false); // handle secure settings separately
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO);
+        builder.put(NetworkModule.HTTP_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO);
         Settings.Builder customBuilder = Settings.builder().put(customSettings);
         if (customBuilder.getSecureSettings() != null) {
             SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
@@ -249,6 +265,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     @Override
     protected Settings transportClientSettings() {
         return Settings.builder().put(super.transportClientSettings())
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NIO)
                 .put(customSecuritySettingsSource.transportClientSettings())
                 .build();
     }
@@ -403,14 +420,18 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         createIndex(indices);
 
         if (frequently()) {
+            boolean aliasAdded = false;
             IndicesAliasesRequestBuilder builder = client().admin().indices().prepareAliases();
             for (String index : indices) {
                 if (frequently()) {
                     //one alias per index with prefix "alias-"
                     builder.addAlias(index, "alias-" + index);
+                    aliasAdded = true;
                 }
             }
-            if (randomBoolean()) {
+            // If we get to this point and we haven't added an alias to the request we need to add one 
+            // or the request will fail so use noAliasAdded to force adding the alias in this case 
+            if (aliasAdded == false || randomBoolean()) {
                 //one alias pointing to all indices
                 for (String index : indices) {
                     builder.addAlias(index, "alias");
@@ -470,7 +491,8 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint().startObject();
                 assertTrue("security index mapping not sufficient to read:\n" +
                                 Strings.toString(clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject()),
-                        securityIndexMappingSufficientToRead(clusterState, logger));
+                    SecurityIndexManager.checkIndexMappingVersionMatches(SECURITY_INDEX_NAME, clusterState, logger,
+                        Version.CURRENT.minimumIndexCompatibilityVersion()::onOrBefore));
                 Index securityIndex = resolveSecurityIndex(clusterState.metaData());
                 if (securityIndex != null) {
                     IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);
@@ -507,5 +529,9 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
     protected boolean isTransportSSLEnabled() {
         return customSecuritySettingsSource.isSslEnabled();
+    }
+
+    protected static Hasher getFastStoredHashAlgoForTests() {
+        return Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
     }
 }

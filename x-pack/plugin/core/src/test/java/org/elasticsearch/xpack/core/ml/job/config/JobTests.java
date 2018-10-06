@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -37,7 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -72,22 +72,22 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
     @Override
     protected Job doParseInstance(XContentParser parser) {
-        return Job.CONFIG_PARSER.apply(parser, null).build();
+        return Job.STRICT_PARSER.apply(parser, null).build();
     }
 
     public void testFutureConfigParse() throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_JOB);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> Job.CONFIG_PARSER.apply(parser, null).build());
-        assertEquals("[job_details] unknown field [tomorrows_technology_today], parser not found", e.getMessage());
+        XContentParseException e = expectThrows(XContentParseException.class,
+                () -> Job.STRICT_PARSER.apply(parser, null).build());
+        assertEquals("[4:5] [job_details] unknown field [tomorrows_technology_today], parser not found", e.getMessage());
     }
 
     public void testFutureMetadataParse() throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_JOB);
         // Unlike the config version of this test, the metadata parser should tolerate the unknown future field
-        assertNotNull(Job.METADATA_PARSER.apply(parser, null).build());
+        assertNotNull(Job.LENIENT_PARSER.apply(parser, null).build());
     }
 
     public void testConstructor_GivenEmptyJobConfiguration() {
@@ -475,19 +475,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, jobBuilder::build);
         assertThat(e.getMessage(), equalTo(Messages.getMessage(Messages.JOB_CONFIG_TIME_FIELD_NOT_ALLOWED_IN_ANALYSIS_CONFIG)));
-    }
-
-    public void testGetCompatibleJobTypes_givenVersionBefore_V_5_4() {
-        assertThat(Job.getCompatibleJobTypes(Version.V_5_0_0).isEmpty(), is(true));
-        assertThat(Job.getCompatibleJobTypes(Version.V_5_3_0).isEmpty(), is(true));
-        assertThat(Job.getCompatibleJobTypes(Version.V_5_3_2).isEmpty(), is(true));
-    }
-
-    public void testGetCompatibleJobTypes_givenVersionAfter_V_5_4() {
-        assertThat(Job.getCompatibleJobTypes(Version.V_5_4_0), contains(Job.ANOMALY_DETECTOR_JOB_TYPE));
-        assertThat(Job.getCompatibleJobTypes(Version.V_5_4_0).size(), equalTo(1));
-        assertThat(Job.getCompatibleJobTypes(Version.V_5_5_0), contains(Job.ANOMALY_DETECTOR_JOB_TYPE));
-        assertThat(Job.getCompatibleJobTypes(Version.V_5_5_0).size(), equalTo(1));
     }
 
     public void testInvalidCreateTimeSettings() {

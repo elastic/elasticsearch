@@ -53,6 +53,11 @@ test {
   systemProperty 'tests.artifact', project.name
 }
 
+check {
+  // also execute the QA tests when testing the plugin
+  dependsOn 'qa:amazon-ec2:check'
+}
+
 thirdPartyAudit.excludes = [
   // classes are missing
   'com.amazonaws.jmespath.JmesPathEvaluationVisitor',
@@ -82,7 +87,7 @@ thirdPartyAudit.excludes = [
   'org.apache.log.Logger',
 ]
 
-if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
+if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
   thirdPartyAudit.excludes += [
     'javax.xml.bind.DatatypeConverter',
     'javax.xml.bind.JAXBContext'

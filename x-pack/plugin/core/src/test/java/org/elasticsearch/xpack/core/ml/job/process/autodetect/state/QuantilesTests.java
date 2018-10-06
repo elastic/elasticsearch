@@ -15,8 +15,25 @@ import java.io.IOException;
 import java.util.Date;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.core.Is.is;
 
 public class QuantilesTests extends AbstractSerializingTestCase<Quantiles> {
+
+    public void testExtractJobId_GivenValidDocId() {
+        assertThat(Quantiles.extractJobId("foo_quantiles"), equalTo("foo"));
+        assertThat(Quantiles.extractJobId("bar_quantiles"), equalTo("bar"));
+        assertThat(Quantiles.extractJobId("foo_bar_quantiles"), equalTo("foo_bar"));
+        assertThat(Quantiles.extractJobId("_quantiles_quantiles"), equalTo("_quantiles"));
+    }
+
+    public void testExtractJobId_GivenInvalidDocId() {
+        assertThat(Quantiles.extractJobId(""), is(nullValue()));
+        assertThat(Quantiles.extractJobId("foo"), is(nullValue()));
+        assertThat(Quantiles.extractJobId("_quantiles"), is(nullValue()));
+        assertThat(Quantiles.extractJobId("foo_model_state_3141341341"), is(nullValue()));
+    }
 
     public void testEquals_GivenSameObject() {
         Quantiles quantiles = new Quantiles("foo", new Date(0L), "foo");

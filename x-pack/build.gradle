@@ -5,14 +5,6 @@ import org.elasticsearch.gradle.precommit.LicenseHeadersTask
 
 Project xpackRootProject = project
 
-apply plugin: 'nebula.info-scm'
-final String licenseCommit
-if (version.endsWith('-SNAPSHOT')) {
-  licenseCommit = xpackRootProject.scminfo.change ?: "master" // leniency for non git builds
-} else {
-  licenseCommit = "v${version}"
-}
-
 subprojects {
   group = 'org.elasticsearch.plugin'
   ext.xpackRootProject = xpackRootProject
@@ -20,32 +12,27 @@ subprojects {
   // helper method to find the path to a module
   ext.xpackModule = { String moduleName -> xpackProject("plugin:${moduleName}").path }
 
-  ext.licenseName = 'Elastic License'
-  ext.licenseUrl = "https://raw.githubusercontent.com/elastic/elasticsearch/${licenseCommit}/licenses/ELASTIC-LICENSE.txt"
-
-  project.ext.licenseFile = rootProject.file('licenses/ELASTIC-LICENSE.txt')
-  project.ext.noticeFile = xpackRootProject.file('NOTICE.txt')
-
   plugins.withType(PluginBuildPlugin).whenPluginAdded {
     project.esplugin.licenseFile = rootProject.file('licenses/ELASTIC-LICENSE.txt')
     project.esplugin.noticeFile = xpackRootProject.file('NOTICE.txt')
   }
+
+  if (project.name != 'protocol') {
+    tasks.withType(LicenseHeadersTask.class) {
+        approvedLicenses = ['Elastic License', 'Generated']
+        additionalLicense 'ELAST', 'Elastic License', 'Licensed under the Elastic License'
+    }
+
+    ext.licenseName = 'Elastic License'
+    ext.licenseUrl = ext.elasticLicenseUrl
+
+    project.ext.licenseFile = rootProject.file('licenses/ELASTIC-LICENSE.txt')
+    project.ext.noticeFile = xpackRootProject.file('NOTICE.txt')
+  }
 }
 
-File checkstyleSuppressions = file('dev-tools/checkstyle_suppressions.xml')
 subprojects {
-  tasks.withType(Checkstyle) {
-    inputs.file(checkstyleSuppressions)
-    // Use x-pack-elasticsearch specific suppressions file rather than the open source one.
-    configProperties = [
-      suppressions: checkstyleSuppressions
-    ]
-  }
-
-  tasks.withType(LicenseHeadersTask.class) {
-    approvedLicenses = ['Elastic License', 'Generated']
-    additionalLicense 'ELAST', 'Elastic License', 'Licensed under the Elastic License'
-  }
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-ccr:${version}": xpackModule('ccr')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-core:${version}": xpackModule('core')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-deprecation:${version}": xpackModule('deprecation')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-graph:${version}": xpackModule('graph')]
@@ -53,15 +40,7 @@ subprojects {
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-ml:${version}": xpackModule('ml')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-monitoring:${version}": xpackModule('monitoring')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-security:${version}": xpackModule('security')]
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-sql:${version}": xpackModule('sql')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-upgrade:${version}": xpackModule('upgrade')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-watcher:${version}": xpackModule('watcher')]
-
-  bwcVersions.snapshotProjectNames.each { snapshotName ->
-    Version snapshot = bwcVersions.getSnapshotForProject(snapshotName)
-    if (snapshot != null && snapshot.onOrAfter("6.3.0")) {
-      String snapshotProject = ":x-pack:plugin:bwc:${snapshotName}"
-      project(snapshotProject).ext.bwcVersion = snapshot
-        ext.projectSubstitutions["org.elasticsearch.plugin:x-pack:${snapshot}"] = snapshotProject
-    }
-  }
 }

@@ -1,5 +1,5 @@
 [[breaking_70_api_changes]]
-=== Breaking API changes in 7.0
+=== API changes
 
 ==== Camel case and underscore parameters deprecated in 6.x have been removed
 A number of duplicate parameters deprecated in 6.x have been removed from
@@ -65,3 +65,31 @@ deprecated in 6.3.0 and now removed in 7.0.0.
 In the past, `fields` could be provided either as a parameter, or as part of the request
 body. Specifying `fields` in the request body as opposed to a parameter was deprecated
 in 6.4.0, and is now unsupported in 7.0.0.
+
+==== `copy_settings` is deprecated on shrink and split APIs
+
+Versions of Elasticsearch prior to 6.4.0 did not copy index settings on shrink
+and split operations. Starting with Elasticsearch 7.0.0, the default behavior
+will be for such settings to be copied on such operations. To enable users in
+6.4.0 to transition in 6.4.0 to the default behavior in 7.0.0, the
+`copy_settings` parameter was added on the REST layer. As this behavior will be
+the only behavior in 8.0.0, this parameter is deprecated in 7.0.0 for removal in
+8.0.0.
+
+==== The deprecated stored script contexts have now been removed
+When putting stored scripts, support for storing them with the deprecated `template` context or without a context is
+now removed. Scripts must be stored using the `script` context as mentioned in the documentation.
+
+==== Get Aliases API limitations when {security} is enabled removed
+
+The behavior and response codes of the get aliases API no longer vary
+depending on whether {security} is enabled. Previously a
+404 - NOT FOUND (IndexNotFoundException) could be returned in case the
+current user was not authorized for any alias. An empty response with
+status 200 - OK is now returned instead at all times.
+
+==== Put User API response no longer has `user` object
+
+The Put User API response was changed in 6.5.0 to add the `created` field
+outside of the user object where it previously had been. In 7.0.0 the user
+object has been removed in favor of the top level `created` field.

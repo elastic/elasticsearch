@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
 import org.elasticsearch.xpack.sql.jdbc.net.client.Cursor;
 import org.elasticsearch.xpack.sql.jdbc.net.client.RequestMeta;
-import org.elasticsearch.xpack.sql.plugin.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -220,7 +220,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
         // unset (in this case -1 which the user cannot set) - in this case, the default fetch size is returned
         // 0 meaning the hint is disabled (the user has called setFetch)
         // >0 means actual hint
-        
+
         // tl;dr - unless the user set it, returning the default is fine
         return requestMeta.fetchSize();
     }

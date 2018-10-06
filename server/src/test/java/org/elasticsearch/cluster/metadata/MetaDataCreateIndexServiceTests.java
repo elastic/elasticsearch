@@ -56,6 +56,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -90,6 +91,21 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         int x = target / source;
         assert source < target : source  + " >= " + target;
         return source * x == target;
+    }
+
+    public void testNumberOfShards() {
+        {
+            final Version versionCreated = VersionUtils.randomVersionBetween(
+                    random(),
+                    Version.V_6_0_0_alpha1, VersionUtils.getPreviousVersion(Version.V_7_0_0_alpha1));
+            final Settings.Builder indexSettingsBuilder = Settings.builder().put(SETTING_VERSION_CREATED, versionCreated);
+            assertThat(MetaDataCreateIndexService.IndexCreationTask.getNumberOfShards(indexSettingsBuilder), equalTo(5));
+        }
+        {
+            final Version versionCreated = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0_alpha1, Version.CURRENT);
+            final Settings.Builder indexSettingsBuilder = Settings.builder().put(SETTING_VERSION_CREATED, versionCreated);
+            assertThat(MetaDataCreateIndexService.IndexCreationTask.getNumberOfShards(indexSettingsBuilder), equalTo(1));
+        }
     }
 
     public void testValidateShrinkIndex() {
@@ -245,6 +261,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                         .put("index.version.upgraded", upgraded)
                         .put("index.similarity.default.type", "BM25")
                         .put("index.analysis.analyzer.default.tokenizer", "keyword")
+                        .put("index.soft_deletes.enabled", "true")
                         .build();
         runPrepareResizeIndexSettingsTest(
                 indexSettings,
@@ -261,6 +278,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                     assertThat(settings.get("index.allocation.max_retries"), equalTo("1"));
                     assertThat(settings.getAsVersion("index.version.created", null), equalTo(version));
                     assertThat(settings.getAsVersion("index.version.upgraded", null), equalTo(upgraded));
+                    assertThat(settings.get("index.soft_deletes.enabled"), equalTo("true"));
                 });
     }
 
@@ -319,6 +337,15 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 settings ->
                         assertThat("similarity settings are not overwritten", settings.get("index.similarity.sim.type"), equalTo("DFR")));
 
+    }
+
+    public void testDoNotOverrideSoftDeletesSettingOnResize() {
+        runPrepareResizeIndexSettingsTest(
+            Settings.builder().put("index.soft_deletes.enabled", "false").build(),
+            Settings.builder().put("index.soft_deletes.enabled", "true").build(),
+            Collections.emptyList(),
+            randomBoolean(),
+            settings -> assertThat(settings.get("index.soft_deletes.enabled"), equalTo("true")));
     }
 
     private void runPrepareResizeIndexSettingsTest(

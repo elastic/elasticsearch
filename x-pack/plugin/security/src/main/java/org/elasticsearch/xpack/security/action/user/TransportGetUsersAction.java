@@ -9,10 +9,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersRequest;
@@ -37,17 +36,15 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
     private final ReservedRealm reservedRealm;
 
     @Inject
-    public TransportGetUsersAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver indexNameExpressionResolver, NativeUsersStore usersStore,
-                                   TransportService transportService, ReservedRealm reservedRealm) {
-        super(settings, GetUsersAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                GetUsersRequest::new);
+    public TransportGetUsersAction(Settings settings, ActionFilters actionFilters,
+                                   NativeUsersStore usersStore, TransportService transportService, ReservedRealm reservedRealm) {
+        super(settings, GetUsersAction.NAME, transportService, actionFilters, GetUsersRequest::new);
         this.usersStore = usersStore;
         this.reservedRealm = reservedRealm;
     }
 
     @Override
-    protected void doExecute(final GetUsersRequest request, final ActionListener<GetUsersResponse> listener) {
+    protected void doExecute(Task task, final GetUsersRequest request, final ActionListener<GetUsersResponse> listener) {
         final String[] requestedUsers = request.usernames();
         final boolean specificUsersRequested = requestedUsers != null && requestedUsers.length > 0;
         final List<String> usersToSearchFor = new ArrayList<>();

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authc.esnative;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -27,12 +26,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -72,14 +72,8 @@ public class NativeUsersStoreTests extends ESTestCase {
         client = new FilterClient(mockClient) {
 
             @Override
-            protected <
-                    Request extends ActionRequest,
-                    Response extends ActionResponse,
-                    RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>
-                    > void doExecute(
-                    Action<Request, Response, RequestBuilder> action,
-                    Request request,
-                    ActionListener<Response> listener) {
+            protected <Request extends ActionRequest, Response extends ActionResponse>
+            void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
                 requests.add(new Tuple<>(request, listener));
             }
         };
@@ -88,7 +82,8 @@ public class NativeUsersStoreTests extends ESTestCase {
     public void testPasswordUpsertWhenSetEnabledOnReservedUser() throws Exception {
         final NativeUsersStore nativeUsersStore = startNativeUsersStore();
 
-        final String user = randomFrom(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME);
+        final String user = randomFrom(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME,
+            BeatsSystemUser.NAME, APMSystemUser.NAME);
 
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         nativeUsersStore.setEnabled(user, true, WriteRequest.RefreshPolicy.IMMEDIATE, future);
@@ -106,13 +101,14 @@ public class NativeUsersStoreTests extends ESTestCase {
     public void testBlankPasswordInIndexImpliesDefaultPassword() throws Exception {
         final NativeUsersStore nativeUsersStore = startNativeUsersStore();
 
-        final String user = randomFrom(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME);
+        final String user = randomFrom(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME,
+            BeatsSystemUser.NAME, APMSystemUser.NAME);
         final Map<String, Object> values = new HashMap<>();
         values.put(ENABLED_FIELD, Boolean.TRUE);
         values.put(PASSWORD_FIELD, BLANK_PASSWORD);
 
         final GetResult result = new GetResult(
-                SecurityLifecycleService.SECURITY_INDEX_NAME,
+                SecurityIndexManager.SECURITY_INDEX_NAME,
                 NativeUsersStore.INDEX_TYPE,
                 NativeUsersStore.getIdForUser(NativeUsersStore.RESERVED_USER_TYPE, randomAlphaOfLength(12)),
                 1L,
@@ -128,7 +124,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         final NativeUsersStore.ReservedUserInfo userInfo = future.get();
         assertThat(userInfo.hasEmptyPassword, equalTo(true));
         assertThat(userInfo.enabled, equalTo(true));
-        assertThat(userInfo.passwordHash, equalTo(ReservedRealm.EMPTY_PASSWORD_HASH));
+        assertTrue(Hasher.verifyHash(new SecureString("".toCharArray()), userInfo.passwordHash));
     }
 
     public void testVerifyUserWithCorrectPassword() throws Exception {
@@ -181,7 +177,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         nativeUsersStore.verifyPassword(username, password, future);
 
         final GetResult getResult = new GetResult(
-                SecurityLifecycleService.SECURITY_INDEX_NAME,
+                SecurityIndexManager.SECURITY_INDEX_NAME,
                 NativeUsersStore.INDEX_TYPE,
                 NativeUsersStore.getIdForUser(NativeUsersStore.USER_DOC_TYPE, username),
                 1L,
@@ -214,6 +210,7 @@ public class NativeUsersStoreTests extends ESTestCase {
     }
 
     private void respondToGetUserRequest(String username, SecureString password, String[] roles) throws IOException {
+        // Native users store is initiated with default hashing algorithm
         final Map<String, Object> values = new HashMap<>();
         values.put(User.Fields.USERNAME.getPreferredName(), username);
         values.put(User.Fields.PASSWORD.getPreferredName(), String.valueOf(Hasher.BCRYPT.hash(password)));
@@ -222,7 +219,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         values.put(User.Fields.TYPE.getPreferredName(), NativeUsersStore.USER_DOC_TYPE);
         final BytesReference source = BytesReference.bytes(jsonBuilder().map(values));
         final GetResult getResult = new GetResult(
-                SecurityLifecycleService.SECURITY_INDEX_NAME,
+                SecurityIndexManager.SECURITY_INDEX_NAME,
                 NativeUsersStore.INDEX_TYPE,
                 NativeUsersStore.getIdForUser(NativeUsersStore.USER_DOC_TYPE, username),
                 1L,
@@ -235,18 +232,17 @@ public class NativeUsersStoreTests extends ESTestCase {
     }
 
     private NativeUsersStore startNativeUsersStore() {
-        SecurityLifecycleService securityLifecycleService = mock(SecurityLifecycleService.class);
-        when(securityLifecycleService.isSecurityIndexAvailable()).thenReturn(true);
-        when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(true);
-        when(securityLifecycleService.isSecurityIndexMappingUpToDate()).thenReturn(true);
-        when(securityLifecycleService.isSecurityIndexOutOfDate()).thenReturn(false);
-        when(securityLifecycleService.isSecurityIndexUpToDate()).thenReturn(true);
+        SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
+        when(securityIndex.isAvailable()).thenReturn(true);
+        when(securityIndex.indexExists()).thenReturn(true);
+        when(securityIndex.isMappingUpToDate()).thenReturn(true);
+        when(securityIndex.isIndexUpToDate()).thenReturn(true);
         doAnswer((i) -> {
             Runnable action = (Runnable) i.getArguments()[1];
             action.run();
             return null;
-        }).when(securityLifecycleService).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
-        return new NativeUsersStore(Settings.EMPTY, client, securityLifecycleService);
+        }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        return new NativeUsersStore(Settings.EMPTY, client, securityIndex);
     }
 
 }

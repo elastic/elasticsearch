@@ -1,3 +1,4 @@
+[role="xpack"]
 [[security-reference]]
 == Reference
 * <<security-privileges, Security Privileges>>
@@ -6,6 +7,5 @@
 * {ref}/security-api.html[Security API]
 * {ref}/xpack-commands.html[Security Commands]
 
-include::reference/privileges.asciidoc[]
-
-include::reference/files.asciidoc[]
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/security/reference/files.asciidoc
+include::{es-repo-dir}/security/reference/files.asciidoc[]

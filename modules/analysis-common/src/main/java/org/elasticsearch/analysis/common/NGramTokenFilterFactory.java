@@ -39,8 +39,8 @@ public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
     NGramTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         int maxAllowedNgramDiff = indexSettings.getMaxNgramDiff();
-        this.minGram = settings.getAsInt("min_gram", NGramTokenFilter.DEFAULT_MIN_NGRAM_SIZE);
-        this.maxGram = settings.getAsInt("max_gram", NGramTokenFilter.DEFAULT_MAX_NGRAM_SIZE);
+        this.minGram = settings.getAsInt("min_gram", 1);
+        this.maxGram = settings.getAsInt("max_gram", 2);
         int ngramDiff = maxGram - minGram;
         if (ngramDiff > maxAllowedNgramDiff) {
             if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
@@ -57,6 +57,7 @@ public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new NGramTokenFilter(tokenStream, minGram, maxGram);
+        // TODO: Expose preserveOriginal
+        return new NGramTokenFilter(tokenStream, minGram, maxGram, false);
     }
 }

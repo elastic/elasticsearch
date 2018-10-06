@@ -22,18 +22,13 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutDatafeedAction extends Action<PutDatafeedAction.Request, PutDatafeedAction.Response, PutDatafeedAction.RequestBuilder> {
+public class PutDatafeedAction extends Action<PutDatafeedAction.Response> {
 
     public static final PutDatafeedAction INSTANCE = new PutDatafeedAction();
     public static final String NAME = "cluster:admin/xpack/ml/datafeeds/put";
 
     private PutDatafeedAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override
@@ -44,7 +39,7 @@ public class PutDatafeedAction extends Action<PutDatafeedAction.Request, PutData
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
         public static Request parseRequest(String datafeedId, XContentParser parser) {
-            DatafeedConfig.Builder datafeed = DatafeedConfig.CONFIG_PARSER.apply(parser, null);
+            DatafeedConfig.Builder datafeed = DatafeedConfig.STRICT_PARSER.apply(parser, null);
             datafeed.setId(datafeedId);
             return new Request(datafeed.build());
         }

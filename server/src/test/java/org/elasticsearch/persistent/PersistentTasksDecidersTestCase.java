@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -64,7 +63,7 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
             public <Params extends PersistentTaskParams> PersistentTasksExecutor<Params> getPersistentTaskExecutorSafe(String taskName) {
                 return new PersistentTasksExecutor<Params>(clusterService.getSettings(), taskName, null) {
                     @Override
-                    protected void nodeOperation(AllocatedPersistentTask task, Params params, Task.Status status) {
+                    protected void nodeOperation(AllocatedPersistentTask task, Params params, PersistentTaskState state) {
                         logger.debug("Executing task {}", task);
                     }
                 };

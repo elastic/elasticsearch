@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
@@ -64,13 +66,14 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.KeyAndTimestamp;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
@@ -108,12 +111,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -161,7 +166,7 @@ public final class TokenService extends AbstractComponent {
     private final TimeValue expirationDelay;
     private final TimeValue deleteInterval;
     private final Client client;
-    private final SecurityLifecycleService lifecycleService;
+    private final SecurityIndexManager securityIndex;
     private final ExpiredTokenRemover expiredTokenRemover;
     private final boolean enabled;
     private volatile TokenKeys keyCache;
@@ -176,7 +181,7 @@ public final class TokenService extends AbstractComponent {
      * @param client   the client to use when checking for revocations
      */
     public TokenService(Settings settings, Clock clock, Client client,
-                        SecurityLifecycleService lifecycleService, ClusterService clusterService) throws GeneralSecurityException {
+                        SecurityIndexManager securityIndex, ClusterService clusterService) throws GeneralSecurityException {
         super(settings);
         byte[] saltArr = new byte[SALT_BYTES];
         secureRandom.nextBytes(saltArr);
@@ -185,7 +190,7 @@ public final class TokenService extends AbstractComponent {
         this.clock = clock.withZone(ZoneOffset.UTC);
         this.expirationDelay = TOKEN_EXPIRATION.get(settings);
         this.client = client;
-        this.lifecycleService = lifecycleService;
+        this.securityIndex = securityIndex;
         this.lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
         this.deleteInterval = DELETE_INTERVAL.get(settings);
         this.enabled = isTokenServiceEnabled(settings);
@@ -208,7 +213,8 @@ public final class TokenService extends AbstractComponent {
      * The created token will be stored in the security index.
      */
     public void createUserToken(Authentication authentication, Authentication originatingClientAuth,
-                                ActionListener<Tuple<UserToken, String>> listener, Map<String, Object> metadata) throws IOException {
+                                ActionListener<Tuple<UserToken, String>> listener, Map<String, Object> metadata,
+                                boolean includeRefreshToken) throws IOException {
         ensureEnabled();
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
@@ -222,13 +228,14 @@ public final class TokenService extends AbstractComponent {
                     new Authentication(authentication.getUser(), authentication.getAuthenticatedBy(), authentication.getLookedUpBy(),
                             version);
             final UserToken userToken = new UserToken(version, matchingVersionAuth, expiration, metadata);
-            final String refreshToken = UUIDs.randomBase64UUID();
+            final String refreshToken = includeRefreshToken ? UUIDs.randomBase64UUID() : null;
 
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject();
                 builder.field("doc_type", "token");
                 builder.field("creation_time", created.toEpochMilli());
-                builder.startObject("refresh_token")
+                if (includeRefreshToken) {
+                    builder.startObject("refresh_token")
                         .field("token", refreshToken)
                         .field("invalidated", false)
                         .field("refreshed", false)
@@ -238,6 +245,7 @@ public final class TokenService extends AbstractComponent {
                             .field("realm", originatingClientAuth.getAuthenticatedBy().getName())
                         .endObject()
                         .endObject();
+                }
                 builder.startObject("access_token")
                         .field("invalidated", false)
                         .field("user_token", userToken)
@@ -245,12 +253,12 @@ public final class TokenService extends AbstractComponent {
                         .endObject();
                 builder.endObject();
                 IndexRequest request =
-                        client.prepareIndex(SecurityLifecycleService.SECURITY_INDEX_NAME, TYPE, getTokenDocumentId(userToken))
+                        client.prepareIndex(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, getTokenDocumentId(userToken))
                                 .setOpType(OpType.CREATE)
                                 .setSource(builder)
                                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                                 .request();
-                lifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+                securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
                         executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, request,
                                 ActionListener.wrap(indexResponse -> listener.onResponse(new Tuple<>(userToken, refreshToken)),
                                         listener::onFailure))
@@ -354,9 +362,9 @@ public final class TokenService extends AbstractComponent {
                         if (version.onOrAfter(Version.V_6_2_0)) {
                             // we only have the id and need to get the token from the doc!
                             decryptTokenId(in, cipher, version, ActionListener.wrap(tokenId ->
-                                lifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+                                securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
                                     final GetRequest getRequest =
-                                            client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME, TYPE,
+                                            client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE,
                                                     getTokenDocumentId(tokenId)).request();
                                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
                                             ActionListener.<GetResponse>wrap(response -> {
@@ -517,14 +525,14 @@ public final class TokenService extends AbstractComponent {
             listener.onFailure(invalidGrantException("failed to invalidate token"));
         } else {
             final String invalidatedTokenId = getInvalidatedTokenDocumentId(userToken);
-            IndexRequest indexRequest = client.prepareIndex(SecurityLifecycleService.SECURITY_INDEX_NAME, TYPE, invalidatedTokenId)
+            IndexRequest indexRequest = client.prepareIndex(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, invalidatedTokenId)
                     .setOpType(OpType.CREATE)
                     .setSource("doc_type", INVALIDATED_TOKEN_DOC_TYPE, "expiration_time", expirationEpochMilli)
                     .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                     .request();
             final String tokenDocId = getTokenDocumentId(userToken);
             final Version version = userToken.getVersion();
-            lifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, indexRequest,
                             ActionListener.<IndexResponse>wrap(indexResponse -> {
                                 ActionListener<Boolean> wrappedListener =
@@ -561,12 +569,12 @@ public final class TokenService extends AbstractComponent {
         if (attemptCount.get() > 5) {
             listener.onFailure(invalidGrantException("failed to invalidate token"));
         } else {
-            UpdateRequest request = client.prepareUpdate(SecurityLifecycleService.SECURITY_INDEX_NAME, TYPE, tokenDocId)
+            UpdateRequest request = client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, tokenDocId)
                     .setDoc(srcPrefix, Collections.singletonMap("invalidated", true))
                     .setVersion(documentVersion)
                     .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                     .request();
-            lifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
                         ActionListener.<UpdateResponse>wrap(updateResponse -> {
                             if (updateResponse.getGetResult() != null
@@ -593,7 +601,7 @@ public final class TokenService extends AbstractComponent {
                                     || isShardNotAvailableException(cause)) {
                                 attemptCount.incrementAndGet();
                                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                                        client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME, TYPE, tokenDocId).request(),
+                                        client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, tokenDocId).request(),
                                         ActionListener.<GetResponse>wrap(getResult -> {
                                                     if (getResult.isExists()) {
                                                         Map<String, Object> source = getResult.getSource();
@@ -658,14 +666,14 @@ public final class TokenService extends AbstractComponent {
         if (attemptCount.get() > 5) {
             listener.onFailure(invalidGrantException("could not refresh the requested token"));
         } else {
-            SearchRequest request = client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
+            SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
                     .setQuery(QueryBuilders.boolQuery()
                             .filter(QueryBuilders.termQuery("doc_type", "token"))
                             .filter(QueryBuilders.termQuery("refresh_token.token", refreshToken)))
                     .setVersion(true)
                     .request();
 
-            lifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
                             ActionListener.<SearchResponse>wrap(searchResponse -> {
                                 if (searchResponse.isTimedOut()) {
@@ -702,7 +710,7 @@ public final class TokenService extends AbstractComponent {
         if (attemptCount.getAndIncrement() > 5) {
             listener.onFailure(invalidGrantException("could not refresh the requested token"));
         } else {
-            GetRequest getRequest = client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME, TYPE, tokenDocId).request();
+            GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, tokenDocId).request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
                     ActionListener.<GetResponse>wrap(response -> {
                         if (response.isExists()) {
@@ -723,14 +731,14 @@ public final class TokenService extends AbstractComponent {
                                     in.setVersion(authVersion);
                                     Authentication authentication = new Authentication(in);
                                     UpdateRequest updateRequest =
-                                            client.prepareUpdate(SecurityLifecycleService.SECURITY_INDEX_NAME, TYPE, tokenDocId)
+                                            client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, tokenDocId)
                                                     .setVersion(response.getVersion())
                                                     .setDoc("refresh_token", Collections.singletonMap("refreshed", true))
                                                     .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                                                     .request();
                                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, updateRequest,
                                             ActionListener.<UpdateResponse>wrap(
-                                                    updateResponse -> createUserToken(authentication, userAuth, listener, metadata),
+                                                    updateResponse -> createUserToken(authentication, userAuth, listener, metadata, true),
                                                     e -> {
                                                         Throwable cause = ExceptionsHelper.unwrapCause(e);
                                                         if (cause instanceof VersionConflictEngineException ||
@@ -838,8 +846,8 @@ public final class TokenService extends AbstractComponent {
                         .should(QueryBuilders.termQuery("refresh_token.invalidated", false))
                 );
 
-        final SearchRequest request = client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
-                .setScroll(TimeValue.timeValueSeconds(10L))
+        final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                 .setQuery(boolQuery)
                 .setVersion(false)
                 .setSize(1000)
@@ -847,7 +855,7 @@ public final class TokenService extends AbstractComponent {
                 .request();
 
         final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
-        lifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+        securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
             ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener), this::parseHit));
     }
 
@@ -914,14 +922,14 @@ public final class TokenService extends AbstractComponent {
      * have been explicitly cleared.
      */
     private void checkIfTokenIsRevoked(UserToken userToken, ActionListener<UserToken> listener) {
-        if (lifecycleService.isSecurityIndexExisting() == false) {
+        if (securityIndex.indexExists() == false) {
             // index doesn't exist so the token is considered valid.
             listener.onResponse(userToken);
         } else {
-            lifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
                 MultiGetRequest mGetRequest = client.prepareMultiGet()
-                        .add(SecurityLifecycleService.SECURITY_INDEX_NAME, TYPE, getInvalidatedTokenDocumentId(userToken))
-                        .add(SecurityLifecycleService.SECURITY_INDEX_NAME, TYPE, getTokenDocumentId(userToken))
+                        .add(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, getInvalidatedTokenDocumentId(userToken))
+                        .add(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, getTokenDocumentId(userToken))
                         .request();
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                         mGetRequest,
@@ -989,7 +997,7 @@ public final class TokenService extends AbstractComponent {
     }
 
     private void maybeStartTokenRemover() {
-        if (lifecycleService.isSecurityIndexAvailable()) {
+        if (securityIndex.isAvailable()) {
             if (client.threadPool().relativeTimeInMillis() - lastExpirationRunMs > deleteInterval.getMillis()) {
                 expiredTokenRemover.submit(client.threadPool());
                 lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
@@ -1003,7 +1011,7 @@ public final class TokenService extends AbstractComponent {
      */
     private String getFromHeader(ThreadContext threadContext) {
         String header = threadContext.getHeader("Authorization");
-        if (Strings.hasLength(header) && header.startsWith("Bearer ")
+        if (Strings.hasText(header) && header.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length())
                 && header.length() > "Bearer ".length()) {
             return header.substring("Bearer ".length());
         }
@@ -1328,6 +1336,8 @@ public final class TokenService extends AbstractComponent {
 
         @Override
         public ClusterState execute(ClusterState currentState) throws Exception {
+            XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
+
             if (tokenMetaData.equals(currentState.custom(TokenMetaData.TYPE))) {
                 return currentState;
             }
@@ -1348,6 +1358,15 @@ public final class TokenService extends AbstractComponent {
                 return;
             }
 
+            if (state.nodes().isLocalNodeElectedMaster()) {
+                if (XPackPlugin.isReadyForXPackCustomMetadata(state)) {
+                    installTokenMetadata(state.metaData());
+                } else {
+                    logger.debug("cannot add token metadata to cluster as the following nodes might not understand the metadata: {}",
+                        () -> XPackPlugin.nodesNotReadyForXPackCustomMetadata(state));
+                }
+            }
+
             TokenMetaData custom = event.state().custom(TokenMetaData.TYPE);
             if (custom != null && custom.equals(getTokenMetaData()) == false) {
                 logger.info("refresh keys");
@@ -1359,6 +1378,39 @@ public final class TokenService extends AbstractComponent {
                 logger.info("refreshed keys");
             }
         });
+    }
+
+    // to prevent too many cluster state update tasks to be queued for doing the same update
+    private final AtomicBoolean installTokenMetadataInProgress = new AtomicBoolean(false);
+
+    private void installTokenMetadata(MetaData metaData) {
+        if (metaData.custom(TokenMetaData.TYPE) == null) {
+            if (installTokenMetadataInProgress.compareAndSet(false, true)) {
+                clusterService.submitStateUpdateTask("install-token-metadata", new ClusterStateUpdateTask(Priority.URGENT) {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
+
+                        if (currentState.custom(TokenMetaData.TYPE) == null) {
+                            return ClusterState.builder(currentState).putCustom(TokenMetaData.TYPE, getTokenMetaData()).build();
+                        } else {
+                            return currentState;
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(String source, Exception e) {
+                        installTokenMetadataInProgress.set(false);
+                        logger.error("unable to install token metadata", e);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        installTokenMetadataInProgress.set(false);
+                    }
+                });
+            }
+        }
     }
 
     /**

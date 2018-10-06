@@ -12,6 +12,12 @@
 *   Purely negative queries (only MUST_NOT clauses) now return a score of `0`
     rather than `1`.
 
+*   The boundary specified using geohashes in the `geo_bounding_box` query
+    now include entire geohash cell, instead of just geohash center.
+
+*   Attempts to generate multi-term phrase queries against non-text fields
+    with a custom analyzer will now throw an exception
+
 ==== Adaptive replica selection enabled by default
 
 Adaptive replica selection has been enabled by default. If you wish to return to
@@ -40,13 +46,20 @@ The Search API returns `400 - Bad request` while it would previously return
 *   the number of slices is too large
 *   keep alive for scroll is too large
 *   number of filters in the adjacency matrix aggregation is too large
-
+*   script compilation errors
 
 ==== Scroll queries cannot use the `request_cache` anymore
 
 Setting `request_cache:true` on a query that creates a scroll (`scroll=1m`)
 has been deprecated in 6 and will now return a `400 - Bad request`.
 Scroll queries are not meant to be cached.
+
+==== Scroll queries cannot use `rescore`  anymore
+Including a rescore clause on a query that creates a scroll (`scroll=1m`) has
+been deprecated in 6.5 and will now return a `400 - Bad request`.  Allowing
+rescore on scroll queries would break the scroll sort.  In the 6.x line, the
+rescore clause was silently ignored (for scroll queries), and it was allowed in
+the 5.x line.
 
 ==== Term Suggesters supported distance algorithms
 
@@ -78,3 +91,24 @@ for a particular index with the index setting `index.max_regex_length`.
 
 Search requests with extra content after the main object will no longer be accepted
 by the `_search` endpoint. A parsing exception will be thrown instead.
+
+==== Context Completion Suggester
+
+The ability to query and index context enabled suggestions without context,
+deprecated in 6.x, has been removed. Context enabled suggestion queries
+without contexts have to visit every suggestion, which degrades the search performance
+considerably.
+
+For geo context the value of the `path` parameter is now validated against the mapping,
+and the context is only accepted if `path` points to a field with `geo_point` type.
+
+==== Semantics changed for `max_concurrent_shard_requests`
+
+`max_concurrent_shard_requests` used to limit the total number of concurrent shard
+requests a single high level search request can execute. In 7.0 this changed to be the
+max number of concurrent shard requests per node. The default is now `5`.
+
+==== `max_score` set to `null` when scores are not tracked
+
+`max_score` used to be set to `0` whenever scores are not tracked. `null` is now used
+instead which is a more appropriate value for a scenario where scores are not available.

@@ -234,11 +234,11 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
             ActiveShardCount waitForActiveShards = request.waitForActiveShards();
             assert waitForActiveShards.equals(ActiveShardCount.DEFAULT) == false :
                 "waitForActiveShards must not be DEFAULT on the request object, instead it should be NONE";
-            if (waitForActiveShards.equals(ActiveShardCount.ALL)
-                    && response.getUnassignedShards() == 0
-                    && response.getInitializingShards() == 0) {
-                // if we are waiting for all shards to be active, then the num of unassigned and num of initializing shards must be 0
-                waitForCounter++;
+            if (waitForActiveShards.equals(ActiveShardCount.ALL)) {
+                if (response.getUnassignedShards() == 0 && response.getInitializingShards() == 0) {
+                    // if we are waiting for all shards to be active, then the num of unassigned and num of initializing shards must be 0
+                    waitForCounter++;
+                }
             } else if (waitForActiveShards.enoughShardsActive(response.getActiveShards())) {
                 // there are enough active shards to meet the requirements of the request
                 waitForCounter++;

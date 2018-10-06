@@ -9,11 +9,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutRequest;
@@ -42,18 +41,15 @@ public final class TransportSamlLogoutAction
     private final TokenService tokenService;
 
     @Inject
-    public TransportSamlLogoutAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                     Realms realms, TokenService tokenService) {
-        super(settings, SamlLogoutAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                SamlLogoutRequest::new);
+    public TransportSamlLogoutAction(Settings settings, TransportService transportService,
+                                     ActionFilters actionFilters, Realms realms, TokenService tokenService) {
+        super(settings, SamlLogoutAction.NAME, transportService, actionFilters, SamlLogoutRequest::new);
         this.realms = realms;
         this.tokenService = tokenService;
     }
 
     @Override
-    protected void doExecute(SamlLogoutRequest request,
-                             ActionListener<SamlLogoutResponse> listener) {
+    protected void doExecute(Task task, SamlLogoutRequest request, ActionListener<SamlLogoutResponse> listener) {
         invalidateRefreshToken(request.getRefreshToken(), ActionListener.wrap(ignore -> {
             try {
                 final String token = request.getToken();

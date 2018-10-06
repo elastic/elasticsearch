@@ -64,10 +64,10 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
     private final SearchService searchService;
 
     @Inject
-    public TransportValidateQueryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+    public TransportValidateQueryAction(Settings settings, ClusterService clusterService,
             TransportService transportService, SearchService searchService, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ValidateQueryAction.NAME, threadPool, clusterService, transportService, actionFilters,
+        super(settings, ValidateQueryAction.NAME, clusterService, transportService, actionFilters,
                 indexNameExpressionResolver, ValidateQueryRequest::new, ShardValidateQueryRequest::new, ThreadPool.Names.SEARCH);
         this.searchService = searchService;
     }
@@ -184,7 +184,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
     }
 
     @Override
-    protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) throws IOException {
+    protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request, Task task) throws IOException {
         boolean valid;
         String explanation = null;
         String error = null;
@@ -200,7 +200,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
         } catch (QueryShardException|ParsingException e) {
             valid = false;
             error = e.getDetailedMessage();
-        } catch (AssertionError|IOException e) {
+        } catch (AssertionError e) {
             valid = false;
             error = e.getMessage();
         } finally {
@@ -210,7 +210,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
         return new ShardValidateQueryResponse(request.shardId(), valid, explanation, error);
     }
 
-    private String explain(SearchContext context, boolean rewritten) throws IOException {
+    private String explain(SearchContext context, boolean rewritten) {
         Query query = context.query();
         if (rewritten && query instanceof MatchNoDocsQuery) {
             return context.parsedQuery().query().toString();

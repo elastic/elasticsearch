@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.EsField;
 
 import java.sql.DatabaseMetaData;
@@ -29,7 +30,6 @@ import java.util.regex.Pattern;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.sql.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.sql.type.DataType.NULL;
 import static org.elasticsearch.xpack.sql.type.DataType.SHORT;
 
 /**
@@ -39,19 +39,21 @@ import static org.elasticsearch.xpack.sql.type.DataType.SHORT;
 public class SysColumns extends Command {
 
     private final String catalog;
-    private final LikePattern indexPattern;
+    private final String index;
+    private final LikePattern pattern;
     private final LikePattern columnPattern;
 
-    public SysColumns(Location location, String catalog, LikePattern indexPattern, LikePattern columnPattern) {
+    public SysColumns(Location location, String catalog, String index, LikePattern pattern, LikePattern columnPattern) {
         super(location);
         this.catalog = catalog;
-        this.indexPattern = indexPattern;
+        this.index = index;
+        this.pattern = pattern;
         this.columnPattern = columnPattern;
     }
 
     @Override
     protected NodeInfo<SysColumns> info() {
-        return NodeInfo.create(this, SysColumns::new, catalog, indexPattern, columnPattern);
+        return NodeInfo.create(this, SysColumns::new, catalog, index, pattern, columnPattern);
     }
 
     @Override
@@ -94,12 +96,12 @@ public class SysColumns extends Command {
             return;
         }
 
-        String index = indexPattern != null ? indexPattern.asIndexNameWildcard() : "*";
-        String regex = indexPattern != null ? indexPattern.asJavaRegex() : null;
+        String idx = index != null ? index : (pattern != null ? pattern.asIndexNameWildcard() : "*");
+        String regex = pattern != null ? pattern.asJavaRegex() : null;
 
         Pattern columnMatcher = columnPattern != null ? Pattern.compile(columnPattern.asJavaRegex()) : null;
 
-        session.indexResolver().resolveAsSeparateMappings(index, regex, ActionListener.wrap(esIndices -> {
+        session.indexResolver().resolveAsSeparateMappings(idx, regex, ActionListener.wrap(esIndices -> {
             List<List<?>> rows = new ArrayList<>();
             for (EsIndex esIndex : esIndices) {
                 fillInRows(cluster, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher);
@@ -133,11 +135,7 @@ public class SysColumns extends Command {
                         type.size,
                         // no DECIMAL support
                         null,
-                        // RADIX  - Determines how numbers returned by COLUMN_SIZE and DECIMAL_DIGITS should be interpreted.
-                        // 10 means they represent the number of decimal digits allowed for the column.
-                        // 2 means they represent the number of bits allowed for the column.
-                        // null means radix is not applicable for the given type.
-                        type.isInteger ? Integer.valueOf(10) : type.isRational ? Integer.valueOf(2) : null,
+                        DataTypes.metaSqlRadix(type),
                         // everything is nullable
                         DatabaseMetaData.columnNullable,
                         // no remarks
@@ -145,9 +143,9 @@ public class SysColumns extends Command {
                         // no column def
                         null,
                         // SQL_DATA_TYPE apparently needs to be same as DATA_TYPE except for datetime and interval data types
-                        type.jdbcType.getVendorTypeNumber(),
+                        DataTypes.metaSqlDataType(type),
                         // SQL_DATETIME_SUB ?
-                        null,
+                        DataTypes.metaSqlDateTimeSub(type),
                         // char octet length
                         type.isString() || type == DataType.BINARY ? type.size : null,
                         // position
@@ -169,7 +167,7 @@ public class SysColumns extends Command {
     
     @Override
     public int hashCode() {
-        return Objects.hash(catalog, indexPattern, columnPattern);
+        return Objects.hash(catalog, index, pattern, columnPattern);
     }
 
     @Override
@@ -184,7 +182,8 @@ public class SysColumns extends Command {
 
         SysColumns other = (SysColumns) obj;
         return Objects.equals(catalog, other.catalog)
-                && Objects.equals(indexPattern, other.indexPattern)
+                && Objects.equals(index, other.index)
+                && Objects.equals(pattern, other.pattern)
                 && Objects.equals(columnPattern, other.columnPattern);
     }
 }

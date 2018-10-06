@@ -14,6 +14,110 @@
     "doc": {
       "dynamic": false,
       "properties": {
+        "beats_state": {
+          "properties": {
+            "beat": {
+              "properties": {
+                "host": {
+                  "type": "keyword"
+                },
+                "name": {
+                  "type": "keyword"
+                },
+                "type": {
+                  "type": "keyword"
+                },
+                "uuid": {
+                  "type": "keyword"
+                },
+                "version": {
+                  "type": "keyword"
+                }
+              }
+            },
+            "state": {
+              "properties": {
+                "beat": {
+                  "properties": {
+                    "name": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "host": {
+                  "properties": {
+                    "architecture": {
+                      "type": "keyword"
+                    },
+                    "name": {
+                      "type": "keyword"
+                    },
+                    "os": {
+                      "properties": {
+                        "build": {
+                          "type": "keyword"
+                        },
+                        "family": {
+                          "type": "keyword"
+                        },
+                        "platform": {
+                          "type": "keyword"
+                        },
+                        "version": {
+                          "type": "keyword"
+                        }
+                      }
+                    }
+                  }
+                },
+                "input": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    },
+                    "names": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "module": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    },
+                    "names": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "output": {
+                  "properties": {
+                    "name": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "service": {
+                  "properties": {
+                    "id": {
+                      "type": "keyword"
+                    },
+                    "name": {
+                      "type": "keyword"
+                    },
+                    "version": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            },
+            "timestamp": {
+              "format": "date_time",
+              "type": "date"
+            }
+          }
+        },
         "beats_stats": {
           "properties": {
             "beat": {
@@ -115,6 +219,274 @@
                         },
                         "rss": {
                           "type": "long"
+                        }
+                      }
+                    }
+                  }
+                },
+                "apm-server": {
+                  "properties": {
+                    "server": {
+                      "properties": {
+                        "request": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "concurrent": {
+                          "properties": {
+                            "wait": {
+                              "properties": {
+                                "ms": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "response": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            },
+                            "errors": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                },
+                                "toolarge": {
+                                  "type": "long"
+                                },
+                                "validate": {
+                                  "type": "long"
+                                },
+                                "ratelimit": {
+                                  "type": "long"
+                                },
+                                "queue": {
+                                  "type": "long"
+                                },
+                                "closed": {
+                                  "type": "long"
+                                },
+                                "forbidden": {
+                                  "type": "long"
+                                },
+                                "concurrency": {
+                                  "type": "long"
+                                },
+                                "unauthorized": {
+                                  "type": "long"
+                                },
+                                "decode": {
+                                  "type": "long"
+                                },
+                                "method": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "valid": {
+                              "properties": {
+                                "ok": {
+                                  "type": "long"
+                                },
+                                "accepted": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "decoder": {
+                      "properties": {
+                        "deflate": {
+                          "properties": {
+                            "content-length": {
+                              "type": "long"
+                            },
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "gzip": {
+                          "properties": {
+                            "content-length": {
+                              "type": "long"
+                            },
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "uncompressed": {
+                          "properties": {
+                            "content-length": {
+                              "type": "long"
+                            },
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "reader": {
+                          "properties": {
+                            "size": {
+                              "type": "long"
+                            },
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "missing-content-length": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+
+                    },
+                    "processor": {
+                      "properties": {
+                        "metric": {
+                          "properties": {
+                            "decoding": {
+                              "properties": {
+                                "errors": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "validation": {
+                              "properties": {
+                                "errors": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "transformations": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "sourcemap": {
+                          "properties": {
+                            "counter": {
+                              "type": "long"
+                            },
+                            "decoding": {
+                              "properties": {
+                                "errors": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "validation": {
+                              "properties": {
+                                "errors": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "transaction": {
+                          "properties": {
+                            "decoding": {
+                              "properties": {
+                                "errors": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "validation": {
+                              "properties": {
+                                "errors": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "transformations": {
+                              "type": "long"
+                            },
+                            "transactions": {
+                              "type": "long"
+                            },
+                            "spans": {
+                              "type": "long"
+                            },
+                            "stacktraces": {
+                              "type": "long"
+                            },
+                            "frames": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "error": {
+                          "properties": {
+                            "decoding": {
+                              "properties": {
+                                "errors": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "validation": {
+                              "properties": {
+                                "errors": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "transformations": {
+                              "type": "long"
+                            },
+                            "errors": {
+                              "type": "long"
+                            },
+                            "stacktraces": {
+                              "type": "long"
+                            },
+                            "frames": {
+                              "type": "long"
+                            }
+                          }
                         }
                       }
                     }

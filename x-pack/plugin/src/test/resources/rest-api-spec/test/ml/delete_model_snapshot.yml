@@ -34,6 +34,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
       index:
         index:  .ml-anomalies-delete-model-snapshot
         type:   doc
@@ -76,6 +77,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
       index:
         index:  .ml-anomalies-delete-model-snapshot
         type:   doc
@@ -88,7 +90,24 @@ setup:
             "description": "second",
             "latest_record_time_stamp": "2016-06-01T00:00:00Z",
             "latest_result_time_stamp": "2016-06-01T00:00:00Z",
-            "snapshot_doc_count": 3
+            "snapshot_doc_count": 3,
+            "model_size_stats": {
+                "job_id" : "delete-model-snapshot",
+                "result_type" : "model_size_stats",
+                "model_bytes" : 0,
+                "total_by_field_count" : 101,
+                "total_over_field_count" : 0,
+                "total_partition_field_count" : 0,
+                "bucket_allocation_failures_count" : 0,
+                "memory_status" : "ok",
+                "log_time" : 1495808248662,
+                "timestamp" : 1495808248662
+            },
+            "quantiles": {
+              "job_id": "delete-model-snapshot",
+              "timestamp": 1495808248662,
+              "quantile_state": "quantiles-1"
+            }
           }
 
   - do:
@@ -106,12 +125,10 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.update_job:
+      xpack.ml.revert_model_snapshot:
         job_id: delete-model-snapshot
-        body:  >
-          {
-            "model_snapshot_id": "active-snapshot"
-          }
+        snapshot_id: "active-snapshot"
+
 
 ---
 "Test delete snapshot missing snapshotId":

@@ -30,6 +30,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -37,6 +39,7 @@ import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
 
@@ -53,14 +56,18 @@ import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
 import java.time.ZonedDateTime;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 
@@ -97,6 +104,7 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     private Version version = Version.CURRENT;
+    private Set<String> features = Collections.emptySet();
 
     /**
      * The version of the node on the other side of this stream.
@@ -110,6 +118,27 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void setVersion(Version version) {
         this.version = version;
+    }
+
+    /**
+     * Test if the stream has the specified feature. Features are used when serializing {@link ClusterState.Custom} or
+     * {@link MetaData.Custom}; see also {@link ClusterState.FeatureAware}.
+     *
+     * @param feature the feature to test
+     * @return true if the stream has the specified feature
+     */
+    public boolean hasFeature(final String feature) {
+        return this.features.contains(feature);
+    }
+
+    /**
+     * Set the features on the stream. See {@link StreamOutput#hasFeature(String)}.
+     *
+     * @param features the features on the stream
+     */
+    public void setFeatures(final Set<String> features) {
+        assert this.features.isEmpty() : this.features;
+        this.features = Collections.unmodifiableSet(new HashSet<>(features));
     }
 
     public long position() throws IOException {
@@ -652,6 +681,15 @@ public abstract class StreamOutput extends OutputStream {
             o.writeString(zonedDateTime.getZone().getId());
             o.writeLong(zonedDateTime.toInstant().toEpochMilli());
         });
+        writers.put(JodaCompatibleZonedDateTime.class, (o, v) -> {
+            // write the joda compatibility datetime as joda datetime
+            o.writeByte((byte) 13);
+            final JodaCompatibleZonedDateTime zonedDateTime = (JodaCompatibleZonedDateTime) v;
+            String zoneId = zonedDateTime.getZonedDateTime().getZone().getId();
+            // joda does not understand "Z" for utc, so we must special case
+            o.writeString(zoneId.equals("Z") ? DateTimeZone.UTC.getID() : zoneId);
+            o.writeLong(zonedDateTime.toInstant().toEpochMilli());
+        });
         WRITERS = Collections.unmodifiableMap(writers);
     }
 
@@ -969,6 +1007,16 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Writes a collection of generic objects via a {@link Writer}
+     */
+    public <T> void writeCollection(Collection<T> collection, Writer<T> writer) throws IOException {
+        writeVInt(collection.size());
+        for (T val: collection) {
+            writer.write(this, val);
+        }
+    }
+
+    /**
      * Writes a list of strings
      */
     public void writeStringList(List<String> list) throws IOException {
@@ -993,6 +1041,16 @@ public abstract class StreamOutput extends OutputStream {
      */
     public <E extends Enum<E>> void writeEnum(E enumValue) throws IOException {
         writeVInt(enumValue.ordinal());
+    }
+
+    /**
+     * Writes an EnumSet with type E that by serialized it based on it's ordinal value
+     */
+    public <E extends Enum<E>> void writeEnumSet(EnumSet<E> enumSet) throws IOException {
+        writeVInt(enumSet.size());
+        for (E e : enumSet) {
+            writeEnum(e);
+        }
     }
 
     /**

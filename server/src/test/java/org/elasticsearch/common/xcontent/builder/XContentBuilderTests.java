@@ -216,43 +216,44 @@ public class XContentBuilderTests extends ESTestCase {
         }
 
         builder.field("fakefield", terms).endObject().endObject().endObject();
-
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-
         XContentBuilder filterBuilder = null;
         XContentParser.Token token;
-        String currentFieldName = null;
-        assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
-                if ("test".equals(currentFieldName)) {
-                    assertThat(parser.text(), equalTo("test field"));
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("filter".equals(currentFieldName)) {
-                    filterBuilder = XContentFactory.contentBuilder(parser.contentType());
-                    filterBuilder.copyCurrentStructure(parser);
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+
+            String currentFieldName = null;
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token.isValue()) {
+                    if ("test".equals(currentFieldName)) {
+                        assertThat(parser.text(), equalTo("test field"));
+                    }
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    if ("filter".equals(currentFieldName)) {
+                        filterBuilder = XContentFactory.contentBuilder(parser.contentType());
+                        filterBuilder.copyCurrentStructure(parser);
+                    }
                 }
             }
         }
-
         assertNotNull(filterBuilder);
-        parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(filterBuilder));
-        assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-        assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
-        assertThat(parser.currentName(), equalTo("terms"));
-        assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-        assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
-        assertThat(parser.currentName(), equalTo("fakefield"));
-        assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_ARRAY));
-        int i = 0;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            assertThat(parser.text(), equalTo(terms.get(i++)));
-        }
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(filterBuilder))) {
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+            assertThat(parser.currentName(), equalTo("terms"));
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+            assertThat(parser.currentName(), equalTo("fakefield"));
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_ARRAY));
+            int i = 0;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                assertThat(parser.text(), equalTo(terms.get(i++)));
+            }
 
-        assertThat(i, equalTo(terms.size()));
+            assertThat(i, equalTo(terms.size()));
+        }
     }
 
     public void testHandlingOfPath() throws IOException {

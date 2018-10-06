@@ -7,5 +7,5 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.plugins.0.name: ingest-geoip  }
-    - match:  { nodes.$master.ingest.processors.0.type: geoip }
+    - contains:  { nodes.$master.plugins: { name: ingest-geoip } }
+    - contains:  { nodes.$master.ingest.processors: { type: geoip } }

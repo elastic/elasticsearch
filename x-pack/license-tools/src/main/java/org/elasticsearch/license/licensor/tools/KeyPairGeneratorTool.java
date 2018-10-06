@@ -7,7 +7,6 @@ package org.elasticsearch.license.licensor.tools;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.LoggingAwareCommand;
 import org.elasticsearch.cli.Terminal;

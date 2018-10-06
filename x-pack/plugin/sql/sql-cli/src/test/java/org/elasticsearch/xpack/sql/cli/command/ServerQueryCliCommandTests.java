@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.sql.cli.command;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.cli.TestTerminal;
 import org.elasticsearch.xpack.sql.client.HttpClient;
-import org.elasticsearch.xpack.sql.plugin.ColumnInfo;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
 
 import java.sql.JDBCType;
 import java.sql.SQLException;

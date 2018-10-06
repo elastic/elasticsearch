@@ -25,9 +25,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeSettingsClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -42,16 +40,12 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -61,7 +55,7 @@ import static org.elasticsearch.action.support.ContextPreservingActionListener.w
 /**
  * Service responsible for submitting update index settings requests
  */
-public class MetaDataUpdateSettingsService extends AbstractComponent implements ClusterStateListener {
+public class MetaDataUpdateSettingsService extends AbstractComponent {
 
     private final ClusterService clusterService;
 
@@ -77,85 +71,9 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         super(settings);
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        this.clusterService.addListener(this);
         this.allocationService = allocationService;
         this.indexScopedSettings = indexScopedSettings;
         this.indicesService = indicesService;
-    }
-
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        // update an index with number of replicas based on data nodes if possible
-        if (!event.state().nodes().isLocalNodeElectedMaster()) {
-            return;
-        }
-        // we will want to know this for translating "all" to a number
-        final int dataNodeCount = event.state().nodes().getDataNodes().size();
-
-        Map<Integer, List<Index>> nrReplicasChanged = new HashMap<>();
-        // we need to do this each time in case it was changed by update settings
-        for (final IndexMetaData indexMetaData : event.state().metaData()) {
-            AutoExpandReplicas autoExpandReplicas = IndexMetaData.INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(indexMetaData.getSettings());
-            if (autoExpandReplicas.isEnabled()) {
-                /*
-                 * we have to expand the number of replicas for this index to at least min and at most max nodes here
-                 * so we are bumping it up if we have to or reduce it depending on min/max and the number of datanodes.
-                 * If we change the number of replicas we just let the shard allocator do it's thing once we updated it
-                 * since it goes through the index metadata to figure out if something needs to be done anyway. Do do that
-                 * we issue a cluster settings update command below and kicks off a reroute.
-                 */
-                final int min = autoExpandReplicas.getMinReplicas();
-                final int max = autoExpandReplicas.getMaxReplicas(dataNodeCount);
-                int numberOfReplicas = dataNodeCount - 1;
-                if (numberOfReplicas < min) {
-                    numberOfReplicas = min;
-                } else if (numberOfReplicas > max) {
-                    numberOfReplicas = max;
-                }
-                // same value, nothing to do there
-                if (numberOfReplicas == indexMetaData.getNumberOfReplicas()) {
-                    continue;
-                }
-
-                if (numberOfReplicas >= min && numberOfReplicas <= max) {
-
-                    if (!nrReplicasChanged.containsKey(numberOfReplicas)) {
-                        nrReplicasChanged.put(numberOfReplicas, new ArrayList<>());
-                    }
-
-                    nrReplicasChanged.get(numberOfReplicas).add(indexMetaData.getIndex());
-                }
-            }
-        }
-
-        if (nrReplicasChanged.size() > 0) {
-            // update settings and kick of a reroute (implicit) for them to take effect
-            for (final Integer fNumberOfReplicas : nrReplicasChanged.keySet()) {
-                Settings settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, fNumberOfReplicas).build();
-                final List<Index> indices = nrReplicasChanged.get(fNumberOfReplicas);
-
-                UpdateSettingsClusterStateUpdateRequest updateRequest = new UpdateSettingsClusterStateUpdateRequest()
-                        .indices(indices.toArray(new Index[indices.size()])).settings(settings)
-                        .ackTimeout(TimeValue.timeValueMillis(0)) //no need to wait for ack here
-                        .masterNodeTimeout(TimeValue.timeValueMinutes(10));
-
-                updateSettings(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
-                    @Override
-                    public void onResponse(ClusterStateUpdateResponse response) {
-                        for (Index index : indices) {
-                            logger.info("{} auto expanded replicas to [{}]", index, fNumberOfReplicas);
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception t) {
-                        for (Index index : indices) {
-                            logger.warn("{} fail to auto expand replicas to [{}]", index, fNumberOfReplicas);
-                        }
-                    }
-                });
-            }
-        }
     }
 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
@@ -164,8 +82,10 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         Settings.Builder settingsForOpenIndices = Settings.builder();
         final Set<String> skippedSettings = new HashSet<>();
 
-        indexScopedSettings.validate(normalizedSettings.filter(s -> Regex.isSimpleMatchPattern(s) == false  /* don't validate wildcards */),
-            false); //don't validate dependencies here we check it below never allow to change the number of shards
+        indexScopedSettings.validate(
+                normalizedSettings.filter(s -> Regex.isSimpleMatchPattern(s) == false), // don't validate wildcards
+                false, // don't validate dependencies here we check it below never allow to change the number of shards
+                true); // validate internal or private index settings
         for (String key : normalizedSettings.keySet()) {
             Setting setting = indexScopedSettings.get(key);
             boolean isWildcard = setting == null && Regex.isSimpleMatchPattern(key);

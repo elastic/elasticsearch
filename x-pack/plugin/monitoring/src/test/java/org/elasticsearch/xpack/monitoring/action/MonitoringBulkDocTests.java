@@ -5,12 +5,10 @@
  */
 package org.elasticsearch.xpack.monitoring.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -21,7 +19,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -155,23 +152,6 @@ public class MonitoringBulkDocTests extends ESTestCase {
             assertEquals(original, deserialized);
             assertEquals(original.hashCode(), deserialized.hashCode());
             assertNotSame(original, deserialized);
-        }
-    }
-
-    public void testSerializationBwc() throws IOException {
-        final byte[] data = Base64.getDecoder().decode("AQNtSWQBBTUuMS4yAAAAAQEEdHlwZQECaWQNeyJmb28iOiJiYXIifQAAAAAAAAAA");
-        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-                Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
-        try (StreamInput in = StreamInput.wrap(data)) {
-            in.setVersion(version);
-            MonitoringBulkDoc bulkDoc = MonitoringBulkDoc.readFrom(in);
-            assertEquals(MonitoredSystem.UNKNOWN, bulkDoc.getSystem());
-            assertEquals("type", bulkDoc.getType());
-            assertEquals("id", bulkDoc.getId());
-            assertEquals(0L, bulkDoc.getTimestamp());
-            assertEquals(0L, bulkDoc.getIntervalMillis());
-            assertEquals("{\"foo\":\"bar\"}", bulkDoc.getSource().utf8ToString());
-            assertEquals(XContentType.JSON, bulkDoc.getXContentType());
         }
     }
 

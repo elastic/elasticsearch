@@ -85,7 +85,7 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
         boolean hasValue = !(Double.isInfinite(value) || Double.isNaN(value));
         builder.field(CommonFields.VALUE.getPreferredName(), hasValue ? value : null);
         if (hasValue && format != DocValueFormat.RAW) {
-            builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(value));
+            builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(value).toString());
         }
         return builder;
     }

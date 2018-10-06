@@ -10,7 +10,7 @@ You need to use settings which are starting with `azure.client.` prefix instead.
 * Global timeout setting `cloud.azure.storage.timeout` has been removed.
 You must set it per azure client instead. Like `azure.client.default.timeout: 10s` for example.
 
-See {plugins}/repository-azure-usage.html#repository-azure-repository-settings[Azure Repository settings].
+See {plugins}/repository-azure-repository-settings.html#repository-azure-repository-settings[Azure Repository settings].
 
 ==== Google Cloud Storage Repository plugin
 
@@ -18,3 +18,16 @@ See {plugins}/repository-azure-usage.html#repository-azure-repository-settings[A
 must now be specified in the client settings instead.
 
 See {plugins}/repository-gcs-client.html#repository-gcs-client[Google Cloud Storage Client Settings].
+
+==== Analysis Plugin changes
+
+* The misspelled helper method `requriesAnalysisSettings(AnalyzerProvider<T> provider)` has been
+renamed to `requiresAnalysisSettings`
+
+==== File-based discovery plugin
+
+* This plugin has been removed since its functionality is now part of
+Elasticsearch and requires no plugin. The location of the hosts file has moved
+from `$ES_PATH_CONF/file-discovery/unicast_hosts.txt` to
+`$ES_PATH_CONF/unicast_hosts.txt`. See <<file-based-hosts-provider, the
+file-based hosts provider documentation>> for further information.

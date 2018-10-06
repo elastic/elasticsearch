@@ -1009,7 +1009,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                                 // simulate moving shard from maxNode to minNode
                                 final float delta = weight.weightShardAdded(this, minNode, idx) - weight.weightShardRemoved(this, maxNode, idx);
                                 if (delta < minCost ||
-                                        (candidate != null && delta == minCost && candidate.id() > shard.id())) {
+                                        (candidate != null && Float.compare(delta, minCost) == 0 && candidate.id() > shard.id())) {
                                     /* this last line is a tie-breaker to make the shard allocation alg deterministic
                                      * otherwise we rely on the iteration order of the index.getAllShards() which is a set.*/
                                     minCost = delta;

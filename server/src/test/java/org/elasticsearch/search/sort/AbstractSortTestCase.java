@@ -121,21 +121,22 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             }
             testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
             XContentBuilder shuffled = shuffleXContent(builder);
-            XContentParser itemParser = createParser(shuffled);
-            itemParser.nextToken();
+            try (XContentParser itemParser = createParser(shuffled)) {
+                itemParser.nextToken();
 
-            /*
-             * filter out name of sort, or field name to sort on for element fieldSort
-             */
-            itemParser.nextToken();
-            String elementName = itemParser.currentName();
-            itemParser.nextToken();
+                /*
+                 * filter out name of sort, or field name to sort on for element fieldSort
+                 */
+                itemParser.nextToken();
+                String elementName = itemParser.currentName();
+                itemParser.nextToken();
 
-            T parsedItem = fromXContent(itemParser, elementName);
-            assertNotSame(testItem, parsedItem);
-            assertEquals(testItem, parsedItem);
-            assertEquals(testItem.hashCode(), parsedItem.hashCode());
-            assertWarnings(testItem);
+                T parsedItem = fromXContent(itemParser, elementName);
+                assertNotSame(testItem, parsedItem);
+                assertEquals(testItem, parsedItem);
+                assertEquals(testItem.hashCode(), parsedItem.hashCode());
+                assertWarnings(testItem);
+            }
         }
     }
 

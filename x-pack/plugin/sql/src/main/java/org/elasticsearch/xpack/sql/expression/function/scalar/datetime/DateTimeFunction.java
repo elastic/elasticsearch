@@ -6,10 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
@@ -17,10 +14,8 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definiti
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -32,35 +27,10 @@ import java.util.TimeZone;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
 
-public abstract class DateTimeFunction extends UnaryScalarFunction {
-
-    private final TimeZone timeZone;
-    private final String name;
+public abstract class DateTimeFunction extends BaseDateTimeFunction {
 
     DateTimeFunction(Location location, Expression field, TimeZone timeZone) {
-        super(location, field);
-        this.timeZone = timeZone;
-
-        StringBuilder sb = new StringBuilder(super.name());
-        // add timezone as last argument
-        sb.insert(sb.length() - 1, " [" + timeZone.getID() + "]");
-
-        this.name = sb.toString();
-    }
-
-    @Override
-    protected final NodeInfo<DateTimeFunction> info() {
-        return NodeInfo.create(this, ctorForInfo(), field(), timeZone());
-    }
-    protected abstract NodeInfo.NodeCtor2<Expression, TimeZone, DateTimeFunction> ctorForInfo();
-
-    public TimeZone timeZone() {
-        return timeZone;
-    }
-
-    @Override
-    public boolean foldable() {
-        return field().foldable();
+        super(location, field, timeZone);
     }
 
     @Override
@@ -70,18 +40,12 @@ public abstract class DateTimeFunction extends UnaryScalarFunction {
             return null;
         }
 
-        ZonedDateTime time = ZonedDateTime.ofInstant(
-            Instant.ofEpochMilli(folded.getMillis()), ZoneId.of(timeZone.getID()));
-        return time.get(chronoField());
+        return dateTimeChrono(folded.getMillis(), timeZone().getID(), chronoField().name());
     }
 
-    @Override
-    protected TypeResolution resolveType() {
-        if (field().dataType() == DataType.DATE) {
-            return TypeResolution.TYPE_RESOLVED;
-        }
-        return new TypeResolution("Function [" + functionName() + "] cannot be applied on a non-date expression (["
-                + Expressions.name(field()) + "] of type [" + field().dataType().esType + "])");
+    public static Integer dateTimeChrono(long millis, String tzId, String chronoName) {
+        ZonedDateTime time = ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(tzId));
+        return Integer.valueOf(time.get(ChronoField.valueOf(chronoName)));
     }
 
     @Override
@@ -89,39 +53,12 @@ public abstract class DateTimeFunction extends UnaryScalarFunction {
         ParamsBuilder params = paramsBuilder();
 
         String template = null;
-        if (TimeZone.getTimeZone("UTC").equals(timeZone)) {
-            // TODO: it would be nice to be able to externalize the extract function and reuse the script across all extractors
-            template = formatTemplate("doc[{}].value.get" + extractFunction() + "()");
-            params.variable(field.name());
-        } else {
-            // TODO ewwww
-            /*
-             * This uses the Java 8 time API because Painless doesn't whitelist creation of new
-             * Joda classes.
-             *
-             * The actual script is
-             * ZonedDateTime.ofInstant(Instant.ofEpochMilli(<insert doc field>.value.millis),
-             *      ZoneId.of(<insert user tz>)).get(ChronoField.get(MONTH_OF_YEAR))
-             */
-
-            template = formatTemplate("ZonedDateTime.ofInstant(Instant.ofEpochMilli(doc[{}].value.millis), "
-                    + "ZoneId.of({})).get(ChronoField.valueOf({}))");
-            params.variable(field.name())
-                  .variable(timeZone.getID())
-                  .variable(chronoField().name());
-        }
-
+        template = formatTemplate("{sql}.dateTimeChrono(doc[{}].value.millis, {}, {})");
+        params.variable(field.name())
+              .variable(timeZone().getID())
+              .variable(chronoField().name());
+        
         return new ScriptTemplate(template, params.build(), dataType());
-    }
-
-
-    @Override
-    protected ScriptTemplate asScriptFrom(AggregateFunctionAttribute aggregate) {
-        throw new UnsupportedOperationException();
-    }
-
-    protected String extractFunction() {
-        return getClass().getSimpleName();
     }
 
     /**
@@ -130,9 +67,9 @@ public abstract class DateTimeFunction extends UnaryScalarFunction {
     protected abstract ChronoField chronoField();
 
     @Override
-    protected final ProcessorDefinition makeProcessorDefinition() {
+    protected ProcessorDefinition makeProcessorDefinition() {
         return new UnaryProcessorDefinition(location(), this, ProcessorDefinitions.toProcessorDefinition(field()),
-                new DateTimeProcessor(extractor(), timeZone));
+                new DateTimeProcessor(extractor(), timeZone()));
     }
 
     protected abstract DateTimeExtractor extractor();
@@ -145,12 +82,6 @@ public abstract class DateTimeFunction extends UnaryScalarFunction {
     // used for applying ranges
     public abstract String dateTimeFormat();
 
-    // add tz along the rest of the params
-    @Override
-    public String name() {
-        return name;
-    }
-
     @Override
     public boolean equals(Object obj) {
         if (obj == null || obj.getClass() != getClass()) {
@@ -158,11 +89,11 @@ public abstract class DateTimeFunction extends UnaryScalarFunction {
         }
         DateTimeFunction other = (DateTimeFunction) obj;
         return Objects.equals(other.field(), field())
-            && Objects.equals(other.timeZone, timeZone);
+            && Objects.equals(other.timeZone(), timeZone());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), timeZone);
+        return Objects.hash(field(), timeZone());
     }
 }

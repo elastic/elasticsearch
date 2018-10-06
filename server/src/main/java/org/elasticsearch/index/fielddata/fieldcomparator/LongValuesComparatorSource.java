@@ -26,6 +26,7 @@ import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.search.MultiValueMode;
@@ -62,7 +63,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                 final SortedNumericDocValues values = indexFieldData.load(context).getLongValues();
                 final NumericDocValues selectedValues;
                 if (nested == null) {
-                    selectedValues = sortMode.select(values, dMissingValue);
+                    selectedValues = FieldData.replaceMissing(sortMode.select(values), dMissingValue);
                 } else {
                     final BitSet rootDocs = nested.rootDocs(context);
                     final DocIdSetIterator innerDocs = nested.innerDocs(context);

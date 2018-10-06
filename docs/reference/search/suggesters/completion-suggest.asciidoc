@@ -177,8 +177,8 @@ returns this response:
 --------------------------------------------------
 {
   "_shards" : {
-    "total" : 5,
-    "successful" : 5,
+    "total" : 1,
+    "successful" : 1,
     "skipped" : 0,
     "failed" : 0
   },
@@ -251,14 +251,14 @@ Which should look like:
     "took": 6,
     "timed_out": false,
     "_shards" : {
-        "total" : 5,
-        "successful" : 5,
+        "total" : 1,
+        "successful" : 1,
         "skipped" : 0,
         "failed" : 0
     },
     "hits": {
         "total" : 0,
-        "max_score" : 0.0,
+        "max_score" : null,
         "hits" : []
     },
     "suggest": {

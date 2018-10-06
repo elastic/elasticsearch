@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
@@ -28,13 +29,13 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -55,6 +56,7 @@ class DateHistogramAggregator extends BucketsAggregator {
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat formatter;
     private final Rounding rounding;
+    private final Rounding shardRounding;
     private final BucketOrder order;
     private final boolean keyed;
 
@@ -64,16 +66,17 @@ class DateHistogramAggregator extends BucketsAggregator {
     private final LongHash bucketOrds;
     private long offset;
 
-    DateHistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, long offset, BucketOrder order,
-            boolean keyed,
+    DateHistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, Rounding shardRounding,
+            long offset, BucketOrder order, boolean keyed,
             long minDocCount, @Nullable ExtendedBounds extendedBounds, @Nullable ValuesSource.Numeric valuesSource,
             DocValueFormat formatter, SearchContext aggregationContext,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
         this.rounding = rounding;
+        this.shardRounding = shardRounding;
         this.offset = offset;
-        this.order = InternalOrder.validate(order, this);;
+        this.order = InternalOrder.validate(order, this);
         this.keyed = keyed;
         this.minDocCount = minDocCount;
         this.extendedBounds = extendedBounds;
@@ -84,8 +87,11 @@ class DateHistogramAggregator extends BucketsAggregator {
     }
 
     @Override
-    public boolean needsScores() {
-        return (valuesSource != null && valuesSource.needsScores()) || super.needsScores();
+    public ScoreMode scoreMode() {
+        if (valuesSource != null && valuesSource.needsScores()) {
+            return ScoreMode.COMPLETE;
+        }
+        return super.scoreMode();
     }
 
     @Override
@@ -105,7 +111,9 @@ class DateHistogramAggregator extends BucketsAggregator {
                     long previousRounded = Long.MIN_VALUE;
                     for (int i = 0; i < valuesCount; ++i) {
                         long value = values.nextValue();
-                        long rounded = rounding.round(value - offset) + offset;
+                        // We can use shardRounding here, which is sometimes more efficient
+                        // if daylight saving times are involved.
+                        long rounded = shardRounding.round(value - offset) + offset;
                         assert rounded >= previousRounded;
                         if (rounded == previousRounded) {
                             continue;
@@ -138,6 +146,7 @@ class DateHistogramAggregator extends BucketsAggregator {
         CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator(this));
 
         // value source will be null for unmapped fields
+        // Important: use `rounding` here, not `shardRounding`
         InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
                 ? new InternalDateHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds)
                 : null;

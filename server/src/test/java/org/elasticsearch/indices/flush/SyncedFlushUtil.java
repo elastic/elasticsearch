@@ -29,6 +29,9 @@ import org.elasticsearch.test.InternalTestCluster;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.test.ESTestCase.assertBusy;
 
 /** Utils for SyncedFlush */
 public class SyncedFlushUtil {
@@ -40,21 +43,31 @@ public class SyncedFlushUtil {
     /**
      * Blocking version of {@link SyncedFlushService#attemptSyncedFlush(ShardId, ActionListener)}
      */
-    public static ShardsSyncedFlushResult attemptSyncedFlush(Logger logger, InternalTestCluster cluster, ShardId shardId) {
+    public static ShardsSyncedFlushResult attemptSyncedFlush(Logger logger, InternalTestCluster cluster, ShardId shardId) throws Exception {
+        /*
+         * When the last indexing operation is completed, we will fire a global checkpoint sync.
+         * Since a global checkpoint sync request is a replication request, it will acquire an index
+         * shard permit on the primary when executing. If this happens at the same time while we are
+         * issuing the synced-flush, the synced-flush request will fail as it thinks there are
+         * in-flight operations. We can avoid such situation by continuing issuing another synced-flush
+         * if the synced-flush failed due to the ongoing operations on the primary.
+         */
         SyncedFlushService service = cluster.getInstance(SyncedFlushService.class);
-        logger.debug("Issue synced-flush on node [{}], shard [{}], cluster state [{}]",
-            service.nodeName(), shardId, cluster.clusterService(service.nodeName()).state());
-        LatchedListener<ShardsSyncedFlushResult> listener = new LatchedListener<>();
-        service.attemptSyncedFlush(shardId, listener);
-        try {
+        AtomicReference<LatchedListener<ShardsSyncedFlushResult>> listenerHolder = new AtomicReference<>();
+        assertBusy(() -> {
+            LatchedListener<ShardsSyncedFlushResult> listener = new LatchedListener<>();
+            listenerHolder.set(listener);
+            service.attemptSyncedFlush(shardId, listener);
             listener.latch.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+            if (listener.result != null && listener.result.failureReason() != null
+                && listener.result.failureReason().contains("ongoing operations on primary")) {
+                throw new AssertionError(listener.result.failureReason()); // cause the assert busy to retry
+            }
+        });
+        if (listenerHolder.get().error != null) {
+            throw ExceptionsHelper.convertToElastic(listenerHolder.get().error);
         }
-        if (listener.error != null) {
-            throw ExceptionsHelper.convertToElastic(listener.error);
-        }
-        return listener.result;
+        return listenerHolder.get().result;
     }
 
     public static final class LatchedListener<T> implements ActionListener<T> {

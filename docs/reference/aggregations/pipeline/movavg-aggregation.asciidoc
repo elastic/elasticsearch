@@ -1,6 +1,10 @@
 [[search-aggregations-pipeline-movavg-aggregation]]
 === Moving Average Aggregation
 
+deprecated[6.4.0, The Moving Average aggregation has been deprecated in favor of the more general
+<<search-aggregations-pipeline-movfn-aggregation,Moving Function Aggregation>>.  The new Moving Function aggregation provides
+all the same functionality as the Moving Average aggregation, but also provides more flexibility.]
+
 Given an ordered series of data, the Moving Average aggregation will slide a window across the data and emit the average
 value of that window.  For example, given the data `[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]`, we can calculate a simple moving
 average with windows size of `5` as follows:
@@ -74,6 +78,7 @@ POST /_search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:sales]
+// TEST[warning:The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.]
 
 <1> A `date_histogram` named "my_date_histo" is constructed on the "timestamp" field, with one-day intervals
 <2> A `sum` metric is used to calculate the sum of a field.  This could be any metric (sum, min, max, etc)
@@ -180,6 +185,7 @@ POST /_search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:sales]
+// TEST[warning:The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.]
 
 A `simple` model has no special settings to configure
 
@@ -233,6 +239,7 @@ POST /_search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:sales]
+// TEST[warning:The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.]
 
 A `linear` model has no special settings to configure
 
@@ -295,7 +302,7 @@ POST /_search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:sales]
-
+// TEST[warning:The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.]
 
 [[single_0.2alpha]]
 .EWMA with window of size 10, alpha = 0.2
@@ -355,6 +362,7 @@ POST /_search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:sales]
+// TEST[warning:The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.]
 
 In practice, the `alpha` value behaves very similarly in `holt` as `ewma`: small values produce more smoothing
 and more lag, while larger values produce closer tracking and less lag.  The value of `beta` is often difficult
@@ -446,7 +454,7 @@ POST /_search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:sales]
-
+// TEST[warning:The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.]
 
 [[holt_winters_add]]
 .Holt-Winters moving average with window of size 120, alpha = 0.5, beta = 0.7, gamma = 0.3, period = 30
@@ -508,6 +516,7 @@ POST /_search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:sales]
+// TEST[warning:The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.]
 
 ==== Prediction
 
@@ -550,6 +559,7 @@ POST /_search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:sales]
+// TEST[warning:The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.]
 
 The `simple`, `linear` and `ewma` models all produce "flat" predictions: they essentially converge on the mean
 of the last value in the series, producing a flat:
@@ -631,6 +641,7 @@ POST /_search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:sales]
+// TEST[warning:The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.]
 
 <1> Minimization is enabled with the `minimize` parameter
 

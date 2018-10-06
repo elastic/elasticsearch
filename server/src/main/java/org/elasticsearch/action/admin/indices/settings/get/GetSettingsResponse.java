@@ -26,7 +26,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,10 +35,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.CharBuffer;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
@@ -114,7 +110,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
         }
         ImmutableOpenMap.Builder<String, Settings> defaultSettingsBuilder = ImmutableOpenMap.builder();
 
-        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_6_4_0)) {
             int defaultSettingsSize = in.readVInt();
             for (int i = 0; i < defaultSettingsSize ; i++) {
                 defaultSettingsBuilder.put(in.readString(), Settings.readSettingsFromStream(in));
@@ -132,7 +128,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
             out.writeString(cursor.key);
             Settings.writeSettingsToStream(cursor.value, out);
         }
-        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_6_4_0)) {
             out.writeVInt(indexToDefaultSettings.size());
             for (ObjectObjectCursor<String, Settings> cursor : indexToDefaultSettings) {
                 out.writeString(cursor.key);

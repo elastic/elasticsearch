@@ -44,6 +44,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -67,9 +68,9 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     }
 
     @Override
-    protected void doExecute(ExplainRequest request, ActionListener<ExplainResponse> listener) {
+    protected void doExecute(Task task, ExplainRequest request, ActionListener<ExplainResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
-        super.doExecute(request, listener);
+        super.doExecute(task, request, listener);
     }
 
     @Override
@@ -150,5 +151,12 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         return clusterService.operationRouting().getShards(
                 clusterService.state(), request.concreteIndex(), request.request().id(), request.request().routing(), request.request().preference()
         );
+    }
+
+    @Override
+    protected String getExecutor(ExplainRequest request, ShardId shardId) {
+        IndexService indexService = searchService.getIndicesService().indexServiceSafe(shardId.getIndex());
+        return indexService.getIndexSettings().isSearchThrottled() ? ThreadPool.Names.SEARCH_THROTTLED : super.getExecutor(request,
+            shardId);
     }
 }

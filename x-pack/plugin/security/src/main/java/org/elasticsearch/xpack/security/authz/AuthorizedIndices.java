@@ -9,7 +9,7 @@ import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -58,7 +58,7 @@ class AuthorizedIndices {
 
         if (isSuperuser(user) == false) {
             // we should filter out all of the security indices from wildcards
-            indicesAndAliases.removeAll(SecurityLifecycleService.indexNames());
+            indicesAndAliases.removeAll(SecurityIndexManager.indexNames());
         }
         return Collections.unmodifiableList(indicesAndAliases);
     }

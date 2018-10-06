@@ -6,19 +6,22 @@
 package org.elasticsearch.license;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.licensor.LicenseSigner;
+import org.elasticsearch.protocol.xpack.license.LicensesStatus;
+import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.hamcrest.MatcherAssert;
 import org.joda.time.format.DateTimeFormatter;
 import org.junit.Assert;
@@ -47,7 +50,7 @@ import static org.junit.Assert.assertThat;
 public class TestUtils {
 
     private static final FormatDateTimeFormatter formatDateTimeFormatter = Joda.forPattern("yyyy-MM-dd");
-    private static final DateMathParser dateMathParser = new DateMathParser(formatDateTimeFormatter);
+    private static final DateMathParser dateMathParser = formatDateTimeFormatter.toDateMathParser();
     private static final DateTimeFormatter dateTimeFormatter = formatDateTimeFormatter.printer();
 
     public static String dateMathString(String time, final long now) {
@@ -353,20 +356,22 @@ public class TestUtils {
     public static class AssertingLicenseState extends XPackLicenseState {
         public final List<License.OperationMode> modeUpdates = new ArrayList<>();
         public final List<Boolean> activeUpdates = new ArrayList<>();
+        public final List<Version> trialVersionUpdates = new ArrayList<>();
 
         public AssertingLicenseState() {
             super(Settings.EMPTY);
         }
 
         @Override
-        void update(License.OperationMode mode, boolean active) {
+        void update(License.OperationMode mode, boolean active, Version mostRecentTrialVersion) {
             modeUpdates.add(mode);
             activeUpdates.add(active);
+            trialVersionUpdates.add(mostRecentTrialVersion);
         }
     }
 
     /**
-     * A license state that makes the {@link #update(License.OperationMode, boolean)}
+     * A license state that makes the {@link #update(License.OperationMode, boolean, Version)}
      * method public for use in tests.
      */
     public static class UpdatableLicenseState extends XPackLicenseState {
@@ -379,8 +384,8 @@ public class TestUtils {
         }
 
         @Override
-        public void update(License.OperationMode mode, boolean active) {
-            super.update(mode, active);
+        public void update(License.OperationMode mode, boolean active, Version mostRecentTrialVersion) {
+            super.update(mode, active, mostRecentTrialVersion);
         }
     }
 

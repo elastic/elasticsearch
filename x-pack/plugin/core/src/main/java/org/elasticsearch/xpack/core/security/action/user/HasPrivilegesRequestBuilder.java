@@ -17,7 +17,7 @@ import java.io.IOException;
  * Request builder for checking a user's privileges
  */
 public class HasPrivilegesRequestBuilder
-        extends ActionRequestBuilder<HasPrivilegesRequest, HasPrivilegesResponse, HasPrivilegesRequestBuilder> {
+        extends ActionRequestBuilder<HasPrivilegesRequest, HasPrivilegesResponse> {
 
     public HasPrivilegesRequestBuilder(ElasticsearchClient client) {
         super(client, HasPrivilegesAction.INSTANCE, new HasPrivilegesRequest());
@@ -39,6 +39,7 @@ public class HasPrivilegesRequestBuilder
         request.username(username);
         request.indexPrivileges(role.getIndicesPrivileges());
         request.clusterPrivileges(role.getClusterPrivileges());
+        request.applicationPrivileges(role.getApplicationPrivileges());
         return this;
     }
 }

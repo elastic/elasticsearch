@@ -49,6 +49,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -299,7 +300,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
     private class ShardActiveRequestHandler implements TransportRequestHandler<ShardActiveRequest> {
 
         @Override
-        public void messageReceived(final ShardActiveRequest request, final TransportChannel channel) throws Exception {
+        public void messageReceived(final ShardActiveRequest request, final TransportChannel channel, Task task) throws Exception {
             IndexShard indexShard = getShard(request);
 
             // make sure shard is really there before register cluster state observer

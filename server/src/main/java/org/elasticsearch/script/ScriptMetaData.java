@@ -29,6 +29,8 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -45,6 +47,11 @@ import java.util.Map;
  * as part of the {@link ClusterState} using only an id as the key.
  */
 public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXContentFragment {
+
+    /**
+     * Standard deprecation logger for used to deprecate allowance of empty templates.
+     */
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(ScriptMetaData.class));
 
     /**
      * A builder used to modify the currently stored scripts data held within
@@ -161,8 +168,8 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
      *
      * {@code
      * {
-     *     "<id>" : "<{@link StoredScriptSource#fromXContent(XContentParser)}>",
-     *     "<id>" : "<{@link StoredScriptSource#fromXContent(XContentParser)}>",
+     *     "<id>" : "<{@link StoredScriptSource#fromXContent(XContentParser, boolean)}>",
+     *     "<id>" : "<{@link StoredScriptSource#fromXContent(XContentParser, boolean)}>",
      *     ...
      * }
      * }
@@ -209,6 +216,14 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
                         lang = id.substring(0, split);
                         id = id.substring(split + 1);
                         source = new StoredScriptSource(lang, parser.text(), Collections.emptyMap());
+
+                        if (source.getSource().isEmpty()) {
+                            if (source.getLang().equals(Script.DEFAULT_TEMPLATE_LANG)) {
+                                DEPRECATION_LOGGER.deprecated("empty templates should no longer be used");
+                            } else {
+                                DEPRECATION_LOGGER.deprecated("empty scripts should no longer be used");
+                            }
+                        }
                     }
 
                     exists = scripts.get(id);
@@ -231,7 +246,7 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
                     }
 
                     exists = scripts.get(id);
-                    source = StoredScriptSource.fromXContent(parser);
+                    source = StoredScriptSource.fromXContent(parser, true);
 
                     if (exists == null) {
                         scripts.put(id, source);
@@ -277,25 +292,7 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
 
         for (int i = 0; i < size; i++) {
             String id = in.readString();
-
-            // Prior to version 5.3 all scripts were stored using the deprecated namespace.
-            // Split the id to find the language then use StoredScriptSource to parse the
-            // expected BytesReference after which a new StoredScriptSource is created
-            // with the appropriate language and options.
-            if (in.getVersion().before(Version.V_5_3_0)) {
-                int split = id.indexOf('#');
-
-                if (split == -1) {
-                    throw new IllegalArgumentException("illegal stored script id [" + id + "], does not contain lang");
-                } else {
-                    source = new StoredScriptSource(in);
-                    source = new StoredScriptSource(id.substring(0, split), source.getSource(), Collections.emptyMap());
-                }
-            // Version 5.3+ can just be parsed normally using StoredScriptSource.
-            } else {
-                source = new StoredScriptSource(in);
-            }
-
+            source = new StoredScriptSource(in);
             scripts.put(id, source);
         }
 
@@ -304,34 +301,11 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // Version 5.3+ will output the contents of the scripts' Map using
-        // StoredScriptSource to stored the language, code, and options.
-        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-            out.writeVInt(scripts.size());
+        out.writeVInt(scripts.size());
 
-            for (Map.Entry<String, StoredScriptSource> entry : scripts.entrySet()) {
-                out.writeString(entry.getKey());
-                entry.getValue().writeTo(out);
-            }
-        // Prior to Version 5.3, stored scripts can only be read using the deprecated
-        // namespace.  Scripts using the deprecated namespace are first isolated in a
-        // temporary Map, then written out.  Since all scripts will be stored using the
-        // deprecated namespace, no scripts will be lost.
-        } else {
-            Map<String, StoredScriptSource> filtered = new HashMap<>();
-
-            for (Map.Entry<String, StoredScriptSource> entry : scripts.entrySet()) {
-                if (entry.getKey().contains("#")) {
-                    filtered.put(entry.getKey(), entry.getValue());
-                }
-            }
-
-            out.writeVInt(filtered.size());
-
-            for (Map.Entry<String, StoredScriptSource> entry : filtered.entrySet()) {
-                out.writeString(entry.getKey());
-                entry.getValue().writeTo(out);
-            }
+        for (Map.Entry<String, StoredScriptSource> entry : scripts.entrySet()) {
+            out.writeString(entry.getKey());
+            entry.getValue().writeTo(out);
         }
     }
 
@@ -366,6 +340,11 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
     @Override
     public String getWriteableName() {
         return TYPE;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override

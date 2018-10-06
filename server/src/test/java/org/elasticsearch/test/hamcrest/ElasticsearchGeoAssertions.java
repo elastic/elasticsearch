@@ -19,13 +19,13 @@
 
 package org.elasticsearch.test.hamcrest;
 
+import org.elasticsearch.common.geo.GeoDistance;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
-import org.locationtech.spatial4j.shape.Shape;
-import org.locationtech.spatial4j.shape.ShapeCollection;
-import org.locationtech.spatial4j.shape.impl.GeoCircle;
-import org.locationtech.spatial4j.shape.impl.RectangleImpl;
-import org.locationtech.spatial4j.shape.jts.JtsGeometry;
-import org.locationtech.spatial4j.shape.jts.JtsPoint;
+import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.hamcrest.Matcher;
+import org.junit.Assert;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.LineString;
@@ -33,12 +33,12 @@ import org.locationtech.jts.geom.MultiLineString;
 import org.locationtech.jts.geom.MultiPoint;
 import org.locationtech.jts.geom.MultiPolygon;
 import org.locationtech.jts.geom.Polygon;
-import org.elasticsearch.common.geo.GeoDistance;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.hamcrest.Matcher;
-import org.junit.Assert;
+import org.locationtech.spatial4j.shape.Shape;
+import org.locationtech.spatial4j.shape.ShapeCollection;
+import org.locationtech.spatial4j.shape.impl.GeoCircle;
+import org.locationtech.spatial4j.shape.impl.RectangleImpl;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
+import org.locationtech.spatial4j.shape.jts.JtsPoint;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -208,9 +208,9 @@ public class ElasticsearchGeoAssertions {
         } else if (s1 instanceof ShapeCollection && s2 instanceof ShapeCollection) {
             assertEquals((ShapeCollection)s1, (ShapeCollection)s2);
         } else if (s1 instanceof GeoCircle && s2 instanceof GeoCircle) {
-            Assert.assertEquals((GeoCircle)s1, (GeoCircle)s2);
+            Assert.assertEquals(s1, s2);
         } else if (s1 instanceof RectangleImpl && s2 instanceof RectangleImpl) {
-            Assert.assertEquals((RectangleImpl)s1, (RectangleImpl)s2);
+            Assert.assertEquals(s1, s2);
         } else {
             //We want to know the type of the shape because we test shape equality in a special way...
             //... in particular we test that one ring is equivalent to another ring even if the points are rotated or reversed.
@@ -254,7 +254,7 @@ public class ElasticsearchGeoAssertions {
         return GeoDistance.ARC.calculate(lat1, lon1, lat2, lon2, DistanceUnit.DEFAULT);
     }
 
-    public static void assertValidException(XContentParser parser, Class expectedException) {
+    public static void assertValidException(XContentParser parser, Class<?> expectedException) {
         try {
             ShapeParser.parse(parser).build();
             Assert.fail("process completed successfully when " + expectedException.getName() + " expected");

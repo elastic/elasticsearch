@@ -28,7 +28,6 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.util.Arrays;

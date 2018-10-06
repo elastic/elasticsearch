@@ -20,7 +20,6 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FileSwitchDirectory;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.MMapDirectory;
@@ -77,10 +76,21 @@ public class FsDirectoryService extends DirectoryService {
     }
 
     protected Directory newFSDirectory(Path location, LockFactory lockFactory) throws IOException {
-        final String storeType = indexSettings.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(),
-            IndexModule.Type.FS.getSettingsKey());
+        final String storeType =
+                indexSettings.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey());
         if (IndexModule.Type.FS.match(storeType)) {
-            return FSDirectory.open(location, lockFactory); // use lucene defaults
+            final IndexModule.Type type =
+                    IndexModule.defaultStoreType(IndexModule.NODE_STORE_ALLOW_MMAPFS.get(indexSettings.getNodeSettings()));
+            switch (type) {
+                case MMAPFS:
+                    return new MMapDirectory(location, lockFactory);
+                case SIMPLEFS:
+                    return new SimpleFSDirectory(location, lockFactory);
+                case NIOFS:
+                    return new NIOFSDirectory(location, lockFactory);
+                default:
+                    throw new AssertionError("unexpected built-in store type [" + type + "]");
+            }
         } else if (IndexModule.Type.SIMPLEFS.match(storeType)) {
             return new SimpleFSDirectory(location, lockFactory);
         } else if (IndexModule.Type.NIOFS.match(storeType)) {

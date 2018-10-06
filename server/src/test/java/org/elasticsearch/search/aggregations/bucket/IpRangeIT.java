@@ -18,14 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
-import java.util.function.Function;
-
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -34,6 +28,12 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.test.ESIntegTestCase;
+
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -91,16 +91,19 @@ public class IpRangeIT extends ESIntegTestCase {
         Range.Bucket bucket1 = range.getBuckets().get(0);
         assertNull(bucket1.getFrom());
         assertEquals("192.168.1.0", bucket1.getTo());
+        assertEquals("*-192.168.1.0", bucket1.getKey());
         assertEquals(0, bucket1.getDocCount());
 
         Range.Bucket bucket2 = range.getBuckets().get(1);
         assertEquals("192.168.1.0", bucket2.getFrom());
         assertEquals("192.168.1.10", bucket2.getTo());
+        assertEquals("192.168.1.0-192.168.1.10", bucket2.getKey());
         assertEquals(1, bucket2.getDocCount());
 
         Range.Bucket bucket3 = range.getBuckets().get(2);
         assertEquals("192.168.1.10", bucket3.getFrom());
         assertNull(bucket3.getTo());
+        assertEquals("192.168.1.10-*", bucket3.getKey());
         assertEquals(2, bucket3.getDocCount());
     }
 
@@ -118,16 +121,19 @@ public class IpRangeIT extends ESIntegTestCase {
         Range.Bucket bucket1 = range.getBuckets().get(0);
         assertNull(bucket1.getFrom());
         assertEquals("192.168.1.0", bucket1.getTo());
+        assertEquals("*-192.168.1.0", bucket1.getKey());
         assertEquals(1, bucket1.getDocCount());
 
         Range.Bucket bucket2 = range.getBuckets().get(1);
         assertEquals("192.168.1.0", bucket2.getFrom());
         assertEquals("192.168.1.10", bucket2.getTo());
+        assertEquals("192.168.1.0-192.168.1.10", bucket2.getKey());
         assertEquals(1, bucket2.getDocCount());
 
         Range.Bucket bucket3 = range.getBuckets().get(2);
         assertEquals("192.168.1.10", bucket3.getFrom());
         assertNull(bucket3.getTo());
+        assertEquals("192.168.1.10-*", bucket3.getKey());
         assertEquals(2, bucket3.getDocCount());
     }
 
@@ -169,16 +175,19 @@ public class IpRangeIT extends ESIntegTestCase {
         Range.Bucket bucket1 = range.getBuckets().get(0);
         assertNull(bucket1.getFrom());
         assertEquals("192.168.1.0", bucket1.getTo());
+        assertEquals("*-192.168.1.0", bucket1.getKey());
         assertEquals(0, bucket1.getDocCount());
 
         Range.Bucket bucket2 = range.getBuckets().get(1);
         assertEquals("192.168.1.0", bucket2.getFrom());
         assertEquals("192.168.1.10", bucket2.getTo());
+        assertEquals("192.168.1.0-192.168.1.10", bucket2.getKey());
         assertEquals(1, bucket2.getDocCount());
 
         Range.Bucket bucket3 = range.getBuckets().get(2);
         assertEquals("192.168.1.10", bucket3.getFrom());
         assertNull(bucket3.getTo());
+        assertEquals("192.168.1.10-*", bucket3.getKey());
         assertEquals(2, bucket3.getDocCount());
     }
 
@@ -196,16 +205,19 @@ public class IpRangeIT extends ESIntegTestCase {
         Range.Bucket bucket1 = range.getBuckets().get(0);
         assertNull(bucket1.getFrom());
         assertEquals("192.168.1.0", bucket1.getTo());
+        assertEquals("*-192.168.1.0", bucket1.getKey());
         assertEquals(0, bucket1.getDocCount());
 
         Range.Bucket bucket2 = range.getBuckets().get(1);
         assertEquals("192.168.1.0", bucket2.getFrom());
         assertEquals("192.168.1.10", bucket2.getTo());
+        assertEquals("192.168.1.0-192.168.1.10", bucket2.getKey());
         assertEquals(0, bucket2.getDocCount());
 
         Range.Bucket bucket3 = range.getBuckets().get(2);
         assertEquals("192.168.1.10", bucket3.getFrom());
         assertNull(bucket3.getTo());
+        assertEquals("192.168.1.10-*", bucket3.getKey());
         assertEquals(0, bucket3.getDocCount());
     }
 

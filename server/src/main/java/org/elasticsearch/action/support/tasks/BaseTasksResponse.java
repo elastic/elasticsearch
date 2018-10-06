@@ -42,9 +42,9 @@ import static org.elasticsearch.ExceptionsHelper.rethrowAndSuppress;
  */
 public class BaseTasksResponse extends ActionResponse {
     private List<TaskOperationFailure> taskFailures;
-    private List<FailedNodeException> nodeFailures;
+    private List<ElasticsearchException> nodeFailures;
 
-    public BaseTasksResponse(List<TaskOperationFailure> taskFailures, List<? extends FailedNodeException> nodeFailures) {
+    public BaseTasksResponse(List<TaskOperationFailure> taskFailures, List<? extends ElasticsearchException> nodeFailures) {
         this.taskFailures = taskFailures == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(taskFailures));
         this.nodeFailures = nodeFailures == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(nodeFailures));
     }
@@ -59,7 +59,7 @@ public class BaseTasksResponse extends ActionResponse {
     /**
      * The list of node failures exception.
      */
-    public List<FailedNodeException> getNodeFailures() {
+    public List<ElasticsearchException> getNodeFailures() {
         return nodeFailures;
     }
 
@@ -99,7 +99,7 @@ public class BaseTasksResponse extends ActionResponse {
             exp.writeTo(out);
         }
         out.writeVInt(nodeFailures.size());
-        for (FailedNodeException exp : nodeFailures) {
+        for (ElasticsearchException exp : nodeFailures) {
             exp.writeTo(out);
         }
     }

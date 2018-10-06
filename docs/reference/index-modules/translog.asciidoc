@@ -92,6 +92,10 @@ The maximum duration for which translog files will be kept. Defaults to `12h`.
 [[corrupt-translog-truncation]]
 === What to do if the translog becomes corrupted?
 
+[WARNING]
+This tool is deprecated and will be completely removed in 7.0.
+Use the <<shard-tool,elasticsearch-shard tool>> instead of this one.
+
 In some cases (a bad drive, user error) the translog on a shard copy can become
 corrupted. When this corruption is detected by Elasticsearch due to mismatching
 checksums, Elasticsearch will fail that shard copy and refuse to use that copy
@@ -108,8 +112,8 @@ provide a command-line tool for this, `elasticsearch-translog`.
 
 [WARNING]
 The `elasticsearch-translog` tool should *not* be run while Elasticsearch is
-running, and you will permanently lose the documents that were contained only in
-the translog!
+running. If you attempt to run this tool while Elasticsearch is running, you 
+will permanently lose the documents that were contained only in the translog!
 
 In order to run the `elasticsearch-translog` tool, specify the `truncate`
 subcommand as well as the directory for the corrupted translog with the `-d`

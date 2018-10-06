@@ -1,0 +1,37 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License;
+# you may not use this file except in compliance with the Elastic License.
+#
+
+# This file contains a whitelist for SQL specific utilities available inside SQL scripting
+
+class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils {
+  
+  Integer dateTimeChrono(long, String, String)
+  String dayName(long, String)
+  String monthName(long, String)
+  Integer quarter(long, String)
+  Number round(Number, Number)
+  Number truncate(Number, Number)
+  Integer ascii(String)
+  Integer bitLength(String)
+  Integer charLength(String)
+  String character(Number)
+  String concat(String, String)
+  String insert(String, int, int, String)
+  String lcase(String)
+  String left(String, int)
+  Integer length(String)
+  Integer locate(String, String)
+  Integer locate(String, String, Integer)
+  String ltrim(String)
+  Integer position(String, String)
+  String repeat(String, int)
+  String replace(String, String, String)
+  String right(String, int)
+  String rtrim(String)
+  String space(Number)
+  String substring(String, int, int)
+  String ucase(String)
+}

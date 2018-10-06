@@ -21,7 +21,9 @@ import org.elasticsearch.gradle.ConcatFilesTask
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.test.RunTask
+import org.apache.tools.ant.filters.FixCrLfFilter
 
+import java.nio.file.Files
 import java.nio.file.Path
 
 Collection distributions = project('archives').subprojects + project('packages').subprojects
@@ -34,7 +36,7 @@ Collection distributions = project('archives').subprojects + project('packages')
 task generateDependenciesReport(type: ConcatFilesTask) {
   files = fileTree(dir: project.rootDir,  include: '**/dependencies.csv' )
   headerLine = "name,version,url,license"
-  target = new File(System.getProperty('csv')?: "${project.buildDir}/dependencies/es-dependencies.csv")
+  target = new File(System.getProperty('csv')?: "${project.buildDir}/reports/dependencies/es-dependencies.csv")
 }
 
 /*****************************************************************************
@@ -201,17 +203,14 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
 
 // use licenses from each of the bundled xpack plugins
 Project xpack = project(':x-pack:plugin')
-xpack.subprojects.findAll { it.name != 'bwc' }.each { Project xpackSubproject ->
-  File licenses = new File(xpackSubproject.projectDir, 'licenses')
+xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
+  File licenses = new File(xpackModule.projectDir, 'licenses')
   if (licenses.exists()) {
     buildDefaultNotice.licensesDir licenses 
   }
+  copyModule(processDefaultOutputs, xpackModule)
+  copyLog4jProperties(buildDefaultLog4jConfig, xpackModule)
 }
-// but copy just the top level meta plugin to the default modules
-copyModule(processDefaultOutputs, xpack)
-copyLog4jProperties(buildDefaultLog4jConfig, xpack)
-
-// 
 
 // make sure we have a clean task since we aren't a java project, but we have tasks that
 // put stuff in the build dir
@@ -229,14 +228,25 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     /*****************************************************************************
      *                   Common files in all distributions                       *
      *****************************************************************************/
-    libFiles = copySpec {
-      into 'lib'
-      from { project(':server').jar }
-      from { project(':server').configurations.runtime }
-      from { project(':libs:plugin-classloader').jar }
-      // delay add tools using closures, since they have not yet been configured, so no jar task exists yet
-      from { project(':distribution:tools:launchers').jar }
-      from { project(':distribution:tools:plugin-cli').jar }
+    libFiles = { oss ->
+      copySpec {
+        // delay by using closures, since they have not yet been configured, so no jar task exists yet
+        from { project(':server').jar }
+        from { project(':server').configurations.runtime }
+        from { project(':libs:plugin-classloader').jar }
+        from { project(':distribution:tools:java-version-checker').jar }
+        from { project(':distribution:tools:launchers').jar }
+        into('tools/plugin-cli') {
+          from { project(':distribution:tools:plugin-cli').jar }
+          from { project(':distribution:tools:plugin-cli').configurations.runtime }
+        }
+        if (oss == false) {
+          into('tools/security-cli') {
+            from { project(':x-pack:plugin:security:cli').jar }
+            from { project(':x-pack:plugin:security:cli').configurations.compile }
+          }
+        }
+      }
     }
 
     modulesFiles = { oss ->
@@ -245,6 +255,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           if (it.relativePath.segments[-2] == 'bin') {
             // bin files, wherever they are within modules (eg platform specific) should be executable
             it.mode = 0755
+          } else {
+            it.mode = 0644
           }
         }
         if (oss) {
@@ -279,21 +291,37 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
     binFiles = { distributionType, oss ->
       copySpec {
+        // non-windows files, for all distributions 
         with copySpec {
-          // main bin files, processed with distribution specific substitutions
-          // everything except windows files
           from '../src/bin'
           exclude '*.exe'
           exclude '*.bat'
           eachFile { it.setMode(0755) }
           MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
         }
+        // windows files, only for zip
+        if (distributionType == 'zip') {
+          with copySpec {
+            from '../src/bin'
+            include '*.bat'
+            filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
+            MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
+          }
+          with copySpec {
+            from '../src/bin'
+            include '*.exe'
+          }
+        }
+        // module provided bin files
         with copySpec {
           eachFile { it.setMode(0755) }
           if (oss) {
             from project(':distribution').buildOssBin
           } else {
             from project(':distribution').buildDefaultBin
+          }
+          if (distributionType != 'zip') {
+            exclude '*.bat'
           }
         }
       }
@@ -312,6 +340,24 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
 task run(type: RunTask) {
   distribution = System.getProperty('run.distribution', 'zip')
+  if (distribution == 'zip') {
+    String licenseType = System.getProperty("run.license_type", "basic")
+    if (licenseType == 'trial') {
+      setting 'xpack.ml.enabled', 'true'
+      setting 'xpack.graph.enabled', 'true'
+      setting 'xpack.watcher.enabled', 'true'
+      setting 'xpack.license.self_generated.type', 'trial'
+      setupCommand 'setupTestAdmin',
+        'bin/elasticsearch-users', 'useradd', 'elastic-admin', '-p', 'elastic-password', '-r', 'superuser'
+    } else if (licenseType != 'basic') {
+      throw new IllegalArgumentException("Unsupported self-generated license type: [" + licenseType + "[basic] or [trial].")
+    }
+    setting 'xpack.security.enabled', 'true'
+    setting 'xpack.monitoring.enabled', 'true'
+    setting 'xpack.sql.enabled', 'true'
+    setting 'xpack.rollup.enabled', 'true'
+    keystoreSetting 'bootstrap.password', 'password'
+  }
 }
 
 /**
@@ -458,5 +504,17 @@ subprojects {
       result[key] = value
     }
     return result
+  }
+
+  ext.assertLinesInFile =  { Path path, List<String> expectedLines ->
+    final List<String> actualLines = Files.readAllLines(path)
+    int line = 0
+    for (final String expectedLine : expectedLines) {
+      final String actualLine = actualLines.get(line)
+      if (expectedLine != actualLine) {
+        throw new GradleException("expected line [${line + 1}] in [${path}] to be [${expectedLine}] but was [${actualLine}]")
+      }
+      line++
+    }
   }
 }

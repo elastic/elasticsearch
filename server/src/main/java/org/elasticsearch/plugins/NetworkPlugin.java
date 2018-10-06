@@ -71,8 +71,8 @@ public interface NetworkPlugin {
      * See {@link org.elasticsearch.common.network.NetworkModule#HTTP_TYPE_SETTING} to configure a specific implementation.
      */
     default Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                                         PageCacheRecycler pageCacheRecycler,
                                                                          CircuitBreakerService circuitBreakerService,
-                                                                         NamedWriteableRegistry namedWriteableRegistry,
                                                                          NamedXContentRegistry xContentRegistry,
                                                                          NetworkService networkService,
                                                                          HttpServerTransport.Dispatcher dispatcher) {

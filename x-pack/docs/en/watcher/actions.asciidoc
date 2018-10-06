@@ -259,20 +259,28 @@ PUT _xpack/watcher/watch/log_event_watch
 <1> A `condition` that only applies to the `notify_pager` action, which
     restricts its execution to when the condition succeeds (at least 5 hits in this case).
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/actions/email.asciidoc
 include::actions/email.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/actions/webhook.asciidoc
 include::actions/webhook.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/actions/index.asciidoc
 include::actions/index.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/actions/logging.asciidoc
 include::actions/logging.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/actions/hipchat.asciidoc
 include::actions/hipchat.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/actions/slack.asciidoc
 include::actions/slack.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/actions/pagerduty.asciidoc
 include::actions/pagerduty.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/actions/jira.asciidoc
 include::actions/jira.asciidoc[]
 
 [float]

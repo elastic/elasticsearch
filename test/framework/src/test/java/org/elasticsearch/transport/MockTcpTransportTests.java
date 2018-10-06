@@ -40,7 +40,7 @@ public class MockTcpTransportTests extends AbstractSimpleTransportTestCase {
         Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()), version) {
             @Override
-            protected Version executeHandshake(DiscoveryNode node, TcpChannel mockChannel, TimeValue timeout) throws IOException,
+            public Version executeHandshake(DiscoveryNode node, TcpChannel mockChannel, TimeValue timeout) throws IOException,
                 InterruptedException {
                 if (doHandshake) {
                     return super.executeHandshake(node, mockChannel, timeout);
@@ -59,13 +59,4 @@ public class MockTcpTransportTests extends AbstractSimpleTransportTestCase {
     public int channelsPerNodeConnection() {
         return 1;
     }
-
-    @Override
-    protected void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException {
-        final MockTcpTransport t = (MockTcpTransport) transport;
-        @SuppressWarnings("unchecked") final TcpTransport.NodeChannels channels =
-                (TcpTransport.NodeChannels) connection;
-        TcpChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
-    }
-
 }

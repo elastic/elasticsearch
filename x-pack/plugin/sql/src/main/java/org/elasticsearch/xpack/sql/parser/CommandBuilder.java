@@ -33,7 +33,7 @@ import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysColumns;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTableTypes;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTables;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTypes;
-import org.elasticsearch.xpack.sql.plugin.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
@@ -121,12 +121,14 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
 
     @Override
     public Object visitShowFunctions(ShowFunctionsContext ctx) {
-        return new ShowFunctions(source(ctx), visitPattern(ctx.pattern()));
+        return new ShowFunctions(source(ctx), visitLikePattern(ctx.likePattern()));
     }
 
     @Override
     public Object visitShowTables(ShowTablesContext ctx) {
-        return new ShowTables(source(ctx), visitPattern(ctx.pattern()));
+        TableIdentifier ti = visitTableIdentifier(ctx.tableIdent);
+        String index = ti != null ? ti.qualifiedIndex() : null;
+        return new ShowTables(source(ctx), index, visitLikePattern(ctx.likePattern()));
     }
 
     @Override
@@ -136,8 +138,9 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
 
     @Override
     public Object visitShowColumns(ShowColumnsContext ctx) {
-        TableIdentifier identifier = visitTableIdentifier(ctx.tableIdentifier());
-        return new ShowColumns(source(ctx), identifier.index());
+        TableIdentifier ti = visitTableIdentifier(ctx.tableIdent);
+        String index = ti != null ? ti.qualifiedIndex() : null;
+        return new ShowColumns(source(ctx), index, visitLikePattern(ctx.likePattern()));
     }
 
     @Override
@@ -148,14 +151,21 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     @Override
     public SysTables visitSysTables(SysTablesContext ctx) {
         List<IndexType> types = new ArrayList<>();
+        boolean legacyTableType = false;
         for (StringContext string : ctx.string()) {
             String value = string(string);
             if (value != null) {
                 // check special ODBC wildcard case
                 if (value.equals(StringUtils.SQL_WILDCARD) && ctx.string().size() == 1) {
-                    // since % is the same as not specifying a value, choose
+                    // convert % to enumeration
                     // https://docs.microsoft.com/en-us/sql/odbc/reference/develop-app/value-list-arguments?view=ssdt-18vs2017
-                    // that is skip the value
+                    types.addAll(IndexType.VALID);
+                }
+                // special case for legacy apps (like msquery) that always asks for 'TABLE'
+                // which we manually map to all concrete tables supported
+                else if (value.toUpperCase(Locale.ROOT).equals("TABLE")) {
+                    legacyTableType = true;
+                    types.add(IndexType.INDEX);
                 } else {
                     IndexType type = IndexType.from(value);
                     types.add(type);
@@ -165,13 +175,17 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
 
         // if the ODBC enumeration is specified, skip validation
         EnumSet<IndexType> set = types.isEmpty() ? null : EnumSet.copyOf(types);
-        return new SysTables(source(ctx), visitPattern(ctx.clusterPattern), visitPattern(ctx.tablePattern), set);
+        TableIdentifier ti = visitTableIdentifier(ctx.tableIdent);
+        String index = ti != null ? ti.qualifiedIndex() : null;
+        return new SysTables(source(ctx), visitLikePattern(ctx.clusterLike), index, visitLikePattern(ctx.tableLike), set, legacyTableType);
     }
 
     @Override
     public Object visitSysColumns(SysColumnsContext ctx) {
-        Location loc = source(ctx);
-        return new SysColumns(loc, string(ctx.cluster), visitPattern(ctx.indexPattern), visitPattern(ctx.columnPattern));
+        TableIdentifier ti = visitTableIdentifier(ctx.tableIdent);
+        String index = ti != null ? ti.qualifiedIndex() : null;
+        return new SysColumns(source(ctx), string(ctx.cluster), index, visitLikePattern(ctx.tableLike),
+                visitLikePattern(ctx.columnPattern));
     }
 
     @Override

@@ -60,11 +60,11 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolver.ResolvedIndices;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -178,8 +178,8 @@ public class AuthorizationService extends AbstractComponent {
 
         // first, we'll check if the action is a cluster action. If it is, we'll only check it against the cluster permissions
         if (ClusterPrivilege.ACTION_MATCHER.test(action)) {
-            ClusterPermission cluster = permission.cluster();
-            if (cluster.check(action) || checkSameUserPermissions(action, request, authentication)) {
+            final ClusterPermission cluster = permission.cluster();
+            if (cluster.check(action, request) || checkSameUserPermissions(action, request, authentication) ) {
                 putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
                 auditTrail.accessGranted(authentication, action, request, permission.names());
                 return;
@@ -301,7 +301,7 @@ public class AuthorizationService extends AbstractComponent {
             // only the XPackUser is allowed to work with this index, but we should allow indices monitoring actions through for debugging
             // purposes. These monitor requests also sometimes resolve indices concretely and then requests them
             logger.debug("user [{}] attempted to directly perform [{}] against the security index [{}]",
-                    authentication.getUser().principal(), action, SecurityLifecycleService.SECURITY_INDEX_NAME);
+                    authentication.getUser().principal(), action, SecurityIndexManager.SECURITY_INDEX_NAME);
             throw denial(authentication, action, request, permission.names());
         } else {
             putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
@@ -337,7 +337,7 @@ public class AuthorizationService extends AbstractComponent {
     }
 
     private boolean hasSecurityIndexAccess(IndicesAccessControl indicesAccessControl) {
-        for (String index : SecurityLifecycleService.indexNames()) {
+        for (String index : SecurityIndexManager.indexNames()) {
             final IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
             if (indexPermissions != null && indexPermissions.isGranted()) {
                 return true;
@@ -403,7 +403,7 @@ public class AuthorizationService extends AbstractComponent {
     }
 
     private static String getAction(BulkItemRequest item) {
-        final DocWriteRequest docWriteRequest = item.request();
+        final DocWriteRequest<?> docWriteRequest = item.request();
         switch (docWriteRequest.opType()) {
             case INDEX:
             case CREATE:

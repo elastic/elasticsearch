@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
@@ -44,6 +45,7 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
@@ -66,12 +68,15 @@ public class NodesFaultDetection extends FaultDetection {
 
     private final ConcurrentMap<DiscoveryNode, NodeFD> nodesFD = newConcurrentMap();
 
-    private volatile long clusterStateVersion = ClusterState.UNKNOWN_VERSION;
+    private final Supplier<ClusterState> clusterStateSupplier;
 
     private volatile DiscoveryNode localNode;
 
-    public NodesFaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {
+    public NodesFaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService,
+                               Supplier<ClusterState> clusterStateSupplier, ClusterName clusterName) {
         super(settings, threadPool, transportService, clusterName);
+
+        this.clusterStateSupplier = clusterStateSupplier;
 
         logger.debug("[node  ] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout,
             pingRetryCount);
@@ -208,15 +213,18 @@ public class NodesFaultDetection extends FaultDetection {
             return NodeFD.this.equals(nodesFD.get(node));
         }
 
+        private PingRequest newPingRequest() {
+            return new PingRequest(node, clusterName, localNode, clusterStateSupplier.get().version());
+        }
+
         @Override
         public void run() {
             if (!running()) {
                 return;
             }
-            final PingRequest pingRequest = new PingRequest(node, clusterName, localNode, clusterStateVersion);
             final TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.PING)
                 .withTimeout(pingRetryTimeout).build();
-            transportService.sendRequest(node, PING_ACTION_NAME, pingRequest, options, new TransportResponseHandler<PingResponse>() {
+            transportService.sendRequest(node, PING_ACTION_NAME, newPingRequest(), options, new TransportResponseHandler<PingResponse>() {
                         @Override
                         public PingResponse newInstance() {
                             return new PingResponse();
@@ -254,7 +262,7 @@ public class NodesFaultDetection extends FaultDetection {
                                 }
                             } else {
                                 // resend the request, not reschedule, rely on send timeout
-                                transportService.sendRequest(node, PING_ACTION_NAME, pingRequest, options, this);
+                                transportService.sendRequest(node, PING_ACTION_NAME, newPingRequest(), options, this);
                             }
                         }
 
@@ -269,7 +277,7 @@ public class NodesFaultDetection extends FaultDetection {
 
     class PingRequestHandler implements TransportRequestHandler<PingRequest> {
         @Override
-        public void messageReceived(PingRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(PingRequest request, TransportChannel channel, Task task) throws Exception {
             // if we are not the node we are supposed to be pinged, send an exception
             // this can happen when a kill -9 is sent, and another node is started using the same port
             if (!localNode.equals(request.targetNode())) {

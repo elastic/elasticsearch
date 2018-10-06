@@ -164,6 +164,9 @@ public class ControlMsgToProcessWriter {
         if (params.getExpiresIn() != -1) {
             builder.field("expires_in", params.getExpiresIn());
         }
+        if (params.getTmpStorage() != null) {
+            builder.field("tmp_storage", params.getTmpStorage());
+        }
         builder.endObject();
         
         writeMessage(FORECAST_MESSAGE_CODE + Strings.toString(builder));

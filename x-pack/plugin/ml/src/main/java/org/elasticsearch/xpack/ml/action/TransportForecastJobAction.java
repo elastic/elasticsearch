@@ -10,11 +10,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -23,11 +24,12 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.job.JobManager;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -36,16 +38,17 @@ import static org.elasticsearch.xpack.core.ml.action.ForecastJobAction.Request.D
 public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJobAction.Request,
         ForecastJobAction.Response> {
 
-    private final JobProvider jobProvider;
+    private static final ByteSizeValue FORECAST_LOCAL_STORAGE_LIMIT = new ByteSizeValue(500, ByteSizeUnit.MB);
+
+    private final JobResultsProvider jobResultsProvider;
     @Inject
-    public TransportForecastJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+    public TransportForecastJobAction(Settings settings, TransportService transportService,
                                       ClusterService clusterService, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver, JobProvider jobProvider,
-                                      AutodetectProcessManager processManager) {
-        super(settings, ForecastJobAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, ForecastJobAction.Request::new, ForecastJobAction.Response::new,
+                                      JobResultsProvider jobResultsProvider, AutodetectProcessManager processManager) {
+        super(settings, ForecastJobAction.NAME, clusterService, transportService, actionFilters,
+            ForecastJobAction.Request::new, ForecastJobAction.Response::new,
                 ThreadPool.Names.SAME, processManager);
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
         // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
     }
 
@@ -73,6 +76,13 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
             paramsBuilder.expiresIn(request.getExpiresIn());
         }
 
+        // tmp storage might be null, we do not log here, because it might not be
+        // required
+        Path tmpStorage = processManager.tryGetTmpStorage(task, FORECAST_LOCAL_STORAGE_LIMIT);
+        if (tmpStorage != null) {
+            paramsBuilder.tmpStorage(tmpStorage.toString());
+        }
+
         ForecastParams params = paramsBuilder.build();
         processManager.forecastJob(task, params, e -> {
             if (e == null) {
@@ -97,7 +107,7 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
                     }
                 };
 
-                jobProvider.getForecastRequestStats(request.getJobId(), params.getForecastId(),
+                jobResultsProvider.getForecastRequestStats(request.getJobId(), params.getForecastId(),
                         forecastRequestStatsHandler, listener::onFailure);
             } else {
                 listener.onFailure(e);

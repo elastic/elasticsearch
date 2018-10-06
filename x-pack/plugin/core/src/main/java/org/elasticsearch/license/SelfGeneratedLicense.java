@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.license;
 
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -26,8 +27,8 @@ import static org.elasticsearch.license.CryptUtils.decrypt;
 
 class SelfGeneratedLicense {
 
-    public static License create(License.Builder specBuilder) {
-        return create(specBuilder, License.VERSION_CURRENT);
+    public static License create(License.Builder specBuilder, DiscoveryNodes currentNodes) {
+        return create(specBuilder, LicenseUtils.compatibleLicenseVersion(currentNodes));
     }
 
     public static License create(License.Builder specBuilder, int version) {

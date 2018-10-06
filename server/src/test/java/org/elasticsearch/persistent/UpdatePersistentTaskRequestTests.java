@@ -20,9 +20,8 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.persistent.TestPersistentTasksPlugin.Status;
+import org.elasticsearch.persistent.TestPersistentTasksPlugin.State;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction.Request;
 
@@ -32,7 +31,7 @@ public class UpdatePersistentTaskRequestTests extends AbstractStreamableTestCase
 
     @Override
     protected Request createTestInstance() {
-        return new Request(UUIDs.base64UUID(), randomLong(), new Status(randomAlphaOfLength(10)));
+        return new Request(UUIDs.base64UUID(), randomLong(), new State(randomAlphaOfLength(10)));
     }
 
     @Override
@@ -43,7 +42,7 @@ public class UpdatePersistentTaskRequestTests extends AbstractStreamableTestCase
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(Collections.singletonList(
-                new NamedWriteableRegistry.Entry(Task.Status.class, TestPersistentTasksExecutor.NAME, Status::new)
+                new NamedWriteableRegistry.Entry(PersistentTaskState.class, TestPersistentTasksExecutor.NAME, State::new)
         ));
     }
 }

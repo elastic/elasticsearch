@@ -30,7 +30,6 @@ import java.util.regex.Pattern;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.junit.Assert.assertTrue;
 
 /**
  * Test appender that can be used to verify that certain events were logged correctly
@@ -86,7 +85,7 @@ public class MockLogAppender extends AbstractAppender {
 
         @Override
         public void match(LogEvent event) {
-            if (event.getLevel().equals(level) && event.getLoggerName().equals(logger)) {
+            if (event.getLevel().equals(level) && event.getLoggerName().equals(logger) && innerMatch(event)) {
                 if (Regex.isSimpleMatchPattern(message)) {
                     if (Regex.simpleMatch(message, event.getMessage().getFormattedMessage())) {
                         saw = true;
@@ -98,6 +97,11 @@ public class MockLogAppender extends AbstractAppender {
                 }
             }
         }
+
+        public boolean innerMatch(final LogEvent event) {
+            return true;
+        }
+
     }
 
     public static class UnseenEventExpectation extends AbstractEventExpectation {
@@ -122,6 +126,32 @@ public class MockLogAppender extends AbstractAppender {
         public void assertMatched() {
             assertThat(name, saw, equalTo(true));
         }
+    }
+
+    public static class ExceptionSeenEventExpectation extends SeenEventExpectation {
+
+        private final Class<? extends Exception> clazz;
+        private final String exceptionMessage;
+
+        public ExceptionSeenEventExpectation(
+                final String name,
+                final String logger,
+                final Level level,
+                final String message,
+                final Class<? extends Exception> clazz,
+                final String exceptionMessage) {
+            super(name, logger, level, message);
+            this.clazz = clazz;
+            this.exceptionMessage = exceptionMessage;
+        }
+
+        @Override
+        public boolean innerMatch(final LogEvent event) {
+            return event.getThrown() != null
+                    && event.getThrown().getClass() == clazz
+                    && event.getThrown().getMessage().equals(exceptionMessage);
+        }
+
     }
 
     public static class PatternSeenEventExcpectation implements LoggingExpectation {

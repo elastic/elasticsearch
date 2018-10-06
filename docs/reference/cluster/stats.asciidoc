@@ -22,6 +22,7 @@ Will return, for example:
       "successful" : 1,
       "failed" : 0
    },
+   "cluster_uuid": "YjAvIhsCQ9CbjWZb2qJw3Q",
    "cluster_name": "elasticsearch",
    "timestamp": 1459427693515,
    "status": "green",
@@ -192,23 +193,32 @@ Will return, for example:
           "description": "Ingest processor that extracts information from a user agent",
           "classname": "org.elasticsearch.ingest.useragent.IngestUserAgentPlugin",
           "has_native_controller": false
-        }
+        },
+        ...
       ],
-      "network_types" : {
-         "transport_types" : {
-            "netty4" : 1
-         },
-         "http_types" : {
-            "netty4" : 1
-         }
-      }
+      ...
    }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"plugins": \[[^\]]*\]/"plugins": $body.$_path/]
+// TESTRESPONSE[s/\.\.\./"network_types": "replace_me"/]
 // TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 // TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
-////
-The TESTRESPONSE above replace all the fields values by the expected ones in the test,
-because we don't really care about the field values but we want to check the fields names.
-////
+// These replacements do a few things:
+// 1. Ignore the contents of the `plugins` object because we don't know all of
+//    the plugins that will be in it. And because we figure folks don't need to
+//    see an exhaustive list anyway.
+// 2. The last ... contains more things that we don't think are important to
+//    include in the output.
+// 3. All of the numbers and strings on the right hand side of *every* field in
+//    the response are ignored. So we're really only asserting things about the
+//    the shape of this response, not the values in it.
+
+This API can be restricted to a subset of the nodes using the `?nodeId`
+parameter, which accepts <<cluster-nodes,node filters>>:
+
+[source,js]
+--------------------------------------------------
+GET /_cluster/stats?nodeId=node1,node*,master:false
+--------------------------------------------------
+// CONSOLE

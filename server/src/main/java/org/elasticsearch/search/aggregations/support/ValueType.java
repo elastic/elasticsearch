@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -95,6 +96,8 @@ public enum ValueType implements Writeable {
     private final byte id;
     private String preferredName;
 
+    public static final ParseField VALUE_TYPE = new ParseField("value_type", "valueType");
+
     ValueType(byte id, String description, String preferredName, ValuesSourceType valuesSourceType,
             Class<? extends IndexFieldData> fieldDataType, DocValueFormat defaultFormat) {
         this.id = id;
@@ -112,7 +115,7 @@ public enum ValueType implements Writeable {
     public String getPreferredName() {
         return preferredName;
     }
-    
+
     public ValuesSourceType getValuesSourceType() {
         return valuesSourceType;
     }

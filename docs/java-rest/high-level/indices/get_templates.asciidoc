@@ -1,0 +1,73 @@
+[[java-rest-high-get-templates]]
+=== Get Templates API
+
+The Get Templates API allows to retrieve a list of index templates by name.
+
+[[java-rest-high-get-templates-request]]
+==== Get Index Templates Request
+
+A `GetIndexTemplatesRequest` specifies one or several names of the index templates to get.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-templates-request]
+--------------------------------------------------
+<1> A single index template name
+<2> Multiple index template names
+<3> An index template name using wildcard
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-templates-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+[[java-rest-high-get-templates-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-templates-execute]
+--------------------------------------------------
+
+[[java-rest-high-get-templates-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of a get index templates request requires a `GetTemplatesRequest`
+instance and an `ActionListener` instance to be passed to the asynchronous
+method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-templates-execute-async]
+--------------------------------------------------
+<1> The `GetTemplatesRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `GetTemplatesResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-templates-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
+
+[[java-rest-high-get-templates-response]]
+==== Get Templates Response
+
+The returned `GetTemplatesResponse` consists a list of matching index templates.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-templates-response]
+--------------------------------------------------
+<1> A list of matching index templates
+

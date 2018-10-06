@@ -1,0 +1,49 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-cli]]
+== SQL CLI
+
+Elasticsearch ships with a script to run the SQL CLI in its `bin` directory:
+
+[source,bash]
+--------------------------------------------------
+$ ./bin/elasticsearch-sql-cli
+--------------------------------------------------
+
+The jar containing the SQL CLI is a stand alone Java application and
+the scripts just launch it. You can move it around to other machines
+without having to install Elasticsearch on them.
+
+You can pass the URL of the Elasticsearch instance to connect to as
+the first parameter:
+
+[source,bash]
+--------------------------------------------------
+$ ./bin/elasticsearch-sql-cli https://some.server:9200
+--------------------------------------------------
+
+If security is enabled on your cluster, you can pass the username
+and password in the form `username:password@host_name:port`
+to the SQL CLI:
+
+[source,bash]
+--------------------------------------------------
+$ ./bin/elasticsearch-sql-cli https://sql_user:strongpassword@some.server:9200
+--------------------------------------------------
+
+Once the CLI is running you can use any <<sql-spec,query>> that
+Elasticsearch supports:
+
+[source,sqlcli]
+--------------------------------------------------
+sql> SELECT * FROM library WHERE page_count > 500 ORDER BY page_count DESC;
+     author      |        name        |  page_count   | release_date
+-----------------+--------------------+---------------+---------------
+Peter F. Hamilton|Pandora's Star      |768            |1078185600000
+Vernor Vinge     |A Fire Upon the Deep|613            |707356800000
+Frank Herbert    |Dune                |604            |-144720000000
+Alastair Reynolds|Revelation Space    |585            |953078400000
+James S.A. Corey |Leviathan Wakes     |561            |1306972800000
+--------------------------------------------------
+// TODO it'd be lovely to be able to assert that this is correct but
+// that is probably more work then it is worth right now.

@@ -1,219 +1,59 @@
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
+apply plugin: 'com.github.johnrengelman.shadow'
 
 description = 'JDBC driver for Elasticsearch'
+archivesBaseName = "x-pack-sql-jdbc"
 
 forbiddenApisMain {
     // does not depend on core, so only jdk and http signatures should be checked
-    signaturesURLs = [this.class.getResource('/forbidden/jdk-signatures.txt')]
-}
-
-/*
- * Bundle as many of our dependencies as we can get away with into the jar.
- * We can't currently bundle *all* dependencies into the jar, but we'd like
- * to avoid publishing the sql shared libraries if possible. This allows that.
- *
- * It is possible to use configure this bundling in a bunch of different ways
- * but this particular way generates a pom that doesn't declare the bundled
- * dependencies as dependencies. Which is a good thing because we don't publish
- * them and we don't want consumers to get two copies of them.
- *
- * We'd *like* to shade these dependencies, at least ones like jackson which we
- * know that we can't remove entirely. But for now something like this is
- * simpler.
- */
-configurations {
-    bundled
-}
-sourceSets {
-    main {
-        compileClasspath += configurations.bundled
-    }
-    test {
-        compileClasspath += configurations.bundled
-    }
-}
-javadoc {
-    classpath += configurations.bundled
-}
-jar {
-    from({configurations.bundled.collect { it.isDirectory() ? it : zipTree(it) }}) {
-        // We don't need the META-INF from the things we bundle. For now.
-        exclude 'META-INF/*'
-    }
+    replaceSignatureFiles 'jdk-signatures'
 }
 
 dependencies {
-    
-    // Eclipse doesn't know how to deal with these bundled deependencies so make them compile 
-    // dependencies if we are running in Eclipse
-    if (isEclipse) {
-        compile (xpackProject('plugin:sql:sql-shared-client')) {
-            transitive = false
-        }
-        compile (xpackProject('plugin:sql:sql-proto')) {
-            transitive = false
-        }
-    } else {
-        bundled (xpackProject('plugin:sql:sql-shared-client')) {
-            transitive = false
-        }
-        bundled (xpackProject('plugin:sql:sql-proto')) {
-            transitive = false
-        }
+    compile (xpackProject('plugin:sql:sql-client')) {
+        transitive = false
     }
-    compile (project(':server')) {
+    compile (xpackProject('plugin:sql:sql-proto')) {
         transitive = false
     }
     compile (project(':libs:x-content')) {
         transitive = false
     }
-    compile "org.apache.lucene:lucene-core:${versions.lucene}"
-    compile 'joda-time:joda-time:2.9.9'
-    compile project(':libs:elasticsearch-core')
+    compile project(':libs:core')
     runtime "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-    runtime "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-    runtime "org.apache.logging.log4j:log4j-core:${versions.log4j}"
-
     testCompile "org.elasticsearch.test:framework:${version}"
 }
 
 dependencyLicenses {
     mapping from: /sql-proto.*/, to: 'elasticsearch'
-    mapping from: /sql-shared-client.*/, to: 'elasticsearch'
+    mapping from: /sql-client.*/, to: 'elasticsearch'
     mapping from: /jackson-.*/, to: 'jackson'
-    mapping from: /lucene-.*/, to: 'lucene'
     mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
     ignoreSha 'sql-proto'
-    ignoreSha 'sql-shared-client'
+    ignoreSha 'sql-client'
     ignoreSha 'elasticsearch'
-    ignoreSha 'elasticsearch-core'
 }
 
-/*
- * Temporary zip file to make the jdbc driver more usable during the 6.3
- * release. We'd like to remove this in future releases when the jdbc driver
- * bundles or shades all of its dependencies. But for now this should help
- * non-maven jdbc users, specifically those folks using BI tools.
- */
-task zipWithDependencies(type: Zip) {
-    from configurations.runtime
-    from configurations.runtime.artifacts.files
-    baseName 'elasticsearch-jdbc-with-dependencies'
-    into "elasticsearch-jdbc-with-dependencies-$version"
-}
-assemble.dependsOn zipWithDependencies
-
-// Use the jar for testing so the tests are more "real"
-test {
-    classpath -= compileJava.outputs.files
-    classpath += jar.outputs.files
-    dependsOn jar
+shadowJar {
+    relocate 'com.fasterxml', 'org.elasticsearch.fasterxml'
 }
 
-thirdPartyAudit.excludes = [
-        'com.fasterxml.jackson.dataformat.yaml.YAMLFactory',
-        'com.fasterxml.jackson.dataformat.yaml.YAMLMapper',
+// We don't need normal jar, we use shadow jar instead
+jar.enabled = false
 
-        // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
-        'com.fasterxml.jackson.databind.ObjectMapper',
-        'org.fusesource.jansi.Ansi',
-        'org.fusesource.jansi.AnsiRenderer$Code',
+// We need a no-depenencies jar though for qa testing so it doesn't conflict with cli
+configurations {
+    nodeps
+}
 
-        // from log4j
-        'com.conversantmedia.util.concurrent.DisruptorBlockingQueue',
-        'com.conversantmedia.util.concurrent.SpinPolicy',
-        'com.fasterxml.jackson.annotation.JsonInclude$Include',
-        'com.fasterxml.jackson.databind.DeserializationContext',
-        'com.fasterxml.jackson.databind.DeserializationFeature',
-        'com.fasterxml.jackson.databind.JsonMappingException',
-        'com.fasterxml.jackson.databind.JsonNode',
-        'com.fasterxml.jackson.databind.Module$SetupContext',
-        'com.fasterxml.jackson.databind.ObjectReader',
-        'com.fasterxml.jackson.databind.ObjectWriter',
-        'com.fasterxml.jackson.databind.SerializerProvider',
-        'com.fasterxml.jackson.databind.deser.std.StdDeserializer',
-        'com.fasterxml.jackson.databind.deser.std.StdScalarDeserializer',
-        'com.fasterxml.jackson.databind.module.SimpleModule',
-        'com.fasterxml.jackson.databind.ser.impl.SimpleBeanPropertyFilter',
-        'com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider',
-        'com.fasterxml.jackson.databind.ser.std.StdScalarSerializer',
-        'com.fasterxml.jackson.databind.ser.std.StdSerializer',
-        'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
-        'com.fasterxml.jackson.dataformat.xml.XmlMapper',
-        'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
-        'com.fasterxml.jackson.databind.node.JsonNodeFactory',
-        'com.fasterxml.jackson.databind.node.ObjectNode',
-        'com.lmax.disruptor.BlockingWaitStrategy',
-        'com.lmax.disruptor.BusySpinWaitStrategy',
-        'com.lmax.disruptor.EventFactory',
-        'com.lmax.disruptor.EventTranslator',
-        'com.lmax.disruptor.EventTranslatorTwoArg',
-        'com.lmax.disruptor.EventTranslatorVararg',
-        'com.lmax.disruptor.ExceptionHandler',
-        'com.lmax.disruptor.LifecycleAware',
-        'com.lmax.disruptor.RingBuffer',
-        'com.lmax.disruptor.Sequence',
-        'com.lmax.disruptor.SequenceReportingEventHandler',
-        'com.lmax.disruptor.SleepingWaitStrategy',
-        'com.lmax.disruptor.TimeoutBlockingWaitStrategy',
-        'com.lmax.disruptor.WaitStrategy',
-        'com.lmax.disruptor.YieldingWaitStrategy',
-        'com.lmax.disruptor.dsl.Disruptor',
-        'com.lmax.disruptor.dsl.ProducerType',
-        'javax.jms.Connection',
-        'javax.jms.ConnectionFactory',
-        'javax.jms.Destination',
-        'javax.jms.JMSException',
-        'javax.jms.MapMessage',
-        'javax.jms.Message',
-        'javax.jms.MessageConsumer',
-        'javax.jms.MessageProducer',
-        'javax.jms.Session',
-        'javax.mail.Authenticator',
-        'javax.mail.Message$RecipientType',
-        'javax.mail.PasswordAuthentication',
-        'javax.mail.Session',
-        'javax.mail.Transport',
-        'javax.mail.internet.InternetAddress',
-        'javax.mail.internet.InternetHeaders',
-        'javax.mail.internet.MimeBodyPart',
-        'javax.mail.internet.MimeMessage',
-        'javax.mail.internet.MimeMultipart',
-        'javax.mail.internet.MimeUtility',
-        'javax.mail.util.ByteArrayDataSource',
-        'javax.persistence.AttributeConverter',
-        'javax.persistence.EntityManager',
-        'javax.persistence.EntityManagerFactory',
-        'javax.persistence.EntityTransaction',
-        'javax.persistence.Persistence',
-        'javax.persistence.PersistenceException',
-        'org.apache.commons.compress.compressors.CompressorStreamFactory',
-        'org.apache.commons.compress.utils.IOUtils',
-        'org.apache.commons.csv.CSVFormat',
-        'org.apache.commons.csv.QuoteMode',
-        'org.apache.kafka.clients.producer.Callback',
-        'org.apache.kafka.clients.producer.KafkaProducer',
-        'org.apache.kafka.clients.producer.Producer',
-        'org.apache.kafka.clients.producer.ProducerRecord',
-        'org.apache.kafka.clients.producer.RecordMetadata',
-        'org.codehaus.stax2.XMLStreamWriter2',
-        'org.jctools.queues.MessagePassingQueue$Consumer',
-        'org.jctools.queues.MpscArrayQueue',
-        'org.osgi.framework.AdaptPermission',
-        'org.osgi.framework.AdminPermission',
-        'org.osgi.framework.Bundle',
-        'org.osgi.framework.BundleActivator',
-        'org.osgi.framework.BundleContext',
-        'org.osgi.framework.BundleEvent',
-        'org.osgi.framework.BundleReference',
-        'org.osgi.framework.FrameworkUtil',
-        'org.osgi.framework.ServiceRegistration',
-        'org.osgi.framework.SynchronousBundleListener',
-        'org.osgi.framework.wiring.BundleWire',
-        'org.osgi.framework.wiring.BundleWiring',
-        'org.zeromq.ZMQ$Context',
-        'org.zeromq.ZMQ$Socket',
-        'org.zeromq.ZMQ'
-]
+task nodepsJar(type: Jar) {
+    appendix 'nodeps'
+    from sourceSets.main.output
+}
+
+artifacts  {
+    nodeps nodepsJar
+    archives shadowJar
+}

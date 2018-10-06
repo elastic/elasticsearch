@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.ack.CreateIndexClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetaData.Custom;
 import org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -53,7 +52,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -73,11 +71,10 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -96,7 +93,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_INDEX_UUID;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 
 /**
  * Service responsible for submitting create index requests
@@ -113,13 +109,19 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final IndexScopedSettings indexScopedSettings;
     private final ActiveShardsObserver activeShardsObserver;
     private final NamedXContentRegistry xContentRegistry;
+    private final boolean forbidPrivateIndexSettings;
 
-    @Inject
-    public MetaDataCreateIndexService(Settings settings, ClusterService clusterService,
-                                      IndicesService indicesService, AllocationService allocationService,
-                                      AliasValidator aliasValidator, Environment env,
-                                      IndexScopedSettings indexScopedSettings, ThreadPool threadPool,
-                                      NamedXContentRegistry xContentRegistry) {
+    public MetaDataCreateIndexService(
+            final Settings settings,
+            final ClusterService clusterService,
+            final IndicesService indicesService,
+            final AllocationService allocationService,
+            final AliasValidator aliasValidator,
+            final Environment env,
+            final IndexScopedSettings indexScopedSettings,
+            final ThreadPool threadPool,
+            final NamedXContentRegistry xContentRegistry,
+            final boolean forbidPrivateIndexSettings) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -129,6 +131,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.indexScopedSettings = indexScopedSettings;
         this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
         this.xContentRegistry = xContentRegistry;
+        this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
     }
 
     /**
@@ -288,7 +291,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 List<IndexTemplateMetaData> templates =
                         MetaDataIndexTemplateService.findTemplates(currentState.metaData(), request.index());
 
-                Map<String, Custom> customs = new HashMap<>();
+                Map<String, Map<String, String>> customs = new HashMap<>();
 
                 // add the request mapping
                 Map<String, Map<String, Object>> mappings = new HashMap<>();
@@ -299,10 +302,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                 for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
                     mappings.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue()));
-                }
-
-                for (Map.Entry<String, Custom> entry : request.customs().entrySet()) {
-                    customs.put(entry.getKey(), entry.getValue());
                 }
 
                 final Index recoverFromIndex = request.recoverFrom();
@@ -319,18 +318,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             } else {
                                 mappings.put(cursor.key,
                                     MapperService.parseMapping(xContentRegistry, mappingString));
-                            }
-                        }
-                        // handle custom
-                        for (ObjectObjectCursor<String, Custom> cursor : template.customs()) {
-                            String type = cursor.key;
-                            IndexMetaData.Custom custom = cursor.value;
-                            IndexMetaData.Custom existing = customs.get(type);
-                            if (existing == null) {
-                                customs.put(type, custom);
-                            } else {
-                                IndexMetaData.Custom merged = existing.mergeWith(custom);
-                                customs.put(type, merged);
                             }
                         }
                         //handle aliases
@@ -366,8 +353,14 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 }
                 // now, put the request settings, so they override templates
                 indexSettingsBuilder.put(request.settings());
+                if (indexSettingsBuilder.get(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey()) == null) {
+                    final DiscoveryNodes nodes = currentState.nodes();
+                    final Version createdVersion = Version.min(Version.CURRENT, nodes.getSmallestNonClientNodeVersion());
+                    indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion);
+                }
                 if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
-                    indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
+                    final int numberOfShards = getNumberOfShards(indexSettingsBuilder);
+                    indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, numberOfShards));
                 }
                 if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
                     indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
@@ -376,14 +369,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, settings.get(SETTING_AUTO_EXPAND_REPLICAS));
                 }
 
-                if (indexSettingsBuilder.get(SETTING_VERSION_CREATED) == null) {
-                    DiscoveryNodes nodes = currentState.nodes();
-                    final Version createdVersion = Version.min(Version.CURRENT, nodes.getSmallestNonClientNodeVersion());
-                    indexSettingsBuilder.put(SETTING_VERSION_CREATED, createdVersion);
-                }
-
                 if (indexSettingsBuilder.get(SETTING_CREATION_DATE) == null) {
-                    indexSettingsBuilder.put(SETTING_CREATION_DATE, new DateTime(DateTimeZone.UTC).getMillis());
+                    indexSettingsBuilder.put(SETTING_CREATION_DATE, Instant.now().toEpochMilli());
                 }
                 indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
                 indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
@@ -391,7 +378,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 final Settings idxSettings = indexSettingsBuilder.build();
                 int numTargetShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(idxSettings);
                 final int routingNumShards;
-                final Version indexVersionCreated = idxSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null);
+                final Version indexVersionCreated = IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(idxSettings);
                 final IndexMetaData sourceMetaData = recoverFromIndex == null ? null :
                     currentState.metaData().getIndexSafe(recoverFromIndex);
                 if (sourceMetaData == null || sourceMetaData.getNumberOfShards() == 1) {
@@ -516,11 +503,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 }
                 for (Alias alias : request.aliases()) {
                     AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
-                        .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).build();
+                        .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).writeIndex(alias.writeIndex()).build();
                     indexMetaDataBuilder.putAlias(aliasMetaData);
                 }
 
-                for (Map.Entry<String, Custom> customEntry : customs.entrySet()) {
+                for (Map.Entry<String, Map<String, String>> customEntry : customs.entrySet()) {
                     indexMetaDataBuilder.putCustom(customEntry.getKey(), customEntry.getValue());
                 }
 
@@ -573,6 +560,20 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
         }
 
+        static int getNumberOfShards(final Settings.Builder indexSettingsBuilder) {
+            // TODO: this logic can be removed when the current major version is 8
+            assert Version.CURRENT.major == 7;
+            final int numberOfShards;
+            final Version indexVersionCreated =
+                    Version.fromId(Integer.parseInt(indexSettingsBuilder.get(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey())));
+            if (indexVersionCreated.before(Version.V_7_0_0_alpha1)) {
+                numberOfShards = 5;
+            } else {
+                numberOfShards = 1;
+            }
+            return numberOfShards;
+        }
+
         @Override
         public void onFailure(String source, Exception e) {
             if (e instanceof ResourceAlreadyExistsException) {
@@ -586,11 +587,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
         validateIndexName(request.index(), state);
-        validateIndexSettings(request.index(), request.settings());
+        validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
     }
 
-    public void validateIndexSettings(String indexName, Settings settings) throws IndexCreationException {
-        List<String> validationErrors = getIndexSettingsValidationErrors(settings);
+    public void validateIndexSettings(
+            final String indexName, final Settings settings, final boolean forbidPrivateIndexSettings) throws IndexCreationException {
+        List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings);
         if (validationErrors.isEmpty() == false) {
             ValidationException validationException = new ValidationException();
             validationException.addValidationErrors(validationErrors);
@@ -598,7 +600,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
     }
 
-    List<String> getIndexSettingsValidationErrors(Settings settings) {
+    List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings) {
         String customPath = IndexMetaData.INDEX_DATA_PATH_SETTING.get(settings);
         List<String> validationErrors = new ArrayList<>();
         if (Strings.isEmpty(customPath) == false && env.sharedDataFile() == null) {
@@ -607,6 +609,16 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             Path resolvedPath = PathUtils.get(new Path[]{env.sharedDataFile()}, customPath);
             if (resolvedPath == null) {
                 validationErrors.add("custom path [" + customPath + "] is not a sub-path of path.shared_data [" + env.sharedDataFile() + "]");
+            }
+        }
+        if (forbidPrivateIndexSettings) {
+            for (final String key : settings.keySet()) {
+                final Setting<?> setting = indexScopedSettings.get(key);
+                if (setting == null) {
+                    assert indexScopedSettings.isPrivateSetting(key);
+                } else if (setting.isPrivateIndex()) {
+                    validationErrors.add("private index setting [" + key + "] can not be set explicitly");
+                }
             }
         }
         return validationErrors;
@@ -712,10 +724,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 .put(IndexMetaData.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getKey() + "_id",
                     Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()))
                 // we only try once and then give up with a shrink index
-                .put("index.allocation.max_retries", 1)
-                // we add the legacy way of specifying it here for BWC. We can remove this once it's backported to 6.x
-                .put(IndexMetaData.INDEX_SHRINK_SOURCE_NAME.getKey(), resizeSourceIndex.getName())
-                .put(IndexMetaData.INDEX_SHRINK_SOURCE_UUID.getKey(), resizeSourceIndex.getUUID());
+                .put("index.allocation.max_retries", 1);
         } else if (type == ResizeType.SPLIT) {
             validateSplitIndex(currentState, resizeSourceIndex.getName(), mappingKeys, resizeIntoName, indexSettingsBuilder.build());
         } else {
@@ -740,13 +749,14 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
         } else {
             final Predicate<String> sourceSettingsPredicate =
-                    (s) -> (s.startsWith("index.similarity.") || s.startsWith("index.analysis.") || s.startsWith("index.sort."))
+                    (s) -> (s.startsWith("index.similarity.") || s.startsWith("index.analysis.") ||
+                            s.startsWith("index.sort.") || s.equals("index.soft_deletes.enabled"))
                             && indexSettingsBuilder.keys().contains(s) == false;
             builder.put(sourceMetaData.getSettings().filter(sourceSettingsPredicate));
         }
 
         indexSettingsBuilder
-            .put(IndexMetaData.SETTING_VERSION_CREATED, sourceMetaData.getCreationVersion())
+            .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), sourceMetaData.getCreationVersion())
             .put(IndexMetaData.SETTING_VERSION_UPGRADED, sourceMetaData.getUpgradedVersion())
             .put(builder.build())
             .put(IndexMetaData.SETTING_ROUTING_PARTITION_SIZE, sourceMetaData.getRoutingPartitionSize())

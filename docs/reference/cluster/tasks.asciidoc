@@ -64,9 +64,10 @@ It is also possible to retrieve information for a particular task:
 
 [source,js]
 --------------------------------------------------
-GET _tasks/task_id:1 <1>
+GET _tasks/task_id <1>
 --------------------------------------------------
 // CONSOLE
+// TEST[s/task_id/node_id:1/]
 // TEST[catch:missing]
 
 <1> This will return a 404 if the task isn't found.
@@ -75,9 +76,10 @@ Or to retrieve all children of a particular task:
 
 [source,js]
 --------------------------------------------------
-GET _tasks?parent_task_id=parentTaskId:1 <1>
+GET _tasks?parent_task_id=parent_task_id <1>
 --------------------------------------------------
 // CONSOLE
+// TEST[s/=parent_task_id/=node_id:1/]
 
 <1> This won't return a 404 if the parent isn't found.
 
@@ -125,7 +127,7 @@ might look like:
 The new `description` field contains human readable text that identifies the
 particular request that the task is performing such as identifying the search
 request being performed by a search task like the example above. Other kinds of
-task have have different descriptions, like <<docs-reindex,`_reindex`>> which
+task have different descriptions, like <<docs-reindex,`_reindex`>> which
 has the search and the destination, or <<docs-bulk,`_bulk`>> which just has the
 number of requests and the destination indices. Many requests will only have an
 empty description because more detailed information about the request is not

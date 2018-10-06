@@ -116,6 +116,11 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
     dependsOn project.configurations.hdfsFixture
     executable = new File(project.runtimeJavaHome, 'bin/java')
     env 'CLASSPATH', "${ -> project.configurations.hdfsFixture.asPath }"
+    waitCondition = { fixture, ant ->
+      // the hdfs.MiniHDFS fixture writes the ports file when
+      // it's ready, so we can just wait for the file to exist
+      return fixture.portsFile.exists()
+    }
 
     final List<String> miniHDFSArgs = []
 
@@ -153,7 +158,6 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
 project.afterEvaluate {
   for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSecureHa']) {
     ClusterConfiguration cluster = project.extensions.getByName("${integTestTaskName}Cluster") as ClusterConfiguration
-    cluster.distribution = 'integ-test-zip'
     cluster.dependsOn(project.bundlePlugin)
 
     Task restIntegTestTask = project.tasks.getByName(integTestTaskName)
@@ -230,6 +234,11 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   fixtureSupported = true
 }
 
+boolean legalPath = rootProject.rootDir.toString().contains(" ") == false
+if (legalPath == false) {
+  fixtureSupported = false
+}
+
 // Always ignore HA integration tests in the normal integration test runner, they are included below as
 // part of their own HA-specific integration test tasks.
 integTestRunner.exclude('**/Ha*TestSuiteIT.class')
@@ -248,7 +257,12 @@ if (fixtureSupported) {
   // Only include the HA integration tests for the HA test task
   integTestHaRunner.patternSet.setIncludes(['**/Ha*TestSuiteIT.class'])
 } else {
-  logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
+  if (legalPath) {
+    logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
+  } else {
+    logger.warn("hdfsFixture unsupported since there are spaces in the path: '" + rootProject.rootDir.toString() + "'")
+  }
+
   // The normal integration test runner will just test that the plugin loads
   integTestRunner.systemProperty 'tests.rest.suite', 'hdfs_repository/10_basic'
   // HA fixture is unsupported. Don't run them.
@@ -550,7 +564,6 @@ thirdPartyAudit.excludes = [
   // we are not pulling in slf4j-ext, this is okay, Log4j will fallback gracefully
   'org.slf4j.ext.EventData',
 
-  'org.apache.log4j.AppenderSkeleton',
   'org.apache.log4j.AsyncAppender',
   'org.apache.log4j.helpers.ISO8601DateFormat',
   'org.apache.log4j.spi.ThrowableInformation',
@@ -569,6 +582,25 @@ thirdPartyAudit.excludes = [
   'com.squareup.okhttp.ResponseBody'
 ]
 
-if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
+if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
   thirdPartyAudit.excludes += ['javax.xml.bind.annotation.adapters.HexBinaryAdapter']
+}
+
+if (project.runtimeJavaVersion == JavaVersion.VERSION_1_8) {
+  thirdPartyAudit.excludes += [
+          // TODO: Why is this needed ?
+          'com.sun.javadoc.AnnotationDesc',
+          'com.sun.javadoc.AnnotationTypeDoc',
+          'com.sun.javadoc.ClassDoc',
+          'com.sun.javadoc.ConstructorDoc',
+          'com.sun.javadoc.Doc',
+          'com.sun.javadoc.DocErrorReporter',
+          'com.sun.javadoc.FieldDoc',
+          'com.sun.javadoc.LanguageVersion',
+          'com.sun.javadoc.MethodDoc',
+          'com.sun.javadoc.PackageDoc',
+          'com.sun.javadoc.ProgramElementDoc',
+          'com.sun.javadoc.RootDoc',
+          'com.sun.tools.doclets.standard.Standard'
+  ]
 }

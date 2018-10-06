@@ -8,14 +8,14 @@
             place:
               properties:
                 name:
-                  type: text
+                  type: keyword
   - do:
       index:
         index:   test
         type:    place
         id:      1
         refresh: true
-        body:    { "name": "bob's house" }
+        body:    { "name": "bob! house" }
 
   - do:
       indices.put_mapping:
@@ -24,11 +24,10 @@
         body:
           properties:
             name:
-              type: text
+              type: keyword
               fields:
                 english:
                   type:     text
-                  analyzer: english
 
   - do:
       search:

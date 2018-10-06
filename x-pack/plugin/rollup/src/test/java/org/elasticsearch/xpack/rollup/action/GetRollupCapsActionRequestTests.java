@@ -11,11 +11,11 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.RollableIndexCaps;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
-import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -89,7 +89,7 @@ public class GetRollupCapsActionRequestTests extends AbstractStreamableTestCase<
     public void testOneJob() throws IOException {
         String indexPattern = randomBoolean() ? randomAlphaOfLength(10) : randomAlphaOfLength(10) + "-*";
         String jobName = randomAlphaOfLength(5);
-        RollupJobConfig job = ConfigTestHelpers.getRollupJob(jobName).build();
+        RollupJobConfig job = ConfigTestHelpers.randomRollupJobConfig(random(), jobName);
 
         MappingMetaData mappingMeta = new MappingMetaData(RollupField.TYPE_NAME,
                 Collections.singletonMap(RollupField.TYPE_NAME,
@@ -113,7 +113,7 @@ public class GetRollupCapsActionRequestTests extends AbstractStreamableTestCase<
         Map<String, Object> jobs = new HashMap<>(num);
         for (int i = 0; i < num; i++) {
             String jobName = randomAlphaOfLength(5);
-            jobs.put(jobName, ConfigTestHelpers.getRollupJob(jobName).build());
+            jobs.put(jobName, ConfigTestHelpers.randomRollupJobConfig(random(), jobName));
         }
 
         MappingMetaData mappingMeta = new MappingMetaData(RollupField.TYPE_NAME,
@@ -147,7 +147,7 @@ public class GetRollupCapsActionRequestTests extends AbstractStreamableTestCase<
                 String jobName = randomAlphaOfLength(10);
                 String indexName = Integer.toString(indexCounter);
                 indexCounter += 1;
-                jobs.put(jobName, ConfigTestHelpers.getRollupJob(jobName).setIndexPattern(indexName).build());
+                jobs.put(jobName, ConfigTestHelpers.randomRollupJobConfig(random(), jobName, indexName));
             }
 
             MappingMetaData mappingMeta = new MappingMetaData(RollupField.TYPE_NAME,
@@ -179,7 +179,7 @@ public class GetRollupCapsActionRequestTests extends AbstractStreamableTestCase<
             Map<String, Object> jobs = new HashMap<>(num);
             for (int i = 0; i < num; i++) {
                 String jobName = randomAlphaOfLength(5);
-                jobs.put(jobName, ConfigTestHelpers.getRollupJob(jobName).setIndexPattern(indexName).build());
+                jobs.put(jobName, ConfigTestHelpers.randomRollupJobConfig(random(), jobName, indexName));
             }
 
             MappingMetaData mappingMeta = new MappingMetaData(RollupField.TYPE_NAME,

@@ -27,6 +27,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -109,7 +110,13 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     }
 
     private void init() throws IOException {
-        prepareCreate("test").addMapping("test", jsonBuilder().startObject()
+        Settings.Builder settings = Settings.builder();
+        settings.put(indexSettings());
+        settings.put("index.analysis.analyzer.mock_english.tokenizer", "standard");
+        settings.put("index.analysis.analyzer.mock_english.filter", "stop");
+        prepareCreate("test")
+            .setSettings(settings)
+            .addMapping("test", jsonBuilder().startObject()
                 .startObject("test")
                     .startObject("properties")
                         .startObject("foo")
@@ -133,7 +140,7 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
                                 .endObject()
                                 .startObject("token_count_without_position_increments")
                                     .field("type", "token_count")
-                                    .field("analyzer", "english")
+                                    .field("analyzer", "mock_english")
                                     .field("enable_position_increments", false)
                                     .field("store", true)
                                 .endObject()
@@ -214,13 +221,13 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         assertThat(hit.field("foo.token_count"), not(nullValue()));
         assertThat(hit.field("foo.token_count").getValues().size(), equalTo(standardTermCounts.length));
         for (int i = 0; i < standardTermCounts.length; i++) {
-            assertThat((Integer) hit.field("foo.token_count").getValues().get(i), equalTo(standardTermCounts[i]));
+            assertThat(hit.field("foo.token_count").getValues().get(i), equalTo(standardTermCounts[i]));
         }
 
         assertThat(hit.field("foo.token_count_without_position_increments"), not(nullValue()));
         assertThat(hit.field("foo.token_count_without_position_increments").getValues().size(), equalTo(englishTermCounts.length));
         for (int i = 0; i < englishTermCounts.length; i++) {
-            assertThat((Integer) hit.field("foo.token_count_without_position_increments").getValues().get(i),
+            assertThat(hit.field("foo.token_count_without_position_increments").getValues().get(i),
                     equalTo(englishTermCounts[i]));
         }
 

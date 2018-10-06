@@ -199,7 +199,7 @@ public class DnRoleMapperTests extends ESTestCase {
 
     public void testParseFile() throws Exception {
         Path file = getDataPath("role_mapping.yml");
-        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
         Map<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name", false);
         assertThat(mappings, notNullValue());
         assertThat(mappings.size(), is(3));
@@ -229,18 +229,19 @@ public class DnRoleMapperTests extends ESTestCase {
     public void testParseFile_Empty() throws Exception {
         Path file = createTempDir().resolve("foo.yaml");
         Files.createFile(file);
-        Logger logger = CapturingLogger.newCapturingLogger(Level.DEBUG);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.DEBUG, null);
         Map<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name", false);
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
         List<String> events = CapturingLogger.output(logger.getName(), Level.DEBUG);
         assertThat(events.size(), is(1));
         assertThat(events.get(0), containsString("[0] role mappings found"));
+        events.clear();
     }
 
     public void testParseFile_WhenFileDoesNotExist() throws Exception {
         Path file = createTempDir().resolve(randomAlphaOfLength(10));
-        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
         Map<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name", false);
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
@@ -257,7 +258,7 @@ public class DnRoleMapperTests extends ESTestCase {
         Path file = createTempFile("", ".yml");
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
-        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
         try {
             DnRoleMapper.parseFile(file, logger, "_type", "_name", false);
             fail("expected a parse failure");
@@ -270,13 +271,14 @@ public class DnRoleMapperTests extends ESTestCase {
         Path file = createTempFile("", ".yml");
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
-        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
         Map<DN, Set<String>> mappings = DnRoleMapper.parseFileLenient(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
         List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
         assertThat(events.size(), is(1));
         assertThat(events.get(0), containsString("failed to parse role mappings file"));
+        events.clear();
     }
 
     public void testYaml() throws Exception {

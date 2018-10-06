@@ -16,13 +16,11 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.transport.Netty4Plugin;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
-import org.elasticsearch.xpack.sql.plugin.SqlTranslateAction;
-import org.elasticsearch.xpack.sql.plugin.SqlTranslateResponse;
+import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -63,9 +61,10 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         // Enable http so we can test JDBC licensing because only exists on the REST layer.
+        String httpPlugin = randomBoolean() ? Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME : NioTransportPlugin.NIO_TRANSPORT_NAME;
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME)
+                .put(NetworkModule.HTTP_TYPE_KEY, httpPlugin)
                 .build();
     }
 
@@ -117,11 +116,11 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
         disableSqlLicensing();
 
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-                () -> client().prepareExecute(SqlQueryAction.INSTANCE).query("SELECT * FROM test").get());
+                () -> new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query("SELECT * FROM test").get());
         assertThat(e.getMessage(), equalTo("current license is non-compliant for [sql]"));
         enableSqlLicensing();
 
-        SqlQueryResponse response = client().prepareExecute(SqlQueryAction.INSTANCE).query("SELECT * FROM test").get();
+        SqlQueryResponse response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query("SELECT * FROM test").get();
         assertThat(response.size(), Matchers.equalTo(2L));
     }
 
@@ -131,11 +130,12 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
         disableJdbcLicensing();
 
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-                () -> client().prepareExecute(SqlQueryAction.INSTANCE).query("SELECT * FROM test").mode("jdbc").get());
+                () -> new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query("SELECT * FROM test").mode("jdbc").get());
         assertThat(e.getMessage(), equalTo("current license is non-compliant for [jdbc]"));
         enableJdbcLicensing();
 
-        SqlQueryResponse response = client().prepareExecute(SqlQueryAction.INSTANCE).query("SELECT * FROM test").mode("jdbc").get();
+        SqlQueryResponse response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE)
+            .query("SELECT * FROM test").mode("jdbc").get();
         assertThat(response.size(), Matchers.equalTo(2L));
     }
 
@@ -144,13 +144,15 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
         disableSqlLicensing();
 
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-                () -> client().prepareExecute(SqlTranslateAction.INSTANCE).query("SELECT * FROM test").get());
+                () -> new SqlTranslateRequestBuilder(client(), SqlTranslateAction.INSTANCE).query("SELECT * FROM test").get());
         assertThat(e.getMessage(), equalTo("current license is non-compliant for [sql]"));
         enableSqlLicensing();
 
-        SqlTranslateResponse response = client().prepareExecute(SqlTranslateAction.INSTANCE).query("SELECT * FROM test").get();
+        SqlTranslateResponse response = new SqlTranslateRequestBuilder(client(), SqlTranslateAction.INSTANCE)
+            .query("SELECT * FROM test").get();
         SearchSourceBuilder source = response.source();
-        assertThat(source.docValueFields(), Matchers.contains("count"));
+        assertThat(source.docValueFields(), Matchers.contains(
+                new DocValueFieldsContext.FieldAndFormat("count", DocValueFieldsContext.USE_DEFAULT_FORMAT)));
         FetchSourceContext fetchSource = source.fetchSource();
         assertThat(fetchSource.includes(), Matchers.arrayContaining("data"));
     }

@@ -306,11 +306,12 @@ public class SliceBuilderTests extends ESTestCase {
         builder.startObject();
         sliceBuilder.innerToXContent(builder);
         builder.endObject();
-        XContentParser parser = createParser(shuffleXContent(builder));
-        SliceBuilder secondSliceBuilder = SliceBuilder.fromXContent(parser);
-        assertNotSame(sliceBuilder, secondSliceBuilder);
-        assertEquals(sliceBuilder, secondSliceBuilder);
-        assertEquals(sliceBuilder.hashCode(), secondSliceBuilder.hashCode());
+        try (XContentParser parser = createParser(shuffleXContent(builder))) {
+            SliceBuilder secondSliceBuilder = SliceBuilder.fromXContent(parser);
+            assertNotSame(sliceBuilder, secondSliceBuilder);
+            assertEquals(sliceBuilder, secondSliceBuilder);
+            assertEquals(sliceBuilder.hashCode(), secondSliceBuilder.hashCode());
+        }
     }
 
     public void testInvalidArguments() throws Exception {

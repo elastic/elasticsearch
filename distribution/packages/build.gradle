@@ -122,19 +122,25 @@ Closure commonPackageConfig(String type, boolean oss) {
       }
       from(rootProject.projectDir) {
         include 'README.textile'
+        fileMode 0644
+      }
+      into('lib') {
+        with libFiles(oss)
       }
       into('modules') {
-        with copySpec {
-          with modulesFiles(oss)
-          // we need to specify every intermediate directory, but modules could have sub directories
-          // and there might not be any files as direct children of intermediates (eg platform)
-          // so we must iterate through the parents, but duplicate calls with the same path
-          // are ok (they don't show up in the built packages)
-          eachFile { FileCopyDetails fcp ->
-            String[] segments = fcp.relativePath.segments
-            for (int i = segments.length - 2; i > 0 && segments[i] != 'modules'; --i) {
-              directory('/' + segments[0..i].join('/'), 0755)
-            }
+        with modulesFiles(oss)
+      }
+      // we need to specify every intermediate directory in these paths so the package managers know they are explicitly
+      // intended to manage them; otherwise they may be left behind on uninstallation. duplicate calls of the same
+      // directory are fine
+      eachFile { FileCopyDetails fcp ->
+        String[] segments = fcp.relativePath.segments
+        for (int i = segments.length - 2; i > 2; --i) {
+          directory('/' + segments[0..i].join('/'), 0755)
+          if (segments[-2] == 'bin') {
+            fcp.mode = 0755
+          } else {
+            fcp.mode = 0644
           }
         }
       }
@@ -153,6 +159,7 @@ Closure commonPackageConfig(String type, boolean oss) {
           include oss ? 'APACHE-LICENSE-2.0.txt' : 'ELASTIC-LICENSE.txt'
           rename { 'LICENSE.txt' }
         }
+        fileMode 0644
       }
     }
 
@@ -180,14 +187,17 @@ Closure commonPackageConfig(String type, boolean oss) {
     // ========= systemd =========
     into('/usr/lib/tmpfiles.d') {
       from "${packagingFiles}/systemd/elasticsearch.conf"
+      fileMode 0644
     }
     into('/usr/lib/systemd/system') {
       fileType CONFIG | NOREPLACE
       from "${packagingFiles}/systemd/elasticsearch.service"
+      fileMode 0644
     }
     into('/usr/lib/sysctl.d') {
       fileType CONFIG | NOREPLACE
       from "${packagingFiles}/systemd/sysctl/elasticsearch.conf"
+      fileMode 0644
     }
 
     // ========= sysV init =========
@@ -241,8 +251,8 @@ ospackage {
     signingKeyId = project.hasProperty('signing.keyId') ? project.property('signing.keyId') : 'D88E42B4'
     signingKeyPassphrase = project.property('signing.password')
     signingKeyRingFile = project.hasProperty('signing.secretKeyRingFile') ?
-                         project.file(project.property('signing.secretKeyRingFile')) :
-                         new File(new File(System.getProperty('user.home'), '.gnupg'), 'secring.gpg')
+            project.file(project.property('signing.secretKeyRingFile')) :
+            new File(new File(System.getProperty('user.home'), '.gnupg'), 'secring.gpg')
   }
 
   requires('coreutils')
@@ -253,7 +263,6 @@ ospackage {
   permissionGroup 'root'
 
   into '/usr/share/elasticsearch'
-  with libFiles
   with noticeFile
 }
 
@@ -314,12 +323,6 @@ Closure commonRpmConfig(boolean oss) {
 
     // without this the rpm will have parent dirs of any files we copy in, eg /etc/elasticsearch
     addParentDirs false
-
-    // Declare the folders so that the RPM package manager removes
-    // them when upgrading or removing the package
-    directory('/usr/share/elasticsearch/bin', 0755)
-    directory('/usr/share/elasticsearch/lib', 0755)
-    directory('/usr/share/elasticsearch/modules', 0755)
   }
 }
 

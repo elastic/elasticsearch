@@ -80,6 +80,9 @@
         },
         "rule": {
           "type": "keyword"
+        },
+        "opaque_id": {
+          "type": "keyword"
         }
       }
     }

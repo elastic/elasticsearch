@@ -65,18 +65,36 @@ import java.util.function.Function;
  * </ul>
  */
 public class MockNode extends Node {
+
     private final Collection<Class<? extends Plugin>> classpathPlugins;
 
-    public MockNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins) {
-        this(settings, classpathPlugins, null);
+    public MockNode(final Settings settings, final Collection<Class<? extends Plugin>> classpathPlugins) {
+        this(settings, classpathPlugins, true);
     }
 
-    public MockNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins, Path configPath) {
-        this(InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), configPath), classpathPlugins);
+    public MockNode(
+            final Settings settings,
+            final Collection<Class<? extends Plugin>> classpathPlugins,
+            final boolean forbidPrivateIndexSettings) {
+        this(settings, classpathPlugins, null, forbidPrivateIndexSettings);
     }
 
-    public MockNode(Environment environment, Collection<Class<? extends Plugin>> classpathPlugins) {
-        super(environment, classpathPlugins);
+    public MockNode(
+            final Settings settings,
+            final Collection<Class<? extends Plugin>> classpathPlugins,
+            final Path configPath,
+            final boolean forbidPrivateIndexSettings) {
+        this(
+                InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), configPath, () -> "mock_ node"),
+                classpathPlugins,
+                forbidPrivateIndexSettings);
+    }
+
+    private MockNode(
+            final Environment environment,
+            final Collection<Class<? extends Plugin>> classpathPlugins,
+            final boolean forbidPrivateIndexSettings) {
+        super(environment, classpathPlugins, forbidPrivateIndexSettings);
         this.classpathPlugins = classpathPlugins;
     }
 
@@ -157,4 +175,3 @@ public class MockNode extends Node {
         }
     }
 }
-

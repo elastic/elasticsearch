@@ -107,16 +107,17 @@ public class GeoPointParsingTests  extends ESTestCase {
         content.endObject();
         content.endObject();
 
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content));
-        parser.nextToken();
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-        assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
-
-        XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content));
-        parser2.nextToken();
-        e = expectThrows(ElasticsearchParseException.class, () ->
-            GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
-        assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
+            parser.nextToken();
+            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+            assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+        }
+        try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
+            parser2.nextToken();
+            Exception e = expectThrows(ElasticsearchParseException.class, () ->
+                GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
+            assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+        }
     }
 
     public void testInvalidPointLatHashMix() throws IOException {
@@ -125,16 +126,17 @@ public class GeoPointParsingTests  extends ESTestCase {
         content.field("lat", 0).field("geohash", stringEncode(0d, 0d));
         content.endObject();
 
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content));
-        parser.nextToken();
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-        assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
-
-        XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content));
-        parser2.nextToken();
-        e = expectThrows(ElasticsearchParseException.class, () ->
-            GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
-        assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
+            parser.nextToken();
+            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+            assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
+        }
+        try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
+            parser2.nextToken();
+            Exception e = expectThrows(ElasticsearchParseException.class, () ->
+                GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
+            assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
+        }
     }
 
     public void testInvalidPointLonHashMix() throws IOException {
@@ -143,17 +145,18 @@ public class GeoPointParsingTests  extends ESTestCase {
         content.field("lon", 0).field("geohash", stringEncode(0d, 0d));
         content.endObject();
 
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content));
-        parser.nextToken();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
+            parser.nextToken();
 
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-        assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
-
-        XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content));
-        parser2.nextToken();
-        e = expectThrows(ElasticsearchParseException.class, () ->
-            GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
-        assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
+            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+            assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
+        }
+        try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
+            parser2.nextToken();
+            Exception e = expectThrows(ElasticsearchParseException.class, () ->
+                GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
+            assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
+        }
     }
 
     public void testInvalidField() throws IOException {
@@ -162,17 +165,32 @@ public class GeoPointParsingTests  extends ESTestCase {
         content.field("lon", 0).field("lat", 0).field("test", 0);
         content.endObject();
 
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content));
-        parser.nextToken();
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-        assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
+            parser.nextToken();
+            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+            assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+        }
 
+        try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
+            parser2.nextToken();
+            Exception e = expectThrows(ElasticsearchParseException.class, () ->
+                GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
+            assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+        }
+    }
 
-        XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content));
-        parser2.nextToken();
-        e = expectThrows(ElasticsearchParseException.class, () ->
-            GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
-        assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+    public void testInvalidGeoHash() throws IOException {
+        XContentBuilder content = JsonXContent.contentBuilder();
+        content.startObject();
+        content.field("geohash", "!!!!");
+        content.endObject();
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
+            parser.nextToken();
+
+            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+            assertThat(e.getMessage(), is("unsupported symbol [!] in geohash [!!!!]"));
+        }
     }
 
     private XContentParser objectLatLon(double lat, double lon) throws IOException {

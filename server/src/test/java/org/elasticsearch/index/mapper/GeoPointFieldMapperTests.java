@@ -49,6 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
@@ -286,7 +287,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
-        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
 
         boolean ignoreZValue = ((GeoPointFieldMapper)fieldMapper).ignoreZValue().value();
@@ -363,10 +364,10 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
-        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
 
-        Object nullValue = fieldMapper.fieldType().nullValue();
+        Object nullValue = ((GeoPointFieldMapper) fieldMapper).fieldType().nullValue();
         assertThat(nullValue, equalTo(new GeoPoint(1, 2)));
 
         ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
@@ -396,6 +397,52 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             XContentType.JSON));
         // Shouldn't matter if we specify the value explicitly or use null value
         assertThat(defaultValue, not(equalTo(doc.rootDoc().getField("location").binaryValue())));
+    }
+
+    public void testInvalidGeohashIgnored() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+            .startObject("location")
+            .field("type", "geo_point")
+            .field("ignore_malformed", "true")
+            .endObject()
+            .endObject().endObject().endObject());
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("type", new CompressedXContent(mapping));
+
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("location", "1234.333")
+                    .endObject()),
+            XContentType.JSON));
+
+        assertThat(doc.rootDoc().getField("location"), nullValue());
+    }
+
+
+    public void testInvalidGeohashNotIgnored() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+            .startObject("location")
+            .field("type", "geo_point")
+            .endObject()
+            .endObject().endObject().endObject());
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("type", new CompressedXContent(mapping));
+
+        MapperParsingException ex = expectThrows(MapperParsingException.class,
+            () -> defaultMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("location", "1234.333")
+                    .endObject()),
+            XContentType.JSON)));
+
+        assertThat(ex.getMessage(), equalTo("failed to parse"));
+        assertThat(ex.getRootCause().getMessage(), equalTo("unsupported symbol [.] in geohash [1234.333]"));
     }
 
 }

@@ -124,7 +124,7 @@ public class BulkRequestTests extends ESTestCase {
 
     public void testBulkAddIterable() {
         BulkRequest bulkRequest = Requests.bulkRequest();
-        List<DocWriteRequest> requests = new ArrayList<>();
+        List<DocWriteRequest<?>> requests = new ArrayList<>();
         requests.add(new IndexRequest("test", "test", "id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"));
         requests.add(new UpdateRequest("test", "test", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"));
         requests.add(new DeleteRequest("test", "test", "id"));
@@ -279,7 +279,7 @@ public class BulkRequestTests extends ESTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(data, null, null, xContentType);
         assertEquals(1, bulkRequest.requests().size());
-        DocWriteRequest docWriteRequest = bulkRequest.requests().get(0);
+        DocWriteRequest<?> docWriteRequest = bulkRequest.requests().get(0);
         assertEquals(DocWriteRequest.OpType.INDEX, docWriteRequest.opType());
         assertEquals("index", docWriteRequest.index());
         assertEquals("type", docWriteRequest.type());

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.debug;
 
-import org.elasticsearch.xpack.sql.client.shared.SuppressForbidden;
+import org.elasticsearch.xpack.sql.client.SuppressForbidden;
 import org.elasticsearch.xpack.sql.jdbc.JdbcException;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 
@@ -39,10 +39,10 @@ import javax.sql.DataSource;
  * being global and not working well with encoding (hence why {@link DriverManager#getLogWriter()} was introduced)
  * and was changed again through {@link DataSource#getLogWriter()}.
  * However by then the damage was done and most drivers don't use either and have their own logging implementation.
- * 
+ *
  * This class tries to cater to both audiences - use the legacy, Writer way if needed though strive to use the
  * proper typical approach, that of specifying intention and output (file) in the URL.
- * 
+ *
  * For this reason the {@link System#out} and {@link System#err} are being refered in this class though are used only
  * when needed.
  */
@@ -65,7 +65,7 @@ public final class Debug {
      * {@link DriverManager#setLogWriter(PrintWriter)} and {@link DataSource#setLogWriter(PrintWriter)}.
      * The former is the 'legacy' way, having a global impact on all drivers while the latter allows per
      * instance configuration.
-     * 
+     *
      * As both approaches are not widely used, Debug will take the principle of least surprise and pick its
      * own configuration first; if that does not exist it will fallback to the managed approaches (assuming they
      * are specified, otherwise logging is simply disabled).

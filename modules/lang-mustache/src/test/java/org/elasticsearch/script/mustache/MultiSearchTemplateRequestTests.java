@@ -19,13 +19,21 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
@@ -97,5 +105,57 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () ->
                 request.maxConcurrentSearchRequests(randomIntBetween(Integer.MIN_VALUE, 0)));
     }
+    
+    public void testMultiSearchTemplateToJson() throws Exception {
+        final int numSearchRequests = randomIntBetween(1, 10);
+        MultiSearchTemplateRequest multiSearchTemplateRequest = new MultiSearchTemplateRequest();        
+        for (int i = 0; i < numSearchRequests; i++) {
+            // Create a random request.
+            String[] indices = {"test"};
+            SearchRequest searchRequest = new SearchRequest(indices);
+            // scroll is not supported in the current msearch or msearchtemplate api, so unset it:
+            searchRequest.scroll((Scroll) null);
+            // batched reduce size is currently not set-able on a per-request basis as it is a query string parameter only
+            searchRequest.setBatchedReduceSize(SearchRequest.DEFAULT_BATCHED_REDUCE_SIZE);
+            SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest(searchRequest);
+    
+            searchTemplateRequest.setScript("{\"query\": { \"match\" : { \"{{field}}\" : \"{{value}}\" }}}");
+            searchTemplateRequest.setScriptType(ScriptType.INLINE);
+            searchTemplateRequest.setProfile(randomBoolean());
+    
+            Map<String, Object> scriptParams = new HashMap<>();
+            scriptParams.put("field", "name");
+            scriptParams.put("value", randomAlphaOfLengthBetween(2, 5));
+            searchTemplateRequest.setScriptParams(scriptParams);
+    
+            multiSearchTemplateRequest.add(searchTemplateRequest);            
+        }
+
+        //Serialize the request
+        String serialized = toJsonString(multiSearchTemplateRequest);
+        
+        //Deserialize the request
+        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+                .withContent(new BytesArray(serialized), XContentType.JSON).build();        
+        MultiSearchTemplateRequest deser = RestMultiSearchTemplateAction.parseRequest(restRequest, true);
+
+        // For object equality purposes need to set the search requests' source to non-null
+        for (SearchTemplateRequest str : deser.requests()) {
+            SearchRequest sr = str.getRequest();
+            if (sr.source() == null) {
+                sr.source(new SearchSourceBuilder());
+            }
+        }        
+        // Compare the deserialized request object with the original request object
+        assertEquals(multiSearchTemplateRequest, deser);
+        
+        // Finally, serialize the deserialized request to compare JSON equivalence (in case Object.equals() fails to reveal a discrepancy)
+        assertEquals(serialized, toJsonString(deser));
+    }
+
+    protected String toJsonString(MultiSearchTemplateRequest multiSearchTemplateRequest) throws IOException {
+        byte[] bytes = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, XContentType.JSON.xContent());
+        return new String(bytes, StandardCharsets.UTF_8);
+    }    
 
 }

@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
@@ -90,8 +89,7 @@ public class MlAssignmentNotifier extends AbstractComponent implements ClusterSt
                 }
             } else if (StartDatafeedAction.TASK_NAME.equals(currentTask.getTaskName())) {
                 String datafeedId = ((StartDatafeedAction.DatafeedParams) currentTask.getParams()).getDatafeedId();
-                MlMetadata mlMetadata = event.state().getMetaData().custom(MLMetadataField.TYPE);
-                DatafeedConfig datafeedConfig = mlMetadata.getDatafeed(datafeedId);
+                DatafeedConfig datafeedConfig = MlMetadata.getMlMetadata(event.state()).getDatafeed(datafeedId);
                 if (currentAssignment.getExecutorNode() == null) {
                     String msg = "No node found to start datafeed [" + datafeedId +"]. Reasons [" +
                             currentAssignment.getExplanation() + "]";

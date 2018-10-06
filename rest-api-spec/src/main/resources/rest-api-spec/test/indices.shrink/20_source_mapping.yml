@@ -1,5 +1,10 @@
 ---
 "Shrink index ignores target template mapping":
+    - skip:
+        version: " - 6.9.99"
+        reason: expects warnings that pre-7.0.0 will not send
+        features: "warnings"
+
     - do:
         cluster.state: {}
         # Get master node id
@@ -15,7 +20,8 @@
             settings:
               # ensure everything is allocated on a single node
               index.routing.allocation.include._id: $master
-              number_of_replicas: 0
+              index.number_of_shards: 2
+              index.number_of_replicas: 0
             mappings:
               test:
                 properties:

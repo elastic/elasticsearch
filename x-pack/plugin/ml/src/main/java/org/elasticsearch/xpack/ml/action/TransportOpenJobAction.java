@@ -15,15 +15,18 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -39,31 +42,32 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
+import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.ml.job.config.JobTaskStatus;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
 import java.io.IOException;
@@ -89,24 +93,25 @@ import static org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProces
  In case of instability persistent tasks checks may fail and that is ok, in that case all bets are off.
  The open job api is a low through put api, so the fact that we redirect to elected master node shouldn't be an issue.
 */
-public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAction.Request, OpenJobAction.Response> {
+public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAction.Request, AcknowledgedResponse> {
 
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
 
     @Inject
     public TransportOpenJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                   XPackLicenseState licenseState, ClusterService clusterService,
                                   PersistentTasksService persistentTasksService, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver, Client client, JobProvider jobProvider) {
+                                  IndexNameExpressionResolver indexNameExpressionResolver, Client client,
+                                  JobResultsProvider jobResultsProvider) {
         super(settings, OpenJobAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 OpenJobAction.Request::new);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
         this.client = client;
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
     }
 
     /**
@@ -163,20 +168,12 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 continue;
             }
 
-            MlMetadata mlMetadata = clusterState.getMetaData().custom(MLMetadataField.TYPE);
+            MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
             Job job = mlMetadata.getJobs().get(jobId);
             Set<String> compatibleJobTypes = Job.getCompatibleJobTypes(node.getVersion());
             if (compatibleJobTypes.contains(job.getJobType()) == false) {
                 String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node) +
                         "], because this node does not support jobs of type [" + job.getJobType() + "]";
-                logger.trace(reason);
-                reasons.add(reason);
-                continue;
-            }
-
-            if (nodeSupportsJobVersion(node.getVersion()) == false) {
-                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node)
-                        + "], because this node does not support jobs of version [" + job.getJobVersion() + "]";
                 logger.trace(reason);
                 reasons.add(reason);
                 continue;
@@ -191,6 +188,14 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 continue;
             }
 
+            if (jobHasRules(job) && node.getVersion().before(DetectionRule.VERSION_INTRODUCED)) {
+                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node) + "], because jobs using " +
+                        "custom_rules require a node of version [" + DetectionRule.VERSION_INTRODUCED + "] or higher";
+                logger.trace(reason);
+                reasons.add(reason);
+                continue;
+            }
+
             long numberOfAssignedJobs = 0;
             int numberOfAllocatingJobs = 0;
             long assignedJobMemory = 0;
@@ -200,18 +205,29 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                         persistentTasks.findTasks(OpenJobAction.TASK_NAME,
                         task -> node.getId().equals(task.getExecutorNode()));
                 for (PersistentTasksCustomMetaData.PersistentTask<?> assignedTask : assignedTasks) {
-                    JobTaskStatus jobTaskState = (JobTaskStatus) assignedTask.getStatus();
+                    JobTaskState jobTaskState = (JobTaskState) assignedTask.getState();
                     JobState jobState;
-                    if (jobTaskState == null || // executor node didn't have the chance to set job status to OPENING
-                            // previous executor node failed and current executor node didn't have the chance to set job status to OPENING
-                            jobTaskState.isStatusStale(assignedTask)) {
+                    if (jobTaskState == null) {
+                        // executor node didn't have the chance to set job status to OPENING
                         ++numberOfAllocatingJobs;
                         jobState = JobState.OPENING;
                     } else {
                         jobState = jobTaskState.getState();
+                        if (jobTaskState.isStatusStale(assignedTask)) {
+                            if (jobState == JobState.CLOSING) {
+                                // previous executor node failed while the job was closing - it won't
+                                // be reopened, so consider it CLOSED for resource usage purposes
+                                jobState = JobState.CLOSED;
+                            } else if (jobState != JobState.FAILED) {
+                                // previous executor node failed and current executor node didn't
+                                // have the chance to set job status to OPENING
+                                ++numberOfAllocatingJobs;
+                                jobState = JobState.OPENING;
+                            }
+                        }
                     }
-                    // Don't count FAILED jobs, as they don't consume native memory
-                    if (jobState != JobState.FAILED) {
+                    // Don't count CLOSED or FAILED jobs, as they don't consume native memory
+                    if (jobState.isAnyOf(JobState.CLOSED, JobState.FAILED) == false) {
                         ++numberOfAssignedJobs;
                         String assignedJobId = ((OpenJobAction.JobParams) assignedTask.getParams()).getJobId();
                         Job assignedJob = mlMetadata.getJobs().get(assignedJobId);
@@ -361,10 +377,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         return unavailableIndices;
     }
 
-    private static boolean nodeSupportsJobVersion(Version nodeVersion) {
-        return nodeVersion.onOrAfter(Version.V_5_5_0);
-    }
-
     private static boolean nodeSupportsModelSnapshotVersion(DiscoveryNode node, Job job) {
         if (job.getModelSnapshotId() == null || job.getModelSnapshotMinVersion() == null) {
             // There is no snapshot to restore or the min model snapshot version is 5.5.0
@@ -372,6 +384,10 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             return true;
         }
         return node.getVersion().onOrAfter(job.getModelSnapshotMinVersion());
+    }
+
+    private static boolean jobHasRules(Job job) {
+        return job.getAnalysisConfig().getDetectors().stream().anyMatch(d -> d.getRules().isEmpty() == false);
     }
 
     static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion,
@@ -430,8 +446,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     }
 
     @Override
-    protected OpenJobAction.Response newResponse() {
-        return new OpenJobAction.Response();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
@@ -443,15 +459,28 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     }
 
     @Override
-    protected void masterOperation(OpenJobAction.Request request, ClusterState state, ActionListener<OpenJobAction.Response> listener) {
+    protected void masterOperation(OpenJobAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         OpenJobAction.JobParams jobParams = request.getJobParams();
         if (licenseState.isMachineLearningAllowed()) {
-            // Step 5. Wait for job to be started and respond
-            ActionListener<PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams>> finalListener =
+
+            // Step 6. Clear job finished time once the job is started and respond
+            ActionListener<AcknowledgedResponse> clearJobFinishTime = ActionListener.wrap(
+                response -> {
+                    if (response.isAcknowledged()) {
+                        clearJobFinishedTime(jobParams.getJobId(), listener);
+                    } else {
+                        listener.onResponse(response);
+                    }
+                },
+                listener::onFailure
+            );
+
+            // Step 5. Wait for job to be started
+            ActionListener<PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams>> waitForJobToStart =
                     new ActionListener<PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams>>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> task) {
-                    waitForJobStarted(task.getId(), jobParams, listener);
+                    waitForJobStarted(task.getId(), jobParams, clearJobFinishTime);
                 }
 
                 @Override
@@ -466,22 +495,21 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
             // Step 4. Start job task
             ActionListener<PutJobAction.Response> establishedMemoryUpdateListener = ActionListener.wrap(
-                    response -> persistentTasksService.startPersistentTask(MlMetadata.jobTaskId(jobParams.getJobId()),
-                            OpenJobAction.TASK_NAME, jobParams, finalListener),
+                    response -> persistentTasksService.sendStartRequest(MlTasks.jobTaskId(jobParams.getJobId()),
+                            OpenJobAction.TASK_NAME, jobParams, waitForJobToStart),
                     listener::onFailure
             );
 
             // Step 3. Update established model memory for pre-6.1 jobs that haven't had it set
             ActionListener<Boolean> missingMappingsListener = ActionListener.wrap(
                     response -> {
-                        MlMetadata mlMetadata = clusterService.state().getMetaData().custom(MLMetadataField.TYPE);
-                        Job job = mlMetadata.getJobs().get(jobParams.getJobId());
+                        Job job = MlMetadata.getMlMetadata(clusterService.state()).getJobs().get(jobParams.getJobId());
                         if (job != null) {
                             Version jobVersion = job.getJobVersion();
                             Long jobEstablishedModelMemory = job.getEstablishedModelMemory();
                             if ((jobVersion == null || jobVersion.before(Version.V_6_1_0))
                                     && (jobEstablishedModelMemory == null || jobEstablishedModelMemory == 0)) {
-                                jobProvider.getEstablishedMemoryUsage(job.getId(), null, null, establishedModelMemory -> {
+                                jobResultsProvider.getEstablishedMemoryUsage(job.getId(), null, null, establishedModelMemory -> {
                                     if (establishedModelMemory != null && establishedModelMemory > 0) {
                                         JobUpdate update = new JobUpdate.Builder(job.getId())
                                                 .setEstablishedModelMemory(establishedModelMemory).build();
@@ -518,10 +546,10 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         }
     }
 
-    private void waitForJobStarted(String taskId, OpenJobAction.JobParams jobParams, ActionListener<OpenJobAction.Response> listener) {
+    private void waitForJobStarted(String taskId, OpenJobAction.JobParams jobParams, ActionListener<AcknowledgedResponse> listener) {
         JobPredicate predicate = new JobPredicate();
-        persistentTasksService.waitForPersistentTaskStatus(taskId, predicate, jobParams.getTimeout(),
-                new PersistentTasksService.WaitForPersistentTaskStatusListener<OpenJobAction.JobParams>() {
+        persistentTasksService.waitForPersistentTaskCondition(taskId, predicate, jobParams.getTimeout(),
+                new PersistentTasksService.WaitForPersistentTaskListener<OpenJobAction.JobParams>() {
             @Override
             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> persistentTask) {
                 if (predicate.exception != null) {
@@ -533,7 +561,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                         listener.onFailure(predicate.exception);
                     }
                 } else {
-                    listener.onResponse(new OpenJobAction.Response(predicate.opened));
+                    listener.onResponse(new AcknowledgedResponse(predicate.opened));
                 }
             }
 
@@ -550,9 +578,38 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         });
     }
 
+    private void clearJobFinishedTime(String jobId, ActionListener<AcknowledgedResponse> listener) {
+        clusterService.submitStateUpdateTask("clearing-job-finish-time-for-" + jobId, new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                MlMetadata mlMetadata = MlMetadata.getMlMetadata(currentState);
+                MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder(mlMetadata);
+                Job.Builder jobBuilder = new Job.Builder(mlMetadata.getJobs().get(jobId));
+                jobBuilder.setFinishedTime(null);
+
+                mlMetadataBuilder.putJob(jobBuilder.build(), true);
+                ClusterState.Builder builder = ClusterState.builder(currentState);
+                return builder.metaData(new MetaData.Builder(currentState.metaData())
+                    .putCustom(MlMetadata.TYPE, mlMetadataBuilder.build()))
+                    .build();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.error("[" + jobId + "] Failed to clear finished_time; source [" + source + "]", e);
+                listener.onResponse(new AcknowledgedResponse(true));
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState,
+                                              ClusterState newState) {
+                listener.onResponse(new AcknowledgedResponse(true));
+            }
+        });
+    }
     private void cancelJobStart(PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> persistentTask, Exception exception,
-                                ActionListener<OpenJobAction.Response> listener) {
-        persistentTasksService.cancelPersistentTask(persistentTask.getId(),
+                                ActionListener<AcknowledgedResponse> listener) {
+        persistentTasksService.sendRemoveRequest(persistentTask.getId(),
                 new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
                     @Override
                     public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> task) {
@@ -648,29 +705,27 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
         @Override
         public void validate(OpenJobAction.JobParams params, ClusterState clusterState) {
+
+            TransportOpenJobAction.validate(params.getJobId(), MlMetadata.getMlMetadata(clusterState));
+
             // If we already know that we can't find an ml node because all ml nodes are running at capacity or
             // simply because there are no ml nodes in the cluster then we fail quickly here:
-            MlMetadata mlMetadata = clusterState.metaData().custom(MLMetadataField.TYPE);
-            TransportOpenJobAction.validate(params.getJobId(), mlMetadata);
             PersistentTasksCustomMetaData.Assignment assignment = selectLeastLoadedMlNode(params.getJobId(), clusterState,
                     maxConcurrentJobAllocations, fallbackMaxNumberOfOpenJobs, maxMachineMemoryPercent, logger);
             if (assignment.getExecutorNode() == null) {
-                String msg = "Could not open job because no suitable nodes were found, allocation explanation ["
-                        + assignment.getExplanation() + "]";
-                logger.warn("[{}] {}", params.getJobId(), msg);
-                throw new ElasticsearchStatusException(msg, RestStatus.TOO_MANY_REQUESTS);
+                throw makeNoSuitableNodesException(logger, params.getJobId(), assignment.getExplanation());
             }
         }
 
         @Override
-        protected void nodeOperation(AllocatedPersistentTask task, OpenJobAction.JobParams params, Task.Status status) {
+        protected void nodeOperation(AllocatedPersistentTask task, OpenJobAction.JobParams params, PersistentTaskState state) {
             JobTask jobTask = (JobTask) task;
             jobTask.autodetectProcessManager = autodetectProcessManager;
-            JobTaskStatus jobStateStatus = (JobTaskStatus) status;
+            JobTaskState jobTaskState = (JobTaskState) state;
             // If the job is failed then the Persistent Task Service will
             // try to restart it on a node restart. Exiting here leaves the
             // job in the failed state and it must be force closed.
-            if (jobStateStatus != null && jobStateStatus.getState().isAnyOf(JobState.FAILED, JobState.CLOSING)) {
+            if (jobTaskState != null && jobTaskState.getState().isAnyOf(JobState.FAILED, JobState.CLOSING)) {
                 return;
             }
 
@@ -754,17 +809,17 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         public boolean test(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
             JobState jobState = JobState.CLOSED;
             if (persistentTask != null) {
-                JobTaskStatus jobStateStatus = (JobTaskStatus) persistentTask.getStatus();
-                jobState = jobStateStatus == null ? JobState.OPENING : jobStateStatus.getState();
+                JobTaskState jobTaskState = (JobTaskState) persistentTask.getState();
+                jobState = jobTaskState == null ? JobState.OPENING : jobTaskState.getState();
 
                 PersistentTasksCustomMetaData.Assignment assignment = persistentTask.getAssignment();
                 // This logic is only appropriate when opening a job, not when reallocating following a failure,
                 // and this is why this class must only be used when opening a job
                 if (assignment != null && assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false &&
                         assignment.isAssigned() == false) {
+                    OpenJobAction.JobParams params = (OpenJobAction.JobParams) persistentTask.getParams();
                     // Assignment has failed on the master node despite passing our "fast fail" validation
-                    exception = new ElasticsearchStatusException("Could not open job because no suitable nodes were found, " +
-                            "allocation explanation [" + assignment.getExplanation() + "]", RestStatus.TOO_MANY_REQUESTS);
+                    exception = makeNoSuitableNodesException(logger, params.getJobId(), assignment.getExplanation());
                     // The persistent task should be cancelled so that the observed outcome is the
                     // same as if the "fast fail" validation on the coordinating node had failed
                     shouldCancel = true;
@@ -789,5 +844,13 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                     return true;
             }
         }
+    }
+
+    static ElasticsearchException makeNoSuitableNodesException(Logger logger, String jobId, String explanation) {
+        String msg = "Could not open job because no suitable nodes were found, allocation explanation [" + explanation + "]";
+        logger.warn("[{}] {}", jobId, msg);
+        Exception detail = new IllegalStateException(msg);
+        return new ElasticsearchStatusException("Could not open job because no ML nodes with sufficient capacity were found",
+            RestStatus.TOO_MANY_REQUESTS, detail);
     }
 }

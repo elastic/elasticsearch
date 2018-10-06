@@ -110,8 +110,7 @@ public class MeanReciprocalRank implements EvaluationMetric {
      * Compute ReciprocalRank based on provided relevant document IDs.
      **/
     @Override
-    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits,
-            List<RatedDocument> ratedDocs) {
+    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs) {
         List<RatedSearchHit> ratedHits = joinHitsWithRatings(hits, ratedDocs);
         int firstRelevant = -1;
         int rank = 1;

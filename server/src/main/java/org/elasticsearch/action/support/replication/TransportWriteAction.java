@@ -76,18 +76,14 @@ public abstract class TransportWriteAction<
             // check if any transient write operation failures should be bubbled up
             Exception failure = operationResult.getFailure();
             assert failure instanceof MapperParsingException : "expected mapper parsing failures. got " + failure;
-            if (!TransportActions.isShardNotAvailableException(failure)) {
-                throw failure;
-            } else {
-                location = currentLocation;
-            }
+            throw failure;
         } else {
             location = locationToSync(currentLocation, operationResult.getTranslogLocation());
         }
         return location;
     }
 
-    protected static Location locationToSync(Location current, Location next) {
+    public static Location locationToSync(Location current, Location next) {
         /* here we are moving forward in the translog with each operation. Under the hood this might
          * cross translog files which is ok since from the user perspective the translog is like a
          * tape where only the highest location needs to be fsynced in order to sync all previous
@@ -134,6 +130,7 @@ public abstract class TransportWriteAction<
             implements RespondingWriteResult {
         boolean finishedAsyncActions;
         public final Location location;
+        public final IndexShard primary;
         ActionListener<Response> listener = null;
 
         public WritePrimaryResult(ReplicaRequest request, @Nullable Response finalResponse,
@@ -141,6 +138,7 @@ public abstract class TransportWriteAction<
                                   IndexShard primary, Logger logger) {
             super(request, finalResponse, operationFailure);
             this.location = location;
+            this.primary = primary;
             assert location == null || operationFailure == null
                     : "expected either failure to be null or translog location to be null, " +
                     "but found: [" + location + "] translog location and [" + operationFailure + "] failure";

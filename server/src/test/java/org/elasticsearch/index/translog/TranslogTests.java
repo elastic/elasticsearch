@@ -33,6 +33,7 @@ import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
@@ -107,7 +108,10 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
@@ -120,8 +124,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.stub;
 
@@ -177,7 +184,7 @@ public class TranslogTests extends ESTestCase {
         markCurrentGenAsCommitted(translog);
     }
 
-    private void commit(Translog translog, long genToRetain, long genToCommit) throws IOException {
+    private long commit(Translog translog, long genToRetain, long genToCommit) throws IOException {
         final TranslogDeletionPolicy deletionPolicy = translog.getDeletionPolicy();
         deletionPolicy.setTranslogGenerationOfLastCommit(genToCommit);
         deletionPolicy.setMinTranslogGenerationForRecovery(genToRetain);
@@ -185,6 +192,7 @@ public class TranslogTests extends ESTestCase {
         translog.trimUnreferencedReaders();
         assertThat(minGenRequired, equalTo(translog.getMinFileGeneration()));
         assertFilePresences(translog);
+        return minGenRequired;
     }
 
     @Override
@@ -353,7 +361,8 @@ public class TranslogTests extends ESTestCase {
         }
 
         markCurrentGenAsCommitted(translog);
-        try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(firstId + 1)) {
+        try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(
+            new Translog.TranslogGeneration(translog.getTranslogUUID(), firstId + 1), randomNonNegativeLong())) {
             assertThat(snapshot, SnapshotMatchers.size(0));
             assertThat(snapshot.totalOperations(), equalTo(0));
         }
@@ -411,9 +420,9 @@ public class TranslogTests extends ESTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(1));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(163L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(162L));
             assertThat(stats.getUncommittedOperations(), equalTo(1));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(163L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(162L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(1L));
         }
 
@@ -421,9 +430,9 @@ public class TranslogTests extends ESTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(2));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(212L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(210L));
             assertThat(stats.getUncommittedOperations(), equalTo(2));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(212L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(210L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(1L));
         }
 
@@ -431,9 +440,9 @@ public class TranslogTests extends ESTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(3));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(261L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(258L));
             assertThat(stats.getUncommittedOperations(), equalTo(3));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(261L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(258L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(1L));
         }
 
@@ -441,13 +450,13 @@ public class TranslogTests extends ESTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(303L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(300L));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(303L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(300L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(1L));
         }
 
-        final long expectedSizeInBytes = 358L;
+        final long expectedSizeInBytes = 355L;
         translog.rollGeneration();
         {
             final TranslogStats stats = stats();
@@ -630,11 +639,83 @@ public class TranslogTests extends ESTestCase {
         assertTrue(Files.exists(translogDir.resolve(Translog.getFilename(1))));
         translog.add(new Translog.Index("test", "1", 0, primaryTerm.get(), new byte[]{1}));
         translog.close();
-        try {
-            Translog.Snapshot snapshot = translog.newSnapshot();
-            fail("translog is closed");
-        } catch (AlreadyClosedException ex) {
-            assertEquals(ex.getMessage(), "translog is already closed");
+        AlreadyClosedException ex = expectThrows(AlreadyClosedException.class, () -> translog.newSnapshot());
+        assertEquals(ex.getMessage(), "translog is already closed");
+    }
+
+    public void testSnapshotFromMinGen() throws Exception {
+        Map<Long, List<Translog.Operation>> operationsByGen = new HashMap<>();
+        try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(
+            new Translog.TranslogGeneration(translog.getTranslogUUID(), 1), randomNonNegativeLong())) {
+            assertThat(snapshot, SnapshotMatchers.size(0));
+        }
+        int iters = between(1, 10);
+        for (int i = 0; i < iters; i++) {
+            long currentGeneration = translog.currentFileGeneration();
+            operationsByGen.putIfAbsent(currentGeneration, new ArrayList<>());
+            int numOps = between(0, 20);
+            for (int op = 0; op < numOps; op++) {
+                long seqNo = randomLongBetween(0, 1000);
+                addToTranslogAndList(translog, operationsByGen.get(currentGeneration), new Translog.Index("test",
+                    Long.toString(seqNo), seqNo, primaryTerm.get(), new byte[]{1}));
+            }
+            long minGen = randomLongBetween(translog.getMinFileGeneration(), translog.currentFileGeneration());
+            try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(
+                new Translog.TranslogGeneration(translog.getTranslogUUID(), minGen), Long.MAX_VALUE)) {
+                List<Translog.Operation> expectedOps = operationsByGen.entrySet().stream()
+                    .filter(e -> e.getKey() >= minGen)
+                    .flatMap(e -> e.getValue().stream())
+                    .collect(Collectors.toList());
+                assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedOps));
+            }
+            long upToSeqNo = randomLongBetween(0, 2000);
+            try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(
+                new Translog.TranslogGeneration(translog.getTranslogUUID(), minGen), upToSeqNo)) {
+                List<Translog.Operation> expectedOps = operationsByGen.entrySet().stream()
+                    .filter(e -> e.getKey() >= minGen)
+                    .flatMap(e -> e.getValue().stream().filter(op -> op.seqNo() <= upToSeqNo))
+                    .collect(Collectors.toList());
+                assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedOps));
+            }
+            translog.rollGeneration();
+        }
+    }
+
+    public void testSeqNoFilterSnapshot() throws Exception {
+        final int generations = between(2, 20);
+        for (int gen = 0; gen < generations; gen++) {
+            List<Long> batch = LongStream.rangeClosed(0, between(0, 100)).boxed().collect(Collectors.toList());
+            Randomness.shuffle(batch);
+            for (long seqNo : batch) {
+                Translog.Index op = new Translog.Index("doc", randomAlphaOfLength(10), seqNo, primaryTerm.get(), new byte[]{1});
+                translog.add(op);
+            }
+            translog.rollGeneration();
+        }
+        List<Translog.Operation> operations = new ArrayList<>();
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            Translog.Operation op;
+            while ((op = snapshot.next()) != null) {
+                operations.add(op);
+            }
+        }
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            Translog.Snapshot filter = new Translog.SeqNoFilterSnapshot(snapshot, between(200, 300), between(300, 400)); // out range
+            assertThat(filter, SnapshotMatchers.size(0));
+            assertThat(filter.totalOperations(), equalTo(snapshot.totalOperations()));
+            assertThat(filter.overriddenOperations(), equalTo(snapshot.overriddenOperations()));
+            assertThat(filter.skippedOperations(), equalTo(snapshot.totalOperations()));
+        }
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            int fromSeqNo = between(-2, 500);
+            int toSeqNo = between(fromSeqNo, 500);
+            List<Translog.Operation> selectedOps = operations.stream()
+                .filter(op -> fromSeqNo <= op.seqNo() && op.seqNo() <= toSeqNo).collect(Collectors.toList());
+            Translog.Snapshot filter = new Translog.SeqNoFilterSnapshot(snapshot, fromSeqNo, toSeqNo);
+            assertThat(filter, SnapshotMatchers.containsOperationsInAnyOrder(selectedOps));
+            assertThat(filter.totalOperations(), equalTo(snapshot.totalOperations()));
+            assertThat(filter.overriddenOperations(), equalTo(snapshot.overriddenOperations()));
+            assertThat(filter.skippedOperations(), equalTo(snapshot.skippedOperations() + operations.size() - selectedOps.size()));
         }
     }
 
@@ -720,14 +801,12 @@ public class TranslogTests extends ESTestCase {
                         assertEquals(expIndexOp.type(), indexOp.type());
                         assertEquals(expIndexOp.source(), indexOp.source());
                         assertEquals(expIndexOp.version(), indexOp.version());
-                        assertEquals(expIndexOp.versionType(), indexOp.versionType());
                         break;
                     case DELETE:
                         Translog.Delete delOp = (Translog.Delete) op;
                         Translog.Delete expDelOp = (Translog.Delete) expectedOp;
                         assertEquals(expDelOp.uid(), delOp.uid());
                         assertEquals(expDelOp.version(), delOp.version());
-                        assertEquals(expDelOp.versionType(), delOp.versionType());
                         break;
                     case NO_OP:
                         final Translog.NoOp noOp = (Translog.NoOp) op;
@@ -745,7 +824,9 @@ public class TranslogTests extends ESTestCase {
 
     }
 
-    public void testTranslogChecksums() throws Exception {
+    public void testTranslogCorruption() throws Exception {
+        TranslogConfig config = translog.getConfig();
+        String uuid = translog.getTranslogUUID();
         List<Translog.Location> locations = new ArrayList<>();
 
         int translogOperations = randomIntBetween(10, 100);
@@ -753,23 +834,23 @@ public class TranslogTests extends ESTestCase {
             String ascii = randomAlphaOfLengthBetween(1, 50);
             locations.add(translog.add(new Translog.Index("test", "" + op, op, primaryTerm.get(), ascii.getBytes("UTF-8"))));
         }
-        translog.sync();
+        translog.close();
 
-        corruptTranslogs(translogDir);
+        TestTranslog.corruptRandomTranslogFile(logger, random(), translogDir, 0);
+        int corruptionsCaught = 0;
 
-        AtomicInteger corruptionsCaught = new AtomicInteger(0);
-        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
-            for (Translog.Location location : locations) {
-                try {
-                    Translog.Operation next = snapshot.next();
-                    assertNotNull(next);
-                } catch (TranslogCorruptedException e) {
-                    corruptionsCaught.incrementAndGet();
+        try (Translog translog = openTranslog(config, uuid)) {
+            try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+                for (int i = 0; i < locations.size(); i++) {
+                    snapshot.next();
                 }
             }
-            expectThrows(TranslogCorruptedException.class, snapshot::next);
-            assertThat("at least one corruption was caused and caught", corruptionsCaught.get(), greaterThanOrEqualTo(1));
+        } catch (TranslogCorruptedException e) {
+            assertThat(e.getMessage(), containsString(translogDir.toString()));
+            corruptionsCaught++;
         }
+
+        assertThat("corruption is caught", corruptionsCaught, greaterThanOrEqualTo(1));
     }
 
     public void testTruncatedTranslogs() throws Exception {
@@ -786,7 +867,7 @@ public class TranslogTests extends ESTestCase {
 
         AtomicInteger truncations = new AtomicInteger(0);
         try (Translog.Snapshot snap = translog.newSnapshot()) {
-            for (Translog.Location location : locations) {
+            for (int i = 0; i < locations.size(); i++) {
                 try {
                     assertNotNull(snap.next());
                 } catch (EOFException e) {
@@ -812,25 +893,6 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
-
-    /**
-     * Randomly overwrite some bytes in the translog files
-     */
-    private void corruptTranslogs(Path directory) throws Exception {
-        Path[] files = FileSystemUtils.files(directory, "translog-*");
-        for (Path file : files) {
-            logger.info("--> corrupting {}...", file);
-            FileChannel f = FileChannel.open(file, StandardOpenOption.READ, StandardOpenOption.WRITE);
-            int corruptions = scaledRandomIntBetween(10, 50);
-            for (int i = 0; i < corruptions; i++) {
-                // note: with the current logic, this will sometimes be a no-op
-                long pos = randomIntBetween(0, (int) f.size());
-                ByteBuffer junk = ByteBuffer.wrap(new byte[]{randomByte()});
-                f.write(junk, pos);
-            }
-            f.close();
-        }
-    }
 
     private Term newUid(ParsedDocument doc) {
         return new Term("_id", Uid.encodeId(doc.id()));
@@ -1316,7 +1378,7 @@ public class TranslogTests extends ESTestCase {
             translog = new Translog(config, translogGeneration.translogUUID, translog.getDeletionPolicy(), () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get);
             assertEquals("lastCommitted must be 1 less than current", translogGeneration.translogFileGeneration + 1, translog.currentFileGeneration());
             assertFalse(translog.syncNeeded());
-            try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(translogGeneration.translogFileGeneration)) {
+            try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(translogGeneration, Long.MAX_VALUE)) {
                 for (int i = minUncommittedOp; i < translogOperations; i++) {
                     assertEquals("expected operation" + i + " to be in the previous translog but wasn't",
                         translog.currentFileGeneration() - 1, locations.get(i).generation);
@@ -1473,9 +1535,9 @@ public class TranslogTests extends ESTestCase {
         try (Translog ignored = new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get)) {
             fail("corrupted");
         } catch (IllegalStateException ex) {
-            assertEquals("Checkpoint file translog-3.ckp already exists but has corrupted content expected: Checkpoint{offset=3080, " +
-                "numOps=55, generation=3, minSeqNo=45, maxSeqNo=99, globalCheckpoint=-1, minTranslogGeneration=1} but got: Checkpoint{offset=0, numOps=0, " +
-                "generation=0, minSeqNo=-1, maxSeqNo=-1, globalCheckpoint=-1, minTranslogGeneration=0}", ex.getMessage());
+            assertEquals("Checkpoint file translog-3.ckp already exists but has corrupted content expected: Checkpoint{offset=3025, " +
+                "numOps=55, generation=3, minSeqNo=45, maxSeqNo=99, globalCheckpoint=-1, minTranslogGeneration=1, trimmedAboveSeqNo=-2} but got: Checkpoint{offset=0, numOps=0, " +
+                "generation=0, minSeqNo=-1, maxSeqNo=-1, globalCheckpoint=-1, minTranslogGeneration=0, trimmedAboveSeqNo=-2}", ex.getMessage());
         }
         Checkpoint.write(FileChannel::open, config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)), read, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
         try (Translog translog = new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get)) {
@@ -1502,9 +1564,195 @@ public class TranslogTests extends ESTestCase {
             ops.add(test);
         }
         Translog.writeOperations(out, ops);
-        final List<Translog.Operation> readOperations = Translog.readOperations(out.bytes().streamInput());
+        final List<Translog.Operation> readOperations = Translog.readOperations(
+                out.bytes().streamInput(), "testSnapshotFromStreamInput");
         assertEquals(ops.size(), readOperations.size());
         assertEquals(ops, readOperations);
+    }
+
+    public void testSnapshotCurrentHasUnexpectedOperationsForTrimmedOperations() throws Exception {
+        int extraDocs = randomIntBetween(10, 15);
+
+        // increment primaryTerm to avoid potential negative numbers
+        primaryTerm.addAndGet(extraDocs);
+        translog.rollGeneration();
+
+        for (int op = 0; op < extraDocs; op++) {
+            String ascii = randomAlphaOfLengthBetween(1, 50);
+            Translog.Index operation = new Translog.Index("test", "" + op, op, primaryTerm.get() - op,
+                ascii.getBytes("UTF-8"));
+            translog.add(operation);
+        }
+
+        AssertionError error = expectThrows(AssertionError.class, () -> translog.trimOperations(primaryTerm.get(), 0));
+        assertThat(error.getMessage(), is("current should not have any operations with seq#:primaryTerm "
+            + "[1:" + (primaryTerm.get() - 1) + "] > 0:" + primaryTerm.get()));
+
+        primaryTerm.incrementAndGet();
+        translog.rollGeneration();
+
+        // add a single operation to current with seq# > trimmed seq# but higher primary term
+        Translog.Index operation = new Translog.Index("test", "" + 1, 1L, primaryTerm.get(),
+            randomAlphaOfLengthBetween(1, 50).getBytes("UTF-8"));
+        translog.add(operation);
+
+        // it is possible to trim after generation rollover
+        translog.trimOperations(primaryTerm.get(), 0);
+    }
+
+    public void testSnapshotTrimmedOperations() throws Exception {
+        final InMemoryTranslog inMemoryTranslog = new InMemoryTranslog();
+        final List<Translog.Operation> allOperations = new ArrayList<>();
+
+        for(int attempt = 0, maxAttempts = randomIntBetween(3, 10); attempt < maxAttempts; attempt++) {
+            List<Long> ops = LongStream.range(0, allOperations.size() + randomIntBetween(10, 15))
+                .boxed().collect(Collectors.toList());
+            Randomness.shuffle(ops);
+
+            AtomicReference<String> source = new AtomicReference<>();
+            for (final long op : ops) {
+                source.set(randomAlphaOfLengthBetween(1, 50));
+
+                // have to use exactly the same source for same seq# if primaryTerm is not changed
+                if (primaryTerm.get() == translog.getCurrent().getPrimaryTerm()) {
+                    // use the latest source of op with the same seq# - therefore no break
+                    allOperations
+                        .stream()
+                        .filter(allOp -> allOp instanceof Translog.Index && allOp.seqNo() == op)
+                        .map(allOp -> ((Translog.Index)allOp).source().utf8ToString())
+                        .reduce((a, b) -> b)
+                        .ifPresent(source::set);
+                }
+
+                // use ongoing primaryTerms - or the same as it was
+                Translog.Index operation = new Translog.Index("test", "" + op, op, primaryTerm.get(),
+                    source.get().getBytes("UTF-8"));
+                translog.add(operation);
+                inMemoryTranslog.add(operation);
+                allOperations.add(operation);
+            }
+
+            if (randomBoolean()) {
+                primaryTerm.incrementAndGet();
+                translog.rollGeneration();
+            }
+
+            long maxTrimmedSeqNo = randomInt(allOperations.size());
+
+            translog.trimOperations(primaryTerm.get(), maxTrimmedSeqNo);
+            inMemoryTranslog.trimOperations(primaryTerm.get(), maxTrimmedSeqNo);
+            translog.sync();
+
+            Collection<Translog.Operation> effectiveOperations = inMemoryTranslog.operations();
+
+            try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+                assertThat(snapshot, containsOperationsInAnyOrder(effectiveOperations));
+                assertThat(snapshot.totalOperations(), is(allOperations.size()));
+                assertThat(snapshot.skippedOperations(), is(allOperations.size() - effectiveOperations.size()));
+            }
+        }
+    }
+
+    /**
+     * this class mimic behaviour of original {@link Translog}
+     */
+    static class InMemoryTranslog {
+        private final Map<Long, Translog.Operation> operations = new HashMap<>();
+
+        void add(Translog.Operation operation) {
+            final Translog.Operation old = operations.put(operation.seqNo(), operation);
+            assert old == null || old.primaryTerm() <= operation.primaryTerm();
+        }
+
+        void trimOperations(long belowTerm, long aboveSeqNo) {
+            for (final Iterator<Map.Entry<Long, Translog.Operation>> it = operations.entrySet().iterator(); it.hasNext(); ) {
+                final Map.Entry<Long, Translog.Operation> next = it.next();
+                Translog.Operation op = next.getValue();
+                boolean drop = op.primaryTerm() < belowTerm && op.seqNo() > aboveSeqNo;
+                if (drop) {
+                    it.remove();
+                }
+            }
+        }
+
+        Collection<Translog.Operation> operations() {
+            return operations.values();
+        }
+    }
+
+    public void testRandomExceptionsOnTrimOperations( ) throws Exception {
+        Path tempDir = createTempDir();
+        final FailSwitch fail = new FailSwitch();
+        fail.failNever();
+        TranslogConfig config = getTranslogConfig(tempDir);
+        List<FileChannel> fileChannels = new ArrayList<>();
+        final Translog failableTLog =
+            getFailableTranslog(fail, config, randomBoolean(), false, null, createTranslogDeletionPolicy(), fileChannels);
+
+        IOException expectedException = null;
+        int translogOperations = 0;
+        final int maxAttempts = 10;
+        for(int attempt = 0; attempt < maxAttempts; attempt++) {
+            int maxTrimmedSeqNo;
+            fail.failNever();
+            int extraTranslogOperations = randomIntBetween(10, 100);
+
+            List<Integer> ops = IntStream.range(translogOperations, translogOperations + extraTranslogOperations)
+                .boxed().collect(Collectors.toList());
+            Randomness.shuffle(ops);
+            for (int op : ops) {
+                String ascii = randomAlphaOfLengthBetween(1, 50);
+                Translog.Index operation = new Translog.Index("test", "" + op, op,
+                    primaryTerm.get(), ascii.getBytes("UTF-8"));
+
+                failableTLog.add(operation);
+            }
+
+            translogOperations += extraTranslogOperations;
+
+            // at least one roll + inc of primary term has to be there - otherwise trim would not take place at all
+            // last attempt we have to make roll as well - otherwise could skip trimming as it has been trimmed already
+            boolean rollover = attempt == 0 || attempt == maxAttempts - 1 || randomBoolean();
+            if (rollover) {
+                primaryTerm.incrementAndGet();
+                failableTLog.rollGeneration();
+            }
+
+            maxTrimmedSeqNo = rollover ? translogOperations - randomIntBetween(4, 8) : translogOperations + 1;
+
+            // if we are so happy to reach the max attempts - fail it always`
+            fail.failRate(attempt < maxAttempts - 1 ? 25 : 100);
+            try {
+                failableTLog.trimOperations(primaryTerm.get(), maxTrimmedSeqNo);
+            } catch (IOException e){
+                expectedException = e;
+                break;
+            }
+        }
+
+        assertThat(expectedException, is(not(nullValue())));
+        assertThat(failableTLog.getTragicException(), equalTo(expectedException));
+        assertThat(fileChannels, is(not(empty())));
+        assertThat("all file channels have to be closed",
+            fileChannels.stream().filter(f -> f.isOpen()).findFirst().isPresent(), is(false));
+
+        assertThat(failableTLog.isOpen(), is(false));
+        final AlreadyClosedException alreadyClosedException = expectThrows(AlreadyClosedException.class, () -> failableTLog.newSnapshot());
+        assertThat(alreadyClosedException.getMessage(),
+            is("translog is already closed"));
+
+        fail.failNever();
+
+        // check that despite of IO exception translog is not corrupted
+        try(Translog reopenedTranslog = openTranslog(config, failableTLog.getTranslogUUID())) {
+            try (Translog.Snapshot snapshot = reopenedTranslog.newSnapshot()) {
+                assertThat(snapshot.totalOperations(), greaterThan(0));
+                Translog.Operation operation;
+                for (int i = 0; (operation = snapshot.next()) != null; i++) {
+                    assertNotNull("operation " + i + " must be non-null", operation);
+                }
+            }
+        }
     }
 
     public void testLocationHashCodeEquals() throws IOException {
@@ -1561,7 +1809,7 @@ public class TranslogTests extends ESTestCase {
 
         }
         this.translog = new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get);
-        try (Translog.Snapshot snapshot = this.translog.newSnapshotFromGen(translogGeneration.translogFileGeneration)) {
+        try (Translog.Snapshot snapshot = this.translog.newSnapshotFromGen(translogGeneration, Long.MAX_VALUE)) {
             for (int i = firstUncommitted; i < translogOperations; i++) {
                 Translog.Operation next = snapshot.next();
                 assertNotNull("" + i, next);
@@ -1652,8 +1900,7 @@ public class TranslogTests extends ESTestCase {
                                 new Term("_uid", threadId + "_" + opCount),
                                 seqNoGenerator.getAndIncrement(),
                                 primaryTerm.get(),
-                                1 + randomInt(100000),
-                                randomFrom(VersionType.values()));
+                                1 + randomInt(100000));
                             break;
                         case NO_OP:
                             op = new Translog.NoOp(seqNoGenerator.getAndIncrement(), primaryTerm.get(), randomAlphaOfLength(16));
@@ -2007,7 +2254,8 @@ public class TranslogTests extends ESTestCase {
         private volatile boolean onceFailedFailAlways = false;
 
         public boolean fail() {
-            boolean fail = randomIntBetween(1, 100) <= failRate;
+            final int rnd = randomIntBetween(1, 100);
+            boolean fail = rnd <= failRate;
             if (fail && onceFailedFailAlways) {
                 failAlways();
             }
@@ -2026,17 +2274,30 @@ public class TranslogTests extends ESTestCase {
             failRate = randomIntBetween(1, 100);
         }
 
+        public void failRate(int rate) {
+            failRate = rate;
+        }
+
         public void onceFailedFailAlways() {
             onceFailedFailAlways = true;
         }
     }
 
-
     private Translog getFailableTranslog(final FailSwitch fail, final TranslogConfig config, final boolean partialWrites,
                                          final boolean throwUnknownException, String translogUUID,
                                          final TranslogDeletionPolicy deletionPolicy) throws IOException {
+        return getFailableTranslog(fail, config, partialWrites, throwUnknownException, translogUUID, deletionPolicy, null);
+    }
+
+    private Translog getFailableTranslog(final FailSwitch fail, final TranslogConfig config, final boolean partialWrites,
+                                         final boolean throwUnknownException, String translogUUID,
+                                         final TranslogDeletionPolicy deletionPolicy,
+                                         final List<FileChannel> fileChannels) throws IOException {
         final ChannelFactory channelFactory = (file, openOption) -> {
             FileChannel channel = FileChannel.open(file, openOption);
+            if (fileChannels != null) {
+                fileChannels.add(channel);
+            }
             boolean success = false;
             try {
                 final boolean isCkpFile = file.getFileName().toString().endsWith(".ckp"); // don't do partial writes for checkpoints we rely on the fact that the bytes are written as an atomic operation
@@ -2113,6 +2374,7 @@ public class TranslogTests extends ESTestCase {
         }
 
 
+        @Override
         public int write(ByteBuffer src) throws IOException {
             if (fail.fail()) {
                 if (partialWrite) {
@@ -2221,14 +2483,9 @@ public class TranslogTests extends ESTestCase {
         // don't copy the new file
         Files.createFile(config.getTranslogPath().resolve("translog-" + (read.generation + 1) + ".tlog"));
 
-        try {
-            Translog tlog = new Translog(config, translog.getTranslogUUID(), translog.getDeletionPolicy(), () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get);
-            fail("file already exists?");
-        } catch (TranslogException ex) {
-            // all is well
-            assertEquals(ex.getMessage(), "failed to create new translog file");
-            assertEquals(ex.getCause().getClass(), FileAlreadyExistsException.class);
-        }
+        TranslogException ex = expectThrows(TranslogException.class, () -> new Translog(config, translog.getTranslogUUID(), translog.getDeletionPolicy(), () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get));
+        assertEquals(ex.getMessage(), "failed to create new translog file");
+        assertEquals(ex.getCause().getClass(), FileAlreadyExistsException.class);
     }
 
     public void testRecoverWithUnbackedNextGenAndFutureFile() throws IOException {
@@ -2256,14 +2513,10 @@ public class TranslogTests extends ESTestCase {
             tlog.add(new Translog.Index("test", "" + 1, 1, primaryTerm.get(), Integer.toString(1).getBytes(Charset.forName("UTF-8"))));
         }
 
-        try {
-            Translog tlog = new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get);
-            fail("file already exists?");
-        } catch (TranslogException ex) {
-            // all is well
-            assertEquals(ex.getMessage(), "failed to create new translog file");
-            assertEquals(ex.getCause().getClass(), FileAlreadyExistsException.class);
-        }
+        TranslogException ex = expectThrows(TranslogException.class,
+                () -> new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get));
+        assertEquals(ex.getMessage(), "failed to create new translog file");
+        assertEquals(ex.getCause().getClass(), FileAlreadyExistsException.class);
     }
 
     /**
@@ -2320,11 +2573,13 @@ public class TranslogTests extends ESTestCase {
                     syncedDocs.addAll(unsynced);
                     unsynced.clear();
                 } catch (TranslogException | MockDirectoryWrapper.FakeIOException ex) {
-                    // fair enough
+                    assertEquals(failableTLog.getTragicException(), ex);
                 } catch (IOException ex) {
                     assertEquals(ex.getMessage(), "__FAKE__ no space left on device");
+                    assertEquals(failableTLog.getTragicException(), ex);
                 } catch (RuntimeException ex) {
                     assertEquals(ex.getMessage(), "simulated");
+                    assertEquals(failableTLog.getTragicException(), ex);
                 } finally {
                     Checkpoint checkpoint = Translog.readCheckpoint(config.getTranslogPath());
                     if (checkpoint.numOps == unsynced.size() + syncedDocs.size()) {
@@ -2368,7 +2623,8 @@ public class TranslogTests extends ESTestCase {
                 generationUUID = Translog.createEmptyTranslog(config.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
             }
             try (Translog translog = new Translog(config, generationUUID, deletionPolicy, () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get);
-                 Translog.Snapshot snapshot = translog.newSnapshotFromGen(minGenForRecovery)) {
+                 Translog.Snapshot snapshot = translog.newSnapshotFromGen(
+                     new Translog.TranslogGeneration(generationUUID, minGenForRecovery), Long.MAX_VALUE)) {
                 assertEquals(syncedDocs.size(), snapshot.totalOperations());
                 for (int i = 0; i < syncedDocs.size(); i++) {
                     Translog.Operation next = snapshot.next();
@@ -2393,7 +2649,7 @@ public class TranslogTests extends ESTestCase {
         }
         final long generation = randomNonNegativeLong();
         return new Checkpoint(randomLong(), randomInt(), generation, minSeqNo, maxSeqNo, randomNonNegativeLong(),
-            randomLongBetween(1, generation));
+            randomLongBetween(1, generation), maxSeqNo);
     }
 
     public void testCheckpointOnDiskFull() throws IOException {
@@ -2468,7 +2724,7 @@ public class TranslogTests extends ESTestCase {
 
         Engine.Index eIndex = new Engine.Index(newUid(doc), doc, randomSeqNum, randomPrimaryTerm,
             1, VersionType.INTERNAL, Origin.PRIMARY, 0, 0, false);
-        Engine.IndexResult eIndexResult = new Engine.IndexResult(1, randomSeqNum, true);
+        Engine.IndexResult eIndexResult = new Engine.IndexResult(1, randomPrimaryTerm, randomSeqNum, true);
         Translog.Index index = new Translog.Index(eIndex, eIndexResult);
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -2479,7 +2735,7 @@ public class TranslogTests extends ESTestCase {
 
         Engine.Delete eDelete = new Engine.Delete(doc.type(), doc.id(), newUid(doc), randomSeqNum, randomPrimaryTerm,
             2, VersionType.INTERNAL, Origin.PRIMARY, 0);
-        Engine.DeleteResult eDeleteResult = new Engine.DeleteResult(2, randomSeqNum, true);
+        Engine.DeleteResult eDeleteResult = new Engine.DeleteResult(2, randomPrimaryTerm, randomSeqNum, true);
         Translog.Delete delete = new Translog.Delete(eDelete, eDeleteResult);
 
         out = new BytesStreamOutput();
@@ -2617,7 +2873,7 @@ public class TranslogTests extends ESTestCase {
                     assertThat(Tuple.tuple(op.seqNo(), op.primaryTerm()), isIn(seenSeqNos));
                     readFromSnapshot++;
                 }
-                readFromSnapshot += snapshot.overriddenOperations();
+                readFromSnapshot += snapshot.skippedOperations();
             }
             assertThat(readFromSnapshot, equalTo(expectedSnapshotOps));
             final long seqNoLowerBound = seqNo;
@@ -2726,6 +2982,90 @@ public class TranslogTests extends ESTestCase {
         try (Translog.Snapshot snapshot = translog.newSnapshot()) {
             assertThat(snapshot, containsOperationsInAnyOrder(latestOperations.values()));
         }
+    }
+
+    /** Make sure that it's ok to close a translog snapshot multiple times */
+    public void testCloseSnapshotTwice() throws Exception {
+        int numOps = between(0, 10);
+        for (int i = 0; i < numOps; i++) {
+            Translog.Index op = new Translog.Index("doc", randomAlphaOfLength(10), i, primaryTerm.get(), new byte[]{1});
+            translog.add(op);
+            if (randomBoolean()) {
+                translog.rollGeneration();
+            }
+        }
+        for (int i = 0; i < 5; i++) {
+            Translog.Snapshot snapshot = translog.newSnapshot();
+            assertThat(snapshot, SnapshotMatchers.size(numOps));
+            snapshot.close();
+            snapshot.close();
+        }
+    }
+
+    // close method should never be called directly from Translog (the only exception is closeOnTragicEvent)
+    public void testTranslogCloseInvariant() throws IOException {
+        assumeTrue("test only works with assertions enabled", Assertions.ENABLED);
+        class MisbehavingTranslog extends Translog {
+            MisbehavingTranslog(TranslogConfig config, String translogUUID, TranslogDeletionPolicy deletionPolicy, LongSupplier globalCheckpointSupplier, LongSupplier primaryTermSupplier) throws IOException {
+                super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier);
+            }
+
+            void callCloseDirectly() throws IOException {
+                close();
+            }
+
+            void callCloseUsingIOUtilsWithExceptionHandling() {
+                IOUtils.closeWhileHandlingException(this);
+            }
+
+            void callCloseUsingIOUtils() throws IOException {
+                IOUtils.close(this);
+            }
+
+            void callCloseOnTragicEvent() {
+                Exception e = new Exception("test tragic exception");
+                tragedy.setTragicException(e);
+                closeOnTragicEvent(e);
+            }
+        }
+
+
+        globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        Path path = createTempDir();
+        final TranslogConfig translogConfig = getTranslogConfig(path);
+        final TranslogDeletionPolicy deletionPolicy = createTranslogDeletionPolicy(translogConfig.getIndexSettings());
+        final String translogUUID = Translog.createEmptyTranslog(path, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        MisbehavingTranslog misbehavingTranslog = new MisbehavingTranslog(translogConfig, translogUUID, deletionPolicy, () -> globalCheckpoint.get(), primaryTerm::get);
+
+        expectThrows(AssertionError.class, () -> misbehavingTranslog.callCloseDirectly());
+        expectThrows(AssertionError.class, () -> misbehavingTranslog.callCloseUsingIOUtils());
+        expectThrows(AssertionError.class, () -> misbehavingTranslog.callCloseUsingIOUtilsWithExceptionHandling());
+        misbehavingTranslog.callCloseOnTragicEvent();
+    }
+
+    public void testMaxSeqNo() throws Exception {
+        Map<Long, Long> maxSeqNoPerGeneration = new HashMap<>();
+        for (int iterations = between(1, 10), i = 0; i < iterations; i++) {
+            long startSeqNo = randomLongBetween(0, Integer.MAX_VALUE);
+            List<Long> seqNos = LongStream.range(startSeqNo, startSeqNo + randomInt(100)).boxed().collect(Collectors.toList());
+            Randomness.shuffle(seqNos);
+            for (long seqNo : seqNos) {
+                if (frequently()) {
+                    translog.add(new Translog.Index("test", "id", seqNo, primaryTerm.get(), new byte[]{1}));
+                    maxSeqNoPerGeneration.compute(translog.currentFileGeneration(),
+                        (key, existing) -> existing == null ? seqNo : Math.max(existing, seqNo));
+                }
+            }
+            translog.rollGeneration();
+        }
+        translog.sync();
+        assertThat(translog.getMaxSeqNo(),
+            equalTo(maxSeqNoPerGeneration.isEmpty() ? SequenceNumbers.NO_OPS_PERFORMED : Collections.max(maxSeqNoPerGeneration.values())));
+        long minRetainedGen = commit(translog, randomLongBetween(1, translog.currentFileGeneration()), translog.currentFileGeneration());
+        long expectedMaxSeqNo = maxSeqNoPerGeneration.entrySet().stream()
+            .filter(e -> e.getKey() >= minRetainedGen).mapToLong(e -> e.getValue())
+            .max().orElse(SequenceNumbers.NO_OPS_PERFORMED);
+        assertThat(translog.getMaxSeqNo(), equalTo(expectedMaxSeqNo));
     }
 
     static class SortedSnapshot implements Translog.Snapshot {

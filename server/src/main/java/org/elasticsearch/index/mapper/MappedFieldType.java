@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
@@ -34,9 +35,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.joda.DateMathParser;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -109,17 +111,6 @@ public abstract class MappedFieldType extends FieldType {
     public boolean equals(Object o) {
         if (!super.equals(o)) return false;
         MappedFieldType fieldType = (MappedFieldType) o;
-        // check similarity first because we need to check the name, and it might be null
-        // TODO: SimilarityProvider should have equals?
-        if (similarity == null || fieldType.similarity == null) {
-            if (similarity != fieldType.similarity) {
-                return false;
-            }
-        } else {
-            if (Objects.equals(similarity.name(), fieldType.similarity.name()) == false) {
-                return false;
-            }
-        }
 
         return boost == fieldType.boost &&
             docValues == fieldType.docValues &&
@@ -129,7 +120,8 @@ public abstract class MappedFieldType extends FieldType {
             Objects.equals(searchQuoteAnalyzer(), fieldType.searchQuoteAnalyzer()) &&
             Objects.equals(eagerGlobalOrdinals, fieldType.eagerGlobalOrdinals) &&
             Objects.equals(nullValue, fieldType.nullValue) &&
-            Objects.equals(nullValueAsString, fieldType.nullValueAsString);
+            Objects.equals(nullValueAsString, fieldType.nullValueAsString) &&
+            Objects.equals(similarity, fieldType.similarity);
     }
 
     @Override
@@ -163,7 +155,7 @@ public abstract class MappedFieldType extends FieldType {
         boolean indexed =  indexOptions() != IndexOptions.NONE;
         boolean mergeWithIndexed = other.indexOptions() != IndexOptions.NONE;
         // TODO: should be validating if index options go "up" (but "down" is ok)
-        if (indexed != mergeWithIndexed || tokenized() != other.tokenized()) {
+        if (indexed != mergeWithIndexed) {
             conflicts.add("mapper [" + name() + "] has different [index] values");
         }
         if (stored() != other.stored()) {
@@ -313,7 +305,13 @@ public abstract class MappedFieldType extends FieldType {
     /** Generates a query that will only match documents that contain the given value.
      *  The default implementation returns a {@link TermQuery} over the value bytes,
      *  boosted by {@link #boost()}.
-     *  @throws IllegalArgumentException if {@code value} cannot be converted to the expected data type */
+     *  @throws IllegalArgumentException if {@code value} cannot be converted to the expected data type or if the field is not searchable
+     *      due to the way it is configured (eg. not indexed)
+     *  @throws ElasticsearchParseException if {@code value} cannot be converted to the expected data type
+     *  @throws UnsupportedOperationException if the field is not searchable regardless of options
+     *  @throws QueryShardException if the field is not searchable regardless of options
+     */
+    // TODO: Standardize exception types
     public abstract Query termQuery(Object value, @Nullable QueryShardContext context);
 
     /** Build a constant-scoring query that matches all values. The default implementation uses a
@@ -347,18 +345,25 @@ public abstract class MappedFieldType extends FieldType {
         throw new QueryShardException(context, "Can only use prefix queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
     }
 
+    public Query wildcardQuery(String value,
+                               @Nullable MultiTermQuery.RewriteMethod method,
+                               QueryShardContext context) {
+        throw new QueryShardException(context, "Can only use wildcard queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
+    }
+
     public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         throw new QueryShardException(context, "Can only use regexp queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
     }
 
-    public Query nullValueQuery() {
-        if (nullValue == null) {
-            return null;
-        }
-        return new ConstantScoreQuery(termQuery(nullValue, null));
+    public abstract Query existsQuery(QueryShardContext context);
+
+    public Query phraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+        throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]");
     }
 
-    public abstract Query existsQuery(QueryShardContext context);
+    public Query multiPhraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+        throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]");
+    }
 
     /**
      * An enum used to describe the relation between the range of terms in a
@@ -380,12 +385,6 @@ public abstract class MappedFieldType extends FieldType {
         boolean includeLower, boolean includeUpper,
         DateTimeZone timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
         return Relation.INTERSECTS;
-    }
-
-    /** A term query to use when parsing a query string. Can return {@code null}. */
-    @Nullable
-    public Query queryStringTermQuery(Term term) {
-        return null;
     }
 
     /** @throws IllegalArgumentException if the fielddata is not supported on this type.

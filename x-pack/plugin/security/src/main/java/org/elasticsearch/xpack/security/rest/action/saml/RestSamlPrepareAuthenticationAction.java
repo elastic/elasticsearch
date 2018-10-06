@@ -23,7 +23,6 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationRequest;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationResponse;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 

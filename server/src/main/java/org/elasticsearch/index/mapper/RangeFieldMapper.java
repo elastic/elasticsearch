@@ -40,16 +40,16 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -61,6 +61,7 @@ import org.joda.time.DateTimeZone;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -93,8 +94,8 @@ public class RangeFieldMapper extends FieldMapper {
         private Boolean coerce;
         private Locale locale;
 
-        public Builder(String name, RangeType type, Version indexVersionCreated) {
-            super(name, new RangeFieldType(type, indexVersionCreated), new RangeFieldType(type, indexVersionCreated));
+        public Builder(String name, RangeType type) {
+            super(name, new RangeFieldType(type), new RangeFieldType(type));
             builder = this;
             locale = Locale.ROOT;
         }
@@ -174,7 +175,7 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public Mapper.Builder<?,?> parse(String name, Map<String, Object> node,
                                          ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder(name, type, parserContext.indexVersionCreated());
+            Builder builder = new Builder(name, type);
             TypeParsers.parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -205,7 +206,7 @@ public class RangeFieldMapper extends FieldMapper {
         protected FormatDateTimeFormatter dateTimeFormatter;
         protected DateMathParser dateMathParser;
 
-        RangeFieldType(RangeType type, Version indexVersionCreated) {
+        RangeFieldType(RangeType type) {
             super();
             this.rangeType = Objects.requireNonNull(type);
             setTokenized(false);
@@ -258,7 +259,7 @@ public class RangeFieldMapper extends FieldMapper {
         public void setDateTimeFormatter(FormatDateTimeFormatter dateTimeFormatter) {
             checkIfFrozen();
             this.dateTimeFormatter = dateTimeFormatter;
-            this.dateMathParser = new DateMathParser(dateTimeFormatter);
+            this.dateMathParser = dateTimeFormatter.toDateMathParser();
         }
 
         protected DateMathParser dateMathParser() {
@@ -287,6 +288,9 @@ public class RangeFieldMapper extends FieldMapper {
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
                                 ShapeRelation relation, DateTimeZone timeZone, DateMathParser parser, QueryShardContext context) {
             failIfNotIndexed();
+            if (parser == null) {
+                parser = dateMathParser();
+            }
             return rangeType.rangeQuery(name(), hasDocValues(), lowerTerm, upperTerm, includeLower, includeUpper, relation,
                 timeZone, parser, context);
         }
@@ -585,15 +589,16 @@ public class RangeFieldMapper extends FieldMapper {
             public Query rangeQuery(String field, boolean hasDocValues, Object lowerTerm, Object upperTerm, boolean includeLower,
                                     boolean includeUpper, ShapeRelation relation, @Nullable DateTimeZone timeZone,
                                     @Nullable DateMathParser parser, QueryShardContext context) {
-                DateTimeZone zone = (timeZone == null) ? DateTimeZone.UTC : timeZone;
+                    DateTimeZone zone = (timeZone == null) ? DateTimeZone.UTC : timeZone;
+                    ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(zone);
                 DateMathParser dateMathParser = (parser == null) ?
-                    new DateMathParser(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER) : parser;
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser() : parser;
                 Long low = lowerTerm == null ? Long.MIN_VALUE :
                     dateMathParser.parse(lowerTerm instanceof BytesRef ? ((BytesRef) lowerTerm).utf8ToString() : lowerTerm.toString(),
-                        context::nowInMillis, false, zone);
+                        context::nowInMillis, false, zoneId);
                 Long high = upperTerm == null ? Long.MAX_VALUE :
                     dateMathParser.parse(upperTerm instanceof BytesRef ? ((BytesRef) upperTerm).utf8ToString() : upperTerm.toString(),
-                        context::nowInMillis, false, zone);
+                        context::nowInMillis, false, zoneId);
 
                 return super.rangeQuery(field, hasDocValues, low, high, includeLower, includeUpper, relation, zone,
                     dateMathParser, context);

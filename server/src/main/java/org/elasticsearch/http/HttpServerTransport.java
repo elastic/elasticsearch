@@ -29,6 +29,8 @@ public interface HttpServerTransport extends LifecycleComponent {
 
     String HTTP_SERVER_WORKER_THREAD_NAME_PREFIX = "http_server_worker";
 
+    String HTTP_SERVER_ACCEPTOR_THREAD_NAME_PREFIX = "http_server_acceptor";
+
     BoundTransportAddress boundAddress();
 
     HttpInfo info();
@@ -62,5 +64,4 @@ public interface HttpServerTransport extends LifecycleComponent {
         void dispatchBadRequest(RestRequest request, RestChannel channel, ThreadContext threadContext, Throwable cause);
 
     }
-
 }

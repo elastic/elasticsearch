@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
@@ -126,7 +127,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
          */
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
-            if (isSameIndex(value, context.getFullyQualifiedIndexName())) {
+            if (isSameIndex(value, context.getFullyQualifiedIndex().getName())) {
                 return Queries.newMatchAllQuery();
             } else {
                 return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.index().getName() + " vs. " + value);
@@ -139,19 +140,30 @@ public class IndexFieldMapper extends MetadataFieldMapper {
                 return super.termsQuery(values, context);
             }
             for (Object value : values) {
-                if (isSameIndex(value, context.getFullyQualifiedIndexName())) {
+                if (isSameIndex(value, context.getFullyQualifiedIndex().getName())) {
                     // No need to OR these clauses - we can only logically be
                     // running in the context of just one of these index names.
                     return Queries.newMatchAllQuery();
                 }
             }
             // None of the listed index names are this one
-            return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.getFullyQualifiedIndexName()
+            return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.getFullyQualifiedIndex().getName()
                 + " vs. " + values);
         }
 
+        @Override
+        public Query wildcardQuery(String value,
+                                   @Nullable MultiTermQuery.RewriteMethod method,
+                                   QueryShardContext context) {
+            if (isSameIndex(value, context.getFullyQualifiedIndex().getName())) {
+                return Queries.newMatchAllQuery();
+            } else {
+                return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.index().getName() + " vs. " + value);
+            }
+        }
+
         private boolean isSameIndex(Object value, String indexName) {
-            String pattern = value instanceof BytesRef ? pattern = ((BytesRef) value).utf8ToString() : value.toString();
+            String pattern = value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : value.toString();
             return Regex.simpleMatch(pattern, indexName);
         }
 
@@ -189,5 +201,4 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     protected void doMerge(Mapper mergeWith) {
         // nothing to do
     }
-
 }

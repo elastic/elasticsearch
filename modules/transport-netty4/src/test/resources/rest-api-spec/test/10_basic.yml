@@ -10,7 +10,7 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.modules.0.name: transport-netty4  }
+    - contains:  { nodes.$master.modules: { name: transport-netty4  } }
 
     - do:
         cluster.stats: {}

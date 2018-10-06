@@ -14,8 +14,8 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchRequest;
-import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchResponse;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 
 import java.io.IOException;

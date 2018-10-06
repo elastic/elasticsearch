@@ -27,17 +27,20 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.tasks.TaskInfo;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -122,7 +125,7 @@ public class RestTasksAction extends AbstractCatAction {
         return table;
     }
 
-    private DateTimeFormatter dateFormat = DateTimeFormat.forPattern("HH:mm:ss");
+    private static final DateFormatter FORMATTER = DateFormatters.forPattern("HH:mm:ss").withZone(ZoneOffset.UTC);
 
     private void buildRow(Table table, boolean fullId, boolean detailed, DiscoveryNodes discoveryNodes, TaskInfo taskInfo) {
         table.startRow();
@@ -139,7 +142,7 @@ public class RestTasksAction extends AbstractCatAction {
         }
         table.addCell(taskInfo.getType());
         table.addCell(taskInfo.getStartTime());
-        table.addCell(dateFormat.print(taskInfo.getStartTime()));
+        table.addCell(FORMATTER.format(Instant.ofEpochMilli(taskInfo.getStartTime())));
         table.addCell(taskInfo.getRunningTimeNanos());
         table.addCell(TimeValue.timeValueNanos(taskInfo.getRunningTimeNanos()).toString());
 
@@ -159,7 +162,7 @@ public class RestTasksAction extends AbstractCatAction {
     private void buildGroups(Table table, boolean fullId, boolean detailed, List<TaskGroup> taskGroups) {
         DiscoveryNodes discoveryNodes = nodesInCluster.get();
         List<TaskGroup> sortedGroups = new ArrayList<>(taskGroups);
-        sortedGroups.sort((o1, o2) -> Long.compare(o1.getTaskInfo().getStartTime(), o2.getTaskInfo().getStartTime()));
+        sortedGroups.sort(Comparator.comparingLong(o -> o.getTaskInfo().getStartTime()));
         for (TaskGroup taskGroup : sortedGroups) {
             buildRow(table, fullId, detailed, discoveryNodes, taskGroup.getTaskInfo());
             buildGroups(table, fullId, detailed, taskGroup.getChildTasks());

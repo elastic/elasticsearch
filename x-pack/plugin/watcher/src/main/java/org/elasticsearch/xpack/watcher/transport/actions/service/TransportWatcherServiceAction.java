@@ -9,6 +9,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,12 +24,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequest;
-import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceResponse;
 
-public class TransportWatcherServiceAction extends TransportMasterNodeAction<WatcherServiceRequest, WatcherServiceResponse> {
+public class TransportWatcherServiceAction extends TransportMasterNodeAction<WatcherServiceRequest, AcknowledgedResponse> {
 
     private AckedRequest ackedRequest = new AckedRequest() {
         @Override
@@ -56,13 +57,13 @@ public class TransportWatcherServiceAction extends TransportMasterNodeAction<Wat
     }
 
     @Override
-    protected WatcherServiceResponse newResponse() {
-        return new WatcherServiceResponse();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
     protected void masterOperation(WatcherServiceRequest request, ClusterState state,
-                                   ActionListener<WatcherServiceResponse> listener) {
+                                   ActionListener<AcknowledgedResponse> listener) {
         switch (request.getCommand()) {
             case STOP:
                 setWatcherMetaDataAndWait(true, listener);
@@ -73,19 +74,21 @@ public class TransportWatcherServiceAction extends TransportMasterNodeAction<Wat
         }
     }
 
-    private void setWatcherMetaDataAndWait(boolean manuallyStopped, final ActionListener<WatcherServiceResponse> listener) {
+    private void setWatcherMetaDataAndWait(boolean manuallyStopped, final ActionListener<AcknowledgedResponse> listener) {
         String source = manuallyStopped ? "update_watcher_manually_stopped" : "update_watcher_manually_started";
 
         clusterService.submitStateUpdateTask(source,
-                new AckedClusterStateUpdateTask<WatcherServiceResponse>(ackedRequest, listener) {
+                new AckedClusterStateUpdateTask<AcknowledgedResponse>(ackedRequest, listener) {
 
                     @Override
-                    protected WatcherServiceResponse newResponse(boolean acknowledged) {
-                        return new WatcherServiceResponse(acknowledged);
+                    protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                        return new AcknowledgedResponse(acknowledged);
                     }
 
                     @Override
                     public ClusterState execute(ClusterState clusterState) {
+                        XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
+
                         WatcherMetaData newWatcherMetaData = new WatcherMetaData(manuallyStopped);
                         WatcherMetaData currentMetaData = clusterState.metaData().custom(WatcherMetaData.TYPE);
 

@@ -29,7 +29,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.util.Comparator;
 import java.util.List;
@@ -47,10 +47,10 @@ public final class FragmentBuilderHelper {
      * Fixes problems with broken analysis chains if positions and offsets are messed up that can lead to
      * {@link StringIndexOutOfBoundsException} in the {@link FastVectorHighlighter}
      */
-    public static WeightedFragInfo fixWeightedFragInfo(FieldMapper mapper, Field[] values, WeightedFragInfo fragInfo) {
+    public static WeightedFragInfo fixWeightedFragInfo(MappedFieldType fieldType, Field[] values, WeightedFragInfo fragInfo) {
         assert fragInfo != null : "FragInfo must not be null";
-        assert mapper.fieldType().name().equals(values[0].name()) : "Expected FieldMapper for field " + values[0].name();
-        if (!fragInfo.getSubInfos().isEmpty() && containsBrokenAnalysis(mapper.fieldType().indexAnalyzer())) {
+        assert fieldType.name().equals(values[0].name()) : "Expected MappedFieldType for field " + values[0].name();
+        if (!fragInfo.getSubInfos().isEmpty() && containsBrokenAnalysis(fieldType.indexAnalyzer())) {
             /* This is a special case where broken analysis like WDF is used for term-vector creation at index-time
              * which can potentially mess up the offsets. To prevent a SAIIOBException we need to resort
              * the fragments based on their offsets rather than using soley the positions as it is done in

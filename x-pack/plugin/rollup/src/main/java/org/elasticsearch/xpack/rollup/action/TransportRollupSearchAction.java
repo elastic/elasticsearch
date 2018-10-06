@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -39,6 +38,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -56,7 +56,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
-import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.elasticsearch.xpack.rollup.RollupJobIdentifierUtils;
 import org.elasticsearch.xpack.rollup.RollupRequestTranslator;
@@ -66,6 +66,7 @@ import org.joda.time.DateTimeZone;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -83,11 +84,10 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     private static final Logger logger = Loggers.getLogger(RollupSearchAction.class);
 
     @Inject
-    public TransportRollupSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                 Client client, NamedWriteableRegistry registry, BigArrays bigArrays,
+    public TransportRollupSearchAction(Settings settings, TransportService transportService,
+                                 ActionFilters actionFilters, Client client, NamedWriteableRegistry registry, BigArrays bigArrays,
                                  ScriptService scriptService, ClusterService clusterService) {
-        super(settings, RollupSearchAction.NAME, threadPool, actionFilters, indexNameExpressionResolver, transportService.getTaskManager());
+        super(settings, RollupSearchAction.NAME, actionFilters, transportService.getTaskManager());
         this.client = client;
         this.registry = registry;
         this.bigArrays = bigArrays;
@@ -99,7 +99,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     }
 
     @Override
-    protected void doExecute(SearchRequest request, ActionListener<SearchResponse> listener) {
+    protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
         RollupSearchContext rollupSearchContext = separateIndices(request.indices(),
                 clusterService.state().getMetaData().indices());
 
@@ -155,6 +155,18 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         rolledSearchSource.size(0);
         AggregatorFactories.Builder sourceAgg = request.source().aggregations();
 
+        // If there are no aggs in the request, our translation won't create any msearch.
+        // So just add an dummy request to the msearch and return.  This is a bit silly
+        // but maintains how the regular search API behaves
+        if (sourceAgg == null || sourceAgg.count() == 0) {
+
+            // Note: we can't apply any query rewriting or filtering on the query because there
+            // are no validated caps, so we have no idea what job is intended here.  The only thing
+            // this affects is doc count, since hits and aggs will both be empty it doesn't really matter.
+            msearch.add(new SearchRequest(context.getRollupIndices(), request.source()).types(request.types()));
+            return msearch;
+        }
+
         // Find our list of "best" job caps
         Set<RollupJobCaps> validatedCaps = new HashSet<>();
         sourceAgg.getAggregatorFactories()
@@ -191,7 +203,9 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
             copiedSource.query(new BoolQueryBuilder()
                     .must(rewritten)
                     .filter(new TermQueryBuilder(RollupField.formatMetaField(RollupField.ID.getPreferredName()), id))
-                    .filter(new TermQueryBuilder(RollupField.formatMetaField(RollupField.VERSION_FIELD), Rollup.ROLLUP_VERSION)));
+                    // Both versions are acceptable right now since they are compatible at search time
+                    .filter(new TermsQueryBuilder(RollupField.formatMetaField(RollupField.VERSION_FIELD),
+                        new long[]{Rollup.ROLLUP_VERSION_V1, Rollup.ROLLUP_VERSION_V2})));
 
             // And add a new msearch per JobID
             msearch.add(new SearchRequest(context.getRollupIndices(), copiedSource).types(request.types()));
@@ -246,11 +260,6 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         if (request.source().explain() != null && request.source().explain()) {
             throw new IllegalArgumentException("Rollup search does not support explaining.");
         }
-
-        // Rollup is only useful if aggregations are set, throw an exception otherwise
-        if (request.source().aggregations() == null) {
-            throw new IllegalArgumentException("Rollup requires at least one aggregation to be set.");
-        }
     }
 
     static QueryBuilder rewriteQuery(QueryBuilder builder, Set<RollupJobCaps> jobCaps) {
@@ -271,96 +280,101 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                     rewriteQuery(((BoostingQueryBuilder)builder).positiveQuery(), jobCaps));
         } else if (builder.getWriteableName().equals(DisMaxQueryBuilder.NAME)) {
             DisMaxQueryBuilder rewritten = new DisMaxQueryBuilder();
-            ((DisMaxQueryBuilder)builder).innerQueries().forEach(query -> rewritten.add(rewriteQuery(query, jobCaps)));
+            ((DisMaxQueryBuilder) builder).innerQueries().forEach(query -> rewritten.add(rewriteQuery(query, jobCaps)));
             return rewritten;
-        } else if (builder.getWriteableName().equals(RangeQueryBuilder.NAME) || builder.getWriteableName().equals(TermQueryBuilder.NAME)) {
+        } else if (builder.getWriteableName().equals(RangeQueryBuilder.NAME)) {
+            RangeQueryBuilder range = (RangeQueryBuilder) builder;
+            String fieldName = range.fieldName();
+            // Many range queries don't include the timezone because the default is UTC, but the query
+            // builder will return null so we need to set it here
+            String timeZone = range.timeZone() == null ? DateTimeZone.UTC.toString() : range.timeZone();
 
-            String fieldName = builder.getWriteableName().equals(RangeQueryBuilder.NAME)
-                    ? ((RangeQueryBuilder)builder).fieldName()
-                    : ((TermQueryBuilder)builder).fieldName();
-
-            List<String> incorrectTimeZones = new ArrayList<>();
-            List<String> rewrittenFieldName = jobCaps.stream()
-                    // We only care about job caps that have the query's target field
-                    .filter(caps -> caps.getFieldCaps().keySet().contains(fieldName))
-                    .map(caps -> {
-                        RollupJobCaps.RollupFieldCaps fieldCaps = caps.getFieldCaps().get(fieldName);
-                        return fieldCaps.getAggs().stream()
-                            // For now, we only allow filtering on grouping fields
-                            .filter(agg -> {
-                                String type = (String)agg.get(RollupField.AGG);
-
-                                // If the cap is for a date_histo, and the query is a range, the timezones need to match
-                                if (type.equals(DateHistogramAggregationBuilder.NAME) && builder instanceof RangeQueryBuilder) {
-                                    String timeZone = ((RangeQueryBuilder)builder).timeZone();
-
-                                    // Many range queries don't include the timezone because the default is UTC, but the query
-                                    // builder will return null so we need to set it here
-                                    if (timeZone == null) {
-                                        timeZone = DateTimeZone.UTC.toString();
-                                    }
-                                    boolean matchingTZ = ((String)agg.get(DateHistoGroupConfig.TIME_ZONE.getPreferredName()))
-                                        .equalsIgnoreCase(timeZone);
-                                    if (matchingTZ == false) {
-                                        incorrectTimeZones.add((String)agg.get(DateHistoGroupConfig.TIME_ZONE.getPreferredName()));
-                                    }
-                                    return matchingTZ;
-                                }
-                                // Otherwise just make sure it's one of the three groups
-                                return type.equals(TermsAggregationBuilder.NAME)
-                                        || type.equals(DateHistogramAggregationBuilder.NAME)
-                                        || type.equals(HistogramAggregationBuilder.NAME);
-                            })
-                            // Rewrite the field name to our convention (e.g. "foo" -> "date_histogram.foo.timestamp")
-                            .map(agg -> {
-                                if (agg.get(RollupField.AGG).equals(DateHistogramAggregationBuilder.NAME)) {
-                                    return RollupField.formatFieldName(fieldName, (String)agg.get(RollupField.AGG), RollupField.TIMESTAMP);
-                                } else {
-                                    return RollupField.formatFieldName(fieldName, (String)agg.get(RollupField.AGG), RollupField.VALUE);
-                                }
-                            })
-                            .collect(Collectors.toList());
-                    })
-                    .distinct()
-                    .collect(ArrayList::new, List::addAll, List::addAll);
-
-            if (rewrittenFieldName.isEmpty()) {
-                if (incorrectTimeZones.isEmpty()) {
-                    throw new IllegalArgumentException("Field [" + fieldName + "] in [" + builder.getWriteableName()
-                        + "] query is not available in selected rollup indices, cannot query.");
-                } else {
-                    throw new IllegalArgumentException("Field [" + fieldName + "] in [" + builder.getWriteableName()
-                        + "] query was found in rollup indices, but requested timezone is not compatible. Options include: "
-                        + incorrectTimeZones);
-                }
+            String rewrittenFieldName = rewriteFieldName(jobCaps, RangeQueryBuilder.NAME, fieldName, timeZone);
+            RangeQueryBuilder rewritten = new RangeQueryBuilder(rewrittenFieldName)
+                .from(range.from())
+                .to(range.to())
+                .includeLower(range.includeLower())
+                .includeUpper(range.includeUpper());
+            if (range.timeZone() != null) {
+                rewritten.timeZone(range.timeZone());
             }
-
-            if (rewrittenFieldName.size() > 1) {
-                throw new IllegalArgumentException("Ambiguous field name resolution when mapping to rolled fields.  Field name [" +
-                        fieldName + "] was mapped to: [" + Strings.collectionToDelimitedString(rewrittenFieldName, ",") + "].");
+            if (range.format() != null) {
+                rewritten.format(range.format());
             }
-
-            //Note: instanceof here to make casting checks happier
-            if (builder instanceof RangeQueryBuilder) {
-                RangeQueryBuilder rewritten = new RangeQueryBuilder(rewrittenFieldName.get(0));
-                RangeQueryBuilder original = (RangeQueryBuilder)builder;
-                rewritten.from(original.from());
-                rewritten.to(original.to());
-                if (original.timeZone() != null) {
-                    rewritten.timeZone(original.timeZone());
-                }
-                rewritten.includeLower(original.includeLower());
-                rewritten.includeUpper(original.includeUpper());
-                return rewritten;
-            } else {
-                return new TermQueryBuilder(rewrittenFieldName.get(0), ((TermQueryBuilder)builder).value());
-            }
-
+            return rewritten;
+        } else if (builder.getWriteableName().equals(TermQueryBuilder.NAME)) {
+            TermQueryBuilder term = (TermQueryBuilder) builder;
+            String fieldName = term.fieldName();
+            String rewrittenFieldName =  rewriteFieldName(jobCaps, TermQueryBuilder.NAME, fieldName, null);
+            return new TermQueryBuilder(rewrittenFieldName, term.value());
+        } else if (builder.getWriteableName().equals(TermsQueryBuilder.NAME)) {
+            TermsQueryBuilder terms = (TermsQueryBuilder) builder;
+            String fieldName = terms.fieldName();
+            String rewrittenFieldName =  rewriteFieldName(jobCaps, TermQueryBuilder.NAME, fieldName, null);
+            return new TermsQueryBuilder(rewrittenFieldName, terms.values());
         } else if (builder.getWriteableName().equals(MatchAllQueryBuilder.NAME)) {
             // no-op
             return builder;
         } else {
             throw new IllegalArgumentException("Unsupported Query in search request: [" + builder.getWriteableName() + "]");
+        }
+    }
+
+    private static String rewriteFieldName(Set<RollupJobCaps> jobCaps,
+                                           String builderName,
+                                           String fieldName,
+                                           String timeZone) {
+        List<String> incompatibleTimeZones = timeZone == null ? Collections.emptyList() : new ArrayList<>();
+        List<String> rewrittenFieldNames = jobCaps.stream()
+            // We only care about job caps that have the query's target field
+            .filter(caps -> caps.getFieldCaps().keySet().contains(fieldName))
+            .map(caps -> {
+                RollupJobCaps.RollupFieldCaps fieldCaps = caps.getFieldCaps().get(fieldName);
+                return fieldCaps.getAggs().stream()
+                    // For now, we only allow filtering on grouping fields
+                    .filter(agg -> {
+                        String type = (String)agg.get(RollupField.AGG);
+
+                        // If the cap is for a date_histo, and the query is a range, the timezones need to match
+                        if (type.equals(DateHistogramAggregationBuilder.NAME) && timeZone != null) {
+                            boolean matchingTZ = ((String)agg.get(DateHistogramGroupConfig.TIME_ZONE))
+                                .equalsIgnoreCase(timeZone);
+                            if (matchingTZ == false) {
+                                incompatibleTimeZones.add((String)agg.get(DateHistogramGroupConfig.TIME_ZONE));
+                            }
+                            return matchingTZ;
+                        }
+                        // Otherwise just make sure it's one of the three groups
+                        return type.equals(TermsAggregationBuilder.NAME)
+                            || type.equals(DateHistogramAggregationBuilder.NAME)
+                            || type.equals(HistogramAggregationBuilder.NAME);
+                    })
+                    // Rewrite the field name to our convention (e.g. "foo" -> "date_histogram.foo.timestamp")
+                    .map(agg -> {
+                        if (agg.get(RollupField.AGG).equals(DateHistogramAggregationBuilder.NAME)) {
+                            return RollupField.formatFieldName(fieldName, (String)agg.get(RollupField.AGG), RollupField.TIMESTAMP);
+                        } else {
+                            return RollupField.formatFieldName(fieldName, (String)agg.get(RollupField.AGG), RollupField.VALUE);
+                        }
+                    })
+                    .collect(Collectors.toList());
+            })
+            .distinct()
+            .collect(ArrayList::new, List::addAll, List::addAll);
+        if (rewrittenFieldNames.isEmpty()) {
+            if (incompatibleTimeZones.isEmpty()) {
+                throw new IllegalArgumentException("Field [" + fieldName + "] in [" + builderName
+                    + "] query is not available in selected rollup indices, cannot query.");
+            } else {
+                throw new IllegalArgumentException("Field [" + fieldName + "] in [" + builderName
+                    + "] query was found in rollup indices, but requested timezone is not compatible. Options include: "
+                    + incompatibleTimeZones);
+            }
+        } else if (rewrittenFieldNames.size() > 1) {
+            throw new IllegalArgumentException("Ambiguous field name resolution when mapping to rolled fields.  Field name [" +
+                fieldName + "] was mapped to: [" + Strings.collectionToDelimitedString(rewrittenFieldNames, ",") + "].");
+        } else {
+            return rewrittenFieldNames.get(0);
         }
     }
 
@@ -393,11 +407,6 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     }
 
     class TransportHandler implements TransportRequestHandler<SearchRequest> {
-
-        @Override
-        public final void messageReceived(SearchRequest request, TransportChannel channel) throws Exception {
-            throw new UnsupportedOperationException("the task parameter is required for this operation");
-        }
 
         @Override
         public final void messageReceived(final SearchRequest request, final TransportChannel channel, Task task) throws Exception {

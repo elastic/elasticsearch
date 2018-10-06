@@ -19,9 +19,9 @@
 package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.Mustache;
+import com.github.mustachejava.MustacheException;
 import com.github.mustachejava.MustacheFactory;
 
-import java.io.StringReader;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -31,12 +31,15 @@ import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.TemplateScript;
 
 import java.io.Reader;
+import java.io.StringReader;
 import java.io.StringWriter;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -66,9 +69,14 @@ public final class MustacheScriptEngine implements ScriptEngine {
         }
         final MustacheFactory factory = createMustacheFactory(options);
         Reader reader = new StringReader(templateSource);
-        Mustache template = factory.compile(reader, "query-template");
-        TemplateScript.Factory compiled = params -> new MustacheExecutableScript(template, params);
-        return context.factoryClazz.cast(compiled);
+        try {
+            Mustache template = factory.compile(reader, "query-template");
+            TemplateScript.Factory compiled = params -> new MustacheExecutableScript(template, params);
+            return context.factoryClazz.cast(compiled);
+        } catch (MustacheException ex) {
+            throw new ScriptException(ex.getMessage(), ex, Collections.emptyList(), templateSource, NAME);
+        }
+
     }
 
     private CustomMustacheFactory createMustacheFactory(Map<String, String> options) {

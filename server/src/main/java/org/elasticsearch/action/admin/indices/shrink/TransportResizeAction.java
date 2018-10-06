@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.shrink;
 
 import org.apache.lucene.index.IndexWriter;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -40,6 +39,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -172,6 +172,12 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
                 throw new IllegalArgumentException("cannot provide index.number_of_routing_shards on resize");
             }
         }
+        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.exists(metaData.getSettings()) &&
+            IndexSettings.INDEX_SOFT_DELETES_SETTING.get(metaData.getSettings()) &&
+            IndexSettings.INDEX_SOFT_DELETES_SETTING.exists(targetIndexSettings) &&
+            IndexSettings.INDEX_SOFT_DELETES_SETTING.get(targetIndexSettings) == false) {
+            throw new IllegalArgumentException("Can't disable [index.soft_deletes.enabled] setting on resize");
+        }
         String cause = resizeRequest.getResizeType().name().toLowerCase(Locale.ROOT) + "_index";
         targetIndex.cause(cause);
         Settings.Builder settingsBuilder = Settings.builder().put(targetIndexSettings);
@@ -186,11 +192,10 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
                 .masterNodeTimeout(targetIndex.masterNodeTimeout())
                 .settings(targetIndex.settings())
                 .aliases(targetIndex.aliases())
-                .customs(targetIndex.customs())
                 .waitForActiveShards(targetIndex.waitForActiveShards())
                 .recoverFrom(metaData.getIndex())
                 .resizeType(resizeRequest.getResizeType())
-                .copySettings(resizeRequest.getCopySettings());
+                .copySettings(resizeRequest.getCopySettings() == null ? false : resizeRequest.getCopySettings());
     }
 
     @Override

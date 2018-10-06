@@ -6,16 +6,15 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
 import java.util.concurrent.CountDownLatch;
@@ -47,7 +46,7 @@ public class DeleteJobIT extends BaseMlIntegTestCase {
             }
 
             @Override
-            public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 markAsDeletedLatch.countDown();
             }
         });
@@ -58,9 +57,9 @@ public class DeleteJobIT extends BaseMlIntegTestCase {
         // Job is marked as deleting so now a delete request should wait for it.
         AtomicBoolean isDeleted = new AtomicBoolean(false);
         AtomicReference<Exception> deleteFailure = new AtomicReference<>();
-        ActionListener<DeleteJobAction.Response> deleteListener = new ActionListener<DeleteJobAction.Response>() {
+        ActionListener<AcknowledgedResponse> deleteListener = new ActionListener<AcknowledgedResponse>() {
             @Override
-            public void onResponse(DeleteJobAction.Response response) {
+            public void onResponse(AcknowledgedResponse response) {
                 isDeleted.compareAndSet(false, response.isAcknowledged());
             }
 
@@ -90,7 +89,7 @@ public class DeleteJobIT extends BaseMlIntegTestCase {
             }
 
             @Override
-            public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 removeJobLatch.countDown();
             }
         });
@@ -103,7 +102,7 @@ public class DeleteJobIT extends BaseMlIntegTestCase {
     }
 
     private ClusterState markJobAsDeleted(String jobId, ClusterState currentState) {
-        MlMetadata mlMetadata = currentState.metaData().custom(MLMetadataField.TYPE);
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(currentState);
         assertNotNull(mlMetadata);
 
         MlMetadata.Builder builder = new MlMetadata.Builder(mlMetadata);
@@ -111,16 +110,16 @@ public class DeleteJobIT extends BaseMlIntegTestCase {
         builder.markJobAsDeleted(jobId, tasks, true);
 
         ClusterState.Builder newState = ClusterState.builder(currentState);
-        return newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MLMetadataField.TYPE, builder.build()).build())
+        return newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, builder.build()).build())
                 .build();
     }
 
     private ClusterState removeJobFromClusterState(String jobId, ClusterState currentState) {
-        MlMetadata.Builder builder = new MlMetadata.Builder(currentState.metaData().custom(MLMetadataField.TYPE));
+        MlMetadata.Builder builder = new MlMetadata.Builder(MlMetadata.getMlMetadata(currentState));
         builder.deleteJob(jobId, currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE));
 
         ClusterState.Builder newState = ClusterState.builder(currentState);
-        return newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MLMetadataField.TYPE, builder.build()).build())
+        return newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, builder.build()).build())
                 .build();
     }
 }

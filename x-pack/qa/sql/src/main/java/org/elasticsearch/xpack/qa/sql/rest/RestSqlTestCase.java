@@ -6,16 +6,14 @@
 package org.elasticsearch.xpack.qa.sql.rest;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
-import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -30,14 +28,15 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.sql.JDBCType;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.TreeMap;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
@@ -74,16 +73,19 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     public void testNextPage() throws IOException {
+        Request request = new Request("POST", "/test/test/_bulk");
+        request.addParameter("refresh", "true");
         String mode = randomMode();
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < 20; i++) {
             bulk.append("{\"index\":{\"_id\":\"" + i + "\"}}\n");
             bulk.append("{\"text\":\"text" + i + "\", \"number\":" + i + "}\n");
         }
-        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        request.setJsonEntity(bulk.toString());
+        client().performRequest(request);
 
-        String request = "{\"query\":\""
+        String sqlRequest =
+                  "{\"query\":\""
                 + "   SELECT text, number, SQRT(number) AS s, SCORE()"
                 + "     FROM test"
                 + " ORDER BY number, SCORE()\", "
@@ -94,7 +96,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         for (int i = 0; i < 20; i += 2) {
             Map<String, Object> response;
             if (i == 0) {
-                response = runSql(mode, new StringEntity(request, ContentType.APPLICATION_JSON));
+                response = runSql(mode, new StringEntity(sqlRequest, ContentType.APPLICATION_JSON));
             } else {
                 response = runSql(mode, new StringEntity("{\"cursor\":\"" + cursor + "\"}",
                         ContentType.APPLICATION_JSON));
@@ -138,12 +140,14 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     public void testScoreWithFieldNamedScore() throws IOException {
+        Request request = new Request("POST", "/test/test/_bulk");
+        request.addParameter("refresh", "true");
         String mode = randomMode();
         StringBuilder bulk = new StringBuilder();
         bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
         bulk.append("{\"name\":\"test\", \"score\":10}\n");
-        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
-            new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        request.setJsonEntity(bulk.toString());
+        client().performRequest(request);
 
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", Arrays.asList(
@@ -209,7 +213,9 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     @Override
     public void testSelectFromIndexWithoutTypes() throws Exception {
         // Create an index without any types
-        client().performRequest("PUT", "/test", emptyMap(), new StringEntity("{}", ContentType.APPLICATION_JSON));
+        Request request = new Request("PUT", "/test");
+        request.setJsonEntity("{}");
+        client().performRequest(request);
         String mode = randomFrom("jdbc", "plain");
         expectBadRequest(() -> runSql(mode, "SELECT * FROM test"),
             containsString("1:15: [test] doesn't have any types so it is incompatible with sql"));
@@ -229,24 +235,9 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
                 containsString("1:8: Unknown function [missing]"));
     }
 
-    private void index(String... docs) throws IOException {
-        StringBuilder bulk = new StringBuilder();
-        for (String doc : docs) {
-            bulk.append("{\"index\":{}\n");
-            bulk.append(doc + "\n");
-        }
-        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
-            new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
-    }
-
     @Override
     public void testSelectProjectScoreInAggContext() throws Exception {
-        StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
-        bulk.append("{\"foo\":1}\n");
-        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
-
+        index("{\"foo\":1}");
         expectBadRequest(() -> runSql(randomMode(),
             "     SELECT foo, SCORE(), COUNT(*)"
             + "     FROM test"
@@ -256,12 +247,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
 
     @Override
     public void testSelectOrderByScoreInAggContext() throws Exception {
-        StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
-        bulk.append("{\"foo\":1}\n");
-        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
-
+        index("{\"foo\":1}");
         expectBadRequest(() -> runSql(randomMode(),
             "     SELECT foo, COUNT(*)"
             + "     FROM test"
@@ -272,36 +258,21 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
 
     @Override
     public void testSelectGroupByScore() throws Exception {
-        StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
-        bulk.append("{\"foo\":1}\n");
-        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
-
+        index("{\"foo\":1}");
         expectBadRequest(() -> runSql(randomMode(), "SELECT COUNT(*) FROM test GROUP BY SCORE()"),
                 containsString("Cannot use [SCORE()] for grouping"));
     }
 
     @Override
     public void testSelectScoreSubField() throws Exception {
-        StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
-        bulk.append("{\"foo\":1}\n");
-        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
-
+        index("{\"foo\":1}");
         expectBadRequest(() -> runSql(randomMode(), "SELECT SCORE().bar FROM test"),
             containsString("line 1:15: extraneous input '.' expecting {<EOF>, ','"));
     }
 
     @Override
     public void testSelectScoreInScalar() throws Exception {
-        StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
-        bulk.append("{\"foo\":1}\n");
-        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
-
+        index("{\"foo\":1}");
         expectBadRequest(() -> runSql(randomMode(), "SELECT SIN(SCORE()) FROM test"),
             containsString("line 1:12: [SCORE()] cannot be an argument to a function"));
     }
@@ -340,37 +311,34 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     private Map<String, Object> runSql(String mode, HttpEntity sql, String suffix) throws IOException {
-        Map<String, String> params = new TreeMap<>();
-        params.put("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
-        params.put("pretty", "true");        // Improves error reporting readability
+        Request request = new Request("POST", "/_xpack/sql" + suffix);
+        request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
+        request.addParameter("pretty", "true");        // Improves error reporting readability
         if (randomBoolean()) {
             // We default to JSON but we force it randomly for extra coverage
-            params.put("format", "json");
+            request.addParameter("format", "json");
         }
-        if (Strings.hasText(mode)) {
-            params.put("mode", mode);        // JDBC or PLAIN mode
+        if (false == mode.isEmpty()) {
+            request.addParameter("mode", mode);        // JDBC or PLAIN mode
         }
-        Header[] headers = randomFrom(
-            new Header[] {},
-            new Header[] {new BasicHeader("Accept", "*/*")},
-            new Header[] {new BasicHeader("Accpet", "application/json")});
-        Response response = client().performRequest("POST", "/_xpack/sql" + suffix, params, sql);
+        if (randomBoolean()) {
+            // JSON is the default but randomly set it sometime for extra coverage
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.addHeader("Accept", randomFrom("*/*", "application/json"));
+            request.setOptions(options);
+        }
+        request.setEntity(sql);
+        Response response = client().performRequest(request);
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
         }
     }
 
     public void testBasicTranslateQuery() throws IOException {
-        StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
-        bulk.append("{\"test\":\"test\"}\n");
-        bulk.append("{\"index\":{\"_id\":\"2\"}}\n");
-        bulk.append("{\"test\":\"test\"}\n");
-        client().performRequest("POST", "/test_translate/test/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        index("{\"test\":\"test\"}", "{\"test\":\"test\"}");
 
-        Map<String, Object> response = runSql(randomMode(), "SELECT * FROM test_translate", "/translate/");
-        assertEquals(response.get("size"), 1000);
+        Map<String, Object> response = runSql(randomMode(), "SELECT * FROM test", "/translate/");
+        assertEquals(1000, response.get("size"));
         @SuppressWarnings("unchecked")
         Map<String, Object> source = (Map<String, Object>) response.get("_source");
         assertNotNull(source);
@@ -428,21 +396,128 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         assertNotNull(query);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> constantScore = (Map<String, Object>) query.get("constant_score");
-        assertNotNull(constantScore);
+        Map<String, Object> bool = (Map<String, Object>) query.get("bool");
+        assertNotNull(bool);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> filter = (Map<String, Object>) constantScore.get("filter");
+        List<Object> filter = (List<Object>) bool.get("filter");
         assertNotNull(filter);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> match = (Map<String, Object>) filter.get("match");
-        assertNotNull(match);
+        Map<String, Object> map = (Map<String, Object>) filter.get(0);
+        assertNotNull(map);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> matchQuery = (Map<String, Object>) match.get("test");
+        Map<String, Object> matchQ = (Map<String, Object>) map.get("match");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> matchQuery = (Map<String, Object>) matchQ.get("test");
+
         assertNotNull(matchQuery);
         assertEquals("foo", matchQuery.get("query"));
+    }
+
+    public void testTranslateQueryWithGroupByAndHaving() throws IOException {
+        index("{\"salary\":100}",
+            "{\"age\":20}");
+
+        Map<String, Object> response = runSql("",
+            new StringEntity("{\"query\":\"SELECT avg(salary) FROM test GROUP BY abs(age) HAVING avg(salary) > 50 LIMIT 10\"}",
+                ContentType.APPLICATION_JSON), "/translate/"
+        );
+
+        assertEquals(response.get("size"), 0);
+        assertEquals(false, response.get("_source"));
+        assertEquals("_none_", response.get("stored_fields"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> aggregations = (Map<String, Object>) response.get("aggregations");
+        assertEquals(1, aggregations.size());
+        assertNotNull(aggregations);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> groupby = (Map<String, Object>) aggregations.get("groupby");
+        assertEquals(2, groupby.size());
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> composite = (Map<String, Object>) groupby.get("composite");
+        assertEquals(2, composite.size());
+        assertEquals(10, composite.get("size"));
+
+        @SuppressWarnings("unchecked")
+        List<Object> sources = (List<Object>) composite.get("sources");
+        assertEquals(1, sources.size());
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> sourcesListMap =
+            (Map<String, Object>) ((Map<String, Object>) sources.get(0)).values().iterator().next();
+        assertEquals(1, sourcesListMap.size());
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> terms = (Map<String, Object>) sourcesListMap.get("terms");
+        assertEquals(4, terms.size());
+        assertEquals("long", terms.get("value_type"));
+        assertEquals(true, terms.get("missing_bucket"));
+        assertEquals("asc", terms.get("order"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> termsScript = (Map<String, Object>) terms.get("script");
+        assertEquals(3, termsScript.size());
+        assertEquals("Math.abs(doc[params.v0].value)", termsScript.get("source"));
+        assertEquals("painless", termsScript.get("lang"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> termsScriptParams = (Map<String, Object>) termsScript.get("params");
+        assertEquals(1, termsScriptParams.size());
+        assertEquals("age", termsScriptParams.get("v0"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> aggregations2 = (Map<String, Object>) groupby.get("aggregations");
+        assertEquals(3, aggregations2.size());
+
+        List<Integer> aggKeys = new ArrayList<>(2);
+        String aggFilterKey = null;
+        for (Map.Entry<String, Object> entry : aggregations2.entrySet()) {
+            String key = entry.getKey();
+            if (key.startsWith("having")) {
+                aggFilterKey = key;
+            } else {
+                aggKeys.add(Integer.valueOf(key));
+                @SuppressWarnings("unchecked")
+                Map<String, Object> aggr = (Map<String, Object>) entry.getValue();
+                assertEquals(1, aggr.size());
+                @SuppressWarnings("unchecked")
+                Map<String, Object> avg = (Map<String, Object>) aggr.get("avg");
+                assertEquals(1, avg.size());
+                assertEquals("salary", avg.get("field"));
+            }
+        }
+        Collections.sort(aggKeys);
+        assertEquals("having" + aggKeys.get(1), aggFilterKey);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> having = (Map<String, Object>) aggregations2.get(aggFilterKey);
+        assertEquals(1, having.size());
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> bucketSelector = (Map<String, Object>) having.get("bucket_selector");
+        assertEquals(3, bucketSelector.size());
+        assertEquals("skip", bucketSelector.get("gap_policy"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> bucketsPath = (Map<String, Object>) bucketSelector.get("buckets_path");
+        assertEquals(1, bucketsPath.size());
+        assertEquals(aggKeys.get(1).toString(), bucketsPath.get("a0"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> filterScript = (Map<String, Object>) bucketSelector.get("script");
+        assertEquals(3, filterScript.size());
+        assertEquals("params.a0 > params.v0", filterScript.get("source"));
+        assertEquals("painless", filterScript.get("lang"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> filterScriptParams = (Map<String, Object>) filterScript.get("params");
+        assertEquals(1, filterScriptParams.size());
+        assertEquals(50, filterScriptParams.get("v0"));
     }
 
     public void testBasicQueryText() throws IOException {
@@ -459,13 +534,12 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     public void testNextPageText() throws IOException {
-        StringBuilder bulk = new StringBuilder();
-        for (int i = 0; i < 20; i++) {
-            bulk.append("{\"index\":{\"_id\":\"" + i + "\"}}\n");
-            bulk.append("{\"text\":\"text" + i + "\", \"number\":" + i + "}\n");
+        int size = 20;
+        String[] docs = new String[size];
+        for (int i = 0; i < size; i++) {
+            docs[i] = "{\"text\":\"text" + i + "\", \"number\":" + i + "}\n";
         }
-        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        index(docs);
 
         String request = "{\"query\":\"SELECT text, number, number + 5 AS sum FROM test ORDER BY number\", \"fetch_size\":2}";
 
@@ -563,23 +637,35 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         return runSqlAsText("", new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON), accept);
     }
 
+    /**
+     * Run SQL as text using the {@code Accept} header to specify the format
+     * rather than the {@code format} parameter.
+     */
     private Tuple<String, String> runSqlAsText(String suffix, HttpEntity entity, String accept) throws IOException {
-        Response response = client().performRequest("POST", "/_xpack/sql" + suffix, singletonMap("error_trace", "true"),
-                entity, new BasicHeader("Accept", accept));
+        Request request = new Request("POST", "/_xpack/sql" + suffix);
+        request.addParameter("error_trace", "true");
+        request.setEntity(entity);
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("Accept", accept);
+        request.setOptions(options);
+        Response response = client().performRequest(request);
         return new Tuple<>(
                 Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)),
                 response.getHeader("Cursor")
         );
     }
 
+    /**
+     * Run SQL as text using the {@code format} parameter to specify the format
+     * rather than an {@code Accept} header.
+     */
     private Tuple<String, String> runSqlAsTextFormat(String sql, String format) throws IOException {
-        StringEntity entity = new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON);
+        Request request = new Request("POST", "/_xpack/sql");
+        request.addParameter("error_trace", "true");
+        request.addParameter("format", format);
+        request.setJsonEntity("{\"query\":\"" + sql + "\"}");
 
-        Map<String, String> params = new HashMap<>();
-        params.put("error_trace", "true");
-        params.put("format", format);
-
-        Response response = client().performRequest("POST", "/_xpack/sql", params, entity);
+        Response response = client().performRequest(request);
         return new Tuple<>(
                 Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)),
                 response.getHeader("Cursor")
@@ -595,23 +681,14 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     public static int getNumberOfSearchContexts(String index) throws IOException {
-        Response response = client().performRequest("GET", "/_stats/search");
-        Map<String, Object> stats;
-        try (InputStream content = response.getEntity().getContent()) {
-            stats = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
-        }
-        return getOpenContexts(stats, index);
+        return getOpenContexts(searchStats(), index);
     }
 
     public static void assertNoSearchContexts() throws IOException {
-        Response response = client().performRequest("GET", "/_stats/search");
-        Map<String, Object> stats;
-        try (InputStream content = response.getEntity().getContent()) {
-            stats = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
-        }
+        Map<String, Object> stats = searchStats();
         @SuppressWarnings("unchecked")
-        Map<String, Object> indexStats = (Map<String, Object>) stats.get("indices");
-        for (String index : indexStats.keySet()) {
+        Map<String, Object> indicesStats = (Map<String, Object>) stats.get("indices");
+        for (String index : indicesStats.keySet()) {
             if (index.startsWith(".") == false) { // We are not interested in internal indices
                 assertEquals(index + " should have no search contexts", 0, getOpenContexts(stats, index));
             }
@@ -619,12 +696,34 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     @SuppressWarnings("unchecked")
-    public static int getOpenContexts(Map<String, Object> indexStats, String index) {
-        return (int) ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>)
-                indexStats.get("indices")).get(index)).get("total")).get("search")).get("open_contexts");
+    private static int getOpenContexts(Map<String, Object> stats, String index) {
+        stats = (Map<String, Object>) stats.get("indices");
+        stats = (Map<String, Object>) stats.get(index);
+        stats = (Map<String, Object>) stats.get("total");
+        stats = (Map<String, Object>) stats.get("search");
+        return (Integer) stats.get("open_contexts");
+    }
+
+    private static Map<String, Object> searchStats() throws IOException {
+        Response response = client().performRequest(new Request("GET", "/_stats/search"));
+        try (InputStream content = response.getEntity().getContent()) {
+            return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
+        }
     }
 
     public static String randomMode() {
         return randomFrom("", "jdbc", "plain");
+    }
+
+    private void index(String... docs) throws IOException {
+        Request request = new Request("POST", "/test/test/_bulk");
+        request.addParameter("refresh", "true");
+        StringBuilder bulk = new StringBuilder();
+        for (String doc : docs) {
+            bulk.append("{\"index\":{}\n");
+            bulk.append(doc + "\n");
+        }
+        request.setJsonEntity(bulk.toString());
+        client().performRequest(request);
     }
 }

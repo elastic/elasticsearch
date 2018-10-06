@@ -20,16 +20,15 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.search.suggest.completion.context.ContextBuilder;
@@ -50,7 +49,7 @@ import static org.hamcrest.Matchers.isIn;
 public class GeoContextMappingTests extends ESSingleNodeTestCase {
 
     public void testIndexingWithNoContexts() throws Exception {
-        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
                 .field("type", "completion")
                 .startArray("contexts")
@@ -60,13 +59,12 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endArray()
                 .endObject().endObject()
-                .endObject().endObject());
+                .endObject().endObject();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
-        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
-        MappedFieldType completionFieldType = fieldMapper.fieldType();
-        ParsedDocument parsedDocument = defaultMapper.parse(SourceToParse.source("test", "type1", "1", BytesReference
-                .bytes(jsonBuilder()
+        MapperService mapperService = createIndex("test", Settings.EMPTY, "type1", mapping).mapperService();
+        MappedFieldType completionFieldType = mapperService.fullName("completion");
+        ParsedDocument parsedDocument = mapperService.documentMapper().parse(SourceToParse.source("test", "type1", "1",
+            BytesReference.bytes(jsonBuilder()
                         .startObject()
                         .startArray("completion")
                         .startObject()
@@ -89,7 +87,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexingWithSimpleContexts() throws Exception {
-        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
                 .field("type", "completion")
                 .startArray("contexts")
@@ -100,13 +98,12 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endArray()
                 .endObject()
                 .endObject()
-                .endObject().endObject());
+                .endObject().endObject();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
-        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
-        MappedFieldType completionFieldType = fieldMapper.fieldType();
-        ParsedDocument parsedDocument = defaultMapper.parse(SourceToParse.source("test", "type1", "1", BytesReference
-                .bytes(jsonBuilder()
+        MapperService mapperService = createIndex("test", Settings.EMPTY, "type1", mapping).mapperService();
+        MappedFieldType completionFieldType = mapperService.fullName("completion");
+        ParsedDocument parsedDocument = mapperService.documentMapper().parse(SourceToParse.source("test", "type1", "1",
+            BytesReference.bytes(jsonBuilder()
                         .startObject()
                         .startArray("completion")
                         .startObject()
@@ -127,7 +124,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexingWithContextList() throws Exception {
-        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
                 .field("type", "completion")
                 .startArray("contexts")
@@ -137,13 +134,12 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endArray()
                 .endObject().endObject()
-                .endObject().endObject());
+                .endObject().endObject();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
-        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
-        MappedFieldType completionFieldType = fieldMapper.fieldType();
-        ParsedDocument parsedDocument = defaultMapper.parse(SourceToParse.source("test", "type1", "1", BytesReference
-                .bytes(jsonBuilder()
+        MapperService mapperService = createIndex("test", Settings.EMPTY, "type1", mapping).mapperService();
+        MappedFieldType completionFieldType = mapperService.fullName("completion");
+        ParsedDocument parsedDocument = mapperService.documentMapper().parse(SourceToParse.source("test", "type1", "1",
+            BytesReference.bytes(jsonBuilder()
                         .startObject()
                             .startObject("completion")
                                 .array("input", "suggestion5", "suggestion6", "suggestion7")
@@ -168,7 +164,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexingWithMultipleContexts() throws Exception {
-        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
                 .field("type", "completion")
                 .startArray("contexts")
@@ -182,11 +178,10 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endArray()
                 .endObject().endObject()
-                .endObject().endObject());
+                .endObject().endObject();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
-        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
-        MappedFieldType completionFieldType = fieldMapper.fieldType();
+        MapperService mapperService = createIndex("test", Settings.EMPTY, "type1", mapping).mapperService();
+        MappedFieldType completionFieldType = mapperService.fullName("completion");
         XContentBuilder builder = jsonBuilder()
                 .startObject()
                 .startArray("completion")
@@ -200,10 +195,74 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endArray()
                 .endObject();
-        ParsedDocument parsedDocument = defaultMapper.parse(SourceToParse.source("test", "type1", "1", BytesReference.bytes(builder),
-                XContentType.JSON));
+        ParsedDocument parsedDocument = mapperService.documentMapper().parse(SourceToParse.source("test", "type1", "1",
+            BytesReference.bytes(builder), XContentType.JSON));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
+    }
+
+    public void testMalformedGeoField() throws Exception {
+        XContentBuilder mapping = jsonBuilder();
+        mapping.startObject();
+        mapping.startObject("type1");
+        mapping.startObject("properties");
+        mapping.startObject("pin");
+        String type = randomFrom("text", "keyword", "long");
+        mapping.field("type", type);
+        mapping.endObject();
+        mapping.startObject("suggestion");
+        mapping.field("type", "completion");
+        mapping.field("analyzer", "simple");
+
+        mapping.startArray("contexts");
+        mapping.startObject();
+        mapping.field("name", "st");
+        mapping.field("type", "geo");
+        mapping.field("path", "pin");
+        mapping.field("precision", 5);
+        mapping.endObject();
+        mapping.endArray();
+
+        mapping.endObject();
+
+        mapping.endObject();
+        mapping.endObject();
+        mapping.endObject();
+
+        ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class,
+            () ->  createIndex("test", Settings.EMPTY, "type1", mapping));
+
+        assertThat(ex.getMessage(), equalTo("field [pin] referenced in context [st] must be mapped to geo_point, found [" + type + "]"));
+    }
+
+    public void testMissingGeoField() throws Exception {
+        XContentBuilder mapping = jsonBuilder();
+        mapping.startObject();
+        mapping.startObject("type1");
+        mapping.startObject("properties");
+        mapping.startObject("suggestion");
+        mapping.field("type", "completion");
+        mapping.field("analyzer", "simple");
+
+        mapping.startArray("contexts");
+        mapping.startObject();
+        mapping.field("name", "st");
+        mapping.field("type", "geo");
+        mapping.field("path", "pin");
+        mapping.field("precision", 5);
+        mapping.endObject();
+        mapping.endArray();
+
+        mapping.endObject();
+
+        mapping.endObject();
+        mapping.endObject();
+        mapping.endObject();
+
+        ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class,
+            () ->  createIndex("test", Settings.EMPTY, "type1", mapping));
+
+        assertThat(ex.getMessage(), equalTo("field [pin] referenced in context [st] is not defined in the mapping"));
     }
 
     public void testParsingQueryContextBasic() throws Exception {

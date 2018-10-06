@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
-import org.elasticsearch.xpack.sql.client.shared.ObjectUtils;
-import org.elasticsearch.xpack.sql.client.shared.Version;
+import org.elasticsearch.xpack.sql.client.ObjectUtils;
+import org.elasticsearch.xpack.sql.client.Version;
 import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
 import org.elasticsearch.xpack.sql.jdbc.net.client.Cursor;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
@@ -19,6 +19,7 @@ import java.sql.ResultSet;
 import java.sql.RowIdLifetime;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLType;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -179,14 +180,34 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public String getNumericFunctions() throws SQLException {
-        // TODO: sync this with the grammar
-        return "";
+        //https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/numeric-functions?view=sql-server-2017
+        return "ABS,ACOS,ASIN,ATAN,ATAN2,"
+                + "CEILING,COS,"
+                + "DEGREES,"
+                + "EXP,"
+                + "FLOOR,"
+                + "LOG,LOG10,"
+                + "MOD,"
+                + "PI,POWER,"
+                + "RADIANS,RAND,ROUND,"
+                + "SIGN,SIN,SQRT,"
+                + "TAN,TRUNCATE";
     }
 
     @Override
     public String getStringFunctions() throws SQLException {
-        // TODO: sync this with the grammar
-        return "";
+        //https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/string-functions?view=sql-server-2017
+        return "ASCII,"
+                + "BIT_LENGTH,"
+                + "CHAR,CHAR_LENGTH,CHARACTER_LENGTH,CONCAT,"
+                + "INSERT,"
+                + "LCASE,LEFT,LENGTH,LOCATE,LTRIM,"
+                // waiting on https://github.com/elastic/elasticsearch/issues/33477
+                //+ "OCTET_LENGTH,"
+                + "POSITION,"
+                + "REPEAT,REPLACE,RIGHT,RTRIM,"
+                + "SPACE,SUBSTRING,"
+                + "UCASE";
     }
 
     @Override
@@ -197,7 +218,15 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public String getTimeDateFunctions() throws SQLException {
-        return "";
+        //https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/time-date-and-interval-functions?view=sql-server-2017
+        return "DAYNAME,DAYOFMONTH,DAYOFWEEK,DAYOFYEAR"
+                + "EXTRACT,"
+                + "HOUR,"
+                + "MINUTE,MONTH,MONTHNAME"
+                + "QUARTER,"
+                + "SECOND,"
+                + "WEEK,"
+                + "YEAR";
     }
 
     @Override
@@ -368,7 +397,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public String getCatalogSeparator() throws SQLException {
-        return ".";
+        return ":";
     }
 
     @Override
@@ -1096,11 +1125,11 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
             Object obj = cols[i];
             if (obj instanceof String) {
                 String name = obj.toString();
-                JDBCType type = JDBCType.VARCHAR;
+                SQLType type = JDBCType.VARCHAR;
                 if (i + 1 < cols.length) {
                     // check if the next item it's a type
-                    if (cols[i + 1] instanceof JDBCType) {
-                        type = (JDBCType) cols[i + 1];
+                    if (cols[i + 1] instanceof SQLType) {
+                        type = (SQLType) cols[i + 1];
                         i++;
                     }
                     // it's not, use the default and move on

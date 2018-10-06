@@ -25,7 +25,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -67,6 +66,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -79,6 +79,9 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
+import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
@@ -89,6 +92,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -96,6 +100,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -116,10 +121,14 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -172,6 +181,8 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndicesRequestCache indicesRequestCache;
     private final IndicesQueryCache indicesQueryCache;
     private final MetaStateService metaStateService;
+    private final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders;
+    private final Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories;
 
     @Override
     protected void doStart() {
@@ -183,7 +194,9 @@ public class IndicesService extends AbstractLifecycleComponent
                           AnalysisRegistry analysisRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
                           MapperRegistry mapperRegistry, NamedWriteableRegistry namedWriteableRegistry, ThreadPool threadPool,
                           IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService, BigArrays bigArrays,
-                          ScriptService scriptService, Client client, MetaStateService metaStateService) {
+                          ScriptService scriptService, Client client, MetaStateService metaStateService,
+                          Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
+                          Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories) {
         super(settings);
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
@@ -214,11 +227,21 @@ public class IndicesService extends AbstractLifecycleComponent
         this.cleanInterval = INDICES_CACHE_CLEAN_INTERVAL_SETTING.get(settings);
         this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, indicesRequestCache,  logger, threadPool, this.cleanInterval);
         this.metaStateService = metaStateService;
+        this.engineFactoryProviders = engineFactoryProviders;
+
+        // do not allow any plugin-provided index store type to conflict with a built-in type
+        for (final String indexStoreType : indexStoreFactories.keySet()) {
+            if (IndexModule.isBuiltinType(indexStoreType)) {
+                throw new IllegalStateException("registered index store type [" + indexStoreType + "] conflicts with a built-in type");
+            }
+        }
+
+        this.indexStoreFactories = indexStoreFactories;
     }
 
     @Override
     protected void doStop() {
-        ExecutorService indicesStopExecutor = Executors.newFixedThreadPool(5, EsExecutors.daemonThreadFactory("indices_shutdown"));
+        ExecutorService indicesStopExecutor = Executors.newFixedThreadPool(5, EsExecutors.daemonThreadFactory(settings, "indices_shutdown"));
 
         // Copy indices because we modify it asynchronously in the body of the loop
         final Set<Index> indices = this.indices.values().stream().map(s -> s.index()).collect(Collectors.toSet());
@@ -324,13 +347,24 @@ public class IndicesService extends AbstractLifecycleComponent
             return null;
         }
 
+        CommitStats commitStats;
+        SeqNoStats seqNoStats;
+        try {
+            commitStats = indexShard.commitStats();
+            seqNoStats = indexShard.seqNoStats();
+        } catch (AlreadyClosedException e) {
+            // shard is closed - no stats is fine
+            commitStats = null;
+            seqNoStats = null;
+        }
+
         return new IndexShardStats(indexShard.shardId(),
                                    new ShardStats[] {
                                        new ShardStats(indexShard.routingEntry(),
                                                       indexShard.shardPath(),
                                                       new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags),
-                                                      indexShard.commitStats(),
-                                                      indexShard.seqNoStats())
+                                                      commitStats,
+                                                      seqNoStats)
                                    });
     }
 
@@ -362,7 +396,6 @@ public class IndicesService extends AbstractLifecycleComponent
     public IndexService indexService(Index index) {
         return indices.get(index.getUUID());
     }
-
     /**
      * Returns an IndexService for the specified index if exists otherwise a {@link IndexNotFoundException} is thrown.
      */
@@ -442,7 +475,7 @@ public class IndicesService extends AbstractLifecycleComponent
             idxSettings.getNumberOfReplicas(),
             reason);
 
-        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry);
+        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings), indexStoreFactories);
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
         }
@@ -466,6 +499,34 @@ public class IndicesService extends AbstractLifecycleComponent
         );
     }
 
+    private EngineFactory getEngineFactory(final IndexSettings idxSettings) {
+        final List<Optional<EngineFactory>> engineFactories =
+                engineFactoryProviders
+                        .stream()
+                        .map(engineFactoryProvider -> engineFactoryProvider.apply(idxSettings))
+                        .filter(maybe -> Objects.requireNonNull(maybe).isPresent())
+                        .collect(Collectors.toList());
+        if (engineFactories.isEmpty()) {
+            return new InternalEngineFactory();
+        } else if (engineFactories.size() == 1) {
+            assert engineFactories.get(0).isPresent();
+            return engineFactories.get(0).get();
+        } else {
+            final String message = String.format(
+                    Locale.ROOT,
+                    "multiple engine factories provided for %s: %s",
+                    idxSettings.getIndex(),
+                    engineFactories
+                            .stream()
+                            .map(t -> {
+                                assert t.isPresent();
+                                return "[" + t.get().getClass().getName() + "]";
+                            })
+                            .collect(Collectors.joining(",")));
+            throw new IllegalStateException(message);
+        }
+    }
+
     /**
      * creates a new mapper service for the given index, in order to do administrative work like mapping updates.
      * This *should not* be used for document parsing. Doing so will result in an exception.
@@ -474,7 +535,7 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public synchronized MapperService createIndexMapperService(IndexMetaData indexMetaData) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexScopedSettings);
-        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry);
+        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings), indexStoreFactories);
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
     }

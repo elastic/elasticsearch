@@ -8,8 +8,7 @@ package org.elasticsearch.license;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-class GetBasicStatusRequestBuilder extends ActionRequestBuilder<GetBasicStatusRequest, GetBasicStatusResponse,
-        GetBasicStatusRequestBuilder> {
+class GetBasicStatusRequestBuilder extends ActionRequestBuilder<GetBasicStatusRequest, GetBasicStatusResponse> {
 
     GetBasicStatusRequestBuilder(ElasticsearchClient client, GetBasicStatusAction action) {
         super(client, action, new GetBasicStatusRequest());

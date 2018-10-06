@@ -170,7 +170,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         writer.addDocument(d);
         refreshReader();
 
-        IndexFieldData fieldData = getForField("non_existing_field");
+        IndexFieldData<?> fieldData = getForField("non_existing_field");
         int max = randomInt(7);
         for (LeafReaderContext readerContext : readerContexts) {
             AtomicFieldData previous = null;

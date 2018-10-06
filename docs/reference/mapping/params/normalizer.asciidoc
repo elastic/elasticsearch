@@ -83,31 +83,31 @@ both index and query time.
   "took": $body.took,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
   "hits": {
     "total": 2,
-    "max_score": 0.2876821,
+    "max_score": 0.47000363,
     "hits": [
       {
         "_index": "index",
         "_type": "_doc",
-        "_id": "2",
-        "_score": 0.2876821,
+        "_id": "1",
+        "_score": 0.47000363,
         "_source": {
-          "foo": "bar"
+          "foo": "BÀR"
         }
       },
       {
         "_index": "index",
         "_type": "_doc",
-        "_id": "1",
-        "_score": 0.2876821,
+        "_id": "2",
+        "_score": 0.47000363,
         "_source": {
-          "foo": "BÀR"
+          "foo": "bar"
         }
       }
     ]
@@ -144,14 +144,14 @@ returns
   "took": 43,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
   "hits": {
     "total": 3,
-    "max_score": 0.0,
+    "max_score": null,
     "hits": []
   },
   "aggregations": {

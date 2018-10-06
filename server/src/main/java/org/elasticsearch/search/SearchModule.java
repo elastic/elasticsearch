@@ -99,7 +99,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.adjacency.InternalAdjacencyMatrix;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
@@ -110,8 +109,10 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBu
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
+import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.missing.InternalMissing;
@@ -150,36 +151,38 @@ import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
-import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.cardinality.InternalCardinality;
-import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.geobounds.InternalGeoBounds;
-import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.geocentroid.InternalGeoCentroid;
-import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
-import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.InternalHDRPercentileRanks;
-import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.InternalHDRPercentiles;
-import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentileRanks;
-import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentiles;
-import org.elasticsearch.search.aggregations.metrics.scripted.InternalScriptedMetric;
-import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
-import org.elasticsearch.search.aggregations.metrics.stats.StatsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.stats.extended.InternalExtendedStats;
-import org.elasticsearch.search.aggregations.metrics.sum.InternalSum;
-import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.tophits.InternalTopHits;
-import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.valuecount.InternalValueCount;
-import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalAvg;
+import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalCardinality;
+import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
+import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
+import org.elasticsearch.search.aggregations.metrics.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalMin;
+import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentiles;
+import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
+import org.elasticsearch.search.aggregations.metrics.InternalScriptedMetric;
+import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalStats;
+import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalExtendedStats;
+import org.elasticsearch.search.aggregations.metrics.InternalSum;
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
+import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalValueCount;
+import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalWeightedAvg;
+import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValue;
@@ -220,6 +223,8 @@ import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltWintersM
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.LinearModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
+import org.elasticsearch.search.aggregations.pipeline.movfn.MovFnPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.movfn.MovFnPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregator;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -228,6 +233,7 @@ import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.ExplainFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceSubPhase;
 import org.elasticsearch.search.fetch.subphase.MatchedQueriesFetchSubPhase;
+import org.elasticsearch.search.fetch.subphase.ScoreFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.VersionFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
@@ -242,17 +248,20 @@ import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.Laplace;
 import org.elasticsearch.search.suggest.phrase.LinearInterpolation;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.search.suggest.phrase.StupidBackoff;
+import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -333,6 +342,8 @@ public class SearchModule {
     private void registerAggregations(List<SearchPlugin> plugins) {
         registerAggregation(new AggregationSpec(AvgAggregationBuilder.NAME, AvgAggregationBuilder::new, AvgAggregationBuilder::parse)
                 .addResultReader(InternalAvg::new));
+        registerAggregation(new AggregationSpec(WeightedAvgAggregationBuilder.NAME, WeightedAvgAggregationBuilder::new,
+            WeightedAvgAggregationBuilder::parse).addResultReader(InternalWeightedAvg::new));
         registerAggregation(new AggregationSpec(SumAggregationBuilder.NAME, SumAggregationBuilder::new, SumAggregationBuilder::parse)
                 .addResultReader(InternalSum::new));
         registerAggregation(new AggregationSpec(MinAggregationBuilder.NAME, MinAggregationBuilder::new, MinAggregationBuilder::parse)
@@ -395,6 +406,8 @@ public class SearchModule {
                 HistogramAggregationBuilder::parse).addResultReader(InternalHistogram::new));
         registerAggregation(new AggregationSpec(DateHistogramAggregationBuilder.NAME, DateHistogramAggregationBuilder::new,
                 DateHistogramAggregationBuilder::parse).addResultReader(InternalDateHistogram::new));
+        registerAggregation(new AggregationSpec(AutoDateHistogramAggregationBuilder.NAME, AutoDateHistogramAggregationBuilder::new,
+                AutoDateHistogramAggregationBuilder::parse).addResultReader(InternalAutoDateHistogram::new));
         registerAggregation(new AggregationSpec(GeoDistanceAggregationBuilder.NAME, GeoDistanceAggregationBuilder::new,
                 GeoDistanceAggregationBuilder::parse).addResultReader(InternalGeoDistance::new));
         registerAggregation(new AggregationSpec(GeoGridAggregationBuilder.NAME, GeoGridAggregationBuilder::new,
@@ -514,6 +527,11 @@ public class SearchModule {
                 SerialDiffPipelineAggregationBuilder::new,
                 SerialDiffPipelineAggregator::new,
                 SerialDiffPipelineAggregationBuilder::parse));
+        registerPipelineAggregation(new PipelineAggregationSpec(
+            MovFnPipelineAggregationBuilder.NAME,
+            MovFnPipelineAggregationBuilder::new,
+            MovFnPipelineAggregator::new,
+            MovFnPipelineAggregationBuilder::parse));
 
         registerFromPlugin(plugins, SearchPlugin::getPipelineAggregations, this::registerPipelineAggregation);
     }
@@ -577,9 +595,14 @@ public class SearchModule {
     private void registerSuggesters(List<SearchPlugin> plugins) {
         registerSmoothingModels(namedWriteables);
 
-        registerSuggester(new SuggesterSpec<>("term", TermSuggestionBuilder::new, TermSuggestionBuilder::fromXContent));
-        registerSuggester(new SuggesterSpec<>("phrase", PhraseSuggestionBuilder::new, PhraseSuggestionBuilder::fromXContent));
-        registerSuggester(new SuggesterSpec<>("completion", CompletionSuggestionBuilder::new, CompletionSuggestionBuilder::fromXContent));
+        registerSuggester(new SuggesterSpec<>(TermSuggestionBuilder.SUGGESTION_NAME,
+            TermSuggestionBuilder::new, TermSuggestionBuilder::fromXContent, TermSuggestion::new));
+
+        registerSuggester(new SuggesterSpec<>(PhraseSuggestionBuilder.SUGGESTION_NAME,
+            PhraseSuggestionBuilder::new, PhraseSuggestionBuilder::fromXContent, PhraseSuggestion::new));
+
+        registerSuggester(new SuggesterSpec<>(CompletionSuggestionBuilder.SUGGESTION_NAME,
+            CompletionSuggestionBuilder::new, CompletionSuggestionBuilder::fromXContent, CompletionSuggestion::new));
 
         registerFromPlugin(plugins, SearchPlugin::getSuggesters, this::registerSuggester);
     }
@@ -589,6 +612,10 @@ public class SearchModule {
                 SuggestionBuilder.class, suggester.getName().getPreferredName(), suggester.getReader()));
         namedXContents.add(new NamedXContentRegistry.Entry(SuggestionBuilder.class, suggester.getName(),
                 suggester.getParser()));
+
+        namedWriteables.add(new NamedWriteableRegistry.Entry(
+            Suggest.Suggestion.class, suggester.getName().getPreferredName(), suggester.getSuggestionReader()
+        ));
     }
 
     private Map<String, Highlighter> setupHighlighters(Settings settings, List<SearchPlugin> plugins) {
@@ -638,6 +665,7 @@ public class SearchModule {
         registerValueFormat(DocValueFormat.GEOHASH.getWriteableName(), in -> DocValueFormat.GEOHASH);
         registerValueFormat(DocValueFormat.IP.getWriteableName(), in -> DocValueFormat.IP);
         registerValueFormat(DocValueFormat.RAW.getWriteableName(), in -> DocValueFormat.RAW);
+        registerValueFormat(DocValueFormat.BINARY.getWriteableName(), in -> DocValueFormat.BINARY);
     }
 
     /**
@@ -688,6 +716,7 @@ public class SearchModule {
         registerFetchSubPhase(new VersionFetchSubPhase());
         registerFetchSubPhase(new MatchedQueriesFetchSubPhase());
         registerFetchSubPhase(new HighlightPhase(settings, highlighters));
+        registerFetchSubPhase(new ScoreFetchSubPhase());
 
         FetchPhaseConstructionContext context = new FetchPhaseConstructionContext(highlighters);
         registerFromPlugin(plugins, p -> p.getFetchSubPhases(context), this::registerFetchSubPhase);

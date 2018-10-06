@@ -20,6 +20,7 @@
 package org.elasticsearch.qa.verify_version_constants;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
@@ -32,7 +33,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class VerifyVersionConstantsIT extends ESRestTestCase {
 
     public void testLuceneVersionConstant() throws IOException, ParseException {
-        final Response response = client().performRequest("GET", "/");
+        final Response response = client().performRequest(new Request("GET", "/"));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         final ObjectPath objectPath = ObjectPath.createFromResponse(response);
         final String elasticsearchVersionString = objectPath.evaluate("version.number").toString();

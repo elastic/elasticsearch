@@ -294,6 +294,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         }
     }
 
+    @Override
     public String getName() {
         return objectParser.getName();
     }

@@ -66,14 +66,36 @@ F                    | 10099.1936           | 10098.021            | 26.35135135
 M                    | 10095.6112           | 10090.846            | 23.41269841269841
 ;
 
-// Simple sum used in documentation
 sum
-// tag::sum
 SELECT SUM(salary) FROM test_emp;
-// end::sum
+
   SUM(salary)
 ---------------
 4824855
+;
+
+aggregateWithCastPruned
+SELECT CAST(SUM(salary) AS INTEGER) FROM test_emp;
+
+  SUM(salary)
+-------------
+4824855
+;
+
+aggregateWithUpCast
+SELECT CAST(SUM(salary) AS DOUBLE) FROM test_emp;
+
+  CAST(SUM(salary) AS DOUBLE)
+-----------------------------
+4824855.0
+;
+
+aggregateWithCastNumericToString
+SELECT CAST(AVG(salary) AS VARCHAR) FROM test_emp;
+
+  CAST(AVG(salary) AS VARCHAR):s
+--------------------------------
+48248.55
 ;
 
 kurtosisAndSkewnessNoGroup

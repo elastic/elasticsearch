@@ -23,19 +23,30 @@ esplugin {
 }
 
 versions << [
-  'tika': '1.17',
-  'pdfbox': '2.0.8',
-  'bouncycastle': '1.55',
+  'tika': '1.18',
+  'pdfbox': '2.0.9',
+  'bouncycastle': '1.59',
   'poi': '3.17',
   'mime4j': '0.8.1'
 ]
 
+if (rootProject.ext.compilerJavaVersion.isJava11()) {
+  // disabled until https://github.com/elastic/elasticsearch/issues/31456 is fixed.
+  integTestRunner {
+    systemProperty 'tests.rest.blacklist', [
+            'ingest_attachment/20_attachment_processor/Test indexed chars are configurable',
+            'ingest_attachment/20_attachment_processor/Test indexed chars are configurable per document'
+    ].join(',')
+  }
+}
+
 dependencies {
   // mandatory for tika
   compile "org.apache.tika:tika-core:${versions.tika}"
+  // build against Jackson 2.9.5, but still works on our current version
   compile "org.apache.tika:tika-parsers:${versions.tika}"
-  compile 'org.tukaani:xz:1.6'
-  compile 'commons-io:commons-io:2.5'
+  compile 'org.tukaani:xz:1.8'
+  compile 'commons-io:commons-io:2.6'
   compile "org.slf4j:slf4j-api:${versions.slf4j}"
 
   // character set detection
@@ -62,7 +73,7 @@ dependencies {
   // MS Office
   compile "org.apache.poi:poi-scratchpad:${versions.poi}"
   // Apple iWork
-  compile 'org.apache.commons:commons-compress:1.14'
+  compile 'org.apache.commons:commons-compress:1.16.1'
   // Outlook documents
   compile "org.apache.james:apache-mime4j-core:${versions.mime4j}"
   compile "org.apache.james:apache-mime4j-dom:${versions.mime4j}"
@@ -118,6 +129,10 @@ thirdPartyAudit.excludes = [
   'com.drew.metadata.jpeg.JpegDirectory',
   'com.github.junrar.Archive',
   'com.github.junrar.rarfile.FileHeader',
+  'com.github.luben.zstd.ZstdInputStream',
+  'com.github.luben.zstd.ZstdOutputStream',
+  'com.github.openjson.JSONArray',
+  'com.github.openjson.JSONObject',
   'com.google.common.reflect.TypeToken',
   'com.google.gson.Gson',
   'com.googlecode.mp4parser.DataSource',
@@ -531,6 +546,7 @@ thirdPartyAudit.excludes = [
   'org.apache.commons.exec.PumpStreamHandler',
   'org.apache.commons.exec.environment.EnvironmentUtils',
   'org.apache.commons.lang.StringUtils',
+  'org.apache.commons.lang.SystemUtils',
   'org.apache.ctakes.typesystem.type.refsem.UmlsConcept',
   'org.apache.ctakes.typesystem.type.textsem.IdentifiedAnnotation',
   'org.apache.cxf.jaxrs.client.WebClient',
@@ -635,8 +651,6 @@ thirdPartyAudit.excludes = [
   'org.etsi.uri.x01903.v13.impl.UnsignedSignaturePropertiesTypeImpl$1SignatureTimeStampList',
   'org.etsi.uri.x01903.v14.ValidationDataType$Factory',
   'org.etsi.uri.x01903.v14.ValidationDataType',
-  'org.json.JSONArray',
-  'org.json.JSONObject',
   'org.json.simple.JSONArray',
   'org.json.simple.JSONObject',
   'org.json.simple.parser.JSONParser',
@@ -2092,7 +2106,27 @@ thirdPartyAudit.excludes = [
   'ucar.nc2.dataset.NetcdfDataset'
 ]
 
-if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
+if (project.runtimeJavaVersion == JavaVersion.VERSION_1_8) {
+    thirdPartyAudit.excludes += [
+            // TODO: Why is this needed ?
+            'com.sun.javadoc.ClassDoc',
+            'com.sun.javadoc.Doc',
+            'com.sun.javadoc.Doclet',
+            'com.sun.javadoc.ExecutableMemberDoc',
+            'com.sun.javadoc.FieldDoc',
+            'com.sun.javadoc.MethodDoc',
+            'com.sun.javadoc.PackageDoc',
+            'com.sun.javadoc.Parameter',
+            'com.sun.javadoc.ProgramElementDoc',
+            'com.sun.javadoc.RootDoc',
+            'com.sun.javadoc.SourcePosition',
+            'com.sun.javadoc.Tag',
+            'com.sun.javadoc.Type',
+            'com.sun.tools.javadoc.Main'
+    ]
+}
+
+if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
   thirdPartyAudit.excludes += [
     'javax.activation.ActivationDataFlavor',
     'javax.activation.CommandMap',
@@ -2106,4 +2140,10 @@ if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
     'javax.xml.bind.JAXBElement',
     'javax.xml.bind.Unmarshaller'
   ]
+}
+
+if (project.inFipsJvm) {
+    // FIPS JVM includes manny classes from bouncycastle which count as jar hell for the third party audit,
+    // rather than provide a long list of exclusions, disable the check on FIPS.
+    thirdPartyAudit.enabled = false
 }

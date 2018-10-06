@@ -6,18 +6,20 @@ import groovy.xml.NamespaceBuilder
 import groovy.xml.NamespaceBuilderSupport
 import org.apache.tools.ant.BuildException
 import org.apache.tools.ant.DefaultLogger
+import org.apache.tools.ant.Project
 import org.apache.tools.ant.RuntimeConfigurable
 import org.apache.tools.ant.UnknownElement
+import org.elasticsearch.gradle.BuildPlugin
 import org.gradle.api.DefaultTask
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.file.FileCollection
 import org.gradle.api.file.FileTreeElement
-import org.gradle.api.internal.tasks.options.Option
 import org.gradle.api.specs.Spec
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.TaskAction
+import org.gradle.api.tasks.options.Option
 import org.gradle.api.tasks.util.PatternFilterable
 import org.gradle.api.tasks.util.PatternSet
 import org.gradle.internal.logging.progress.ProgressLoggerFactory
@@ -43,8 +45,8 @@ class RandomizedTestingTask extends DefaultTask {
     @Input
     String parallelism = '1'
 
-    @InputDirectory
-    File testClassesDir
+    @Input
+    FileCollection testClassesDirs
 
     @Optional
     @Input
@@ -220,7 +222,7 @@ class RandomizedTestingTask extends DefaultTask {
                 listener = new DefaultLogger(
                         errorPrintStream: System.err,
                         outputPrintStream: System.out,
-                        messageOutputLevel: org.apache.tools.ant.Project.MSG_INFO)
+                        messageOutputLevel: Project.MSG_INFO)
             } else {
                 // we want to buffer the info, and emit it if the test fails
                 antLoggingBuffer = new ByteArrayOutputStream()
@@ -228,7 +230,7 @@ class RandomizedTestingTask extends DefaultTask {
                 listener = new DefaultLogger(
                         errorPrintStream: stream,
                         outputPrintStream: stream,
-                        messageOutputLevel: org.apache.tools.ant.Project.MSG_INFO)
+                        messageOutputLevel: Project.MSG_INFO)
             }
             project.ant.project.addBuildListener(listener)
         }
@@ -251,12 +253,10 @@ class RandomizedTestingTask extends DefaultTask {
                 if (argLine != null) {
                     jvmarg(line: argLine)
                 }
-                fileset(dir: testClassesDir) {
-                    for (String includePattern : patternSet.getIncludes()) {
-                        include(name: includePattern)
-                    }
-                    for (String excludePattern : patternSet.getExcludes()) {
-                        exclude(name: excludePattern)
+                testClassesDirs.each { testClassDir ->
+                    fileset(dir: testClassDir) {
+                        patternSet.getIncludes().each { include(name: it) }
+                        patternSet.getExcludes().each { exclude(name: it) }
                     }
                 }
                 for (Map.Entry<String, Object> prop : systemProperties) {

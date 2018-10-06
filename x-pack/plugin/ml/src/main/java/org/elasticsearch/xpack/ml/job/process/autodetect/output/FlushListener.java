@@ -22,18 +22,14 @@ class FlushListener {
     final AtomicBoolean cleared = new AtomicBoolean(false);
 
     @Nullable
-    FlushAcknowledgement waitForFlush(String flushId, Duration timeout) {
+    FlushAcknowledgement waitForFlush(String flushId, Duration timeout) throws InterruptedException {
         if (cleared.get()) {
             return null;
         }
 
         FlushAcknowledgementHolder holder = awaitingFlushed.computeIfAbsent(flushId, (key) -> new FlushAcknowledgementHolder(flushId));
-        try {
-            if (holder.latch.await(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
-                return holder.flushAcknowledgement;
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+        if (holder.latch.await(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
+            return holder.flushAcknowledgement;
         }
         return null;
     }

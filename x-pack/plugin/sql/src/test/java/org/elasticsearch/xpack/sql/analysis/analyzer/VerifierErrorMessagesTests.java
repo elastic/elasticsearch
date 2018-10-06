@@ -55,7 +55,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testMisspelledFunction() {
-        assertEquals("1:8: Unknown function [COONT], did you mean any of [COUNT, COT]?", verify("SELECT COONT(bool) FROM test"));
+        assertEquals("1:8: Unknown function [COONT], did you mean any of [COUNT, COT, CONCAT]?", verify("SELECT COONT(bool) FROM test"));
     }
 
     public void testMissingColumnInGroupBy() {
@@ -111,7 +111,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testGroupByOrderByScalarOverNonGrouped() {
-        assertEquals("1:50: Cannot order by non-grouped column [date], expected [text]",
+        assertEquals("1:50: Cannot order by non-grouped column [YEAR(date [UTC])], expected [text]",
                 verify("SELECT MAX(int) FROM test GROUP BY text ORDER BY YEAR(date)"));
     }
 
@@ -143,5 +143,30 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testUnsupportedType() {
         assertEquals("1:8: Cannot use field [unsupported] type [ip_range] as is unsupported",
                 verify("SELECT unsupported FROM test"));
+    }
+
+    public void testGroupByOrderByNonKey() {
+        assertEquals("1:52: Cannot order by non-grouped column [a], expected [bool]",
+                verify("SELECT AVG(int) a FROM test GROUP BY bool ORDER BY a"));
+    }
+
+    public void testGroupByOrderByFunctionOverKey() {
+        assertEquals("1:44: Cannot order by non-grouped column [MAX(int)], expected [int]",
+                verify("SELECT int FROM test GROUP BY int ORDER BY MAX(int)"));
+    }
+
+    public void testGroupByOrderByScore() {
+        assertEquals("1:44: Cannot order by non-grouped column [SCORE()], expected [int]",
+                verify("SELECT int FROM test GROUP BY int ORDER BY SCORE()"));
+    }
+
+    public void testHavingOnColumn() {
+        assertEquals("1:42: Cannot filter HAVING on non-aggregate [int]; consider using WHERE instead",
+                verify("SELECT int FROM test GROUP BY int HAVING int > 2"));
+    }
+
+    public void testHavingOnScalar() {
+        assertEquals("1:42: Cannot filter HAVING on non-aggregate [int]; consider using WHERE instead",
+                verify("SELECT int FROM test GROUP BY int HAVING 2 < ABS(int)"));
     }
 }

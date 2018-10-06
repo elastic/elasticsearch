@@ -295,27 +295,27 @@ Which yields:
                   "details": []
                 },
                 {
-                  "value": 2.0,
+                  "value": 2,
                   "description": "field.docCount",
                   "details": []
                 },
                 {
-                  "value": 4.0,
+                  "value": 4,
                   "description": "field.sumDocFreq",
                   "details": []
                 },
                 {
-                  "value": 5.0,
+                  "value": 5,
                   "description": "field.sumTotalTermFreq",
                   "details": []
                 },
                 {
-                  "value": 1.0,
+                  "value": 1,
                   "description": "term.docFreq",
                   "details": []
                 },
                 {
-                  "value": 2.0,
+                  "value": 2,
                   "description": "term.totalTermFreq",
                   "details": []
                 },
@@ -325,7 +325,7 @@ Which yields:
                   "details": []
                 },
                 {
-                  "value": 3.0,
+                  "value": 3,
                   "description": "doc.length",
                   "details": []
                 }
@@ -341,7 +341,18 @@ Which yields:
 // TESTRESPONSE[s/"took": 12/"took" : $body.took/]
 // TESTRESPONSE[s/OzrdjxNtQGaqs4DmioFw9A/$body.hits.hits.0._node/]
 
-You might have noticed that a significant part of the script depends on
+WARNING: While scripted similarities provide a lot of flexibility, there is
+a set of rules that they need to satisfy. Failing to do so could make
+Elasticsearch silently return wrong top hits or fail with internal errors at
+search time:
+
+ - Returned scores must be positive.
+ - All other variables remaining equal, scores must not decrease when
+   `doc.freq` increases.
+ - All other variables remaining equal, scores must not increase when
+   `doc.length` increases.
+
+You might have noticed that a significant part of the above script depends on
 statistics that are the same for every document. It is possible to make the
 above slightly more efficient by providing an `weight_script` which will
 compute the document-independent part of the score and will be available
@@ -458,27 +469,27 @@ GET /index/_search?explain=true
                   "details": []
                 },
                 {
-                  "value": 2.0,
+                  "value": 2,
                   "description": "field.docCount",
                   "details": []
                 },
                 {
-                  "value": 4.0,
+                  "value": 4,
                   "description": "field.sumDocFreq",
                   "details": []
                 },
                 {
-                  "value": 5.0,
+                  "value": 5,
                   "description": "field.sumTotalTermFreq",
                   "details": []
                 },
                 {
-                  "value": 1.0,
+                  "value": 1,
                   "description": "term.docFreq",
                   "details": []
                 },
                 {
-                  "value": 2.0,
+                  "value": 2,
                   "description": "term.totalTermFreq",
                   "details": []
                 },
@@ -488,7 +499,7 @@ GET /index/_search?explain=true
                   "details": []
                 },
                 {
-                  "value": 3.0,
+                  "value": 3,
                   "description": "doc.length",
                   "details": []
                 }
@@ -505,7 +516,6 @@ GET /index/_search?explain=true
 // TESTRESPONSE[s/OzrdjxNtQGaqs4DmioFw9A/$body.hits.hits.0._node/]
 
 ////////////////////
-
 
 Type name: `scripted`
 

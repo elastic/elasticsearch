@@ -21,13 +21,16 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.SumOfSquares;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.VarPop;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mod;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfWeek;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.HourOfDay;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MinuteOfDay;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MinuteOfHour;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthOfYear;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Quarter;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.SecondOfMinute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.WeekOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
@@ -58,10 +61,29 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sin;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sinh;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Tan;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Truncate;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Ascii;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.BitLength;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Char;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.CharLength;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Insert;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.LCase;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.LTrim;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Left;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Length;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Locate;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Position;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.RTrim;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Repeat;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Replace;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Right;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Space;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.util.StringUtils;
-import org.joda.time.DateTimeZone;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -93,16 +115,19 @@ public class FunctionRegistry {
             def(SumOfSquares.class, SumOfSquares::new),
             def(Skewness.class, Skewness::new),
             def(Kurtosis.class, Kurtosis::new),
-        // Scalar functions
+            // Scalar functions
             // Date
-            def(DayOfMonth.class, DayOfMonth::new, "DAY", "DOM"),
-            def(DayOfWeek.class, DayOfWeek::new, "DOW"),
-            def(DayOfYear.class, DayOfYear::new, "DOY"),
+            def(DayName.class, DayName::new, "DAYNAME"),
+            def(DayOfMonth.class, DayOfMonth::new, "DAYOFMONTH", "DAY", "DOM"),
+            def(DayOfWeek.class, DayOfWeek::new, "DAYOFWEEK", "DOW"),
+            def(DayOfYear.class, DayOfYear::new, "DAYOFYEAR", "DOY"),
             def(HourOfDay.class, HourOfDay::new, "HOUR"),
             def(MinuteOfDay.class, MinuteOfDay::new),
             def(MinuteOfHour.class, MinuteOfHour::new, "MINUTE"),
-            def(SecondOfMinute.class, SecondOfMinute::new, "SECOND"),
+            def(MonthName.class, MonthName::new, "MONTHNAME"),
             def(MonthOfYear.class, MonthOfYear::new, "MONTH"),
+            def(SecondOfMinute.class, SecondOfMinute::new, "SECOND"),
+            def(Quarter.class, Quarter::new),
             def(Year.class, Year::new),
             def(WeekOfYear.class, WeekOfYear::new, "WEEK"),
             // Math
@@ -135,7 +160,28 @@ public class FunctionRegistry {
             def(Sinh.class, Sinh::new),
             def(Sqrt.class, Sqrt::new),
             def(Tan.class, Tan::new),
-        // Special
+            def(Truncate.class, Truncate::new),
+            // String
+            def(Ascii.class, Ascii::new),
+            def(BitLength.class, BitLength::new),
+            def(Char.class, Char::new),
+            def(CharLength.class, CharLength::new, "CHARACTER_LENGTH"),
+            def(Concat.class, Concat::new),
+            def(Insert.class, Insert::new),
+            def(LCase.class, LCase::new),
+            def(Left.class, Left::new),
+            def(Length.class, Length::new),
+            def(Locate.class, Locate::new),
+            def(LTrim.class, LTrim::new),
+            def(Position.class, Position::new),
+            def(Repeat.class, Repeat::new),
+            def(Replace.class, Replace::new),
+            def(Right.class, Right::new),
+            def(RTrim.class, RTrim::new),
+            def(Space.class, Space::new),
+            def(Substring.class, Substring::new),
+            def(UCase.class, UCase::new),
+            // Special
             def(Score.class, Score::new)));
 
     private final Map<String, FunctionDefinition> defs = new LinkedHashMap<>();
@@ -286,13 +332,17 @@ public class FunctionRegistry {
     static <T extends Function> FunctionDefinition def(Class<T> function,
             BinaryFunctionBuilder<T> ctorRef, String... aliases) {
         FunctionBuilder builder = (location, children, distinct, tz) -> {
-            if (children.size() != 2) {
+            boolean isBinaryOptionalParamFunction = function.isAssignableFrom(Round.class) || function.isAssignableFrom(Truncate.class);
+            if (isBinaryOptionalParamFunction && (children.size() > 2 || children.size() < 1)) {
+                throw new IllegalArgumentException("expects one or two arguments");
+            } else if (!isBinaryOptionalParamFunction && children.size() != 2) {
                 throw new IllegalArgumentException("expects exactly two arguments");
             }
+
             if (distinct) {
                 throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
             }
-            return ctorRef.build(location, children.get(0), children.get(1));
+            return ctorRef.build(location, children.get(0), children.size() == 2 ? children.get(1) : null);
         };
         return def(function, builder, false, aliases);
     }
@@ -300,6 +350,7 @@ public class FunctionRegistry {
         T build(Location location, Expression lhs, Expression rhs);
     }
 
+    @SuppressWarnings("overloads")
     private static FunctionDefinition def(Class<? extends Function> function, FunctionBuilder builder,
             boolean datetime, String... aliases) {
         String primaryName = normalize(function.getSimpleName());
@@ -315,6 +366,47 @@ public class FunctionRegistry {
     }
     private interface FunctionBuilder {
         Function build(Location location, List<Expression> children, boolean distinct, TimeZone tz);
+    }
+    
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    static <T extends Function> FunctionDefinition def(Class<T> function,
+            ThreeParametersFunctionBuilder<T> ctorRef, String... aliases) {
+        FunctionBuilder builder = (location, children, distinct, tz) -> {
+            boolean isLocateFunction = function.isAssignableFrom(Locate.class);
+            if (isLocateFunction && (children.size() > 3 || children.size() < 2)) {
+                throw new IllegalArgumentException("expects two or three arguments");
+            } else if (!isLocateFunction && children.size() != 3) {
+                throw new IllegalArgumentException("expects exactly three arguments");
+            }
+            if (distinct) {
+                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(location, children.get(0), children.get(1), children.size() == 3 ? children.get(2) : null);
+        };
+        return def(function, builder, false, aliases);
+    }
+    
+    interface ThreeParametersFunctionBuilder<T> {
+        T build(Location location, Expression source, Expression exp1, Expression exp2);
+    }
+    
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    static <T extends Function> FunctionDefinition def(Class<T> function,
+            FourParametersFunctionBuilder<T> ctorRef, String... aliases) {
+        FunctionBuilder builder = (location, children, distinct, tz) -> {
+            if (children.size() != 4) {
+                throw new IllegalArgumentException("expects exactly four arguments");
+            }
+            if (distinct) {
+                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(location, children.get(0), children.get(1), children.get(2), children.get(3));
+        };
+        return def(function, builder, false, aliases);
+    }
+    
+    interface FourParametersFunctionBuilder<T> {
+        T build(Location location, Expression source, Expression exp1, Expression exp2, Expression exp3);
     }
 
     private static String normalize(String name) {

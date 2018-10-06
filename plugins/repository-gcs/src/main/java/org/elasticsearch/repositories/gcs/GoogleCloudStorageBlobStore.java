@@ -19,62 +19,68 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import com.google.api.client.googleapis.batch.BatchRequest;
-import com.google.api.client.googleapis.batch.json.JsonBatchCallback;
-import com.google.api.client.googleapis.json.GoogleJsonError;
-import com.google.api.client.googleapis.json.GoogleJsonResponseException;
-import com.google.api.client.http.HttpHeaders;
-import com.google.api.client.http.InputStreamContent;
-import com.google.api.services.storage.Storage;
-import com.google.api.services.storage.model.Bucket;
-import com.google.api.services.storage.model.Objects;
-import com.google.api.services.storage.model.StorageObject;
-import org.elasticsearch.common.Strings;
+import com.google.cloud.ReadChannel;
+import com.google.cloud.WriteChannel;
+import com.google.cloud.storage.Blob;
+import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.BlobInfo;
+import com.google.cloud.storage.Bucket;
+import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.Storage.BlobListOption;
+import com.google.cloud.storage.StorageException;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.internal.io.Streams;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Spliterator;
-import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
+import static java.net.HttpURLConnection.HTTP_PRECON_FAILED;
 
 class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore {
 
-    /**
-     * Google Cloud Storage batch requests are limited to 1000 operations
-     **/
-    private static final int MAX_BATCHING_REQUESTS = 999;
+    // The recommended maximum size of a blob that should be uploaded in a single
+    // request. Larger files should be uploaded over multiple requests (this is
+    // called "resumable upload")
+    // https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
+    private static final int LARGE_BLOB_THRESHOLD_BYTE_SIZE = 5 * 1024 * 1024;
 
-    private final Storage client;
-    private final String bucket;
+    private final String bucketName;
+    private final String clientName;
+    private final GoogleCloudStorageService storageService;
 
-    GoogleCloudStorageBlobStore(Settings settings, String bucket, Storage storageClient) {
+    GoogleCloudStorageBlobStore(Settings settings, String bucketName, String clientName, GoogleCloudStorageService storageService) {
         super(settings);
-        this.bucket = bucket;
-        this.client = storageClient;
-
-        if (doesBucketExist(bucket) == false) {
-            throw new BlobStoreException("Bucket [" + bucket + "] does not exist");
+        this.bucketName = bucketName;
+        this.clientName = clientName;
+        this.storageService = storageService;
+        if (doesBucketExist(bucketName) == false) {
+            throw new BlobStoreException("Bucket [" + bucketName + "] does not exist");
         }
+    }
+
+    private Storage client() throws IOException {
+        return storageService.client(clientName);
     }
 
     @Override
@@ -92,312 +98,237 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     }
 
     /**
-     * Return true if the given bucket exists
+     * Return true iff the given bucket exists
      *
      * @param bucketName name of the bucket
-     * @return true if the bucket exists, false otherwise
+     * @return true iff the bucket exists
      */
     boolean doesBucketExist(String bucketName) {
         try {
-            return SocketAccess.doPrivilegedIOException(() -> {
-                try {
-                    Bucket bucket = client.buckets().get(bucketName).execute();
-                    if (bucket != null) {
-                        return Strings.hasText(bucket.getId());
-                    }
-                } catch (GoogleJsonResponseException e) {
-                    GoogleJsonError error = e.getDetails();
-                    if ((e.getStatusCode() == HTTP_NOT_FOUND) || ((error != null) && (error.getCode() == HTTP_NOT_FOUND))) {
-                        return false;
-                    }
-                    throw e;
-                }
-                return false;
-            });
-        } catch (IOException e) {
+            final Bucket bucket = SocketAccess.doPrivilegedIOException(() -> client().get(bucketName));
+            return bucket != null;
+        } catch (final Exception e) {
             throw new BlobStoreException("Unable to check if bucket [" + bucketName + "] exists", e);
         }
     }
 
     /**
-     * List all blobs in the bucket
+     * List blobs in the specific bucket under the specified path. The path root is removed.
      *
      * @param path base path of the blobs to list
      * @return a map of blob names and their metadata
      */
     Map<String, BlobMetaData> listBlobs(String path) throws IOException {
-        return SocketAccess.doPrivilegedIOException(() -> listBlobsByPath(bucket, path, path));
+        return listBlobsByPrefix(path, "");
     }
 
     /**
-     * List all blobs in the bucket which have a prefix
+     * List all blobs in the specific bucket with names prefixed
      *
-     * @param path   base path of the blobs to list
-     * @param prefix prefix of the blobs to list
-     * @return a map of blob names and their metadata
+     * @param path
+     *            base path of the blobs to list. This path is removed from the
+     *            names of the blobs returned.
+     * @param prefix prefix of the blobs to list.
+     * @return a map of blob names and their metadata.
      */
     Map<String, BlobMetaData> listBlobsByPrefix(String path, String prefix) throws IOException {
-        return SocketAccess.doPrivilegedIOException(() -> listBlobsByPath(bucket, buildKey(path, prefix), path));
+        final String pathPrefix = buildKey(path, prefix);
+        final MapBuilder<String, BlobMetaData> mapBuilder = MapBuilder.newMapBuilder();
+        SocketAccess.doPrivilegedVoidIOException(() -> {
+            client().get(bucketName).list(BlobListOption.prefix(pathPrefix)).iterateAll().forEach(blob -> {
+                assert blob.getName().startsWith(path);
+                final String suffixName = blob.getName().substring(path.length());
+                mapBuilder.put(suffixName, new PlainBlobMetaData(suffixName, blob.getSize()));
+            });
+        });
+        return mapBuilder.immutableMap();
     }
 
     /**
-     * Lists all blobs in a given bucket
-     *
-     * @param bucketName   name of the bucket
-     * @param path         base path of the blobs to list
-     * @param pathToRemove if true, this path part is removed from blob name
-     * @return a map of blob names and their metadata
-     */
-    private Map<String, BlobMetaData> listBlobsByPath(String bucketName, String path, String pathToRemove) throws IOException {
-        return blobsStream(client, bucketName, path, MAX_BATCHING_REQUESTS)
-                .map(new BlobMetaDataConverter(pathToRemove))
-                .collect(Collectors.toMap(PlainBlobMetaData::name, Function.identity()));
-    }
-
-    /**
-     * Returns true if the blob exists in the bucket
+     * Returns true if the blob exists in the specific bucket
      *
      * @param blobName name of the blob
-     * @return true if the blob exists, false otherwise
+     * @return true iff the blob exists
      */
     boolean blobExists(String blobName) throws IOException {
-        try {
-            StorageObject blob = SocketAccess.doPrivilegedIOException(() -> client.objects().get(bucket, blobName).execute());
-            if (blob != null) {
-                return Strings.hasText(blob.getId());
-            }
-        } catch (GoogleJsonResponseException e) {
-            GoogleJsonError error = e.getDetails();
-            if ((e.getStatusCode() == HTTP_NOT_FOUND) || ((error != null) && (error.getCode() == HTTP_NOT_FOUND))) {
-                return false;
-            }
-            throw e;
-        }
-        return false;
+        final BlobId blobId = BlobId.of(bucketName, blobName);
+        final Blob blob = SocketAccess.doPrivilegedIOException(() -> client().get(blobId));
+        return blob != null;
     }
 
     /**
-     * Returns an {@link java.io.InputStream} for a given blob
+     * Returns an {@link java.io.InputStream} for the given blob name
      *
      * @param blobName name of the blob
-     * @return an InputStream
+     * @return the InputStream used to read the blob's content
      */
     InputStream readBlob(String blobName) throws IOException {
-        try {
-            return SocketAccess.doPrivilegedIOException(() -> {
-                Storage.Objects.Get object = client.objects().get(bucket, blobName);
-                return object.executeMediaAsInputStream();
-            });
-        } catch (GoogleJsonResponseException e) {
-            GoogleJsonError error = e.getDetails();
-            if ((e.getStatusCode() == HTTP_NOT_FOUND) || ((error != null) && (error.getCode() == HTTP_NOT_FOUND))) {
-                throw new NoSuchFileException(e.getMessage());
+        final BlobId blobId = BlobId.of(bucketName, blobName);
+        final ReadChannel readChannel = SocketAccess.doPrivilegedIOException(() -> client().reader(blobId));
+        return Channels.newInputStream(new ReadableByteChannel() {
+            @SuppressForbidden(reason = "Channel is based of a socket not a file")
+            @Override
+            public int read(ByteBuffer dst) throws IOException {
+                try {
+                    return SocketAccess.doPrivilegedIOException(() -> readChannel.read(dst));
+                } catch (StorageException e) {
+                    if (e.getCode() == HTTP_NOT_FOUND) {
+                        throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
+                    }
+                    throw e;
+                }
             }
-            throw e;
-        }
-    }
 
-    /**
-     * Writes a blob in the bucket.
-     *
-     * @param inputStream content of the blob to be written
-     * @param blobSize    expected size of the blob to be written
-     */
-    void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
-        SocketAccess.doPrivilegedVoidIOException(() -> {
-            InputStreamContent stream = new InputStreamContent(null, inputStream);
-            stream.setLength(blobSize);
+            @Override
+            public boolean isOpen() {
+                return readChannel.isOpen();
+            }
 
-            Storage.Objects.Insert insert = client.objects().insert(bucket, null, stream);
-            insert.setName(blobName);
-            insert.execute();
+            @Override
+            public void close() throws IOException {
+                SocketAccess.doPrivilegedVoidIOException(readChannel::close);
+            }
         });
     }
 
     /**
-     * Deletes a blob in the bucket
+     * Writes a blob in the specific bucket
+     *  @param inputStream content of the blob to be written
+     * @param blobSize    expected size of the blob to be written
+     * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
+     */
+    void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+        final BlobInfo blobInfo = BlobInfo.newBuilder(bucketName, blobName).build();
+        if (blobSize > LARGE_BLOB_THRESHOLD_BYTE_SIZE) {
+            writeBlobResumable(blobInfo, inputStream, failIfAlreadyExists);
+        } else {
+            writeBlobMultipart(blobInfo, inputStream, blobSize, failIfAlreadyExists);
+        }
+    }
+
+    /**
+     * Uploads a blob using the "resumable upload" method (multiple requests, which
+     * can be independently retried in case of failure, see
+     * https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
+     * @param blobInfo the info for the blob to be uploaded
+     * @param inputStream the stream containing the blob data
+     * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
+     */
+    private void writeBlobResumable(BlobInfo blobInfo, InputStream inputStream, boolean failIfAlreadyExists) throws IOException {
+        try {
+            final Storage.BlobWriteOption[] writeOptions = failIfAlreadyExists ?
+                new Storage.BlobWriteOption[] { Storage.BlobWriteOption.doesNotExist() } :
+                new Storage.BlobWriteOption[0];
+            final WriteChannel writeChannel = SocketAccess
+                    .doPrivilegedIOException(() -> client().writer(blobInfo, writeOptions));
+            Streams.copy(inputStream, Channels.newOutputStream(new WritableByteChannel() {
+                @Override
+                public boolean isOpen() {
+                    return writeChannel.isOpen();
+                }
+
+                @Override
+                public void close() throws IOException {
+                    SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
+                }
+
+                @SuppressForbidden(reason = "Channel is based of a socket not a file")
+                @Override
+                public int write(ByteBuffer src) throws IOException {
+                    return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));
+                }
+            }));
+        } catch (final StorageException se) {
+            if (failIfAlreadyExists && se.getCode() == HTTP_PRECON_FAILED) {
+                throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
+            }
+            throw se;
+        }
+    }
+
+    /**
+     * Uploads a blob using the "multipart upload" method (a single
+     * 'multipart/related' request containing both data and metadata. The request is
+     * gziped), see:
+     * https://cloud.google.com/storage/docs/json_api/v1/how-tos/multipart-upload
+     *  @param blobInfo the info for the blob to be uploaded
+     * @param inputStream the stream containing the blob data
+     * @param blobSize the size
+     * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
+     */
+    private void writeBlobMultipart(BlobInfo blobInfo, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+        throws IOException {
+        assert blobSize <= LARGE_BLOB_THRESHOLD_BYTE_SIZE : "large blob uploads should use the resumable upload method";
+        final ByteArrayOutputStream baos = new ByteArrayOutputStream(Math.toIntExact(blobSize));
+        Streams.copy(inputStream, baos);
+        try {
+            final Storage.BlobTargetOption[] targetOptions = failIfAlreadyExists ?
+                new Storage.BlobTargetOption[] { Storage.BlobTargetOption.doesNotExist() } :
+                new Storage.BlobTargetOption[0];
+            SocketAccess.doPrivilegedVoidIOException(
+                    () -> client().create(blobInfo, baos.toByteArray(), targetOptions));
+        } catch (final StorageException se) {
+            if (failIfAlreadyExists && se.getCode() == HTTP_PRECON_FAILED) {
+                throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
+            }
+            throw se;
+        }
+    }
+
+    /**
+     * Deletes the blob from the specific bucket
      *
      * @param blobName name of the blob
      */
     void deleteBlob(String blobName) throws IOException {
-        if (!blobExists(blobName)) {
+        final BlobId blobId = BlobId.of(bucketName, blobName);
+        final boolean deleted = SocketAccess.doPrivilegedIOException(() -> client().delete(blobId));
+        if (deleted == false) {
             throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
         }
-        SocketAccess.doPrivilegedIOException(() -> client.objects().delete(bucket, blobName).execute());
     }
 
     /**
-     * Deletes multiple blobs in the bucket that have a given prefix
+     * Deletes multiple blobs from the specific bucket all of which have prefixed names
      *
-     * @param prefix prefix of the buckets to delete
+     * @param prefix prefix of the blobs to delete
      */
     void deleteBlobsByPrefix(String prefix) throws IOException {
-        deleteBlobs(listBlobsByPath(bucket, prefix, null).keySet());
+        deleteBlobs(listBlobsByPrefix("", prefix).keySet());
     }
 
     /**
-     * Deletes multiple blobs in the given bucket (uses a batch request to perform this)
+     * Deletes multiple blobs from the specific bucket using a batch request
      *
-     * @param blobNames names of the bucket to delete
+     * @param blobNames names of the blobs to delete
      */
     void deleteBlobs(Collection<String> blobNames) throws IOException {
-        if (blobNames == null || blobNames.isEmpty()) {
+        if (blobNames.isEmpty()) {
             return;
         }
-
+        // for a single op submit a simple delete instead of a batch of size 1
         if (blobNames.size() == 1) {
             deleteBlob(blobNames.iterator().next());
             return;
         }
-        final List<Storage.Objects.Delete> deletions = new ArrayList<>(Math.min(MAX_BATCHING_REQUESTS, blobNames.size()));
-        final Iterator<String> blobs = blobNames.iterator();
-
-        SocketAccess.doPrivilegedVoidIOException(() -> {
-            while (blobs.hasNext()) {
-                // Create a delete request for each blob to delete
-                deletions.add(client.objects().delete(bucket, blobs.next()));
-
-                if (blobs.hasNext() == false || deletions.size() == MAX_BATCHING_REQUESTS) {
-                    try {
-                        // Deletions are executed using a batch request
-                        BatchRequest batch = client.batch();
-
-                        // Used to track successful deletions
-                        CountDown countDown = new CountDown(deletions.size());
-
-                        for (Storage.Objects.Delete delete : deletions) {
-                            // Queue the delete request in batch
-                            delete.queue(batch, new JsonBatchCallback<Void>() {
-                                @Override
-                                public void onFailure(GoogleJsonError e, HttpHeaders responseHeaders) throws IOException {
-                                    logger.error("failed to delete blob [{}] in bucket [{}]: {}", delete.getObject(), delete.getBucket(), e
-                                        .getMessage());
-                                }
-
-                                @Override
-                                public void onSuccess(Void aVoid, HttpHeaders responseHeaders) throws IOException {
-                                    countDown.countDown();
-                                }
-                            });
-                        }
-
-                        batch.execute();
-
-                        if (countDown.isCountedDown() == false) {
-                            throw new IOException("Failed to delete all [" + deletions.size() + "] blobs");
-                        }
-                    } finally {
-                        deletions.clear();
-                    }
-                }
+        final List<BlobId> blobIdsToDelete = blobNames.stream().map(blob -> BlobId.of(bucketName, blob)).collect(Collectors.toList());
+        final List<Boolean> deletedStatuses = SocketAccess.doPrivilegedIOException(() -> client().delete(blobIdsToDelete));
+        assert blobIdsToDelete.size() == deletedStatuses.size();
+        boolean failed = false;
+        for (int i = 0; i < blobIdsToDelete.size(); i++) {
+            if (deletedStatuses.get(i) == false) {
+                logger.error("Failed to delete blob [{}] in bucket [{}]", blobIdsToDelete.get(i).getName(), bucketName);
+                failed = true;
             }
-        });
+        }
+        if (failed) {
+            throw new IOException("Failed to delete all [" + blobIdsToDelete.size() + "] blobs");
+        }
     }
 
-    /**
-     * Moves a blob within the same bucket
-     *
-     * @param sourceBlob name of the blob to move
-     * @param targetBlob new name of the blob in the target bucket
-     */
-    void moveBlob(String sourceBlob, String targetBlob) throws IOException {
-        SocketAccess.doPrivilegedIOException(() -> {
-            // There's no atomic "move" in GCS so we need to copy and delete
-            client.objects().copy(bucket, sourceBlob, bucket, targetBlob, null).execute();
-            client.objects().delete(bucket, sourceBlob).execute();
-            return null;
-        });
-    }
-
-    private String buildKey(String keyPath, String s) {
+    private static String buildKey(String keyPath, String s) {
         assert s != null;
         return keyPath + s;
-    }
-
-    /**
-     * Converts a {@link StorageObject} to a {@link PlainBlobMetaData}
-     */
-    class BlobMetaDataConverter implements Function<StorageObject, PlainBlobMetaData> {
-
-        private final String pathToRemove;
-
-        BlobMetaDataConverter(String pathToRemove) {
-            this.pathToRemove = pathToRemove;
-        }
-
-        @Override
-        public PlainBlobMetaData apply(StorageObject storageObject) {
-            String blobName = storageObject.getName();
-            if (Strings.hasLength(pathToRemove)) {
-                blobName = blobName.substring(pathToRemove.length());
-            }
-            return new PlainBlobMetaData(blobName, storageObject.getSize().longValue());
-        }
-    }
-
-    /**
-     * Spliterator can be used to list storage objects stored in a bucket.
-     */
-    static class StorageObjectsSpliterator implements Spliterator<StorageObject> {
-
-        private final Storage.Objects.List list;
-
-        StorageObjectsSpliterator(Storage client, String bucketName, String prefix, long pageSize) throws IOException {
-            list = SocketAccess.doPrivilegedIOException(() -> client.objects().list(bucketName));
-            list.setMaxResults(pageSize);
-            if (prefix != null) {
-                list.setPrefix(prefix);
-            }
-        }
-
-        @Override
-        public boolean tryAdvance(Consumer<? super StorageObject> action) {
-            try {
-                // Retrieves the next page of items
-                Objects objects = SocketAccess.doPrivilegedIOException(list::execute);
-
-                if ((objects == null) || (objects.getItems() == null) || (objects.getItems().isEmpty())) {
-                    return false;
-                }
-
-                // Consumes all the items
-                objects.getItems().forEach(action::accept);
-
-                // Sets the page token of the next page,
-                // null indicates that all items have been consumed
-                String next = objects.getNextPageToken();
-                if (next != null) {
-                    list.setPageToken(next);
-                    return true;
-                }
-
-                return false;
-            } catch (Exception e) {
-                throw new BlobStoreException("Exception while listing objects", e);
-            }
-        }
-
-        @Override
-        public Spliterator<StorageObject> trySplit() {
-            return null;
-        }
-
-        @Override
-        public long estimateSize() {
-            return Long.MAX_VALUE;
-        }
-
-        @Override
-        public int characteristics() {
-            return 0;
-        }
-    }
-
-    /**
-     * Returns a {@link Stream} of {@link StorageObject}s that are stored in a given bucket.
-     */
-    static Stream<StorageObject> blobsStream(Storage client, String bucketName, String prefix, long pageSize) throws IOException {
-        return StreamSupport.stream(new StorageObjectsSpliterator(client, bucketName, prefix, pageSize), false);
     }
 
 }

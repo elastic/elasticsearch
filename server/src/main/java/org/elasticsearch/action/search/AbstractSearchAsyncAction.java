@@ -79,9 +79,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                                         Executor executor, SearchRequest request,
                                         ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
                                         TransportSearchAction.SearchTimeProvider timeProvider, long clusterStateVersion,
-                                        SearchTask task, SearchPhaseResults<Result> resultConsumer, int maxConcurrentShardRequests,
+                                        SearchTask task, SearchPhaseResults<Result> resultConsumer, int maxConcurrentRequestsPerNode,
                                         SearchResponse.Clusters clusters) {
-        super(name, request, shardsIts, logger, maxConcurrentShardRequests, executor);
+        super(name, request, shardsIts, logger, maxConcurrentRequestsPerNode, executor);
         this.timeProvider = timeProvider;
         this.logger = logger;
         this.searchTransportService = searchTransportService;

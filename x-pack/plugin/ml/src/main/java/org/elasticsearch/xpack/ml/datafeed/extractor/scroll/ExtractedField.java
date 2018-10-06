@@ -103,7 +103,13 @@ abstract class ExtractedField {
             if (value.length != 1) {
                 return value;
             }
-            value[0] = ((BaseDateTime) value[0]).getMillis();
+            if (value[0] instanceof String) { // doc_value field with the epoch_millis format
+                value[0] = Long.parseLong((String) value[0]);
+            } else if (value[0] instanceof BaseDateTime) { // script field
+                value[0] = ((BaseDateTime) value[0]).getMillis();
+            } else {
+                throw new IllegalStateException("Unexpected value for a time field: " + value[0].getClass());
+            }
             return value;
         }
     }

@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -84,7 +83,6 @@ import static org.elasticsearch.cluster.routing.RoutingTableTests.updateActiveAl
 import static org.elasticsearch.cluster.service.MasterServiceTests.discoveryState;
 import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
 import static org.elasticsearch.discovery.zen.ZenDiscovery.shouldIgnoreOrRejectNewClusterState;
-import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -309,17 +307,12 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             }
 
             @Override
-            public ClusterState.Builder newClusterStateBuilder() {
-                return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings));
-            }
-
-            @Override
-            public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterStateTaskListener listener) {
-                listener.clusterStateProcessed(source, clusterStateSupplier.get(), clusterStateSupplier.get());
+            public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterApplyListener listener) {
+                listener.onSuccess(source);
             }
         };
         ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, service, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-            masterService, clusterApplier, clusterSettings, Collections::emptyList, ESAllocationTestCase.createAllocationService(),
+            masterService, clusterApplier, clusterSettings, hostsResolver -> Collections.emptyList(), ESAllocationTestCase.createAllocationService(),
             Collections.emptyList());
         zenDiscovery.start();
         return zenDiscovery;
@@ -370,7 +363,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
                 .routingTable(RoutingTable.builder().add(indexRoutingTable).build());
             if (incompatible) {
                 IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
-                    request.messageReceived(new MembershipAction.ValidateJoinRequest(stateBuilder.build()), null));
+                    request.messageReceived(new MembershipAction.ValidateJoinRequest(stateBuilder.build()), null, null));
                 assertEquals("index [test] version not supported: "
                     + VersionUtils.getPreviousVersion(Version.CURRENT.minimumIndexCompatibilityVersion())
                     + " minimum compatible index version is: " + Version.CURRENT.minimumIndexCompatibilityVersion(), ex.getMessage());
@@ -402,7 +395,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
                     public void sendResponse(Exception exception) throws IOException {
 
                     }
-                });
+                }, null);
                 assertTrue(sendResponse.get());
             }
         }

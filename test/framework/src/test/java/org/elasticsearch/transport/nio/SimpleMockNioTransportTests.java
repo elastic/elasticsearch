@@ -62,7 +62,7 @@ public class SimpleMockNioTransportTests extends AbstractSimpleTransportTestCase
             new NoneCircuitBreakerService()) {
 
             @Override
-            protected Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout) throws IOException,
+            public Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout) throws IOException,
                 InterruptedException {
                 if (doHandshake) {
                     return super.executeHandshake(node, channel, timeout);
@@ -94,10 +94,8 @@ public class SimpleMockNioTransportTests extends AbstractSimpleTransportTestCase
     }
 
     @Override
-    protected void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException {
-        @SuppressWarnings("unchecked")
-        TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) connection;
-        TcpChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
+    protected int channelsPerNodeConnection() {
+        return 3;
     }
 
     public void testConnectException() throws UnknownHostException {

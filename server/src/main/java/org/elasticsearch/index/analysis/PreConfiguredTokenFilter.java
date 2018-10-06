@@ -42,6 +42,15 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
     }
 
     /**
+     * Create a pre-configured token filter that may not vary at all.
+     */
+    public static PreConfiguredTokenFilter singletonWithVersion(String name, boolean useFilterForMultitermQueries,
+            BiFunction<TokenStream, Version, TokenStream> create) {
+        return new PreConfiguredTokenFilter(name, useFilterForMultitermQueries, CachingStrategy.ONE,
+                (tokenStream, version) -> create.apply(tokenStream, version));
+    }
+
+    /**
      * Create a pre-configured token filter that may vary based on the Lucene version.
      */
     public static PreConfiguredTokenFilter luceneVersion(String name, boolean useFilterForMultitermQueries,

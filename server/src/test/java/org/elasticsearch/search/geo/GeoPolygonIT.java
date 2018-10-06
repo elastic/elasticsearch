@@ -24,17 +24,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -49,19 +43,19 @@ import static org.hamcrest.Matchers.equalTo;
 public class GeoPolygonIT extends ESIntegTestCase {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class); // uses index.version.created
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
     }
 
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
                 Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location").field("type", "geo_point");
-        xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
+
+        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", "location",
+            "type=geo_point", "alias",
+            "type=alias,path=location"));
         ensureGreen();
 
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
@@ -131,5 +125,18 @@ public class GeoPolygonIT extends ESIntegTestCase {
         for (SearchHit hit : searchResponse.getHits()) {
             assertThat(hit.getId(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
         }
+    }
+
+    public void testFieldAlias() {
+        List<GeoPoint> points = new ArrayList<>();
+        points.add(new GeoPoint(40.7, -74.0));
+        points.add(new GeoPoint(40.7, -74.1));
+        points.add(new GeoPoint(40.8, -74.1));
+        points.add(new GeoPoint(40.8, -74.0));
+        points.add(new GeoPoint(40.7, -74.0));
+        SearchResponse searchResponse = client().prepareSearch("test") // from NY
+            .setQuery(boolQuery().must(geoPolygonQuery("alias", points)))
+            .execute().actionGet();
+        assertHitCount(searchResponse, 4);
     }
 }

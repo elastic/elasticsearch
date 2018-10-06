@@ -22,9 +22,12 @@ package org.elasticsearch.action.explain;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -34,7 +37,9 @@ import java.io.IOException;
 /**
  * Explain request encapsulating the explain query and document identifier to get an explanation for.
  */
-public class ExplainRequest extends SingleShardRequest<ExplainRequest> {
+public class ExplainRequest extends SingleShardRequest<ExplainRequest> implements ToXContentObject {
+
+    private static final ParseField QUERY_FIELD = new ParseField("query");
 
     private String type = "_all";
     private String id;
@@ -185,5 +190,13 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> {
         out.writeOptionalStringArray(storedFields);
         out.writeOptionalWriteable(fetchSourceContext);
         out.writeVLong(nowInMillis);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(QUERY_FIELD.getPreferredName(), query);
+        builder.endObject();
+        return builder;
     }
 }

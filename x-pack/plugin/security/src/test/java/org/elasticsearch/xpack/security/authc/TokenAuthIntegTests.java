@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
 
@@ -147,7 +147,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertTrue(invalidateResponse.isCreated());
         AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
-            SearchResponse searchResponse = client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
+            SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
                     .setSource(SearchSourceBuilder.searchSource()
                             .query(QueryBuilders.termQuery("doc_type", TokenService.INVALIDATED_TOKEN_DOC_TYPE)))
                     .setSize(1)
@@ -160,7 +160,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         // hack doc to modify the time to the day before
         Instant dayBefore = created.minus(1L, ChronoUnit.DAYS);
         assertTrue(Instant.now().isAfter(dayBefore));
-        client.prepareUpdate(SecurityLifecycleService.SECURITY_INDEX_NAME, "doc", docId.get())
+        client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, "doc", docId.get())
                 .setDoc("expiration_time", dayBefore.toEpochMilli())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
@@ -178,8 +178,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                     assertEquals("token malformed", e.getMessage());
                 }
             }
-            client.admin().indices().prepareRefresh(SecurityLifecycleService.SECURITY_INDEX_NAME).get();
-            SearchResponse searchResponse = client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
+            client.admin().indices().prepareRefresh(SecurityIndexManager.SECURITY_INDEX_NAME).get();
+            SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
                     .setSource(SearchSourceBuilder.searchSource()
                             .query(QueryBuilders.termQuery("doc_type", TokenService.INVALIDATED_TOKEN_DOC_TYPE)))
                     .setSize(0)
@@ -339,6 +339,39 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 .execute(AuthenticateAction.INSTANCE, request, authFuture);
         response = authFuture.actionGet();
         assertEquals(SecuritySettingsSource.TEST_USER_NAME, response.user().principal());
+    }
+
+    public void testClientCredentialsGrant() throws Exception {
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClient = new SecurityClient(client);
+        CreateTokenResponse createTokenResponse = securityClient.prepareCreateToken()
+            .setGrantType("client_credentials")
+            .get();
+        assertNull(createTokenResponse.getRefreshToken());
+
+        AuthenticateRequest request = new AuthenticateRequest();
+        request.username(SecuritySettingsSource.TEST_SUPERUSER);
+        PlainActionFuture<AuthenticateResponse> authFuture = new PlainActionFuture<>();
+        client.filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + createTokenResponse.getTokenString()))
+            .execute(AuthenticateAction.INSTANCE, request, authFuture);
+        AuthenticateResponse response = authFuture.get();
+        assertEquals(SecuritySettingsSource.TEST_SUPERUSER, response.user().principal());
+
+        // invalidate
+        PlainActionFuture<InvalidateTokenResponse> invalidateResponseFuture = new PlainActionFuture<>();
+        InvalidateTokenRequest invalidateTokenRequest =
+            new InvalidateTokenRequest(createTokenResponse.getTokenString(), InvalidateTokenRequest.Type.ACCESS_TOKEN);
+        securityClient.invalidateToken(invalidateTokenRequest, invalidateResponseFuture);
+        assertTrue(invalidateResponseFuture.get().isCreated());
+
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
+            PlainActionFuture<AuthenticateResponse> responseFuture = new PlainActionFuture<>();
+            client.filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + createTokenResponse.getTokenString()))
+                .execute(AuthenticateAction.INSTANCE, request, responseFuture);
+            responseFuture.actionGet();
+        });
     }
 
     @Before

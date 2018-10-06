@@ -19,23 +19,37 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.apache.http.HttpHost;
+import org.elasticsearch.Version;
+import org.elasticsearch.client.Node;
+import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase {
 
@@ -44,7 +58,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             final DoSection section = new DoSection(new XContentLocation(1, 1));
 
             // No warning headers doesn't throw an exception
-            section.checkWarningHeaders(emptyList());
+            section.checkWarningHeaders(emptyList(), Version.CURRENT);
         }
 
         final String testHeader = DeprecationLogger.formatWarning("test");
@@ -55,13 +69,12 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         {
             final DoSection section = new DoSection(new XContentLocation(1, 1));
 
-            final AssertionError one = expectThrows(AssertionError.class, () -> section.checkWarningHeaders(singletonList(testHeader)));
+            final AssertionError one = expectThrows(AssertionError.class, () ->
+                    section.checkWarningHeaders(singletonList(testHeader), Version.CURRENT));
             assertEquals("got unexpected warning header [\n\t" + testHeader + "\n]\n", one.getMessage());
 
-            final AssertionError multiple =
-                    expectThrows(
-                            AssertionError.class,
-                            () -> section.checkWarningHeaders(Arrays.asList(testHeader, anotherHeader, someMoreHeader)));
+            final AssertionError multiple = expectThrows(AssertionError.class, () ->
+                    section.checkWarningHeaders(Arrays.asList(testHeader, anotherHeader, someMoreHeader), Version.CURRENT));
             assertEquals(
                     "got unexpected warning headers [\n\t" +
                             testHeader + "\n\t" +
@@ -74,30 +87,31 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         {
             final DoSection section = new DoSection(new XContentLocation(1, 1));
             section.setExpectedWarningHeaders(singletonList("test"));
-            section.checkWarningHeaders(singletonList(testHeader));
+            section.checkWarningHeaders(singletonList(testHeader), Version.CURRENT);
         }
         {
             final DoSection section = new DoSection(new XContentLocation(1, 1));
             section.setExpectedWarningHeaders(Arrays.asList("test", "another", "some more"));
-            section.checkWarningHeaders(Arrays.asList(testHeader, anotherHeader, someMoreHeader));
+            section.checkWarningHeaders(Arrays.asList(testHeader, anotherHeader, someMoreHeader), Version.CURRENT);
         }
 
         // But if you don't get some that you did expect, that is an error
         {
             final DoSection section = new DoSection(new XContentLocation(1, 1));
             section.setExpectedWarningHeaders(singletonList("test"));
-            final AssertionError e = expectThrows(AssertionError.class, () -> section.checkWarningHeaders(emptyList()));
+            final AssertionError e = expectThrows(AssertionError.class, () -> section.checkWarningHeaders(emptyList(), Version.CURRENT));
             assertEquals("did not get expected warning header [\n\ttest\n]\n", e.getMessage());
         }
         {
             final DoSection section = new DoSection(new XContentLocation(1, 1));
             section.setExpectedWarningHeaders(Arrays.asList("test", "another", "some more"));
 
-            final AssertionError multiple = expectThrows(AssertionError.class, () -> section.checkWarningHeaders(emptyList()));
+            final AssertionError multiple = expectThrows(AssertionError.class, () ->
+                    section.checkWarningHeaders(emptyList(), Version.CURRENT));
             assertEquals("did not get expected warning headers [\n\ttest\n\tanother\n\tsome more\n]\n", multiple.getMessage());
 
-            final AssertionError one =
-                    expectThrows(AssertionError.class, () -> section.checkWarningHeaders(Arrays.asList(testHeader, someMoreHeader)));
+            final AssertionError one = expectThrows(AssertionError.class, () ->
+                    section.checkWarningHeaders(Arrays.asList(testHeader, someMoreHeader), Version.CURRENT));
             assertEquals("did not get expected warning header [\n\tanother\n]\n", one.getMessage());
         }
 
@@ -105,8 +119,8 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         {
             final DoSection section = new DoSection(new XContentLocation(1, 1));
             section.setExpectedWarningHeaders(Arrays.asList("test", "another", "some more"));
-            final AssertionError e =
-                    expectThrows(AssertionError.class, () -> section.checkWarningHeaders(Arrays.asList(testHeader, catHeader)));
+            final AssertionError e = expectThrows(AssertionError.class, () ->
+                    section.checkWarningHeaders(Arrays.asList(testHeader, catHeader), Version.CURRENT));
             assertEquals("got unexpected warning header [\n\t" +
                             catHeader + "\n]\n" +
                             "did not get expected warning headers [\n\tanother\n\tsome more\n]\n",
@@ -496,7 +510,139 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(doSection.getApiCallSection(), notNullValue());
         assertThat(doSection.getExpectedWarningHeaders(), equalTo(singletonList(
                 "just one entry this time")));
+    }
 
+    public void testNodeSelectorByVersion() throws IOException {
+        parser = createParser(YamlXContent.yamlXContent,
+                "node_selector:\n" +
+                "    version: 5.2.0-6.0.0\n" +
+                "indices.get_field_mapping:\n" +
+                "    index: test_index"
+        );
+
+        DoSection doSection = DoSection.parse(parser);
+        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
+        Node v170 = nodeWithVersion("1.7.0");
+        Node v521 = nodeWithVersion("5.2.1");
+        Node v550 = nodeWithVersion("5.5.0");
+        Node v612 = nodeWithVersion("6.1.2");
+        List<Node> nodes = new ArrayList<>();
+        nodes.add(v170);
+        nodes.add(v521);
+        nodes.add(v550);
+        nodes.add(v612);
+        doSection.getApiCallSection().getNodeSelector().select(nodes);
+        assertEquals(Arrays.asList(v521, v550), nodes);
+        ClientYamlTestExecutionContext context = mock(ClientYamlTestExecutionContext.class);
+        ClientYamlTestResponse mockResponse = mock(ClientYamlTestResponse.class);
+        when(context.callApi("indices.get_field_mapping", singletonMap("index", "test_index"),
+                emptyList(), emptyMap(), doSection.getApiCallSection().getNodeSelector())).thenReturn(mockResponse);
+        doSection.execute(context);
+        verify(context).callApi("indices.get_field_mapping", singletonMap("index", "test_index"),
+                emptyList(), emptyMap(), doSection.getApiCallSection().getNodeSelector());
+
+        {
+            List<Node> badNodes = new ArrayList<>();
+            badNodes.add(new Node(new HttpHost("dummy")));
+            Exception e = expectThrows(IllegalStateException.class, () ->
+                    doSection.getApiCallSection().getNodeSelector().select(badNodes));
+            assertEquals("expected [version] metadata to be set but got [host=http://dummy]",
+                    e.getMessage());
+        }
+    }
+
+    private static Node nodeWithVersion(String version) {
+        return new Node(new HttpHost("dummy"), null, null, version, null, null);
+    }
+
+    public void testNodeSelectorByAttribute() throws IOException {
+        parser = createParser(YamlXContent.yamlXContent,
+                "node_selector:\n" +
+                "    attribute:\n" +
+                "        attr: val\n" +
+                "indices.get_field_mapping:\n" +
+                "    index: test_index"
+        );
+
+        DoSection doSection = DoSection.parse(parser);
+        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
+        Node hasAttr = nodeWithAttributes(singletonMap("attr", singletonList("val")));
+        Node hasAttrWrongValue = nodeWithAttributes(singletonMap("attr", singletonList("notval")));
+        Node notHasAttr = nodeWithAttributes(singletonMap("notattr", singletonList("val")));
+        {
+            List<Node> nodes = new ArrayList<>();
+            nodes.add(hasAttr);
+            nodes.add(hasAttrWrongValue);
+            nodes.add(notHasAttr);
+            doSection.getApiCallSection().getNodeSelector().select(nodes);
+            assertEquals(Arrays.asList(hasAttr), nodes);
+        }
+        {
+            List<Node> badNodes = new ArrayList<>();
+            badNodes.add(new Node(new HttpHost("dummy")));
+            Exception e = expectThrows(IllegalStateException.class, () ->
+                    doSection.getApiCallSection().getNodeSelector().select(badNodes));
+            assertEquals("expected [attributes] metadata to be set but got [host=http://dummy]",
+                    e.getMessage());
+        }
+
+        parser = createParser(YamlXContent.yamlXContent,
+                "node_selector:\n" +
+                "    attribute:\n" +
+                "        attr: val\n" +
+                "        attr2: val2\n" +
+                "indices.get_field_mapping:\n" +
+                "    index: test_index"
+        );
+
+        DoSection doSectionWithTwoAttributes = DoSection.parse(parser);
+        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
+        Node hasAttr2 = nodeWithAttributes(singletonMap("attr2", singletonList("val2")));
+        Map<String, List<String>> bothAttributes = new HashMap<>();
+        bothAttributes.put("attr", singletonList("val"));
+        bothAttributes.put("attr2", singletonList("val2"));
+        Node hasBoth = nodeWithAttributes(bothAttributes);
+        {
+            List<Node> nodes = new ArrayList<>();
+            nodes.add(hasAttr);
+            nodes.add(hasAttrWrongValue);
+            nodes.add(notHasAttr);
+            nodes.add(hasAttr2);
+            nodes.add(hasBoth);
+            doSectionWithTwoAttributes.getApiCallSection().getNodeSelector().select(nodes);
+            assertEquals(Arrays.asList(hasBoth), nodes);
+        }
+    }
+
+    private static Node nodeWithAttributes(Map<String, List<String>> attributes) {
+        return new Node(new HttpHost("dummy"), null, null, null, null, attributes);
+    }
+
+    public void testNodeSelectorByTwoThings() throws IOException {
+        parser = createParser(YamlXContent.yamlXContent,
+                "node_selector:\n" +
+                "    version: 5.2.0-6.0.0\n" +
+                "    attribute:\n" +
+                "        attr: val\n" +
+                "indices.get_field_mapping:\n" +
+                "    index: test_index"
+        );
+
+        DoSection doSection = DoSection.parse(parser);
+        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
+        Node both = nodeWithVersionAndAttributes("5.2.1", singletonMap("attr", singletonList("val")));
+        Node badVersion = nodeWithVersionAndAttributes("5.1.1", singletonMap("attr", singletonList("val")));
+        Node badAttr = nodeWithVersionAndAttributes("5.2.1", singletonMap("notattr", singletonList("val")));
+        List<Node> nodes = new ArrayList<>();
+        nodes.add(both);
+        nodes.add(badVersion);
+        nodes.add(badAttr);
+        doSection.getApiCallSection().getNodeSelector().select(nodes);
+        assertEquals(Arrays.asList(both), nodes);
+    }
+
+    private static Node nodeWithVersionAndAttributes(String version, Map<String, List<String>> attributes) {
+        return new Node(new HttpHost("dummy"), null, null, version, null, attributes);
     }
 
     private void assertJsonEquals(Map<String, Object> actual, String expected) throws IOException {

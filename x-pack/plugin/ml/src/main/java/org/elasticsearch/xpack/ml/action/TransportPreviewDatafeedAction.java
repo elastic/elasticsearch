@@ -9,15 +9,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
-import org.elasticsearch.xpack.core.ml.MlClientHelper;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
@@ -33,26 +32,28 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class TransportPreviewDatafeedAction extends HandledTransportAction<PreviewDatafeedAction.Request, PreviewDatafeedAction.Response> {
 
+    private final ThreadPool threadPool;
     private final Client client;
     private final ClusterService clusterService;
 
     @Inject
     public TransportPreviewDatafeedAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                          Client client, ClusterService clusterService) {
-        super(settings, PreviewDatafeedAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                PreviewDatafeedAction.Request::new);
+                                          ActionFilters actionFilters, Client client, ClusterService clusterService) {
+        super(settings, PreviewDatafeedAction.NAME, transportService, actionFilters,
+            (Supplier<PreviewDatafeedAction.Request>) PreviewDatafeedAction.Request::new);
+        this.threadPool = threadPool;
         this.client = client;
         this.clusterService = clusterService;
     }
 
     @Override
-    protected void doExecute(PreviewDatafeedAction.Request request, ActionListener<PreviewDatafeedAction.Response> listener) {
-        MlMetadata mlMetadata = clusterService.state().getMetaData().custom(MLMetadataField.TYPE);
+    protected void doExecute(Task task, PreviewDatafeedAction.Request request, ActionListener<PreviewDatafeedAction.Response> listener) {
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterService.state());
         DatafeedConfig datafeed = mlMetadata.getDatafeed(request.getDatafeedId());
         if (datafeed == null) {
             throw ExceptionsHelper.missingDatafeedException(request.getDatafeedId());
@@ -64,7 +65,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
 
         DatafeedConfig.Builder previewDatafeed = buildPreviewDatafeed(datafeed);
         Map<String, String> headers = threadPool.getThreadContext().getHeaders().entrySet().stream()
-                .filter(e -> MlClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
+                .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         previewDatafeed.setHeaders(headers);
         // NB: this is using the client from the transport layer, NOT the internal client.

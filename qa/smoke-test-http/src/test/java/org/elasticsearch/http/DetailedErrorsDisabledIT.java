@@ -20,12 +20,11 @@
 package org.elasticsearch.http;
 
 import java.io.IOException;
-import java.util.Collections;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -34,7 +33,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Tests that when disabling detailed errors, a request with the error_trace parameter returns a HTTP 400
+ * Tests that when disabling detailed errors, a request with the error_trace parameter returns an HTTP 400 response.
  */
 @ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
 public class DetailedErrorsDisabledIT extends HttpSmokeTestCase {
@@ -49,8 +48,10 @@ public class DetailedErrorsDisabledIT extends HttpSmokeTestCase {
     }
 
     public void testThatErrorTraceParamReturns400() throws IOException {
+        Request request = new Request("DELETE", "/");
+        request.addParameter("error_trace", "true");
         ResponseException e = expectThrows(ResponseException.class, () ->
-            getRestClient().performRequest("DELETE", "/", Collections.singletonMap("error_trace", "true")));
+            getRestClient().performRequest(request));
 
         Response response = e.getResponse();
         assertThat(response.getHeader("Content-Type"), is("application/json; charset=UTF-8"));

@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.UnsupportedEsField;
-import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -113,10 +112,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 new ResolveAggsInHaving()
                 //new ImplicitCasting()
                 );
-        // TODO: this might be removed since the deduplication happens already in ResolveFunctions
-        Batch deduplication = new Batch("Deduplication",
-                new PruneDuplicateFunctions());
-
         return Arrays.asList(substitution, resolution);
     }
 
@@ -197,7 +192,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                  .collect(toList())
                 );
     }
-    
+
     private static boolean hasStar(List<? extends Expression> exprs) {
         for (Expression expression : exprs) {
             if (expression instanceof UnresolvedStar) {

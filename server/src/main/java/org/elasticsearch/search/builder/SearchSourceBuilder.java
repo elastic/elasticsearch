@@ -47,6 +47,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
@@ -64,6 +65,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
@@ -162,7 +164,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private int terminateAfter = SearchContext.DEFAULT_TERMINATE_AFTER;
 
     private StoredFieldsContext storedFieldsContext;
-    private List<String> docValueFields;
+    private List<FieldAndFormat> docValueFields;
     private List<ScriptField> scriptFields;
     private FetchSourceContext fetchSourceContext;
 
@@ -197,7 +199,22 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         aggregations = in.readOptionalWriteable(AggregatorFactories.Builder::new);
         explain = in.readOptionalBoolean();
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
-        docValueFields = (List<String>) in.readGenericValue();
+        if (in.getVersion().before(Version.V_6_4_0)) {
+            List<String> dvFields = (List<String>) in.readGenericValue();
+            if (dvFields == null) {
+                docValueFields = null;
+            } else {
+                docValueFields = dvFields.stream()
+                        .map(field -> new FieldAndFormat(field, null))
+                        .collect(Collectors.toList());
+            }
+        } else {
+            if (in.readBoolean()) {
+                docValueFields = in.readList(FieldAndFormat::new);
+            } else {
+                docValueFields = null;
+            }
+        }
         storedFieldsContext = in.readOptionalWriteable(StoredFieldsContext::new);
         from = in.readVInt();
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
@@ -231,9 +248,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         profile = in.readBoolean();
         searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
         sliceBuilder = in.readOptionalWriteable(SliceBuilder::new);
-        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-            collapse = in.readOptionalWriteable(CollapseBuilder::new);
-        }
+        collapse = in.readOptionalWriteable(CollapseBuilder::new);
         if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
             trackTotalHits = in.readBoolean();
         } else {
@@ -246,7 +261,16 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalWriteable(aggregations);
         out.writeOptionalBoolean(explain);
         out.writeOptionalWriteable(fetchSourceContext);
-        out.writeGenericValue(docValueFields);
+        if (out.getVersion().before(Version.V_6_4_0)) {
+            out.writeGenericValue(docValueFields == null
+                    ? null
+                    : docValueFields.stream().map(ff -> ff.field).collect(Collectors.toList()));
+        } else {
+            out.writeBoolean(docValueFields != null);
+            if (docValueFields != null) {
+                out.writeList(docValueFields);
+            }
+        }
         out.writeOptionalWriteable(storedFieldsContext);
         out.writeVInt(from);
         out.writeOptionalWriteable(highlightBuilder);
@@ -287,9 +311,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeBoolean(profile);
         out.writeOptionalWriteable(searchAfterBuilder);
         out.writeOptionalWriteable(sliceBuilder);
-        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-            out.writeOptionalWriteable(collapse);
-        }
+        out.writeOptionalWriteable(collapse);
         if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
             out.writeBoolean(trackTotalHits);
         }
@@ -764,20 +786,28 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Gets the docvalue fields.
      */
-    public List<String> docValueFields() {
+    public List<FieldAndFormat> docValueFields() {
         return docValueFields;
     }
 
     /**
-     * Adds a field to load from the docvalue and return as part of the
+     * Adds a field to load from the doc values and return as part of the
      * search request.
      */
-    public SearchSourceBuilder docValueField(String name) {
+    public SearchSourceBuilder docValueField(String name, @Nullable String format) {
         if (docValueFields == null) {
             docValueFields = new ArrayList<>();
         }
-        docValueFields.add(name);
+        docValueFields.add(new FieldAndFormat(name, format));
         return this;
+    }
+
+    /**
+     * Adds a field to load from the doc values and return as part of the
+     * search request.
+     */
+    public SearchSourceBuilder docValueField(String name) {
+        return docValueField(name, null);
     }
 
     /**
@@ -1076,12 +1106,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 } else if (DOCVALUE_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     docValueFields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        if (token == XContentParser.Token.VALUE_STRING) {
-                            docValueFields.add(parser.text());
-                        } else {
-                            throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.VALUE_STRING +
-                                "] in [" + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
-                        }
+                        docValueFields.add(FieldAndFormat.fromXContent(parser));
                     }
                 } else if (INDICES_BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -1125,9 +1150,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (from != -1) {
             builder.field(FROM_FIELD.getPreferredName(), from);
         }
@@ -1177,8 +1200,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
         if (docValueFields != null) {
             builder.startArray(DOCVALUE_FIELDS_FIELD.getPreferredName());
-            for (String docValueField : docValueFields) {
-                builder.value(docValueField);
+            for (FieldAndFormat docValueField : docValueFields) {
+                builder.startObject()
+                    .field("field", docValueField.field);
+                if (docValueField.format != null) {
+                    builder.field("format", docValueField.format);
+                }
+                builder.endObject();
             }
             builder.endArray();
         }
@@ -1260,6 +1288,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (collapse != null) {
             builder.field(COLLAPSE.getPreferredName(), collapse);
         }
+        return builder;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        innerToXContent(builder, params);
         builder.endObject();
         return builder;
     }

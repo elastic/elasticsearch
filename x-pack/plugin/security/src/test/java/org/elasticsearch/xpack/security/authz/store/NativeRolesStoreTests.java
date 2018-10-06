@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -38,12 +39,10 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
-import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -57,8 +56,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE;
-import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -189,10 +187,9 @@ public class NativeRolesStoreTests extends ESTestCase {
         final ClusterService clusterService = mock(ClusterService.class);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final AtomicBoolean methodCalled = new AtomicBoolean(false);
-        final SecurityLifecycleService securityLifecycleService =
-            new SecurityLifecycleService(Settings.EMPTY, clusterService, threadPool, client,
-                                         mock(IndexAuditTrail.class));
-        final NativeRolesStore rolesStore = new NativeRolesStore(Settings.EMPTY, client, licenseState, securityLifecycleService) {
+        final SecurityIndexManager securityIndex =
+            new SecurityIndexManager(Settings.EMPTY, client, SecurityIndexManager.SECURITY_INDEX_NAME, clusterService);
+        final NativeRolesStore rolesStore = new NativeRolesStore(Settings.EMPTY, client, licenseState, securityIndex) {
             @Override
             void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
                 if (methodCalled.compareAndSet(false, true)) {
@@ -203,7 +200,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             }
         };
         // setup the roles store so the security index exists
-        securityLifecycleService.clusterChanged(new ClusterChangedEvent(
+        securityIndex.clusterChanged(new ClusterChangedEvent(
             "fls_dls_license", getClusterStateWithSecurityIndex(), getEmptyClusterState()));
 
         PutRoleRequest putRoleRequest = new PutRoleRequest();
@@ -260,9 +257,9 @@ public class NativeRolesStoreTests extends ESTestCase {
                 .build();
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder(securityIndexName).settings(settings))
-                .put(new IndexTemplateMetaData(SecurityLifecycleServiceField.SECURITY_TEMPLATE_NAME, 0, 0,
+                .put(new IndexTemplateMetaData(SecurityIndexManager.SECURITY_TEMPLATE_NAME, 0, 0,
                         Collections.singletonList(securityIndexName), Settings.EMPTY, ImmutableOpenMap.of(),
-                        ImmutableOpenMap.of(), ImmutableOpenMap.of()))
+                        ImmutableOpenMap.of()))
                 .build();
 
         if (withAlias) {
@@ -270,8 +267,8 @@ public class NativeRolesStoreTests extends ESTestCase {
         }
 
         Index index = new Index(securityIndexName, UUID.randomUUID().toString());
-        ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(index, 0), true, EXISTING_STORE_INSTANCE,
-                new UnassignedInfo(Reason.INDEX_CREATED, ""));
+        ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(index, 0), true,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE, new UnassignedInfo(Reason.INDEX_CREATED, ""));
         IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(new ShardId(index, 0))
                 .addShard(shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize()).moveToStarted())
                 .build();

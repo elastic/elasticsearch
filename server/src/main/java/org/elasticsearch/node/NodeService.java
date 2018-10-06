@@ -37,7 +37,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
-import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -83,8 +82,7 @@ public class NodeService extends AbstractComponent implements Closeable {
         this.scriptService = scriptService;
         this.responseCollectorService = responseCollectorService;
         this.searchTransportService = searchTransportService;
-        clusterService.addStateApplier(ingestService.getPipelineStore());
-        clusterService.addStateApplier(ingestService.getPipelineExecutionService());
+        clusterService.addStateApplier(ingestService);
     }
 
     public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool,
@@ -120,7 +118,7 @@ public class NodeService extends AbstractComponent implements Closeable {
                 circuitBreaker ? circuitBreakerService.stats() : null,
                 script ? scriptService.stats() : null,
                 discoveryStats ? discovery.stats() : null,
-                ingest ? ingestService.getPipelineExecutionService().stats() : null,
+                ingest ? ingestService.stats() : null,
                 adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null
         );
     }

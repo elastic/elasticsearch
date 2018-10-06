@@ -63,7 +63,7 @@ POST /sales/_search?size=0
 defines a unique count below which counts are expected to be close to
 accurate. Above this value, counts might become a bit more fuzzy. The maximum
 supported value is 40000, thresholds above this number will have the same
-effect as a threshold of 40000. The default values is +3000+.
+effect as a threshold of 40000. The default value is +3000+.
 
 ==== Counts are approximate
 

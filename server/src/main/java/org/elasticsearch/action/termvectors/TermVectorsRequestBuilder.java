@@ -33,7 +33,7 @@ import java.util.Map;
  * Note, the {@code index}, {@code type} and {@code id} are
  * required.
  */
-public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsRequest, TermVectorsResponse, TermVectorsRequestBuilder> {
+public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsRequest, TermVectorsResponse> {
 
     public TermVectorsRequestBuilder(ElasticsearchClient client, TermVectorsAction action) {
         super(client, action, new TermVectorsRequest());

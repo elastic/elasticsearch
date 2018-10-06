@@ -14,19 +14,18 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
@@ -35,33 +34,31 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFilterAction.Request, DeleteFilterAction.Response> {
+public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFilterAction.Request, AcknowledgedResponse> {
 
     private final Client client;
     private final ClusterService clusterService;
 
     @Inject
-    public TransportDeleteFilterAction(Settings settings, ThreadPool threadPool,
-                                       TransportService transportService, ActionFilters actionFilters,
-                                       IndexNameExpressionResolver indexNameExpressionResolver,
-                                       ClusterService clusterService, Client client) {
-        super(settings, DeleteFilterAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, DeleteFilterAction.Request::new);
+    public TransportDeleteFilterAction(Settings settings, TransportService transportService,
+                                       ActionFilters actionFilters, ClusterService clusterService, Client client) {
+        super(settings, DeleteFilterAction.NAME, transportService, actionFilters,
+            (Supplier<DeleteFilterAction.Request>) DeleteFilterAction.Request::new);
         this.clusterService = clusterService;
         this.client = client;
     }
 
     @Override
-    protected void doExecute(DeleteFilterAction.Request request, ActionListener<DeleteFilterAction.Response> listener) {
+    protected void doExecute(Task task, DeleteFilterAction.Request request, ActionListener<AcknowledgedResponse> listener) {
 
         final String filterId = request.getFilterId();
         ClusterState state = clusterService.state();
-        MlMetadata currentMlMetadata = state.metaData().custom(MLMetadataField.TYPE);
-        Map<String, Job> jobs = currentMlMetadata.getJobs();
+        Map<String, Job> jobs = MlMetadata.getMlMetadata(state).getJobs();
         List<String> currentlyUsedBy = new ArrayList<>();
         for (Job job : jobs.values()) {
             List<Detector> detectors = job.getAnalysisConfig().getDetectors();
@@ -89,7 +86,7 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
                             listener.onFailure(new ResourceNotFoundException("Could not delete filter with ID [" + filterId
                                     + "] because it does not exist"));
                         } else {
-                            listener.onResponse(new DeleteFilterAction.Response(true));
+                            listener.onResponse(new AcknowledgedResponse(true));
                         }
                     }
 

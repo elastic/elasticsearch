@@ -64,6 +64,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -139,7 +140,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             SimilarityService similarityService,
             ShardStoreDeleter shardStoreDeleter,
             AnalysisRegistry registry,
-            @Nullable EngineFactory engineFactory,
+            EngineFactory engineFactory,
             CircuitBreakerService circuitBreakerService,
             BigArrays bigArrays,
             ThreadPool threadPool,
@@ -188,7 +189,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.warmer = new IndexWarmer(indexSettings.getSettings(), threadPool, indexFieldData,
             bitsetFilterCache.createListener(threadPool));
         this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache);
-        this.engineFactory = engineFactory;
+        this.engineFactory = Objects.requireNonNull(engineFactory);
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
         this.searcherWrapper = wrapperFactory.newWrapper(this);
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
@@ -377,7 +378,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     warmer.warm(searcher, shard, IndexService.this.indexSettings);
                 }
             };
-            store = new Store(shardId, this.indexSettings, indexStore.newDirectoryService(path), lock,
+            // TODO we can remove either IndexStore or DirectoryService. All we need is a simple Supplier<Directory>
+            DirectoryService directoryService = indexStore.newDirectoryService(path);
+            store = new Store(shardId, this.indexSettings, directoryService.newDirectory(), lock,
                     new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)));
             indexShard = new IndexShard(routing, this.indexSettings, path, store, indexSortSupplier,
                 indexCache, mapperService, similarityService, engineFactory,
@@ -522,8 +525,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     @Override
-    public boolean updateMapping(IndexMetaData indexMetaData) throws IOException {
-        return mapperService().updateMapping(indexMetaData);
+    public boolean updateMapping(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) throws IOException {
+        return mapperService().updateMapping(currentIndexMetaData, newIndexMetaData);
     }
 
     private class StoreCloseListener implements Store.OnClose {
@@ -681,9 +684,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         void addPendingDelete(ShardId shardId, IndexSettings indexSettings);
     }
 
-    final EngineFactory getEngineFactory() {
+    public final EngineFactory getEngineFactory() {
         return engineFactory;
-    } // pkg private for testing
+    }
 
     final IndexSearcherWrapper getSearcherWrapper() {
         return searcherWrapper;

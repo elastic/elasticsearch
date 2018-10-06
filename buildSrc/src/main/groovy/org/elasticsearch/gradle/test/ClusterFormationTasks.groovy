@@ -24,7 +24,7 @@ import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.plugin.MetaPluginBuildPlugin
+
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
 import org.gradle.api.AntBuilder
@@ -88,6 +88,9 @@ class ClusterFormationTasks {
         Configuration currentDistro = project.configurations.create("${prefix}_elasticsearchDistro")
         Configuration bwcDistro = project.configurations.create("${prefix}_elasticsearchBwcDistro")
         Configuration bwcPlugins = project.configurations.create("${prefix}_elasticsearchBwcPlugins")
+        if (System.getProperty('tests.distribution', 'oss-zip') == 'integ-test-zip') {
+            throw new Exception("tests.distribution=integ-test-zip is not supported")
+        }
         configureDistributionDependency(project, config.distribution, currentDistro, VersionProperties.elasticsearch)
         if (config.numBwcNodes > 0) {
             if (config.bwcVersion == null) {
@@ -99,8 +102,8 @@ class ClusterFormationTasks {
             // from mirrors using gradles built-in mechanism etc.
 
             configureDistributionDependency(project, config.distribution, bwcDistro, config.bwcVersion)
-            for (Map.Entry<String, Project> entry : config.plugins.entrySet()) {
-                configureBwcPluginDependency("${prefix}_elasticsearchBwcPlugins", project, entry.getValue(), bwcPlugins, config.bwcVersion)
+            for (Map.Entry<String, Object> entry : config.plugins.entrySet()) {
+                configureBwcPluginDependency(project, entry.getValue(), bwcPlugins, config.bwcVersion)
             }
             bwcDistro.resolutionStrategy.cacheChangingModulesFor(0, TimeUnit.SECONDS)
             bwcPlugins.resolutionStrategy.cacheChangingModulesFor(0, TimeUnit.SECONDS)
@@ -150,10 +153,15 @@ class ClusterFormationTasks {
     }
 
     /** Adds a dependency on a different version of the given plugin, which will be retrieved using gradle's dependency resolution */
-    static void configureBwcPluginDependency(String name, Project project, Project pluginProject, Configuration configuration, Version elasticsearchVersion) {
-        verifyProjectHasBuildPlugin(name, elasticsearchVersion, project, pluginProject)
-        final String pluginName = findPluginName(pluginProject)
-        project.dependencies.add(configuration.name, "org.elasticsearch.plugin:${pluginName}:${elasticsearchVersion}@zip")
+    static void configureBwcPluginDependency(Project project, Object plugin, Configuration configuration, Version elasticsearchVersion) {
+        if (plugin instanceof Project) {
+            Project pluginProject = (Project)plugin
+            verifyProjectHasBuildPlugin(configuration.name, elasticsearchVersion, project, pluginProject)
+            final String pluginName = findPluginName(pluginProject)
+            project.dependencies.add(configuration.name, "org.elasticsearch.plugin:${pluginName}:${elasticsearchVersion}@zip")
+        } else {
+            project.dependencies.add(configuration.name, "${plugin}@zip")
+        }
     }
 
     /**
@@ -210,9 +218,9 @@ class ClusterFormationTasks {
         }
 
         // install plugins
-        for (Map.Entry<String, Project> plugin : node.config.plugins.entrySet()) {
-            String actionName = pluginTaskName('install', plugin.getKey(), 'Plugin')
-            setup = configureInstallPluginTask(taskName(prefix, node, actionName), project, setup, node, plugin.getValue(), prefix)
+        for (String pluginName : node.config.plugins.keySet()) {
+            String actionName = pluginTaskName('install', pluginName, 'Plugin')
+            setup = configureInstallPluginTask(taskName(prefix, node, actionName), project, setup, node, pluginName, prefix)
         }
 
         // sets up any extra config files that need to be copied over to the ES instance;
@@ -323,7 +331,19 @@ class ClusterFormationTasks {
         }
         // increase script compilation limit since tests can rapid-fire script compilations
         esConfig['script.max_compilations_rate'] = '2048/1m'
-        esConfig.putAll(node.config.settings)
+        // Temporarily disable the real memory usage circuit breaker. It depends on real memory usage which we have no full control
+        // over and the REST client will not retry on circuit breaking exceptions yet (see #31986 for details). Once the REST client
+        // can retry on circuit breaking exceptions, we can revert again to the default configuration.
+        if (node.nodeVersion.major >= 7) {
+            esConfig['indices.breaker.total.use_real_memory'] = false
+        }
+        for (Map.Entry<String, Object> setting : node.config.settings) {
+            if (setting.value == null) {
+                esConfig.remove(setting.key)
+            } else {
+                esConfig.put(setting.key, setting.value)
+            }
+        }
 
         Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
         writeConfig.doFirst {
@@ -444,31 +464,40 @@ class ClusterFormationTasks {
         Copy copyPlugins = project.tasks.create(name: name, type: Copy, dependsOn: setup)
 
         List<FileCollection> pluginFiles = []
-        for (Map.Entry<String, Project> plugin : node.config.plugins.entrySet()) {
+        for (Map.Entry<String, Object> plugin : node.config.plugins.entrySet()) {
 
-            Project pluginProject = plugin.getValue()
-            verifyProjectHasBuildPlugin(name, node.nodeVersion, project, pluginProject)
-            String configurationName = pluginConfigurationName(prefix, pluginProject)
+            String configurationName = pluginConfigurationName(prefix, plugin.key)
             Configuration configuration = project.configurations.findByName(configurationName)
             if (configuration == null) {
                 configuration = project.configurations.create(configurationName)
             }
-            project.dependencies.add(configurationName, project.dependencies.project(path: pluginProject.path, configuration: 'zip'))
-            setup.dependsOn(pluginProject.tasks.bundlePlugin)
 
-            // also allow rest tests to use the rest spec from the plugin
-            String copyRestSpecTaskName = pluginTaskName('copy', plugin.getKey(), 'PluginRestSpec')
-            Copy copyRestSpec = project.tasks.findByName(copyRestSpecTaskName)
-            for (File resourceDir : pluginProject.sourceSets.test.resources.srcDirs) {
-                File restApiDir = new File(resourceDir, 'rest-api-spec/api')
-                if (restApiDir.exists() == false) continue
-                if (copyRestSpec == null) {
-                    copyRestSpec = project.tasks.create(name: copyRestSpecTaskName, type: Copy)
-                    copyPlugins.dependsOn(copyRestSpec)
-                    copyRestSpec.into(project.sourceSets.test.output.resourcesDir)
+            if (plugin.getValue() instanceof Project) {
+                Project pluginProject = plugin.getValue()
+                verifyProjectHasBuildPlugin(name, node.nodeVersion, project, pluginProject)
+
+                project.dependencies.add(configurationName, project.dependencies.project(path: pluginProject.path, configuration: 'zip'))
+                setup.dependsOn(pluginProject.tasks.bundlePlugin)
+
+                // also allow rest tests to use the rest spec from the plugin
+                String copyRestSpecTaskName = pluginTaskName('copy', plugin.getKey(), 'PluginRestSpec')
+                Copy copyRestSpec = project.tasks.findByName(copyRestSpecTaskName)
+                for (File resourceDir : pluginProject.sourceSets.test.resources.srcDirs) {
+                    File restApiDir = new File(resourceDir, 'rest-api-spec/api')
+                    if (restApiDir.exists() == false) continue
+                    if (copyRestSpec == null) {
+                        copyRestSpec = project.tasks.create(name: copyRestSpecTaskName, type: Copy)
+                        copyPlugins.dependsOn(copyRestSpec)
+                        copyRestSpec.into(project.sourceSets.test.output.resourcesDir)
+                    }
+                    copyRestSpec.from(resourceDir).include('rest-api-spec/api/**')
                 }
-                copyRestSpec.from(resourceDir).include('rest-api-spec/api/**')
+            } else {
+                project.dependencies.add(configurationName, "${plugin.getValue()}@zip")
             }
+
+
+
             pluginFiles.add(configuration)
         }
 
@@ -477,32 +506,37 @@ class ClusterFormationTasks {
         return copyPlugins
     }
 
-    private static String pluginConfigurationName(final String prefix, final Project project) {
-        return "_plugin_${prefix}_${project.path}".replace(':', '_')
+    private static String pluginConfigurationName(final String prefix, final String name) {
+        return "_plugin_${prefix}_${name}".replace(':', '_')
     }
 
-    private static String pluginBwcConfigurationName(final String prefix, final Project project) {
-        return "_plugin_bwc_${prefix}_${project.path}".replace(':', '_')
+    private static String pluginBwcConfigurationName(final String prefix, final String name) {
+        return "_plugin_bwc_${prefix}_${name}".replace(':', '_')
     }
 
     /** Configures task to copy a plugin based on a zip file resolved using dependencies for an older version */
     static Task configureCopyBwcPluginsTask(String name, Project project, Task setup, NodeInfo node, String prefix) {
         Configuration bwcPlugins = project.configurations.getByName("${prefix}_elasticsearchBwcPlugins")
-        for (Map.Entry<String, Project> plugin : node.config.plugins.entrySet()) {
-            Project pluginProject = plugin.getValue()
-            verifyProjectHasBuildPlugin(name, node.nodeVersion, project, pluginProject)
-            String configurationName = pluginBwcConfigurationName(prefix, pluginProject)
+        for (Map.Entry<String, Object> plugin : node.config.plugins.entrySet()) {
+            String configurationName = pluginBwcConfigurationName(prefix, plugin.key)
             Configuration configuration = project.configurations.findByName(configurationName)
             if (configuration == null) {
                 configuration = project.configurations.create(configurationName)
             }
 
-            final String depName = findPluginName(pluginProject)
+            if (plugin.getValue() instanceof Project) {
+                Project pluginProject = plugin.getValue()
+                verifyProjectHasBuildPlugin(name, node.nodeVersion, project, pluginProject)
 
-            Dependency dep = bwcPlugins.dependencies.find {
-                it.name == depName
+                final String depName = findPluginName(pluginProject)
+
+                Dependency dep = bwcPlugins.dependencies.find {
+                    it.name == depName
+                }
+                configuration.dependencies.add(dep)
+            } else {
+                project.dependencies.add(configurationName, "${plugin.getValue()}@zip")
             }
-            configuration.dependencies.add(dep)
         }
 
         Copy copyPlugins = project.tasks.create(name: name, type: Copy, dependsOn: setup) {
@@ -514,7 +548,8 @@ class ClusterFormationTasks {
 
     static Task configureInstallModuleTask(String name, Project project, Task setup, NodeInfo node, Project module) {
         if (node.config.distribution != 'integ-test-zip') {
-            throw new GradleException("Module ${module.path} not allowed be installed distributions other than integ-test-zip because they should already have all modules bundled!")
+            project.logger.info("Not installing modules for $name, ${node.config.distribution} already has them")
+            return setup
         }
         if (module.plugins.hasPlugin(PluginBuildPlugin) == false) {
             throw new GradleException("Task ${name} cannot include module ${module.path} which is not an esplugin")
@@ -527,12 +562,12 @@ class ClusterFormationTasks {
         return installModule
     }
 
-    static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, Project plugin, String prefix) {
+    static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, String pluginName, String prefix) {
         final FileCollection pluginZip;
         if (node.nodeVersion != VersionProperties.elasticsearch) {
-            pluginZip = project.configurations.getByName(pluginBwcConfigurationName(prefix, plugin))
+            pluginZip = project.configurations.getByName(pluginBwcConfigurationName(prefix, pluginName))
         } else {
-            pluginZip = project.configurations.getByName(pluginConfigurationName(prefix, plugin))
+            pluginZip = project.configurations.getByName(pluginConfigurationName(prefix, pluginName))
         }
         // delay reading the file location until execution time by wrapping in a closure within a GString
         final Object file = "${-> new File(node.pluginsTmpDir, pluginZip.singleFile.getName()).toURI().toURL().toString()}"
@@ -580,7 +615,6 @@ class ClusterFormationTasks {
 
     /** Adds a task to start an elasticsearch node with the given configuration */
     static Task configureStartTask(String name, Project project, Task setup, NodeInfo node) {
-
         // this closure is converted into ant nodes by groovy's AntBuilder
         Closure antRunner = { AntBuilder ant ->
             ant.exec(executable: node.executable, spawn: node.config.daemonize, dir: node.cwd, taskname: 'elasticsearch') {
@@ -601,13 +635,6 @@ class ClusterFormationTasks {
                 node.writeWrapperScript()
             }
 
-            // we must add debug options inside the closure so the config is read at execution time, as
-            // gradle task options are not processed until the end of the configuration phase
-            if (node.config.debug) {
-                println 'Running elasticsearch in debug mode, suspending until connected on port 8000'
-                node.env['ES_JAVA_OPTS'] = '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
-            }
-
             node.getCommandString().eachLine { line -> logger.info(line) }
 
             if (logger.isInfoEnabled() || node.config.daemonize == false) {
@@ -624,6 +651,30 @@ class ClusterFormationTasks {
             BuildPlugin.requireJavaHome(start, node.javaVersion)
         }
         start.doLast(elasticsearchRunner)
+        start.doFirst {
+            // Configure ES JAVA OPTS - adds system properties, assertion flags, remote debug etc
+            List<String> esJavaOpts = [node.env.get('ES_JAVA_OPTS', '')]
+            String collectedSystemProperties = node.config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
+            esJavaOpts.add(collectedSystemProperties)
+            esJavaOpts.add(node.config.jvmArgs)
+            if (Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))) {
+                // put the enable assertions options before other options to allow
+                // flexibility to disable assertions for specific packages or classes
+                // in the cluster-specific options
+                esJavaOpts.add("-ea")
+                esJavaOpts.add("-esa")
+            }
+            // we must add debug options inside the closure so the config is read at execution time, as
+            // gradle task options are not processed until the end of the configuration phase
+            if (node.config.debug) {
+                println 'Running elasticsearch in debug mode, suspending until connected on port 8000'
+                esJavaOpts.add('-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000')
+            }
+            node.env['ES_JAVA_OPTS'] = esJavaOpts.join(" ")
+
+            //
+            project.logger.info("Starting node in ${node.clusterName} distribution: ${node.config.distribution}")
+        }
         return start
     }
 
@@ -823,19 +874,15 @@ class ClusterFormationTasks {
     }
 
     static void verifyProjectHasBuildPlugin(String name, Version version, Project project, Project pluginProject) {
-        if (pluginProject.plugins.hasPlugin(PluginBuildPlugin) == false && pluginProject.plugins.hasPlugin(MetaPluginBuildPlugin) == false) {
+        if (pluginProject.plugins.hasPlugin(PluginBuildPlugin) == false) {
             throw new GradleException("Task [${name}] cannot add plugin [${pluginProject.path}] with version [${version}] to project's " +
-                    "[${project.path}] dependencies: the plugin is not an esplugin or es_meta_plugin")
+                    "[${project.path}] dependencies: the plugin is not an esplugin")
         }
     }
 
-    /** Find the plugin name in the given project, whether a regular plugin or meta plugin. */
+    /** Find the plugin name in the given project. */
     static String findPluginName(Project pluginProject) {
         PluginPropertiesExtension extension = pluginProject.extensions.findByName('esplugin')
-        if (extension != null) {
-            return extension.name
-        } else {
-            return pluginProject.extensions.findByName('es_meta_plugin').name
-        }
+        return extension.name
     }
 }

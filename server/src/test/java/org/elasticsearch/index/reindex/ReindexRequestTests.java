@@ -20,8 +20,6 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.search.slice.SliceBuilder;
 
@@ -37,8 +35,9 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
     public void testReindexFromRemoteDoesNotSupportSearchQuery() {
         ReindexRequest reindex = newRequest();
         reindex.setRemoteInfo(
-                new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, Integer.MAX_VALUE), new BytesArray("real_query"),
-                        null, null, emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
+                new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, Integer.MAX_VALUE), null,
+                    new BytesArray("real_query"), null, null, emptyMap(),
+                    RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
         reindex.getSearchRequest().source().query(matchAllQuery()); // Unsupported place to put query
         ActionRequestValidationException e = reindex.validate();
         assertEquals("Validation Failed: 1: reindex from remote sources should use RemoteInfo's query instead of source's query;",
@@ -48,8 +47,9 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
     public void testReindexFromRemoteDoesNotSupportSlices() {
         ReindexRequest reindex = newRequest();
         reindex.setRemoteInfo(
-                new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, Integer.MAX_VALUE), new BytesArray("real_query"),
-                        null, null, emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
+                new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, Integer.MAX_VALUE), null,
+                    new BytesArray("real_query"), null, null, emptyMap(),
+                    RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
         reindex.setSlices(between(2, Integer.MAX_VALUE));
         ActionRequestValidationException e = reindex.validate();
         assertEquals(
@@ -72,7 +72,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         }
         if (randomBoolean()) {
             original.setRemoteInfo(new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, 10000),
-                    new BytesArray(randomAlphaOfLength(5)), null, null, emptyMap(),
+                    null, new BytesArray(randomAlphaOfLength(5)), null, null, emptyMap(),
                     parseTimeValue(randomPositiveTimeValue(), "socket_timeout"),
                     parseTimeValue(randomPositiveTimeValue(), "connect_timeout")));
         }
@@ -87,9 +87,9 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
 
     @Override
     protected ReindexRequest newRequest() {
-        ReindexRequest reindex = new ReindexRequest(new SearchRequest(), new IndexRequest());
-        reindex.getSearchRequest().indices("source");
-        reindex.getDestination().index("dest");
+        ReindexRequest reindex = new ReindexRequest();
+        reindex.setSourceIndices("source");
+        reindex.setDestIndex("dest");
         return reindex;
     }
 }

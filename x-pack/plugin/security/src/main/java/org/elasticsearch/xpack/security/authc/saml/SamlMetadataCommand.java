@@ -7,16 +7,13 @@ package org.elasticsearch.xpack.security.authc.saml;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.Reader;
 import java.io.Writer;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Key;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -51,7 +48,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
-import org.elasticsearch.xpack.core.ssl.CertUtils;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
+import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.security.authc.saml.SamlSpMetadataBuilder.ContactInfo;
 import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
 import org.opensaml.core.xml.io.MarshallingException;
@@ -67,7 +65,6 @@ import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getRealmType;
-import static org.elasticsearch.xpack.security.authc.saml.SamlRealm.require;
 
 /**
  * CLI tool to generate SAML Metadata for a Service Provider (realm)
@@ -289,7 +286,7 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
         if (options.has(signingPkcs12PathSpec)) {
             Path p12Path = resolvePath(signingPkcs12PathSpec.value(options));
             Map<Certificate, Key> keys = withPassword("certificate bundle (" + p12Path + ")", password,
-                    terminal, keyPassword -> CertUtils.readPkcs12KeyPairs(p12Path, keyPassword, a -> keyPassword, env));
+                    terminal, keyPassword -> CertParsingUtils.readPkcs12KeyPairs(p12Path, keyPassword, a -> keyPassword));
 
             if (keys.size() != 1) {
                 throw new IllegalArgumentException("expected a single key in file [" + p12Path.toAbsolutePath() + "] but found [" +
@@ -302,7 +299,7 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
             Path cert = resolvePath(signingCertPathSpec.value(options));
             Path key = resolvePath(signingKeyPathSpec.value(options));
             final String resolvedSigningCertPath = cert.toAbsolutePath().toString();
-            Certificate[] certificates = CertUtils.readCertificates(Collections.singletonList(resolvedSigningCertPath), env);
+            Certificate[] certificates = CertParsingUtils.readCertificates(Collections.singletonList(resolvedSigningCertPath), env);
             if (certificates.length != 1) {
                 throw new IllegalArgumentException("expected a single certificate in file [" + resolvedSigningCertPath + "] but found [" +
                         certificates.length + "]");
@@ -334,8 +331,8 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
     private static PrivateKey readSigningKey(Path path, char[] password, Terminal terminal)
             throws Exception {
         AtomicReference<char[]> passwordReference = new AtomicReference<>(password);
-        try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-            return CertUtils.readPrivateKey(reader, () -> {
+        try {
+            return PemUtils.readPrivateKey(path, () -> {
                 if (password != null) {
                     return password;
                 }

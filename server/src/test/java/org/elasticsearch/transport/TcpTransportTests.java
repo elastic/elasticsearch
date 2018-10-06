@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.test.ESTestCase;
@@ -46,7 +45,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
-import static org.mockito.Mockito.verify;
 
 /** Unit tests for {@link TcpTransport} */
 public class TcpTransportTests extends ESTestCase {
@@ -158,19 +156,26 @@ public class TcpTransportTests extends ESTestCase {
         TcpTransport.ensureVersionCompatibility(VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(),
             Version.CURRENT), Version.CURRENT, randomBoolean());
 
-        TcpTransport.ensureVersionCompatibility(Version.fromString("5.0.0"), Version.fromString("6.0.0"), true);
+        TcpTransport.ensureVersionCompatibility(Version.fromString("6.0.0"), Version.fromString("7.0.0"), true);
         IllegalStateException ise = expectThrows(IllegalStateException.class, () ->
-            TcpTransport.ensureVersionCompatibility(Version.fromString("5.0.0"), Version.fromString("6.0.0"), false));
-        assertEquals("Received message from unsupported version: [5.0.0] minimal compatible version is: [5.6.0]", ise.getMessage());
+            TcpTransport.ensureVersionCompatibility(Version.fromString("6.0.0"), Version.fromString("7.0.0"), false));
+        assertEquals("Received message from unsupported version: [6.0.0] minimal compatible version is: [6.5.0]", ise.getMessage());
 
+        // For handshake we are compatible with N-2
+        TcpTransport.ensureVersionCompatibility(Version.fromString("5.6.0"), Version.fromString("7.0.0"), true);
         ise = expectThrows(IllegalStateException.class, () ->
-            TcpTransport.ensureVersionCompatibility(Version.fromString("2.3.0"), Version.fromString("6.0.0"), true));
-        assertEquals("Received handshake message from unsupported version: [2.3.0] minimal compatible version is: [5.6.0]",
+            TcpTransport.ensureVersionCompatibility(Version.fromString("5.6.0"), Version.fromString("7.0.0"), false));
+        assertEquals("Received message from unsupported version: [5.6.0] minimal compatible version is: [6.5.0]",
             ise.getMessage());
 
         ise = expectThrows(IllegalStateException.class, () ->
-            TcpTransport.ensureVersionCompatibility(Version.fromString("2.3.0"), Version.fromString("6.0.0"), false));
-        assertEquals("Received message from unsupported version: [2.3.0] minimal compatible version is: [5.6.0]",
+            TcpTransport.ensureVersionCompatibility(Version.fromString("2.3.0"), Version.fromString("7.0.0"), true));
+        assertEquals("Received handshake message from unsupported version: [2.3.0] minimal compatible version is: [6.5.0]",
+            ise.getMessage());
+
+        ise = expectThrows(IllegalStateException.class, () ->
+            TcpTransport.ensureVersionCompatibility(Version.fromString("2.3.0"), Version.fromString("7.0.0"), false));
+        assertEquals("Received message from unsupported version: [2.3.0] minimal compatible version is: [6.5.0]",
             ise.getMessage());
     }
 
@@ -190,12 +195,16 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected FakeChannel initiateChannel(InetSocketAddress address, ActionListener<Void> connectListener) throws IOException {
+                protected FakeChannel initiateChannel(DiscoveryNode node, ActionListener<Void> connectListener) throws IOException {
                     return new FakeChannel(messageCaptor);
                 }
 
                 @Override
-                public NodeChannels getConnection(DiscoveryNode node) {
+                protected void stopInternal() {
+                }
+
+                @Override
+                public NodeChannels openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
                     int numConnections = MockTcpTransport.LIGHT_PROFILE.getNumConnections();
                     ArrayList<TcpChannel> fakeChannels = new ArrayList<>(numConnections);
                     for (int i = 0; i < numConnections; ++i) {
@@ -206,7 +215,7 @@ public class TcpTransportTests extends ESTestCase {
             };
 
             DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
-            Transport.Connection connection = transport.getConnection(node);
+            Transport.Connection connection = transport.openConnection(node, null);
             connection.sendRequest(42, "foobar", request, TransportRequestOptions.EMPTY);
 
             BytesReference reference = messageCaptor.get();
@@ -214,6 +223,7 @@ public class TcpTransportTests extends ESTestCase {
 
             StreamInput streamIn = reference.streamInput();
             streamIn.skip(TcpHeader.MARKER_BYTES_SIZE);
+            @SuppressWarnings("unused")
             int len = streamIn.readInt();
             long requestId = streamIn.readLong();
             assertEquals(42, requestId);
@@ -227,6 +237,7 @@ public class TcpTransportTests extends ESTestCase {
                     .streamInput(streamIn);
                 }
             threadPool.getThreadContext().readHeaders(streamIn);
+            assertThat(streamIn.readStringArray(), equalTo(new String[0])); // features
             assertEquals("foobar", streamIn.readString());
             Req readReq = new Req("");
             readReq.readFrom(streamIn);
@@ -237,7 +248,7 @@ public class TcpTransportTests extends ESTestCase {
         }
     }
 
-    private static final class FakeChannel implements TcpChannel {
+    private static final class FakeChannel implements TcpChannel, TcpServerChannel {
 
         private final AtomicReference<BytesReference> messageCaptor;
 
@@ -299,72 +310,6 @@ public class TcpTransportTests extends ESTestCase {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(value);
         }
-    }
-
-    public void testConnectionProfileResolve() {
-        final ConnectionProfile defaultProfile = TcpTransport.buildDefaultConnectionProfile(Settings.EMPTY);
-        assertEquals(defaultProfile, TcpTransport.resolveConnectionProfile(null, defaultProfile));
-
-        final ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
-        builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.BULK);
-        builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.RECOVERY);
-        builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.REG);
-        builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.STATE);
-        builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.PING);
-
-        final boolean connectionTimeoutSet = randomBoolean();
-        if (connectionTimeoutSet) {
-            builder.setConnectTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
-        }
-        final boolean connectionHandshakeSet = randomBoolean();
-        if (connectionHandshakeSet) {
-            builder.setHandshakeTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
-        }
-
-        final ConnectionProfile profile = builder.build();
-        final ConnectionProfile resolved = TcpTransport.resolveConnectionProfile(profile, defaultProfile);
-        assertNotEquals(resolved, defaultProfile);
-        assertThat(resolved.getNumConnections(), equalTo(profile.getNumConnections()));
-        assertThat(resolved.getHandles(), equalTo(profile.getHandles()));
-
-        assertThat(resolved.getConnectTimeout(),
-            equalTo(connectionTimeoutSet ? profile.getConnectTimeout() : defaultProfile.getConnectTimeout()));
-        assertThat(resolved.getHandshakeTimeout(),
-            equalTo(connectionHandshakeSet ? profile.getHandshakeTimeout() : defaultProfile.getHandshakeTimeout()));
-    }
-
-    public void testDefaultConnectionProfile() {
-        ConnectionProfile profile = TcpTransport.buildDefaultConnectionProfile(Settings.EMPTY);
-        assertEquals(13, profile.getNumConnections());
-        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
-        assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
-        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
-        assertEquals(2, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
-        assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
-
-        profile = TcpTransport.buildDefaultConnectionProfile(Settings.builder().put("node.master", false).build());
-        assertEquals(12, profile.getNumConnections());
-        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
-        assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
-        assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
-        assertEquals(2, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
-        assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
-
-        profile = TcpTransport.buildDefaultConnectionProfile(Settings.builder().put("node.data", false).build());
-        assertEquals(11, profile.getNumConnections());
-        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
-        assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
-        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
-        assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
-        assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
-
-        profile = TcpTransport.buildDefaultConnectionProfile(Settings.builder().put("node.data", false).put("node.master", false).build());
-        assertEquals(10, profile.getNumConnections());
-        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
-        assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
-        assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
-        assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
-        assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
     }
 
     public void testDecodeWithIncompleteHeader() throws IOException {
@@ -485,7 +430,7 @@ public class TcpTransportTests extends ESTestCase {
                 fail("Expected exception");
             } catch (Exception ex) {
                 assertThat(ex, instanceOf(TcpTransport.HttpOnTransportException.class));
-                assertEquals("This is not a HTTP port", ex.getMessage());
+                assertEquals("This is not an HTTP port", ex.getMessage());
             }
         }
     }

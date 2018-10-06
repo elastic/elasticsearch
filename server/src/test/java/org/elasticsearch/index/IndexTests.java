@@ -56,9 +56,10 @@ public class IndexTests extends ESTestCase {
         final Index original = new Index(name, uuid);
         final XContentBuilder builder = JsonXContent.contentBuilder();
         original.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        parser.nextToken(); // the beginning of the parser
-        assertThat(Index.fromXContent(parser), equalTo(original));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            parser.nextToken(); // the beginning of the parser
+            assertThat(Index.fromXContent(parser), equalTo(original));
+        }
     }
 
     public void testEquals() {

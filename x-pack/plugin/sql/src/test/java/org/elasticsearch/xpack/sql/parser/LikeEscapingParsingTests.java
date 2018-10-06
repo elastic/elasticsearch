@@ -9,7 +9,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.regex.Like;
 import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
-import org.elasticsearch.xpack.sql.plugin.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Locale;
@@ -33,7 +33,7 @@ public class LikeEscapingParsingTests extends ESTestCase {
         Expression exp = null;
         boolean parameterized = randomBoolean();
         if (parameterized) {
-            exp = parser.createExpression("exp LIKE ?", singletonList(new SqlTypedParamValue(pattern, DataType.KEYWORD)));
+            exp = parser.createExpression("exp LIKE ?", singletonList(new SqlTypedParamValue(DataType.KEYWORD, pattern)));
         } else {
             exp = parser.createExpression(String.format(Locale.ROOT, "exp LIKE '%s'", pattern));
         }
@@ -63,7 +63,7 @@ public class LikeEscapingParsingTests extends ESTestCase {
         assertThat(error("'%string' ESCAPE '%'"),
                 is("line 1:28: Char [%] cannot be used for escaping"));
     }
-    
+
     public void testCannotUseStar() {
         assertThat(error("'|*string' ESCAPE '|'"),
                 is("line 1:11: Invalid char [*] found in pattern [|*string] at position 1; use [%] or [_] instead"));

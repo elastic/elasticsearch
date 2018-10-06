@@ -18,7 +18,6 @@
  */
 
 import org.apache.tools.ant.taskdefs.condition.Os
-import org.apache.tools.ant.filters.FixCrLfFilter
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.EmptyDirTask
 import org.elasticsearch.gradle.LoggedExec
@@ -49,7 +48,9 @@ task createPluginsDir(type: EmptyDirTask) {
 CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, boolean oss) {
   return copySpec {
     into("elasticsearch-${version}") {
-      with libFiles
+      into('lib') {
+        with libFiles(oss)
+      }
       into('config') {
         dirMode 0750
         fileMode 0660
@@ -57,13 +58,6 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, boolean os
       }
       into('bin') {
         with binFiles(distributionType, oss)
-        with copySpec {
-          from('../src/bin') {
-            include '*.bat'
-            filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
-          }
-          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
-        }
       }
       into('') {
         from {
@@ -86,9 +80,6 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, boolean os
       }
 
       with noticeFile
-      from('../src') {
-        include 'bin/*.exe'
-      }
       into('modules') {
         with modulesFiles
       }
@@ -104,15 +95,23 @@ tasks.withType(AbstractArchiveTask) {
   baseName = "elasticsearch${ subdir.contains('oss') ? '-oss' : ''}"
 }
 
+Closure commonZipConfig = {
+  dirMode 0755
+  fileMode 0644
+}
+
 task buildIntegTestZip(type: Zip) {
-  with archiveFiles(transportModulesFiles, 'zip', false)
+  configure(commonZipConfig)
+  with archiveFiles(transportModulesFiles, 'zip', true)
 }
 
 task buildZip(type: Zip) {
+  configure(commonZipConfig)
   with archiveFiles(modulesFiles(false), 'zip', false)
 }
 
 task buildOssZip(type: Zip) {
+  configure(commonZipConfig)
   with archiveFiles(modulesFiles(true), 'zip', true)
 }
 
@@ -194,7 +193,7 @@ subprojects {
     onlyIf toolExists
     doLast {
       final String licenseFilename
-      if (project.name.contains('oss-')) {
+      if (project.name.contains('oss-') || project.name == 'integ-test-zip') {
         licenseFilename = "APACHE-LICENSE-2.0.txt"
       } else {
         licenseFilename = "ELASTIC-LICENSE.txt"
@@ -218,13 +217,15 @@ subprojects {
   check.dependsOn checkNotice
 
   if (project.name == 'zip' || project.name == 'tar') {
+    project.ext.licenseName = 'Elastic License'
+    project.ext.licenseUrl = ext.elasticLicenseUrl
     task checkMlCppNotice {
       dependsOn buildDist, checkExtraction
       onlyIf toolExists
       doLast {
         // this is just a small sample from the C++ notices, the idea being that if we've added these lines we've probably added all the required lines
         final List<String> expectedLines = Arrays.asList("Apache log4cxx", "Boost Software License - Version 1.0 - August 17th, 2003")
-        final Path noticePath = archiveExtractionDir.toPath().resolve("elasticsearch-${VersionProperties.elasticsearch}/modules/x-pack/x-pack-ml/NOTICE.txt")
+        final Path noticePath = archiveExtractionDir.toPath().resolve("elasticsearch-${VersionProperties.elasticsearch}/modules/x-pack-ml/NOTICE.txt")
         final List<String> actualLines = Files.readAllLines(noticePath)
         for (final String expectedLine : expectedLines) {
           if (actualLines.contains(expectedLine) == false) {

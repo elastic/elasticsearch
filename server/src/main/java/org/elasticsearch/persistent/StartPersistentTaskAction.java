@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.persistent;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -36,9 +37,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -48,20 +49,13 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  *  This action can be used to add the record for the persistent action to the cluster state.
  */
-public class StartPersistentTaskAction extends Action<StartPersistentTaskAction.Request,
-        PersistentTaskResponse,
-        StartPersistentTaskAction.RequestBuilder> {
+public class StartPersistentTaskAction extends Action<PersistentTaskResponse> {
 
     public static final StartPersistentTaskAction INSTANCE = new StartPersistentTaskAction();
     public static final String NAME = "cluster:admin/persistent/start";
 
     private StartPersistentTaskAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override
@@ -73,7 +67,6 @@ public class StartPersistentTaskAction extends Action<StartPersistentTaskAction.
 
         private String taskId;
 
-        @Nullable
         private String taskName;
 
         private PersistentTaskParams params;
@@ -93,7 +86,11 @@ public class StartPersistentTaskAction extends Action<StartPersistentTaskAction.
             super.readFrom(in);
             taskId = in.readString();
             taskName = in.readString();
-            params = in.readOptionalNamedWriteable(PersistentTaskParams.class);
+            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+                params = in.readNamedWriteable(PersistentTaskParams.class);
+            } else {
+                params = in.readOptionalNamedWriteable(PersistentTaskParams.class);
+            }
         }
 
         @Override
@@ -101,7 +98,11 @@ public class StartPersistentTaskAction extends Action<StartPersistentTaskAction.
             super.writeTo(out);
             out.writeString(taskId);
             out.writeString(taskName);
-            out.writeOptionalNamedWriteable(params);
+            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+                out.writeNamedWriteable(params);
+            } else {
+                out.writeOptionalNamedWriteable(params);
+            }
         }
 
         @Override

@@ -5,19 +5,17 @@
  */
 package org.elasticsearch.xpack.qa.sql.security;
 
-import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
-import org.elasticsearch.xpack.qa.sql.security.SqlSecurityTestCase.AuditLogAsserter;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -29,7 +27,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase.columnInfo;
@@ -176,14 +173,17 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         }
 
         private static Map<String, Object> runSql(@Nullable String asUser, String mode, HttpEntity entity) throws IOException {
-            Map<String, String> params = new TreeMap<>();
-            params.put("format", "json");        // JSON is easier to parse then a table
-            if (Strings.hasText(mode)) {
-                params.put("mode", mode);        // JDBC or PLAIN mode
+            Request request = new Request("POST", "/_xpack/sql");
+            if (false == mode.isEmpty()) {
+                request.addParameter("mode", mode);
             }
-            Header[] headers = asUser == null ? new Header[0] : new Header[] {new BasicHeader("es-security-runas-user", asUser)};
-            Response response = client().performRequest("POST", "/_xpack/sql", params, entity, headers);
-            return toMap(response);
+            if (asUser != null) {
+                RequestOptions.Builder options = request.getOptions().toBuilder();
+                options.addHeader("es-security-runas-user", asUser);
+                request.setOptions(options);
+            }
+            request.setEntity(entity);
+            return toMap(client().performRequest(request));
         }
 
         private static void assertResponse(Map<String, Object> expected, Map<String, Object> actual) {
@@ -234,11 +234,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         createAuditLogAsserter()
             .expectSqlCompositeAction("test_admin", "test")
             .expect(true, SQL_ACTION_NAME, "full_access", empty())
-            // One scroll access denied per shard
-            .expect("access_denied", SQL_ACTION_NAME, "full_access", "default_native", empty(), "InternalScrollSearchRequest")
-            .expect("access_denied", SQL_ACTION_NAME, "full_access", "default_native", empty(), "InternalScrollSearchRequest")
-            .expect("access_denied", SQL_ACTION_NAME, "full_access", "default_native", empty(), "InternalScrollSearchRequest")
-            .expect("access_denied", SQL_ACTION_NAME, "full_access", "default_native", empty(), "InternalScrollSearchRequest")
+            // one scroll access denied per shard
             .expect("access_denied", SQL_ACTION_NAME, "full_access", "default_native", empty(), "InternalScrollSearchRequest")
             .assertLogs();
     }
@@ -252,14 +248,14 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             final Matcher<String> runByRealmMatcher = realm.equals("default_file") ? Matchers.nullValue(String.class)
                     : Matchers.is("default_file");
             logCheckers.add(
-                    m -> eventType.equals(m.get("event_type"))
+                    m -> eventType.equals(m.get("event.action"))
                         && action.equals(m.get("action"))
-                        && principal.equals(m.get("principal"))
-                        && realm.equals(m.get("realm"))
-                        && runByPrincipalMatcher.matches(m.get("run_by_principal"))
-                        && runByRealmMatcher.matches(m.get("run_by_realm"))
+                        && principal.equals(m.get("user.name"))
+                        && realm.equals(m.get("user.realm"))
+                        && runByPrincipalMatcher.matches(m.get("user.run_by.name"))
+                        && runByRealmMatcher.matches(m.get("user.run_by.realm"))
                         && indicesMatcher.matches(m.get("indices"))
-                        && request.equals(m.get("request")));
+                        && request.equals(m.get("request.name")));
             return this;
         }
 

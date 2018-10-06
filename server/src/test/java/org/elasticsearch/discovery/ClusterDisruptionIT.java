@@ -22,7 +22,6 @@ package org.elasticsearch.discovery;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -61,10 +60,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
+import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -135,7 +137,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                                                 .setSource("{}", XContentType.JSON)
                                                 .setTimeout(timeout)
                                                 .get(timeout);
-                                assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
+                                assertThat(response.getResult(), isOneOf(CREATED, UPDATED));
                                 ackedDocs.put(id, node);
                                 logger.trace("[{}] indexed id [{}] through node [{}], response [{}]", name, id, node, response);
                             } catch (ElasticsearchException e) {
@@ -362,7 +364,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
     public void testSearchWithRelocationAndSlowClusterStateProcessing() throws Exception {
         // don't use DEFAULT settings (which can cause node disconnects on a slow CI machine)
         configureCluster(Settings.EMPTY, 3, null, 1);
-        final String masterNode = internalCluster().startMasterOnlyNode();
+        internalCluster().startMasterOnlyNode();
         final String node_1 = internalCluster().startDataOnlyNode();
 
         logger.info("--> creating index [test] with one shard and on replica");

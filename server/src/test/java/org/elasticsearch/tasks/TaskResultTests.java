@@ -19,8 +19,6 @@
 
 package org.elasticsearch.tasks;
 
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -36,6 +34,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.TreeMap;
+
+import static org.elasticsearch.tasks.TaskInfoTests.randomTaskInfo;
 
 /**
  * Round trip tests for {@link TaskResult} and those classes that it includes like {@link TaskInfo} and {@link RawTaskStatus}.
@@ -122,37 +122,6 @@ public class TaskResultTests extends ESTestCase {
                 return new TaskResult(randomTaskInfo(), randomTaskResponse());
             default:
                 throw new UnsupportedOperationException("Unsupported random TaskResult constructor");
-        }
-    }
-
-    private static TaskInfo randomTaskInfo() throws IOException {
-        TaskId taskId = randomTaskId();
-        String type = randomAlphaOfLength(5);
-        String action = randomAlphaOfLength(5);
-        Task.Status status = randomBoolean() ? randomRawTaskStatus() : null;
-        String description = randomBoolean() ? randomAlphaOfLength(5) : null;
-        long startTime = randomLong();
-        long runningTimeNanos = randomLong();
-        boolean cancellable = randomBoolean();
-        TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId();
-        Map<String, String> headers =
-            randomBoolean() ? Collections.emptyMap() : Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
-        return new TaskInfo(taskId, type, action, description, status, startTime, runningTimeNanos, cancellable, parentTaskId, headers);
-    }
-
-    private static TaskId randomTaskId() {
-        return new TaskId(randomAlphaOfLength(5), randomLong());
-    }
-
-    private static RawTaskStatus randomRawTaskStatus() throws IOException {
-        try (XContentBuilder builder = XContentBuilder.builder(Requests.INDEX_CONTENT_TYPE.xContent())) {
-            builder.startObject();
-            int fields = between(0, 10);
-            for (int f = 0; f < fields; f++) {
-                builder.field(randomAlphaOfLength(5), randomAlphaOfLength(5));
-            }
-            builder.endObject();
-            return new RawTaskStatus(BytesReference.bytes(builder));
         }
     }
 

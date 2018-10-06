@@ -20,6 +20,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -29,12 +30,14 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,6 +47,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
@@ -57,7 +61,7 @@ import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
-import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -66,7 +70,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -105,12 +108,12 @@ import static org.elasticsearch.xpack.security.audit.AuditLevel.parse;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.indices;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestContent;
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.resolve;
-import static org.elasticsearch.xpack.security.support.IndexLifecycleManager.SECURITY_VERSION_STRING;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_VERSION_STRING;
 
 /**
  * Audit trail implementation that writes events into an index.
  */
-public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
+public class IndexAuditTrail extends AbstractComponent implements AuditTrail, ClusterStateListener {
 
     public static final String NAME = "index";
     public static final String DOC_TYPE = "doc";
@@ -199,11 +202,41 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         } else {
             this.client = initializeRemoteClient(settings, logger);
         }
+        clusterService.addListener(this);
+        clusterService.addLifecycleListener(new LifecycleListener() {
+            @Override
+            public void beforeStop() {
+                stop();
+            }
+        });
 
     }
 
     public State state() {
         return state.get();
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        try {
+            if (state() == IndexAuditTrail.State.INITIALIZED && canStart(event)) {
+                threadPool.generic().execute(new AbstractRunnable() {
+
+                    @Override
+                    public void onFailure(Exception throwable) {
+                        logger.error("failed to start index audit trail services", throwable);
+                        assert false : "security lifecycle services startup failed";
+                    }
+
+                    @Override
+                    public void doRun() {
+                        start();
+                    }
+                });
+            }
+        } catch (Exception e) {
+            logger.error("failed to start index audit trail", e);
+        }
     }
 
     /**
@@ -796,10 +829,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
             msg.builder.field(Field.REQUEST_BODY, restRequestContent(request));
         }
         msg.builder.field(Field.ORIGIN_TYPE, "rest");
-        SocketAddress address = request.getRemoteAddress();
-        if (address instanceof InetSocketAddress) {
-            msg.builder.field(Field.ORIGIN_ADDRESS, NetworkAddress.format(((InetSocketAddress) request.getRemoteAddress())
-                    .getAddress()));
+        InetSocketAddress address = request.getHttpChannel().getRemoteAddress();
+        if (address != null) {
+            msg.builder.field(Field.ORIGIN_ADDRESS, NetworkAddress.format(address.getAddress()));
         } else {
             msg.builder.field(Field.ORIGIN_ADDRESS, address);
         }
@@ -821,10 +853,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
             msg.builder.field(Field.REQUEST_BODY, restRequestContent(request));
         }
         msg.builder.field(Field.ORIGIN_TYPE, "rest");
-        SocketAddress address = request.getRemoteAddress();
-        if (address instanceof InetSocketAddress) {
-            msg.builder.field(Field.ORIGIN_ADDRESS, NetworkAddress.format(((InetSocketAddress) request.getRemoteAddress())
-                    .getAddress()));
+        InetSocketAddress address = request.getHttpChannel().getRemoteAddress();
+        if (address != null) {
+            msg.builder.field(Field.ORIGIN_ADDRESS, NetworkAddress.format(address.getAddress()));
         } else {
             msg.builder.field(Field.ORIGIN_ADDRESS, address);
         }
@@ -852,6 +883,12 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         builder.field(Field.NODE_HOST_ADDRESS, nodeHostAddress);
         builder.field(Field.LAYER, layer);
         builder.field(Field.TYPE, type);
+
+        String opaqueId = threadPool.getThreadContext().getHeader(Task.X_OPAQUE_ID);
+        if (opaqueId != null) {
+            builder.field("opaque_id", opaqueId);
+        }
+
         return builder;
     }
 
@@ -959,24 +996,22 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
     }
 
     public static Settings customAuditIndexSettings(Settings nodeSettings, Logger logger) {
-        Settings newSettings = Settings.builder()
+        final Settings newSettings = Settings.builder()
                 .put(INDEX_SETTINGS.get(nodeSettings), false)
+                .normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX)
                 .build();
         if (newSettings.names().isEmpty()) {
             return Settings.EMPTY;
         }
 
-        // Filter out forbidden settings:
-        Settings.Builder builder = Settings.builder();
-        builder.put(newSettings.filter(k -> {
-            String name = "index." + k;
+        // Filter out forbidden setting
+        return Settings.builder().put(newSettings.filter(name -> {
             if (FORBIDDEN_INDEX_SETTING.equals(name)) {
                 logger.warn("overriding the default [{}} setting is forbidden. ignoring...", name);
                 return false;
             }
             return true;
-        }));
-        return builder.build();
+        })).build();
     }
 
     private void putTemplate(Settings customSettings, Consumer<Exception> consumer) {
@@ -1001,7 +1036,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
 
     private PutIndexTemplateRequest getPutIndexTemplateRequest(Settings customSettings) {
         final byte[] template = TemplateUtils.loadTemplate("/" + INDEX_TEMPLATE_NAME + ".json",
-                Version.CURRENT.toString(), IndexLifecycleManager.TEMPLATE_VERSION_PATTERN).getBytes(StandardCharsets.UTF_8);
+                Version.CURRENT.toString(), SecurityIndexManager.TEMPLATE_VERSION_PATTERN).getBytes(StandardCharsets.UTF_8);
         final PutIndexTemplateRequest request = new PutIndexTemplateRequest(INDEX_TEMPLATE_NAME).source(template, XContentType.JSON);
         if (customSettings != null && customSettings.names().size() > 0) {
             Settings updatedSettings = Settings.builder()

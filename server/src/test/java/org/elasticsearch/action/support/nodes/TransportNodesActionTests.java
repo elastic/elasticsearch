@@ -180,7 +180,7 @@ public class TransportNodesActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
-        transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL,
+        transportService = transport.createCapturingTransportService(clusterService.getSettings(), THREAD_POOL,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -250,7 +250,7 @@ public class TransportNodesActionTests extends ESTestCase {
                 transportService, ActionFilters actionFilters, Supplier<TestNodesRequest> request,
                                  Supplier<TestNodeRequest> nodeRequest, String nodeExecutor) {
             super(settings, "indices:admin/test", threadPool, clusterService, transportService, actionFilters,
-                    null, request, nodeRequest, nodeExecutor, TestNodeResponse.class);
+                request, nodeRequest, nodeExecutor, TestNodeResponse.class);
         }
 
         @Override

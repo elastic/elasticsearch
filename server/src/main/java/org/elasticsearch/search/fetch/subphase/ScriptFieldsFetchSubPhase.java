@@ -65,7 +65,7 @@ public final class ScriptFieldsFetchSubPhase implements FetchSubPhase {
                 final Object value;
                 try {
                     value = leafScripts[i].run();
-                    CollectionUtils.ensureNoSelfReferences(value);
+                    CollectionUtils.ensureNoSelfReferences(value, "ScriptFieldsFetchSubPhase leaf script " + i);
                 } catch (RuntimeException e) {
                     if (scriptFields.get(i).ignoreException()) {
                         continue;

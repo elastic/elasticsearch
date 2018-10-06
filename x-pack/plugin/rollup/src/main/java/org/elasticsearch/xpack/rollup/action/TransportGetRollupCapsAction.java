@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -18,7 +17,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
@@ -29,26 +28,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.function.Supplier;
 
 public class TransportGetRollupCapsAction extends HandledTransportAction<GetRollupCapsAction.Request, GetRollupCapsAction.Response> {
 
     private final ClusterService clusterService;
 
     @Inject
-    public TransportGetRollupCapsAction(Settings settings,
-                                        TransportService transportService,
-                                        ClusterService clusterService,
-                                        ThreadPool threadPool,
-                                        ActionFilters actionFilters,
-                                        IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetRollupCapsAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, GetRollupCapsAction.Request::new);
+    public TransportGetRollupCapsAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                        ActionFilters actionFilters) {
+        super(settings, GetRollupCapsAction.NAME, transportService, actionFilters,
+            (Supplier<GetRollupCapsAction.Request>) GetRollupCapsAction.Request::new);
         this.clusterService = clusterService;
     }
 
     @Override
-    protected void doExecute(GetRollupCapsAction.Request request, ActionListener<GetRollupCapsAction.Response> listener) {
-
+    protected void doExecute(Task task, GetRollupCapsAction.Request request, ActionListener<GetRollupCapsAction.Response> listener) {
         Map<String, RollableIndexCaps> allCaps = getCaps(request.getIndexPattern(), clusterService.state().getMetaData().indices());
         listener.onResponse(new GetRollupCapsAction.Response(allCaps));
     }
@@ -71,7 +66,7 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
 
                 jobCaps.forEach(jobCap -> {
                     String pattern = indexPattern.equals(MetaData.ALL)
-                            ? jobCap.getIndexPattern() : indexPattern;
+                        ? jobCap.getIndexPattern() : indexPattern;
 
                     // Do we already have an entry for this index pattern?
                     RollableIndexCaps indexCaps = allCaps.get(pattern);
@@ -102,7 +97,7 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
         }
 
         RollupIndexCaps caps = RollupIndexCaps.parseMetadataXContent(
-                new BytesArray(rollupMapping.source().uncompressed()), indexName);
+            new BytesArray(rollupMapping.source().uncompressed()), indexName);
 
         if (caps.hasCaps()) {
             return Optional.of(caps);

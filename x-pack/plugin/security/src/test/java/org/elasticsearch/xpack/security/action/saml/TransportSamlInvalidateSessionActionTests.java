@@ -9,7 +9,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -27,7 +26,6 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -44,9 +42,11 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionRequest;
@@ -57,7 +57,6 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.UserToken;
@@ -67,6 +66,7 @@ import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealmTestHelper;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealmTests;
 import org.elasticsearch.xpack.security.authc.saml.SamlTestCase;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
 import org.opensaml.saml.saml2.core.NameID;
@@ -124,10 +124,8 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         searchRequests = new ArrayList<>();
         final Client client = new NoOpClient(threadPool) {
             @Override
-            protected <Request extends ActionRequest,
-                    Response extends ActionResponse,
-                    RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>>
-            void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+            protected <Request extends ActionRequest, Response extends ActionResponse>
+            void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
                 if (IndexAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(IndexRequest.class));
                     IndexRequest indexRequest = (IndexRequest) request;
@@ -160,20 +158,19 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             }
         };
 
-        final SecurityLifecycleService lifecycleService = mock(SecurityLifecycleService.class);
+        final SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
         doAnswer(inv -> {
             ((Runnable) inv.getArguments()[1]).run();
             return null;
-        }).when(lifecycleService).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
 
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        tokenService = new TokenService(settings, Clock.systemUTC(), client, lifecycleService, clusterService);
+        tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex, clusterService);
 
-        final TransportService transportService = new TransportService(Settings.EMPTY, null, null,
+        final TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         final Realms realms = mock(Realms.class);
-        action = new TransportSamlInvalidateSessionAction(settings, threadPool, transportService,
-                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), tokenService, realms);
+        action = new TransportSamlInvalidateSessionAction(settings, transportService, mock(ActionFilters.class),tokenService, realms);
 
         final Path metadata = PathUtils.get(SamlRealm.class.getResource("idp1.xml").toURI());
         final Environment env = TestEnvironment.newEnvironment(settings);
@@ -245,7 +242,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         request.setRealmName(samlRealm.name());
         request.setQueryString("SAMLRequest=foo");
         final PlainActionFuture<SamlInvalidateSessionResponse> future = new PlainActionFuture<>();
-        action.doExecute(request, future);
+        action.doExecute(mock(Task.class), request, future);
         final SamlInvalidateSessionResponse response = future.get();
         assertThat(response, notNullValue());
         assertThat(response.getCount(), equalTo(2));
@@ -319,7 +316,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                 new RealmRef("native", NativeRealmSettings.TYPE, "node01"), null);
         final Map<String, Object> metadata = samlRealm.createTokenMetadata(nameId, session);
         final PlainActionFuture<Tuple<UserToken, String>> future = new PlainActionFuture<>();
-        tokenService.createUserToken(authentication, authentication, future, metadata);
+        tokenService.createUserToken(authentication, authentication, future, metadata, true);
         return future.actionGet();
     }
 

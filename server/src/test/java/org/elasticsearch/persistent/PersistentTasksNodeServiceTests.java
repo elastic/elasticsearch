@@ -31,16 +31,16 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
+import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
-import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
-import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.junit.After;
 import org.junit.Before;
 
@@ -52,6 +52,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Matchers.any;
@@ -59,7 +60,6 @@ import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class PersistentTasksNodeServiceTests extends ESTestCase {
@@ -72,7 +72,6 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         super.setUp();
         threadPool = new TestThreadPool(getClass().getName());
     }
-
 
     @Override
     @After
@@ -95,7 +94,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         return state.build();
     }
 
-    public void testStartTask() throws Exception {
+    public void testStartTask() {
         PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
         @SuppressWarnings("unchecked") PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
         when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
@@ -131,8 +130,8 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         if (added == false) {
             logger.info("No local node action was added");
-
         }
+
         MetaData.Builder metaData = MetaData.builder(state.metaData());
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks.build());
         ClusterState newClusterState = ClusterState.builder(state).metaData(metaData).build();
@@ -149,6 +148,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
             // Make sure action wasn't called again
             assertThat(executor.executions.size(), equalTo(1));
+            assertThat(executor.get(0).task.isCompleted(), is(false));
 
             // Start another task on this node
             state = newClusterState;
@@ -157,10 +157,15 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
             // Make sure action was called this time
             assertThat(executor.size(), equalTo(2));
+            assertThat(executor.get(1).task.isCompleted(), is(false));
 
             // Finish both tasks
             executor.get(0).task.markAsFailed(new RuntimeException());
             executor.get(1).task.markAsCompleted();
+
+            assertThat(executor.get(0).task.isCompleted(), is(true));
+            assertThat(executor.get(1).task.isCompleted(), is(true));
+
             String failedTaskId = executor.get(0).task.getPersistentTaskId();
             String finishedTaskId = executor.get(1).task.getPersistentTaskId();
             executor.clear();
@@ -186,7 +191,6 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             // Make sure action was only allocated on this node once
             assertThat(executor.size(), equalTo(1));
         }
-
     }
 
     public void testParamsStatusAndNodeTaskAreDelegated() throws Exception {
@@ -206,13 +210,12 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         ClusterState state = createInitialClusterState(1, Settings.EMPTY);
 
-        Task.Status status = new TestPersistentTasksPlugin.Status("_test_phase");
+        PersistentTaskState taskState = new TestPersistentTasksPlugin.State("_test_phase");
         PersistentTasksCustomMetaData.Builder tasks = PersistentTasksCustomMetaData.builder();
         String taskId = UUIDs.base64UUID();
         TestParams taskParams = new TestParams("other_0");
-        tasks.addTask(taskId, TestPersistentTasksExecutor.NAME, taskParams,
-                new Assignment("this_node", "test assignment on other node"));
-        tasks.updateTaskStatus(taskId, status);
+        tasks.addTask(taskId, TestPersistentTasksExecutor.NAME, taskParams, new Assignment("this_node", "test assignment on other node"));
+        tasks.updateTaskState(taskId, taskState);
         MetaData.Builder metaData = MetaData.builder(state.metaData());
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks.build());
         ClusterState newClusterState = ClusterState.builder(state).metaData(metaData).build();
@@ -221,7 +224,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         assertThat(executor.size(), equalTo(1));
         assertThat(executor.get(0).params, sameInstance(taskParams));
-        assertThat(executor.get(0).status, sameInstance(status));
+        assertThat(executor.get(0).state, sameInstance(taskState));
         assertThat(executor.get(0).task, sameInstance(nodeTask));
     }
 
@@ -230,14 +233,14 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         AtomicReference<ActionListener<CancelTasksResponse>> capturedListener = new AtomicReference<>();
         PersistentTasksService persistentTasksService = new PersistentTasksService(Settings.EMPTY, null, null, null) {
             @Override
-            public void sendTaskManagerCancellation(long taskId, ActionListener<CancelTasksResponse> listener) {
+            void sendCancelRequest(final long taskId, final String reason, final ActionListener<CancelTasksResponse> listener) {
                 capturedTaskId.set(taskId);
                 capturedListener.set(listener);
             }
 
             @Override
-            public void sendCompletionNotification(String taskId, long allocationId, Exception failure,
-                                                   ActionListener<PersistentTask<?>> listener) {
+            public void sendCompletionRequest(final String taskId, final long taskAllocationId,
+                                              final Exception taskFailure, final ActionListener<PersistentTask<?>> listener) {
                 fail("Shouldn't be called during Cluster State cancellation");
             }
         };
@@ -300,7 +303,6 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         // Check the the task is now removed from task manager
         assertThat(taskManager.getTasks().values(), empty());
-
     }
 
     private <Params extends PersistentTaskParams> ClusterState addTask(ClusterState state, String action, Params params,
@@ -328,16 +330,15 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
     }
 
     private class Execution {
+
         private final PersistentTaskParams params;
         private final AllocatedPersistentTask task;
-        private final Task.Status status;
-        private final PersistentTasksExecutor<?> holder;
+        private final PersistentTaskState state;
 
-        Execution(PersistentTaskParams params, AllocatedPersistentTask task, Task.Status status, PersistentTasksExecutor<?> holder) {
+        Execution(PersistentTaskParams params, AllocatedPersistentTask task, PersistentTaskState state) {
             this.params = params;
             this.task = task;
-            this.status = status;
-            this.holder = holder;
+            this.state = state;
         }
     }
 
@@ -349,11 +350,11 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         }
 
         @Override
-        public <Params extends PersistentTaskParams> void executeTask(Params params,
-                                                                      Task.Status status,
-                                                                      AllocatedPersistentTask task,
-                                                                      PersistentTasksExecutor<Params> executor) {
-            executions.add(new Execution(params, task, status, executor));
+        public <Params extends PersistentTaskParams> void executeTask(final Params params,
+                                                                      final PersistentTaskState state,
+                                                                      final AllocatedPersistentTask task,
+                                                                      final PersistentTasksExecutor<Params> executor) {
+            executions.add(new Execution(params, task, state));
         }
 
         public Execution get(int i) {

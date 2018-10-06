@@ -87,7 +87,7 @@ public class Range extends Expression {
     }
 
     /**
-     * Check whether the boundaries are invalid ( upper < lower) or not.
+     * Check whether the boundaries are invalid ( upper &lt; lower) or not.
      * If they do, the value does not have to be evaluate.
      */
     private boolean areBoundariesInvalid() {

@@ -2,8 +2,8 @@
 === Nested datatype
 
 The `nested` type is a specialised version of the <<object,`object`>> datatype
-that allows arrays of objects to be indexed and queried independently of each
-other.
+that allows arrays of objects to be indexed in a way that they can be queried 
+independently of each other.
 
 ==== How arrays of objects are flattened
 

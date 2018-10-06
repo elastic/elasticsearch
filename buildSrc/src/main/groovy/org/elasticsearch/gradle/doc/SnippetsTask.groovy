@@ -84,6 +84,7 @@ public class SnippetsTask extends DefaultTask {
             Snippet snippet = null
             StringBuilder contents = null
             List substitutions = null
+            String testEnv = null
             Closure emit = {
                 snippet.contents = contents.toString()
                 contents = null
@@ -143,10 +144,14 @@ public class SnippetsTask extends DefaultTask {
             }
             file.eachLine('UTF-8') { String line, int lineNumber ->
                 Matcher matcher
+                matcher = line =~ /\[testenv="([^"]+)"\]\s*/
+                if (matcher.matches()) {
+                    testEnv = matcher.group(1)
+                }
                 if (line ==~ /-{4,}\s*/) { // Four dashes looks like a snippet
                     if (snippet == null) {
                         Path path = docs.dir.toPath().relativize(file.toPath())
-                        snippet = new Snippet(path: path, start: lineNumber)
+                        snippet = new Snippet(path: path, start: lineNumber, testEnv: testEnv)
                         if (lastLanguageLine == lineNumber - 1) {
                             snippet.language = lastLanguage
                         }
@@ -279,6 +284,10 @@ public class SnippetsTask extends DefaultTask {
                     contents.append(line).append('\n')
                     return
                 }
+                // Allow line continuations for console snippets within lists
+                if (snippet != null && line.trim() == '+') {
+                    return
+                }
                 // Just finished
                 emit()
             }
@@ -297,6 +306,7 @@ public class SnippetsTask extends DefaultTask {
         int start
         int end = NOT_FINISHED
         String contents
+        String testEnv
 
         Boolean console = null
         boolean test = false
@@ -321,6 +331,9 @@ public class SnippetsTask extends DefaultTask {
             }
             if (test) {
                 result += '// TEST'
+                if (testEnv != null) {
+                    result += "[testenv=$testEnv]"
+                }
                 if (catchPart) {
                     result += "[catch: $catchPart]"
                 }

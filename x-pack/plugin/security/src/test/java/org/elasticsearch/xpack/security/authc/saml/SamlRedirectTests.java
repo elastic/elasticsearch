@@ -35,7 +35,7 @@ public class SamlRedirectTests extends SamlTestCase {
 
     public void testRedirectUrlWithRelayStateAndSigning() throws Exception {
         final SigningConfiguration signing =
-                new SigningConfiguration(singleton("*"), (X509Credential) buildOpenSamlCredential(createKeyPair()).get(0));
+                new SigningConfiguration(singleton("*"), (X509Credential) buildOpenSamlCredential(readRandomKeyPair()).get(0));
         final SamlRedirect redirect = new SamlRedirect(buildLogoutRequest(LOGOUT_URL), signing);
         final String url = redirect.getRedirectUrl("hello");
         assertThat(url, startsWith(LOGOUT_URL + "?SAMLRequest=nZFBa4QwFIT%2FSnh3Naa2ax%2FqsiAFYdtDu91DLyVo2AY0cX2x9Oc36gpLC" +

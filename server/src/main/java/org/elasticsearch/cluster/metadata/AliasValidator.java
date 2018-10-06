@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -46,7 +45,6 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
  */
 public class AliasValidator extends AbstractComponent {
 
-    @Inject
     public AliasValidator(Settings settings) {
         super(settings);
     }
@@ -57,7 +55,7 @@ public class AliasValidator extends AbstractComponent {
      * @throws IllegalArgumentException if the alias is not valid
      */
     public void validateAlias(Alias alias, String index, MetaData metaData) {
-        validateAlias(alias.name(), index, alias.indexRouting(), name -> metaData.index(name));
+        validateAlias(alias.name(), index, alias.indexRouting(), metaData::index);
     }
 
     /**
@@ -66,7 +64,7 @@ public class AliasValidator extends AbstractComponent {
      * @throws IllegalArgumentException if the alias is not valid
      */
     public void validateAliasMetaData(AliasMetaData aliasMetaData, String index, MetaData metaData) {
-        validateAlias(aliasMetaData.alias(), index, aliasMetaData.indexRouting(), name -> metaData.index(name));
+        validateAlias(aliasMetaData.alias(), index, aliasMetaData.indexRouting(), metaData::index);
     }
 
     /**

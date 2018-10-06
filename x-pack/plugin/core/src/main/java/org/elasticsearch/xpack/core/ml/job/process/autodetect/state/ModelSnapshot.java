@@ -19,9 +19,9 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
 
@@ -143,7 +143,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             minVersion = Version.readVersion(in);
         } else {
-            minVersion = Version.V_5_5_0;
+            minVersion = Version.CURRENT.minimumCompatibilityVersion();
         }
         timestamp = in.readBoolean() ? new Date(in.readVLong()) : null;
         description = in.readOptionalString();
@@ -345,7 +345,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
 
     public static ModelSnapshot fromJson(BytesReference bytesReference) {
         try (InputStream stream = bytesReference.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(bytesReference))
+             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             return LENIENT_PARSER.apply(parser, null).build();
         } catch (IOException e) {
@@ -357,9 +357,8 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         private String jobId;
 
         // Stored snapshot documents created prior to 6.3.0 will have no
-        // value for min_version. We default it to 5.5.0 as there were
-        // no model changes between 5.5.0 and 6.3.0.
-        private Version minVersion = Version.V_5_5_0;
+        // value for min_version.
+        private Version minVersion = Version.V_6_3_0;
 
         private Date timestamp;
         private String description;

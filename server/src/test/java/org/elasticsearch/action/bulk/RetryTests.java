@@ -84,8 +84,8 @@ public class RetryTests extends ESTestCase {
         BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL);
 
         BulkRequest bulkRequest = createBulkRequest();
-        BulkResponse response = new Retry(EsRejectedExecutionException.class, backoff, bulkClient.threadPool())
-            .withBackoff(bulkClient::bulk, bulkRequest, bulkClient.settings())
+        BulkResponse response = new Retry(backoff, bulkClient.threadPool())
+            .withBackoff(bulkClient::bulk, bulkRequest)
             .actionGet();
 
         assertFalse(response.hasFailures());
@@ -96,8 +96,8 @@ public class RetryTests extends ESTestCase {
         BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL - 1);
 
         BulkRequest bulkRequest = createBulkRequest();
-        BulkResponse response = new Retry(EsRejectedExecutionException.class, backoff, bulkClient.threadPool())
-            .withBackoff(bulkClient::bulk, bulkRequest, bulkClient.settings())
+        BulkResponse response = new Retry(backoff, bulkClient.threadPool())
+            .withBackoff(bulkClient::bulk, bulkRequest)
             .actionGet();
 
         assertTrue(response.hasFailures());
@@ -109,8 +109,8 @@ public class RetryTests extends ESTestCase {
         AssertingListener listener = new AssertingListener();
 
         BulkRequest bulkRequest = createBulkRequest();
-        Retry retry = new Retry(EsRejectedExecutionException.class, backoff, bulkClient.threadPool());
-        retry.withBackoff(bulkClient::bulk, bulkRequest, listener, bulkClient.settings());
+        Retry retry = new Retry(backoff, bulkClient.threadPool());
+        retry.withBackoff(bulkClient::bulk, bulkRequest, listener);
 
         listener.awaitCallbacksCalled();
         listener.assertOnResponseCalled();
@@ -124,8 +124,8 @@ public class RetryTests extends ESTestCase {
         AssertingListener listener = new AssertingListener();
 
         BulkRequest bulkRequest = createBulkRequest();
-        Retry retry = new Retry(EsRejectedExecutionException.class, backoff, bulkClient.threadPool());
-        retry.withBackoff(bulkClient::bulk, bulkRequest, listener, bulkClient.settings());
+        Retry retry = new Retry(backoff, bulkClient.threadPool());
+        retry.withBackoff(bulkClient::bulk, bulkRequest, listener);
 
         listener.awaitCallbacksCalled();
 

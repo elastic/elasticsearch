@@ -6,14 +6,13 @@
 package org.elasticsearch.xpack.qa.sql.jdbc;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.qa.sql.jdbc.CsvTestUtils.CsvTestCase;
-import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Properties;
 
 import static org.elasticsearch.xpack.qa.sql.jdbc.CsvTestUtils.csvConnection;
 import static org.elasticsearch.xpack.qa.sql.jdbc.CsvTestUtils.executeCsvQuery;
@@ -38,6 +37,8 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
         tests.addAll(readScriptSpec("/alias.csv-spec", parser));
         tests.addAll(readScriptSpec("/nulls.csv-spec", parser));
         tests.addAll(readScriptSpec("/nested.csv-spec", parser));
+        tests.addAll(readScriptSpec("/functions.csv-spec", parser));
+        tests.addAll(readScriptSpec("/math.csv-spec", parser));
         return tests;
     }
 
@@ -57,13 +58,4 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
             assertResults(expected, elasticResults);
         }
     }
-
-    // make sure ES uses UTC (otherwise JDBC driver picks up the JVM timezone per spec/convention)
-    @Override
-    protected Properties connectionProperties() {
-        Properties connectionProperties = new Properties();
-        connectionProperties.setProperty(JdbcConfiguration.TIME_ZONE, "UTC");
-        return connectionProperties;
-    }
-
 }

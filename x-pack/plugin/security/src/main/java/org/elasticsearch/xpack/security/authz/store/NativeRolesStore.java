@@ -13,6 +13,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
@@ -43,7 +44,7 @@ import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,11 +59,13 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
+import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ROLE_TYPE;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 
 /**
  * NativeRolesStore is a {@code RolesStore} that, instead of reading from a
@@ -85,22 +88,21 @@ public class NativeRolesStore extends AbstractComponent {
     private final XPackLicenseState licenseState;
 
     private SecurityClient securityClient;
-    private final SecurityLifecycleService securityLifecycleService;
+    private final SecurityIndexManager securityIndex;
 
-    public NativeRolesStore(Settings settings, Client client, XPackLicenseState licenseState,
-                            SecurityLifecycleService securityLifecycleService) {
+    public NativeRolesStore(Settings settings, Client client, XPackLicenseState licenseState, SecurityIndexManager securityIndex) {
         super(settings);
         this.client = client;
         this.securityClient = new SecurityClient(client);
         this.licenseState = licenseState;
-        this.securityLifecycleService = securityLifecycleService;
+        this.securityIndex = securityIndex;
     }
 
     /**
      * Retrieve a list of roles, if rolesToGet is null or empty, fetch all roles
      */
     public void getRoleDescriptors(String[] names, final ActionListener<Collection<RoleDescriptor>> listener) {
-        if (securityLifecycleService.isSecurityIndexExisting() == false) {
+        if (securityIndex.indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
             listener.onResponse(Collections.emptyList());
         } else if (names != null && names.length == 1) {
@@ -108,7 +110,7 @@ public class NativeRolesStore extends AbstractComponent {
                     listener.onResponse(roleDescriptor == null ? Collections.emptyList() : Collections.singletonList(roleDescriptor)),
                     listener::onFailure));
         } else {
-            securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
                 QueryBuilder query;
                 if (names == null || names.length == 0) {
                     query = QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE);
@@ -118,8 +120,8 @@ public class NativeRolesStore extends AbstractComponent {
                 }
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN)) {
-                    SearchRequest request = client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
-                            .setScroll(TimeValue.timeValueSeconds(10L))
+                    SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                            .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                             .setQuery(query)
                             .setSize(1000)
                             .setFetchSource(true)
@@ -133,8 +135,8 @@ public class NativeRolesStore extends AbstractComponent {
     }
 
     public void deleteRole(final DeleteRoleRequest deleteRoleRequest, final ActionListener<Boolean> listener) {
-        securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-            DeleteRequest request = client.prepareDelete(SecurityLifecycleService.SECURITY_INDEX_NAME,
+        securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+            DeleteRequest request = client.prepareDelete(SecurityIndexManager.SECURITY_INDEX_NAME,
                     ROLE_DOC_TYPE, getIdForUser(deleteRoleRequest.name())).request();
             request.setRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
@@ -166,7 +168,7 @@ public class NativeRolesStore extends AbstractComponent {
 
     // pkg-private for testing
     void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
-        securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+        securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final XContentBuilder xContentBuilder;
             try {
                 xContentBuilder = role.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS, true);
@@ -174,15 +176,17 @@ public class NativeRolesStore extends AbstractComponent {
                 listener.onFailure(e);
                 return;
             }
+            final IndexRequest indexRequest = client.prepareIndex(SECURITY_INDEX_NAME, ROLE_DOC_TYPE, getIdForUser(role.getName()))
+                    .setSource(xContentBuilder)
+                    .setRefreshPolicy(request.getRefreshPolicy())
+                    .request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareIndex(SecurityLifecycleService.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, getIdForUser(role.getName()))
-                            .setSource(xContentBuilder)
-                            .setRefreshPolicy(request.getRefreshPolicy())
-                            .request(),
+                    indexRequest,
                     new ActionListener<IndexResponse>() {
                         @Override
                         public void onResponse(IndexResponse indexResponse) {
                             final boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
+                            logger.trace("Created role: [{}]", indexRequest);
                             clearRoleCache(role.getName(), listener, created);
                         }
 
@@ -196,74 +200,73 @@ public class NativeRolesStore extends AbstractComponent {
     }
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {
-        Map<String, Object> usageStats = new HashMap<>();
-        if (securityLifecycleService.isSecurityIndexExisting() == false) {
+        Map<String, Object> usageStats = new HashMap<>(3);
+        if (securityIndex.indexExists() == false) {
             usageStats.put("size", 0L);
             usageStats.put("fls", false);
             usageStats.put("dls", false);
             listener.onResponse(usageStats);
         } else {
-            securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                        client.prepareMultiSearch()
-                                .add(client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
-                                        .setQuery(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
-                                        .setSize(0))
-                                .add(client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
-                                        .setQuery(QueryBuilders.boolQuery()
-                                                .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
-                                                .must(QueryBuilders.boolQuery()
-                                                        .should(existsQuery("indices.field_security.grant"))
-                                                        .should(existsQuery("indices.field_security.except"))
-                                                        // for backwardscompat with 2.x
-                                                        .should(existsQuery("indices.fields"))))
-                                        .setSize(0)
-                                        .setTerminateAfter(1))
-                                .add(client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
-                                        .setQuery(QueryBuilders.boolQuery()
-                                                .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
-                                                .filter(existsQuery("indices.query")))
-                                        .setSize(0)
-                                        .setTerminateAfter(1))
-                                .request(),
-                        new ActionListener<MultiSearchResponse>() {
-                            @Override
-                            public void onResponse(MultiSearchResponse items) {
-                                Item[] responses = items.getResponses();
-                                if (responses[0].isFailure()) {
-                                    usageStats.put("size", 0);
-                                } else {
-                                    usageStats.put("size", responses[0].getResponse().getHits().getTotalHits());
-                                }
-
-                                if (responses[1].isFailure()) {
-                                    usageStats.put("fls", false);
-                                } else {
-                                    usageStats.put("fls", responses[1].getResponse().getHits().getTotalHits() > 0L);
-                                }
-
-                                if (responses[2].isFailure()) {
-                                    usageStats.put("dls", false);
-                                } else {
-                                    usageStats.put("dls", responses[2].getResponse().getHits().getTotalHits() > 0L);
-                                }
-                                listener.onResponse(usageStats);
+                    client.prepareMultiSearch()
+                        .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                            .setQuery(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                            .setSize(0))
+                        .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                            .setQuery(QueryBuilders.boolQuery()
+                                .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                .must(QueryBuilders.boolQuery()
+                                    .should(existsQuery("indices.field_security.grant"))
+                                    .should(existsQuery("indices.field_security.except"))
+                                    // for backwardscompat with 2.x
+                                    .should(existsQuery("indices.fields"))))
+                            .setSize(0)
+                            .setTerminateAfter(1))
+                        .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                            .setQuery(QueryBuilders.boolQuery()
+                                .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                .filter(existsQuery("indices.query")))
+                            .setSize(0)
+                            .setTerminateAfter(1))
+                        .request(),
+                    new ActionListener<MultiSearchResponse>() {
+                        @Override
+                        public void onResponse(MultiSearchResponse items) {
+                            Item[] responses = items.getResponses();
+                            if (responses[0].isFailure()) {
+                                usageStats.put("size", 0);
+                            } else {
+                                usageStats.put("size", responses[0].getResponse().getHits().getTotalHits());
+                            }
+                            if (responses[1].isFailure()) {
+                                usageStats.put("fls", false);
+                            } else {
+                                usageStats.put("fls", responses[1].getResponse().getHits().getTotalHits() > 0L);
                             }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                listener.onFailure(e);
+                            if (responses[2].isFailure()) {
+                                usageStats.put("dls", false);
+                            } else {
+                                usageStats.put("dls", responses[2].getResponse().getHits().getTotalHits() > 0L);
                             }
-                        }, client::multiSearch));
+                            listener.onResponse(usageStats);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    }, client::multiSearch));
         }
     }
 
     private void getRoleDescriptor(final String roleId, ActionListener<RoleDescriptor> roleActionListener) {
-        if (securityLifecycleService.isSecurityIndexExisting() == false) {
+        if (securityIndex.indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
             roleActionListener.onResponse(null);
         } else {
-            securityLifecycleService.prepareIndexIfNeededThenExecute(roleActionListener::onFailure, () ->
+            securityIndex.prepareIndexIfNeededThenExecute(roleActionListener::onFailure, () ->
                     executeGetRoleRequest(roleId, new ActionListener<GetResponse>() {
                         @Override
                         public void onResponse(GetResponse response) {
@@ -288,9 +291,9 @@ public class NativeRolesStore extends AbstractComponent {
     }
 
     private void executeGetRoleRequest(String role, ActionListener<GetResponse> listener) {
-        securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+        securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME,
+                    client.prepareGet(SECURITY_INDEX_NAME,
                             ROLE_DOC_TYPE, getIdForUser(role)).request(),
                     listener,
                     client::get));

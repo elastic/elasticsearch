@@ -53,10 +53,10 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
-import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.TopHits;
+import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.sort.SortOrder;
 import org.joda.time.DateTimeZone;
@@ -136,9 +136,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         IndexSearcher searcher = new IndexSearcher(new MultiReader());
         QueryShardException exc =
             expectThrows(QueryShardException.class, () -> createAggregatorFactory(builder, searcher));
-        assertThat(exc.getMessage(), containsString("failed to find field [unknown] and [missing] is not provided"));
-        // should work when missing is provided
-        terms.missing("missing");
+        assertThat(exc.getMessage(), containsString("failed to find field [unknown] and [missing_bucket] is not set"));
+        // should work when missing_bucket is set
+        terms.missingBucket(true);
         createAggregatorFactory(builder, searcher);
     }
 
@@ -183,6 +183,97 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(2L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{keyword=d}", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
+            }
+        );
+    }
+
+    public void testWithKeywordAndMissingBucket() throws Exception {
+        final List<Map<String, List<Object>>> dataset = new ArrayList<>();
+        dataset.addAll(
+            Arrays.asList(
+                createDocument("keyword", "a"),
+                createDocument("long", 0L),
+                createDocument("keyword", "c"),
+                createDocument("keyword", "a"),
+                createDocument("keyword", "d"),
+                createDocument("keyword", "c"),
+                createDocument("long", 5L)
+            )
+        );
+
+        // sort ascending, null bucket is first
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery()), dataset,
+            () -> {
+                TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword")
+                    .field("keyword")
+                    .missingBucket(true);
+                return new CompositeAggregationBuilder("name", Collections.singletonList(terms));
+            }, (result) -> {
+                assertEquals(4, result.getBuckets().size());
+                assertEquals("{keyword=d}", result.afterKey().toString());
+                assertEquals("{keyword=null}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{keyword=a}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{keyword=c}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(2).getDocCount());
+                assertEquals("{keyword=d}", result.getBuckets().get(3).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(3).getDocCount());
+            }
+        );
+
+        // sort descending, null bucket is last
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery()), dataset,
+            () -> {
+                TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword")
+                    .field("keyword")
+                    .missingBucket(true)
+                    .order(SortOrder.DESC);
+                return new CompositeAggregationBuilder("name", Collections.singletonList(terms));
+            }, (result) -> {
+                assertEquals(4, result.getBuckets().size());
+                assertEquals("{keyword=null}", result.afterKey().toString());
+                assertEquals("{keyword=null}", result.getBuckets().get(3).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(3).getDocCount());
+                assertEquals("{keyword=a}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(2).getDocCount());
+                assertEquals("{keyword=c}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{keyword=d}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+            }
+        );
+
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("keyword")), dataset,
+            () -> {
+                TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword")
+                    .field("keyword")
+                    .missingBucket(true);
+                return new CompositeAggregationBuilder("name", Collections.singletonList(terms))
+                    .aggregateAfter(Collections.singletonMap("keyword", null));
+            }, (result) -> {
+                assertEquals(3, result.getBuckets().size());
+                assertEquals("{keyword=d}", result.afterKey().toString());
+                assertEquals("{keyword=a}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{keyword=c}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{keyword=d}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(2).getDocCount());
+            }
+        );
+
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("keyword")), dataset,
+            () -> {
+                TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword")
+                    .field("keyword")
+                    .missingBucket(true)
+                    .order(SortOrder.DESC);
+                return new CompositeAggregationBuilder("name", Collections.singletonList(terms))
+                    .aggregateAfter(Collections.singletonMap("keyword", null));
+            }, (result) -> {
+                assertEquals(0, result.getBuckets().size());
+                assertNull(result.afterKey());
             }
         );
     }
@@ -514,6 +605,67 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
                 assertEquals("{keyword=c, long=100}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(0).getDocCount());
+            }
+        );
+    }
+
+    public void testWithKeywordLongAndMissingBucket() throws Exception {
+        final List<Map<String, List<Object>>> dataset = new ArrayList<>();
+        dataset.addAll(
+            Arrays.asList(
+                createDocument("keyword", "a", "long", 100L),
+                createDocument("double", 0d),
+                createDocument("keyword", "c", "long", 100L),
+                createDocument("keyword", "a", "long", 0L),
+                createDocument("keyword", "d", "long", 10L),
+                createDocument("keyword", "c"),
+                createDocument("keyword", "c", "long", 100L),
+                createDocument("long", 100L),
+                createDocument("double", 0d)
+            )
+        );
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery()), dataset,
+            () -> new CompositeAggregationBuilder("name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("keyword").field("keyword").missingBucket(true),
+                    new TermsValuesSourceBuilder("long").field("long").missingBucket(true)
+                )
+            ),
+            (result) -> {
+                assertEquals(7, result.getBuckets().size());
+                assertEquals("{keyword=d, long=10}", result.afterKey().toString());
+                assertEquals("{keyword=null, long=null}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{keyword=null, long=100}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{keyword=a, long=0}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(2).getDocCount());
+                assertEquals("{keyword=a, long=100}", result.getBuckets().get(3).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(3).getDocCount());
+                assertEquals("{keyword=c, long=null}", result.getBuckets().get(4).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(4).getDocCount());
+                assertEquals("{keyword=c, long=100}", result.getBuckets().get(5).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(5).getDocCount());
+                assertEquals("{keyword=d, long=10}", result.getBuckets().get(6).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(6).getDocCount());
+            }
+        );
+
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("keyword")), dataset,
+            () -> new CompositeAggregationBuilder("name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("keyword").field("keyword").missingBucket(true),
+                    new TermsValuesSourceBuilder("long").field("long").missingBucket(true)
+                )
+            ).aggregateAfter(createAfterKey("keyword", "c", "long", null)
+            ),
+            (result) -> {
+                assertEquals(2, result.getBuckets().size());
+                assertEquals("{keyword=d, long=10}", result.afterKey().toString());
+                assertEquals("{keyword=c, long=100}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{keyword=d, long=10}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
             }
         );
     }
@@ -1305,7 +1457,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 topHits = result.getBuckets().get(2).getAggregations().get("top_hits");
                 assertNotNull(topHits);
                 assertEquals(topHits.getHits().getHits().length, 1);
-                assertEquals(topHits.getHits().getTotalHits(), 1L);;
+                assertEquals(topHits.getHits().getTotalHits(), 1L);
             }
         );
 
@@ -1594,7 +1746,6 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     private static Map<String, Object> createAfterKey(Object... fields) {
         assert fields.length % 2 == 0;
         final Map<String, Object> map = new HashMap<>();

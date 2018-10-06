@@ -336,16 +336,72 @@ setup:
   - length: { suggest.result.0.options: 1  }
   - match:  { suggest.result.0.options.0.text: "foo" }
 
+---
+"Indexing and Querying without contexts is forbidden":
+  - skip:
+      version: " - 6.99.99"
+      reason: this feature was removed in 7.0
+
   - do:
-       search:
+      index:
+        index: test
+        type:  test
+        id:    1
+        body:
+          suggest_context:
+            input: "foo"
+            contexts:
+              color: "red"
+          suggest_multi_contexts:
+            input: "bar"
+            contexts:
+              color: "blue"
+
+  - do:
+      catch: /Contexts are mandatory in context enabled completion field \[suggest_context\]/
+      index:
+        index: test
+        type:  test
+        id:    2
+        body:
+          suggest_context:
+            input: "foo"
+
+  - do:
+      indices.refresh: {}
+      
+  - do:
+      catch: /Missing mandatory contexts in context query/
+      search:
+        allow_partial_search_results: false
         body:
           suggest:
             result:
               text: "foo"
               completion:
-                skip_duplicates: true
                 field: suggest_context
 
-  - length: { suggest.result: 1  }
-  - length: { suggest.result.0.options: 1  }
-  - match:  { suggest.result.0.options.0.text: "foo" }
+  - do:
+      catch: /Missing mandatory contexts in context query/
+      search:
+        allow_partial_search_results: false
+        body:
+          suggest:
+            result:
+              text: "foo"
+              completion:
+                field: suggest_context
+                contexts: {}
+
+  - do:
+      catch: /Missing mandatory contexts in context query/
+      search:
+        allow_partial_search_results: false
+        body:
+          suggest:
+            result:
+              text: "foo"
+              completion:
+                field: suggest_multi_contexts
+                contexts:
+                  location: []

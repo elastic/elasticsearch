@@ -144,6 +144,13 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         return this;
     }
 
+    /**
+     * @return the number of composite buckets. Defaults to {@code 10}.
+     */
+    public int size() {
+        return size;
+    }
+
     @Override
     protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent,
                                            AggregatorFactories.Builder subfactoriesBuilder) throws IOException {
@@ -170,7 +177,9 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
                     throw new IllegalArgumentException("Missing value for [after." + sources.get(i).name() + "]");
                 }
                 Object obj = after.get(sourceName);
-                if (obj instanceof Comparable) {
+                if (configs[i].missingBucket() && obj == null) {
+                    values[i] = null;
+                } else if (obj instanceof Comparable) {
                     values[i] = (Comparable<?>) obj;
                 } else {
                     throw new IllegalArgumentException("Invalid value for [after." + sources.get(i).name() +
@@ -191,11 +200,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         builder.field(SIZE_FIELD_NAME.getPreferredName(), size);
         builder.startArray(SOURCES_FIELD_NAME.getPreferredName());
         for (CompositeValuesSourceBuilder<?> source: sources) {
-            builder.startObject();
-            builder.startObject(source.name());
-            source.toXContent(builder, params);
-            builder.endObject();
-            builder.endObject();
+            CompositeValuesSourceParserHelper.toXContent(source, builder, params);
         }
         builder.endArray();
         if (after != null) {

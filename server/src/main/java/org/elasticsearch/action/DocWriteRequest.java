@@ -57,6 +57,7 @@ public interface DocWriteRequest<T> extends IndicesRequest {
      * Get the options for this request
      * @return the indices options
      */
+    @Override
     IndicesOptions indicesOptions();
 
     /**
@@ -157,9 +158,9 @@ public interface DocWriteRequest<T> extends IndicesRequest {
     }
 
     /** read a document write (index/delete/update) request */
-    static DocWriteRequest readDocumentRequest(StreamInput in) throws IOException {
+    static DocWriteRequest<?> readDocumentRequest(StreamInput in) throws IOException {
         byte type = in.readByte();
-        DocWriteRequest docWriteRequest;
+        DocWriteRequest<?> docWriteRequest;
         if (type == 0) {
             IndexRequest indexRequest = new IndexRequest();
             indexRequest.readFrom(in);
@@ -179,7 +180,7 @@ public interface DocWriteRequest<T> extends IndicesRequest {
     }
 
     /** write a document write (index/delete/update) request*/
-    static void writeDocumentRequest(StreamOutput out, DocWriteRequest request)  throws IOException {
+    static void writeDocumentRequest(StreamOutput out, DocWriteRequest<?> request)  throws IOException {
         if (request instanceof IndexRequest) {
             out.writeByte((byte) 0);
             ((IndexRequest) request).writeTo(out);

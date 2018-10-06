@@ -28,7 +28,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -86,20 +85,26 @@ public final class GeoPoint implements ToXContentFragment {
 
     public GeoPoint resetFromString(String value, final boolean ignoreZValue) {
         if (value.contains(",")) {
-            String[] vals = value.split(",");
-            if (vals.length > 3) {
-                throw new ElasticsearchParseException("failed to parse [{}], expected 2 or 3 coordinates "
-                    + "but found: [{}]", vals.length);
-            }
-            double lat = Double.parseDouble(vals[0].trim());
-            double lon = Double.parseDouble(vals[1].trim());
-            if (vals.length > 2) {
-                GeoPoint.assertZValue(ignoreZValue, Double.parseDouble(vals[2].trim()));
-            }
-            return reset(lat, lon);
+            return resetFromCoordinates(value, ignoreZValue);
         }
         return resetFromGeoHash(value);
     }
+
+
+    public GeoPoint resetFromCoordinates(String value, final boolean ignoreZValue) {
+        String[] vals = value.split(",");
+        if (vals.length > 3) {
+            throw new ElasticsearchParseException("failed to parse [{}], expected 2 or 3 coordinates "
+                + "but found: [{}]", vals.length);
+        }
+        double lat = Double.parseDouble(vals[0].trim());
+        double lon = Double.parseDouble(vals[1].trim());
+        if (vals.length > 2) {
+            GeoPoint.assertZValue(ignoreZValue, Double.parseDouble(vals[2].trim()));
+        }
+        return reset(lat, lon);
+    }
+
 
     public GeoPoint resetFromIndexHash(long hash) {
         lon = GeoHashUtils.decodeLongitude(hash);
@@ -126,7 +131,12 @@ public final class GeoPoint implements ToXContentFragment {
     }
 
     public GeoPoint resetFromGeoHash(String geohash) {
-        final long hash = mortonEncode(geohash);
+        final long hash;
+        try {
+            hash = mortonEncode(geohash);
+        } catch (IllegalArgumentException ex) {
+            throw new ElasticsearchParseException(ex.getMessage(), ex);
+        }
         return this.reset(GeoHashUtils.decodeLatitude(hash), GeoHashUtils.decodeLongitude(hash));
     }
 

@@ -99,9 +99,17 @@ public abstract class Expressions {
             return ((NamedExpression) e).toAttribute();
         }
         if (e != null && e.foldable()) {
-            return new LiteralAttribute(Literal.of(e));
+            return Literal.of(e).toAttribute();
         }
         return null;
+    }
+
+    public static boolean equalsAsAttribute(Expression left, Expression right) {
+        if (!left.semanticEquals(right)) {
+            Attribute l = attribute(left);
+            return (l != null && l.semanticEquals(attribute(right)));
+        }
+        return true;
     }
 
     public static TypeResolution typeMustBe(Expression e, Predicate<Expression> predicate, String message) {

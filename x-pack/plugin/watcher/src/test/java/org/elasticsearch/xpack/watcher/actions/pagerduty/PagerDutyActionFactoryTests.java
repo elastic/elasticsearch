@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyAccount;
 import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyService;
 import org.junit.Before;
 
-import java.util.Collections;
 import java.util.HashSet;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;

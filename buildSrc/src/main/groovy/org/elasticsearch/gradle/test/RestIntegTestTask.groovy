@@ -24,7 +24,6 @@ import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.DefaultTask
 import org.gradle.api.Project
 import org.gradle.api.Task
-import org.gradle.api.Transformer
 import org.gradle.api.execution.TaskExecutionAdapter
 import org.gradle.api.internal.tasks.options.Option
 import org.gradle.api.provider.Property
@@ -32,6 +31,7 @@ import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.TaskState
+import org.gradle.plugins.ide.idea.IdeaPlugin
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -61,7 +61,7 @@ public class RestIntegTestTask extends DefaultTask {
         clusterInit = project.tasks.create(name: "${name}Cluster#init", dependsOn: project.testClasses)
         runner.dependsOn(clusterInit)
         runner.classpath = project.sourceSets.test.runtimeClasspath
-        runner.testClassesDir = project.sourceSets.test.output.classesDir
+        runner.testClassesDirs = project.sourceSets.test.output.classesDirs
         clusterConfig = project.extensions.create("${name}Cluster", ClusterConfiguration.class, project)
 
         // start with the common test configuration
@@ -70,31 +70,44 @@ public class RestIntegTestTask extends DefaultTask {
         runner.parallelism = '1'
         runner.include('**/*IT.class')
         runner.systemProperty('tests.rest.load_packaged', 'false')
-        // we pass all nodes to the rest cluster to allow the clients to round-robin between them
-        // this is more realistic than just talking to a single node
-        runner.systemProperty('tests.rest.cluster', "${-> nodes.collect{it.httpUri()}.join(",")}")
-        runner.systemProperty('tests.config.dir', "${-> nodes[0].pathConf}")
-        // TODO: our "client" qa tests currently use the rest-test plugin. instead they should have their own plugin
-        // that sets up the test cluster and passes this transport uri instead of http uri. Until then, we pass
-        // both as separate sysprops
-        runner.systemProperty('tests.cluster', "${-> nodes[0].transportUri()}")
 
-        // dump errors and warnings from cluster log on failure
-        TaskExecutionAdapter logDumpListener = new TaskExecutionAdapter() {
-            @Override
-            void afterExecute(Task task, TaskState state) {
-                if (state.failure != null) {
-                    for (NodeInfo nodeInfo : nodes) {
-                        printLogExcerpt(nodeInfo)
+        if (System.getProperty("tests.rest.cluster") == null) {
+            if (System.getProperty("tests.cluster") != null) {
+                throw new IllegalArgumentException("tests.rest.cluster and tests.cluster must both be null or non-null")
+            }
+            // we pass all nodes to the rest cluster to allow the clients to round-robin between them
+            // this is more realistic than just talking to a single node
+            runner.systemProperty('tests.rest.cluster', "${-> nodes.collect{it.httpUri()}.join(",")}")
+            runner.systemProperty('tests.config.dir', "${-> nodes[0].pathConf}")
+            // TODO: our "client" qa tests currently use the rest-test plugin. instead they should have their own plugin
+            // that sets up the test cluster and passes this transport uri instead of http uri. Until then, we pass
+            // both as separate sysprops
+            runner.systemProperty('tests.cluster', "${-> nodes[0].transportUri()}")
+
+            // dump errors and warnings from cluster log on failure
+            TaskExecutionAdapter logDumpListener = new TaskExecutionAdapter() {
+                @Override
+                void afterExecute(Task task, TaskState state) {
+                    if (state.failure != null) {
+                        for (NodeInfo nodeInfo : nodes) {
+                            printLogExcerpt(nodeInfo)
+                        }
                     }
                 }
             }
-        }
-        runner.doFirst {
-            project.gradle.addListener(logDumpListener)
-        }
-        runner.doLast {
-            project.gradle.removeListener(logDumpListener)
+            runner.doFirst {
+                project.gradle.addListener(logDumpListener)
+            }
+            runner.doLast {
+                project.gradle.removeListener(logDumpListener)
+            }
+        } else {
+            if (System.getProperty("tests.cluster") == null) {
+                throw new IllegalArgumentException("tests.rest.cluster and tests.cluster must both be null or non-null")
+            }
+            // an external cluster was specified and all responsibility for cluster configuration is taken by the user
+            runner.systemProperty('tests.rest.cluster', System.getProperty("tests.rest.cluster"))
+            runner.systemProperty('test.cluster', System.getProperty("tests.cluster"))
         }
 
         // copy the rest spec/tests into the test resources
@@ -109,7 +122,10 @@ public class RestIntegTestTask extends DefaultTask {
                 clusterInit.enabled = false
                 return // no need to add cluster formation tasks if the task won't run!
             }
-            nodes = ClusterFormationTasks.setup(project, "${name}Cluster", runner, clusterConfig)
+            // only create the cluster if needed as otherwise an external cluster to use was specified
+            if (System.getProperty("tests.rest.cluster") == null) {
+                nodes = ClusterFormationTasks.setup(project, "${name}Cluster", runner, clusterConfig)
+            }
             super.dependsOn(runner.finalizedBy)
         }
     }
@@ -201,7 +217,7 @@ public class RestIntegTestTask extends DefaultTask {
      * @param project The project to add the copy task to
      * @param includePackagedTests true if the packaged tests should be copied, false otherwise
      */
-    private static Task createCopyRestSpecTask(Project project, Provider<Boolean> includePackagedTests) {
+    static Task createCopyRestSpecTask(Project project, Provider<Boolean> includePackagedTests) {
         project.configurations {
             restSpec
         }
@@ -228,10 +244,12 @@ public class RestIntegTestTask extends DefaultTask {
                 }
             }
         }
-        project.idea {
-            module {
-                if (scopes.TEST != null) {
-                    scopes.TEST.plus.add(project.configurations.restSpec)
+        if (project.plugins.hasPlugin(IdeaPlugin)) {
+            project.idea {
+                module {
+                    if (scopes.TEST != null) {
+                        scopes.TEST.plus.add(project.configurations.restSpec)
+                    }
                 }
             }
         }

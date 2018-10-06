@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
-import org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -58,14 +57,15 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -107,6 +107,11 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockTransportService.TestPlugin.class, MockFSIndexStore.TestPlugin.class,
                 RecoverySettingsChunkSizePlugin.class);
+    }
+
+    @After
+    public void assertConsistentHistoryInLuceneIndex() throws Exception {
+        internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
     }
 
     private void assertRecoveryStateWithoutStage(RecoveryState state, int shardId, RecoverySource recoverySource, boolean primary,
@@ -179,7 +184,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         RecoveryState recoveryState = recoveryStates.get(0);
 
-        assertRecoveryState(recoveryState, 0, StoreRecoverySource.EXISTING_STORE_INSTANCE, true, Stage.DONE, null, node);
+        assertRecoveryState(recoveryState, 0, RecoverySource.ExistingStoreRecoverySource.INSTANCE, true, Stage.DONE, null, node);
 
         validateIndexRecoveryState(recoveryState.getIndex());
     }
@@ -232,7 +237,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         // validate node A recovery
         RecoveryState nodeARecoveryState = nodeAResponses.get(0);
-        assertRecoveryState(nodeARecoveryState, 0, StoreRecoverySource.EMPTY_STORE_INSTANCE, true, Stage.DONE, null, nodeA);
+        assertRecoveryState(nodeARecoveryState, 0, RecoverySource.EmptyStoreRecoverySource.INSTANCE, true, Stage.DONE, null, nodeA);
         validateIndexRecoveryState(nodeARecoveryState.getIndex());
 
         // validate node B recovery
@@ -241,6 +246,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         validateIndexRecoveryState(nodeBRecoveryState.getIndex());
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/32686")
     @TestLogging(
             "_root:DEBUG,"
                     + "org.elasticsearch.cluster.service:TRACE,"
@@ -287,7 +293,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         List<RecoveryState> nodeBRecoveryStates = findRecoveriesForTargetNode(nodeB, recoveryStates);
         assertThat(nodeBRecoveryStates.size(), equalTo(1));
 
-        assertRecoveryState(nodeARecoveryStates.get(0), 0, StoreRecoverySource.EMPTY_STORE_INSTANCE, true, Stage.DONE, null, nodeA);
+        assertRecoveryState(nodeARecoveryStates.get(0), 0, RecoverySource.EmptyStoreRecoverySource.INSTANCE, true, Stage.DONE, null, nodeA);
         validateIndexRecoveryState(nodeARecoveryStates.get(0).getIndex());
 
         assertOnGoingRecoveryState(nodeBRecoveryStates.get(0), 0, PeerRecoverySource.INSTANCE, true, nodeA, nodeB);
@@ -543,7 +549,6 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final Settings nodeSettings = Settings.builder()
                 .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), "100ms")
                 .put(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(), "1s")
-                .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE_SETTING.getKey(), false) // restarted recoveries will delete temp files and write them again
                 .build();
         // start a master node
         internalCluster().startNode(nodeSettings);
@@ -598,8 +603,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         TransportService blueTransportService = internalCluster().getInstance(TransportService.class, blueNodeName);
         final CountDownLatch requestBlocked = new CountDownLatch(1);
 
-        blueMockTransportService.addDelegate(redTransportService, new RecoveryActionBlocker(dropRequests, recoveryActionToBlock, blueMockTransportService.original(), requestBlocked));
-        redMockTransportService.addDelegate(blueTransportService, new RecoveryActionBlocker(dropRequests, recoveryActionToBlock, redMockTransportService.original(), requestBlocked));
+        blueMockTransportService.addSendBehavior(redTransportService, new RecoveryActionBlocker(dropRequests, recoveryActionToBlock, requestBlocked));
+        redMockTransportService.addSendBehavior(blueTransportService, new RecoveryActionBlocker(dropRequests, recoveryActionToBlock, requestBlocked));
 
         logger.info("--> starting recovery from blue to red");
         client().admin().indices().prepareUpdateSettings(indexName).setSettings(
@@ -620,21 +625,20 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
     }
 
-    private class RecoveryActionBlocker extends MockTransportService.DelegateTransport {
+    private class RecoveryActionBlocker implements StubbableTransport.SendRequestBehavior {
         private final boolean dropRequests;
         private final String recoveryActionToBlock;
         private final CountDownLatch requestBlocked;
 
-        RecoveryActionBlocker(boolean dropRequests, String recoveryActionToBlock, Transport delegate, CountDownLatch requestBlocked) {
-            super(delegate);
+        RecoveryActionBlocker(boolean dropRequests, String recoveryActionToBlock, CountDownLatch requestBlocked) {
             this.dropRequests = dropRequests;
             this.recoveryActionToBlock = recoveryActionToBlock;
             this.requestBlocked = requestBlocked;
         }
 
         @Override
-        protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
-                                   TransportRequestOptions options) throws IOException {
+        public void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
+                                TransportRequestOptions options) throws IOException {
             if (recoveryActionToBlock.equals(action) || requestBlocked.getCount() == 0) {
                 logger.info("--> preventing {} request", action);
                 requestBlocked.countDown();
@@ -643,7 +647,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 }
                 throw new ConnectTransportException(connection.getNode(), "DISCONNECT: prevented " + action + " request");
             }
-            super.sendRequest(connection, requestId, action, request, options);
+            connection.sendRequest(requestId, action, request, options);
         }
     }
 
@@ -686,12 +690,12 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         MockTransportService blueMockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, blueNodeName);
         MockTransportService redMockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, redNodeName);
 
-        redMockTransportService.addDelegate(blueMockTransportService, new MockTransportService.DelegateTransport(redMockTransportService.original()) {
+        redMockTransportService.addSendBehavior(blueMockTransportService, new StubbableTransport.SendRequestBehavior() {
             private final AtomicInteger count = new AtomicInteger();
 
             @Override
-            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
-                                       TransportRequestOptions options) throws IOException {
+            public void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
+                                    TransportRequestOptions options) throws IOException {
                 logger.info("--> sending request {} on {}", action, connection.getNode());
                 if (PeerRecoverySourceService.Actions.START_RECOVERY.equals(action) && count.incrementAndGet() == 1) {
                     // ensures that it's considered as valid recovery attempt by source
@@ -701,7 +705,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     } catch (InterruptedException e) {
                         throw new RuntimeException(e);
                     }
-                    super.sendRequest(connection, requestId, action, request, options);
+                    connection.sendRequest(requestId, action, request, options);
                     try {
                         Thread.sleep(disconnectAfterDelay.millis());
                     } catch (InterruptedException e) {
@@ -709,35 +713,27 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     }
                     throw new ConnectTransportException(connection.getNode(), "DISCONNECT: simulation disconnect after successfully sending " + action + " request");
                 } else {
-                    super.sendRequest(connection, requestId, action, request, options);
+                    connection.sendRequest(requestId, action, request, options);
                 }
             }
         });
 
         final AtomicBoolean finalized = new AtomicBoolean();
-        blueMockTransportService.addDelegate(redMockTransportService, new MockTransportService.DelegateTransport(blueMockTransportService.original()) {
-            @Override
-            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
-                                       TransportRequestOptions options) throws IOException {
-                logger.info("--> sending request {} on {}", action, connection.getNode());
-                if (action.equals(PeerRecoveryTargetService.Actions.FINALIZE)) {
-                    finalized.set(true);
-                }
-                super.sendRequest(connection, requestId, action, request, options);
+        blueMockTransportService.addSendBehavior(redMockTransportService, (connection, requestId, action, request, options) -> {
+            logger.info("--> sending request {} on {}", action, connection.getNode());
+            if (action.equals(PeerRecoveryTargetService.Actions.FINALIZE)) {
+                finalized.set(true);
             }
+            connection.sendRequest(requestId, action, request, options);
         });
 
         for (MockTransportService mockTransportService : Arrays.asList(redMockTransportService, blueMockTransportService)) {
-            mockTransportService.addDelegate(masterTransportService, new MockTransportService.DelegateTransport(mockTransportService.original()) {
-                @Override
-                protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
-                                           TransportRequestOptions options) throws IOException {
-                    logger.info("--> sending request {} on {}", action, connection.getNode());
-                    if ((primaryRelocation && finalized.get()) == false) {
-                        assertNotEquals(action, ShardStateAction.SHARD_FAILED_ACTION_NAME);
-                    }
-                    super.sendRequest(connection, requestId, action, request, options);
+            mockTransportService.addSendBehavior(masterTransportService, (connection, requestId, action, request, options) -> {
+                logger.info("--> sending request {} on {}", action, connection.getNode());
+                if ((primaryRelocation && finalized.get()) == false) {
+                    assertNotEquals(action, ShardStateAction.SHARD_FAILED_ACTION_NAME);
                 }
+                connection.sendRequest(requestId, action, request, options);
             });
         }
 

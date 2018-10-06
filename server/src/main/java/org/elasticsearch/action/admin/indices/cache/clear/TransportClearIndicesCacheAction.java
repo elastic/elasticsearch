@@ -49,10 +49,10 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
     private final IndicesService indicesService;
 
     @Inject
-    public TransportClearIndicesCacheAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+    public TransportClearIndicesCacheAction(Settings settings, ClusterService clusterService,
                                             TransportService transportService, IndicesService indicesService, ActionFilters actionFilters,
                                             IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ClearIndicesCacheAction.NAME, threadPool, clusterService, transportService, actionFilters,
+        super(settings, ClearIndicesCacheAction.NAME, clusterService, transportService, actionFilters,
             indexNameExpressionResolver, ClearIndicesCacheRequest::new, ThreadPool.Names.MANAGEMENT, false);
         this.indicesService = indicesService;
     }

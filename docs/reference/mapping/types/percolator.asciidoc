@@ -194,8 +194,8 @@ now returns matches from the new index:
   "took": 3,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
@@ -389,8 +389,8 @@ This results in a response like this:
   "took": 6,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
@@ -446,7 +446,6 @@ PUT my_queries1
           "type": "custom",
           "tokenizer": "standard",
           "filter": [
-            "standard",
             "lowercase",
             "wildcard_edge_ngram"
           ]
@@ -549,8 +548,8 @@ GET /my_queries1/_search
   "took": 6,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped": 0,
     "failed": 0
   },
@@ -597,7 +596,6 @@ PUT my_queries2
           "type": "custom",
           "tokenizer": "standard",
           "filter": [
-            "standard",
             "lowercase",
             "reverse",
             "wildcard_edge_ngram"
@@ -607,7 +605,6 @@ PUT my_queries2
           "type": "custom",
           "tokenizer": "standard",
           "filter": [
-            "standard",
             "lowercase",
             "reverse"
           ]

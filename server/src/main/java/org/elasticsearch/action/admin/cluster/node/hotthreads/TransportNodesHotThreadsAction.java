@@ -24,7 +24,6 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,11 +42,10 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
                                                                          NodeHotThreads> {
 
     @Inject
-    public TransportNodesHotThreadsAction(Settings settings, ThreadPool threadPool,
-                                          ClusterService clusterService, TransportService transportService,
-                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public TransportNodesHotThreadsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                          TransportService transportService, ActionFilters actionFilters) {
         super(settings, NodesHotThreadsAction.NAME, threadPool, clusterService, transportService, actionFilters,
-              indexNameExpressionResolver, NodesHotThreadsRequest::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeHotThreads.class);
+            NodesHotThreadsRequest::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeHotThreads.class);
     }
 
     @Override

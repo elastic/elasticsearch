@@ -19,82 +19,35 @@
 
 package org.elasticsearch.indices.analysis;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.LowerCaseFilter;
-import org.apache.lucene.analysis.standard.StandardFilter;
+import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.NamedRegistry;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
-import org.elasticsearch.index.analysis.ArabicAnalyzerProvider;
-import org.elasticsearch.index.analysis.ArmenianAnalyzerProvider;
-import org.elasticsearch.index.analysis.BasqueAnalyzerProvider;
-import org.elasticsearch.index.analysis.BengaliAnalyzerProvider;
-import org.elasticsearch.index.analysis.BrazilianAnalyzerProvider;
-import org.elasticsearch.index.analysis.BulgarianAnalyzerProvider;
-import org.elasticsearch.index.analysis.CatalanAnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.index.analysis.ChineseAnalyzerProvider;
-import org.elasticsearch.index.analysis.CjkAnalyzerProvider;
-import org.elasticsearch.index.analysis.ClassicTokenizerFactory;
-import org.elasticsearch.index.analysis.CzechAnalyzerProvider;
-import org.elasticsearch.index.analysis.DanishAnalyzerProvider;
-import org.elasticsearch.index.analysis.DutchAnalyzerProvider;
-import org.elasticsearch.index.analysis.EdgeNGramTokenizerFactory;
-import org.elasticsearch.index.analysis.EnglishAnalyzerProvider;
-import org.elasticsearch.index.analysis.FingerprintAnalyzerProvider;
-import org.elasticsearch.index.analysis.FinnishAnalyzerProvider;
-import org.elasticsearch.index.analysis.FrenchAnalyzerProvider;
-import org.elasticsearch.index.analysis.GalicianAnalyzerProvider;
-import org.elasticsearch.index.analysis.GermanAnalyzerProvider;
-import org.elasticsearch.index.analysis.GreekAnalyzerProvider;
-import org.elasticsearch.index.analysis.HindiAnalyzerProvider;
-import org.elasticsearch.index.analysis.HungarianAnalyzerProvider;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
-import org.elasticsearch.index.analysis.IndonesianAnalyzerProvider;
-import org.elasticsearch.index.analysis.IrishAnalyzerProvider;
-import org.elasticsearch.index.analysis.ItalianAnalyzerProvider;
 import org.elasticsearch.index.analysis.KeywordAnalyzerProvider;
-import org.elasticsearch.index.analysis.KeywordTokenizerFactory;
-import org.elasticsearch.index.analysis.LatvianAnalyzerProvider;
-import org.elasticsearch.index.analysis.LetterTokenizerFactory;
-import org.elasticsearch.index.analysis.LithuanianAnalyzerProvider;
-import org.elasticsearch.index.analysis.LowerCaseTokenizerFactory;
-import org.elasticsearch.index.analysis.NGramTokenizerFactory;
-import org.elasticsearch.index.analysis.NorwegianAnalyzerProvider;
-import org.elasticsearch.index.analysis.PathHierarchyTokenizerFactory;
-import org.elasticsearch.index.analysis.PatternAnalyzerProvider;
-import org.elasticsearch.index.analysis.PatternTokenizerFactory;
-import org.elasticsearch.index.analysis.PersianAnalyzerProvider;
-import org.elasticsearch.index.analysis.PortugueseAnalyzerProvider;
+import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
-import org.elasticsearch.index.analysis.RomanianAnalyzerProvider;
-import org.elasticsearch.index.analysis.RussianAnalyzerProvider;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.SimpleAnalyzerProvider;
-import org.elasticsearch.index.analysis.SnowballAnalyzerProvider;
-import org.elasticsearch.index.analysis.SoraniAnalyzerProvider;
-import org.elasticsearch.index.analysis.SpanishAnalyzerProvider;
 import org.elasticsearch.index.analysis.StandardAnalyzerProvider;
-import org.elasticsearch.index.analysis.StandardHtmlStripAnalyzerProvider;
-import org.elasticsearch.index.analysis.StandardTokenFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.StopAnalyzerProvider;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
-import org.elasticsearch.index.analysis.SwedishAnalyzerProvider;
-import org.elasticsearch.index.analysis.ThaiAnalyzerProvider;
-import org.elasticsearch.index.analysis.ThaiTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.index.analysis.TurkishAnalyzerProvider;
-import org.elasticsearch.index.analysis.UAX29URLEmailTokenizerFactory;
 import org.elasticsearch.index.analysis.WhitespaceAnalyzerProvider;
-import org.elasticsearch.index.analysis.WhitespaceTokenizerFactory;
 import org.elasticsearch.plugins.AnalysisPlugin;
 
 import java.io.IOException;
@@ -103,7 +56,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.plugins.AnalysisPlugin.requriesAnalysisSettings;
+import static org.elasticsearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
 
 /**
  * Sets up {@link AnalysisRegistry}.
@@ -117,6 +70,8 @@ public final class AnalysisModule {
     }
 
     private static final IndexSettings NA_INDEX_SETTINGS;
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(AnalysisModule.class));
 
     private final HunspellService hunspellService;
     private final AnalysisRegistry analysisRegistry;
@@ -133,11 +88,12 @@ public final class AnalysisModule {
         Map<String, PreConfiguredCharFilter> preConfiguredCharFilters = setupPreConfiguredCharFilters(plugins);
         Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters = setupPreConfiguredTokenFilters(plugins);
         Map<String, PreConfiguredTokenizer> preConfiguredTokenizers = setupPreConfiguredTokenizers(plugins);
+        Map<String, PreBuiltAnalyzerProviderFactory> preConfiguredAnalyzers = setupPreBuiltAnalyzerProviderFactories(plugins);
 
         analysisRegistry = new AnalysisRegistry(environment,
                 charFilters.getRegistry(), tokenFilters.getRegistry(), tokenizers.getRegistry(),
                 analyzers.getRegistry(), normalizers.getRegistry(),
-                preConfiguredCharFilters, preConfiguredTokenFilters, preConfiguredTokenizers);
+                preConfiguredCharFilters, preConfiguredTokenFilters, preConfiguredTokenizers, preConfiguredAnalyzers);
     }
 
     HunspellService getHunspellService() {
@@ -164,13 +120,45 @@ public final class AnalysisModule {
         hunspellService) {
         NamedRegistry<AnalysisProvider<TokenFilterFactory>> tokenFilters = new NamedRegistry<>("token_filter");
         tokenFilters.register("stop", StopTokenFilterFactory::new);
-        tokenFilters.register("standard", StandardTokenFilterFactory::new);
+        // Add "standard" for old indices (bwc)
+        tokenFilters.register("standard", new AnalysisProvider<TokenFilterFactory>() {
+            @Override
+            public TokenFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+                if (indexSettings.getIndexVersionCreated().before(Version.V_7_0_0_alpha1)) {
+                    DEPRECATION_LOGGER.deprecatedAndMaybeLog("standard_deprecation",
+                        "The [standard] token filter name is deprecated and will be removed in a future version.");
+                } else {
+                    throw new IllegalArgumentException("The [standard] token filter has been removed.");
+                }
+                return new AbstractTokenFilterFactory(indexSettings, name, settings) {
+                    @Override
+                    public TokenStream create(TokenStream tokenStream) {
+                        return tokenStream;
+                    }
+                };
+            }
+
+            @Override
+            public boolean requiresAnalysisSettings() {
+                return false;
+            }
+        });
         tokenFilters.register("shingle", ShingleTokenFilterFactory::new);
-        tokenFilters.register("hunspell", requriesAnalysisSettings((indexSettings, env, name, settings) -> new HunspellTokenFilterFactory
+        tokenFilters.register("hunspell", requiresAnalysisSettings((indexSettings, env, name, settings) -> new HunspellTokenFilterFactory
             (indexSettings, name, settings, hunspellService)));
 
         tokenFilters.extractAndRegister(plugins, AnalysisPlugin::getTokenFilters);
         return tokenFilters;
+    }
+
+    static Map<String, PreBuiltAnalyzerProviderFactory> setupPreBuiltAnalyzerProviderFactories(List<AnalysisPlugin> plugins) {
+        NamedRegistry<PreBuiltAnalyzerProviderFactory> preConfiguredCharFilters = new NamedRegistry<>("pre-built analyzer");
+        for (AnalysisPlugin plugin : plugins) {
+            for (PreBuiltAnalyzerProviderFactory factory : plugin.getPreBuiltAnalyzerProviderFactories()) {
+                preConfiguredCharFilters.register(factory.getName(), factory);
+            }
+        }
+        return unmodifiableMap(preConfiguredCharFilters.getRegistry());
     }
 
     static Map<String, PreConfiguredCharFilter> setupPreConfiguredCharFilters(List<AnalysisPlugin> plugins) {
@@ -191,7 +179,17 @@ public final class AnalysisModule {
 
         // Add filters available in lucene-core
         preConfiguredTokenFilters.register("lowercase", PreConfiguredTokenFilter.singleton("lowercase", true, LowerCaseFilter::new));
-        preConfiguredTokenFilters.register("standard", PreConfiguredTokenFilter.singleton("standard", false, StandardFilter::new));
+        // Add "standard" for old indices (bwc)
+        preConfiguredTokenFilters.register( "standard",
+            PreConfiguredTokenFilter.singletonWithVersion("standard", true, (reader, version) -> {
+                if (version.before(Version.V_7_0_0_alpha1)) {
+                    DEPRECATION_LOGGER.deprecatedAndMaybeLog("standard_deprecation",
+                        "The [standard] token filter is deprecated and will be removed in a future version.");
+                } else {
+                    throw new IllegalArgumentException("The [standard] token filter has been removed.");
+                }
+                return reader;
+            }));
         /* Note that "stop" is available in lucene-core but it's pre-built
          * version uses a set of English stop words that are in
          * lucene-analyzers-common so "stop" is defined in the analysis-common
@@ -223,36 +221,18 @@ public final class AnalysisModule {
             }
             preConfiguredTokenizers.register(name, preConfigured);
         }
-        // Temporary shim for aliases. TODO deprecate after they are moved
-        preConfiguredTokenizers.register("nGram", preConfiguredTokenizers.getRegistry().get("ngram"));
-        preConfiguredTokenizers.register("edgeNGram", preConfiguredTokenizers.getRegistry().get("edge_ngram"));
-        preConfiguredTokenizers.register("PathHierarchy", preConfiguredTokenizers.getRegistry().get("path_hierarchy"));
-
         for (AnalysisPlugin plugin: plugins) {
             for (PreConfiguredTokenizer tokenizer : plugin.getPreConfiguredTokenizers()) {
                 preConfiguredTokenizers.register(tokenizer.getName(), tokenizer);
             }
         }
+
         return unmodifiableMap(preConfiguredTokenizers.getRegistry());
     }
 
     private NamedRegistry<AnalysisProvider<TokenizerFactory>> setupTokenizers(List<AnalysisPlugin> plugins) {
         NamedRegistry<AnalysisProvider<TokenizerFactory>> tokenizers = new NamedRegistry<>("tokenizer");
         tokenizers.register("standard", StandardTokenizerFactory::new);
-        tokenizers.register("uax_url_email", UAX29URLEmailTokenizerFactory::new);
-        tokenizers.register("path_hierarchy", PathHierarchyTokenizerFactory::new);
-        tokenizers.register("PathHierarchy", PathHierarchyTokenizerFactory::new);
-        tokenizers.register("keyword", KeywordTokenizerFactory::new);
-        tokenizers.register("letter", LetterTokenizerFactory::new);
-        tokenizers.register("lowercase", LowerCaseTokenizerFactory::new);
-        tokenizers.register("whitespace", WhitespaceTokenizerFactory::new);
-        tokenizers.register("nGram", NGramTokenizerFactory::new);
-        tokenizers.register("ngram", NGramTokenizerFactory::new);
-        tokenizers.register("edgeNGram", EdgeNGramTokenizerFactory::new);
-        tokenizers.register("edge_ngram", EdgeNGramTokenizerFactory::new);
-        tokenizers.register("pattern", PatternTokenizerFactory::new);
-        tokenizers.register("classic", ClassicTokenizerFactory::new);
-        tokenizers.register("thai", ThaiTokenizerFactory::new);
         tokenizers.extractAndRegister(plugins, AnalysisPlugin::getTokenizers);
         return tokenizers;
     }
@@ -261,49 +241,10 @@ public final class AnalysisModule {
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = new NamedRegistry<>("analyzer");
         analyzers.register("default", StandardAnalyzerProvider::new);
         analyzers.register("standard", StandardAnalyzerProvider::new);
-        analyzers.register("standard_html_strip", StandardHtmlStripAnalyzerProvider::new);
         analyzers.register("simple", SimpleAnalyzerProvider::new);
         analyzers.register("stop", StopAnalyzerProvider::new);
         analyzers.register("whitespace", WhitespaceAnalyzerProvider::new);
         analyzers.register("keyword", KeywordAnalyzerProvider::new);
-        analyzers.register("pattern", PatternAnalyzerProvider::new);
-        analyzers.register("snowball", SnowballAnalyzerProvider::new);
-        analyzers.register("arabic", ArabicAnalyzerProvider::new);
-        analyzers.register("armenian", ArmenianAnalyzerProvider::new);
-        analyzers.register("basque", BasqueAnalyzerProvider::new);
-        analyzers.register("bengali", BengaliAnalyzerProvider::new);
-        analyzers.register("brazilian", BrazilianAnalyzerProvider::new);
-        analyzers.register("bulgarian", BulgarianAnalyzerProvider::new);
-        analyzers.register("catalan", CatalanAnalyzerProvider::new);
-        analyzers.register("chinese", ChineseAnalyzerProvider::new);
-        analyzers.register("cjk", CjkAnalyzerProvider::new);
-        analyzers.register("czech", CzechAnalyzerProvider::new);
-        analyzers.register("danish", DanishAnalyzerProvider::new);
-        analyzers.register("dutch", DutchAnalyzerProvider::new);
-        analyzers.register("english", EnglishAnalyzerProvider::new);
-        analyzers.register("finnish", FinnishAnalyzerProvider::new);
-        analyzers.register("french", FrenchAnalyzerProvider::new);
-        analyzers.register("galician", GalicianAnalyzerProvider::new);
-        analyzers.register("german", GermanAnalyzerProvider::new);
-        analyzers.register("greek", GreekAnalyzerProvider::new);
-        analyzers.register("hindi", HindiAnalyzerProvider::new);
-        analyzers.register("hungarian", HungarianAnalyzerProvider::new);
-        analyzers.register("indonesian", IndonesianAnalyzerProvider::new);
-        analyzers.register("irish", IrishAnalyzerProvider::new);
-        analyzers.register("italian", ItalianAnalyzerProvider::new);
-        analyzers.register("latvian", LatvianAnalyzerProvider::new);
-        analyzers.register("lithuanian", LithuanianAnalyzerProvider::new);
-        analyzers.register("norwegian", NorwegianAnalyzerProvider::new);
-        analyzers.register("persian", PersianAnalyzerProvider::new);
-        analyzers.register("portuguese", PortugueseAnalyzerProvider::new);
-        analyzers.register("romanian", RomanianAnalyzerProvider::new);
-        analyzers.register("russian", RussianAnalyzerProvider::new);
-        analyzers.register("sorani", SoraniAnalyzerProvider::new);
-        analyzers.register("spanish", SpanishAnalyzerProvider::new);
-        analyzers.register("swedish", SwedishAnalyzerProvider::new);
-        analyzers.register("turkish", TurkishAnalyzerProvider::new);
-        analyzers.register("thai", ThaiAnalyzerProvider::new);
-        analyzers.register("fingerprint", FingerprintAnalyzerProvider::new);
         analyzers.extractAndRegister(plugins, AnalysisPlugin::getAnalyzers);
         return analyzers;
     }

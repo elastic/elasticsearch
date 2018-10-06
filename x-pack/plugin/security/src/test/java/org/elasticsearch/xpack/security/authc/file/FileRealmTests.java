@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -50,20 +51,27 @@ public class FileRealmTests extends ESTestCase {
     private FileUserPasswdStore userPasswdStore;
     private FileUserRolesStore userRolesStore;
     private Settings globalSettings;
+    private ThreadPool threadPool;
+    private ThreadContext threadContext;
 
     @Before
     public void init() throws Exception {
         userPasswdStore = mock(FileUserPasswdStore.class);
         userRolesStore = mock(FileUserRolesStore.class);
-        globalSettings = Settings.builder().put("path.home", createTempDir()).build();
+        globalSettings = Settings.builder().put("path.home", createTempDir()).put("xpack.security.authc.password_hashing.algorithm",
+            randomFrom("bcrypt9", "pbkdf2")).build();
+        threadPool = mock(ThreadPool.class);
+        threadContext = new ThreadContext(globalSettings);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
     }
 
     public void testAuthenticate() throws Exception {
         when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("test123")), any(Supplier.class)))
                 .thenAnswer(VERIFY_PASSWORD_ANSWER);
         when(userRolesStore.roles("user1")).thenReturn(new String[] { "role1", "role2" });
-        RealmConfig config = new RealmConfig("file-test", Settings.EMPTY, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
-        FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore);
+        RealmConfig config = new RealmConfig("file-test", Settings.EMPTY, globalSettings, TestEnvironment.newEnvironment(globalSettings),
+            threadContext);
+        FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore, threadPool);
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("user1", new SecureString("test123")), future);
         final AuthenticationResult result = future.actionGet();
@@ -78,13 +86,14 @@ public class FileRealmTests extends ESTestCase {
 
     public void testAuthenticateCaching() throws Exception {
         Settings settings = Settings.builder()
-                .put("cache.hash_algo", Hasher.values()[randomIntBetween(0, Hasher.values().length - 1)].name().toLowerCase(Locale.ROOT))
-                .build();
-        RealmConfig config = new RealmConfig("file-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+            .put("cache.hash_algo", Hasher.values()[randomIntBetween(0, Hasher.values().length - 1)].name().toLowerCase(Locale.ROOT))
+            .build();
+        RealmConfig config = new RealmConfig("file-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
+            threadContext);
         when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("test123")), any(Supplier.class)))
                 .thenAnswer(VERIFY_PASSWORD_ANSWER);
         when(userRolesStore.roles("user1")).thenReturn(new String[]{"role1", "role2"});
-        FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore);
+        FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore, threadPool);
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("user1", new SecureString("test123")), future);
         User user1 = future.actionGet().getUser();
@@ -95,13 +104,14 @@ public class FileRealmTests extends ESTestCase {
     }
 
     public void testAuthenticateCachingRefresh() throws Exception {
-        RealmConfig config = new RealmConfig("file-test", Settings.EMPTY, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = new RealmConfig("file-test", Settings.EMPTY, globalSettings, TestEnvironment.newEnvironment(globalSettings),
+            threadContext);
         userPasswdStore = spy(new UserPasswdStore(config));
         userRolesStore = spy(new UserRolesStore(config));
         when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("test123")), any(Supplier.class)))
                 .thenAnswer(VERIFY_PASSWORD_ANSWER);
         doReturn(new String[] { "role1", "role2" }).when(userRolesStore).roles("user1");
-        FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore);
+        FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore, threadPool);
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("user1", new SecureString("test123")), future);
         User user1 = future.actionGet().getUser();
@@ -134,11 +144,12 @@ public class FileRealmTests extends ESTestCase {
     }
 
     public void testToken() throws Exception {
-        RealmConfig config = new RealmConfig("file-test", Settings.EMPTY, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = new RealmConfig("file-test", Settings.EMPTY, globalSettings, TestEnvironment.newEnvironment(globalSettings),
+            threadContext);
         when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("test123")), any(Supplier.class)))
                 .thenAnswer(VERIFY_PASSWORD_ANSWER);
         when(userRolesStore.roles("user1")).thenReturn(new String[]{"role1", "role2"});
-        FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore);
+        FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore, threadPool);
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         UsernamePasswordToken.putTokenHeader(threadContext, new UsernamePasswordToken("user1", new SecureString("test123")));
@@ -153,8 +164,9 @@ public class FileRealmTests extends ESTestCase {
     public void testLookup() throws Exception {
         when(userPasswdStore.userExists("user1")).thenReturn(true);
         when(userRolesStore.roles("user1")).thenReturn(new String[] { "role1", "role2" });
-        RealmConfig config = new RealmConfig("file-test", Settings.EMPTY, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
-        FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore);
+        RealmConfig config = new RealmConfig("file-test", Settings.EMPTY, globalSettings, TestEnvironment.newEnvironment(globalSettings),
+            threadContext);
+        FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore, threadPool);
 
         PlainActionFuture<User> future = new PlainActionFuture<>();
         realm.lookupUser("user1", future);
@@ -170,8 +182,9 @@ public class FileRealmTests extends ESTestCase {
     public void testLookupCaching() throws Exception {
         when(userPasswdStore.userExists("user1")).thenReturn(true);
         when(userRolesStore.roles("user1")).thenReturn(new String[] { "role1", "role2" });
-        RealmConfig config = new RealmConfig("file-test", Settings.EMPTY, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
-        FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore);
+        RealmConfig config = new RealmConfig("file-test", Settings.EMPTY, globalSettings, TestEnvironment.newEnvironment(globalSettings),
+            threadContext);
+        FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore, threadPool);
 
         PlainActionFuture<User> future = new PlainActionFuture<>();
         realm.lookupUser("user1", future);
@@ -185,12 +198,13 @@ public class FileRealmTests extends ESTestCase {
     }
 
     public void testLookupCachingWithRefresh() throws Exception {
-        RealmConfig config = new RealmConfig("file-test", Settings.EMPTY, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = new RealmConfig("file-test", Settings.EMPTY, globalSettings, TestEnvironment.newEnvironment(globalSettings),
+            threadContext);
         userPasswdStore = spy(new UserPasswdStore(config));
         userRolesStore = spy(new UserRolesStore(config));
         doReturn(true).when(userPasswdStore).userExists("user1");
         doReturn(new String[] { "role1", "role2" }).when(userRolesStore).roles("user1");
-        FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore);
+        FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore, threadPool);
         PlainActionFuture<User> future = new PlainActionFuture<>();
         realm.lookupUser("user1", future);
         User user1 = future.actionGet();
@@ -231,10 +245,13 @@ public class FileRealmTests extends ESTestCase {
         int order = randomIntBetween(0, 10);
         settings.put("order", order);
 
-        RealmConfig config = new RealmConfig("file-realm", settings.build(), globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
-        FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore);
+        RealmConfig config = new RealmConfig("file-realm", settings.build(), globalSettings, TestEnvironment.newEnvironment(globalSettings),
+            threadContext);
+        FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore, threadPool);
 
-        Map<String, Object> usage = realm.usageStats();
+        PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        realm.usageStats(future);
+        Map<String, Object> usage = future.get();
         assertThat(usage, is(notNullValue()));
         assertThat(usage, hasEntry("name", "file-realm"));
         assertThat(usage, hasEntry("order", order));

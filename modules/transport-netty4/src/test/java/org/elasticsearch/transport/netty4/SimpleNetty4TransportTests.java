@@ -58,7 +58,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             BigArrays.NON_RECYCLING_INSTANCE, namedWriteableRegistry, new NoneCircuitBreakerService()) {
 
             @Override
-            protected Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout) throws IOException,
+            public Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout) throws IOException,
                 InterruptedException {
                 if (doHandshake) {
                     return super.executeHandshake(node, channel, timeout);
@@ -84,14 +84,6 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
         MockTransportService transportService = nettyFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
         transportService.start();
         return transportService;
-    }
-
-    @Override
-    protected void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException {
-        final Netty4Transport t = (Netty4Transport) transport;
-        @SuppressWarnings("unchecked")
-        final TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) connection;
-        TcpChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
     }
 
     public void testConnectException() throws UnknownHostException {

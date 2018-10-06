@@ -21,9 +21,9 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
@@ -39,7 +39,7 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.ml.job.config.JobTaskStatus;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
@@ -206,14 +206,14 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
             PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            PersistentTask task = tasks.getTask(MlMetadata.jobTaskId(jobId));
+            PersistentTask<?> task = tasks.getTask(MlTasks.jobTaskId(jobId));
 
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
             assertThat(node.getAttributes(), hasEntry(MachineLearning.ML_ENABLED_NODE_ATTR, "true"));
             assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "20"));
-            JobTaskStatus jobTaskStatus = (JobTaskStatus) task.getStatus();
-            assertNotNull(jobTaskStatus);
-            assertEquals(JobState.OPENED, jobTaskStatus.getState());
+            JobTaskState jobTaskState = (JobTaskState) task.getState();
+            assertNotNull(jobTaskState);
+            assertEquals(JobState.OPENED, jobTaskState.getState());
         });
 
         logger.info("stop the only running ml node");
@@ -264,7 +264,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
             for (DiscoveryNode node : event.state().nodes()) {
                 Collection<PersistentTask<?>> foundTasks = tasks.findTasks(OpenJobAction.TASK_NAME, task -> {
-                    JobTaskStatus jobTaskState = (JobTaskStatus) task.getStatus();
+                    JobTaskState jobTaskState = (JobTaskState) task.getState();
                     return node.getId().equals(task.getExecutorNode()) &&
                             (jobTaskState == null || jobTaskState.isStatusStale(task));
                 });
@@ -366,10 +366,14 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         Exception e = expectThrows(ElasticsearchStatusException.class,
                 () -> client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet());
-        assertTrue(e.getMessage(),
-                e.getMessage().startsWith("Could not open job because no suitable nodes were found, allocation explanation"));
-        assertTrue(e.getMessage(), e.getMessage().endsWith("because not all primary shards are active for the following indices "
-                + "[.ml-state,.ml-anomalies-shared]]"));
+        assertEquals("Could not open job because no ML nodes with sufficient capacity were found", e.getMessage());
+        IllegalStateException detail = (IllegalStateException) e.getCause();
+        assertNotNull(detail);
+        String detailedMessage = detail.getMessage();
+        assertTrue(detailedMessage,
+            detailedMessage.startsWith("Could not open job because no suitable nodes were found, allocation explanation"));
+        assertTrue(detailedMessage, detailedMessage.endsWith("because not all primary shards are active for the following indices " +
+            "[.ml-state,.ml-anomalies-shared]]"));
 
         logger.info("Start data node");
         String nonMlNode = internalCluster().startNode(Settings.builder()
@@ -386,7 +390,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         assertEquals(1, tasks.taskMap().size());
-        PersistentTask<?> task = MlMetadata.getJobTask(jobId, tasks);
+        PersistentTask<?> task = MlTasks.getJobTask(jobId, tasks);
         assertNotNull(task);
 
         if (hasExecutorNode) {
@@ -396,9 +400,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertThat(node.getAttributes(), hasEntry(MachineLearning.ML_ENABLED_NODE_ATTR, "true"));
             assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "20"));
 
-            JobTaskStatus jobTaskStatus = (JobTaskStatus) task.getStatus();
-            assertNotNull(jobTaskStatus);
-            assertEquals(expectedState, jobTaskStatus.getState());
+            JobTaskState jobTaskState = (JobTaskState) task.getState();
+            assertNotNull(jobTaskState);
+            assertEquals(expectedState, jobTaskState.getState());
         } else {
             assertNull(task.getExecutorNode());
         }
@@ -411,9 +415,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertEquals(numJobs, tasks.taskMap().size());
             for (PersistentTask<?> task : tasks.taskMap().values()) {
                 assertNotNull(task.getExecutorNode());
-                JobTaskStatus jobTaskStatus = (JobTaskStatus) task.getStatus();
-                assertNotNull(jobTaskStatus);
-                assertEquals(JobState.OPENED, jobTaskStatus.getState());
+                JobTaskState jobTaskState = (JobTaskState) task.getState();
+                assertNotNull(jobTaskState);
+                assertEquals(JobState.OPENED, jobTaskState.getState());
             }
         };
     }

@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.core.watcher.support.xcontent;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.DeprecationHandler;

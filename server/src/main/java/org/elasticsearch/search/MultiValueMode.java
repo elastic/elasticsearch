@@ -411,29 +411,10 @@ public enum MultiValueMode implements Writeable {
      *
      * Allowed Modes: SUM, AVG, MEDIAN, MIN, MAX
      */
-    public NumericDocValues select(final SortedNumericDocValues values, final long missingValue) {
+    public NumericDocValues select(final SortedNumericDocValues values) {
         final NumericDocValues singleton = DocValues.unwrapSingleton(values);
         if (singleton != null) {
-            return new AbstractNumericDocValues() {
-
-                private long value;
-
-                @Override
-                public boolean advanceExact(int target) throws IOException {
-                    this.value = singleton.advanceExact(target) ? singleton.longValue() : missingValue;
-                    return true;
-                }
-
-                @Override
-                public int docID() {
-                    return singleton.docID();
-                }
-
-                @Override
-                public long longValue() throws IOException {
-                    return this.value;
-                }
-            };
+            return singleton;
         } else {
             return new AbstractNumericDocValues() {
 
@@ -441,8 +422,11 @@ public enum MultiValueMode implements Writeable {
 
                 @Override
                 public boolean advanceExact(int target) throws IOException {
-                    this.value = values.advanceExact(target) ? pick(values) : missingValue;
-                    return true;
+                    if (values.advanceExact(target)) {
+                        value = pick(values);
+                        return true;
+                    }
+                    return false;
                 }
 
                 @Override
@@ -476,7 +460,7 @@ public enum MultiValueMode implements Writeable {
      */
     public NumericDocValues select(final SortedNumericDocValues values, final long missingValue, final BitSet parentDocs, final DocIdSetIterator childDocs, int maxDoc) throws IOException {
         if (parentDocs == null || childDocs == null) {
-            return select(DocValues.emptySortedNumeric(maxDoc), missingValue);
+            return FieldData.replaceMissing(DocValues.emptyNumeric(), missingValue);
         }
 
         return new AbstractNumericDocValues() {
@@ -529,23 +513,10 @@ public enum MultiValueMode implements Writeable {
      *
      * Allowed Modes: SUM, AVG, MEDIAN, MIN, MAX
      */
-    public NumericDoubleValues select(final SortedNumericDoubleValues values, final double missingValue) {
+    public NumericDoubleValues select(final SortedNumericDoubleValues values) {
         final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
         if (singleton != null) {
-            return new NumericDoubleValues() {
-                private double value;
-
-                @Override
-                public boolean advanceExact(int doc) throws IOException {
-                    this.value = singleton.advanceExact(doc) ? singleton.doubleValue() : missingValue;
-                    return true;
-                }
-
-                @Override
-                public double doubleValue() throws IOException {
-                    return this.value;
-                }
-            };
+            return singleton;
         } else {
             return new NumericDoubleValues() {
 
@@ -553,8 +524,11 @@ public enum MultiValueMode implements Writeable {
 
                 @Override
                 public boolean advanceExact(int target) throws IOException {
-                    value = values.advanceExact(target) ? pick(values) : missingValue;
-                    return true;
+                    if (values.advanceExact(target)) {
+                        value = pick(values);
+                        return true;
+                    }
+                    return false;
                 }
 
                 @Override
@@ -583,7 +557,7 @@ public enum MultiValueMode implements Writeable {
      */
     public NumericDoubleValues select(final SortedNumericDoubleValues values, final double missingValue, final BitSet parentDocs, final DocIdSetIterator childDocs, int maxDoc) throws IOException {
         if (parentDocs == null || childDocs == null) {
-            return select(FieldData.emptySortedNumericDoubles(), missingValue);
+            return FieldData.replaceMissing(FieldData.emptyNumericDouble(), missingValue);
         }
 
         return new NumericDoubleValues() {

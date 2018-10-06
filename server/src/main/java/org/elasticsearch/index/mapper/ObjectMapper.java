@@ -359,6 +359,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return this.fullPath;
     }
 
+    @Override
+    public String typeName() {
+        return CONTENT_TYPE;
+    }
+
     public boolean isEnabled() {
         return this.enabled;
     }

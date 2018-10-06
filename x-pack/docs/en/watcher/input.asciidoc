@@ -19,10 +19,14 @@ execution context.
 NOTE: If you don't define an input for a watch, an empty payload is loaded
       into the execution context.
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/input/simple.asciidoc
 include::input/simple.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/input/search.asciidoc
 include::input/search.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/input/http.asciidoc
 include::input/http.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/input/chain.asciidoc
 include::input/chain.asciidoc[]

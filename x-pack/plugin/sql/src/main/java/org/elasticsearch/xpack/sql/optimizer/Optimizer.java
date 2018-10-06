@@ -112,7 +112,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new ReplaceAggsWithStats(),
                 new PromoteStatsToExtendedStats(),
                 new ReplaceAggsWithPercentiles(),
-                new ReplceAggsWithPercentileRanks()
+                new ReplaceAggsWithPercentileRanks()
                 );
 
         Batch operators = new Batch("Operator Optimization",
@@ -132,7 +132,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new PruneFilters(),
                 new PruneOrderBy(),
                 new PruneOrderByNestedFields(),
-                new PruneCast()
+                new PruneCast(),
+                // order by alignment of the aggs
+                new SortAggregateOnOrderBy()
                 // requires changes in the folding
                 // since the exact same function, with the same ID can appear in multiple places
                 // see https://github.com/elastic/x-pack-elasticsearch/issues/3527
@@ -612,7 +614,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class ReplceAggsWithPercentileRanks extends Rule<LogicalPlan, LogicalPlan> {
+    static class ReplaceAggsWithPercentileRanks extends Rule<LogicalPlan, LogicalPlan> {
 
         @Override
         public LogicalPlan apply(LogicalPlan p) {
@@ -822,6 +824,46 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }).collect(toList());
 
                     return nonAgg.isEmpty() ? ob.child() : new OrderBy(ob.location(), ob.child(), nonAgg);
+                }
+            }
+            return ob;
+        }
+    }
+
+    /**
+     * Align the order in aggregate based on the order by.
+     */
+    static class SortAggregateOnOrderBy extends OptimizerRule<OrderBy> {
+
+        @Override
+        protected LogicalPlan rule(OrderBy ob) {
+            List<Order> order = ob.order();
+
+            // remove constants
+            List<Order> nonConstant = order.stream().filter(o -> !o.child().foldable()).collect(toList());
+
+            // if the sort points to an agg, change the agg order based on the order
+            if (ob.child() instanceof Aggregate) {
+                Aggregate a = (Aggregate) ob.child();
+                List<Expression> groupings = new ArrayList<>(a.groupings());
+                boolean orderChanged = false;
+
+                for (int orderIndex = 0; orderIndex < nonConstant.size(); orderIndex++) {
+                    Order o = nonConstant.get(orderIndex);
+                    Expression fieldToOrder = o.child();
+                    for (Expression group : a.groupings()) {
+                        if (Expressions.equalsAsAttribute(fieldToOrder, group)) {
+                            // move grouping in front
+                            groupings.remove(group);
+                            groupings.add(orderIndex, group);
+                            orderChanged = true;
+                        }
+                    }
+                }
+
+                if (orderChanged) {
+                    Aggregate newAgg = new Aggregate(a.location(), a.child(), groupings, a.aggregates());
+                    return new OrderBy(ob.location(), newAgg, ob.order());
                 }
             }
             return ob;
@@ -1076,36 +1118,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected Expression rule(Expression e) {
-            // handle aliases to avoid double aliasing of functions
-            // alias points to function which gets folded and wrapped in an alias that is
-            // aliases
             if (e instanceof Alias) {
                 Alias a = (Alias) e;
-                Expression fold = fold(a.child());
-                if (fold != a.child()) {
-                    return new Alias(a.location(), a.name(), null, fold, a.id());
-                }
-                return a;
+                return a.child().foldable() ? Literal.of(a.name(), a.child()) : a;
             }
 
-            Expression fold = fold(e);
-            if (fold != e) {
-                // preserve the name through an alias
-                if (e instanceof NamedExpression) {
-                    NamedExpression ne = (NamedExpression) e;
-                    return new Alias(e.location(), ne.name(), null, fold, ne.id());
-                }
-                return fold;
-            }
-            return e;
-        }
-
-        private Expression fold(Expression e) {
-            // literals are always foldable, so avoid creating a duplicate
-            if (e.foldable() && !(e instanceof Literal)) {
-                return new Literal(e.location(), e.fold(), e.dataType());
-            }
-            return e;
+            return e.foldable() ? Literal.of(e) : e;
         }
     }
 
@@ -1794,14 +1812,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         private List<Object> extractConstants(List<? extends NamedExpression> named) {
             List<Object> values = new ArrayList<>();
             for (NamedExpression n : named) {
-                if (n instanceof Alias) {
-                    Alias a = (Alias) n;
-                    if (a.child().foldable()) {
-                        values.add(a.child().fold());
-                    }
-                    else {
-                        return values;
-                    }
+                if (n.foldable()) {
+                    values.add(n.fold());
+                } else {
+                    // not everything is foldable, bail-out early
+                    return values;
                 }
             }
             return values;

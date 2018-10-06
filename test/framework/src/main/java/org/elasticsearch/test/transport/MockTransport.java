@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test.transport;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
@@ -34,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ConnectionManager;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -158,7 +158,7 @@ public class MockTransport implements Transport, LifecycleComponent {
 
     @Override
     public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
-        return new Connection() {
+        return new CloseableConnection() {
             @Override
             public DiscoveryNode getNode() {
                 return node;
@@ -169,19 +169,6 @@ public class MockTransport implements Transport, LifecycleComponent {
                 throws TransportException {
                 requests.put(requestId, Tuple.tuple(node, action));
                 onSendRequest(requestId, action, request, node);
-            }
-
-            @Override
-            public void addCloseListener(ActionListener<Void> listener) {
-            }
-
-            @Override
-            public boolean isClosed() {
-                return false;
-            }
-
-            @Override
-            public void close() {
             }
         };
     }

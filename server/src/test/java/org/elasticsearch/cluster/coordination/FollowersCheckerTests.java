@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -51,6 +52,7 @@ import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_C
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -93,7 +95,7 @@ public class FollowersCheckerTests extends ESTestCase {
 
         final FollowersChecker followersChecker = new FollowersChecker(settings, transportService, fcr -> {
             assert false : fcr;
-        }, node -> {
+        }, (node, reason) -> {
             assert false : node;
         });
 
@@ -215,10 +217,61 @@ public class FollowersCheckerTests extends ESTestCase {
                 * FOLLOWER_CHECK_INTERVAL_SETTING.get(settings).millis());
     }
 
-    public void testFailsNodeThatDisconnects() {
+    public void testFailsNodeThatIsDisconnected() {
         testBehaviourOfFailingNode(Settings.EMPTY, () -> {
             throw new ConnectTransportException(null, "simulated exception");
         }, 0);
+    }
+
+    public void testFailsNodeThatDisconnects() {
+        final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getName()).build();
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
+
+        final MockTransport mockTransport = new MockTransport() {
+            @Override
+            protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
+                assertFalse(node.equals(localNode));
+                if (action.equals(HANDSHAKE_ACTION_NAME)) {
+                    handleResponse(requestId, new TransportService.HandshakeResponse(node, ClusterName.DEFAULT, Version.CURRENT));
+                    return;
+                }
+                deterministicTaskQueue.scheduleNow(new Runnable() {
+                    @Override
+                    public void run() {
+                        handleResponse(requestId, Empty.INSTANCE);
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "sending response to [" + action + "][" + requestId + "] from " + node;
+                    }
+                });
+            }
+        };
+
+        final TransportService transportService = mockTransport.createTransportService(settings, deterministicTaskQueue.getThreadPool(),
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
+        transportService.start();
+        transportService.acceptIncomingRequests();
+
+        final AtomicBoolean nodeFailed = new AtomicBoolean();
+
+        final FollowersChecker followersChecker = new FollowersChecker(settings, transportService, fcr -> {
+            assert false : fcr;
+        }, (node, reason) -> {
+            assertTrue(nodeFailed.compareAndSet(false, true));
+        });
+
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).build();
+        followersChecker.setCurrentNodes(discoveryNodes);
+
+        transportService.connectToNode(otherNode);
+        transportService.disconnectFromNode(otherNode);
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertTrue(nodeFailed.get());
+        assertThat(followersChecker.getFaultyNodes(), contains(otherNode));
     }
 
     private void testBehaviourOfFailingNode(Settings testSettings, Supplier<TransportResponse.Empty> responder, long expectedFailureTime) {
@@ -266,7 +319,7 @@ public class FollowersCheckerTests extends ESTestCase {
 
         final FollowersChecker followersChecker = new FollowersChecker(settings, transportService, fcr -> {
             assert false : fcr;
-        }, node -> {
+        }, (node, reason) -> {
             assertTrue(nodeFailed.compareAndSet(false, true));
         });
 
@@ -357,7 +410,7 @@ public class FollowersCheckerTests extends ESTestCase {
                 if (exception != null) {
                     throw exception;
                 }
-            }, node -> {
+            }, (node, reason) -> {
             assert false : node;
         });
 

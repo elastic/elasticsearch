@@ -33,6 +33,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -46,6 +47,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -78,7 +80,7 @@ public class FollowersChecker extends AbstractComponent {
     private final TimeValue followerCheckInterval;
     private final TimeValue followerCheckTimeout;
     private final int followerCheckRetryCount;
-    private final Consumer<DiscoveryNode> onNodeFailure;
+    private final BiConsumer<DiscoveryNode, String> onNodeFailure;
     private final Consumer<FollowerCheckRequest> handleRequestAndUpdateState;
 
     private final Object mutex = new Object(); // protects writes to this state; read access does not need sync
@@ -91,7 +93,7 @@ public class FollowersChecker extends AbstractComponent {
 
     public FollowersChecker(Settings settings, TransportService transportService,
                             Consumer<FollowerCheckRequest> handleRequestAndUpdateState,
-                            Consumer<DiscoveryNode> onNodeFailure) {
+                            BiConsumer<DiscoveryNode, String> onNodeFailure) {
         super(settings);
         this.transportService = transportService;
         this.handleRequestAndUpdateState = handleRequestAndUpdateState;
@@ -104,6 +106,12 @@ public class FollowersChecker extends AbstractComponent {
         updateFastResponseState(0, Mode.CANDIDATE);
         transportService.registerRequestHandler(FOLLOWER_CHECK_ACTION_NAME, Names.SAME, FollowerCheckRequest::new,
             (request, transportChannel, task) -> handleFollowerCheck(request, transportChannel));
+        transportService.addConnectionListener(new TransportConnectionListener() {
+            @Override
+            public void onNodeDisconnected(DiscoveryNode node) {
+                handleDisconnectedNode(node);
+            }
+        });
     }
 
     /**
@@ -228,6 +236,15 @@ public class FollowersChecker extends AbstractComponent {
         }
     }
 
+    private void handleDisconnectedNode(DiscoveryNode discoveryNode) {
+        synchronized (mutex) {
+            FollowerChecker followerChecker = followerCheckers.get(discoveryNode);
+            if (followerChecker != null && followerChecker.running()) {
+                followerChecker.failNode();
+            }
+        }
+    }
+
     static class FastResponseState {
         final long term;
         final Mode mode;
@@ -314,25 +331,7 @@ public class FollowersChecker extends AbstractComponent {
                             return;
                         }
 
-                        transportService.getThreadPool().generic().execute(new Runnable() {
-                            @Override
-                            public void run() {
-                                synchronized (mutex) {
-                                    if (running() == false) {
-                                        logger.debug("{} no longer running, not marking faulty", FollowerChecker.this);
-                                        return;
-                                    }
-                                    faultyNodes.add(discoveryNode);
-                                    followerCheckers.remove(discoveryNode);
-                                }
-                                onNodeFailure.accept(discoveryNode);
-                            }
-
-                            @Override
-                            public String toString() {
-                                return "detected failure of " + discoveryNode;
-                            }
-                        });
+                        failNode();
                     }
 
 
@@ -341,6 +340,28 @@ public class FollowersChecker extends AbstractComponent {
                         return Names.SAME;
                     }
                 });
+        }
+
+        void failNode() {
+            transportService.getThreadPool().generic().execute(new Runnable() {
+                @Override
+                public void run() {
+                    synchronized (mutex) {
+                        if (running() == false) {
+                            logger.debug("{} condition no longer applies, not marking faulty", discoveryNode);
+                            return;
+                        }
+                        faultyNodes.add(discoveryNode);
+                        followerCheckers.remove(discoveryNode);
+                    }
+                    onNodeFailure.accept(discoveryNode, "followers_checker");
+                }
+
+                @Override
+                public String toString() {
+                    return "detected failure of " + discoveryNode;
+                }
+            });
         }
 
         private void scheduleNextWakeUp() {

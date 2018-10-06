@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,6 +34,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -46,6 +48,7 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * The LeaderChecker is responsible for allowing followers to check that the currently elected leader is still connected and healthy. We are
@@ -77,6 +80,8 @@ public class LeaderChecker extends AbstractComponent {
     private final TransportService transportService;
     private final Runnable onLeaderFailure;
 
+    private AtomicReference<CheckScheduler> currentChecker = new AtomicReference<>();
+
     private volatile DiscoveryNodes discoveryNodes;
 
     public LeaderChecker(final Settings settings, final TransportService transportService, final Runnable onLeaderFailure) {
@@ -88,19 +93,39 @@ public class LeaderChecker extends AbstractComponent {
         this.onLeaderFailure = onLeaderFailure;
 
         transportService.registerRequestHandler(LEADER_CHECK_ACTION_NAME, Names.SAME, LeaderCheckRequest::new, this::handleLeaderCheck);
+        transportService.addConnectionListener(new TransportConnectionListener() {
+            @Override
+            public void onNodeDisconnected(DiscoveryNode node) {
+                handleDisconnectedNode(node);
+            }
+        });
+    }
+
+    public DiscoveryNode leader() {
+        CheckScheduler checkScheduler = currentChecker.get();
+        return checkScheduler == null ? null : checkScheduler.leader;
     }
 
     /**
-     * Start a leader checker for the given leader. Should only be called after successfully joining this leader.
+     * Starts and / or stops a leader checker for the given leader. Should only be called after successfully joining this leader.
      *
-     * @param leader the node to be checked as leader
-     * @return a `Releasable` that can be used to stop this checker.
+     * @param leader the node to be checked as leader, or null if checks should be disabled
      */
-    public Releasable startLeaderChecker(final DiscoveryNode leader) {
-        assert transportService.getLocalNode().equals(leader) == false;
-        CheckScheduler checkScheduler = new CheckScheduler(leader);
-        checkScheduler.handleWakeUp();
-        return checkScheduler;
+    public void updateLeader(@Nullable final DiscoveryNode leader) {
+        assert leader == null || transportService.getLocalNode().equals(leader) == false;
+        final CheckScheduler checkScheduler;
+        if (leader != null) {
+            checkScheduler = new CheckScheduler(leader);
+        } else {
+            checkScheduler = null;
+        }
+        CheckScheduler previousChecker = currentChecker.getAndSet(checkScheduler);
+        if (previousChecker != null) {
+            previousChecker.close();
+        }
+        if (checkScheduler != null) {
+            checkScheduler.handleWakeUp();
+        }
     }
 
     /**
@@ -134,6 +159,15 @@ public class LeaderChecker extends AbstractComponent {
         } else {
             logger.trace("handling {}", request);
             transportChannel.sendResponse(Empty.INSTANCE);
+        }
+    }
+
+    private void handleDisconnectedNode(DiscoveryNode discoveryNode) {
+        CheckScheduler checkScheduler = currentChecker.get();
+        if (checkScheduler != null) {
+            checkScheduler.handleDisconnectedNode(discoveryNode);
+        } else {
+            logger.trace("disconnect event ignored for {}, no check scheduler", discoveryNode);
         }
     }
 
@@ -222,11 +256,17 @@ public class LeaderChecker extends AbstractComponent {
                 });
         }
 
-        private void leaderFailed() {
+        void leaderFailed() {
             if (isClosed.compareAndSet(false, true)) {
                 transportService.getThreadPool().generic().execute(onLeaderFailure);
             } else {
                 logger.debug("already closed, not failing leader");
+            }
+        }
+
+        void handleDisconnectedNode(DiscoveryNode discoveryNode) {
+            if (discoveryNode.equals(leader)) {
+                leaderFailed();
             }
         }
 

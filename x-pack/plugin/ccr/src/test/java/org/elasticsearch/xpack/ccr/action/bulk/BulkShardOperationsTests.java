@@ -109,28 +109,29 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
             PlainActionFuture<BulkShardOperationsResponse> listener = new PlainActionFuture<>();
             CcrWritePrimaryResult primaryResult = new CcrWritePrimaryResult(request, null, shard, -2, logger);
             primaryResult.respond(listener);
-            assertThat("should return intermediately if waiting_global_checkpoint is not specified",
-                listener.actionGet(TimeValue.ZERO).getMaxSeqNo(), equalTo(shard.seqNoStats().getMaxSeqNo()));
+            assertThat("should return intermediately if waiting_global_checkpoint is not specified", listener.isDone(), equalTo(true));
+            assertThat(listener.get().getMaxSeqNo(), equalTo(shard.seqNoStats().getMaxSeqNo()));
         }
         {
             PlainActionFuture<BulkShardOperationsResponse> listener = new PlainActionFuture<>();
             long waitingForGlobalCheckpoint = randomLongBetween(shard.getGlobalCheckpoint() + 1, shard.getLocalCheckpoint());
             CcrWritePrimaryResult primaryResult = new CcrWritePrimaryResult(request, null, shard, waitingForGlobalCheckpoint, logger);
             primaryResult.respond(listener);
+            assertThat(listener.isDone(), equalTo(false));
             expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TimeValue.timeValueMillis(1)));
 
             shard.updateGlobalCheckpointOnReplica(randomLongBetween(shard.getGlobalCheckpoint(), waitingForGlobalCheckpoint - 1), "test");
             expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TimeValue.timeValueMillis(1)));
 
             shard.updateGlobalCheckpointOnReplica(randomLongBetween(waitingForGlobalCheckpoint, shard.getLocalCheckpoint()), "test");
-            assertThat(listener.actionGet(TimeValue.timeValueMillis(10)).getMaxSeqNo(), equalTo(shard.seqNoStats().getMaxSeqNo()));
+            assertThat(listener.actionGet(TimeValue.timeValueSeconds(5)).getMaxSeqNo(), equalTo(shard.seqNoStats().getMaxSeqNo()));
         }
         {
             PlainActionFuture<BulkShardOperationsResponse> listener = new PlainActionFuture<>();
             long waitingForGlobalCheckpoint = randomLongBetween(-1, shard.getGlobalCheckpoint());
             CcrWritePrimaryResult primaryResult = new CcrWritePrimaryResult(request, null, shard, waitingForGlobalCheckpoint, logger);
             primaryResult.respond(listener);
-            assertThat(listener.actionGet(TimeValue.timeValueMillis(10)).getMaxSeqNo(), equalTo(shard.seqNoStats().getMaxSeqNo()));
+            assertThat(listener.actionGet(TimeValue.timeValueSeconds(5)).getMaxSeqNo(), equalTo(shard.seqNoStats().getMaxSeqNo()));
         }
         closeShards(shard);
     }

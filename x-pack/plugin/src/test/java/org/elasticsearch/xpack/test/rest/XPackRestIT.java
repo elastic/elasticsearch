@@ -242,7 +242,6 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
     public void cleanup() throws Exception {
         disableMonitoring();
         clearMlState();
-        clearRollupState();
         if (isWaitForPendingTasks()) {
             // This waits for pending tasks to complete, so must go last (otherwise
             // it could be waiting for pending tasks while monitoring is still running).

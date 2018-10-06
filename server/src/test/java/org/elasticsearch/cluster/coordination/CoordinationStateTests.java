@@ -25,10 +25,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
@@ -37,6 +39,7 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -82,7 +85,11 @@ public class CoordinationStateTests extends ESTestCase {
     }
 
     public static DiscoveryNode createNode(String id) {
-        return new DiscoveryNode(id, buildNewFakeTransportAddress(), Version.CURRENT);
+        final TransportAddress address = buildNewFakeTransportAddress();
+        return new DiscoveryNode("", id,
+            UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
+            address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
+            EnumSet.allOf(Role.class), Version.CURRENT);
     }
 
     public void testSetInitialState() {

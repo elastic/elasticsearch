@@ -172,6 +172,8 @@ public abstract class Publication extends AbstractComponent {
 
     protected abstract void onJoin(Join join);
 
+    protected abstract void onMissingJoin(DiscoveryNode discoveryNode);
+
     protected abstract void sendPublishRequest(DiscoveryNode destination, PublishRequest publishRequest,
                                                ActionListener<PublishWithJoinResponse> responseActionListener);
 
@@ -301,10 +303,16 @@ public abstract class Publication extends AbstractComponent {
                     return;
                 }
 
-                response.getJoin().ifPresent(join -> {
+                if (response.getJoin().isPresent()) {
+                    final Join join = response.getJoin().get();
                     assert discoveryNode.equals(join.getSourceNode());
+                    assert join.getTerm() == response.getPublishResponse().getTerm() : response;
+                    logger.trace("handling join within publish response: {}", join);
                     onJoin(join);
-                });
+                } else {
+                    logger.trace("publish response from {} contained no join", discoveryNode);
+                    onMissingJoin(discoveryNode);
+                }
 
                 assert state == PublicationTargetState.SENT_PUBLISH_REQUEST : state + " -> " + PublicationTargetState.WAITING_FOR_QUORUM;
                 state = PublicationTargetState.WAITING_FOR_QUORUM;

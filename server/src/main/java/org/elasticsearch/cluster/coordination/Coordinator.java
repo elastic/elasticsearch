@@ -222,8 +222,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             ensureTermAtLeast(sourceNode, publishRequest.getAcceptedState().term());
             final PublishResponse publishResponse = coordinationState.get().handlePublishRequest(publishRequest);
 
-            if (sourceNode.equals(getLocalNode()) == false) {
-                becomeFollower("handlePublishRequest", sourceNode);
+            if (sourceNode.equals(getLocalNode())) {
+                preVoteCollector.update(getPreVoteResponse(), getLocalNode());
+            } else {
+                becomeFollower("handlePublishRequest", sourceNode); // also updates preVoteCollector
             }
 
             return new PublishWithJoinResponse(publishResponse,
@@ -254,27 +256,31 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     private void updateMaxTermSeen(final long term) {
-        maxTermSeen.updateAndGet(oldMaxTerm -> Math.max(oldMaxTerm, term));
-        // TODO if we are leader here, and there is no publication in flight, then we should bump our term
-        // (if we are leader and there _is_ a publication in flight then doing so would cancel the publication, so don't do that, but
-        // do check for this after the publication completes)
+        final long updatedMaxTermSeen = maxTermSeen.updateAndGet(oldMaxTerm -> Math.max(oldMaxTerm, term));
+        synchronized (mutex) {
+            if (mode == Mode.LEADER && publicationInProgress() == false && updatedMaxTermSeen > getCurrentTerm()) {
+                // Bump our term. However if there is a publication in flight then doing so would cancel the publication, so don't do that
+                // since we check whether a term bump is needed at the end of the publication too.
+                ensureTermAtLeast(getLocalNode(), updatedMaxTermSeen);
+                startElection();
+            }
+        }
     }
 
-    // TODO: make private again after removing term-bump workaround
-    void startElection() {
+    private void startElection() {
         synchronized (mutex) {
             // The preVoteCollector is only active while we are candidate, but it does not call this method with synchronisation, so we have
             // to check our mode again here.
             if (mode == Mode.CANDIDATE) {
                 final StartJoinRequest startJoinRequest
                     = new StartJoinRequest(getLocalNode(), Math.max(getCurrentTerm(), maxTermSeen.get()) + 1);
+                logger.debug("starting election with {}", startJoinRequest);
                 getDiscoveredNodes().forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
             }
         }
     }
 
-    // TODO: make private again after removing term-bump workaround
-    Optional<Join> ensureTermAtLeast(DiscoveryNode sourceNode, long targetTerm) {
+    private Optional<Join> ensureTermAtLeast(DiscoveryNode sourceNode, long targetTerm) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         if (getCurrentTerm() < targetTerm) {
             return Optional.of(joinLeaderInTerm(new StartJoinRequest(sourceNode, targetTerm)));
@@ -289,9 +295,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             lastJoin = Optional.of(join);
             peerFinder.setCurrentTerm(getCurrentTerm());
             if (mode != Mode.CANDIDATE) {
-                becomeCandidate("joinLeaderInTerm"); // updates followersChecker
+                becomeCandidate("joinLeaderInTerm"); // updates followersChecker and preVoteCollector
             } else {
                 followersChecker.updateFastResponseState(getCurrentTerm(), mode);
+                preVoteCollector.update(getPreVoteResponse(), null);
             }
             return join;
         }
@@ -485,6 +492,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert becomingMaster || getStateForMasterService().nodes().getMasterNodeId() != null : getStateForMasterService();
                 assert leaderCheckScheduler == null : leaderCheckScheduler;
                 assert applierState.nodes().getMasterNodeId() == null || getLocalNode().equals(applierState.nodes().getMasterNode());
+                assert preVoteCollector.getLeader() == getLocalNode() : preVoteCollector;
+                assert preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse()) : preVoteCollector;
 
                 final boolean activePublication = currentPublication.map(CoordinatorPublication::isActiveForCurrentLeader).orElse(false);
                 if (becomingMaster && activePublication == false) {
@@ -517,6 +526,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert leaderCheckScheduler != null;
                 assert followersChecker.getKnownFollowers().isEmpty();
                 assert currentPublication.map(Publication::isCommitted).orElse(true);
+                assert preVoteCollector.getLeader().equals(lastKnownLeader.get()) : preVoteCollector;
+                assert preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse()) : preVoteCollector;
             } else {
                 assert mode == Mode.CANDIDATE;
                 assert joinAccumulator instanceof JoinHelper.CandidateJoinAccumulator;
@@ -528,6 +539,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert followersChecker.getKnownFollowers().isEmpty();
                 assert applierState.nodes().getMasterNodeId() == null;
                 assert currentPublication.map(Publication::isCommitted).orElse(true);
+                assert preVoteCollector.getLeader() == null : preVoteCollector;
+                assert preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse()) : preVoteCollector;
             }
         }
     }
@@ -537,7 +550,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         return coordinationState.get().containsJoinVoteFor(localNode);
     }
 
-    void handleJoin(Join join) {
+    private void handleJoin(Join join) {
         synchronized (mutex) {
             ensureTermAtLeast(getLocalNode(), join.getTerm()).ifPresent(this::handleJoin);
 
@@ -547,7 +560,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 try {
                     coordinationState.get().handleJoin(join);
                 } catch (CoordinationStateRejectedException e) {
-                    logger.debug("failed to add join, ignoring", e);
+                    logger.debug(new ParameterizedMessage("failed to add {} - ignoring", join), e);
                 }
             } else {
                 coordinationState.get().handleJoin(join); // this might fail and bubble up the exception
@@ -753,6 +766,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         private final AckListener ackListener;
         private final ActionListener<Void> publishListener;
 
+        // We may not have accepted our own state before receiving a join from another node, causing its join to be rejected (we cannot
+        // safely accept a join whose last-accepted term/version is ahead of ours), so store them up and process them at the end.
+        private final List<Join> receivedJoins = new ArrayList<>();
+        private boolean receivedJoinsProcessed;
+
         CoordinatorPublication(PublishRequest publishRequest, ListenableFuture<Void> localNodeAckEvent, AckListener ackListener,
                                ActionListener<Void> publishListener) {
             super(Coordinator.this.settings, publishRequest,
@@ -790,6 +808,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
             assert currentPublication.get() == this;
             currentPublication = Optional.empty();
+            logger.debug("publication ended unsuccessfully: {}", this);
 
             // check if node has not already switched modes (by bumping term)
             if (isActiveForCurrentLeader()) {
@@ -812,6 +831,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
                     assert committed;
 
+                    receivedJoins.forEach(CoordinatorPublication.this::handleAssociatedJoin);
+                    assert receivedJoinsProcessed == false;
+                    receivedJoinsProcessed = true;
+
                     clusterApplier.onNewClusterState(CoordinatorPublication.this.toString(), () -> applierState,
                         new ClusterApplyListener() {
                             @Override
@@ -828,6 +851,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                 synchronized (mutex) {
                                     assert currentPublication.get() == CoordinatorPublication.this;
                                     currentPublication = Optional.empty();
+                                    logger.debug("publication ended successfully: {}", CoordinatorPublication.this);
                                     // trigger term bump if new term was found during publication
                                     updateMaxTermSeen(getCurrentTerm());
                                 }
@@ -850,6 +874,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             }, EsExecutors.newDirectExecutorService());
         }
 
+        private void handleAssociatedJoin(Join join) {
+            if (join.getTerm() == getCurrentTerm() && hasJoinVoteFrom(join.getSourceNode()) == false) {
+                logger.trace("handling {}", join);
+                handleJoin(join);
+            }
+        }
+
         @Override
         protected boolean isPublishQuorum(CoordinationState.VoteCollection votes) {
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
@@ -867,10 +898,26 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         @Override
         protected void onJoin(Join join) {
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-            if (join.getTerm() == getCurrentTerm()) {
-                handleJoin(join);
+            if (receivedJoinsProcessed) {
+                // a late response may arrive after the state has been locally applied, meaning that receivedJoins has already been
+                // processed, so we have to handle this late response here.
+                handleAssociatedJoin(join);
+            } else {
+                receivedJoins.add(join);
             }
-            // TODO: what to do on missing join?
+        }
+
+        @Override
+        protected void onMissingJoin(DiscoveryNode discoveryNode) {
+            assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+            // The remote node did not include a join vote in its publish response. We do not persist joins, so it could be that the remote
+            // node voted for us and then rebooted, or it could be that it voted for a different node in this term. If we don't have a copy
+            // of a join from this node then we assume the latter and bump our term to obtain a vote from this node.
+            if (hasJoinVoteFrom(discoveryNode) == false) {
+                final long term = publishRequest.getAcceptedState().term();
+                logger.debug("onMissingJoin: no join vote from {}, bumping term to exceed {}", discoveryNode, term);
+                updateMaxTermSeen(term + 1);
+            }
         }
 
         @Override

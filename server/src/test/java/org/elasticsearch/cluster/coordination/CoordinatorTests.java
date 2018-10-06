@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.CloseableThreadContext;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
@@ -32,10 +31,8 @@ import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
 import org.elasticsearch.cluster.coordination.CoordinationStateTests.InMemoryPersistedState;
 import org.elasticsearch.cluster.coordination.CoordinatorTests.Cluster.ClusterNode;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -54,8 +51,6 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -75,6 +70,7 @@ import static org.elasticsearch.cluster.coordination.CoordinationStateTests.valu
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.FOLLOWER;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.LEADER;
+import static org.elasticsearch.cluster.coordination.Coordinator.PUBLISH_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.CoordinatorTests.Cluster.DEFAULT_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_BACK_OFF_TIME_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING;
@@ -187,15 +183,26 @@ public class CoordinatorTests extends ESTestCase {
         logger.info("--> blackholing leader {}", originalLeader);
         originalLeader.blackhole();
 
+        // This stabilisation time bound is undesirably long. TODO try and reduce it.
         cluster.stabilise(Math.max(
             // first wait for all the followers to notice the leader has gone
             (defaultMillis(LEADER_CHECK_INTERVAL_SETTING) + defaultMillis(LEADER_CHECK_TIMEOUT_SETTING))
                 * defaultInt(LEADER_CHECK_RETRY_COUNT_SETTING)
                 // then wait for a follower to be promoted to leader
                 + DEFAULT_ELECTION_DELAY
-                // then wait for the new leader to notice that the old leader is unresponsive
-                + (defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING))
-                * defaultInt(FOLLOWER_CHECK_RETRY_COUNT_SETTING)
+                // and the first publication times out because of the unresponsive node
+                + defaultMillis(PUBLISH_TIMEOUT_SETTING)
+                // there might be a term bump causing another election
+                + DEFAULT_ELECTION_DELAY
+
+                // then wait for both of:
+                + Math.max(
+                // 1. the term bumping publication to time out
+                defaultMillis(PUBLISH_TIMEOUT_SETTING),
+                // 2. the new leader to notice that the old leader is unresponsive
+                (defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING))
+                    * defaultInt(FOLLOWER_CHECK_RETRY_COUNT_SETTING))
+
                 // then wait for the new leader to commit a state without the old leader
                 + DEFAULT_CLUSTER_STATE_UPDATE_DELAY,
 
@@ -205,6 +212,7 @@ public class CoordinatorTests extends ESTestCase {
                 // then wait for the leader to try and commit a state removing them, causing it to stand down
                 + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
         ));
+
         assertThat(cluster.getAnyLeader().getId(), not(equalTo(originalLeader.getId())));
     }
 
@@ -599,31 +607,33 @@ public class CoordinatorTests extends ESTestCase {
             assertThat("stabilisation requires default delay variability (and proper cleanup of raised variability)",
                 deterministicTaskQueue.getExecutionDelayVariabilityMillis(), lessThanOrEqualTo(DEFAULT_DELAY_VARIABILITY));
             runFor(stabilisationDurationMillis, "stabilising");
+            fixLag();
+            assertUniqueLeaderAndExpectedModes();
+        }
 
-            // TODO remove when term-bumping is enabled
-            final long maxTerm = clusterNodes.stream().map(n -> n.coordinator.getCurrentTerm()).max(Long::compare).orElse(0L);
-            final long maxLeaderTerm = clusterNodes.stream().filter(n -> n.coordinator.getMode() == Coordinator.Mode.LEADER)
-                .map(n -> n.coordinator.getCurrentTerm()).max(Long::compare).orElse(0L);
+        // TODO remove this when lag detection is implemented
+        void fixLag() {
+            final ClusterNode leader = getAnyLeader();
+            final long leaderVersion = leader.coordinator.getLastAcceptedState().version();
+            final long minVersion = clusterNodes.stream()
+                .filter(n -> isConnectedPair(n, leader))
+                .map(n -> n.coordinator.getLastAcceptedState().version()).min(Long::compare).orElse(Long.MIN_VALUE);
 
-            if (maxLeaderTerm < maxTerm) {
-                logger.info("--> forcing a term bump, maxTerm={}, maxLeaderTerm={}", maxTerm, maxLeaderTerm);
-                final ClusterNode leader = getAnyLeader();
+            assert minVersion >= 0;
+            if (minVersion < leaderVersion) {
+                logger.info("--> publishing a value to fix lag, leaderVersion={}, minVersion={}", leaderVersion, minVersion);
                 onNode(leader.getLocalNode(), () -> {
                     synchronized (leader.coordinator.mutex) {
-                        leader.coordinator.ensureTermAtLeast(leader.localNode, maxTerm + 1);
+                        leader.submitValue(randomLong());
                     }
-                    leader.coordinator.startElection();
                 }).run();
-                runFor(DEFAULT_ELECTION_DELAY, "re-stabilising after term bump");
             }
-            logger.info("--> end of stabilisation");
-
-            assertUniqueLeaderAndExpectedModes();
+            runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "re-stabilising after lag-fixing publication");
         }
 
         void runFor(long runDurationMillis, String description) {
             final long endTime = deterministicTaskQueue.getCurrentTimeMillis() + runDurationMillis;
-            logger.info("----> runFor({}ms) running until [{}ms]: {}", runDurationMillis, endTime, description);
+            logger.info("--> runFor({}ms) running until [{}ms]: {}", runDurationMillis, endTime, description);
 
             while (deterministicTaskQueue.getCurrentTimeMillis() < endTime) {
 
@@ -648,7 +658,7 @@ public class CoordinatorTests extends ESTestCase {
                 deterministicTaskQueue.advanceTime();
             }
 
-            logger.info("----> runFor({}ms) completed run until [{}ms]: {}", runDurationMillis, endTime, description);
+            logger.info("--> runFor({}ms) completed run until [{}ms]: {}", runDurationMillis, endTime, description);
         }
 
         private boolean isConnectedPair(ClusterNode n1, ClusterNode n2) {
@@ -677,7 +687,7 @@ public class CoordinatorTests extends ESTestCase {
                 if (isConnectedPair(leader, clusterNode)) {
                     assertThat(nodeId + " is a follower", clusterNode.coordinator.getMode(), is(FOLLOWER));
                     assertThat(nodeId + " has the same term as the leader", clusterNode.coordinator.getCurrentTerm(), is(leaderTerm));
-                    // TODO assert that this node has actually voted for the leader in this term
+                    assertTrue(nodeId + " has voted for the leader", leader.coordinator.hasJoinVoteFrom(clusterNode.getLocalNode()));
                     // TODO assert that this node's accepted and committed states are the same as the leader's
 
                     assertTrue(nodeId + " is in the leader's applied state",
@@ -754,13 +764,7 @@ public class CoordinatorTests extends ESTestCase {
             }
 
             private DiscoveryNode createDiscoveryNode() {
-                final TransportAddress transportAddress = buildNewFakeTransportAddress();
-                // Generate the ephemeral ID deterministically, for repeatable tests. This means we have to pass everything else into the
-                // constructor explicitly too.
-                return new DiscoveryNode("", nodeIdFromIndex(nodeIndex), UUIDs.randomBase64UUID(random()),
-                    transportAddress.address().getHostString(),
-                    transportAddress.getAddress(), transportAddress, Collections.emptyMap(),
-                    EnumSet.allOf(Role.class), Version.CURRENT);
+                return CoordinationStateTests.createNode(nodeIdFromIndex(nodeIndex));
             }
 
             private void setUp() {

@@ -100,7 +100,11 @@ public class TestEsClient {
         return settingBuilder;
     }
 
-
+    /**
+     * {@link org.elasticsearch.index.mapper.ObjectMapper.TypeParser#parseProperties} 中将es的field转换为lucene对应的field
+     * @return
+     * @throws IOException
+     */
     public static XContentBuilder createMapping() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder()
             .startObject()
@@ -109,7 +113,12 @@ public class TestEsClient {
             .startObject("properties")
 
             .startObject("ware_id").field("type", "keyword").field("index", "true").
-                field("store", "true").field("doc_values", "true").endObject()
+                field("store", "true")
+            .startObject("fields").
+                startObject("raw").
+                field("type","long").field("doc_values","true").field("index","false").endObject()
+                .endObject()
+            .endObject()
 
             .startObject("category_id").field("type", "long").field("index", "true").
                 field("store", "true").field("doc_values", "true").endObject()

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteRequest;
@@ -48,7 +49,6 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -80,7 +80,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     public static final String ACTION_NAME = BulkAction.NAME + "[s]";
 
-    private static final Logger logger = ESLoggerFactory.getLogger(TransportShardBulkAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportShardBulkAction.class);
 
     private final ThreadPool threadPool;
     private final UpdateHelper updateHelper;

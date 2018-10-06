@@ -1,57 +1,38 @@
-[[java-rest-high-x-pack-ml-get-job]]
+--
+:api: get-job
+:request: GetJobRequest
+:response: GetJobResponse
+--
+[id="{upid}-{api}"]
 === Get Job API
 
 The Get Job API provides the ability to get {ml} jobs in the cluster.
-It accepts a `GetJobRequest` object and responds
-with a `GetJobResponse` object.
+It accepts a +{request}+ object and responds
+with a +{response}+ object.
 
-[[java-rest-high-x-pack-ml-get-job-request]]
+[id="{upid}-{api}-request"]
 ==== Get Job Request
 
-A `GetJobRequest` object gets can have any number of `jobId` or `groupName`
+A +{request}+ object gets can have any number of `jobId` or `groupName`
 entries. However, they all must be non-null. An empty list is the same as
 requesting for all jobs.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-job-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Constructing a new request referencing existing `jobIds`, can contain wildcards
 <2> Whether to ignore if a wildcard expression matches no jobs.
  (This includes `_all` string or when no jobs have been specified)
 
-[[java-rest-high-x-pack-ml-get-job-execution]]
-==== Execution
-
-The request can be executed through the `MachineLearningClient` contained
-in the `RestHighLevelClient` object, accessed via the `machineLearningClient()` method.
+[id="{upid}-{api}-response"]
+==== Get Job Response
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-job-execute]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> `getCount()` from the `GetJobResponse` indicates the number of jobs found
+<1> `getCount()` from the +{response}+ indicates the number of jobs found
 <2> `getJobs()` is the collection of {ml} `Job` objects found
 
-[[java-rest-high-x-pack-ml-get-job-execution-async]]
-==== Asynchronous Execution
-
-The request can also be executed asynchronously:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-job-execute-async]
---------------------------------------------------
-<1> The `GetJobRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The method does not block and returns immediately. The passed `ActionListener` is used
-to notify the caller of completion. A typical `ActionListener` for `GetJobResponse` may
-look like
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-job-listener]
---------------------------------------------------
-<1> `onResponse` is called back when the action is completed successfully
-<2> `onFailure` is called back when some unexpected error occurs
+include::../execution.asciidoc[]

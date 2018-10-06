@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.input;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.input.Input;
@@ -16,13 +15,6 @@ import java.io.IOException;
  * Parses xcontent to a concrete input of the same type.
  */
 public abstract class InputFactory<I extends Input, R extends Input.Result, E extends ExecutableInput<I, R>> {
-
-    protected final Logger inputLogger;
-
-    public InputFactory(Logger inputLogger) {
-        this.inputLogger = inputLogger;
-    }
-
     /**
      * @return  The type of the input
      */

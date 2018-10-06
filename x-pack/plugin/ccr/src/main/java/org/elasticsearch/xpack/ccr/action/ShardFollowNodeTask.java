@@ -238,15 +238,16 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
         innerSendShardChangesRequest(from, maxOperationCount,
                 response -> {
-                    if (response.getOperations().length > 0) {
-                        // do not count polls against fetch stats
-                        synchronized (ShardFollowNodeTask.this) {
+                    synchronized (ShardFollowNodeTask.this) {
+                        // Always clear fetch exceptions:
+                        fetchExceptions.remove(from);
+                        if (response.getOperations().length > 0) {
+                            // do not count polls against fetch stats
                             totalFetchTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
                             numberOfSuccessfulFetches++;
-                            fetchExceptions.remove(from);
                             operationsReceived += response.getOperations().length;
                             totalTransferredBytes +=
-                                    Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
+                                Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
                         }
                     }
                     handleReadResponse(from, maxRequiredSeqNo, response);

@@ -342,15 +342,15 @@ public class RestClientSingleHostTests extends RestClientTestCase {
 
     public void testDeprecationWarnings() throws IOException {
         String chars = randomAsciiAlphanumOfLength(5);
-        deprecationWarningTest(singletonList("poorly formatted " + chars), singletonList("poorly formatted " + chars));
-        deprecationWarningTest(singletonList(formatWarning(chars)), singletonList(chars));
-        deprecationWarningTest(
+        assertDeprecationWarnings(singletonList("poorly formatted " + chars), singletonList("poorly formatted " + chars));
+        assertDeprecationWarnings(singletonList(formatWarning(chars)), singletonList(chars));
+        assertDeprecationWarnings(
                 Arrays.asList(formatWarning(chars), "another one", "and another"),
                 Arrays.asList(chars,                "another one", "and another"));
 
     }
 
-    private void deprecationWarningTest(List<String> warningHeaderTexts, List<String> warningBodyTexts) throws IOException {
+    private void assertDeprecationWarnings(List<String> warningHeaderTexts, List<String> warningBodyTexts) throws IOException {
         String method = randomFrom(getHttpMethods());
         Request request = new Request(method, "/200");
         RequestOptions.Builder options = request.getOptions().toBuilder();
@@ -363,7 +363,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         if (strictDeprecationMode) {
             try {
                 restClient.performRequest(request);
-                fail("expected ResponseException");
+                fail("expected ResponseException because strict deprecation mode is enabled");
                 return;
             } catch (ResponseException e) {
                 assertThat(e.getMessage(), containsString("\nWarnings: " + warningBodyTexts));
@@ -380,7 +380,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
      * Emulates Elasticsearch's DeprecationLogger.formatWarning in simple
      * cases. We don't have that available because we're testing against 1.7.
      */
-    private String formatWarning(String warningBody) {
+    private static String formatWarning(String warningBody) {
         return "299 Elasticsearch-1.2.2-SNAPSHOT-eeeeeee \"" + warningBody + "\" \"Mon, 01 Jan 2001 00:00:00 GMT\"";
     }
 

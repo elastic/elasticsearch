@@ -149,19 +149,30 @@ subprojects {
 
   task buildBwcVersion(type: Exec) {
     dependsOn checkoutBwcBranch, writeBuildMetadata
-    // send RUNTIME_JAVA_HOME so the build doesn't fails on newer version the branch doesn't know about
-    environment('RUNTIME_JAVA_HOME', getJavaHome(it, rootProject.ext.minimumRuntimeVersion.getMajorVersion() as int))
     workingDir = checkoutDir
-    // we are building branches that are officially built with JDK 8, push JAVA8_HOME to JAVA_HOME for these builds
-    if (["5.6", "6.0", "6.1"].contains(bwcBranch)) {
-      environment('JAVA_HOME', getJavaHome(it, 8))
-    } else if ("6.2".equals(bwcBranch)) {
-      environment('JAVA_HOME', getJavaHome(it, 9))
-    } else if (["6.3", "6.4", "6.x"].contains(bwcBranch)) {
-      environment('JAVA_HOME', getJavaHome(it, 10))
-    } else {
-      environment('JAVA_HOME', project.compilerJavaHome)
+    doFirst {
+      // Execution time so that the checkouts are available  
+      List<String> lines = file("$checkoutDir/.ci/java-versions.properties").readLines()
+      environment(
+              'JAVA_HOME',
+              getJavaHome(it, Integer.parseInt(
+                      lines
+                              .findAll({ it.startsWith("ES_BUILD_JAVA=java") })
+                              .collect({ it.replace("ES_BUILD_JAVA=java", "").trim() })
+                              .join("!!")
+              ))
+      )
+      environment(
+              'RUNTIME_JAVA_HOME',
+              getJavaHome(it, Integer.parseInt(
+                      lines
+                              .findAll({ it.startsWith("ES_RUNTIME_JAVA=java") })
+                              .collect({ it.replace("ES_RUNTIME_JAVA=java", "").trim() })
+                              .join("!!")
+              ))
+      )
     }
+
     if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       executable 'cmd'
       args '/C', 'call', new File(checkoutDir, 'gradlew').toString()

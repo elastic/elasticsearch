@@ -24,44 +24,64 @@ import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheResponse;
+import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.role.DeleteRoleResponse;
+import org.elasticsearch.xpack.core.security.action.role.GetRolesAction;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesRequest;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsResponse;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateResponse;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
+import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.user.ChangePasswordResponse;
+import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.user.DeleteUserResponse;
+import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
+import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.user.SetEnabledResponse;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
 import java.io.IOException;
@@ -133,9 +153,29 @@ public class SecurityClient {
         client.execute(ClearRolesCacheAction.INSTANCE, request, listener);
     }
 
+    /**
+     * Clears the roles cache. This API only works for the native roles that are stored in an elasticsearch index. It is possible to clear
+     * the cache of all roles or to specify the names of individual roles that should have their cache cleared.
+     * @param request A {@link ClearRolesCacheRequest} which may specify the roles. If no roles are specified, all roles will be evicted
+     *                from the cache.
+     * @param listener An {@link ActionListener} to handle action responses or failures
+     */
+    public ActionFuture<ClearRolesCacheResponse> clearRolesCache(ClearRolesCacheRequest request) {
+        return client.execute(ClearRolesCacheAction.INSTANCE, request);
+    }
+
     /****************************
      * Permissions / Privileges *
      ****************************/
+
+    /**
+     * Populates a {@link HasPrivilegesRequest} to check a user's privileges.
+     * @param username The user to check
+     * @return {@link HasPrivilegesRequestBuilder}
+     */
+    public HasPrivilegesRequestBuilder prepareHasPrivileges(String username) {
+        return new HasPrivilegesRequestBuilder(client).username(username);
+    }
 
     /**
      * Populates a {@link HasPrivilegesRequest} to check a user's privileges.
@@ -151,18 +191,35 @@ public class SecurityClient {
         return new HasPrivilegesRequestBuilder(client).source(username, source, xContentType);
     }
 
+    /**
+     * Checks whether the user has the given privilege(s).
+     * @param request A {@link HasPrivilegesRequest} specifying the user and privileges to check
+     * @param listener An {@link ActionListener} to handle action responses or failures
+     */
+    public void hasPrivileges(HasPrivilegesRequest request, ActionListener<HasPrivilegesResponse> listener) {
+        client.execute(HasPrivilegesAction.INSTANCE, request, listener);
+    }
+
     /*******************
      * User Management *
      *******************/
 
     /**
-     * Populates a {@link GetUsersRequest} to get information about a user or users such as roles, metadata, full name and email
-     * (if available).
+     * Populates a {@link GetUsersRequest} to get information about a user or users.
      * @param usernames The user(s) to get
      * @return {@link GetUsersRequestBuilder}
      */
     public GetUsersRequestBuilder prepareGetUsers(String... usernames) {
         return new GetUsersRequestBuilder(client).usernames(usernames);
+    }
+
+    /**
+     * Gets information about a user or users such as roles, metadata, full name and email (if available).
+     * @param request A {@link GetUsersRequest} specifying the user(s) to fetch
+     * @param listener An {@link ActionListener} to handle action responses or failures
+     */
+    public void getUsers(GetUsersRequest request, ActionListener<GetUsersResponse> listener) {
+        client.execute(GetUsersAction.INSTANCE, request, listener);
     }
 
     /**
@@ -172,6 +229,15 @@ public class SecurityClient {
      */
     public DeleteUserRequestBuilder prepareDeleteUser(String username) {
         return new DeleteUserRequestBuilder(client).username(username);
+    }
+
+    /**
+     * Deletes the given user in the native realm.
+     * @param request A {@link DeleteUserRequest} specifying the user to delete
+     * @param listener An {@link ActionListener} to handle action responses or failures
+     */
+    public void deleteUser(DeleteUserRequest request, ActionListener<DeleteUserResponse> listener) {
+        client.execute(DeleteUserAction.INSTANCE, request, listener);
     }
 
     /**
@@ -237,6 +303,15 @@ public class SecurityClient {
     }
 
     /**
+     * Changes the user's password.
+     * @param A {@link ChangePasswordRequest} with the username and password
+     * @param An {@link ActionListener} to handle action responses or failures
+     */
+    public void changePassword(ChangePasswordRequest request, ActionListener<ChangePasswordResponse> listener) {
+        client.execute(ChangePasswordAction.INSTANCE, request, listener);
+    }
+
+    /**
      * Populates a {@link SetEnabledRequest} with the username and the {@code enabled} flag.
      * @param username The username to enable/disable
      * @param enabled True if the user should be enabled, false otherwise
@@ -244,6 +319,15 @@ public class SecurityClient {
      */
     public SetEnabledRequestBuilder prepareSetEnabled(String username, boolean enabled) {
         return new SetEnabledRequestBuilder(client).username(username).enabled(enabled);
+    }
+
+    /**
+     * Enables or disables a user.
+     * @param request A {@link SetEnabledRequest} with the username and {@code enabled} flag
+     * @param An {@link ActionListener} to handle action responses or failures
+     */
+    public void setEnabled(SetEnabledRequest request, ActionListener<SetEnabledResponse> listener) {
+        client.execute(SetEnabledAction.INSTANCE, request, listener);
     }
 
     /*******************
@@ -260,12 +344,30 @@ public class SecurityClient {
     }
 
     /**
+     * Gets the privileges associated with a role or roles.
+     * @param request A {@link GetRolesRequest} specifying the role(s) to fetch
+     * @param An {@link ActionListener} to handle action responses or failures
+     */
+    public void getRoles(GetRolesRequest request, ActionListener<GetRolesResponse> listener) {
+        client.execute(GetRolesAction.INSTANCE, request, listener);
+    }
+
+    /**
      * Populates a {@link DeleteRoleRequest} to delete a role.
      * @param name The role to delete
      * @return {@link DeleteRoleRequestBuilder}
      */
     public DeleteRoleRequestBuilder prepareDeleteRole(String name) {
         return new DeleteRoleRequestBuilder(client).name(name);
+    }
+
+    /**
+     * Deletes the given role.
+     * @param request A {@link DeleteRoleRequest} specifying the role to delete
+     * @param listener An {@link ActionListener} to handle action responses or failures
+     */
+    public void deleteRole(DeleteRoleRequest request, ActionListener<DeleteRoleResponse> listener) {
+        client.execute(DeleteRoleAction.INSTANCE, request, listener);
     }
 
     /**
@@ -290,6 +392,15 @@ public class SecurityClient {
         return new PutRoleRequestBuilder(client).source(name, source, xContentType);
     }
 
+    /**
+     * Creates or updates a role.
+     * @param request A {@link PutRoleRequest} with the role's name and privileges
+     * @param listener An {@link ActionListener} to handle action responses or failures
+     */
+    public void putRole(PutRoleRequest request, ActionListener<PutRoleResponse> listener) {
+        client.execute(PutRoleAction.INSTANCE, request, listener);
+    }
+
     /*****************
      * Role Mappings *
      *****************/
@@ -304,6 +415,18 @@ public class SecurityClient {
     public GetRoleMappingsRequestBuilder prepareGetRoleMappings(String... names) {
         return new GetRoleMappingsRequestBuilder(client, GetRoleMappingsAction.INSTANCE)
                 .names(names);
+    }
+
+    /**
+     * Gets the specific role mappings from the native role mapping store.
+     * @param request A {@link GetRoleMappingsRequest} specifying the role mapping(s) to fetch
+     * @param listener An {@link ActionListener} to handle action responses or failures
+     *
+     * @see org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping
+     */
+    public void getRoleMappings(GetRoleMappingsRequest request,
+                                ActionListener<GetRoleMappingsResponse> listener) {
+        client.execute(GetRoleMappingsAction.INSTANCE, request, listener);
     }
 
     /**
@@ -385,6 +508,15 @@ public class SecurityClient {
     }
 
     /**
+     * Creates an OAuth token.
+     * @param request A {@link CreateTokenRequest} with the credentials
+     * @param listener An {@link ActionListener} to handle action responses or failures
+     */
+    public void createToken(CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {
+        client.execute(CreateTokenAction.INSTANCE, request, listener);
+    }
+
+    /**
      * Populates an {@link InvalidateTokenRequest}
      * @param token The string representation of the token;
      * @return {@link InvalidateTokenRequestBuilder}
@@ -417,6 +549,15 @@ public class SecurityClient {
     }
 
     /**
+     * Authenticates using SAML assertions.
+     * @param request A {@link SamlAuthenticateRequest} with the response from the identity provider
+     * @param listener An {@link ActionListener} to handle action responses or failures
+     */
+    public void samlAuthenticate(SamlAuthenticateRequest request, ActionListener<SamlAuthenticateResponse> listener) {
+        client.execute(SamlAuthenticateAction.INSTANCE, request, listener);
+    }
+
+    /**
      * Initialises a {@link SamlPrepareAuthenticationRequest}
      * @return {@link SamlPrepareAuthenticationRequestBuilder}
      */
@@ -433,5 +574,14 @@ public class SecurityClient {
         return new CreateTokenRequestBuilder(client, RefreshTokenAction.INSTANCE)
                 .setRefreshToken(refreshToken)
                 .setGrantType("refresh_token");
+    }
+
+    /**
+     * Makes an request to refresh the token.
+     * @param request {@link CreateTokenRequest} with the refresh token
+     * @param listener An {@link ActionListener} to handle action responses or failures
+     */
+    public void refreshToken(CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {
+        client.execute(RefreshTokenAction.INSTANCE, request, listener);
     }
 }

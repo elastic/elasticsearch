@@ -51,6 +51,7 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -102,6 +103,7 @@ public class CoordinatorTests extends ESTestCase {
     public void testCanUpdateClusterStateAfterStabilisation() {
         final Cluster cluster = new Cluster(randomIntBetween(1, 5));
         cluster.runRandomly();
+        cluster.setInitialConfigurationIfRequired();
         cluster.stabilise();
 
         final ClusterNode leader = cluster.getAnyLeader();
@@ -121,6 +123,7 @@ public class CoordinatorTests extends ESTestCase {
     public void testNodesJoinAfterStableCluster() {
         final Cluster cluster = new Cluster(randomIntBetween(1, 5));
         cluster.runRandomly();
+        cluster.setInitialConfigurationIfRequired();
         cluster.stabilise();
 
         final long currentTerm = cluster.getAnyLeader().coordinator.getCurrentTerm();
@@ -141,6 +144,7 @@ public class CoordinatorTests extends ESTestCase {
     public void testLeaderDisconnectionDetectedQuickly() {
         final Cluster cluster = new Cluster(randomIntBetween(3, 5));
         cluster.runRandomly();
+        cluster.setInitialConfigurationIfRequired();
         cluster.stabilise();
 
         final ClusterNode originalLeader = cluster.getAnyLeader();
@@ -177,6 +181,7 @@ public class CoordinatorTests extends ESTestCase {
     public void testUnresponsiveLeaderDetectedEventually() {
         final Cluster cluster = new Cluster(randomIntBetween(3, 5));
         cluster.runRandomly();
+        cluster.setInitialConfigurationIfRequired();
         cluster.stabilise();
 
         final ClusterNode originalLeader = cluster.getAnyLeader();
@@ -219,6 +224,7 @@ public class CoordinatorTests extends ESTestCase {
     public void testFollowerDisconnectionDetectedQuickly() {
         final Cluster cluster = new Cluster(randomIntBetween(3, 5));
         cluster.runRandomly();
+        cluster.setInitialConfigurationIfRequired();
         cluster.stabilise();
 
         final ClusterNode leader = cluster.getAnyLeader();
@@ -251,6 +257,7 @@ public class CoordinatorTests extends ESTestCase {
     public void testUnresponsiveFollowerDetectedEventually() {
         final Cluster cluster = new Cluster(randomIntBetween(3, 5));
         cluster.runRandomly();
+        cluster.setInitialConfigurationIfRequired();
         cluster.stabilise();
 
         final ClusterNode leader = cluster.getAnyLeader();
@@ -275,6 +282,7 @@ public class CoordinatorTests extends ESTestCase {
     public void testAckListenerReceivesAcksFromAllNodes() {
         final Cluster cluster = new Cluster(randomIntBetween(3, 5));
         cluster.runRandomly();
+        cluster.setInitialConfigurationIfRequired();
         cluster.stabilise();
         final ClusterNode leader = cluster.getAnyLeader();
         AckCollector ackCollector = leader.submitValue(randomLong());
@@ -289,6 +297,7 @@ public class CoordinatorTests extends ESTestCase {
     public void testAckListenerReceivesNackFromFollower() {
         final Cluster cluster = new Cluster(3);
         cluster.runRandomly();
+        cluster.setInitialConfigurationIfRequired();
         cluster.stabilise();
         final ClusterNode leader = cluster.getAnyLeader();
         final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
@@ -306,6 +315,7 @@ public class CoordinatorTests extends ESTestCase {
     public void testAckListenerReceivesNackFromLeader() {
         final Cluster cluster = new Cluster(3);
         cluster.runRandomly();
+        cluster.setInitialConfigurationIfRequired();
         cluster.stabilise();
         final ClusterNode leader = cluster.getAnyLeader();
         final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
@@ -327,6 +337,7 @@ public class CoordinatorTests extends ESTestCase {
     public void testAckListenerReceivesNoAckFromHangingFollower() {
         final Cluster cluster = new Cluster(3);
         cluster.runRandomly();
+        cluster.setInitialConfigurationIfRequired();
         cluster.stabilise();
         final ClusterNode leader = cluster.getAnyLeader();
         final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
@@ -345,6 +356,7 @@ public class CoordinatorTests extends ESTestCase {
     public void testAckListenerReceivesNacksIfPublicationTimesOut() {
         final Cluster cluster = new Cluster(3);
         cluster.runRandomly();
+        cluster.setInitialConfigurationIfRequired();
         cluster.stabilise();
         final ClusterNode leader = cluster.getAnyLeader();
         final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
@@ -402,6 +414,57 @@ public class CoordinatorTests extends ESTestCase {
 //        assertTrue("expected ack from " + leader, ackCollector.hasAckedSuccessfully(leader));
 //        assertTrue("expected nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));
 //        assertTrue("expected ack from " + follower1, ackCollector.hasAckedSuccessfully(follower1));
+    }
+
+    public void testSettingInitialConfigurationTriggersElection() {
+        final Cluster cluster = new Cluster(randomIntBetween(1, 5));
+        cluster.runFor(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2 + randomLongBetween(0, 60000), "initial discovery phase");
+        for (final ClusterNode clusterNode : cluster.clusterNodes) {
+            final String nodeId = clusterNode.getId();
+            assertThat(nodeId + " is CANDIDATE", clusterNode.coordinator.getMode(), is(CANDIDATE));
+            assertThat(nodeId + " is in term 0", clusterNode.coordinator.getCurrentTerm(), is(0L));
+            assertThat(nodeId + " last accepted in term 0", clusterNode.coordinator.getLastAcceptedState().term(), is(0L));
+            assertThat(nodeId + " last accepted version 0", clusterNode.coordinator.getLastAcceptedState().version(), is(0L));
+            assertTrue(nodeId + " has an empty last-accepted configuration",
+                clusterNode.coordinator.getLastAcceptedState().getLastAcceptedConfiguration().isEmpty());
+            assertTrue(nodeId + " has an empty last-committed configuration",
+                clusterNode.coordinator.getLastAcceptedState().getLastCommittedConfiguration().isEmpty());
+        }
+
+        cluster.getAnyNode().applyInitialConfiguration();
+        cluster.stabilise(defaultMillis(
+            // the first election should succeed
+            ELECTION_INITIAL_TIMEOUT_SETTING) // TODO this wait is unnecessary, we could trigger the election immediately
+            // Allow two round-trip for pre-voting and voting
+            + 4 * DEFAULT_DELAY_VARIABILITY
+            // Then a commit of the new leader's first cluster state
+            + DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+    }
+
+    public void testCannotSetInitialConfigurationTwice() {
+        final Cluster cluster = new Cluster(randomIntBetween(1, 5));
+        cluster.runRandomly();
+        cluster.setInitialConfigurationIfRequired();
+        cluster.stabilise();
+
+        final Coordinator coordinator = cluster.getAnyNode().coordinator;
+        final CoordinationStateRejectedException exception = expectThrows(CoordinationStateRejectedException.class,
+            () -> coordinator.setInitialConfiguration(coordinator.getLastAcceptedState().getLastCommittedConfiguration()));
+
+        assertThat(exception.getMessage(), is("Cannot set initial configuration: configuration has already been set"));
+    }
+
+    public void testCannotSetInitialConfigurationWithoutQuorum() {
+        final Cluster cluster = new Cluster(randomIntBetween(1, 5));
+        final Coordinator coordinator = cluster.getAnyNode().coordinator;
+        final VotingConfiguration unknownNodeConfiguration = new VotingConfiguration(Collections.singleton("unknown-node"));
+        final CoordinationStateRejectedException exception = expectThrows(CoordinationStateRejectedException.class,
+            () -> coordinator.setInitialConfiguration(unknownNodeConfiguration));
+        assertThat(exception.getMessage(), is("Cannot set initial configuration: no quorum found yet"));
+
+        // This is VERY BAD: setting a _different_ initial configuration. Yet it works if the first attempt will never be a quorum.
+        coordinator.setInitialConfiguration(new VotingConfiguration(Collections.singleton(coordinator.getLocalNode().getId())));
+        cluster.stabilise();
     }
 
     private static long defaultMillis(Setting<TimeValue> setting) {
@@ -495,6 +558,18 @@ public class CoordinatorTests extends ESTestCase {
             }
         }
 
+        void setInitialConfigurationIfRequired() {
+            if (clusterNodes.stream().allMatch(n -> n.coordinator.getLastAcceptedState().getLastAcceptedConfiguration().isEmpty())) {
+                assertThat("setting initial configuration may fail with disconnected nodes", disconnectedNodes, empty());
+                assertThat("setting initial configuration may fail with blackholed nodes", blackholedNodes, empty());
+                runFor(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2, "discovery prior to setting initial configuration");
+                final ClusterNode bootstrapNode = getAnyNode();
+                bootstrapNode.applyInitialConfiguration();
+            } else {
+                logger.info("--> setting initial configuration not required");
+            }
+        }
+
         void runRandomly() {
 
             // TODO supporting (preserving?) existing disruptions needs implementing if needed, for now we just forbid it
@@ -555,6 +630,14 @@ public class CoordinatorTests extends ESTestCase {
                                 }
                                 break;
                         }
+                    } else if (rarely()) {
+                        final ClusterNode clusterNode = getAnyNode();
+                        onNode(clusterNode.getLocalNode(),
+                            () -> {
+                                logger.debug("----> [runRandomly {}] applying initial configuration {} to {}",
+                                    thisStep, initialConfiguration, clusterNode.getId());
+                                clusterNode.coordinator.setInitialConfiguration(initialConfiguration);
+                            }).run();
                     } else {
                         if (deterministicTaskQueue.hasDeferredTasks() && randomBoolean()) {
                             deterministicTaskQueue.advanceTime();
@@ -566,7 +649,6 @@ public class CoordinatorTests extends ESTestCase {
                     // TODO other random steps:
                     // - reboot a node
                     // - abdicate leadership
-                    // - bootstrap
 
                 } catch (CoordinationStateRejectedException ignored) {
                     // This is ok: it just means a message couldn't currently be handled.
@@ -705,7 +787,7 @@ public class CoordinatorTests extends ESTestCase {
 
         ClusterNode getAnyLeader() {
             List<ClusterNode> allLeaders = clusterNodes.stream().filter(ClusterNode::isLeader).collect(Collectors.toList());
-            assertThat(allLeaders, not(empty()));
+            assertThat("leaders", allLeaders, not(empty()));
             return randomFrom(allLeaders);
         }
 
@@ -758,8 +840,8 @@ public class CoordinatorTests extends ESTestCase {
                 super(Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeIdFromIndex(nodeIndex)).build());
                 this.nodeIndex = nodeIndex;
                 localNode = createDiscoveryNode();
-                persistedState = new InMemoryPersistedState(1L,
-                    clusterState(1L, 1L, localNode, initialConfiguration, initialConfiguration, 0L));
+                persistedState = new InMemoryPersistedState(0L,
+                    clusterState(0L, 0L, localNode, VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 0L));
                 onNode(localNode, this::setUp).run();
             }
 
@@ -914,6 +996,17 @@ public class CoordinatorTests extends ESTestCase {
 
             ClusterState getLastAppliedClusterState() {
                 return clusterApplier.lastAppliedClusterState;
+            }
+
+            void applyInitialConfiguration() {
+                onNode(localNode, () -> {
+                    try {
+                        coordinator.setInitialConfiguration(initialConfiguration);
+                        logger.info("successfully set initial configuration to {}", initialConfiguration);
+                    } catch (CoordinationStateRejectedException e) {
+                        logger.info(new ParameterizedMessage("failed to set initial configuration to {}", initialConfiguration), e);
+                    }
+                }).run();
             }
 
             private class FakeClusterApplier implements ClusterApplier {

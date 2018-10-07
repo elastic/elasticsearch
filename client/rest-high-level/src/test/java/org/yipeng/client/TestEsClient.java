@@ -9,6 +9,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.*;
+import org.elasticsearch.client.ml.job.util.TimeUtil;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -16,12 +17,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.yipeng.client.data.DataReader;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 
@@ -32,30 +35,34 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 public class TestEsClient {
 
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, InterruptedException {
+//
+        deleteIndex();
+        createIndex();
         putFullIndex();
-//        deleteIndex();
-//        createIndex();
     }
 
 
-    public static void putFullIndex() throws IOException {
+    public static void putFullIndex() throws IOException, InterruptedException {
         RestClientBuilder restClientBuilder = getRestClientBuilder();
 
         RestHighLevelClient restHighLevelClient = new RestHighLevelClient(restClientBuilder);
 
-//        List<Map<String, String>> indexMapDocList = DataReader.getIndexDatas();
-
-        IndexRequest indexRequest = new IndexRequest("wares", "wares", "123"); /**最后会在 {@link org.elasticsearch.action.bulk.TransportShardBulkAction#executeBulkItemRequest}执行**/
-        Map<String, Object> map = new HashMap<>();
-        map.put("ware_id", 111);
-        map.put("brand_id", 22222);
-        indexRequest.source(map);
-
-
-        restHighLevelClient.index(indexRequest, RequestOptions.DEFAULT);
-        restHighLevelClient.close();
+        List<Map<String, String>> indexMapDocList = DataReader.getIndexDatas();
         BulkRequest bulkRequest = new BulkRequest();
+        int i = 0;
+        for (Map<String, String> map : indexMapDocList) {
+            IndexRequest indexRequest = new IndexRequest("wares", "wares", map.get("ware_id"));
+            indexRequest.source(map);
+            bulkRequest.add(indexRequest);
+            i++;
+            if (i % 200 == 0) {
+                restHighLevelClient.bulk(bulkRequest, RequestOptions.DEFAULT);
+                bulkRequest = new BulkRequest();
+            }
+        }
+        restHighLevelClient.bulk(bulkRequest, RequestOptions.DEFAULT);
+        restHighLevelClient.close();
     }
 
     public static void deleteIndex() throws IOException {
@@ -64,6 +71,8 @@ public class TestEsClient {
         RestHighLevelClient restHighLevelClient = new RestHighLevelClient(restClientBuilder);
 
         restHighLevelClient.indices().delete(new DeleteIndexRequest("wares"), RequestOptions.DEFAULT);
+
+        restHighLevelClient.close();
     }
 
     public static void createIndex() throws IOException {   /**最后在{@link org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.IndexCreationTask#execute(ClusterState)} 执行**/
@@ -79,6 +88,8 @@ public class TestEsClient {
         RestHighLevelClient restHighLevelClient = new RestHighLevelClient(restClientBuilder);
 
         restHighLevelClient.indices().create(request, RequestOptions.DEFAULT);
+
+        restHighLevelClient.close();
     }
 
     public static RestClientBuilder getRestClientBuilder() {
@@ -112,7 +123,7 @@ public class TestEsClient {
             .field("dynamic", false)
             .startObject("properties")
 
-            .startObject("ware_id").field("type", "keyword").field("index", "true").
+            .startObject("ware_id").field("type", "keyword").field("index", "true").            /**keyword类型在对应的{@link KeywordFieldMapper.Builder#builder} 方法中具体将其转换为Lucene的 FiledType**/
                 field("store", "true")
             .startObject("fields").
                 startObject("raw").
@@ -147,7 +158,7 @@ public class TestEsClient {
                 field("store", "true").field("doc_values", "true").endObject()
 
             .endObject()
-            .startObject("_source").field("enabled", "false").endObject()
+//            .startObject("_source").field("enabled", "false").endObject()
             .endObject()
             .endObject();
 

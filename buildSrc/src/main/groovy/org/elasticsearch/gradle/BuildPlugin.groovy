@@ -786,8 +786,8 @@ class BuildPlugin implements Plugin<Project> {
             leaveTemporary true
 
             // TODO: why are we not passing maxmemory to junit4?
-            jvmArg '-Xmx' + System.getProperty('tests.heap.size', '512m')
-            jvmArg '-Xms' + System.getProperty('tests.heap.size', '512m')
+            jvmArg '-Xmx' + System.getProperty('tests.heap.size', '1g')
+            jvmArg '-Xms' + System.getProperty('tests.heap.size', '1g')
             jvmArg '-XX:+HeapDumpOnOutOfMemoryError'
             File heapdumpDir = new File(project.buildDir, 'heapdump')
             heapdumpDir.mkdirs()

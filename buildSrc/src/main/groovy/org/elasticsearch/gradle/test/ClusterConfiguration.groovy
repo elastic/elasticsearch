@@ -71,8 +71,8 @@ class ClusterConfiguration {
     Closure<Integer> minimumMasterNodes = { getNumNodes() > 1 ? getNumNodes() : -1 }
 
     @Input
-    String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
-        " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
+    String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '1g') +
+        " " + "-Xmx" + System.getProperty('tests.heap.size', '1g') +
         " " + System.getProperty('tests.jvm.argline', '')
 
     /**

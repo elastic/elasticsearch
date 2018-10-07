@@ -60,6 +60,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests to run before and after a full cluster restart. This is run twice,
@@ -74,22 +75,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private String index;
 
-    @Override
-    protected boolean getStrictDeprecationMode() {
-        // ignore HTTP warnings returned by the server only for a specific test "testSnapshotRestore" on a version after 6.5.0
-        if (getTestName().equals("testSnapshotRestore")
-                && (isRunningAgainstOldCluster() == false || getOldClusterVersion().onOrAfter(Version.V_6_5_0))) {
-            return false;
-        }
-        return super.getStrictDeprecationMode();
-    }
-
     @Before
     public void setIndex() throws IOException {
         index = getTestName().toLowerCase(Locale.ROOT);
-        // init new REST client for every test
-        closeClients();
-        initClient();
         // TODO prevents 6.x warnings; remove in 8.0
         if (isRunningAgainstOldCluster()) {
             XContentBuilder template = jsonBuilder();
@@ -979,9 +967,22 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertEquals(singletonList(tookOnVersion.toString()), XContentMapValues.extractValue("snapshots.version", listSnapshotResponse));
 
         // Remove the routing setting and template so we can test restoring them.
-        Request clearRoutingFromSettings = new Request("PUT", "/_cluster/settings");
-        clearRoutingFromSettings.setJsonEntity("{\"persistent\":{\"cluster.routing.allocation.exclude.test_attr\": null}}");
-        client().performRequest(clearRoutingFromSettings);
+        try {
+            Request clearRoutingFromSettings = new Request("PUT", "/_cluster/settings");
+            clearRoutingFromSettings.setJsonEntity("{\"persistent\":{\"cluster.routing.allocation.exclude.test_attr\": null}}");
+            client().performRequest(clearRoutingFromSettings);
+        } catch (ResponseException e) {
+            if (e.getResponse().hasWarnings()
+                    && (isRunningAgainstOldCluster() == false || getOldClusterVersion().onOrAfter(Version.V_6_5_0))) {
+                e.getResponse().getWarnings().stream().forEach(warning -> {
+                    assertThat(warning, containsString(
+                            "setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."));
+                    assertThat(warning, startsWith("[search.remote."));
+                });
+            } else {
+                throw e;
+            }
+        }
         client().performRequest(new Request("DELETE", "/_template/test_template"));
 
         // Restore

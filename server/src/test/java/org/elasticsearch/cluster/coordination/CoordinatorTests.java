@@ -691,6 +691,7 @@ public class CoordinatorTests extends ESTestCase {
         void stabilise(long stabilisationDurationMillis) {
             assertThat("stabilisation requires default delay variability (and proper cleanup of raised variability)",
                 deterministicTaskQueue.getExecutionDelayVariabilityMillis(), lessThanOrEqualTo(DEFAULT_DELAY_VARIABILITY));
+            assertFalse("stabilisation requires stable storage", disruptStorage);
             runFor(stabilisationDurationMillis, "stabilising");
             fixLag();
             assertUniqueLeaderAndExpectedModes();

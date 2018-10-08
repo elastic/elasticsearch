@@ -425,7 +425,8 @@ public class CoordinatorTests extends ESTestCase {
 
         cluster.getAnyNode().applyInitialConfiguration();
         cluster.stabilise(defaultMillis(
-            // the first election should succeed
+            // the first election should succeed, because only one node knows of the initial configuration and therefore can win a
+            // pre-voting round and proceed to an election, so there cannot be any collisions
             ELECTION_INITIAL_TIMEOUT_SETTING) // TODO this wait is unnecessary, we could trigger the election immediately
             // Allow two round-trip for pre-voting and voting
             + 4 * DEFAULT_DELAY_VARIABILITY

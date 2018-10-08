@@ -976,7 +976,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     && (isRunningAgainstOldCluster() == false || getOldClusterVersion().onOrAfter(Version.V_6_5_0))) {
                 e.getResponse().getWarnings().stream().forEach(warning -> {
                     assertThat(warning, containsString(
-                            "setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."));
+                            "setting was deprecated in Elasticsearch and will be removed in a future release! "
+                            + "See the breaking changes documentation for the next major version."));
                     assertThat(warning, startsWith("[search.remote."));
                 });
             } else {

@@ -113,7 +113,12 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(DateFormatters.forPattern("YYYY").withZone(ZoneId.of("CET")), not(equalTo(DateFormatters.forPattern("YYYY"))));
 
         // different locale, thus not equals
-        assertThat(DateFormatters.forPattern("YYYY").withLocale(randomLocale(random())),
+        Locale locale = randomLocale(random());
+        while (Locale.ROOT.equals(locale)) {
+            locale = randomLocale(random());
+        }
+
+        assertThat(DateFormatters.forPattern("YYYY").withLocale(locale),
             not(equalTo(DateFormatters.forPattern("YYYY"))));
 
         // different pattern, thus not equals

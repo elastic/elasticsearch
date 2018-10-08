@@ -162,21 +162,21 @@ public class FunctionRegistryTests extends ESTestCase {
     public void testAliasNameIsTheSameAsAFunctionName() {
         FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "ALIAS"));
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
-                r.addToMap(def(Dummy2.class, Dummy2::new, "DUMMY")));
-        assertEquals(iae.getMessage(), "alias [DUMMY] is used by [DUMMY] and [DUMMY2]");
+                r.addToMap(def(Dummy2.class, Dummy2::new, "DUMMY_FUNCTION")));
+        assertEquals(iae.getMessage(), "alias [DUMMY_FUNCTION] is used by [DUMMY_FUNCTION] and [DUMMY2]");
     }
     
     public void testDuplicateAliasInTwoDifferentFunctionsFromTheSameBatch() {
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
                 new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "ALIAS"), def(Dummy2.class, Dummy2::new, "ALIAS")));
-        assertEquals(iae.getMessage(), "alias [ALIAS] is used by [DUMMY(ALIAS)] and [DUMMY2]");
+        assertEquals(iae.getMessage(), "alias [ALIAS] is used by [DUMMY_FUNCTION(ALIAS)] and [DUMMY2]");
     }
     
     public void testDuplicateAliasInTwoDifferentFunctionsFromTwoDifferentBatches() {
         FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "ALIAS"));
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
                 r.addToMap(def(Dummy2.class, Dummy2::new, "ALIAS")));
-        assertEquals(iae.getMessage(), "alias [ALIAS] is used by [DUMMY] and [DUMMY2]");
+        assertEquals(iae.getMessage(), "alias [ALIAS] is used by [DUMMY_FUNCTION] and [DUMMY2]");
     }
 
     public void testFunctionResolving() {

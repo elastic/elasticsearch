@@ -811,6 +811,7 @@ public class CoordinationStateTests extends ESTestCase {
     }
 
     public static class InMemoryPersistedState implements PersistedState {
+        // TODO add support and tests for behaviour with persistence-layer failures
 
         private long currentTerm;
         private ClusterState acceptedState;

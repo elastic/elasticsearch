@@ -34,7 +34,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
@@ -353,6 +352,28 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      */
     public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer) {
        addSettingsUpdateConsumer(setting, consumer, (s) -> {});
+    }
+
+    /**
+     * Validates that all settings are registered and valid against other valid settings.
+     *
+     * @param settings             the settings to validates
+     * @param others               the other settings to validate against
+     * @param validateDependencies true if dependent settings should be validated
+     * @see Setting#getSettingsDependencies(String)
+     */
+    public final void validate(Settings settings, Settings others, boolean validateDependencies) {
+        final Settings.Builder validSettings = Settings.builder();
+        others.keySet().stream().filter(NOT_WILDCARD_SETTING).forEach(key -> {
+            try {
+                validate(key, others, validateDependencies);
+                validSettings.copy(key, others);
+            } catch (Exception ignored) {
+                // ignore invalid settings
+            }
+        });
+        final Settings toValidate = validSettings.put(settings.filter(NOT_WILDCARD_SETTING)).build();
+        validate(toValidate, validateDependencies);
     }
 
     /**
@@ -719,12 +740,10 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             } else if (get(key) == null) {
                 throw new IllegalArgumentException(type + " setting [" + key + "], not recognized");
             } else if (isDelete == false && canUpdate.test(key)) {
-                changed = hasChanged(toApply, target);
-                if (changed) {
-                    validate(toApply, target.build());
-                    settingsBuilder.copy(key, toApply);
-                    updates.copy(key, toApply);
-                }
+                validate(toApply, target.build(), false);
+                settingsBuilder.copy(key, toApply);
+                updates.copy(key, toApply);
+                changed = true;
             } else {
                 if (isFinalSetting(key)) {
                     throw new IllegalArgumentException("final " + type + " setting [" + key + "], not updateable");
@@ -735,35 +754,6 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         }
         changed |= applyDeletes(toRemove, target, k -> isValidDelete(k, onlyDynamic));
         target.put(settingsBuilder.build());
-        return changed;
-    }
-
-    private void validate(Settings toApply, Settings target) {
-        Settings toValidate = copyValidSettings(target).put(toApply.filter(NOT_WILDCARD_SETTING)).build();
-        validate(toValidate, false);
-    }
-
-    private Settings.Builder copyValidSettings(Settings settings) {
-        Settings.Builder validSettings = Settings.builder();
-        settings.keySet().stream().filter(NOT_WILDCARD_SETTING).forEach(key -> {
-            try {
-                validate(key, settings, false);
-                validSettings.copy(key, settings);
-            } catch (Exception ignored) {
-                // ignore invalid settings
-            }
-        });
-        return validSettings;
-    }
-
-    private boolean hasChanged(Settings toApply, Settings.Builder target) {
-        boolean changed = toApply.keySet().stream().anyMatch(k -> k.endsWith("*"));
-        if (!changed) {
-            changed = target.build().keySet().stream().anyMatch(k -> k.endsWith("*"));
-        }
-        if (!changed) {
-            changed = toApply.keySet().stream().anyMatch(k -> !Objects.equals(toApply.get(k), target.get(k)));
-        }
         return changed;
     }
 

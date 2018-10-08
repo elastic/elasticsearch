@@ -58,8 +58,6 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
     private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
     private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+[*](?:[.][-\\w]+)+$");
-    private static final Predicate<String> WILDCARD_SETTING = key -> key.endsWith("*");
-    private static final Predicate<String> NOT_WILDCARD_SETTING = key -> !WILDCARD_SETTING.test(key);
 
     protected AbstractScopedSettings(
             final Settings settings,
@@ -352,30 +350,6 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      */
     public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer) {
        addSettingsUpdateConsumer(setting, consumer, (s) -> {});
-    }
-
-    /**
-     * Validates that all settings are registered and valid against other valid settings.
-     *
-     * @param settings             the settings to validates
-     * @param others               the other settings to validate against
-     * @param validateDependencies true if dependent settings should be validated
-     * @see Setting#getSettingsDependencies(String)
-     */
-    public final void validate(Settings settings, Settings others, boolean validateDependencies) {
-        final Settings.Builder validSettings = Settings.builder();
-        for (String key : others.keySet()) {
-            if (NOT_WILDCARD_SETTING.test(key) && settings.keySet().contains(key) == false) {
-                try {
-                    validate(key, others, validateDependencies);
-                    validSettings.copy(key, others);
-                } catch (Exception ignored) {
-                    // ignore invalid settings
-                }
-            }
-        }
-        final Settings toValidate = validSettings.put(settings.filter(NOT_WILDCARD_SETTING)).build();
-        validate(toValidate, validateDependencies);
     }
 
     /**
@@ -742,7 +716,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             } else if (get(key) == null) {
                 throw new IllegalArgumentException(type + " setting [" + key + "], not recognized");
             } else if (isDelete == false && canUpdate.test(key)) {
-                validate(toApply, target.build(), false);
+                get(key).validateWithoutDependencies(toApply);
                 settingsBuilder.copy(key, toApply);
                 updates.copy(key, toApply);
                 changed = true;

@@ -186,7 +186,7 @@ public class Setting<T> implements ToXContentObject {
      * @param properties properties for this setting like scope, filtering...
      */
     public Setting(Key key, Function<Settings, String> defaultValue, Function<String, T> parser, Property... properties) {
-        this(key, defaultValue, parser, (v, s) -> {}, properties);
+        this(key, defaultValue, parser, v -> {}, properties);
     }
 
     /**
@@ -246,7 +246,7 @@ public class Setting<T> implements ToXContentObject {
      * @param properties properties for this setting like scope, filtering...
      */
     public Setting(Key key, Setting<T> fallbackSetting, Function<String, T> parser, Property... properties) {
-        this(key, fallbackSetting, fallbackSetting::getRaw, parser, (v, m) -> {}, properties);
+        this(key, fallbackSetting, fallbackSetting::getRaw, parser, v -> {}, properties);
     }
 
     /**
@@ -352,6 +352,15 @@ public class Setting<T> implements ToXContentObject {
 
     boolean hasComplexMatcher() {
         return isGroupSetting();
+    }
+
+    /**
+     * Validate the setting value without dependencies.
+     *
+     * @param settings the settings
+     */
+    void validateWithoutDependencies(Settings settings) {
+        validator.validate(get(settings, false));
     }
 
     /**
@@ -818,10 +827,19 @@ public class Setting<T> implements ToXContentObject {
         /**
          * The validation routine for this validator.
          *
+         * @param value the value of this setting
+         *
+         */
+        void validate(T value);
+
+        /**
+         * The validation routine for this validator.
+         *
          * @param value    the value of this setting
          * @param settings a map from the settings specified by {@link #settings()}} to their values
          */
-        void validate(T value, Map<Setting<T>, T> settings);
+        default void validate(T value, Map<Setting<T>, T> settings) {
+        }
 
         /**
          * The settings needed by this validator.
@@ -1039,7 +1057,7 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, fallback, parser, properties);
     }
 
-    public static Setting<String> simpleString(String key, Validator<String> validator, Property... properties) {
+    public static Setting<String> simpleStringWithValidator(String key, Validator<String> validator, Property... properties) {
         return new Setting<>(new SimpleKey(key), null, s -> "", Function.identity(), validator, properties);
     }
 
@@ -1283,7 +1301,7 @@ public class Setting<T> implements ToXContentObject {
                     fallbackSetting,
                     (s) -> Setting.arrayToParsableString(defaultStringValue.apply(s)),
                     parser,
-                    (v,s) -> {},
+                    v -> {},
                     properties);
             this.defaultStringValue = defaultStringValue;
         }
@@ -1341,7 +1359,7 @@ public class Setting<T> implements ToXContentObject {
                 fallbackSetting,
                 fallbackSetting::getRaw,
                 minTimeValueParser(key, minValue),
-                (v, s) -> {},
+                v -> {},
                 properties);
     }
 

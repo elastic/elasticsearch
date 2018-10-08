@@ -37,7 +37,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -51,9 +50,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.startsWith;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -511,94 +508,6 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(15, consumer2.get());
         assertEquals(2, aC.get());
         assertEquals(15, bC.get());
-    }
-
-    private static final Setting<Integer> FOO_BAR_LOW_SETTING = new Setting<>(
-            "foo.bar.low",
-            "1",
-            Integer::parseInt,
-            new FooBarLowValidator(),
-            Property.Dynamic,
-            Property.NodeScope);
-
-    private static final Setting<Integer> FOO_BAR_HIGH_SETTING = new Setting<>(
-            "foo.bar.high",
-            "2",
-            Integer::parseInt,
-            new FooBarHighValidator(),
-            Property.Dynamic,
-            Property.NodeScope);
-
-    static class FooBarLowValidator implements Setting.Validator<Integer> {
-        @Override
-        public void validate(Integer value, Map<Setting<Integer>, Integer> settings) {
-            final int high = settings.get(FOO_BAR_HIGH_SETTING);
-            if (value > high) {
-                throw new IllegalArgumentException("low [" + value + "] more than high [" + high + "]");
-            }
-        }
-
-        @Override
-        public Iterator<Setting<Integer>> settings() {
-            return Collections.singletonList(FOO_BAR_HIGH_SETTING).iterator();
-        }
-    }
-
-    static class FooBarHighValidator implements Setting.Validator<Integer> {
-        @Override
-        public void validate(Integer value, Map<Setting<Integer>, Integer> settings) {
-            final int low = settings.get(FOO_BAR_LOW_SETTING);
-            if (value < low) {
-                throw new IllegalArgumentException("high [" + value + "] less than low [" + low + "]");
-            }
-        }
-
-        @Override
-        public Iterator<Setting<Integer>> settings() {
-            return Collections.singletonList(FOO_BAR_LOW_SETTING).iterator();
-        }
-    }
-
-    public void testValidator() {
-        final AbstractScopedSettings service =
-                new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(FOO_BAR_LOW_SETTING, FOO_BAR_HIGH_SETTING)));
-
-        final AtomicInteger consumerLow = new AtomicInteger();
-        final AtomicInteger consumerHigh = new AtomicInteger();
-
-        service.addSettingsUpdateConsumer(FOO_BAR_LOW_SETTING, consumerLow::set);
-
-        service.addSettingsUpdateConsumer(FOO_BAR_HIGH_SETTING, consumerHigh::set);
-
-        final Settings newSettings = Settings.builder().put("foo.bar.low", 17).put("foo.bar.high", 13).build();
-        {
-            final IllegalArgumentException e =
-                    expectThrows(
-                            IllegalArgumentException.class,
-                            () -> service.validateUpdate(newSettings));
-            assertThat(e, hasToString(containsString("illegal value can't update [foo.bar.low] from [1] to [17]")));
-            assertNotNull(e.getCause());
-            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-            final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
-            assertThat(cause, hasToString(containsString("low [17] more than high [13]")));
-            assertThat(e.getSuppressed(), arrayWithSize(1));
-            assertThat(e.getSuppressed()[0], instanceOf(IllegalArgumentException.class));
-            final IllegalArgumentException suppressed = (IllegalArgumentException) e.getSuppressed()[0];
-            assertThat(suppressed, hasToString(containsString("illegal value can't update [foo.bar.high] from [2] to [13]")));
-            assertNotNull(suppressed.getCause());
-            assertThat(suppressed.getCause(), instanceOf(IllegalArgumentException.class));
-            final IllegalArgumentException suppressedCause = (IllegalArgumentException) suppressed.getCause();
-            assertThat(suppressedCause, hasToString(containsString("high [13] less than low [17]")));
-            assertThat(consumerLow.get(), equalTo(0));
-            assertThat(consumerHigh.get(), equalTo(0));
-        }
-
-        {
-            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> service.applySettings(newSettings));
-            assertThat(e, hasToString(containsString("illegal value can't update [foo.bar.low] from [1] to [17]")));
-            assertThat(consumerLow.get(), equalTo(0));
-            assertThat(consumerHigh.get(), equalTo(0));
-        }
     }
 
     public void testGet() {
@@ -1221,87 +1130,4 @@ public class ScopedSettingsTests extends ESTestCase {
                 equalTo(oldSetting.get(settings).stream().map(s -> "new." + s).collect(Collectors.toList())));
     }
 
-    private static class FooLowSettingValidator implements Setting.Validator<Integer> {
-        @Override
-        public void validate(Integer low, Map<Setting<Integer>, Integer> settings) {
-            if (settings.containsKey(SETTING_FOO_HIGH) && low > settings.get(SETTING_FOO_HIGH)) {
-                throw new IllegalArgumentException("[low]=" + low + " is higher than [high]=" + settings.get(SETTING_FOO_HIGH));
-            }
-        }
-
-        @Override
-        public Iterator<Setting<Integer>> settings() {
-            return Arrays.asList(SETTING_FOO_LOW, SETTING_FOO_HIGH).iterator();
-        }
-    }
-
-    private static class FooHighSettingValidator implements Setting.Validator<Integer> {
-        @Override
-        public void validate(Integer high, Map<Setting<Integer>, Integer> settings) {
-            if (settings.containsKey(SETTING_FOO_LOW) && high < settings.get(SETTING_FOO_LOW)) {
-                throw new IllegalArgumentException("[high]=" + high + " is lower than [low]=" + settings.get(SETTING_FOO_LOW));
-            }
-        }
-
-        @Override
-        public Iterator<Setting<Integer>> settings() {
-            return Arrays.asList(SETTING_FOO_LOW, SETTING_FOO_HIGH).iterator();
-        }
-    }
-
-    private static final Setting<Integer> SETTING_FOO_LOW = new Setting<>("foo.low", "10",
-        Integer::valueOf, new FooLowSettingValidator(), Setting.Property.NodeScope);
-    private static final Setting<Integer> SETTING_FOO_HIGH = new Setting<>("foo.high", "100",
-        Integer::valueOf, new FooHighSettingValidator(), Setting.Property.NodeScope);
-
-    public void testUpdateOfValidationDependantSettings() {
-        ClusterSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(SETTING_FOO_LOW, SETTING_FOO_HIGH)));
-
-        Settings.Builder target = Settings.builder();
-
-        {
-            final Settings.Builder updates = Settings.builder();
-            assertTrue(service.updateSettings(Settings.builder().put(SETTING_FOO_LOW.getKey(), 20).build(), target, updates, "transient"));
-            assertThat(target.get(SETTING_FOO_LOW.getKey()), equalTo("20"));
-            assertThat(updates.get(SETTING_FOO_LOW.getKey()), equalTo("20"));
-        }
-
-        {
-            final Settings.Builder updates = Settings.builder();
-            assertTrue(service.updateSettings(Settings.builder().put(SETTING_FOO_LOW.getKey(), 20).build(), target, updates, "transient"));
-            assertThat(target.get(SETTING_FOO_LOW.getKey()), equalTo("20"));
-            assertThat(updates.get(SETTING_FOO_LOW.getKey()), equalTo("20"));
-        }
-
-        {
-            final Settings.Builder updates = Settings.builder();
-            assertTrue(service.updateSettings(Settings.builder().put(SETTING_FOO_HIGH.getKey(), 40).build(), target, updates, "transient"));
-            assertThat(target.get(SETTING_FOO_LOW.getKey()), equalTo("20"));
-            assertThat(target.get(SETTING_FOO_HIGH.getKey()), equalTo("40"));
-            assertNull(updates.get(SETTING_FOO_LOW.getKey()));
-            assertThat(updates.get(SETTING_FOO_HIGH.getKey()), equalTo("40"));
-        }
-
-        {
-            final Settings.Builder updates = Settings.builder();
-            assertTrue(service.updateSettings(Settings.builder().put(SETTING_FOO_LOW.getKey(), 5).build(), target, updates, "transient"));
-            assertThat(target.get(SETTING_FOO_LOW.getKey()), equalTo("5"));
-            assertThat(target.get(SETTING_FOO_HIGH.getKey()), equalTo("40"));
-            assertThat(updates.get(SETTING_FOO_LOW.getKey()), equalTo("5"));
-            assertNull(updates.get(SETTING_FOO_HIGH.getKey()));
-        }
-
-        {
-            final Settings.Builder updates = Settings.builder();
-            assertTrue(service.updateSettings(Settings.builder().put(SETTING_FOO_HIGH.getKey(), 8).build(), target, updates, "transient"));
-            assertThat(target.get(SETTING_FOO_LOW.getKey()), equalTo("5"));
-            assertThat(target.get(SETTING_FOO_HIGH.getKey()), equalTo("8"));
-            assertNull(updates.get(SETTING_FOO_LOW.getKey()));
-            assertThat(updates.get(SETTING_FOO_HIGH.getKey()), equalTo("8"));
-        }
-
-        Exception exception = expectThrows(IllegalArgumentException.class, () ->
-            service.updateSettings(Settings.builder().put(SETTING_FOO_HIGH.getKey(), 2).build(), target, Settings.builder(), "transient"));
-        assertThat(exception.getMessage(), equalTo("[high]=2 is lower than [low]=5"));
-    }
 }

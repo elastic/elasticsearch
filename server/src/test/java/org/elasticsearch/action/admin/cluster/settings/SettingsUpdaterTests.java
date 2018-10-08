@@ -29,12 +29,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Arrays.asList;
 import static org.elasticsearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -183,12 +187,20 @@ public class SettingsUpdaterTests extends ESTestCase {
         final int numberOfInvalidSettings = randomIntBetween(0, 7);
         final List<Setting<String>> invalidSettings = new ArrayList<>(numberOfInvalidSettings);
         for (int i = 0; i < numberOfInvalidSettings; i++) {
-            final Setting<String> invalidSetting = Setting.simpleString(
-                    "invalid.setting" + i,
-                    (value, settings) -> {
+            final Setting<String> invalidSetting = Setting.simpleStringWithValidator(
+                "invalid.setting" + i,
+                new Setting.Validator<String>() {
+                    @Override
+                    public void validate(String value) {
                         throw new IllegalArgumentException("invalid");
-                    },
-                    Property.NodeScope);
+                    }
+
+                    @Override
+                    public void validate(String value, Map<Setting<String>, String> settings) {
+                        throw new IllegalArgumentException("invalid");
+                    }
+                },
+                Property.NodeScope);
             invalidSettings.add(invalidSetting);
         }
 
@@ -355,10 +367,18 @@ public class SettingsUpdaterTests extends ESTestCase {
         final int numberOfInvalidSettings = randomIntBetween(0, 7);
         final List<Setting<String>> invalidSettings = new ArrayList<>(numberOfInvalidSettings);
         for (int i = 0; i < numberOfInvalidSettings; i++) {
-            final Setting<String> invalidSetting = Setting.simpleString(
+            final Setting<String> invalidSetting = Setting.simpleStringWithValidator(
                     "invalid.setting" + i,
-                    (value, settings) -> {
-                        throw new IllegalArgumentException("invalid");
+                    new Setting.Validator<String>() {
+                        @Override
+                        public void validate(String value) {
+                            throw new IllegalArgumentException("invalid");
+                        }
+
+                        @Override
+                        public void validate(String value, Map<Setting<String>, String> settings) {
+                            throw new IllegalArgumentException("invalid");
+                        }
                     },
                     Property.NodeScope);
             invalidSettings.add(invalidSetting);
@@ -469,6 +489,76 @@ public class SettingsUpdaterTests extends ESTestCase {
                     clusterStateAfterUpdate.metaData().transientSettings().keySet(),
                     not(hasItem(unknownSetting.getKey())));
         }
+    }
+
+    private static class FooLowSettingValidator implements Setting.Validator<Integer> {
+        @Override
+        public void validate(Integer value) {
+        }
+
+        @Override
+        public void validate(Integer low, Map<Setting<Integer>, Integer> settings) {
+            if (settings.containsKey(SETTING_FOO_HIGH) && low > settings.get(SETTING_FOO_HIGH)) {
+                throw new IllegalArgumentException("[low]=" + low + " is higher than [high]=" + settings.get(SETTING_FOO_HIGH));
+            }
+        }
+
+        @Override
+        public Iterator<Setting<Integer>> settings() {
+            return asList(SETTING_FOO_LOW, SETTING_FOO_HIGH).iterator();
+        }
+    }
+
+    private static class FooHighSettingValidator implements Setting.Validator<Integer> {
+        @Override
+        public void validate(Integer value) {
+        }
+
+        @Override
+        public void validate(Integer high, Map<Setting<Integer>, Integer> settings) {
+            if (settings.containsKey(SETTING_FOO_LOW) && high < settings.get(SETTING_FOO_LOW)) {
+                throw new IllegalArgumentException("[high]=" + high + " is lower than [low]=" + settings.get(SETTING_FOO_LOW));
+            }
+        }
+
+        @Override
+        public Iterator<Setting<Integer>> settings() {
+            return asList(SETTING_FOO_LOW, SETTING_FOO_HIGH).iterator();
+        }
+    }
+
+    private static final Setting<Integer> SETTING_FOO_LOW = new Setting<>("foo.low", "10",
+        Integer::valueOf, new FooLowSettingValidator(), Property.Dynamic, Setting.Property.NodeScope);
+    private static final Setting<Integer> SETTING_FOO_HIGH = new Setting<>("foo.high", "100",
+        Integer::valueOf, new FooHighSettingValidator(), Property.Dynamic, Setting.Property.NodeScope);
+
+    public void testUpdateOfValidationDependantSettings() {
+        final ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(asList(SETTING_FOO_LOW, SETTING_FOO_HIGH)));
+        final SettingsUpdater updater = new SettingsUpdater(settings);
+        final MetaData.Builder metaData = MetaData.builder().persistentSettings(Settings.EMPTY).transientSettings(Settings.EMPTY);
+
+        ClusterState cluster = ClusterState.builder(new ClusterName("cluster")).metaData(metaData).build();
+
+        cluster = updater.updateSettings(cluster, Settings.builder().put(SETTING_FOO_LOW.getKey(), 20).build(), Settings.EMPTY, logger);
+        assertThat(cluster.getMetaData().settings().get(SETTING_FOO_LOW.getKey()), equalTo("20"));
+
+        cluster = updater.updateSettings(cluster, Settings.builder().put(SETTING_FOO_HIGH.getKey(), 40).build(), Settings.EMPTY, logger);
+        assertThat(cluster.getMetaData().settings().get(SETTING_FOO_LOW.getKey()), equalTo("20"));
+        assertThat(cluster.getMetaData().settings().get(SETTING_FOO_HIGH.getKey()), equalTo("40"));
+
+        cluster = updater.updateSettings(cluster, Settings.builder().put(SETTING_FOO_LOW.getKey(), 5).build(), Settings.EMPTY, logger);
+        assertThat(cluster.getMetaData().settings().get(SETTING_FOO_LOW.getKey()), equalTo("5"));
+        assertThat(cluster.getMetaData().settings().get(SETTING_FOO_HIGH.getKey()), equalTo("40"));
+
+        cluster = updater.updateSettings(cluster, Settings.builder().put(SETTING_FOO_HIGH.getKey(), 8).build(), Settings.EMPTY, logger);
+        assertThat(cluster.getMetaData().settings().get(SETTING_FOO_LOW.getKey()), equalTo("5"));
+        assertThat(cluster.getMetaData().settings().get(SETTING_FOO_HIGH.getKey()), equalTo("8"));
+
+        final ClusterState finalCluster = cluster;
+        Exception exception = expectThrows(IllegalArgumentException.class, () ->
+            updater.updateSettings(finalCluster, Settings.builder().put(SETTING_FOO_HIGH.getKey(), 2).build(), Settings.EMPTY, logger));
+
+        assertThat(exception.getMessage(), equalTo("[high]=2 is lower than [low]=5"));
     }
 
 }

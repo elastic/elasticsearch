@@ -78,6 +78,10 @@ public final class AutoQueueAdjustingExecutorBuilder extends ExecutorBuilder<Aut
             (s) -> Setting.parseInt(s, 0, minSizeKey),
             new Setting.Validator<Integer>() {
                 @Override
+                public void validate(Integer value) {
+                }
+
+                @Override
                 public void validate(Integer value, Map<Setting<Integer>, Integer> settings) {
                     if (value > settings.get(tempMaxQueueSizeSetting)) {
                         throw new IllegalArgumentException("Failed to parse value [" + value + "] for setting [" + minSizeKey
@@ -96,6 +100,10 @@ public final class AutoQueueAdjustingExecutorBuilder extends ExecutorBuilder<Aut
                 Integer.toString(maxQueueSize),
                 (s) -> Setting.parseInt(s, 0, maxSizeKey),
                 new Setting.Validator<Integer>() {
+                    @Override
+                    public void validate(Integer value) {
+                    }
+
                     @Override
                     public void validate(Integer value, Map<Setting<Integer>, Integer> settings) {
                         if (value < settings.get(tempMinQueueSizeSetting)) {

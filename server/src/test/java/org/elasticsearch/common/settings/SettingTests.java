@@ -204,6 +204,10 @@ public class SettingTests extends ESTestCase {
         public static boolean invoked;
 
         @Override
+        public void validate(String value) {
+        }
+
+        @Override
         public void validate(String value, Map<Setting<String>, String> settings) {
             invoked = true;
             assertThat(value, equalTo("foo.bar value"));

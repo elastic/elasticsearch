@@ -20,10 +20,7 @@
 package org.elasticsearch.index.engine;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

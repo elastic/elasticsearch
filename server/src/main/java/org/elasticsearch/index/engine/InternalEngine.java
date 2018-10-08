@@ -938,7 +938,7 @@ public class InternalEngine extends Engine {
             versionMap.enforceSafeAccess();
             // resolves incoming version
             final VersionValue versionValue =
-                resolveDocVersion(index, index.getCompareAndWriteSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO);
+                resolveDocVersion(index, index.getCasSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO);
             final long currentVersion;
             final boolean currentNotFoundOrDeleted;
             if (versionValue == null) {
@@ -948,15 +948,15 @@ public class InternalEngine extends Engine {
                 currentVersion = versionValue.version;
                 currentNotFoundOrDeleted = versionValue.isDelete();
             }
-            if (index.getCompareAndWriteSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && versionValue == null) {
+            if (index.getCasSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && versionValue == null) {
                 final VersionConflictEngineException e = new VersionConflictEngineException(shardId, index.type(), index.id(),
-                    index.getCompareAndWriteSeqNo(), index.getCompareAndWriteTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
+                    index.getCasSeqNo(), index.getCasPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
                 plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion, getPrimaryTerm());
-            } else if (index.getCompareAndWriteSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && (
-                versionValue.seqNo != index.getCompareAndWriteSeqNo() || versionValue.term != index.getCompareAndWriteTerm()
+            } else if (index.getCasSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && (
+                versionValue.seqNo != index.getCasSeqNo() || versionValue.term != index.getCasPrimaryTerm()
             )) {
                 final VersionConflictEngineException e = new VersionConflictEngineException(shardId, index.type(), index.id(),
-                    index.getCompareAndWriteSeqNo(), index.getCompareAndWriteTerm(), versionValue.seqNo, versionValue.term);
+                    index.getCasSeqNo(), index.getCasPrimaryTerm(), versionValue.seqNo, versionValue.term);
                 plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion, getPrimaryTerm());
             } else if (index.versionType().isVersionConflictForWrites(
                 currentVersion, index.version(), currentNotFoundOrDeleted)) {
@@ -1268,7 +1268,7 @@ public class InternalEngine extends Engine {
         assert delete.origin() == Operation.Origin.PRIMARY : "planing as primary but got " + delete.origin();
         assert getMaxSeqNoOfUpdatesOrDeletes() != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is not initialized";
         // resolve operation from external to internal
-        final VersionValue versionValue = resolveDocVersion(delete, delete.getCompareAndWriteSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO);
+        final VersionValue versionValue = resolveDocVersion(delete, delete.getCasSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO);
         assert incrementVersionLookup();
         final long currentVersion;
         final boolean currentlyDeleted;
@@ -1280,15 +1280,15 @@ public class InternalEngine extends Engine {
             currentlyDeleted = versionValue.isDelete();
         }
         final DeletionStrategy plan;
-        if (delete.getCompareAndWriteSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && versionValue == null) {
+        if (delete.getCasSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && versionValue == null) {
             final VersionConflictEngineException e = new VersionConflictEngineException(shardId, delete.type(), delete.id(),
-                delete.getCompareAndWriteSeqNo(), delete.getCompareAndWriteTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
+                delete.getCasSeqNo(), delete.getCasPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
             plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, getPrimaryTerm(), currentlyDeleted);
-        } else if (delete.getCompareAndWriteSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && (
-            versionValue.seqNo != delete.getCompareAndWriteSeqNo() || versionValue.term != delete.getCompareAndWriteTerm()
+        } else if (delete.getCasSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && (
+            versionValue.seqNo != delete.getCasSeqNo() || versionValue.term != delete.getCasPrimaryTerm()
         )) {
             final VersionConflictEngineException e = new VersionConflictEngineException(shardId, delete.type(), delete.id(),
-                delete.getCompareAndWriteSeqNo(), delete.getCompareAndWriteTerm(), versionValue.seqNo, versionValue.term);
+                delete.getCasSeqNo(), delete.getCasPrimaryTerm(), versionValue.seqNo, versionValue.term);
             plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, getPrimaryTerm(), currentlyDeleted);
         } else if (delete.versionType().isVersionConflictForWrites(currentVersion, delete.version(), currentlyDeleted)) {
             final VersionConflictEngineException e = new VersionConflictEngineException(shardId, delete, currentVersion, currentlyDeleted);

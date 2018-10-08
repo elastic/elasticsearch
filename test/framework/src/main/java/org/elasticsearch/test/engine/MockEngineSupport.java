@@ -271,7 +271,8 @@ public final class MockEngineSupport {
                         throw ex;
                     }
                 } else {
-                    AssertionError error = new AssertionError("Released Searcher more than once, source [" + wrappedSearcher.source() + "]");
+                    AssertionError error = new AssertionError("Released Searcher more than once, source [" + wrappedSearcher.source()
+                        + "]");
                     error.initCause(firstReleaseStack);
                     throw error;
                 }

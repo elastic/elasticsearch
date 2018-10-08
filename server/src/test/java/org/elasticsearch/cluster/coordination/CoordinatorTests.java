@@ -703,7 +703,10 @@ public class CoordinatorTests extends ESTestCase {
                         leader.submitValue(randomLong());
                     }
                 }).run();
-                runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "re-stabilising after lag-fixing publication");
+                runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+                    // may need to bump terms too
+                    + DEFAULT_ELECTION_DELAY,
+                    "re-stabilising after lag-fixing publication");
             } else {
                 logger.info("--> fixLag found no lag, leader={}, leaderVersion={}, minVersion={}", leader, leaderVersion, minVersion);
             }

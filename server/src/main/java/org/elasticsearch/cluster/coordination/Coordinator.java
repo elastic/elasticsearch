@@ -24,6 +24,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterState.Builder;
+import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
@@ -63,6 +65,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_WRITES;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -480,6 +483,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             assert followersChecker.getFastResponseState().term == getCurrentTerm() : followersChecker.getFastResponseState();
             assert followersChecker.getFastResponseState().mode == getMode() : followersChecker.getFastResponseState();
             assert (applierState.nodes().getMasterNodeId() == null) == applierState.blocks().hasGlobalBlock(NO_MASTER_BLOCK_WRITES.id());
+            assert preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse())
+                : preVoteCollector + " vs " + getPreVoteResponse();
             if (mode == Mode.LEADER) {
                 final boolean becomingMaster = getStateForMasterService().term() != getCurrentTerm();
 
@@ -493,7 +498,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert leaderCheckScheduler == null : leaderCheckScheduler;
                 assert applierState.nodes().getMasterNodeId() == null || getLocalNode().equals(applierState.nodes().getMasterNode());
                 assert preVoteCollector.getLeader() == getLocalNode() : preVoteCollector;
-                assert preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse()) : preVoteCollector;
 
                 final boolean activePublication = currentPublication.map(CoordinatorPublication::isActiveForCurrentLeader).orElse(false);
                 if (becomingMaster && activePublication == false) {
@@ -527,7 +531,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert followersChecker.getKnownFollowers().isEmpty();
                 assert currentPublication.map(Publication::isCommitted).orElse(true);
                 assert preVoteCollector.getLeader().equals(lastKnownLeader.get()) : preVoteCollector;
-                assert preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse()) : preVoteCollector;
             } else {
                 assert mode == Mode.CANDIDATE;
                 assert joinAccumulator instanceof JoinHelper.CandidateJoinAccumulator;
@@ -540,8 +543,39 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert applierState.nodes().getMasterNodeId() == null;
                 assert currentPublication.map(Publication::isCommitted).orElse(true);
                 assert preVoteCollector.getLeader() == null : preVoteCollector;
-                assert preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse()) : preVoteCollector;
             }
+        }
+    }
+
+    public void setInitialConfiguration(final VotingConfiguration votingConfiguration) {
+        synchronized (mutex) {
+            final ClusterState currentState = getStateForMasterService();
+
+            if (currentState.getLastAcceptedConfiguration().isEmpty() == false) {
+                throw new CoordinationStateRejectedException("Cannot set initial configuration: configuration has already been set");
+            }
+            assert currentState.term() == 0 : currentState;
+            assert currentState.version() == 0 : currentState;
+
+            if (mode != Mode.CANDIDATE) {
+                throw new CoordinationStateRejectedException("Cannot set initial configuration in mode " + mode);
+            }
+
+            final List<DiscoveryNode> knownNodes = new ArrayList<>();
+            knownNodes.add(getLocalNode());
+            peerFinder.getFoundPeers().forEach(knownNodes::add);
+            if (votingConfiguration.hasQuorum(knownNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toList())) == false) {
+                throw new CoordinationStateRejectedException("not enough nodes discovered to form a quorum in the initial configuration " +
+                    "[knownNodes=" + knownNodes + ", " + votingConfiguration + "]");
+            }
+
+            logger.info("setting initial configuration to {}", votingConfiguration);
+            final Builder builder = masterService.incrementVersion(currentState);
+            builder.lastAcceptedConfiguration(votingConfiguration);
+            builder.lastCommittedConfiguration(votingConfiguration);
+            coordinationState.get().setInitialState(builder.build());
+            preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version
+            startElectionScheduler();
         }
     }
 
@@ -731,25 +765,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
                     if (foundQuorum) {
                         if (electionScheduler == null) {
-                            final TimeValue gracePeriod = TimeValue.ZERO; // TODO variable grace period
-                            electionScheduler = electionSchedulerFactory.startElectionScheduler(gracePeriod, new Runnable() {
-                                @Override
-                                public void run() {
-                                    synchronized (mutex) {
-                                        if (mode == Mode.CANDIDATE) {
-                                            if (prevotingRound != null) {
-                                                prevotingRound.close();
-                                            }
-                                            prevotingRound = preVoteCollector.start(lastAcceptedState, getDiscoveredNodes());
-                                        }
-                                    }
-                                }
-
-                                @Override
-                                public String toString() {
-                                    return "scheduling of new prevoting round";
-                                }
-                            });
+                            startElectionScheduler();
                         }
                     } else {
                         closePrevotingAndElectionScheduler();
@@ -757,6 +773,30 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 }
             }
         }
+    }
+
+    private void startElectionScheduler() {
+        assert electionScheduler == null : electionScheduler;
+        final TimeValue gracePeriod = TimeValue.ZERO; // TODO variable grace period
+        electionScheduler = electionSchedulerFactory.startElectionScheduler(gracePeriod, new Runnable() {
+            @Override
+            public void run() {
+                synchronized (mutex) {
+                    if (mode == Mode.CANDIDATE) {
+                        if (prevotingRound != null) {
+                            prevotingRound.close();
+                        }
+                        final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
+                        prevotingRound = preVoteCollector.start(lastAcceptedState, getDiscoveredNodes());
+                    }
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "scheduling of new prevoting round";
+            }
+        });
     }
 
     class CoordinatorPublication extends Publication {

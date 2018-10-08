@@ -132,17 +132,17 @@ public class CoordinationState extends AbstractComponent {
             throw new CoordinationStateRejectedException("initial state already set: last-accepted version now " + lastAcceptedVersion);
         }
 
-        assert getLastAcceptedTerm() == 0;
-        assert getLastAcceptedConfiguration().isEmpty();
-        assert getLastCommittedConfiguration().isEmpty();
-        assert lastPublishedVersion == 0;
-        assert lastPublishedConfiguration.isEmpty();
+        assert getLastAcceptedTerm() == 0 : getLastAcceptedTerm();
+        assert getLastAcceptedConfiguration().isEmpty() : getLastAcceptedConfiguration();
+        assert getLastCommittedConfiguration().isEmpty() : getLastCommittedConfiguration();
+        assert lastPublishedVersion == 0 : lastAcceptedVersion;
+        assert lastPublishedConfiguration.isEmpty() : lastPublishedConfiguration;
         assert electionWon == false;
-        assert joinVotes.isEmpty();
-        assert publishVotes.isEmpty();
+        assert joinVotes.isEmpty() : joinVotes;
+        assert publishVotes.isEmpty() : publishVotes;
 
-        assert initialState.term() == 0;
-        assert initialState.version() == 1;
+        assert initialState.term() == 0 : initialState;
+        assert initialState.version() == 1 : initialState;
         assert initialState.getLastAcceptedConfiguration().isEmpty() == false;
         assert initialState.getLastCommittedConfiguration().isEmpty() == false;
 

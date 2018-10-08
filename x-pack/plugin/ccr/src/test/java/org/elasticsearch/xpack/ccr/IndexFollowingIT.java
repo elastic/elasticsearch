@@ -85,7 +85,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ShardChangesIT extends CCRIntegTestCase {
+public class IndexFollowingIT extends CCRIntegTestCase {
 
     public void testFollowIndex() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);

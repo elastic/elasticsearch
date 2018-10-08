@@ -16,7 +16,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrSettings;
-import org.elasticsearch.xpack.ccr.ShardChangesIT;
+import org.elasticsearch.xpack.ccr.IndexFollowingIT;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         customMetaData.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, "uuid");
         customMetaData.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, "_na_");
 
-        ResumeFollowAction.Request request = ShardChangesIT.resumeFollow("index1", "index2");
+        ResumeFollowAction.Request request = IndexFollowingIT.resumeFollow("index1", "index2");
         String[] UUIDs = new String[]{"uuid"};
         {
             // should fail, because leader index does not exist

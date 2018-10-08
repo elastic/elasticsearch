@@ -27,7 +27,7 @@ import java.util.Collections;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class AutoFollowTests extends CCRIntegTestCase {
+public class AutoFollowIT extends CCRIntegTestCase {
 
     @Override
     protected boolean reuseClusters() {

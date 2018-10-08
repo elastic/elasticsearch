@@ -85,12 +85,15 @@ import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERV
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 @TestLogging("org.elasticsearch.cluster.coordination:TRACE,org.elasticsearch.discovery:TRACE")
 public class CoordinatorTests extends ESTestCase {
@@ -458,9 +461,13 @@ public class CoordinatorTests extends ESTestCase {
         final Cluster cluster = new Cluster(randomIntBetween(1, 5));
         final Coordinator coordinator = cluster.getAnyNode().coordinator;
         final VotingConfiguration unknownNodeConfiguration = new VotingConfiguration(Collections.singleton("unknown-node"));
-        final CoordinationStateRejectedException exception = expectThrows(CoordinationStateRejectedException.class,
-            () -> coordinator.setInitialConfiguration(unknownNodeConfiguration));
-        assertThat(exception.getMessage(), is("Cannot set initial configuration: no quorum found yet"));
+        final String exceptionMessage = expectThrows(CoordinationStateRejectedException.class,
+            () -> coordinator.setInitialConfiguration(unknownNodeConfiguration)).getMessage();
+        assertThat(exceptionMessage,
+            startsWith("not enough nodes discovered to form a quorum in the initial configuration [knownNodes=["));
+        assertThat(exceptionMessage,
+            endsWith("], VotingConfiguration{unknown-node}]"));
+        assertThat(exceptionMessage, containsString(coordinator.getLocalNode().toString()));
 
         // This is VERY BAD: setting a _different_ initial configuration. Yet it works if the first attempt will never be a quorum.
         coordinator.setInitialConfiguration(new VotingConfiguration(Collections.singleton(coordinator.getLocalNode().getId())));

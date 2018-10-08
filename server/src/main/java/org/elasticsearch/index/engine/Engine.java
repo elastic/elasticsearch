@@ -43,7 +43,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequest;
@@ -665,14 +664,23 @@ public abstract class Engine implements Closeable {
         Releasable releasable = store::decRef;
         try {
             ReferenceManager<IndexSearcher> referenceManager = getReferenceManager(scope);
-            Searcher engineSearcher = new Searcher(source, referenceManager.acquire(),
-                s -> {
-                  try {
-                      referenceManager.release(s);
-                  } finally {
-                      store.decRef();
-                  }
-              }, logger);
+            IndexSearcher acquire = referenceManager.acquire();
+            AtomicBoolean released = new AtomicBoolean(false);
+            Searcher engineSearcher = new Searcher(source, acquire,
+                () -> {
+                if (released.compareAndSet(false, true)) {
+                    try {
+                        referenceManager.release(acquire);
+                    } finally {
+                        store.decRef();
+                    }
+                } else {
+                    /* In general, searchers should never be released twice or this would break reference counting. There is one rare case
+                     * when it might happen though: when the request and the Reaper thread would both try to release it in a very short
+                     * amount of time, this is why we only log a warning instead of throwing an exception. */
+                    logger.warn("Searcher was released twice", new IllegalStateException("Double release"));
+                }
+              });
             releasable = null; // success - hand over the reference to the engine searcher
             return engineSearcher;
         } catch (AlreadyClosedException ex) {
@@ -1175,22 +1183,15 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public static class Searcher implements Releasable {
+    public static final class Searcher implements Releasable {
         private final String source;
         private final IndexSearcher searcher;
-        private final AtomicBoolean released = new AtomicBoolean(false);
-        private final Logger logger;
-        private final IOUtils.IOConsumer<IndexSearcher> onClose;
+        private final Closeable onClose;
 
-        public Searcher(String source, IndexSearcher searcher, Logger logger) {
-            this(source, searcher, s -> s.getIndexReader().close(), logger);
-        }
-
-        public Searcher(String source, IndexSearcher searcher, IOUtils.IOConsumer<IndexSearcher> onClose, Logger logger) {
+        public Searcher(String source, IndexSearcher searcher, Closeable onClose) {
             this.source = source;
             this.searcher = searcher;
             this.onClose = onClose;
-            this.logger = logger;
         }
 
         /**
@@ -1217,16 +1218,8 @@ public abstract class Engine implements Closeable {
 
         @Override
         public void close() {
-            if (released.compareAndSet(false, true) == false) {
-                /* In general, searchers should never be released twice or this would break reference counting. There is one rare case
-                 * when it might happen though: when the request and the Reaper thread would both try to release it in a very short amount
-                 * of time, this is why we only log a warning instead of throwing an exception.
-                 */
-                logger.warn("Searcher was released twice", new IllegalStateException("Double release"));
-                return;
-            }
             try {
-                onClose.accept(searcher());
+                onClose.close();
             } catch (IOException e) {
                 throw new IllegalStateException("Cannot close", e);
             } catch (AlreadyClosedException e) {
@@ -1235,9 +1228,6 @@ public abstract class Engine implements Closeable {
             }
         }
 
-        public final Logger getLogger() {
-            return logger;
-        }
     }
 
     public abstract static class Operation {

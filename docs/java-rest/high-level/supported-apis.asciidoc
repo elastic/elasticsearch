@@ -11,6 +11,7 @@ The Java High Level REST Client supports the following Document APIs:
 Single document APIs::
 * <<{upid}-index>>
 * <<{upid}-get>>
+* <<{upid}-exists>>
 * <<{upid}-delete>>
 * <<{upid}-update>>
 

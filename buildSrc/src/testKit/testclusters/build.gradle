@@ -1,5 +1,5 @@
 plugins {
-    id 'elasticsearch.clusterformation'
+    id 'elasticsearch.testclusters'
 }
 
 elasticSearchClusters {

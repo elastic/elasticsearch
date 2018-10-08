@@ -77,52 +77,7 @@ public abstract class CCRIntegTestCase extends ESTestCase {
         }
 
         stopClusters();
-        Settings.Builder builder = Settings.builder();
-        builder.put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), Integer.MAX_VALUE);
-        // Default the watermarks to absurdly low to prevent the tests
-        // from failing on nodes without enough disk space
-        builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b");
-        builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b");
-        builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "1b");
-        builder.put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "2048/1m");
-            // wait short time for other active shards before actually deleting, default 30s not needed in tests
-        builder.put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT.getKey(), new TimeValue(1, TimeUnit.SECONDS));
-        builder.putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()); // empty list disables a port scan for other nodes
-        builder.putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file");
-        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
-        builder.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        builder.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
-        builder.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
-        builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
-        builder.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
-        builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
-
-        NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
-            @Override
-            public Settings nodeSettings(int nodeOrdinal) {
-                return builder.build();
-            }
-
-            @Override
-            public Path nodeConfigPath(int nodeOrdinal) {
-                return null;
-            }
-
-            @Override
-            public Collection<Class<? extends Plugin>> nodePlugins() {
-                return Arrays.asList(LocalStateCcr.class, CommonAnalysisPlugin.class);
-            }
-
-            @Override
-            public Settings transportClientSettings() {
-                return super.transportClientSettings();
-            }
-
-            @Override
-            public Collection<Class<? extends Plugin>> transportClientPlugins() {
-                return Arrays.asList(LocalStateCcr.class, getTestTransportPlugin());
-            }
-        };
+        NodeConfigurationSource nodeConfigurationSource = createNodeConfigurationSource();
         Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(ESIntegTestCase.TestSeedPlugin.class,
             TestZenDiscovery.TestPlugin.class, MockHttpTransport.TestPlugin.class, getTestTransportPlugin());
 
@@ -175,6 +130,54 @@ public abstract class CCRIntegTestCase extends ESTestCase {
 
         clusterGroup.leaderCluster.wipe(Collections.emptySet());
         clusterGroup.followerCluster.wipe(Collections.emptySet());
+    }
+
+    private NodeConfigurationSource createNodeConfigurationSource() {
+        Settings.Builder builder = Settings.builder();
+        builder.put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), Integer.MAX_VALUE);
+        // Default the watermarks to absurdly low to prevent the tests
+        // from failing on nodes without enough disk space
+        builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b");
+        builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b");
+        builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "1b");
+        builder.put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "2048/1m");
+        // wait short time for other active shards before actually deleting, default 30s not needed in tests
+        builder.put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT.getKey(), new TimeValue(1, TimeUnit.SECONDS));
+        builder.putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()); // empty list disables a port scan for other nodes
+        builder.putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file");
+        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
+        builder.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
+        builder.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
+        builder.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
+        builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
+        builder.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
+        builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        return new NodeConfigurationSource() {
+            @Override
+            public Settings nodeSettings(int nodeOrdinal) {
+                return builder.build();
+            }
+
+            @Override
+            public Path nodeConfigPath(int nodeOrdinal) {
+                return null;
+            }
+
+            @Override
+            public Collection<Class<? extends Plugin>> nodePlugins() {
+                return Arrays.asList(LocalStateCcr.class, CommonAnalysisPlugin.class);
+            }
+
+            @Override
+            public Settings transportClientSettings() {
+                return super.transportClientSettings();
+            }
+
+            @Override
+            public Collection<Class<? extends Plugin>> transportClientPlugins() {
+                return Arrays.asList(LocalStateCcr.class, getTestTransportPlugin());
+            }
+        };
     }
 
     @AfterClass

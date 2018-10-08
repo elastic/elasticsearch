@@ -83,6 +83,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import static java.util.Collections.unmodifiableSet;
 
@@ -826,13 +827,21 @@ public final class NodeEnvironment  implements Closeable {
      * Returns all folder names in ${data.paths}/nodes/{node.id}/indices folder
      */
     public Set<String> availableIndexFolders() throws IOException {
+        return availableIndexFolders(p -> false);
+    }
+
+    /**
+     * Returns folder names in ${data.paths}/nodes/{node.id}/indices folder that don't match the given predicate.
+     * @param excludeIndexPathIdsPredicate folder names to exclude
+     */
+    public Set<String> availableIndexFolders(Predicate<String> excludeIndexPathIdsPredicate) throws IOException {
         if (nodePaths == null || locks == null) {
             throw new IllegalStateException("node is not configured to store local location");
         }
         assertEnvIsLocked();
         Set<String> indexFolders = new HashSet<>();
         for (NodePath nodePath : nodePaths) {
-            indexFolders.addAll(availableIndexFoldersForPath(nodePath));
+            indexFolders.addAll(availableIndexFoldersForPath(nodePath, excludeIndexPathIdsPredicate));
         }
         return indexFolders;
 
@@ -846,6 +855,19 @@ public final class NodeEnvironment  implements Closeable {
      * @throws IOException if an I/O exception occurs traversing the filesystem
      */
     public Set<String> availableIndexFoldersForPath(final NodePath nodePath) throws IOException {
+        return availableIndexFoldersForPath(nodePath, p -> false);
+    }
+
+    /**
+     * Return directory names in the nodes/{node.id}/indices directory for the given node path that don't match the given predicate.
+     *
+     * @param nodePath the path
+     * @param excludeIndexPathIdsPredicate folder names to exclude
+     * @return all directories that could be indices for the given node path.
+     * @throws IOException if an I/O exception occurs traversing the filesystem
+     */
+    public Set<String> availableIndexFoldersForPath(final NodePath nodePath, Predicate<String> excludeIndexPathIdsPredicate)
+        throws IOException {
         if (nodePaths == null || locks == null) {
             throw new IllegalStateException("node is not configured to store local location");
         }
@@ -855,8 +877,9 @@ public final class NodeEnvironment  implements Closeable {
         if (Files.isDirectory(indicesLocation)) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(indicesLocation)) {
                 for (Path index : stream) {
-                    if (Files.isDirectory(index)) {
-                        indexFolders.add(index.getFileName().toString());
+                    final String fileName = index.getFileName().toString();
+                    if (excludeIndexPathIdsPredicate.test(fileName) == false && Files.isDirectory(index)) {
+                        indexFolders.add(fileName);
                     }
                 }
             }

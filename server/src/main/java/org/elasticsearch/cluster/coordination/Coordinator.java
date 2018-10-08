@@ -569,13 +569,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     "[knownNodes=" + knownNodes + ", " + votingConfiguration + "]");
             }
 
-            logger.debug("setting initial configuration to {}", votingConfiguration);
+            logger.info("setting initial configuration to {}", votingConfiguration);
             final Builder builder = masterService.incrementVersion(currentState);
             builder.lastAcceptedConfiguration(votingConfiguration);
             builder.lastCommittedConfiguration(votingConfiguration);
             coordinationState.get().setInitialState(builder.build());
-            startElectionScheduler();
             preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version
+            startElectionScheduler();
         }
     }
 

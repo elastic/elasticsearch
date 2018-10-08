@@ -86,9 +86,8 @@ public class MetaStateService extends AbstractComponent {
     List<IndexMetaData> loadIndicesStates(Predicate<String> excludeIndexPathIdsPredicate) throws IOException {
         List<IndexMetaData> indexMetaDataList = new ArrayList<>();
         for (String indexFolderName : nodeEnv.availableIndexFolders(excludeIndexPathIdsPredicate)) {
-            if (excludeIndexPathIdsPredicate.test(indexFolderName)) {
-                continue;
-            }
+            assert excludeIndexPathIdsPredicate.test(indexFolderName) == false :
+                "unexpected folder " + indexFolderName + " which should have been excluded";
             IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry,
                 nodeEnv.resolveIndexFolder(indexFolderName));
             if (indexMetaData != null) {

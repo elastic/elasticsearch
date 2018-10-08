@@ -5,19 +5,12 @@
  */
 package org.elasticsearch.xpack.watcher.input.simple;
 
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.input.InputFactory;
 
 import java.io.IOException;
 
 public class SimpleInputFactory extends InputFactory<SimpleInput, SimpleInput.Result, ExecutableSimpleInput> {
-
-    public SimpleInputFactory(Settings settings) {
-        super(Loggers.getLogger(ExecutableSimpleInput.class, settings));
-    }
-
     @Override
     public String type() {
         return SimpleInput.TYPE;
@@ -30,6 +23,6 @@ public class SimpleInputFactory extends InputFactory<SimpleInput, SimpleInput.Re
 
     @Override
     public ExecutableSimpleInput createExecutable(SimpleInput input) {
-        return new ExecutableSimpleInput(input, inputLogger);
+        return new ExecutableSimpleInput(input);
     }
 }

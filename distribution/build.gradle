@@ -352,7 +352,7 @@ task run(type: RunTask) {
     } else if (licenseType != 'basic') {
       throw new IllegalArgumentException("Unsupported self-generated license type: [" + licenseType + "[basic] or [trial].")
     }
-    setting 'xpack.security.enabled', 'true'
+    setting 'xpack.security.enabled', 'false'
     setting 'xpack.monitoring.enabled', 'true'
     setting 'xpack.sql.enabled', 'true'
     setting 'xpack.rollup.enabled', 'true'

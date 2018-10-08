@@ -91,6 +91,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TimeZone;
@@ -231,21 +232,23 @@ public class FunctionRegistry {
                 (oldValue, newValue) -> oldValue, LinkedHashMap::new)));
     }
 
-    public FunctionDefinition resolveFunction(String name) {
-        FunctionDefinition def = defs.get(normalize(name));
+    public FunctionDefinition resolveFunction(String functionName) {
+        FunctionDefinition def = defs.get(functionName);
         if (def == null) {
-            throw new SqlIllegalArgumentException("Cannot find function {}; this should have been caught during analysis", name);
+            throw new SqlIllegalArgumentException(
+                "Cannot find function {}; this should have been caught during analysis",
+                functionName);
         }
         return def;
     }
 
-    public String concreteFunctionName(String alias) {
-        String normalized = normalize(alias);
-        return aliases.getOrDefault(normalized, normalized);
+    public String resolveAlias(String alias) {
+        String upperCase = alias.toUpperCase(Locale.ROOT);
+        return aliases.getOrDefault(upperCase, upperCase);
     }
 
-    public boolean functionExists(String name) {
-        return defs.containsKey(normalize(name));
+    public boolean functionExists(String functionName) {
+        return defs.containsKey(functionName);
     }
 
     public Collection<FunctionDefinition> listFunctions() {

@@ -614,21 +614,22 @@ public class CoordinatorTests extends ESTestCase {
         // TODO remove this when lag detection is implemented
         void fixLag() {
             final ClusterNode leader = getAnyLeader();
-            final long leaderVersion = leader.coordinator.getLastAcceptedState().version();
+            final long leaderVersion = leader.coordinator.getApplierState().version();
             final long minVersion = clusterNodes.stream()
                 .filter(n -> isConnectedPair(n, leader))
-                .map(n -> n.coordinator.getLastAcceptedState().version()).min(Long::compare).orElse(Long.MIN_VALUE);
-
+                .map(n -> n.coordinator.getApplierState().version()).min(Long::compare).orElse(Long.MIN_VALUE);
             assert minVersion >= 0;
             if (minVersion < leaderVersion) {
-                logger.info("--> publishing a value to fix lag, leaderVersion={}, minVersion={}", leaderVersion, minVersion);
+                logger.info("--> fixLag publishing a value to fix lag, leaderVersion={}, minVersion={}", leaderVersion, minVersion);
                 onNode(leader.getLocalNode(), () -> {
                     synchronized (leader.coordinator.mutex) {
                         leader.submitValue(randomLong());
                     }
                 }).run();
+                runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "re-stabilising after lag-fixing publication");
+            } else {
+                logger.info("--> fixLag found no lag, leader={}, leaderVersion={}, minVersion={}", leader, leaderVersion, minVersion);
             }
-            runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "re-stabilising after lag-fixing publication");
         }
 
         void runFor(long runDurationMillis, String description) {

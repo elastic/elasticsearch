@@ -12,32 +12,31 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 /**
- * Returns the number of bits contained within the value expression.
+ * Returns the number of bytes contained within the value expression.
  */
-public class BitLength extends UnaryStringFunction {
+public class OctetLength extends UnaryStringFunction {
 
-    public BitLength(Location location, Expression field) {
+    public OctetLength(Location location, Expression field) {
         super(location, field);
     }
 
     @Override
-    protected NodeInfo<BitLength> info() {
-        return NodeInfo.create(this, BitLength::new, field());
+    protected NodeInfo<OctetLength> info() {
+        return NodeInfo.create(this, OctetLength::new, field());
     }
 
     @Override
-    protected BitLength replaceChild(Expression newChild) {
-        return new BitLength(location(), newChild);
+    protected OctetLength replaceChild(Expression newChild) {
+        return new OctetLength(location(), newChild);
     }
 
     @Override
     protected StringOperation operation() {
-        return StringOperation.BIT_LENGTH;
+        return StringOperation.OCTET_LENGTH;
     }
 
     @Override
     public DataType dataType() {
-        //TODO investigate if a data type Long (BIGINT) wouldn't be more appropriate here
         return DataType.INTEGER;
     }
 }

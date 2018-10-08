@@ -271,6 +271,29 @@ Returns the characters of `string_exp`, with leading blanks removed.
 include-tagged::{sql-specs}/docs.csv-spec[stringLTrim]
 --------------------------------------------------
 
+[[sql-functions-string-octet-length]]
+==== `OCTET_LENGTH`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+OCTET_LENGTH(string_exp<1>)
+--------------------------------------------------
+*Input*:
+
+<1> string expression
+
+*Output*: integer
+
+.Description:
+
+Returns the length in bytes of the `string_exp` input expression.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[stringOctetLength]
+--------------------------------------------------
+
 [[sql-functions-string-position]]
 ==== `POSITION`
 

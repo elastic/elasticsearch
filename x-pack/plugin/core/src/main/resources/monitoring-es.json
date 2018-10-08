@@ -919,6 +919,9 @@
         },
         "ccr_stats": {
           "properties": {
+            "leader_cluster_alias": {
+              "type": "keyword"
+            },
             "leader_index": {
               "type": "keyword"
             },

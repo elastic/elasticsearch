@@ -304,10 +304,11 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
             final String leaderIndexName = indexToFollow.getName();
             final String followIndexName = getFollowerIndexName(pattern, leaderIndexName);
 
-            String leaderIndexNameWithClusterAliasPrefix = clusterAlias.equals("_local_") ? leaderIndexName :
-                clusterAlias + ":" + leaderIndexName;
             ResumeFollowAction.Request request = new ResumeFollowAction.Request();
-            request.setLeaderIndex(leaderIndexNameWithClusterAliasPrefix);
+            if ("_local_".equals(clusterAlias) == false) {
+                request.setLeaderClusterAlias(clusterAlias);
+            }
+            request.setLeaderIndex(indexToFollow.getName());
             request.setFollowerIndex(followIndexName);
             request.setMaxBatchOperationCount(pattern.getMaxBatchOperationCount());
             request.setMaxConcurrentReadBatches(pattern.getMaxConcurrentReadBatches());

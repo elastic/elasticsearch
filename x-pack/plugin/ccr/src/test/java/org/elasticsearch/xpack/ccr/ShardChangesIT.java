@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction.StatsRequest;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction.StatsResponses;
+import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
@@ -679,6 +680,27 @@ public class ShardChangesIT extends ESIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertThat(client().prepareSearch("index2").get().getHits().getTotalHits(), equalTo(2L));
+    }
+
+    public void testUnknownClusterAlias() throws Exception {
+        String leaderIndexSettings = getIndexSettings(1, 0,
+            Collections.singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureGreen("index1");
+        PutFollowAction.Request followRequest = follow("index1", "index2");
+        followRequest.getFollowRequest().setLeaderClusterAlias("leader_cluster");
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> client().execute(PutFollowAction.INSTANCE, followRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("unknown cluster alias [leader_cluster]"));
+        e = expectThrows(IllegalArgumentException.class,
+            () -> client().execute(ResumeFollowAction.INSTANCE, followRequest.getFollowRequest()).actionGet());
+        assertThat(e.getMessage(), equalTo("unknown cluster alias [leader_cluster]"));
+        PutAutoFollowPatternAction.Request putAutoFollowRequest = new PutAutoFollowPatternAction.Request();
+        putAutoFollowRequest.setLeaderClusterAlias("leader_cluster");
+        putAutoFollowRequest.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+        e = expectThrows(IllegalArgumentException.class,
+            () -> client().execute(PutAutoFollowPatternAction.INSTANCE, putAutoFollowRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("unknown cluster alias [leader_cluster]"));
     }
 
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {

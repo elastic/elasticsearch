@@ -57,7 +57,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private static final int DELAY_MILLIS = 50;
     private static final Logger LOGGER = LogManager.getLogger(ShardFollowNodeTask.class);
 
-    private final String leaderIndex;
     private final ShardFollowTask params;
     private final BiConsumer<TimeValue, Runnable> scheduler;
     private final LongSupplier relativeTimeProvider;
@@ -102,12 +101,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 return size() > params.getMaxConcurrentReadBatches();
             }
         };
-
-        if (params.getLeaderClusterAlias() != null) {
-            leaderIndex = params.getLeaderClusterAlias() + ":" + params.getLeaderShardId().getIndexName();
-        } else {
-            leaderIndex = params.getLeaderShardId().getIndexName();
-        }
     }
 
     void start(
@@ -440,7 +433,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             timeSinceLastFetchMillis = -1;
         }
         return new ShardFollowNodeTaskStatus(
-                leaderIndex,
+                params.getLeaderClusterAlias(),
+                params.getLeaderShardId().getIndexName(),
                 params.getFollowShardId().getIndexName(),
                 getFollowShardId().getId(),
                 leaderGlobalCheckpoint,

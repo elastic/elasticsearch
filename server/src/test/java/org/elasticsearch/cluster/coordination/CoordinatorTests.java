@@ -85,12 +85,15 @@ import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERV
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 @TestLogging("org.elasticsearch.cluster.coordination:TRACE,org.elasticsearch.discovery:TRACE")
 public class CoordinatorTests extends ESTestCase {
@@ -103,7 +106,6 @@ public class CoordinatorTests extends ESTestCase {
     public void testCanUpdateClusterStateAfterStabilisation() {
         final Cluster cluster = new Cluster(randomIntBetween(1, 5));
         cluster.runRandomly();
-        cluster.setInitialConfigurationIfRequired();
         cluster.stabilise();
 
         final ClusterNode leader = cluster.getAnyLeader();
@@ -123,7 +125,6 @@ public class CoordinatorTests extends ESTestCase {
     public void testNodesJoinAfterStableCluster() {
         final Cluster cluster = new Cluster(randomIntBetween(1, 5));
         cluster.runRandomly();
-        cluster.setInitialConfigurationIfRequired();
         cluster.stabilise();
 
         final long currentTerm = cluster.getAnyLeader().coordinator.getCurrentTerm();
@@ -144,7 +145,6 @@ public class CoordinatorTests extends ESTestCase {
     public void testLeaderDisconnectionDetectedQuickly() {
         final Cluster cluster = new Cluster(randomIntBetween(3, 5));
         cluster.runRandomly();
-        cluster.setInitialConfigurationIfRequired();
         cluster.stabilise();
 
         final ClusterNode originalLeader = cluster.getAnyLeader();
@@ -181,7 +181,6 @@ public class CoordinatorTests extends ESTestCase {
     public void testUnresponsiveLeaderDetectedEventually() {
         final Cluster cluster = new Cluster(randomIntBetween(3, 5));
         cluster.runRandomly();
-        cluster.setInitialConfigurationIfRequired();
         cluster.stabilise();
 
         final ClusterNode originalLeader = cluster.getAnyLeader();
@@ -224,7 +223,6 @@ public class CoordinatorTests extends ESTestCase {
     public void testFollowerDisconnectionDetectedQuickly() {
         final Cluster cluster = new Cluster(randomIntBetween(3, 5));
         cluster.runRandomly();
-        cluster.setInitialConfigurationIfRequired();
         cluster.stabilise();
 
         final ClusterNode leader = cluster.getAnyLeader();
@@ -257,7 +255,6 @@ public class CoordinatorTests extends ESTestCase {
     public void testUnresponsiveFollowerDetectedEventually() {
         final Cluster cluster = new Cluster(randomIntBetween(3, 5));
         cluster.runRandomly();
-        cluster.setInitialConfigurationIfRequired();
         cluster.stabilise();
 
         final ClusterNode leader = cluster.getAnyLeader();
@@ -282,7 +279,6 @@ public class CoordinatorTests extends ESTestCase {
     public void testAckListenerReceivesAcksFromAllNodes() {
         final Cluster cluster = new Cluster(randomIntBetween(3, 5));
         cluster.runRandomly();
-        cluster.setInitialConfigurationIfRequired();
         cluster.stabilise();
         final ClusterNode leader = cluster.getAnyLeader();
         AckCollector ackCollector = leader.submitValue(randomLong());
@@ -297,7 +293,6 @@ public class CoordinatorTests extends ESTestCase {
     public void testAckListenerReceivesNackFromFollower() {
         final Cluster cluster = new Cluster(3);
         cluster.runRandomly();
-        cluster.setInitialConfigurationIfRequired();
         cluster.stabilise();
         final ClusterNode leader = cluster.getAnyLeader();
         final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
@@ -315,7 +310,6 @@ public class CoordinatorTests extends ESTestCase {
     public void testAckListenerReceivesNackFromLeader() {
         final Cluster cluster = new Cluster(3);
         cluster.runRandomly();
-        cluster.setInitialConfigurationIfRequired();
         cluster.stabilise();
         final ClusterNode leader = cluster.getAnyLeader();
         final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
@@ -337,7 +331,6 @@ public class CoordinatorTests extends ESTestCase {
     public void testAckListenerReceivesNoAckFromHangingFollower() {
         final Cluster cluster = new Cluster(3);
         cluster.runRandomly();
-        cluster.setInitialConfigurationIfRequired();
         cluster.stabilise();
         final ClusterNode leader = cluster.getAnyLeader();
         final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
@@ -356,7 +349,6 @@ public class CoordinatorTests extends ESTestCase {
     public void testAckListenerReceivesNacksIfPublicationTimesOut() {
         final Cluster cluster = new Cluster(3);
         cluster.runRandomly();
-        cluster.setInitialConfigurationIfRequired();
         cluster.stabilise();
         final ClusterNode leader = cluster.getAnyLeader();
         final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
@@ -433,7 +425,8 @@ public class CoordinatorTests extends ESTestCase {
 
         cluster.getAnyNode().applyInitialConfiguration();
         cluster.stabilise(defaultMillis(
-            // the first election should succeed
+            // the first election should succeed, because only one node knows of the initial configuration and therefore can win a
+            // pre-voting round and proceed to an election, so there cannot be any collisions
             ELECTION_INITIAL_TIMEOUT_SETTING) // TODO this wait is unnecessary, we could trigger the election immediately
             // Allow two round-trip for pre-voting and voting
             + 4 * DEFAULT_DELAY_VARIABILITY
@@ -444,7 +437,6 @@ public class CoordinatorTests extends ESTestCase {
     public void testCannotSetInitialConfigurationTwice() {
         final Cluster cluster = new Cluster(randomIntBetween(1, 5));
         cluster.runRandomly();
-        cluster.setInitialConfigurationIfRequired();
         cluster.stabilise();
 
         final Coordinator coordinator = cluster.getAnyNode().coordinator;
@@ -458,9 +450,13 @@ public class CoordinatorTests extends ESTestCase {
         final Cluster cluster = new Cluster(randomIntBetween(1, 5));
         final Coordinator coordinator = cluster.getAnyNode().coordinator;
         final VotingConfiguration unknownNodeConfiguration = new VotingConfiguration(Collections.singleton("unknown-node"));
-        final CoordinationStateRejectedException exception = expectThrows(CoordinationStateRejectedException.class,
-            () -> coordinator.setInitialConfiguration(unknownNodeConfiguration));
-        assertThat(exception.getMessage(), is("Cannot set initial configuration: no quorum found yet"));
+        final String exceptionMessage = expectThrows(CoordinationStateRejectedException.class,
+            () -> coordinator.setInitialConfiguration(unknownNodeConfiguration)).getMessage();
+        assertThat(exceptionMessage,
+            startsWith("not enough nodes discovered to form a quorum in the initial configuration [knownNodes=["));
+        assertThat(exceptionMessage,
+            endsWith("], VotingConfiguration{unknown-node}]"));
+        assertThat(exceptionMessage, containsString(coordinator.getLocalNode().toString()));
 
         // This is VERY BAD: setting a _different_ initial configuration. Yet it works if the first attempt will never be a quorum.
         coordinator.setInitialConfiguration(new VotingConfiguration(Collections.singleton(coordinator.getLocalNode().getId())));
@@ -556,18 +552,6 @@ public class CoordinatorTests extends ESTestCase {
             for (int i = 0; i < newNodesCount; i++) {
                 final ClusterNode clusterNode = new ClusterNode(nodeSizeAtStart + i);
                 clusterNodes.add(clusterNode);
-            }
-        }
-
-        void setInitialConfigurationIfRequired() {
-            if (clusterNodes.stream().allMatch(n -> n.coordinator.getLastAcceptedState().getLastAcceptedConfiguration().isEmpty())) {
-                assertThat("setting initial configuration may fail with disconnected nodes", disconnectedNodes, empty());
-                assertThat("setting initial configuration may fail with blackholed nodes", blackholedNodes, empty());
-                runFor(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2, "discovery prior to setting initial configuration");
-                final ClusterNode bootstrapNode = getAnyNode();
-                bootstrapNode.applyInitialConfiguration();
-            } else {
-                logger.info("--> setting initial configuration not required");
             }
         }
 
@@ -692,6 +676,17 @@ public class CoordinatorTests extends ESTestCase {
             assertThat("stabilisation requires default delay variability (and proper cleanup of raised variability)",
                 deterministicTaskQueue.getExecutionDelayVariabilityMillis(), lessThanOrEqualTo(DEFAULT_DELAY_VARIABILITY));
             assertFalse("stabilisation requires stable storage", disruptStorage);
+
+            if (clusterNodes.stream().allMatch(n -> n.coordinator.getLastAcceptedState().getLastAcceptedConfiguration().isEmpty())) {
+                assertThat("setting initial configuration may fail with disconnected nodes", disconnectedNodes, empty());
+                assertThat("setting initial configuration may fail with blackholed nodes", blackholedNodes, empty());
+                runFor(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2, "discovery prior to setting initial configuration");
+                final ClusterNode bootstrapNode = getAnyNode();
+                bootstrapNode.applyInitialConfiguration();
+            } else {
+                logger.info("setting initial configuration not required");
+            }
+
             runFor(stabilisationDurationMillis, "stabilising");
             fixLag();
             assertUniqueLeaderAndExpectedModes();

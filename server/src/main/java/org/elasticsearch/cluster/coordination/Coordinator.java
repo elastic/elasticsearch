@@ -65,6 +65,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_WRITES;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -560,20 +561,21 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 throw new CoordinationStateRejectedException("Cannot set initial configuration in mode " + mode);
             }
 
-            final List<String> foundPeerIds = new ArrayList<>();
-            foundPeerIds.add(getLocalNode().getId());
-            peerFinder.getFoundPeers().forEach(peer -> foundPeerIds.add(peer.getId()));
-            if (votingConfiguration.hasQuorum(foundPeerIds) == false) {
-                throw new CoordinationStateRejectedException("Cannot set initial configuration: no quorum found yet");
+            final List<DiscoveryNode> knownNodes = new ArrayList<>();
+            knownNodes.add(getLocalNode());
+            peerFinder.getFoundPeers().forEach(knownNodes::add);
+            if (votingConfiguration.hasQuorum(knownNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toList())) == false) {
+                throw new CoordinationStateRejectedException("not enough nodes discovered to form a quorum in the initial configuration " +
+                    "[knownNodes=" + knownNodes + ", " + votingConfiguration + "]");
             }
 
-            logger.debug("setting initial configuration to {}", votingConfiguration);
+            logger.info("setting initial configuration to {}", votingConfiguration);
             final Builder builder = masterService.incrementVersion(currentState);
             builder.lastAcceptedConfiguration(votingConfiguration);
             builder.lastCommittedConfiguration(votingConfiguration);
             coordinationState.get().setInitialState(builder.build());
-            startElectionScheduler();
             preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version
+            startElectionScheduler();
         }
     }
 

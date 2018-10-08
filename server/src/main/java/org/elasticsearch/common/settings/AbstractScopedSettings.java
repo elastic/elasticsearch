@@ -716,7 +716,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             } else if (get(key) == null) {
                 throw new IllegalArgumentException(type + " setting [" + key + "], not recognized");
             } else if (isDelete == false && canUpdate.test(key)) {
-                get(key).validateWithoutDependencies(toApply);
+                get(key).validateWithoutDependencies(toApply); // we might not have a full picture here do to a dependency validation
                 settingsBuilder.copy(key, toApply);
                 updates.copy(key, toApply);
                 changed = true;

@@ -28,7 +28,7 @@ public abstract class Exporter implements AutoCloseable {
 
     private static final Setting.AffixSetting<String> TYPE_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","type",
-                    key -> Setting.simpleStringWithValidator(key, v -> {
+                    (key) -> Setting.simpleStringWithValidator(key, (v) -> {
                         switch (v) {
                             case "":
                             case "http":

@@ -999,7 +999,7 @@ public class InternalEngine extends Engine {
                 assert assertDocDoesNotExist(index, canOptimizeAddDocument(index) == false);
                 addDocs(index.docs(), indexWriter);
             }
-            return new IndexResult(plan.versionForIndexing, getPrimaryTerm(), plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
+            return new IndexResult(plan.versionForIndexing, index.primaryTerm(), plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
         } catch (Exception ex) {
             if (indexWriter.getTragicException() == null) {
                 /* There is no tragic event recorded so this must be a document failure.
@@ -1015,7 +1015,7 @@ public class InternalEngine extends Engine {
                  * we return a `MATCH_ANY` version to indicate no document was index. The value is
                  * not used anyway
                  */
-                return new IndexResult(ex, Versions.MATCH_ANY, getPrimaryTerm(), plan.seqNoForIndexing);
+                return new IndexResult(ex, Versions.MATCH_ANY, index.primaryTerm(), plan.seqNoForIndexing);
             } else {
                 throw ex;
             }
@@ -1337,7 +1337,7 @@ public class InternalEngine extends Engine {
             if (indexWriter.getTragicException() == null) {
                 // there is no tragic event and such it must be a document level failure
                 return new DeleteResult(
-                        ex, plan.versionOfDeletion, getPrimaryTerm(), plan.seqNoOfDeletion, plan.currentlyDeleted == false);
+                        ex, plan.versionOfDeletion, delete.primaryTerm(), plan.seqNoOfDeletion, plan.currentlyDeleted == false);
             } else {
                 throw ex;
             }

@@ -424,8 +424,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
-    // package-visible for testing
-    DiscoveryNode getLocalNode() {
+    // visible for testing
+    public DiscoveryNode getLocalNode() {
         return transportService.getLocalNode();
     }
 

@@ -62,7 +62,7 @@ public class PublicationTests extends ESTestCase {
             this.localNode = localNode;
             ClusterState initialState = CoordinationStateTests.clusterState(0L, 0L, localNode,
                 VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 0L);
-            coordinationState = new CoordinationState(settings, localNode, new CoordinationStateTests.InMemoryPersistedState(0L,
+            coordinationState = new CoordinationState(settings, localNode, new InMemoryPersistedState(0L,
                 initialState));
         }
 

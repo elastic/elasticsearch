@@ -213,13 +213,16 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         if (addMockHttpTransport()) {
             plugins.add(MockHttpTransport.TestPlugin.class);
         }
-        Node build = new MockNode(settings, plugins, forbidPrivateIndexSettings());
-        try {
-            build.start();
-        } catch (NodeValidationException e) {
-            throw new RuntimeException(e);
-        }
-        return build;
+        Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings());
+        bootstrapNodes(true,
+            () -> {
+                try {
+                    node.start();
+                } catch (NodeValidationException e) {
+                    throw new RuntimeException(e);
+                }
+            }, Collections.singletonList(node), logger);
+        return node;
     }
 
     /**

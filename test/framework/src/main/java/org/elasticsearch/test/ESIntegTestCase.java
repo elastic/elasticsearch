@@ -1944,16 +1944,21 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     protected NodeConfigurationSource getNodeConfigSource() {
-        Settings.Builder networkSettings = Settings.builder();
+        Settings.Builder initialNodeSettings = Settings.builder();
+        Settings.Builder initialTransportClientSettings = Settings.builder();
         if (addMockTransportService()) {
-            networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
+            initialNodeSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
+            initialTransportClientSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
+        }
+        if (addTestZenDiscovery()) {
+            initialNodeSettings.put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2());
         }
 
         return new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 return Settings.builder()
-                    .put(networkSettings.build())
+                    .put(initialNodeSettings.build())
                     .put(ESIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
             }
 
@@ -1969,7 +1974,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             @Override
             public Settings transportClientSettings() {
-                return Settings.builder().put(networkSettings.build())
+                return Settings.builder().put(initialTransportClientSettings.build())
                     .put(ESIntegTestCase.this.transportClientSettings()).build();
             }
 

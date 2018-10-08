@@ -810,42 +810,6 @@ public class CoordinationStateTests extends ESTestCase {
         return clusterState.metaData().persistentSettings().getAsLong("value", 0L);
     }
 
-    public static class InMemoryPersistedState implements PersistedState {
-
-        private long currentTerm;
-        private ClusterState acceptedState;
-
-        public InMemoryPersistedState(long term, ClusterState acceptedState) {
-            this.currentTerm = term;
-            this.acceptedState = acceptedState;
-
-            assert currentTerm >= 0;
-            assert getLastAcceptedState().term() <= currentTerm :
-                "last accepted term " + getLastAcceptedState().term() + " cannot be above current term " + currentTerm;
-        }
-
-        @Override
-        public void setCurrentTerm(long currentTerm) {
-            assert this.currentTerm <= currentTerm;
-            this.currentTerm = currentTerm;
-        }
-
-        @Override
-        public void setLastAcceptedState(ClusterState clusterState) {
-            this.acceptedState = clusterState;
-        }
-
-        @Override
-        public long getCurrentTerm() {
-            return currentTerm;
-        }
-
-        @Override
-        public ClusterState getLastAcceptedState() {
-            return acceptedState;
-        }
-    }
-
     static class ClusterNode {
 
         final DiscoveryNode localNode;

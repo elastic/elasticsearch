@@ -164,7 +164,7 @@ public class NodeJoinTests extends ESTestCase {
             transportService,
             ESAllocationTestCase.createAllocationService(Settings.EMPTY),
             masterService,
-            () -> new CoordinationStateTests.InMemoryPersistedState(term, initialState), r -> emptyList(),
+            () -> new InMemoryPersistedState(term, initialState), r -> emptyList(),
             new NoOpClusterApplier(),
             random);
         transportService.start();

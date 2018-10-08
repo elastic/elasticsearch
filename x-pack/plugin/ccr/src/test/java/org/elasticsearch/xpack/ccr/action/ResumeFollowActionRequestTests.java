@@ -19,7 +19,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class FollowIndexRequestTests extends AbstractStreamableXContentTestCase<ResumeFollowAction.Request> {
+public class ResumeFollowActionRequestTests extends AbstractStreamableXContentTestCase<ResumeFollowAction.Request> {
 
     @Override
     protected ResumeFollowAction.Request createBlankInstance() {

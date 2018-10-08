@@ -364,14 +364,16 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      */
     public final void validate(Settings settings, Settings others, boolean validateDependencies) {
         final Settings.Builder validSettings = Settings.builder();
-        others.keySet().stream().filter(NOT_WILDCARD_SETTING).forEach(key -> {
-            try {
-                validate(key, others, validateDependencies);
-                validSettings.copy(key, others);
-            } catch (Exception ignored) {
-                // ignore invalid settings
+        for (String key : others.keySet()) {
+            if (NOT_WILDCARD_SETTING.test(key) && settings.keySet().contains(key) == false) {
+                try {
+                    validate(key, others, validateDependencies);
+                    validSettings.copy(key, others);
+                } catch (Exception ignored) {
+                    // ignore invalid settings
+                }
             }
-        });
+        }
         final Settings toValidate = validSettings.put(settings.filter(NOT_WILDCARD_SETTING)).build();
         validate(toValidate, validateDependencies);
     }

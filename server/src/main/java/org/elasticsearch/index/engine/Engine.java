@@ -83,6 +83,7 @@ import org.elasticsearch.search.suggest.completion.CompletionStats;
 import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.Base64;
@@ -1197,22 +1198,22 @@ public abstract class Engine implements Closeable {
         /**
          * The source that caused this searcher to be acquired.
          */
-        public final String source() {
+        public String source() {
             return source;
         }
 
-        public final IndexReader reader() {
+        public IndexReader reader() {
             return searcher.getIndexReader();
         }
 
-        public final DirectoryReader getDirectoryReader() {
+        public DirectoryReader getDirectoryReader() {
             if (reader() instanceof DirectoryReader) {
                 return (DirectoryReader) reader();
             }
             throw new IllegalStateException("Can't use " + reader().getClass() + " as a directory reader");
         }
 
-        public final IndexSearcher searcher() {
+        public IndexSearcher searcher() {
             return searcher;
         }
 
@@ -1221,7 +1222,7 @@ public abstract class Engine implements Closeable {
             try {
                 onClose.close();
             } catch (IOException e) {
-                throw new IllegalStateException("Cannot close", e);
+                throw new UncheckedIOException("failed to close", e);
             } catch (AlreadyClosedException e) {
                 // This means there's a bug somewhere: don't suppress it
                 throw new AssertionError(e);

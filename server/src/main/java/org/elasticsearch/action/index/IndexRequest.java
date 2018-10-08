@@ -482,11 +482,18 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     public IndexRequest compareAndSet(long seqNo, long term) {
-        if (seqNo < 0) {
+        if (term == 0 && seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            throw new IllegalArgumentException("seqNo is set, but primary term is [0]");
+        }
+
+        if (term != 0 && seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            throw new IllegalArgumentException("seqNo is unassigned, but primary term is [" + term + "]");
+        }
+        if (seqNo < 0 && seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
             throw new IllegalArgumentException("sequence numbers must be non negative. got [" +  seqNo + "].");
         }
-        if (term <= 0) {
-            throw new IllegalArgumentException("primary term must be positive. got [" + term + "]");
+        if (term < 0) {
+            throw new IllegalArgumentException("primary term must be non negative. got [" + term + "]");
         }
         casSeqNo = seqNo;
         casPrimaryTerm = term;

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ccr.index.engine;
 
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -17,6 +18,8 @@ import java.io.IOException;
  * An engine implementation for following shards.
  */
 public final class FollowingEngine extends InternalEngine {
+
+    private final CounterMetric numOfOptimizedIndexing = new CounterMetric();
 
     /**
      * Construct a new following engine with the specified engine configuration.
@@ -51,7 +54,20 @@ public final class FollowingEngine extends InternalEngine {
     @Override
     protected InternalEngine.IndexingStrategy indexingStrategyForOperation(final Index index) throws IOException {
         preFlight(index);
-        return planIndexingAsNonPrimary(index);
+        // NOTES: refer Engine#getMaxSeqNoOfUpdatesOrDeletes for the explanation of the optimization using sequence numbers.
+        final long maxSeqNoOfUpdatesOrDeletes = getMaxSeqNoOfUpdatesOrDeletes();
+        assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is not initialized";
+        if (hasBeenProcessedBefore(index)) {
+            return IndexingStrategy.processButSkipLucene(false, index.seqNo(), index.version());
+
+        } else if (maxSeqNoOfUpdatesOrDeletes <= getLocalCheckpoint()) {
+            assert maxSeqNoOfUpdatesOrDeletes < index.seqNo() : "seq_no[" + index.seqNo() + "] <= msu[" + maxSeqNoOfUpdatesOrDeletes + "]";
+            numOfOptimizedIndexing.inc();
+            return InternalEngine.IndexingStrategy.optimizedAppendOnly(index.seqNo(), index.version());
+
+        } else {
+            return planIndexingAsNonPrimary(index);
+        }
     }
 
     @Override
@@ -85,4 +101,11 @@ public final class FollowingEngine extends InternalEngine {
         return true;
     }
 
+    /**
+     * Returns the number of indexing operations that have been optimized (bypass version lookup) using sequence numbers in this engine.
+     * This metric is not persisted, and started from 0 when the engine is opened.
+     */
+    public long getNumberOfOptimizedIndexing() {
+        return numOfOptimizedIndexing.count();
+    }
 }

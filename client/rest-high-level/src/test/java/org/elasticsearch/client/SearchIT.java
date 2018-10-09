@@ -35,6 +35,8 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.client.core.CountRequest;
+import org.elasticsearch.client.core.CountResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
@@ -1233,4 +1235,71 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(0, searchResponse.getShardFailures().length);
         assertEquals(SearchResponse.Clusters.EMPTY, searchResponse.getClusters());
     }
+
+    //Count API IT tests start
+    public void testCountOneIndexNoQuery() throws IOException {
+        CountRequest countRequest = new CountRequest("index");
+        CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
+        assertCountHeader(countResponse);
+        assertEquals(5, countResponse.getCount());
+    }
+
+    public void testCountMultipleIndicesNoQuery() throws IOException {
+        CountRequest countRequest = new CountRequest("index", "index1");
+        CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
+        assertCountHeader(countResponse);
+        assertEquals(7, countResponse.getCount());
+    }
+
+    public void testCountAllIndicesNoQuery() throws IOException {
+        CountRequest countRequest = new CountRequest();
+        CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
+        assertCountHeader(countResponse);
+        assertEquals(12, countResponse.getCount());
+    }
+
+    public void testCountOneIndexMatchQuery() throws IOException {
+        CountRequest countRequest = new CountRequest("index");
+        countRequest.source(new SearchSourceBuilder().query(new MatchQueryBuilder("num", 10)));
+        CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
+        assertCountHeader(countResponse);
+        assertEquals(1, countResponse.getCount());
+    }
+
+    public void testCountMultipleIndicesMatchQueryUsingConstructor() throws IOException {
+
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(new MatchQueryBuilder("field", "value1"));
+        CountRequest countRequest = new CountRequest(new String[]{"index1", "index2", "index3"}, sourceBuilder);
+        CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
+        assertCountHeader(countResponse);
+        assertEquals(3, countResponse.getCount());
+
+    }
+
+    public void testCountMultipleIndicesMatchQuery() throws IOException {
+
+        CountRequest countRequest = new CountRequest("index1", "index2", "index3");
+        countRequest.source(new SearchSourceBuilder().query(new MatchQueryBuilder("field", "value1")));
+        CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
+        assertCountHeader(countResponse);
+        assertEquals(3, countResponse.getCount());
+    }
+
+    public void testCountAllIndicesMatchQuery() throws IOException {
+
+        CountRequest countRequest = new CountRequest();
+        countRequest.source(new SearchSourceBuilder().query(new MatchQueryBuilder("field", "value1")));
+        CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
+        assertCountHeader(countResponse);
+        assertEquals(3, countResponse.getCount());
+    }
+
+    private static void assertCountHeader(CountResponse countResponse) {
+        assertEquals(0, countResponse.getSkippedShards());
+        assertEquals(0, countResponse.getFailedShards());
+        assertThat(countResponse.getTotalShards(), greaterThan(0));
+        assertEquals(countResponse.getTotalShards(), countResponse.getSuccessfulShards());
+        assertEquals(0, countResponse.getShardFailures().length);
+    }
+    //Count API IT tests end
 }

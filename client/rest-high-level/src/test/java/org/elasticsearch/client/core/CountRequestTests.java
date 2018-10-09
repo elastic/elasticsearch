@@ -17,10 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.client;
+package org.elasticsearch.client.core;
 
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.count.CountRequest;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -31,7 +30,7 @@ import java.util.List;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
-//quite similar to SearchRequestTests as CountRequest wraps SearchRequest
+//similar to SearchRequestTests as CountRequest inline several members (and functionality) from SearchRequest
 public class CountRequestTests extends ESTestCase {
 
     public void testIllegalArguments() {

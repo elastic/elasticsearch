@@ -17,26 +17,41 @@
  * under the License.
  */
 
-package org.elasticsearch.client;
+package org.elasticsearch.client.core;
 
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.count.CountResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class CountResponseTests extends AbstractXContentTestCase<CountResponse> {
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
-    @Override
-    protected CountResponse createTestInstance() {
+public class CountResponseTests extends ESTestCase {
+
+    // Not comparing XContent for equivalence as we cannot compare the ShardSearchFailure#cause, because it will be wrapped in an outer
+    // ElasticSearchException. Best effort: try to check that the original message appears somewhere in the rendered xContent
+    // For more see ShardSearchFailureTests.
+    public void testFromXContent() throws IOException {
+        xContentTester(
+            this::createParser,
+            this::createTestInstance,
+            this::toXContent,
+            CountResponse::fromXContent)
+            .supportsUnknownFields(false)
+            .assertEqualsConsumer(this::assertEqualInstances)
+            .assertToXContentEquivalence(false)
+            .test();
+    }
+
+    private CountResponse createTestInstance() {
         long count = 5;
         Boolean terminatedEarly = randomBoolean() ? null : randomBoolean();
         int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
@@ -52,12 +67,25 @@ public class CountResponseTests extends AbstractXContentTestCase<CountResponse> 
         return new CountResponse(count, terminatedEarly, shardStats);
     }
 
+    private void toXContent(CountResponse response, XContentBuilder builder) throws IOException {
+        builder.startObject();
+        builder.field(CountResponse.COUNT.getPreferredName(), response.getCount());
+        if (response.isTerminatedEarly() != null) {
+            builder.field(CountResponse.TERMINATED_EARLY.getPreferredName(), response.isTerminatedEarly());
+        }
+        toXContent(response.getShardStats(), builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+    }
 
-    @SuppressWarnings("Duplicates") //suppress warning, as original code is in server:test:SearchResponseTests, would need to add a testJar
-    // (similar as x-pack), or move test code from server to test framework
-    public static ShardSearchFailure createShardFailureTestItem() {
+    private void toXContent(CountResponse.ShardStats stats, XContentBuilder builder, ToXContent.Params params) throws IOException {
+        RestActions.buildBroadcastShardsHeader(builder, params, stats.getTotalShards(), stats.getSuccessfulShards(), stats
+            .getSkippedShards(), stats.getShardFailures().length, stats.getShardFailures());
+    }
+
+    @SuppressWarnings("Duplicates")
+    private static ShardSearchFailure createShardFailureTestItem() {
         String randomMessage = randomAlphaOfLengthBetween(3, 20);
-        Exception ex = new ParsingException(0, 0, randomMessage , new IllegalArgumentException("some bad argument"));
+        Exception ex = new ParsingException(0, 0, randomMessage, new IllegalArgumentException("some bad argument"));
         SearchShardTarget searchShardTarget = null;
         if (randomBoolean()) {
             String nodeId = randomAlphaOfLengthBetween(5, 10);
@@ -68,23 +96,7 @@ public class CountResponseTests extends AbstractXContentTestCase<CountResponse> 
         return new ShardSearchFailure(ex, searchShardTarget);
     }
 
-    @Override
-    protected CountResponse doParseInstance(XContentParser parser) throws IOException {
-        return CountResponse.fromXContent(parser);
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return true;
-    }
-
-    @Override
-    protected boolean assertToXContentEquivalence() {
-        return false;
-    }
-
-    @Override
-    protected void assertEqualInstances(CountResponse expectedInstance, CountResponse newInstance) {
+    private void assertEqualInstances(CountResponse expectedInstance, CountResponse newInstance) {
         assertEquals(expectedInstance.getCount(), newInstance.getCount());
         assertEquals(expectedInstance.status(), newInstance.status());
         assertEquals(expectedInstance.isTerminatedEarly(), newInstance.isTerminatedEarly());
@@ -110,41 +122,5 @@ public class CountResponseTests extends AbstractXContentTestCase<CountResponse> 
             assertEquals(parsedFailure.getCause().getCause().getMessage(),
                 "Elasticsearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]");
         }
-    }
-
-
-    public void testToXContent() {
-        CountResponse response = new CountResponse(8, null, new CountResponse.ShardStats(1, 1, 0, ShardSearchFailure.EMPTY_ARRAY));
-        String expectedString = "{\"count\":8,\"_shards\":{\"total\":1,\"successful\":1,\"skipped\":0,\"failed\":0}}";
-        assertEquals(expectedString, Strings.toString(response));
-    }
-
-    public void testToXContentWithTerminatedEarly() {
-        CountResponse response = new CountResponse(8, true, new CountResponse.ShardStats(1, 1, 0, ShardSearchFailure.EMPTY_ARRAY));
-        String expectedString = "{\"count\":8,\"terminated_early\":true,\"_shards\":{\"total\":1,\"successful\":1,\"skipped\":0," +
-            "\"failed\":0}}";
-        assertEquals(expectedString, Strings.toString(response));
-    }
-
-    public void testToXContentWithTerminatedEarlyAndShardFailures() {
-        ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(0, 0, "not looking well", null),
-            new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 1), null, OriginalIndices.NONE));
-        CountResponse response = new CountResponse(8, true, new CountResponse.ShardStats(1, 2, 0, new ShardSearchFailure[]{failure}));
-        String expectedString =
-            "{\"count\":8," +
-                "\"terminated_early\":true," +
-                "\"_shards\":" +
-                "{\"total\":2," +
-                "\"successful\":1," +
-                "\"skipped\":0," +
-                "\"failed\":1," +
-                "\"failures\":" +
-                "[{\"shard\":1," +
-                "\"index\":\"indexName\"," +
-                "\"node\":\"nodeId\"," +
-                "\"reason\":{\"type\":\"parsing_exception\",\"reason\":\"not looking well\",\"line\":0,\"col\":0}}]" +
-                "}" +
-                "}";
-        assertEquals(expectedString, Strings.toString(response));
     }
 }

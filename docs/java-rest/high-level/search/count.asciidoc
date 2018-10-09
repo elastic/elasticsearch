@@ -1,32 +1,39 @@
-[[java-rest-high-count]]
+--
+:api: count
+:request: CountRequest
+:response: CountResponse
+--
+[id="{upid}-{api}"]
+
 === Count API
 
-[[java-rest-high-document-count-request]]
+[id="{upid}-{api}-request"]
+
 ==== Count Request
 
-The `CountRequest` is used to execute a query and get the number of matches for the query. The query to use in `CountRequest` can be
+The +{request}+ is used to execute a query and get the number of matches for the query. The query to use in +{request}+ can be
 set in similar way as query in `SearchRequest` using `SearchSourceBuilder`.
 
 In its most basic form, we can add a query to the request:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CountDocumentationIT.java[count-request-basic]
+include-tagged::{doc-tests-file}[{api}-request-basic]
 --------------------------------------------------
 
-<1> Creates the `CountRequest`. Without arguments this runs against all indices.
+<1> Creates the +{request}+. Without arguments this runs against all indices.
 <2> Most search parameters are added to the `SearchSourceBuilder`.
 <3> Add a `match_all` query to the `SearchSourceBuilder`.
-<4> Add the `SearchSourceBuilder` to the `CountRequest`.
+<4> Add the `SearchSourceBuilder` to the +{request}+.
 
 [[java-rest-high-count-request-optional]]
 ===== Count Request optional arguments
 
-Let's first look at some of the optional arguments of a `CountRequest`:
+Let's first look at some of the optional arguments of a +{request}+:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CountDocumentationIT.java[count-request-indices-types]
+include-tagged::{doc-tests-file}[{api}-request-indices-types]
 --------------------------------------------------
 <1> Restricts the request to an index
 <2> Limits the request to a type
@@ -35,104 +42,66 @@ There are a couple of other interesting optional parameters:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CountDocumentationIT.java[count-request-routing]
+include-tagged::{doc-tests-file}[{api}-request-routing]
 --------------------------------------------------
 <1> Set a routing parameter
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CountDocumentationIT.java[count-request-indicesOptions]
+include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
 --------------------------------------------------
 <1> Setting `IndicesOptions` controls how unavailable indices are resolved and how wildcard expressions are expanded
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CountDocumentationIT.java[count-request-preference]
+include-tagged::{doc-tests-file}[{api}-request-preference]
 --------------------------------------------------
 <1> Use the preference parameter e.g. to execute the search to prefer local shards. The default is to randomize across shards.
 
 ===== Using the SearchSourceBuilder in CountRequest
 
-Most options controlling the search behavior can be set on the `SearchSourceBuilder`,
+Both in search and count API calls, most options controlling the search behavior can be set on the `SearchSourceBuilder`,
 which contains more or less the equivalent of the options in the search request body of the Rest API.
 
 Here are a few examples of some common options:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CountDocumentationIT.java[count-source-basics]
+include-tagged::{doc-tests-file}[{api}-source-basics]
 --------------------------------------------------
 <1> Create a `SearchSourceBuilder` with default options.
 <2> Set the query. Can be any type of `QueryBuilder`
 
 After this, the `SearchSourceBuilder` only needs to be added to the
-`CountRequest`:
++{request}+:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CountDocumentationIT.java[count-source-setter]
+include-tagged::{doc-tests-file}[{api}-source-setter]
 --------------------------------------------------
 
-Note subtle difference when using `SearchSourceBuilder` in `SearchRequest` and using `SearchSourceBuilder` in `CountRequest` - using
+Note subtle difference when using `SearchSourceBuilder` in `SearchRequest` and using `SearchSourceBuilder` in +{request}+ - using
 `SearchSourceBuilder` in `SearchRequest` one can use `SearchSourceBuilder.size()` and `SearchSourceBuilder.from()` methods to set the
-number of search hits to return, and the starting index. In `CountRequest` we're interested in total number of matches and these methods
+number of search hits to return, and the starting index. In +{request}+ we're interested in total number of matches and these methods
 have no meaning.
 
 The <<java-rest-high-query-builders, Building Queries>> page gives a list of all available search queries with
 their corresponding `QueryBuilder` objects and `QueryBuilders` helper methods.
 
-[[java-rest-high-document-count-sync]]
-==== Synchronous Execution
+include::../execution.asciidoc[]
 
-When executing a `CountRequest` in the following manner, the client waits
-for the `CountResponse` to be returned before continuing with code execution:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/CountDocumentationIT.java[count-execute]
---------------------------------------------------
-
-[[java-rest-high-document-count-async]]
-==== Asynchronous Execution
-
-Executing a `CountRequest` can also be done in an asynchronous fashion so that
-the client can return directly. Users need to specify how the response or
-potential failures will be handled by passing the request and a listeners to the
-asynchronous count method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/CountDocumentationIT.java[count-execute-async]
---------------------------------------------------
-<1> The `CountRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for `CountResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/CountDocumentationIT.java[count-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed.
-<2> Called when the whole `CountRequest` fails.
-
-[[java-rest-high-count-response]]
+[id="{upid}-{api}-response"]
 ==== CountResponse
 
-The `CountResponse` that is returned by executing the count API call provides total count of hits and details about the count execution
+The +{response}+ that is returned by executing the count API call provides total count of hits and details about the count execution
 itself, like the HTTP status code, or whether the request terminated early:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CountDocumentationIT.java[count-response-1]
+include-tagged::{doc-tests-file}[{api}-response-1]
 --------------------------------------------------
 
-Second, the response also provides information about the execution on the
+The response also provides information about the execution on the
 shard level by offering statistics about the total number of shards that were
 affected by the underlying search, and the successful vs. unsuccessful shards. Possible
 failures can also be handled by iterating over an array off
@@ -140,6 +109,6 @@ failures can also be handled by iterating over an array off
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CountDocumentationIT.java[count-response-2]
+include-tagged::{doc-tests-file}[{api}-response-2]
 --------------------------------------------------
 

@@ -17,18 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.client.count;
+package org.elasticsearch.client.core;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestActions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,11 +35,11 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * A response to _count API request.
  */
-public final class CountResponse extends ActionResponse implements StatusToXContentObject {
+public final class CountResponse extends ActionResponse {
 
-    private static final ParseField COUNT = new ParseField("count");
-    private static final ParseField TERMINATED_EARLY = new ParseField("terminated_early");
-    private static final ParseField SHARDS = new ParseField("_shards");
+    static final ParseField COUNT = new ParseField("count");
+    static final ParseField TERMINATED_EARLY = new ParseField("terminated_early");
+    static final ParseField SHARDS = new ParseField("_shards");
 
     private final long count;
     private final Boolean terminatedEarly;
@@ -54,6 +49,10 @@ public final class CountResponse extends ActionResponse implements StatusToXCont
         this.count = count;
         this.terminatedEarly = terminatedEarly;
         this.shardStats = shardStats;
+    }
+
+    public ShardStats getShardStats() {
+        return shardStats;
     }
 
     /**
@@ -98,14 +97,8 @@ public final class CountResponse extends ActionResponse implements StatusToXCont
         return shardStats.shardFailures;
     }
 
-    @Override
     public RestStatus status() {
         return RestStatus.status(shardStats.successfulShards, shardStats.totalShards, shardStats.shardFailures);
-    }
-
-    @Override
-    public String toString() {
-        return Strings.toString(this);
     }
 
     public static CountResponse fromXContent(XContentParser parser) throws IOException {
@@ -140,15 +133,13 @@ public final class CountResponse extends ActionResponse implements StatusToXCont
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(COUNT.getPreferredName(), count);
-        if (isTerminatedEarly() != null) {
-            builder.field(TERMINATED_EARLY.getPreferredName(), isTerminatedEarly());
-        }
-        shardStats.toXContent(builder, params);
-        builder.endObject();
-        return builder;
+    public String toString() {
+        String s = "{" +
+            "count=" + count +
+            (isTerminatedEarly() != null ? ", terminatedEarly=" + terminatedEarly : "") +
+            ", " + shardStats +
+            '}';
+        return s;
     }
 
     public Boolean isTerminatedEarly() {
@@ -158,7 +149,7 @@ public final class CountResponse extends ActionResponse implements StatusToXCont
     /**
      * Encapsulates _shards section of count api response.
      */
-    public static final class ShardStats implements ToXContent {
+    public static final class ShardStats {
 
         static final ParseField FAILED = new ParseField("failed");
         static final ParseField SKIPPED = new ParseField("skipped");
@@ -176,6 +167,22 @@ public final class CountResponse extends ActionResponse implements StatusToXCont
             this.totalShards = totalShards;
             this.skippedShards = skippedShards;
             this.shardFailures = Arrays.copyOf(shardFailures, shardFailures.length);
+        }
+
+        public int getSuccessfulShards() {
+            return successfulShards;
+        }
+
+        public int getTotalShards() {
+            return totalShards;
+        }
+
+        public int getSkippedShards() {
+            return skippedShards;
+        }
+
+        public ShardSearchFailure[] getShardFailures() {
+            return Arrays.copyOf(shardFailures, shardFailures.length, ShardSearchFailure[].class);
         }
 
         static ShardStats fromXContent(XContentParser parser) throws IOException {
@@ -216,10 +223,14 @@ public final class CountResponse extends ActionResponse implements StatusToXCont
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            RestActions.buildBroadcastShardsHeader(builder, params, totalShards, successfulShards, skippedShards,
-                shardFailures.length, shardFailures);
-            return builder;
+        public String toString() {
+            return "_shards : {" +
+                "total=" + totalShards +
+                ", successful=" + successfulShards +
+                ", skipped=" + skippedShards +
+                ", failed=" + (shardFailures != null && shardFailures.length > 0 ? shardFailures.length : 0 ) +
+                (shardFailures != null && shardFailures.length > 0 ? ", failures: " + Arrays.asList(shardFailures): "") +
+                '}';
         }
     }
 }

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.count;
+package org.elasticsearch.client.core;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;

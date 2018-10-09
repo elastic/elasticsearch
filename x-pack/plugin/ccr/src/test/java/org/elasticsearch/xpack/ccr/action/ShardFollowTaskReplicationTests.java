@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -41,18 +42,17 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -252,15 +252,16 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 IndexShard followingPrimary = followerGroup.getPrimary();
                 TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> primaryResult =
                     TransportBulkShardOperationsAction.shardOperationOnPrimary(followingPrimary.shardId(),
-                        followingPrimary.getHistoryUUID(), Arrays.asList(ops),
-                        leadingPrimary.getMaxSeqNoOfUpdatesOrDeletes(), followingPrimary, logger);
-
-                IndexShard replica = randomFrom(followerGroup.getReplicas());
-                final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
-                replica.acquireReplicaOperationPermit(followingPrimary.getOperationPrimaryTerm(), followingPrimary.getGlobalCheckpoint(),
-                    followingPrimary.getMaxSeqNoOfUpdatesOrDeletes(), permitFuture, ThreadPool.Names.SAME, primaryResult);
-                try (Releasable ignored = permitFuture.get()) {
-                    TransportBulkShardOperationsAction.shardOperationOnReplica(primaryResult.replicaRequest(), replica, logger);
+                        followingPrimary.getHistoryUUID(), Arrays.asList(ops), leadingPrimary.getMaxSeqNoOfUpdatesOrDeletes(),
+                        followingPrimary, logger);
+                for (IndexShard replica : randomSubsetOf(followerGroup.getReplicas())) {
+                    final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
+                    replica.acquireReplicaOperationPermit(followingPrimary.getOperationPrimaryTerm(),
+                        followingPrimary.getGlobalCheckpoint(), followingPrimary.getMaxSeqNoOfUpdatesOrDeletes(),
+                        permitFuture, ThreadPool.Names.SAME, primaryResult);
+                    try (Releasable ignored = permitFuture.get()) {
+                        TransportBulkShardOperationsAction.shardOperationOnReplica(primaryResult.replicaRequest(), replica, logger);
+                    }
                 }
             }
             // A follow-task retries these requests while the primary-replica resync is happening on the follower.
@@ -269,10 +270,11 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             SeqNoStats followerSeqNoStats = followerGroup.getPrimary().seqNoStats();
             shardFollowTask.start(followerGroup.getPrimary().getHistoryUUID(), leadingPrimary.getGlobalCheckpoint(),
                 leadingPrimary.getMaxSeqNoOfUpdatesOrDeletes(), followerSeqNoStats.getGlobalCheckpoint(), followerSeqNoStats.getMaxSeqNo());
-            assertBusy(() -> assertThat(followerGroup.getPrimary().getGlobalCheckpoint(), equalTo(leadingPrimary.getGlobalCheckpoint())));
+            assertBusy(() -> {
+                assertThat(followerGroup.getPrimary().getGlobalCheckpoint(), equalTo(leadingPrimary.getGlobalCheckpoint()));
+                assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup);
+            });
             shardFollowTask.markAsCompleted();
-            assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup);
-            assertConsistentHistoryOnFollower(followerGroup);
         }
     }
 
@@ -421,49 +423,29 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         };
     }
 
-    private void assertConsistentHistoryBetweenLeaderAndFollower(ReplicationGroup leader, ReplicationGroup follower) throws IOException {
-        int totalOpsOnLeader = 0;
+    private void assertConsistentHistoryBetweenLeaderAndFollower(ReplicationGroup leader, ReplicationGroup follower) throws Exception {
+        final List<Tuple<String, Long>> docAndSeqNosOnLeader = getDocIdAndSeqNos(leader.getPrimary()).stream()
+            .map(d -> Tuple.tuple(d.getId(), d.getSeqNo())).collect(Collectors.toList());
+        final Set<Tuple<Long, Translog.Operation.Type>> operationsOnLeader = new HashSet<>();
         try (Translog.Snapshot snapshot = leader.getPrimary().getHistoryOperations("test", 0)) {
-            while (snapshot.next() != null) {
-                totalOpsOnLeader++;
-            }
-        }
-        for (IndexShard followingShard : follower) {
-            try (Translog.Snapshot snapshot = followingShard.getHistoryOperations("test", 0)) {
-                int totalOpsOnFollower = 0;
-                while (snapshot.next() != null) {
-                    totalOpsOnFollower++;
-                }
-                assertThat(totalOpsOnFollower, equalTo(totalOpsOnLeader));
+            Translog.Operation op;
+            while ((op = snapshot.next()) != null) {
+                operationsOnLeader.add(Tuple.tuple(op.seqNo(), op.opType()));
             }
         }
         for (IndexShard followingShard : follower) {
             assertThat(followingShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(leader.getPrimary().getMaxSeqNoOfUpdatesOrDeletes()));
-        }
-    }
-
-    private void assertConsistentHistoryOnFollower(ReplicationGroup follower) throws IOException {
-        follower.refresh("test");
-        final long globalCheckpoint = follower.getPrimary().getGlobalCheckpoint();
-        Map<Long, Translog.Operation> operationsOnPrimary = new HashMap<>();
-        try (Translog.Snapshot pSnapshot = follower.getPrimary().newChangesSnapshot("test", 0, Long.MAX_VALUE, false)) {
-            Translog.Operation op;
-            while ((op = pSnapshot.next()) != null) {
-                operationsOnPrimary.put(op.seqNo(), op);
-            }
-        }
-        for (IndexShard replica : follower.getReplicas()) {
-            try (Translog.Snapshot rSnapshot = replica.newChangesSnapshot("test", 0, Long.MAX_VALUE, false)) {
+            List<Tuple<String, Long>> docAndSeqNosOnFollower = getDocIdAndSeqNos(followingShard).stream()
+                .map(d -> Tuple.tuple(d.getId(), d.getSeqNo())).collect(Collectors.toList());
+            assertThat(docAndSeqNosOnFollower, equalTo(docAndSeqNosOnLeader));
+            final Set<Tuple<Long, Translog.Operation.Type>> operationsOnFollower = new HashSet<>();
+            try (Translog.Snapshot snapshot = followingShard.getHistoryOperations("test", 0)) {
                 Translog.Operation op;
-                while ((op = rSnapshot.next()) != null) {
-                    Translog.Operation primaryOp = operationsOnPrimary.get(op.seqNo());
-                    if (primaryOp == null) {
-                        assertThat("Missing operation on the primary", op.seqNo(), greaterThan(globalCheckpoint));
-                    } else {
-                        assertThat("Mismatched operation", op, equalTo(primaryOp));
-                    }
+                while ((op = snapshot.next()) != null) {
+                    operationsOnFollower.add(Tuple.tuple(op.seqNo(), op.opType()));
                 }
             }
+            assertThat(operationsOnFollower, equalTo(operationsOnLeader));
         }
     }
 

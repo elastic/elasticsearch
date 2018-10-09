@@ -63,6 +63,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
@@ -442,10 +443,12 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         public synchronized void close() throws Exception {
             if (closed == false) {
                 closed = true;
+                List<DocIdSeqNoAndTerm> docsOnPrimary = getDocIdAndSeqNos(primary);
                 for (IndexShard replica : replicas) {
                     try {
                         assertThat(replica.getMaxSeenAutoIdTimestamp(), equalTo(primary.getMaxSeenAutoIdTimestamp()));
                         assertThat(replica.getMaxSeqNoOfUpdatesOrDeletes(), greaterThanOrEqualTo(primary.getMaxSeqNoOfUpdatesOrDeletes()));
+                        assertThat(getDocIdAndSeqNos(replica), equalTo(docsOnPrimary));
                     } catch (AlreadyClosedException ignored) {
                     }
                 }

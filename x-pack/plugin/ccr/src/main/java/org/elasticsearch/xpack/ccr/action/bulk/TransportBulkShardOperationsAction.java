@@ -141,7 +141,9 @@ public class TransportBulkShardOperationsAction
                 }
             }
         }
-        assert appliedOperations.size() == sourceOperations.size() || waitingForGlobalCheckpoint != SequenceNumbers.UNASSIGNED_SEQ_NO;
+        assert appliedOperations.size() == sourceOperations.size() || waitingForGlobalCheckpoint != SequenceNumbers.UNASSIGNED_SEQ_NO :
+            "waiting global checkpoint is not assigned; waiting_gcp=" + waitingForGlobalCheckpoint +
+            " source_ops=" + sourceOperations.size() + " applied_ops=" + sourceOperations.size();
         assert appliedOperations.size() == 0 || location != null;
         final BulkShardOperationsRequest replicaRequest = new BulkShardOperationsRequest(
             shardId, historyUUID, appliedOperations, maxSeqNoOfUpdatesOrDeletes);
@@ -163,7 +165,7 @@ public class TransportBulkShardOperationsAction
         for (final Translog.Operation operation : request.getOperations()) {
             final Engine.Result result = replica.applyTranslogOperation(operation, Engine.Operation.Origin.REPLICA);
             if (result.getResultType() != Engine.Result.Type.SUCCESS) {
-                assert false : "failure should never happens on replicas; op=[" + operation + "] error=" + result.getFailure() + "]";
+                assert false : "doc-level failure must not happen on replicas; op[" + operation + "] error[" + result.getFailure() + "]";
                 throw ExceptionsHelper.convertToElastic(result.getFailure());
             }
             assert result.getSeqNo() == operation.seqNo();
@@ -192,26 +194,24 @@ public class TransportBulkShardOperationsAction
 
         @Override
         public synchronized void respond(ActionListener<BulkShardOperationsResponse> listener) {
-            final Runnable fillResponse = () -> {
-                final BulkShardOperationsResponse response = finalResponseIfSuccessful;
+            final ActionListener<BulkShardOperationsResponse> wrappedListener = ActionListener.wrap(response -> {
                 final SeqNoStats seqNoStats = primary.seqNoStats();
-                // return a fresh global checkpoint after the operations have been replicated for the shard follow task
                 response.setGlobalCheckpoint(seqNoStats.getGlobalCheckpoint());
                 response.setMaxSeqNo(seqNoStats.getMaxSeqNo());
-            };
+                listener.onResponse(response);
+            }, listener::onFailure);
+
             if (waitingForGlobalCheckpoint != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                 primary.addGlobalCheckpointListener(waitingForGlobalCheckpoint, (gcp, e) -> {
                     if (e != null) {
                         listener.onFailure(e);
                     } else {
                         assert waitingForGlobalCheckpoint <= gcp : waitingForGlobalCheckpoint + " > " + gcp;
-                        fillResponse.run();
-                        super.respond(listener);
+                        super.respond(wrappedListener);
                     }
                 }, null);
             } else {
-                fillResponse.run();
-                super.respond(listener);
+                super.respond(wrappedListener);
             }
         }
 

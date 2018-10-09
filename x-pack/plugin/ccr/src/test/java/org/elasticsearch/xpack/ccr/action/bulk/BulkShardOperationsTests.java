@@ -124,14 +124,16 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
             expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TimeValue.timeValueMillis(1)));
 
             shard.updateGlobalCheckpointOnReplica(randomLongBetween(waitingForGlobalCheckpoint, shard.getLocalCheckpoint()), "test");
-            assertThat(listener.actionGet(TimeValue.timeValueSeconds(5)).getMaxSeqNo(), equalTo(shard.seqNoStats().getMaxSeqNo()));
+            assertThat(listener.get().getMaxSeqNo(), equalTo(shard.seqNoStats().getMaxSeqNo()));
+            assertThat(listener.get().getGlobalCheckpoint(), equalTo(shard.getGlobalCheckpoint()));
         }
         {
             PlainActionFuture<BulkShardOperationsResponse> listener = new PlainActionFuture<>();
             long waitingForGlobalCheckpoint = randomLongBetween(-1, shard.getGlobalCheckpoint());
             CcrWritePrimaryResult primaryResult = new CcrWritePrimaryResult(request, null, shard, waitingForGlobalCheckpoint, logger);
             primaryResult.respond(listener);
-            assertThat(listener.actionGet(TimeValue.timeValueSeconds(5)).getMaxSeqNo(), equalTo(shard.seqNoStats().getMaxSeqNo()));
+            assertThat(listener.get().getMaxSeqNo(), equalTo(shard.seqNoStats().getMaxSeqNo()));
+            assertThat(listener.get().getGlobalCheckpoint(), equalTo(shard.getGlobalCheckpoint()));
         }
         closeShards(shard);
     }

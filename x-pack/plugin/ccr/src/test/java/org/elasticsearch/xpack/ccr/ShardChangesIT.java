@@ -49,6 +49,7 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -122,8 +123,11 @@ public class ShardChangesIT extends ESIntegTestCase {
         return Arrays.asList(LocalStateCcr.class, CommonAnalysisPlugin.class);
     }
 
-    @After
-    public void assertConsistentHistory() throws Exception {
+    @Override
+    protected void beforeIndexDeletion() throws Exception {
+        super.beforeIndexDeletion();
+        assertSeqNos();
+        assertSameDocIdsOnShards();
         internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
     }
 
@@ -713,8 +717,7 @@ public class ShardChangesIT extends ESIntegTestCase {
                             String id = Integer.toString(between(0, docID.get()));
                             client().prepareDelete("leader-index", "doc", id).get();
                         }
-                    } catch (ElasticsearchException ignored) {
-
+                    } catch (NodeClosedException ignored) {
                     }
                 }
             });

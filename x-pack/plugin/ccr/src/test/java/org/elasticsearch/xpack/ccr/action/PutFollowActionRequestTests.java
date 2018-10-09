@@ -17,6 +17,6 @@ public class PutFollowActionRequestTests extends AbstractStreamableTestCase<PutF
 
     @Override
     protected PutFollowAction.Request createTestInstance() {
-        return new PutFollowAction.Request(FollowIndexRequestTests.createTestRequest());
+        return new PutFollowAction.Request(ResumeFollowActionRequestTests.createTestRequest());
     }
 }

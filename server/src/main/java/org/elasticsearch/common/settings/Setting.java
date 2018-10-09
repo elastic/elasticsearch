@@ -355,9 +355,8 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
-     * Validate the setting value without dependencies.
-     *
-     * @param settings the settings
+     * Validate the current setting value only without dependencies with {@link Setting.Validator#validate(Object)}.
+     * @param settings a settings object for settings that has a default value depending on another setting if available
      */
     void validateWithoutDependencies(Settings settings) {
         validator.validate(get(settings, false));
@@ -828,7 +827,6 @@ public class Setting<T> implements ToXContentObject {
          * The validation routine for this validator.
          *
          * @param value the value of this setting
-         *
          */
         void validate(T value);
 

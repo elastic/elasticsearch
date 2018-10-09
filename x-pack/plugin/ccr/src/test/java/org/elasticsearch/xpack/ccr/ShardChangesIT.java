@@ -70,7 +70,6 @@ import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
-import org.junit.After;
 
 import java.io.IOException;
 import java.util.Arrays;

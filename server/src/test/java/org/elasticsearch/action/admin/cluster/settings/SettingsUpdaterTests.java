@@ -185,32 +185,11 @@ public class SettingsUpdaterTests extends ESTestCase {
 
         // these are invalid settings that exist as either persistent or transient settings
         final int numberOfInvalidSettings = randomIntBetween(0, 7);
-        final List<Setting<String>> invalidSettings = new ArrayList<>(numberOfInvalidSettings);
-        for (int i = 0; i < numberOfInvalidSettings; i++) {
-            final Setting<String> invalidSetting = Setting.simpleStringWithValidator(
-                "invalid.setting" + i,
-                new Setting.Validator<String>() {
-                    @Override
-                    public void validate(String value) {
-                        throw new IllegalArgumentException("invalid");
-                    }
-
-                    @Override
-                    public void validate(String value, Map<Setting<String>, String> settings) {
-                        throw new IllegalArgumentException("invalid");
-                    }
-                },
-                Property.NodeScope);
-            invalidSettings.add(invalidSetting);
-        }
+        final List<Setting<String>> invalidSettings = createInvalidSettings(numberOfInvalidSettings);
 
         // these are unknown settings that exist as either persistent or transient settings
         final int numberOfUnknownSettings = randomIntBetween(0, 7);
-        final List<Setting<String>> unknownSettings = new ArrayList<>(numberOfUnknownSettings);
-        for (int i = 0; i < numberOfUnknownSettings; i++) {
-            final Setting<String> unknownSetting = Setting.simpleString("unknown.setting" + i, Property.NodeScope);
-            unknownSettings.add(unknownSetting);
-        }
+        final List<Setting<String>> unknownSettings = createUnknownSettings(numberOfUnknownSettings);
 
         final Settings.Builder existingPersistentSettings = Settings.builder();
         final Settings.Builder existingTransientSettings = Settings.builder();
@@ -365,32 +344,11 @@ public class SettingsUpdaterTests extends ESTestCase {
 
         // these are invalid settings that exist as either persistent or transient settings
         final int numberOfInvalidSettings = randomIntBetween(0, 7);
-        final List<Setting<String>> invalidSettings = new ArrayList<>(numberOfInvalidSettings);
-        for (int i = 0; i < numberOfInvalidSettings; i++) {
-            final Setting<String> invalidSetting = Setting.simpleStringWithValidator(
-                    "invalid.setting" + i,
-                    new Setting.Validator<String>() {
-                        @Override
-                        public void validate(String value) {
-                            throw new IllegalArgumentException("invalid");
-                        }
-
-                        @Override
-                        public void validate(String value, Map<Setting<String>, String> settings) {
-                            throw new IllegalArgumentException("invalid");
-                        }
-                    },
-                    Property.NodeScope);
-            invalidSettings.add(invalidSetting);
-        }
+        final List<Setting<String>> invalidSettings = createInvalidSettings(numberOfInvalidSettings);
 
         // these are unknown settings that exist as either persistent or transient settings
         final int numberOfUnknownSettings = randomIntBetween(0, 7);
-        final List<Setting<String>> unknownSettings = new ArrayList<>(numberOfUnknownSettings);
-        for (int i = 0; i < numberOfUnknownSettings; i++) {
-            final Setting<String> unknownSetting = Setting.simpleString("unknown.setting" + i, Property.NodeScope);
-            unknownSettings.add(unknownSetting);
-        }
+        final List<Setting<String>> unknownSettings = createUnknownSettings(numberOfUnknownSettings);
 
         final Settings.Builder existingPersistentSettings = Settings.builder();
         final Settings.Builder existingTransientSettings = Settings.builder();
@@ -489,6 +447,40 @@ public class SettingsUpdaterTests extends ESTestCase {
                     clusterStateAfterUpdate.metaData().transientSettings().keySet(),
                     not(hasItem(unknownSetting.getKey())));
         }
+    }
+
+    private static List<Setting<String>> createUnknownSettings(int numberOfUnknownSettings) {
+        final List<Setting<String>> unknownSettings = new ArrayList<>(numberOfUnknownSettings);
+        for (int i = 0; i < numberOfUnknownSettings; i++) {
+            final Setting<String> unknownSetting = Setting.simpleString("unknown.setting" + i, Property.NodeScope);
+            unknownSettings.add(unknownSetting);
+        }
+        return unknownSettings;
+    }
+
+    private static List<Setting<String>> createInvalidSettings(int numberOfInvalidSettings) {
+        final List<Setting<String>> invalidSettings = new ArrayList<>(numberOfInvalidSettings);
+        for (int i = 0; i < numberOfInvalidSettings; i++) {
+            final Setting<String> invalidSetting = createInvalidSetting(i);
+            invalidSettings.add(invalidSetting);
+        }
+        return invalidSettings;
+    }
+
+    private static Setting<String> createInvalidSetting(int index) {
+        return Setting.simpleStringWithValidator("invalid.setting" + index,
+            new Setting.Validator<String>() {
+                @Override
+                public void validate(String value) {
+                    throw new IllegalArgumentException("invalid");
+                }
+
+                @Override
+                public void validate(String value, Map<Setting<String>, String> settings) {
+                    throw new IllegalArgumentException("invalid");
+                }
+            },
+            Property.NodeScope);
     }
 
     private static class FooLowSettingValidator implements Setting.Validator<Integer> {

@@ -1,19 +1,24 @@
-[[java-rest-high-x-pack-ml-get-overall-buckets]]
+--
+:api: get-overall-buckets
+:request: GetOverallBucketsRequest
+:response: GetOverallBucketsResponse
+--
+[id="{upid}-{api}"]
 === Get Overall Buckets API
 
 The Get Overall Buckets API retrieves overall bucket results that
 summarize the bucket results of multiple jobs.
-It accepts a `GetOverallBucketsRequest` object and responds
-with a `GetOverallBucketsResponse` object.
+It accepts a +{request}+ object and responds
+with a +{response}+ object.
 
-[[java-rest-high-x-pack-ml-get-overall-buckets-request]]
+[id="{upid}-{api}-request"]
 ==== Get Overall Buckets Request
 
-A `GetOverallBucketsRequest` object gets created with one or more `jobId`.
+A +{request}+ object gets created with one or more `jobId`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-overall-buckets-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Constructing a new request referencing job IDs `jobId1` and `jobId2`.
 
@@ -22,86 +27,51 @@ The following arguments are optional:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-overall-buckets-bucket-span]
+include-tagged::{doc-tests-file}[{api}-bucket-span]
 --------------------------------------------------
 <1> The span of the overall buckets. Must be greater or equal to the jobs' largest `bucket_span`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-overall-buckets-end]
+include-tagged::{doc-tests-file}[{api}-end]
 --------------------------------------------------
 <1> Overall buckets with timestamps earlier than this time will be returned.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-overall-buckets-exclude-interim]
+include-tagged::{doc-tests-file}[{api}-exclude-interim]
 --------------------------------------------------
 <1> If `true`, interim results will be excluded. Overall buckets are interim if any of the job buckets
 within the overall bucket interval are interim. Defaults to `false`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-overall-buckets-overall-score]
+include-tagged::{doc-tests-file}[{api}-overall-score]
 --------------------------------------------------
 <1> Overall buckets with overall scores greater or equal than this value will be returned.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-overall-buckets-start]
+include-tagged::{doc-tests-file}[{api}-start]
 --------------------------------------------------
 <1> Overall buckets with timestamps on or after this time will be returned.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-overall-buckets-top-n]
+include-tagged::{doc-tests-file}[{api}-top-n]
 --------------------------------------------------
 <1> The number of top job bucket scores to be used in the `overall_score` calculation. Defaults to `1`.
 
-[[java-rest-high-x-pack-ml-get-overall-buckets-execution]]
-==== Execution
+include::../execution.asciidoc[]
 
-The request can be executed through the `MachineLearningClient` contained
-in the `RestHighLevelClient` object, accessed via the `machineLearningClient()` method.
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-overall-buckets-execute]
---------------------------------------------------
-
-[[java-rest-high-x-pack-ml-get-overall-buckets-execution-async]]
-==== Asynchronous Execution
-
-The request can also be executed asynchronously:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-overall-buckets-execute-async]
---------------------------------------------------
-<1> The `GetOverallBucketsRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back with the `onResponse` method
-if the execution is successful or the `onFailure` method if the execution
-failed.
-
-A typical listener for `GetBucketsResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-overall-buckets-listener]
---------------------------------------------------
-<1> `onResponse` is called back when the action is completed successfully
-<2> `onFailure` is called back when some unexpected error occurs
-
-[[java-rest-high-snapshot-ml-get-overall-buckets-response]]
+[id="{upid}-{api}-response"]
 ==== Get Overall Buckets Response
 
-The returned `GetOverallBucketsResponse` contains the requested buckets:
+The returned +{response}+ contains the requested buckets:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-overall-buckets-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> The count of overall buckets that were matched
 <2> The overall buckets retrieved

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
@@ -123,6 +124,8 @@ public class SSLDriverTests extends ESTestCase {
     }
 
     public void testHandshakeFailureBecauseProtocolMismatch() throws Exception {
+        // See https://github.com/elastic/elasticsearch/issues/33751
+        assumeTrue("test fails on JDK 11 >= ea28 currently", JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0);
         SSLContext sslContext = getSSLContext();
         SSLEngine clientEngine = sslContext.createSSLEngine();
         SSLEngine serverEngine = sslContext.createSSLEngine();

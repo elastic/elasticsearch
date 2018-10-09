@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -33,6 +34,7 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
     protected ShardFollowNodeTaskStatus createTestInstance() {
         // if you change this constructor, reflect the changes in the hand-written assertions below
         return new ShardFollowNodeTaskStatus(
+                randomAlphaOfLength(4),
                 randomAlphaOfLength(4),
                 randomInt(),
                 randomNonNegativeLong(),
@@ -61,6 +63,7 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
     protected void assertEqualInstances(final ShardFollowNodeTaskStatus expectedInstance, final ShardFollowNodeTaskStatus newInstance) {
         assertNotSame(expectedInstance, newInstance);
         assertThat(newInstance.leaderIndex(), equalTo(expectedInstance.leaderIndex()));
+        assertThat(newInstance.followerIndex(), equalTo(expectedInstance.followerIndex()));
         assertThat(newInstance.getShardId(), equalTo(expectedInstance.getShardId()));
         assertThat(newInstance.leaderGlobalCheckpoint(), equalTo(expectedInstance.leaderGlobalCheckpoint()));
         assertThat(newInstance.leaderMaxSeqNo(), equalTo(expectedInstance.leaderMaxSeqNo()));
@@ -81,15 +84,17 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
         assertThat(newInstance.numberOfOperationsIndexed(), equalTo(expectedInstance.numberOfOperationsIndexed()));
         assertThat(newInstance.fetchExceptions().size(), equalTo(expectedInstance.fetchExceptions().size()));
         assertThat(newInstance.fetchExceptions().keySet(), equalTo(expectedInstance.fetchExceptions().keySet()));
-        for (final Map.Entry<Long, ElasticsearchException> entry : newInstance.fetchExceptions().entrySet()) {
+        for (final Map.Entry<Long, Tuple<Integer, ElasticsearchException>> entry : newInstance.fetchExceptions().entrySet()) {
+            final Tuple<Integer, ElasticsearchException> expectedTuple = expectedInstance.fetchExceptions().get(entry.getKey());
+            assertThat(entry.getValue().v1(), equalTo(expectedTuple.v1()));
             // x-content loses the exception
-            final ElasticsearchException expected = expectedInstance.fetchExceptions().get(entry.getKey());
-            assertThat(entry.getValue().getMessage(), containsString(expected.getMessage()));
-            assertNotNull(entry.getValue().getCause());
+            final ElasticsearchException expected = expectedTuple.v2();
+            assertThat(entry.getValue().v2().getMessage(), containsString(expected.getMessage()));
+            assertNotNull(entry.getValue().v2().getCause());
             assertThat(
-                    entry.getValue().getCause(),
+                    entry.getValue().v2().getCause(),
                     anyOf(instanceOf(ElasticsearchException.class), instanceOf(IllegalStateException.class)));
-            assertThat(entry.getValue().getCause().getMessage(), containsString(expected.getCause().getMessage()));
+            assertThat(entry.getValue().v2().getCause().getMessage(), containsString(expected.getCause().getMessage()));
         }
         assertThat(newInstance.timeSinceLastFetchMillis(), equalTo(expectedInstance.timeSinceLastFetchMillis()));
     }
@@ -99,11 +104,15 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
         return false;
     }
 
-    private NavigableMap<Long, ElasticsearchException> randomReadExceptions() {
+    private NavigableMap<Long, Tuple<Integer, ElasticsearchException>> randomReadExceptions() {
         final int count = randomIntBetween(0, 16);
-        final NavigableMap<Long, ElasticsearchException> readExceptions = new TreeMap<>();
+        final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> readExceptions = new TreeMap<>();
         for (int i = 0; i < count; i++) {
-            readExceptions.put(randomNonNegativeLong(), new ElasticsearchException(new IllegalStateException("index [" + i + "]")));
+            readExceptions.put(
+                    randomNonNegativeLong(),
+                    Tuple.tuple(
+                            randomIntBetween(0, Integer.MAX_VALUE),
+                            new ElasticsearchException(new IllegalStateException("index [" + i + "]"))));
         }
         return readExceptions;
     }

@@ -15,8 +15,13 @@
       "params": {
         "force": {
           "type": "boolean",
-          "required": false,
-          "description": "True if the job should be forcefully deleted"
+          "description": "True if the job should be forcefully deleted",
+          "default": false
+        },
+        "wait_for_completion": {
+          "type": "boolean",
+          "description": "Should this request wait until the operation has completed before returning",
+          "default": true
         }
       }
     },

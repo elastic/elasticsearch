@@ -5,12 +5,16 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
-import org.elasticsearch.common.settings.Settings;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
+
 import javax.net.ssl.X509ExtendedTrustManager;
 
 import java.io.IOException;
@@ -28,6 +32,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Pattern;
@@ -39,6 +44,34 @@ public class RestrictedTrustManagerTests extends ESTestCase {
     private Map<String, X509Certificate[]> certificates;
     private int numberOfClusters;
     private int numberOfNodes;
+
+    private static Locale restoreLocale;
+
+    @BeforeClass
+    public static void ensureSupportedLocale() throws Exception {
+        Logger logger = LogManager.getLogger(RestrictedTrustManagerTests.class);
+        if (isUnusableLocale()) {
+            // See: https://github.com/elastic/elasticsearch/issues/33081
+            logger.warn("Attempting to run RestrictedTrustManagerTests tests in an unusable locale in a FIPS JVM. Certificate expiration " +
+                "validation will fail, switching to English");
+            restoreLocale = Locale.getDefault();
+            Locale.setDefault(Locale.ENGLISH);
+        }
+    }
+
+    private static boolean isUnusableLocale() {
+        return inFipsJvm() && (Locale.getDefault().toLanguageTag().equals("th-TH")
+            || Locale.getDefault().toLanguageTag().equals("ja-JP-u-ca-japanese-x-lvariant-JP")
+            || Locale.getDefault().toLanguageTag().equals("th-TH-u-nu-thai-x-lvariant-TH"));
+    }
+
+    @AfterClass
+    public static void restoreLocale() throws Exception {
+        if (restoreLocale != null) {
+            Locale.setDefault(restoreLocale);
+            restoreLocale = null;
+        }
+    }
 
     @Before
     public void readCertificates() throws GeneralSecurityException, IOException {
@@ -95,7 +128,7 @@ public class RestrictedTrustManagerTests extends ESTestCase {
             trustedNames.add("node" + node + ".cluster" + trustedCluster + ".elasticsearch");
         }
         final CertificateTrustRestrictions restrictions = new CertificateTrustRestrictions(trustedNames);
-        final RestrictedTrustManager trustManager = new RestrictedTrustManager(Settings.EMPTY, baseTrustManager, restrictions);
+        final RestrictedTrustManager trustManager = new RestrictedTrustManager(baseTrustManager, restrictions);
         assertSingleClusterIsTrusted(trustedCluster, trustManager, trustedNames);
     }
 
@@ -103,7 +136,7 @@ public class RestrictedTrustManagerTests extends ESTestCase {
         final int trustedCluster = randomIntBetween(1, numberOfClusters);
         final List<String> trustedNames = Collections.singletonList("*.cluster" + trustedCluster + ".elasticsearch");
         final CertificateTrustRestrictions restrictions = new CertificateTrustRestrictions(trustedNames);
-        final RestrictedTrustManager trustManager = new RestrictedTrustManager(Settings.EMPTY, baseTrustManager, restrictions);
+        final RestrictedTrustManager trustManager = new RestrictedTrustManager(baseTrustManager, restrictions);
         assertSingleClusterIsTrusted(trustedCluster, trustManager, trustedNames);
     }
 
@@ -113,7 +146,7 @@ public class RestrictedTrustManagerTests extends ESTestCase {
         final CertificateTrustRestrictions restrictions = new CertificateTrustRestrictions(
                 trustedNames
         );
-        final RestrictedTrustManager trustManager = new RestrictedTrustManager(Settings.EMPTY, baseTrustManager, restrictions);
+        final RestrictedTrustManager trustManager = new RestrictedTrustManager(baseTrustManager, restrictions);
         for (int cluster = 1; cluster <= numberOfClusters; cluster++) {
             for (int node = 1; node <= numberOfNodes; node++) {
                 if (node == trustedNode) {
@@ -127,7 +160,7 @@ public class RestrictedTrustManagerTests extends ESTestCase {
 
     public void testThatDelegateTrustManagerIsRespected() throws Exception {
         final CertificateTrustRestrictions restrictions = new CertificateTrustRestrictions(Collections.singletonList("*.elasticsearch"));
-        final RestrictedTrustManager trustManager = new RestrictedTrustManager(Settings.EMPTY, baseTrustManager, restrictions);
+        final RestrictedTrustManager trustManager = new RestrictedTrustManager(baseTrustManager, restrictions);
         for (String cert : certificates.keySet()) {
             if (cert.endsWith("/ca")) {
                 assertTrusted(trustManager, cert);

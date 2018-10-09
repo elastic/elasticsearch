@@ -185,7 +185,6 @@ public class WatchSourceBuilder implements ToXContentObject {
 
     static class TransformedAction implements ToXContentObject {
 
-        private final String id;
         private final Action action;
         @Nullable private final TimeValue throttlePeriod;
         @Nullable private final Condition condition;
@@ -193,7 +192,6 @@ public class WatchSourceBuilder implements ToXContentObject {
 
         TransformedAction(String id, Action action, @Nullable TimeValue throttlePeriod,
                           @Nullable Condition condition, @Nullable Transform transform) {
-            this.id = id;
             this.throttlePeriod = throttlePeriod;
             this.condition = condition;
             this.transform = transform;

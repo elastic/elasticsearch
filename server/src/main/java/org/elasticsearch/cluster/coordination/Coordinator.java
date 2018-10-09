@@ -103,7 +103,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private Releasable prevotingRound;
     @Nullable
     private Releasable leaderCheckScheduler;
-    private AtomicLong maxTermSeen = new AtomicLong();
+    private long maxTermSeen;
 
     private Mode mode;
     private Optional<DiscoveryNode> lastKnownLeader;
@@ -259,18 +259,18 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     private void updateMaxTermSeen(final long term) {
-        final long updatedMaxTermSeen = maxTermSeen.updateAndGet(oldMaxTerm -> Math.max(oldMaxTerm, term));
         synchronized (mutex) {
-            long currentTerm = getCurrentTerm();
-            if (mode == Mode.LEADER && updatedMaxTermSeen > currentTerm) {
-                if (publicationInProgress() == false) {
-                    // Bump our term. However if there is a publication in flight then doing so would cancel the publication, so don't do that
-                    // since we check whether a term bump is needed at the end of the publication too.
-                    ensureTermAtLeast(getLocalNode(), updatedMaxTermSeen);
+            maxTermSeen = Math.max(maxTermSeen, term);
+            final long currentTerm = getCurrentTerm();
+            if (mode == Mode.LEADER && maxTermSeen > currentTerm) {
+                // Bump our term. However if there is a publication in flight then doing so would cancel the publication, so don't do that
+                // since we check whether a term bump is needed at the end of the publication too.
+                if (publicationInProgress()) {
+                    logger.debug("updateMaxTermSeen: maxTermSeen = {} > currentTerm = {}, enqueueing term bump",
+                        maxTermSeen, currentTerm);
+                } else {
+                    ensureTermAtLeast(getLocalNode(), maxTermSeen);
                     startElection();
-                } else if (term == updatedMaxTermSeen) {
-                    logger.debug("updateMaxTermSeen: updatedMaxTermSeen = {} > currentTerm = {}, enqueueing term bump",
-                        updatedMaxTermSeen, currentTerm);
                 }
             }
         }
@@ -282,7 +282,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             // to check our mode again here.
             if (mode == Mode.CANDIDATE) {
                 final StartJoinRequest startJoinRequest
-                    = new StartJoinRequest(getLocalNode(), Math.max(getCurrentTerm(), maxTermSeen.get()) + 1);
+                    = new StartJoinRequest(getLocalNode(), Math.max(getCurrentTerm(), maxTermSeen) + 1);
                 logger.debug("starting election with {}", startJoinRequest);
                 getDiscoveredNodes().forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
             }

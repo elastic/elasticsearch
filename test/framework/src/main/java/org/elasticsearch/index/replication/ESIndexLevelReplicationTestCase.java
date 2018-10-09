@@ -443,15 +443,14 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         public synchronized void close() throws Exception {
             if (closed == false) {
                 closed = true;
-                List<DocIdSeqNoAndTerm> docsOnPrimary = getDocIdAndSeqNos(primary);
-                for (IndexShard replica : replicas) {
-                    try {
+                try {
+                    final List<DocIdSeqNoAndTerm> docsOnPrimary = getDocIdAndSeqNos(primary);
+                    for (IndexShard replica : replicas) {
                         assertThat(replica.getMaxSeenAutoIdTimestamp(), equalTo(primary.getMaxSeenAutoIdTimestamp()));
                         assertThat(replica.getMaxSeqNoOfUpdatesOrDeletes(), greaterThanOrEqualTo(primary.getMaxSeqNoOfUpdatesOrDeletes()));
                         assertThat(getDocIdAndSeqNos(replica), equalTo(docsOnPrimary));
-                    } catch (AlreadyClosedException ignored) {
                     }
-                }
+                } catch (AlreadyClosedException ignored) { }
                 closeShards(this);
             } else {
                 throw new AlreadyClosedException("too bad");

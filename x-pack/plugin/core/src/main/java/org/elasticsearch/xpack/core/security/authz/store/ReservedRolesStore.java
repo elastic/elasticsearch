@@ -74,6 +74,23 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("all").build() },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                .put("stack_monitoring_agent", new RoleDescriptor(
+                        "stack_monitoring_agent",
+                        new String[] {
+                            "monitor",
+                            "manage_index_templates"
+                        },
+                        new RoleDescriptor.IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("monitor").build(),
+                            RoleDescriptor.IndicesPrivileges.builder().indices(".kibana*").privileges("read").build(),
+                            RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*", "metricbeat-*").privileges("index", "create_index").build()
+                        },
+                        null,
+                        null,
+                        null,
+                        MetadataUtils.DEFAULT_RESERVED_METADATA,
+                        null
+                ))
                 .put("ingest_admin", new RoleDescriptor("ingest_admin", new String[] { "manage_index_templates", "manage_pipeline" },
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 // reporting_user doesn't have any privileges in Elasticsearch, and Kibana authorizes privileges based on this role

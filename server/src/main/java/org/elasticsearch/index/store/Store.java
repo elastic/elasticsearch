@@ -203,6 +203,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             // TODO this should be caught by lucene - EOF is almost certainly an index corruption
             throw new CorruptIndexException("Read past EOF while reading segment infos", "commit(" + commit + ")", eof);
         } catch (IOException exception) {
+            final String message = exception.getMessage();
+            // DataInput throws a generic IOException on odd data cases
+            if (message != null && (message.startsWith("Invalid vLong detected") || message.startsWith("Invalid vInt detected"))) {
+                throw new CorruptIndexException(message, "commit(" + commit + ")", exception);
+            }
             throw exception; // IOExceptions like too many open files are not necessarily a corruption - just bubble it up
         } catch (Exception ex) {
             throw new CorruptIndexException("Hit unexpected exception while reading segment infos", "commit(" + commit + ")", ex);

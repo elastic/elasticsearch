@@ -45,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -65,8 +66,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -487,7 +490,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
         clusterState = ClusterState.builder(clusterState).blocks(ClusterBlocks.builder()
             .addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK)).incrementVersion().build();
 
-        ClusterState unserializableClusterState = new ClusterState(clusterState.version(), clusterState.stateUUID(), clusterState) {
+        ClusterState unserializableClusterState = new ClusterState(clusterState.term(), clusterState.version(), clusterState.stateUUID(),
+                                                                   clusterState) {
             @Override
             public Diff<ClusterState> diff(ClusterState previousState) {
                 return new Diff<ClusterState>() {
@@ -507,7 +511,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         try {
             publishStateAndWait(nodeA.action, unserializableClusterState, previousClusterState);
             fail("cluster state published despite of diff errors");
-        } catch (Discovery.FailedToCommitClusterStateException e) {
+        } catch (FailedToCommitClusterStateException e) {
             assertThat(e.getCause(), notNullValue());
             assertThat(e.getCause().getMessage(), containsString("failed to serialize"));
         }
@@ -535,7 +539,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         try {
             publishState(master.action, clusterState, previousState, masterNodes + randomIntBetween(1, 5));
             fail("cluster state publishing didn't fail despite of not having enough nodes");
-        } catch (Discovery.FailedToCommitClusterStateException expected) {
+        } catch (FailedToCommitClusterStateException expected) {
             logger.debug("failed to publish as expected", expected);
         }
     }
@@ -615,7 +619,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
             if (expectingToCommit == false) {
                 fail("cluster state publishing didn't fail despite of not have enough nodes");
             }
-        } catch (Discovery.FailedToCommitClusterStateException exception) {
+        } catch (FailedToCommitClusterStateException exception) {
             logger.debug("failed to publish as expected", exception);
             if (expectingToCommit) {
                 throw exception;
@@ -693,7 +697,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
             try {
                 publishState(master.action, state, master.clusterState, 2).await(1, TimeUnit.HOURS);
                 success = true;
-            } catch (Discovery.FailedToCommitClusterStateException OK) {
+            } catch (FailedToCommitClusterStateException OK) {
                 success = false;
             }
             logger.debug("--> publishing [{}], verifying...", success ? "succeeded" : "failed");
@@ -815,6 +819,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
     public static class AssertingAckListener implements Discovery.AckListener {
         private final List<Tuple<DiscoveryNode, Throwable>> errors = new CopyOnWriteArrayList<>();
+        private final Set<DiscoveryNode> successfulAcks = Collections.synchronizedSet(new HashSet<>());
         private final CountDownLatch countDown;
         private final CountDownLatch commitCountDown;
 
@@ -832,13 +837,16 @@ public class PublishClusterStateActionTests extends ESTestCase {
         public void onNodeAck(DiscoveryNode node, @Nullable Exception e) {
             if (e != null) {
                 errors.add(new Tuple<>(node, e));
+            } else {
+                successfulAcks.add(node);
             }
             countDown.countDown();
         }
 
-        public void await(long timeout, TimeUnit unit) throws InterruptedException {
+        public Set<DiscoveryNode> await(long timeout, TimeUnit unit) throws InterruptedException {
             assertThat(awaitErrors(timeout, unit), emptyIterable());
             assertTrue(commitCountDown.await(timeout, unit));
+            return new HashSet<>(successfulAcks);
         }
 
         public List<Tuple<DiscoveryNode, Throwable>> awaitErrors(long timeout, TimeUnit unit) throws InterruptedException {

@@ -21,7 +21,6 @@ package org.elasticsearch.discovery.zen;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -29,10 +28,10 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
+import org.elasticsearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -52,9 +51,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.discovery.zen.PublishClusterStateAction.IncomingClusterStateListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -74,7 +75,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -219,7 +219,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         this.joinThreadControl = new JoinThreadControl();
 
         this.nodeJoinController = new NodeJoinController(masterService, allocationService, electMaster, settings);
-        this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, electMaster, this::submitRejoin, logger);
+        this.nodeRemovalExecutor = new ZenNodeRemovalClusterStateTaskExecutor(allocationService, electMaster, this::submitRejoin, logger);
 
         masterService.setClusterStateSupplier(this::clusterState);
 
@@ -231,8 +231,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         Collection<BiConsumer<DiscoveryNode,ClusterState>> onJoinValidators) {
         Collection<BiConsumer<DiscoveryNode, ClusterState>> validators = new ArrayList<>();
         validators.add((node, state) -> {
-            MembershipAction.ensureNodesCompatibility(node.getVersion(), state.getNodes());
-            MembershipAction.ensureIndexCompatibility(node.getVersion(), state.getMetaData());
+            JoinTaskExecutor.ensureNodesCompatibility(node.getVersion(), state.getNodes());
+            JoinTaskExecutor.ensureIndexCompatibility(node.getVersion(), state.getMetaData());
         });
         validators.addAll(onJoinValidators);
         return Collections.unmodifiableCollection(validators);
@@ -322,18 +322,19 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     }
 
     @Override
-    public void publish(ClusterChangedEvent clusterChangedEvent, AckListener ackListener) {
+    public void publish(ClusterChangedEvent clusterChangedEvent, ActionListener<Void> publishListener, AckListener ackListener) {
         ClusterState newState = clusterChangedEvent.state();
         assert newState.getNodes().isLocalNodeElectedMaster() : "Shouldn't publish state when not master " + clusterChangedEvent.source();
 
-        // state got changed locally (maybe because another master published to us)
-        if (clusterChangedEvent.previousState() != this.committedState.get()) {
-            throw new FailedToCommitClusterStateException("state was mutated while calculating new CS update");
-        }
-
-        pendingStatesQueue.addPending(newState);
-
         try {
+
+            // state got changed locally (maybe because another master published to us)
+            if (clusterChangedEvent.previousState() != this.committedState.get()) {
+                throw new FailedToCommitClusterStateException("state was mutated while calculating new CS update");
+            }
+
+            pendingStatesQueue.addPending(newState);
+
             publishClusterState.publish(clusterChangedEvent, electMaster.minimumMasterNodes(), ackListener);
         } catch (FailedToCommitClusterStateException t) {
             // cluster service logs a WARN message
@@ -346,25 +347,26 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
                 rejoin("zen-disco-failed-to-publish");
             }
-            throw t;
+
+            publishListener.onFailure(t);
+            return;
         }
 
         final DiscoveryNode localNode = newState.getNodes().getLocalNode();
-        final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean processedOrFailed = new AtomicBoolean();
         pendingStatesQueue.markAsCommitted(newState.stateUUID(),
             new PendingClusterStatesQueue.StateProcessedListener() {
                 @Override
                 public void onNewClusterStateProcessed() {
                     processedOrFailed.set(true);
-                    latch.countDown();
+                    publishListener.onResponse(null);
                     ackListener.onNodeAck(localNode, null);
                 }
 
                 @Override
                 public void onNewClusterStateFailed(Exception e) {
                     processedOrFailed.set(true);
-                    latch.countDown();
+                    publishListener.onFailure(e);
                     ackListener.onNodeAck(localNode, e);
                     logger.warn(() -> new ParameterizedMessage(
                             "failed while applying cluster state locally [{}]", clusterChangedEvent.source()), e);
@@ -373,7 +375,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         synchronized (stateMutex) {
             if (clusterChangedEvent.previousState() != this.committedState.get()) {
-                throw new FailedToCommitClusterStateException("local state was mutated while CS update was published to other nodes");
+                publishListener.onFailure(new FailedToCommitClusterStateException("local state was mutated while CS update was published to other nodes"));
+                return;
             }
 
             boolean sentToApplier = processNextCommittedClusterState("master " + newState.nodes().getMasterNode() +
@@ -382,16 +385,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 assert false : "cluster state published locally neither processed nor failed: " + newState;
                 logger.warn("cluster state with version [{}] that is published locally has neither been processed nor failed",
                     newState.version());
-                return;
+                publishListener.onFailure(new FailedToCommitClusterStateException("cluster state that is published locally has neither been processed nor failed"));
             }
-        }
-        // indefinitely wait for cluster state to be applied locally
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            logger.debug(() -> new ParameterizedMessage(
-                    "interrupted while applying cluster state locally [{}]", clusterChangedEvent.source()), e);
-            Thread.currentThread().interrupt();
         }
     }
 
@@ -554,99 +549,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         synchronized (stateMutex) {
             committedState.set(clusterState);
         }
-    }
-
-    // visible for testing
-    public static class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExecutor<NodeRemovalClusterStateTaskExecutor.Task>, ClusterStateTaskListener {
-
-        private final AllocationService allocationService;
-        private final ElectMasterService electMasterService;
-        private final Consumer<String> rejoin;
-        private final Logger logger;
-
-        public static class Task {
-
-            private final DiscoveryNode node;
-            private final String reason;
-
-            public Task(final DiscoveryNode node, final String reason) {
-                this.node = node;
-                this.reason = reason;
-            }
-
-            public DiscoveryNode node() {
-                return node;
-            }
-
-            public String reason() {
-                return reason;
-            }
-
-            @Override
-            public String toString() {
-                return node + " " + reason;
-            }
-        }
-
-        public NodeRemovalClusterStateTaskExecutor(
-                final AllocationService allocationService,
-                final ElectMasterService electMasterService,
-                final Consumer<String> rejoin,
-                final Logger logger) {
-            this.allocationService = allocationService;
-            this.electMasterService = electMasterService;
-            this.rejoin = rejoin;
-            this.logger = logger;
-        }
-
-        @Override
-        public ClusterTasksResult<Task> execute(final ClusterState currentState, final List<Task> tasks) throws Exception {
-            final DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(currentState.nodes());
-            boolean removed = false;
-            for (final Task task : tasks) {
-                if (currentState.nodes().nodeExists(task.node())) {
-                    remainingNodesBuilder.remove(task.node());
-                    removed = true;
-                } else {
-                    logger.debug("node [{}] does not exist in cluster state, ignoring", task);
-                }
-            }
-
-            if (!removed) {
-                // no nodes to remove, keep the current cluster state
-                return ClusterTasksResult.<Task>builder().successes(tasks).build(currentState);
-            }
-
-            final ClusterState remainingNodesClusterState = remainingNodesClusterState(currentState, remainingNodesBuilder);
-
-            final ClusterTasksResult.Builder<Task> resultBuilder = ClusterTasksResult.<Task>builder().successes(tasks);
-            if (electMasterService.hasEnoughMasterNodes(remainingNodesClusterState.nodes()) == false) {
-                final int masterNodes = electMasterService.countMasterNodes(remainingNodesClusterState.nodes());
-                rejoin.accept(LoggerMessageFormat.format("not enough master nodes (has [{}], but needed [{}])",
-                                                         masterNodes, electMasterService.minimumMasterNodes()));
-                return resultBuilder.build(currentState);
-            } else {
-                return resultBuilder.build(allocationService.deassociateDeadNodes(remainingNodesClusterState, true, describeTasks(tasks)));
-            }
-        }
-
-        // visible for testing
-        // hook is used in testing to ensure that correct cluster state is used to test whether a
-        // rejoin or reroute is needed
-        ClusterState remainingNodesClusterState(final ClusterState currentState, DiscoveryNodes.Builder remainingNodesBuilder) {
-            return ClusterState.builder(currentState).nodes(remainingNodesBuilder).build();
-        }
-
-        @Override
-        public void onFailure(final String source, final Exception e) {
-            logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
-        }
-
-        @Override
-        public void onNoLongerMaster(String source) {
-            logger.debug("no longer master while processing node removal [{}]", source);
-        }
-
     }
 
     private void removeNode(final DiscoveryNode node, final String source, final String reason) {
@@ -863,7 +765,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             // to ensure we fail as fast as possible.
             onJoinValidators.stream().forEach(a -> a.accept(node, state));
             if (state.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
-                MembershipAction.ensureMajorVersionBarrier(node.getVersion(), state.getNodes().getMinNodeVersion());
+                JoinTaskExecutor.ensureMajorVersionBarrier(node.getVersion(), state.getNodes().getMinNodeVersion());
             }
             // try and connect to the node, if it fails, we can raise an exception back to the client...
             transportService.connectToNode(node);
@@ -1294,4 +1196,33 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         return onJoinValidators;
     }
 
+    static class ZenNodeRemovalClusterStateTaskExecutor extends NodeRemovalClusterStateTaskExecutor {
+
+        private final ElectMasterService electMasterService;
+        private final Consumer<String> rejoin;
+
+        ZenNodeRemovalClusterStateTaskExecutor(
+            final AllocationService allocationService,
+            final ElectMasterService electMasterService,
+            final Consumer<String> rejoin,
+            final Logger logger) {
+            super(allocationService, logger);
+            this.electMasterService = electMasterService;
+            this.rejoin = rejoin;
+        }
+
+        @Override
+        protected ClusterTasksResult<Task> getTaskClusterTasksResult(ClusterState currentState, List<Task> tasks,
+                                                                     ClusterState remainingNodesClusterState) {
+            if (electMasterService.hasEnoughMasterNodes(remainingNodesClusterState.nodes()) == false) {
+                final ClusterTasksResult.Builder<Task> resultBuilder = ClusterTasksResult.<Task>builder().successes(tasks);
+                final int masterNodes = electMasterService.countMasterNodes(remainingNodesClusterState.nodes());
+                rejoin.accept(LoggerMessageFormat.format("not enough master nodes (has [{}], but needed [{}])",
+                    masterNodes, electMasterService.minimumMasterNodes()));
+                return resultBuilder.build(currentState);
+            } else {
+                return super.getTaskClusterTasksResult(currentState, tasks, remainingNodesClusterState);
+            }
+        }
+    }
 }

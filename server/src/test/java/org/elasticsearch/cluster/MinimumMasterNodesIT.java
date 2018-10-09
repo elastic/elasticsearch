@@ -25,8 +25,8 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -401,7 +401,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         logger.debug("--> waiting for cluster state to be processed/rejected");
         latch.await();
 
-        assertThat(failure.get(), instanceOf(Discovery.FailedToCommitClusterStateException.class));
+        assertThat(failure.get(), instanceOf(FailedToCommitClusterStateException.class));
         assertBusy(() -> assertThat(masterClusterService.state().nodes().getMasterNode(), nullValue()));
 
         partition.stopDisrupting();

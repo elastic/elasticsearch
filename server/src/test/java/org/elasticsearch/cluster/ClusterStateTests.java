@@ -19,10 +19,18 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
+
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -55,6 +63,70 @@ public class ClusterStateTests extends ESTestCase {
 
         // state from the same master compare by version
         assertThat(withMaster1a.supersedes(withMaster1b), equalTo(withMaster1a.version() > withMaster1b.version()));
+    }
 
+    public void testVotingConfiguration() {
+        VotingConfiguration config0 = new VotingConfiguration(Sets.newHashSet());
+        assertThat(config0, equalTo(VotingConfiguration.EMPTY_CONFIG));
+        assertThat(config0.getNodeIds(), equalTo(Sets.newHashSet()));
+        assertThat(config0.isEmpty(), equalTo(true));
+        assertThat(config0.hasQuorum(Sets.newHashSet()), equalTo(false));
+        assertThat(config0.hasQuorum(Sets.newHashSet("id1")), equalTo(false));
+
+        VotingConfiguration config1 = new VotingConfiguration(Sets.newHashSet("id1"));
+        assertThat(config1.getNodeIds(), equalTo(Sets.newHashSet("id1")));
+        assertThat(config1.isEmpty(), equalTo(false));
+        assertThat(config1.hasQuorum(Sets.newHashSet("id1")), equalTo(true));
+        assertThat(config1.hasQuorum(Sets.newHashSet("id1", "id2")), equalTo(true));
+        assertThat(config1.hasQuorum(Sets.newHashSet("id2")), equalTo(false));
+        assertThat(config1.hasQuorum(Sets.newHashSet()), equalTo(false));
+
+        VotingConfiguration config2 = new VotingConfiguration(Sets.newHashSet("id1", "id2"));
+        assertThat(config2.getNodeIds(), equalTo(Sets.newHashSet("id1", "id2")));
+        assertThat(config2.isEmpty(), equalTo(false));
+        assertThat(config2.hasQuorum(Sets.newHashSet("id1", "id2")), equalTo(true));
+        assertThat(config2.hasQuorum(Sets.newHashSet("id1", "id2", "id3")), equalTo(true));
+        assertThat(config2.hasQuorum(Sets.newHashSet("id1")), equalTo(false));
+        assertThat(config2.hasQuorum(Sets.newHashSet("id2")), equalTo(false));
+        assertThat(config2.hasQuorum(Sets.newHashSet("id3")), equalTo(false));
+        assertThat(config2.hasQuorum(Sets.newHashSet("id1", "id3")), equalTo(false));
+        assertThat(config2.hasQuorum(Sets.newHashSet()), equalTo(false));
+
+        VotingConfiguration config3 = new VotingConfiguration(Sets.newHashSet("id1", "id2", "id3"));
+        assertThat(config3.getNodeIds(), equalTo(Sets.newHashSet("id1", "id2", "id3")));
+        assertThat(config3.isEmpty(), equalTo(false));
+        assertThat(config3.hasQuorum(Sets.newHashSet("id1", "id2")), equalTo(true));
+        assertThat(config3.hasQuorum(Sets.newHashSet("id2", "id3")), equalTo(true));
+        assertThat(config3.hasQuorum(Sets.newHashSet("id1", "id3")), equalTo(true));
+        assertThat(config3.hasQuorum(Sets.newHashSet("id1", "id2", "id3")), equalTo(true));
+        assertThat(config3.hasQuorum(Sets.newHashSet("id1", "id2", "id4")), equalTo(true));
+        assertThat(config3.hasQuorum(Sets.newHashSet("id1")), equalTo(false));
+        assertThat(config3.hasQuorum(Sets.newHashSet("id2")), equalTo(false));
+        assertThat(config3.hasQuorum(Sets.newHashSet("id3")), equalTo(false));
+        assertThat(config3.hasQuorum(Sets.newHashSet("id1", "id4")), equalTo(false));
+        assertThat(config3.hasQuorum(Sets.newHashSet("id1", "id4", "id5")), equalTo(false));
+        assertThat(config3.hasQuorum(Sets.newHashSet()), equalTo(false));
+    }
+
+    public void testVotingConfigurationSerializationEqualsHashCode() {
+        VotingConfiguration initialConfig = new VotingConfiguration(
+            Sets.newHashSet(generateRandomStringArray(randomInt(10), 20, false)));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialConfig,
+            orig -> ESTestCase.copyWriteable(orig, new NamedWriteableRegistry(Collections.emptyList()), VotingConfiguration::new),
+            cfg -> {
+                Set<String> newNodeIds = new HashSet<>(cfg.getNodeIds());
+                if (cfg.isEmpty() == false && randomBoolean()) {
+                    // remove random element
+                    newNodeIds.remove(randomFrom(cfg.getNodeIds()));
+                } else if (cfg.isEmpty() == false && randomBoolean()) {
+                    // change random element
+                    newNodeIds.remove(randomFrom(cfg.getNodeIds()));
+                    newNodeIds.add(randomAlphaOfLength(20));
+                } else {
+                    // add random element
+                    newNodeIds.add(randomAlphaOfLength(20));
+                }
+                return new VotingConfiguration(newNodeIds);
+            });
     }
 }

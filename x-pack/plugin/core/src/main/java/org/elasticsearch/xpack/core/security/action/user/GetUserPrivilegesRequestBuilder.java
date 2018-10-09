@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.core.security.action.user;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-import java.io.IOException;
-
 /**
  * Request builder for checking a user's privileges
  */

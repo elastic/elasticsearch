@@ -20,7 +20,6 @@
 package org.elasticsearch.test;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -83,17 +82,16 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     private static final int NUMBER_OF_TESTQUERIES = 20;
 
     public final QB createTestQueryBuilder() {
+        return createTestQueryBuilder(true, true);
+    }
+
+    public final QB createTestQueryBuilder(boolean supportsBoost, boolean supportsQueryName) {
         QB query = doCreateTestQueryBuilder();
-        //we should not set boost and query name for queries that don't parse it
-        if (supportsBoost()) {
-            if (randomBoolean()) {
-                query.boost(2.0f / randomIntBetween(1, 20));
-            }
+        if (supportsBoost && randomBoolean()) {
+            query.boost(2.0f / randomIntBetween(1, 20));
         }
-        if (supportsQueryName()) {
-            if (randomBoolean()) {
-                query.queryName(createUniqueRandomName());
-            }
+        if (supportsQueryName && randomBoolean()) {
+            query.queryName(createUniqueRandomName());
         }
         return query;
     }

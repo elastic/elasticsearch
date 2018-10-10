@@ -95,13 +95,21 @@ public class ReservedRolesStore {
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(".kibana*", ".reporting-*").privileges("all").build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices(".monitoring-*").privileges("read", "read_cross_cluster").build()
+                                        .indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices(".management-beats").privileges("create_index", "read", "write").build()
                         },
                         null,
                         new ConditionalClusterPrivilege[] { new ManageApplicationPrivileges(Collections.singleton("kibana-*")) },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA, null))
                 .put("logstash_system", new RoleDescriptor("logstash_system", new String[] { "monitor", MonitoringBulkAction.NAME},
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                .put("beats_admin", new RoleDescriptor("beats_admin",
+                    null,
+                    new RoleDescriptor.IndicesPrivileges[] {
+                        RoleDescriptor.IndicesPrivileges.builder().indices(".management-beats").privileges("all").build()
+                    },
+                    null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put(UsernamesField.BEATS_ROLE, new RoleDescriptor(UsernamesField.BEATS_ROLE,
                         new String[] { "monitor", MonitoringBulkAction.NAME}, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put(UsernamesField.APM_ROLE, new RoleDescriptor(UsernamesField.APM_ROLE,

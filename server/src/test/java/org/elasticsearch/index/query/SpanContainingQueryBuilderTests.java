@@ -82,7 +82,7 @@ public class SpanContainingQueryBuilderTests extends AbstractQueryTestCase<SpanC
                 "        }\n" +
                 "      }\n" +
                 "    },\n" +
-                "    \"boost\" : 1.0\n" +
+                "    \"boost\" : 2.0\n" +
                 "  }\n" +
                 "}";
 
@@ -91,6 +91,7 @@ public class SpanContainingQueryBuilderTests extends AbstractQueryTestCase<SpanC
 
         assertEquals(json, 2, ((SpanNearQueryBuilder) parsed.bigQuery()).clauses().size());
         assertEquals(json, "foo", ((SpanTermQueryBuilder) parsed.littleQuery()).value());
+        assertEquals(json, 2.0, parsed.boost(), 0.0);
     }
 
     public void testFromJson_withNonDefaultBoost_inBigQuery() {

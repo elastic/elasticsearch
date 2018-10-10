@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import java.io.IOException;
 import java.util.Objects;
 
-public class CcrStatsMonitoringDoc extends MonitoringDoc {
+public class FollowStatsMonitoringDoc extends MonitoringDoc {
 
     public static final String TYPE = "ccr_stats";
 
@@ -24,7 +24,7 @@ public class CcrStatsMonitoringDoc extends MonitoringDoc {
         return status;
     }
 
-    public CcrStatsMonitoringDoc(
+    public FollowStatsMonitoringDoc(
             final String cluster,
             final long timestamp,
             final long intervalMillis,

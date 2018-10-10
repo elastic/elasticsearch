@@ -115,7 +115,7 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
                 "    } ],\n" +
                 "    \"slop\" : 12,\n" +
                 "    \"in_order\" : false,\n" +
-                "    \"boost\" : 1.0\n" +
+                "    \"boost\" : 2.0\n" +
                 "  }\n" +
                 "}";
 
@@ -125,6 +125,7 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
         assertEquals(json, 3, parsed.clauses().size());
         assertEquals(json, 12, parsed.slop());
         assertEquals(json, false, parsed.inOrder());
+        assertEquals(json, 2.0, parsed.boost(), 0.0);
     }
 
     public void testParsingSlopDefault() throws IOException {
@@ -222,44 +223,5 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
 
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertThat(exception.getMessage(), equalTo("span_near [clauses] can't have non-default boost value [2.0]"));
-    }
-
-    public void testFromJson_withNonDefaultBoost_inOuterQuery() throws IOException {
-        String json =
-                "{\n" +
-                "  \"span_near\" : {\n" +
-                "    \"clauses\" : [ {\n" +
-                "      \"span_term\" : {\n" +
-                "        \"field\" : {\n" +
-                "          \"value\" : \"value1\",\n" +
-                "          \"boost\" : 1.0\n" +
-                "        }\n" +
-                "      }\n" +
-                "    }, {\n" +
-                "      \"span_term\" : {\n" +
-                "        \"field\" : {\n" +
-                "          \"value\" : \"value2\",\n" +
-                "          \"boost\" : 1.0\n" +
-                "        }\n" +
-                "      }\n" +
-                "    }, {\n" +
-                "      \"span_term\" : {\n" +
-                "        \"field\" : {\n" +
-                "          \"value\" : \"value3\",\n" +
-                "          \"boost\" : 1.0\n" +
-                "        }\n" +
-                "      }\n" +
-                "    } ],\n" +
-                "    \"slop\" : 12,\n" +
-                "    \"in_order\" : false,\n" +
-                "    \"boost\" : 2.0\n" +
-                "  }\n" +
-                "}";
-
-        SpanNearQueryBuilder parsed = (SpanNearQueryBuilder) parseQuery(json);
-        assertEquals(json, 3, parsed.clauses().size());
-        assertEquals(json, 12, parsed.slop());
-        assertEquals(json, 2.0, parsed.boost(), 0.0);
-        assertFalse(json, parsed.inOrder());
     }
 }

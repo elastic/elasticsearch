@@ -96,7 +96,7 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
                 "        }\n" +
                 "      }\n" +
                 "    } ],\n" +
-                "    \"boost\" : 1.0\n" +
+                "    \"boost\" : 2.0\n" +
                 "  }\n" +
                 "}";
 
@@ -104,6 +104,7 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
         checkGeneratedJson(json, parsed);
 
         assertEquals(json, 3, parsed.clauses().size());
+        assertEquals(json, 2.0, parsed.boost(), 0.0);
     }
 
     public void testFromJson_withNonDefaultBoost_inInnerQuery() {
@@ -124,27 +125,5 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
 
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertThat(exception.getMessage(), equalTo("span_or [clauses] can't have non-default boost value [2.0]"));
-    }
-
-    public void testFromJson_withNonDefaultBoost_inOuterQuery() throws IOException {
-        String json =
-                "{\n" +
-                "  \"span_or\" : {\n" +
-                "    \"clauses\" : [ {\n" +
-                "      \"span_term\" : {\n" +
-                "        \"field\" : {\n" +
-                "          \"value\" : \"value1\",\n" +
-                "          \"boost\" : 1.0\n" +
-                "        }\n" +
-                "      }\n" +
-                "    } ],\n" +
-                "    \"boost\" : 2.0\n" +
-                "  }\n" +
-                "}";
-
-        SpanOrQueryBuilder parsed = (SpanOrQueryBuilder) parseQuery(json);
-        checkGeneratedJson(json, parsed);
-
-        assertEquals(json, 1, parsed.clauses().size());
     }
 }

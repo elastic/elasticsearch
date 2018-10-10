@@ -44,7 +44,8 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 public class SpanGapQueryBuilderTests extends AbstractQueryTestCase<SpanNearQueryBuilder> {
     @Override
     protected SpanNearQueryBuilder doCreateTestQueryBuilder() {
-        SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(randomIntBetween(1, 6));
+        SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(
+            randomIntBetween(1, 6), false, true);
         SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder(spanTermQueries[0], randomIntBetween(-10, 10));
         for (int i = 1; i < spanTermQueries.length; i++) {
             SpanTermQueryBuilder termQB = spanTermQueries[i];

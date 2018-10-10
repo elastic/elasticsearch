@@ -23,8 +23,8 @@ esplugin {
 }
 
 versions << [
-  'tika': '1.19',
-  'pdfbox': '2.0.11',
+  'tika': '1.19.1',
+  'pdfbox': '2.0.12',
   'bouncycastle': '1.59',
   'poi': '4.0.0',
   'mime4j': '0.8.2'
@@ -58,7 +58,7 @@ dependencies {
   // Adobe PDF
   compile "org.apache.pdfbox:pdfbox:${versions.pdfbox}"
   compile "org.apache.pdfbox:fontbox:${versions.pdfbox}"
-  compile "org.apache.pdfbox:jempbox:1.8.13"
+  compile "org.apache.pdfbox:jempbox:1.8.16"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
   compile "org.bouncycastle:bcmail-jdk15on:${versions.bouncycastle}"
   compile "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"

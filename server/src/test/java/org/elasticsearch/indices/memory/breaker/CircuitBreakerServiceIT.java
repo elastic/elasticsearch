@@ -60,7 +60,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
@@ -344,7 +343,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             return;
         }
         Settings insane = Settings.builder()
-            .put(IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "5b")
+            .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "5b")
             .build();
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(insane).get();
 
@@ -401,7 +400,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         }
 
         Settings limitSettings = Settings.builder()
-            .put(IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), inFlightRequestsLimit)
+            .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), inFlightRequestsLimit)
             .build();
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(limitSettings));

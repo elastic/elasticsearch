@@ -15,7 +15,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import java.io.IOException;
-import java.util.List;
+import java.util.Collection;
 import java.util.Objects;
 
 /*
@@ -46,7 +46,7 @@ public class AggregationConfig implements Writeable, ToXContentObject {
         aggregatorFactoryBuilder.writeTo(out);
     }
 
-    public List<AggregationBuilder> getAggregatorFactories() {
+    public Collection<AggregationBuilder> getAggregatorFactories() {
         return aggregatorFactoryBuilder.getAggregatorFactories();
     }
 

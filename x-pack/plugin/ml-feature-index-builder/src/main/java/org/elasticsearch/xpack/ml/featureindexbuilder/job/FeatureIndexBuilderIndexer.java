@@ -69,7 +69,7 @@ public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Ma
     private List<IndexRequest> processBuckets(CompositeAggregation agg) {
         // for now only 1 source supported
         String destinationFieldName = job.getConfig().getSourceConfig().getSources().get(0).name();
-        String aggName = job.getConfig().getAggregationConfig().getAggregatorFactories().get(0).getName();
+        String aggName = job.getConfig().getAggregationConfig().getAggregatorFactories().iterator().next().getName();
 
         return agg.getBuckets().stream().map(b -> {
             NumericMetricsAggregation.SingleValue aggResult = b.getAggregations().get(aggName);

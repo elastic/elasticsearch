@@ -653,16 +653,17 @@ final class RequestConverters {
         return request;
     }
 
-    static Request removeIndexLifecyclePolicy(RemoveIndexLifecyclePolicyRequest setPolicyRequest) {
-        String[] indices = setPolicyRequest.indices() == null ? Strings.EMPTY_ARRAY : setPolicyRequest.indices().toArray(new String[] {});
+    static Request removeIndexLifecyclePolicy(RemoveIndexLifecyclePolicyRequest removePolicyRequest) {
+        String[] indices = removePolicyRequest.indices() == null ?
+                Strings.EMPTY_ARRAY : removePolicyRequest.indices().toArray(new String[] {});
         Request request = new Request(HttpDelete.METHOD_NAME,
                 new EndpointBuilder()
                         .addCommaSeparatedPathParts(indices)
                         .addPathPartAsIs("_ilm")
                         .build());
         Params params = new Params(request);
-        params.withIndicesOptions(setPolicyRequest.indicesOptions());
-        params.withMasterTimeout(setPolicyRequest.masterNodeTimeout());
+        params.withIndicesOptions(removePolicyRequest.indicesOptions());
+        params.withMasterTimeout(removePolicyRequest.masterNodeTimeout());
         return request;
     }
 

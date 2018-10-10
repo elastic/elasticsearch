@@ -98,6 +98,7 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
     }
 
     public static SpanOrQueryBuilder fromXContent(XContentParser parser) throws IOException {
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
 
         List<SpanQueryBuilder> clauses = new ArrayList<>();
@@ -116,7 +117,8 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
                         }
                         final SpanQueryBuilder clause = (SpanQueryBuilder) query;
                         if (clause.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-                            throw new ParsingException(parser.getTokenLocation(), "spanOr [clauses] can't have boost value");
+                            throw new ParsingException(parser.getTokenLocation(),
+                                "spanOr [clauses] can't have non-default boost value [" + clause.boost() + "]");
                         }
                         clauses.add(clause);
                     }
@@ -125,9 +127,7 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
                 }
             } else {
                 if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    if (parser.floatValue() != AbstractQueryBuilder.DEFAULT_BOOST) {
-                        throw new ParsingException(parser.getTokenLocation(), "spanOr [clauses] can't have boost value");
-                    }
+                    boost = parser.floatValue();
                 } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
                 } else {
@@ -144,6 +144,7 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
         for (int i = 1; i < clauses.size(); i++) {
             queryBuilder.addClause(clauses.get(i));
         }
+        queryBuilder.boost(boost);
         queryBuilder.queryName(queryName);
         return queryBuilder;
     }

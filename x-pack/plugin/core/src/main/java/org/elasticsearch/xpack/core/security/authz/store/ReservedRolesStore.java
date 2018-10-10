@@ -83,7 +83,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         new RoleDescriptor.IndicesPrivileges[] {
                             RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("monitor").build(),
                             RoleDescriptor.IndicesPrivileges.builder().indices(".kibana*").privileges("read").build(),
-                            RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*", "metricbeat-*").privileges("index", "create_index").build()
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .indices(".monitoring-*", "metricbeat-*").privileges("index", "create_index").build()
                         },
                         null,
                         null,

@@ -26,7 +26,7 @@ class DummyDataCountsReporter extends DataCountsReporter {
 
     int logStatusCallCount = 0;
 
-    DummyDataCountsReporter() {  
+    DummyDataCountsReporter() {
         super(Settings.EMPTY, createJob(), new DataCounts("DummyJobId"),
                 mock(JobDataCountsPersister.class));
     }

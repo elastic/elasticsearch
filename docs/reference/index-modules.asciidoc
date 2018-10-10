@@ -1,6 +1,6 @@
 
 [[index-modules]]
-= Index Modules
+= Index modules
 
 [partintro]
 --

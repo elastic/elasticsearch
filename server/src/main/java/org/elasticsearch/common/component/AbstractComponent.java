@@ -24,7 +24,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.Node;
 
 public abstract class AbstractComponent {
 
@@ -36,13 +35,6 @@ public abstract class AbstractComponent {
         this.logger = LogManager.getLogger(getClass());
         this.deprecationLogger = new DeprecationLogger(logger);
         this.settings = settings;
-    }
-
-    /**
-     * Returns the nodes name from the settings or the empty string if not set.
-     */
-    public final String nodeName() {
-        return Node.NODE_NAME_SETTING.get(settings);
     }
 
     /**

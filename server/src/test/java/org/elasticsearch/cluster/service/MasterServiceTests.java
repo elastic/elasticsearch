@@ -906,7 +906,7 @@ public class MasterServiceTests extends ESTestCase {
         public volatile Long currentTimeOverride = null;
 
         TimedMasterService(Settings settings, ThreadPool threadPool) {
-            super(settings, threadPool);
+            super("test_node", settings, threadPool);
         }
 
         @Override

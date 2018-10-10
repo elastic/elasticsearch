@@ -66,16 +66,6 @@ import static org.hamcrest.Matchers.notNullValue;
 public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQueryStringBuilder> {
 
     @Override
-    protected boolean supportsBoost() {
-        return true;
-    }
-
-    @Override
-    protected boolean supportsQueryName() {
-        return true;
-    }
-
-    @Override
     protected SimpleQueryStringBuilder doCreateTestQueryBuilder() {
         SimpleQueryStringBuilder result = new SimpleQueryStringBuilder(randomAlphaOfLengthBetween(1, 10));
         if (randomBoolean()) {

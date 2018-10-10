@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.test.AbstractBuilderTestCase.STRING_ALIAS_FIELD_NAME;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
@@ -43,17 +44,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhraseQueryBuilder> {
-
-    @Override
-    protected boolean supportsBoost() {
-        return true;
-    }
-
-    @Override
-    protected boolean supportsQueryName() {
-        return true;
-    }
-
     @Override
     protected MatchPhraseQueryBuilder doCreateTestQueryBuilder() {
         String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME, BOOLEAN_FIELD_NAME, INT_FIELD_NAME,

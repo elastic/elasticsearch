@@ -29,17 +29,6 @@ import java.io.IOException;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithinQueryBuilder> {
-
-    @Override
-    protected boolean supportsBoost() {
-        return true;
-    }
-
-    @Override
-    protected boolean supportsQueryName() {
-        return true;
-    }
-
     @Override
     protected SpanWithinQueryBuilder doCreateTestQueryBuilder() {
         SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(2);

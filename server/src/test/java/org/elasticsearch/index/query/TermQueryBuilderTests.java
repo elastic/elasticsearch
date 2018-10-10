@@ -38,16 +38,6 @@ import static org.hamcrest.Matchers.either;
 public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBuilder> {
 
     @Override
-    protected boolean supportsBoost() {
-        return true;
-    }
-
-    @Override
-    protected boolean supportsQueryName() {
-        return true;
-    }
-
-    @Override
     protected TermQueryBuilder doCreateTestQueryBuilder() {
         String fieldName = null;
         Object value;

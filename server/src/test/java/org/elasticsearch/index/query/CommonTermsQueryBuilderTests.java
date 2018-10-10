@@ -40,16 +40,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTermsQueryBuilder> {
 
     @Override
-    protected boolean supportsBoost() {
-        return true;
-    }
-
-    @Override
-    protected boolean supportsQueryName() {
-        return true;
-    }
-
-    @Override
     protected CommonTermsQueryBuilder doCreateTestQueryBuilder() {
         int numberOfTerms = randomIntBetween(0, 10);
         StringBuilder text = new StringBuilder("");

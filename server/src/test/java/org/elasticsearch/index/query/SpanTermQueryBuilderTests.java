@@ -37,16 +37,6 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTermQueryBuilder> {
 
     @Override
-    protected boolean supportsBoost() {
-        return true;
-    }
-
-    @Override
-    protected boolean supportsQueryName() {
-        return true;
-    }
-
-    @Override
     protected SpanTermQueryBuilder doCreateTestQueryBuilder() {
         String fieldName = randomFrom(STRING_FIELD_NAME,
             STRING_ALIAS_FIELD_NAME,
@@ -90,20 +80,16 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
      * @return an array of random {@link SpanTermQueryBuilder} with same field name
      */
     public SpanTermQueryBuilder[] createSpanTermQueryBuilders(int amount) {
-        return createSpanTermQueryBuilders(amount, true, true);
-    }
-
-    public SpanTermQueryBuilder[] createSpanTermQueryBuilders(int amount, boolean addBoost, boolean addQueryName) {
         SpanTermQueryBuilder[] clauses = new SpanTermQueryBuilder[amount];
-        SpanTermQueryBuilder first = createTestQueryBuilder(addBoost, addQueryName);
+        SpanTermQueryBuilder first = createTestQueryBuilder();
         clauses[0] = first;
         for (int i = 1; i < amount; i++) {
             // we need same field name in all clauses, so we only randomize value
             SpanTermQueryBuilder spanTermQuery = new SpanTermQueryBuilder(first.fieldName(), getRandomValueForFieldName(first.fieldName()));
-            if (addBoost && randomBoolean()) {
+            if (randomBoolean()) {
                 spanTermQuery.boost(2.0f / randomIntBetween(1, 20));
             }
-            if (addQueryName && randomBoolean()) {
+            if (randomBoolean()) {
                 spanTermQuery.queryName(randomAlphaOfLengthBetween(1, 10));
             }
             clauses[i] = spanTermQuery;

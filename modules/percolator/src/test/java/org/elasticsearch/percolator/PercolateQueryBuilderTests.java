@@ -78,16 +78,6 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     private boolean indexedDocumentExists = true;
 
     @Override
-    protected boolean supportsBoost() {
-        return true;
-    }
-
-    @Override
-    protected boolean supportsQueryName() {
-        return true;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Collections.singleton(PercolatorPlugin.class);
     }
@@ -311,4 +301,5 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         assertEquals(query.getCandidateMatchesQuery(), aliasQuery.getCandidateMatchesQuery());
         assertEquals(query.getVerifiedMatchesQuery(), aliasQuery.getVerifiedMatchesQuery());
     }
+
 }

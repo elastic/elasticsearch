@@ -58,16 +58,6 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     boolean requiresRewrite = false;
 
     @Override
-    protected boolean supportsBoost() {
-        return true;
-    }
-
-    @Override
-    protected boolean supportsQueryName() {
-        return true;
-    }
-
-    @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
                 STRING_FIELD_NAME, "type=text",

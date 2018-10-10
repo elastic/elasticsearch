@@ -43,17 +43,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBuilder> {
-
-    @Override
-    protected boolean supportsBoost() {
-        return true;
-    }
-
-    @Override
-    protected boolean supportsQueryName() {
-        return true;
-    }
-
     @Override
     protected ExistsQueryBuilder doCreateTestQueryBuilder() {
         String fieldPattern;

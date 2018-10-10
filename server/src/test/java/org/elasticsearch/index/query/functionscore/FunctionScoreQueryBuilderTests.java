@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -82,16 +83,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<FunctionScoreQueryBuilder> {
-
-    @Override
-    protected boolean supportsBoost() {
-        return true;
-    }
-
-    @Override
-    protected boolean supportsQueryName() {
-        return true;
-    }
 
     private static final String[] SHUFFLE_PROTECTED_FIELDS = new String[] {Script.PARAMS_PARSE_FIELD.getPreferredName(),
         ExponentialDecayFunctionBuilder.NAME, LinearDecayFunctionBuilder.NAME, GaussDecayFunctionBuilder.NAME};

@@ -48,17 +48,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilder> {
-
-    @Override
-    protected boolean supportsBoost() {
-        return true;
-    }
-
-    @Override
-    protected boolean supportsQueryName() {
-        return true;
-    }
-
     @Override
     protected BoolQueryBuilder doCreateTestQueryBuilder() {
         BoolQueryBuilder query = new BoolQueryBuilder();

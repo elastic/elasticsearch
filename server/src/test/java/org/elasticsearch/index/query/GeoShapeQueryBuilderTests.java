@@ -62,16 +62,6 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
     private static ShapeBuilder<?, ?> indexedShapeToReturn;
 
     @Override
-    protected boolean supportsBoost() {
-        return true;
-    }
-
-    @Override
-    protected boolean supportsQueryName() {
-        return true;
-    }
-
-    @Override
     protected GeoShapeQueryBuilder doCreateTestQueryBuilder() {
         return doCreateTestQueryBuilder(randomBoolean());
     }

@@ -39,16 +39,6 @@ import static org.hamcrest.Matchers.containsString;
 public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder> {
 
     @Override
-    protected boolean supportsBoost() {
-        return true;
-    }
-
-    @Override
-    protected boolean supportsQueryName() {
-        return true;
-    }
-
-    @Override
     protected IdsQueryBuilder doCreateTestQueryBuilder() {
         final String type;
         if (randomBoolean()) {

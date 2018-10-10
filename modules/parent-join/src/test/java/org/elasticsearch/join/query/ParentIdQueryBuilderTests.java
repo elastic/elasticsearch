@@ -57,16 +57,6 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
     private static final String CHILD_NAME = "child";
 
     @Override
-    protected boolean supportsBoost() {
-        return true;
-    }
-
-    @Override
-    protected boolean supportsQueryName() {
-        return true;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Collections.singletonList(ParentJoinPlugin.class);
     }
@@ -163,4 +153,5 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
         QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("[" + ParentIdQueryBuilder.NAME + "] no relation found for child [unmapped]"));
     }
+
 }

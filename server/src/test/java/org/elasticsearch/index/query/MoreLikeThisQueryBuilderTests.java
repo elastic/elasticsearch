@@ -145,16 +145,6 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     }
 
     @Override
-    protected boolean supportsBoost() {
-        return true;
-    }
-
-    @Override
-    protected boolean supportsQueryName() {
-        return true;
-    }
-
-    @Override
     protected MoreLikeThisQueryBuilder doCreateTestQueryBuilder() {
         MoreLikeThisQueryBuilder queryBuilder;
         String[] likeTexts = null;

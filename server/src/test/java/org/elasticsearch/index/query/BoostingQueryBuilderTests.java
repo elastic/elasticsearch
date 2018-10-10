@@ -32,16 +32,6 @@ import static org.hamcrest.CoreMatchers.nullValue;
 public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQueryBuilder> {
 
     @Override
-    protected boolean supportsBoost() {
-        return true;
-    }
-
-    @Override
-    protected boolean supportsQueryName() {
-        return true;
-    }
-
-    @Override
     protected BoostingQueryBuilder doCreateTestQueryBuilder() {
         BoostingQueryBuilder query = new BoostingQueryBuilder(RandomQueryBuilder.createQuery(random()), RandomQueryBuilder.createQuery(random()));
         query.negativeBoost(2.0f / randomIntBetween(1, 20));

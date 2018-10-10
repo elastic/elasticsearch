@@ -37,16 +37,6 @@ import static org.hamcrest.Matchers.instanceOf;
 public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQueryBuilder> {
 
     @Override
-    protected boolean supportsBoost() {
-        return true;
-    }
-
-    @Override
-    protected boolean supportsQueryName() {
-        return true;
-    }
-
-    @Override
     protected WildcardQueryBuilder doCreateTestQueryBuilder() {
         WildcardQueryBuilder query = randomWildcardQuery();
         if (randomBoolean()) {

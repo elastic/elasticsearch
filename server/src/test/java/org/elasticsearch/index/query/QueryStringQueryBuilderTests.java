@@ -78,17 +78,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStringQueryBuilder> {
-
-    @Override
-    protected boolean supportsBoost() {
-        return true;
-    }
-
-    @Override
-    protected boolean supportsQueryName() {
-        return true;
-    }
-
     @Override
     protected QueryStringQueryBuilder doCreateTestQueryBuilder() {
         int numTerms = randomIntBetween(0, 5);

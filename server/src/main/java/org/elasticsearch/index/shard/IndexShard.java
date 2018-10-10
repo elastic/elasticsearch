@@ -159,6 +159,7 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
 

@@ -166,9 +166,14 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         QueryBuilder query = parseInnerQueryBuilder(parser);
                         if (query instanceof SpanQueryBuilder == false) {
-                            throw new ParsingException(parser.getTokenLocation(), "spanNear [clauses] must be of type span query");
+                            throw new ParsingException(parser.getTokenLocation(), "span_near [clauses] must be of type span query");
                         }
-                        clauses.add((SpanQueryBuilder) query);
+                        final SpanQueryBuilder clause = (SpanQueryBuilder) query;
+                        if (clause.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
+                            throw new ParsingException(parser.getTokenLocation(),
+                                "span_near [clauses] can't have non-default boost value [" + clause.boost() + "]");
+                        }
+                        clauses.add(clause);
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_near] query does not support [" + currentFieldName + "]");

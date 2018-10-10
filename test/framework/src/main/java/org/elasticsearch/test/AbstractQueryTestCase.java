@@ -82,7 +82,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     private static final int NUMBER_OF_TESTQUERIES = 20;
 
     public final QB createTestQueryBuilder() {
-        return createTestQueryBuilder(true, true);
+        QB query;
+        if (supportsBoostAndQueryName()) {
+            query = createTestQueryBuilder(true, true);
+        } else {
+            query = createTestQueryBuilder(false, false);
+        }
+        return query;
     }
 
     public final QB createTestQueryBuilder(boolean supportsBoost, boolean supportsQueryName) {

@@ -184,20 +184,14 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
                         throw new ParsingException(parser.getTokenLocation(), "span_not [include] must be of type span query");
                     }
                     include = (SpanQueryBuilder) query;
-                    if (include.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-                        throw new ParsingException(parser.getTokenLocation(),
-                            "span_not [include] can't have non-default boost value [" + include.boost() + "]");
-                    }
+                    checkNoBoost("span_not", currentFieldName, parser, include);
                 } else if (EXCLUDE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     QueryBuilder query = parseInnerQueryBuilder(parser);
                     if (query instanceof SpanQueryBuilder == false) {
                         throw new ParsingException(parser.getTokenLocation(), "span_not [exclude] must be of type span query");
                     }
                     exclude = (SpanQueryBuilder) query;
-                    if (exclude.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-                        throw new ParsingException(parser.getTokenLocation(),
-                            "span_not [exclude] can't have non-default boost value [" + exclude.boost() + "]");
-                    }
+                    checkNoBoost("span_not", currentFieldName, parser, exclude);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_not] query does not support [" + currentFieldName + "]");
                 }

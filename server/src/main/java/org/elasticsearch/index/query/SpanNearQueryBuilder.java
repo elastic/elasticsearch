@@ -169,10 +169,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
                             throw new ParsingException(parser.getTokenLocation(), "span_near [clauses] must be of type span query");
                         }
                         final SpanQueryBuilder clause = (SpanQueryBuilder) query;
-                        if (clause.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                "span_near [clauses] can't have non-default boost value [" + clause.boost() + "]");
-                        }
+                        checkNoBoost("span_near", currentFieldName, parser, clause);
                         clauses.add(clause);
                     }
                 } else {

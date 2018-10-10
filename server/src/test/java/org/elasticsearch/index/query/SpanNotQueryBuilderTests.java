@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 
@@ -255,7 +254,7 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
                 "}";
 
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
-        assertThat(exception.getMessage(), CoreMatchers.equalTo("span_not [include] can't have non-default boost value [2.0]"));
+        assertThat(exception.getMessage(), equalTo("span_not [include] can't have non-default boost value [2.0]"));
     }
 
 
@@ -300,6 +299,6 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
                 "}";
 
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
-        assertThat(exception.getMessage(), CoreMatchers.equalTo("span_not [exclude] can't have non-default boost value [2.0]"));
+        assertThat(exception.getMessage(), equalTo("span_not [exclude] can't have non-default boost value [2.0]"));
     }
 }

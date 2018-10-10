@@ -116,10 +116,7 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
                             throw new ParsingException(parser.getTokenLocation(), "span_or [clauses] must be of type span query");
                         }
                         final SpanQueryBuilder clause = (SpanQueryBuilder) query;
-                        if (clause.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                "span_or [clauses] can't have non-default boost value [" + clause.boost() + "]");
-                        }
+                        checkNoBoost("span_or", currentFieldName, parser, clause);
                         clauses.add(clause);
                     }
                 } else {

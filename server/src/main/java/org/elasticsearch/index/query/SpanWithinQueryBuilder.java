@@ -122,20 +122,14 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
                         throw new ParsingException(parser.getTokenLocation(), "span_within [big] must be of type span query");
                     }
                     big = (SpanQueryBuilder) query;
-                    if (big.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-                        throw new ParsingException(parser.getTokenLocation(),
-                            "span_within [big] can't have non-default boost value [" + big.boost() + "]");
-                    }
+                    checkNoBoost("span_within", currentFieldName, parser, big);
                 } else if (LITTLE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     QueryBuilder query = parseInnerQueryBuilder(parser);
                     if (query instanceof SpanQueryBuilder == false) {
                         throw new ParsingException(parser.getTokenLocation(), "span_within [little] must be of type span query");
                     }
                     little = (SpanQueryBuilder) query;
-                    if (little.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-                        throw new ParsingException(parser.getTokenLocation(),
-                            "span_within [little] can't have non-default boost value [" + little.boost() + "]");
-                    }
+                    checkNoBoost("span_within", currentFieldName, parser, little);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "[span_within] query does not support [" + currentFieldName + "]");

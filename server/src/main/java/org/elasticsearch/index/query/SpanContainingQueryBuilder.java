@@ -117,12 +117,20 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
                         throw new ParsingException(parser.getTokenLocation(), "span_containing [big] must be of type span query");
                     }
                     big = (SpanQueryBuilder) query;
+                    if (big.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
+                        throw new ParsingException(parser.getTokenLocation(),
+                            "span_containing [big] can't have non-default boost value [" + big.boost() + "]");
+                    }
                 } else if (LITTLE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     QueryBuilder query = parseInnerQueryBuilder(parser);
                     if (query instanceof SpanQueryBuilder == false) {
                         throw new ParsingException(parser.getTokenLocation(), "span_containing [little] must be of type span query");
                     }
                     little = (SpanQueryBuilder) query;
+                    if (little.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
+                        throw new ParsingException(parser.getTokenLocation(),
+                            "span_containing [little] can't have non-default boost value [" + little.boost() + "]");
+                    }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "[span_containing] query does not support [" + currentFieldName + "]");

@@ -804,15 +804,14 @@ public abstract class EngineTestCase extends ESTestCase {
                 Bits liveDocs = reader.getLiveDocs();
                 for (int i = 0; i < reader.maxDoc(); i++) {
                     if (liveDocs == null || liveDocs.get(i)) {
+                        if (primaryTermDocValues.advanceExact(i) == false) {
+                            // We have to skip non-root docs because its _id field is not stored (indexed only).
+                            continue;
+                        }
+                        final long primaryTerm = primaryTermDocValues.longValue();
                         Document uuid = reader.document(i, Collections.singleton(IdFieldMapper.NAME));
                         BytesRef binaryID = uuid.getBinaryValue(IdFieldMapper.NAME);
                         String id = Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length));
-                        final long primaryTerm;
-                        if (primaryTermDocValues.advanceExact(i)) {
-                            primaryTerm = primaryTermDocValues.longValue();
-                        } else {
-                            primaryTerm = 0; // non-root documents of a nested document.
-                        }
                         if (seqNoDocValues.advanceExact(i) == false) {
                             throw new AssertionError("seqNoDocValues not found for doc[" + i + "] id[" + id + "]");
                         }

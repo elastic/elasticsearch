@@ -113,12 +113,12 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         QueryBuilder query = parseInnerQueryBuilder(parser);
                         if (query instanceof SpanQueryBuilder == false) {
-                            throw new ParsingException(parser.getTokenLocation(), "spanOr [clauses] must be of type span query");
+                            throw new ParsingException(parser.getTokenLocation(), "span_or [clauses] must be of type span query");
                         }
                         final SpanQueryBuilder clause = (SpanQueryBuilder) query;
                         if (clause.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
                             throw new ParsingException(parser.getTokenLocation(),
-                                "spanOr [clauses] can't have non-default boost value [" + clause.boost() + "]");
+                                "span_or [clauses] can't have non-default boost value [" + clause.boost() + "]");
                         }
                         clauses.add(clause);
                     }
@@ -137,7 +137,7 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
         }
 
         if (clauses.isEmpty()) {
-            throw new ParsingException(parser.getTokenLocation(), "spanOr must include [clauses]");
+            throw new ParsingException(parser.getTokenLocation(), "span_or must include [clauses]");
         }
 
         SpanOrQueryBuilder queryBuilder = new SpanOrQueryBuilder(clauses.get(0));

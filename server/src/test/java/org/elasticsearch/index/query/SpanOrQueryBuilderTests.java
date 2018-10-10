@@ -123,7 +123,7 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
                 "}";
 
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
-        assertThat(exception.getMessage(), equalTo("spanOr [clauses] can't have non-default boost value [2.0]"));
+        assertThat(exception.getMessage(), equalTo("span_or [clauses] can't have non-default boost value [2.0]"));
     }
 
     public void testFromJson_withNonDefaultBoost_inOuterQuery() throws IOException {

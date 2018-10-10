@@ -1753,7 +1753,9 @@ public class InternalEngineTests extends EngineTestCase {
             final long conflictingVersion = docDeleted || randomBoolean() ?
                 lastOpVersion + (randomBoolean() ? 1 : -1) :
                 Versions.MATCH_DELETED;
-            final long conflictingSeqNo = randomBoolean() ? lastOpSeqNo : lastOpSeqNo + 5; // use 5 to go above 0 for magic numbers
+            final long conflictingSeqNo = lastOpSeqNo == UNASSIGNED_SEQ_NO  || randomBoolean() ?
+                lastOpSeqNo + 5 : // use 5 to go above 0 for magic numbers
+                lastOpSeqNo;
             final long conflictingTerm = conflictingSeqNo == lastOpSeqNo || randomBoolean() ? lastOpTerm + 1 : lastOpTerm;
             if (rarely()) {
                 currentTerm.incrementAndGet();

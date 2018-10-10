@@ -34,11 +34,6 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBuilder> {
     @Override
-    protected boolean supportsBoost() {
-        return false;
-    }
-
-    @Override
     protected SpanOrQueryBuilder doCreateTestQueryBuilder() {
         SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(
             randomIntBetween(1, 6), false, true);

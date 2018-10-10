@@ -453,7 +453,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         rewrite(secondLuceneQuery), rewrite(firstLuceneQuery));
             }
 
-            if (supportsBoost()) {
+            if (supportsBoostAndQueryName()) {
                 secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
                 Query thirdLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
                 assertNotEquals("modifying the boost doesn't affect the corresponding lucene query", rewrite(firstLuceneQuery),
@@ -485,11 +485,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * Those queries are easy to identify: their parsers don't parse `boost` and `_name` as they don't apply to the specific query:
      * wrapper query and match_none
      */
-    protected boolean supportsBoost() {
-        return true;
-    }
-
-    protected boolean supportsQueryName() {
+    protected boolean supportsBoostAndQueryName() {
         return true;
     }
 

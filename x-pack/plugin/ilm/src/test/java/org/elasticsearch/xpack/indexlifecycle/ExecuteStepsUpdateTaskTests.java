@@ -148,6 +148,24 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(task.execute(clusterState), sameInstance(clusterState));
     }
 
+    public void testSuccessThenFailureUnsetNextKey() throws IOException {
+        secondStep.setWillComplete(false);
+        setStateToKey(firstStepKey);
+        Step startStep = policyStepsRegistry.getStep(indexMetaData, firstStepKey);
+        long now = randomNonNegativeLong();
+        ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(mixedPolicyName, index, startStep, policyStepsRegistry, null, () -> now);
+        ClusterState newState = task.execute(clusterState);
+        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetaData().index(index));
+        StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
+        assertThat(currentStepKey, equalTo(secondStepKey));
+        assertThat(firstStep.getExecuteCount(), equalTo(1L));
+        assertThat(secondStep.getExecuteCount(), equalTo(1L));
+        assertThat(task.getNextStepKey(), nullValue());
+        assertThat(lifecycleState.getPhaseTime(), nullValue());
+        assertThat(lifecycleState.getActionTime(), nullValue());
+        assertThat(lifecycleState.getStepInfo(), nullValue());
+    }
+
     public void testExecuteUntilFirstNonClusterStateStep() throws IOException {
         setStateToKey(secondStepKey);
         Step startStep = policyStepsRegistry.getStep(indexMetaData, secondStepKey);

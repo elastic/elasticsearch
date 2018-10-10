@@ -539,6 +539,9 @@ public class SSLDriver2 implements AutoCloseable {
 
         @Override
         public void read(InboundChannelBuffer buffer) throws SSLException {
+            // TODO: I think if needToReceiveClose is false, we should not read. That way we avoid getting
+            // TODO: in a bad state.
+
             ensureApplicationBufferSize(buffer);
             boolean continueUnwrap = true;
             while (continueUnwrap && networkReadBuffer.position() > 0) {

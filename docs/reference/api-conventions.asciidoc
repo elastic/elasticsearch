@@ -485,10 +485,9 @@ of supporting the native JSON number types.
 === Time units
 
 Whenever durations need to be specified, e.g. for a `timeout` parameter, the duration must specify
-the unit, like `2d` for 2 days.  The supported units are:
+the unit, like `2h` for 2 hours.  The supported units are:
 
 [horizontal]
-`d`::       days
 `h`::       hours
 `m`::       minutes
 `s`::       seconds

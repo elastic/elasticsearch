@@ -204,8 +204,7 @@ teardown:
 "Test get_user_privileges for single role":
   - do:
       headers: { Authorization: "Basic dGVzdC0xOjEyMzQ1Njc4" } # test-1
-      xpack.security.get_user_privileges:
-        username: "test-1"
+      xpack.security.get_user_privileges: {}
 
   - match: { "cluster" : [ "monitor" ] }
 
@@ -264,8 +263,7 @@ teardown:
 "Test get_user_privileges for merged roles":
   - do:
       headers: { Authorization: "Basic dGVzdC0zOjEyMzQ1Njc4" } # test-3
-      xpack.security.get_user_privileges:
-        username: "test-3"
+      xpack.security.get_user_privileges: {}
 
   - match: { "cluster" : [ "manage", "manage_security", "monitor" ] }
 

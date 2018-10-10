@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.watcher;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
@@ -98,12 +97,6 @@ public class ResourceWatcherService extends AbstractLifecycleComponent {
         mediumMonitor = new ResourceMonitor(interval, Frequency.MEDIUM);
         interval = RELOAD_INTERVAL_HIGH.get(settings);
         highMonitor = new ResourceMonitor(interval, Frequency.HIGH);
-
-        logRemovedSetting("watcher.enabled", "resource.reload.enabled");
-        logRemovedSetting("watcher.interval", "resource.reload.interval");
-        logRemovedSetting("watcher.interval.low", "resource.reload.interval.low");
-        logRemovedSetting("watcher.interval.medium", "resource.reload.interval.medium");
-        logRemovedSetting("watcher.interval.high", "resource.reload.interval.high");
     }
 
     @Override
@@ -200,15 +193,6 @@ public class ResourceWatcherService extends AbstractLifecycleComponent {
                     logger.trace("failed to check resource watcher", e);
                 }
             }
-        }
-    }
-
-    /**
-     * Checks for a removed setting and logs the correct alternative
-     */
-    private void logRemovedSetting(String settingName, String alternativeName) {
-        if (!Strings.isNullOrEmpty(settings.get(settingName))) {
-            deprecationLogger.deprecated("Setting [{}] has been removed, use [{}] instead", settingName, alternativeName);
         }
     }
 }

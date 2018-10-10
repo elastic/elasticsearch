@@ -196,6 +196,7 @@ public class TransportBulkShardOperationsAction
         public synchronized void respond(ActionListener<BulkShardOperationsResponse> listener) {
             final ActionListener<BulkShardOperationsResponse> wrappedListener = ActionListener.wrap(response -> {
                 final SeqNoStats seqNoStats = primary.seqNoStats();
+                // return a fresh global checkpoint after the operations have been replicated for the shard follow task
                 response.setGlobalCheckpoint(seqNoStats.getGlobalCheckpoint());
                 response.setMaxSeqNo(seqNoStats.getMaxSeqNo());
                 listener.onResponse(response);

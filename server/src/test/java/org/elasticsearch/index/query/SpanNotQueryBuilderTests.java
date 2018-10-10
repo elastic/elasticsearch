@@ -202,7 +202,7 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
                 "    },\n" +
                 "    \"pre\" : 0,\n" +
                 "    \"post\" : 0,\n" +
-                "    \"boost\" : 1.0\n" +
+                "    \"boost\" : 2.0\n" +
                 "  }\n" +
                 "}";
 
@@ -211,6 +211,7 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
 
         assertEquals(json, "hoya", ((SpanTermQueryBuilder) parsed.includeQuery()).value());
         assertEquals(json, 2, ((SpanNearQueryBuilder) parsed.excludeQuery()).clauses().size());
+        assertEquals(json, 2.0, parsed.boost(), 0.0);
     }
 
     public void testFromJson_withNonDefaultBoost_inIncludeQuery() {

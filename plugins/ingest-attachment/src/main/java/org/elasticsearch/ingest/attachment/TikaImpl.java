@@ -94,20 +94,9 @@ final class TikaImpl {
     private static final AutoDetectParser PARSER_INSTANCE = new AutoDetectParser(PARSERS);
 
     /** singleton tika instance */
-    private static final Tika TIKA_INSTANCE = getTikaInstance();
-
-    private static Tika getTikaInstance() {
-        SpecialPermission.check();
-        try {
-            return AccessController.doPrivileged((PrivilegedExceptionAction<Tika>)
-                () -> new Tika(PARSER_INSTANCE.getDetector(), PARSER_INSTANCE));
-        } catch (PrivilegedActionException e) {
-            throw new RuntimeException(e.getCause());
-        }
-    }
+    private static final Tika TIKA_INSTANCE = new Tika(PARSER_INSTANCE.getDetector(), PARSER_INSTANCE);
 
     /**
-     *
      * parses with tika, throwing any exception hit while parsing the document
      */
     static String parse(final byte content[], final Metadata metadata, final int limit) throws TikaException, IOException {
@@ -133,7 +122,7 @@ final class TikaImpl {
     // apply additional containment for parsers, this is intersected with the current permissions
     // its hairy, but worth it so we don't have some XML flaw reading random crap from the FS
     private static final AccessControlContext RESTRICTED_CONTEXT = new AccessControlContext(
-        new ProtectionDomain[]{
+        new ProtectionDomain[] {
             new ProtectionDomain(null, getRestrictedPermissions())
         }
     );

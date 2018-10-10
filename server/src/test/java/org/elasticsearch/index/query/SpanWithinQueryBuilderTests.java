@@ -21,17 +21,19 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanWithinQuery;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithinQueryBuilder> {
     @Override
     protected SpanWithinQueryBuilder doCreateTestQueryBuilder() {
-        SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(2);
+        SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(2, false, false);
         return new SpanWithinQueryBuilder(spanTermQueries[0], spanTermQueries[1]);
     }
 
@@ -89,5 +91,89 @@ public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithi
 
         assertEquals(json, "foo", ((SpanTermQueryBuilder) parsed.littleQuery()).value());
         assertEquals(json, 2, ((SpanNearQueryBuilder) parsed.bigQuery()).clauses().size());
+    }
+
+    public void testFromJson_withNonDefaultBoost_inBigQuery() {
+        String json =
+                "{\n" +
+                "  \"span_within\" : {\n" +
+                "    \"big\" : {\n" +
+                "      \"span_near\" : {\n" +
+                "        \"clauses\" : [ {\n" +
+                "          \"span_term\" : {\n" +
+                "            \"field1\" : {\n" +
+                "              \"value\" : \"bar\",\n" +
+                "              \"boost\" : 1.0\n" +
+                "            }\n" +
+                "          }\n" +
+                "        }, {\n" +
+                "          \"span_term\" : {\n" +
+                "            \"field1\" : {\n" +
+                "              \"value\" : \"baz\",\n" +
+                "              \"boost\" : 1.0\n" +
+                "            }\n" +
+                "          }\n" +
+                "        } ],\n" +
+                "        \"slop\" : 5,\n" +
+                "        \"in_order\" : true,\n" +
+                "        \"boost\" : 2.0\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"little\" : {\n" +
+                "      \"span_term\" : {\n" +
+                "        \"field1\" : {\n" +
+                "          \"value\" : \"foo\",\n" +
+                "          \"boost\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+
+        Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertThat(exception.getMessage(), equalTo("span_within [big] can't have non-default boost value [2.0]"));
+    }
+
+    public void testFromJson_withNonDefaultBoost_inLittleQuery() {
+        String json =
+                "{\n" +
+                "  \"span_within\" : {\n" +
+                "    \"little\" : {\n" +
+                "      \"span_near\" : {\n" +
+                "        \"clauses\" : [ {\n" +
+                "          \"span_term\" : {\n" +
+                "            \"field1\" : {\n" +
+                "              \"value\" : \"bar\",\n" +
+                "              \"boost\" : 1.0\n" +
+                "            }\n" +
+                "          }\n" +
+                "        }, {\n" +
+                "          \"span_term\" : {\n" +
+                "            \"field1\" : {\n" +
+                "              \"value\" : \"baz\",\n" +
+                "              \"boost\" : 1.0\n" +
+                "            }\n" +
+                "          }\n" +
+                "        } ],\n" +
+                "        \"slop\" : 5,\n" +
+                "        \"in_order\" : true,\n" +
+                "        \"boost\" : 2.0\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"big\" : {\n" +
+                "      \"span_term\" : {\n" +
+                "        \"field1\" : {\n" +
+                "          \"value\" : \"foo\",\n" +
+                "          \"boost\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+
+        Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertThat(exception.getMessage(), equalTo("span_within [little] can't have non-default boost value [2.0]"));
     }
 }

@@ -1477,7 +1477,11 @@ public class InternalEngine extends Engine {
     @Override
     public void writeIndexingBuffer() throws EngineException {
         try {
-            indexWriter.flushNextBuffer();
+            if (indexWriter.flushNextBuffer() == false) {
+                // nothing was actually flushed, so any RAM used will be due to deletes
+                // in the version map.  Refresh to clear these out.
+                refresh("writeIndexingBuffer", SearcherScope.INTERNAL);
+            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

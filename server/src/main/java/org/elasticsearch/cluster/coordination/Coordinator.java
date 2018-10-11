@@ -267,6 +267,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 try {
                     ensureTermAtLeast(getLocalNode(), updatedMaxTermSeen);
                 } catch (Exception e) {
+                    logger.debug("failed to bump term", e);
                     becomeCandidate("updateMaxTermSeen");
                     return;
                 }

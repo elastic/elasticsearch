@@ -835,6 +835,16 @@
                       "type": "long"
                     }
                   }
+                },
+                "write": {
+                  "properties": {
+                    "queue": {
+                      "type": "integer"
+                    },
+                    "rejected": {
+                      "type": "long"
+                    }
+                  }
                 }
               }
             }

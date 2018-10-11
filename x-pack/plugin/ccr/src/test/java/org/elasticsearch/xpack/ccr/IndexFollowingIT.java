@@ -598,12 +598,12 @@ public class IndexFollowingIT extends CCRIntegTestCase {
 
     public void testFailOverOnFollower() throws Exception {
         int numberOfReplicas = between(1, 2);
-        internalCluster().startMasterOnlyNode();
-        internalCluster().startDataOnlyNodes(numberOfReplicas + between(1, 2));
+        getFollowerCluster().startMasterOnlyNode();
+        getFollowerCluster().ensureAtLeastNumDataNodes(numberOfReplicas + between(1, 2));
         String leaderIndexSettings = getIndexSettings(1, numberOfReplicas,
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
-        assertAcked(client().admin().indices().prepareCreate("leader-index").setSource(leaderIndexSettings, XContentType.JSON));
-        ensureGreen("leader-index");
+        assertAcked(leaderClient().admin().indices().prepareCreate("leader-index").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureLeaderGreen("leader-index");
         AtomicBoolean stopped = new AtomicBoolean();
         Thread[] threads = new Thread[between(1, 8)];
         AtomicInteger docID = new AtomicInteger();
@@ -613,10 +613,10 @@ public class IndexFollowingIT extends CCRIntegTestCase {
                     try {
                         if (frequently()) {
                             String id = Integer.toString(frequently() ? docID.incrementAndGet() : between(0, 10)); // sometimes update
-                            client().prepareIndex("leader-index", "doc", id).setSource("{\"f\":" + id + "}", XContentType.JSON).get();
+                            leaderClient().prepareIndex("leader-index", "doc", id).setSource("{\"f\":" + id + "}", XContentType.JSON).get();
                         } else {
                             String id = Integer.toString(between(0, docID.get()));
-                            client().prepareDelete("leader-index", "doc", id).get();
+                            leaderClient().prepareDelete("leader-index", "doc", id).get();
                         }
                     } catch (NodeClosedException ignored) {
                     }
@@ -625,19 +625,19 @@ public class IndexFollowingIT extends CCRIntegTestCase {
             threads[i].start();
         }
         PutFollowAction.Request follow = follow("leader-index", "follower-index");
-        client().execute(PutFollowAction.INSTANCE, follow).get();
-        ensureGreen("follower-index");
-        atLeastDocsIndexed("follower-index", between(20, 60));
-        final ClusterState clusterState = clusterService().state();
+        followerClient().execute(PutFollowAction.INSTANCE, follow).get();
+        ensureFollowerGreen("follower-index");
+        atLeastDocsIndexed(followerClient(), "follower-index", between(20, 60));
+        final ClusterState clusterState = getFollowerCluster().clusterService().state();
         for (ShardRouting shardRouting : clusterState.routingTable().allShards("follower-index")) {
             if (shardRouting.primary()) {
                 DiscoveryNode assignedNode = clusterState.nodes().get(shardRouting.currentNodeId());
-                internalCluster().restartNode(assignedNode.getName(), new InternalTestCluster.RestartCallback());
+                getFollowerCluster().restartNode(assignedNode.getName(), new InternalTestCluster.RestartCallback());
                 break;
             }
         }
-        ensureGreen("follower-index");
-        atLeastDocsIndexed("follower-index", between(80, 150));
+        ensureFollowerGreen("follower-index");
+        atLeastDocsIndexed(followerClient(), "follower-index", between(80, 150));
         stopped.set(true);
         for (Thread thread : threads) {
             thread.join();

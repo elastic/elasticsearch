@@ -128,7 +128,16 @@ public abstract class CCRIntegTestCase extends ESTestCase {
         });
         latch.await();
 
+        clusterGroup.leaderCluster.beforeIndexDeletion();
+        clusterGroup.leaderCluster.assertSeqNos();
+        clusterGroup.leaderCluster.assertSameDocIdsOnShards();
+        clusterGroup.leaderCluster.assertConsistentHistoryBetweenTranslogAndLuceneIndex();
         clusterGroup.leaderCluster.wipe(Collections.emptySet());
+
+        clusterGroup.followerCluster.beforeIndexDeletion();
+        clusterGroup.followerCluster.assertSeqNos();
+        clusterGroup.followerCluster.assertSameDocIdsOnShards();
+        clusterGroup.followerCluster.assertConsistentHistoryBetweenTranslogAndLuceneIndex();
         clusterGroup.followerCluster.wipe(Collections.emptySet());
     }
 

@@ -42,7 +42,7 @@ distribution of {es}. You no longer need to install {xpack} separately.
  
 In 6.2 and earlier releases, the 
 {stack-ov}/security-files.html[security configuration files], such as the 
-`log4js.properties`, `role_mapping.yml`, `roles.yml`, `users`, and `users_roles` 
+`log4j2.properties`, `role_mapping.yml`, `roles.yml`, `users`, and `users_roles` 
 files, were located in an `x-pack` directory within the 
 <<config-files-location,config directory>>.  
 

@@ -34,6 +34,10 @@ The list does not include certificates that are sourced from the default SSL
 context of the Java Runtime Environment (JRE), even if those certificates are in
 use within {xpack}.
 
+NOTE: When a PKCS#11 token is configured as the truststore of the JRE, the API
+will return all the certificates that are included in the PKCS#11 token
+irrespectively to whether these are used in the {es} TLS configuration or not.
+
 If {xpack} is configured to use a keystore or truststore, the API output
 includes all certificates in that store, even though some of the certificates
 might not be in active use within the cluster.

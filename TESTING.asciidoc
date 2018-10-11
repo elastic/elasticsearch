@@ -250,7 +250,7 @@ Pass arbitrary jvm arguments.
 
 Running backwards compatibility tests is disabled by default since it
 requires a release version of elasticsearch to be present on the test system.
-To run backwards compatibilty tests untar or unzip a release and run the tests
+To run backwards compatibility tests untar or unzip a release and run the tests
 with the following command:
 
 ---------------------------------------------------------------------------
@@ -402,6 +402,7 @@ These are the linux flavors supported, all of which we provide images for
 
 * ubuntu-1404 aka trusty
 * ubuntu-1604 aka xenial
+* ubuntu-1804 aka bionic beaver
 * debian-8 aka jessie
 * debian-9 aka stretch, the current debian stable distribution
 * centos-6

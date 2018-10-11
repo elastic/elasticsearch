@@ -876,7 +876,7 @@ public class InternalEngine extends Engine {
              * requests, we can assert the replica have not seen the document of that append-only request, thus we can apply optimization.
              */
             assert index.version() == 1L : "can optimize on replicas but incoming version is [" + index.version() + "]";
-            plan = IndexingStrategy.optimizedAppendOnly(index.seqNo());
+            plan = IndexingStrategy.optimizedAppendOnly(index.seqNo(), 1L);
         } else {
             if (appendOnlyRequest == false) {
                 maxSeqNoOfNonAppendOnlyOperations.updateAndGet(curr -> Math.max(index.seqNo(), curr));
@@ -928,7 +928,7 @@ public class InternalEngine extends Engine {
                 plan = IndexingStrategy.overrideExistingAsIfNotThere(generateSeqNoForOperation(index), 1L);
                 versionMap.enforceSafeAccess();
             } else {
-                plan = IndexingStrategy.optimizedAppendOnly(generateSeqNoForOperation(index));
+                plan = IndexingStrategy.optimizedAppendOnly(generateSeqNoForOperation(index), 1L);
             }
         } else {
             versionMap.enforceSafeAccess();
@@ -1083,11 +1083,11 @@ public class InternalEngine extends Engine {
                     Optional.of(earlyResultOnPreFlightError);
         }
 
-        static IndexingStrategy optimizedAppendOnly(long seqNoForIndexing) {
-            return new IndexingStrategy(true, false, true, false, seqNoForIndexing, 1, null);
+        public static IndexingStrategy optimizedAppendOnly(long seqNoForIndexing, long versionForIndexing) {
+            return new IndexingStrategy(true, false, true, false, seqNoForIndexing, versionForIndexing, null);
         }
 
-        static IndexingStrategy skipDueToVersionConflict(
+        public static IndexingStrategy skipDueToVersionConflict(
                 VersionConflictEngineException e, boolean currentNotFoundOrDeleted, long currentVersion, long term) {
             final IndexResult result = new IndexResult(e, currentVersion, term);
             return new IndexingStrategy(
@@ -1105,7 +1105,8 @@ public class InternalEngine extends Engine {
             return new IndexingStrategy(true, true, true, false, seqNoForIndexing, versionForIndexing, null);
         }
 
-        static IndexingStrategy processButSkipLucene(boolean currentNotFoundOrDeleted, long seqNoForIndexing, long versionForIndexing) {
+        public static IndexingStrategy processButSkipLucene(boolean currentNotFoundOrDeleted, long seqNoForIndexing,
+                                                            long versionForIndexing) {
             return new IndexingStrategy(currentNotFoundOrDeleted, false, false, false, seqNoForIndexing, versionForIndexing, null);
         }
 
@@ -1343,7 +1344,7 @@ public class InternalEngine extends Engine {
                 Optional.empty() : Optional.of(earlyResultOnPreflightError);
         }
 
-        static DeletionStrategy skipDueToVersionConflict(
+        public static DeletionStrategy skipDueToVersionConflict(
                 VersionConflictEngineException e, long currentVersion, long term, boolean currentlyDeleted) {
             final long unassignedSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
             final DeleteResult deleteResult = new DeleteResult(e, currentVersion, term, unassignedSeqNo, currentlyDeleted == false);
@@ -2336,6 +2337,16 @@ public class InternalEngine extends Engine {
     @Override
     public void waitForOpsToComplete(long seqNo) throws InterruptedException {
         localCheckpointTracker.waitForOpsToComplete(seqNo);
+    }
+
+    /**
+     * Checks if the given operation has been processed in this engine or not.
+     * @return true if the given operation was processed; otherwise false.
+     */
+    protected final boolean hasBeenProcessedBefore(Operation op) {
+        assert op.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "operation is not assigned seq_no";
+        assert versionMap.assertKeyedLockHeldByCurrentThread(op.uid().bytes());
+        return localCheckpointTracker.contains(op.seqNo());
     }
 
     @Override

@@ -891,17 +891,6 @@ public class DateFormatters {
         new DateTimeFormatterBuilder().appendValue(ChronoField.YEAR).toFormatter(Locale.ROOT));
 
     /*
-     * Returns a formatter for parsing the seconds since the epoch
-     */
-    private static final DateFormatter EPOCH_SECOND = new JavaDateFormatter("epoch_second",
-        new DateTimeFormatterBuilder().appendValue(ChronoField.INSTANT_SECONDS).toFormatter(Locale.ROOT));
-
-    /*
-     * Parses the milliseconds since/before the epoch
-     */
-    private static final DateFormatter EPOCH_MILLIS = EpochMillisDateFormatter.INSTANCE;
-
-    /*
      * Returns a formatter that combines a full date and two digit hour of
      * day. (yyyy-MM-dd'T'HH)
      */
@@ -1280,7 +1269,7 @@ public class DateFormatters {
         return forPattern(input, Locale.ROOT);
     }
 
-    public static DateFormatter forPattern(String input, Locale locale) {
+    private static DateFormatter forPattern(String input, Locale locale) {
         if (Strings.hasLength(input)) {
             input = input.trim();
         }
@@ -1375,9 +1364,9 @@ public class DateFormatters {
         } else if ("yearMonthDay".equals(input) || "year_month_day".equals(input)) {
             return YEAR_MONTH_DAY;
         } else if ("epoch_second".equals(input)) {
-            return EPOCH_SECOND;
+            return EpochSecondsDateFormatter.INSTANCE;
         } else if ("epoch_millis".equals(input)) {
-            return EPOCH_MILLIS;
+            return EpochMillisDateFormatter.INSTANCE;
         // strict date formats here, must be at least 4 digits for year and two for months and two for day
         } else if ("strictBasicWeekDate".equals(input) || "strict_basic_week_date".equals(input)) {
             return STRICT_BASIC_WEEK_DATE;

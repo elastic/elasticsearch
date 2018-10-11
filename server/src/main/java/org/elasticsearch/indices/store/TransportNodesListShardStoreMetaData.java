@@ -254,9 +254,6 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
 
     public static class NodesStoreFilesMetaData extends BaseNodesResponse<NodeStoreFilesMetaData> {
 
-        NodesStoreFilesMetaData() {
-        }
-
         public NodesStoreFilesMetaData(ClusterName clusterName, List<NodeStoreFilesMetaData> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);
         }

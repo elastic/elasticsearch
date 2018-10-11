@@ -29,7 +29,6 @@ import org.joda.time.DateTimeZone;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 
@@ -507,19 +506,6 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertThat(message, javaDateString, is(jodaDateString));
     }
 
-    // see https://github.com/elastic/elasticsearch/issues/14641
-    // TODO IS THIS NEEDED, SEE DateFieldMapperTests
-//    public void testParsingFloatsAsEpoch() {
-//        double epochFloatMillisFromEpoch = (randomDouble() * 2 - 1) * 1000000;
-//        String epochFloatValue = String.format(Locale.US, "%f", epochFloatMillisFromEpoch);
-//
-//        DateTime dateTime = Joda.forPattern("epoch_millis").parser().parseDateTime(epochFloatValue);
-//
-//        TemporalAccessor accessor = DateFormatters.forPattern("epoch_millis").parse(epochFloatValue);
-//        long epochMillis = DateFormatters.toZonedDateTime(accessor).toInstant().toEpochMilli();
-//        assertThat(dateTime.getMillis(), is(epochMillis));
-//    }
-
     public void testDateFormatterWithLocale() {
         Locale locale = randomLocale(random());
         String pattern = randomBoolean() ? "strict_date_optional_time||date_time" : "date_time||strict_date_optional_time";
@@ -532,15 +518,6 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertThat(jodaDate.getMillis(), is(javaDate.toInstant().toEpochMilli()));
         String javaTimeOut = DateFormatters.forPattern(format).format(javaDate);
         String jodaTimeOut = Joda.forPattern(format).printer().print(jodaDate);
-        String message = String.format(Locale.ROOT, "expected string representation to be equal for format [%s]: joda [%s], java [%s]",
-                format, jodaTimeOut, javaTimeOut);
-        assertThat(message, javaTimeOut, is(jodaTimeOut));
-    }
-
-    private void assertSamePrinterOutput(String format, Locale locale, ZonedDateTime javaDate, DateTime jodaDate) {
-        assertThat(jodaDate.getMillis(), is(javaDate.toInstant().toEpochMilli()));
-        String javaTimeOut = DateFormatters.forPattern(format).withLocale(locale).format(javaDate);
-        String jodaTimeOut = Joda.forPattern(format, locale).printer().print(jodaDate);
         String message = String.format(Locale.ROOT, "expected string representation to be equal for format [%s]: joda [%s], java [%s]",
                 format, jodaTimeOut, javaTimeOut);
         assertThat(message, javaTimeOut, is(jodaTimeOut));
@@ -560,20 +537,6 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertThat(msg, jodaDateTime.getMillis(), is(zonedDateTime.toInstant().toEpochMilli()));
     }
 
-    private void assertSameDate(String input, String format, Locale locale) {
-        FormatDateTimeFormatter jodaFormatter = Joda.forPattern(format, locale);
-        DateTime jodaDateTime = jodaFormatter.parser().parseDateTime(input);
-
-        DateFormatter javaTimeFormatter = DateFormatters.forPattern(format).withLocale(locale);
-        TemporalAccessor javaTimeAccessor = javaTimeFormatter.parse(input);
-        ZonedDateTime zonedDateTime = DateFormatters.toZonedDateTime(javaTimeAccessor);
-
-        String msg = String.format(Locale.ROOT, "Input [%s] Format [%s] Joda [%s], Java [%s]", input, format, jodaDateTime,
-            DateTimeFormatter.ISO_INSTANT.format(zonedDateTime.toInstant()));
-
-        assertThat(msg, jodaDateTime.getMillis(), is(zonedDateTime.toInstant().toEpochMilli()));
-    }
-
     private void assertParseException(String input, String format) {
         assertJodaParseException(input, format, "Invalid format: \"" + input);
         assertJavaTimeParseException(input, format);
@@ -583,12 +546,6 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         FormatDateTimeFormatter jodaFormatter = Joda.forPattern(format);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> jodaFormatter.parser().parseDateTime(input));
         assertThat(e.getMessage(), containsString(expectedMessage));
-    }
-
-    private void assertJavaTimeParseException(String input, String format, String expectedMessage) {
-        DateFormatter javaTimeFormatter = DateFormatters.forPattern(format);
-        DateTimeParseException dateTimeParseException = expectThrows(DateTimeParseException.class, () -> javaTimeFormatter.parse(input));
-        assertThat(dateTimeParseException.getMessage(), startsWith(expectedMessage));
     }
 
     private void assertJavaTimeParseException(String input, String format) {

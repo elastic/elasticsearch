@@ -102,7 +102,7 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         if (clusterAlias == null) {
             followLocalIndex(request, listener);
         } else {
-            // This will when clusterAlias has not been configured:
+            // In the case of following a local index there is no cluster alias:
             client.getRemoteClusterClient(clusterAlias);
             final String leaderIndex = request.getLeaderIndex();
             followRemoteIndex(request, clusterAlias, leaderIndex, listener);

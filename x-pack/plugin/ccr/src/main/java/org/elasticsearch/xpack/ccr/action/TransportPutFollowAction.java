@@ -100,7 +100,7 @@ public final class TransportPutFollowAction
         if (clusterAlias == null) {
             createFollowerIndexAndFollowLocalIndex(request, state, listener);
         } else {
-            // This will when clusterAlias has not been configured:
+            // In the case of following a local index there is no cluster alias:
             client.getRemoteClusterClient(clusterAlias);
             String leaderIndex = request.getFollowRequest().getLeaderIndex();
             createFollowerIndexAndFollowRemoteIndex(request, clusterAlias, leaderIndex, listener);

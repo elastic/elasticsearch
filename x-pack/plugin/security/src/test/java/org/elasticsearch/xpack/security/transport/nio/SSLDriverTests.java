@@ -147,7 +147,8 @@ public class SSLDriverTests extends ESTestCase {
         }
         // Prior to JDK11 we still need to send a close alert
         if (serverDriver.isClosed() == false) {
-            failedCloseAlert(serverDriver, clientDriver, Arrays.asList("Received fatal alert: protocol_version"));
+            failedCloseAlert(serverDriver, clientDriver, Arrays.asList("Received fatal alert: protocol_version",
+                "Received fatal alert: handshake_failure"));
         }
     }
 
@@ -171,7 +172,8 @@ public class SSLDriverTests extends ESTestCase {
         }
         // Prior to JDK11 we still need to send a close alert
         if (serverDriver.isClosed() == false) {
-            List<String> messages = Arrays.asList("Received fatal alert: handshake_failure", "Received close_notify during handshake");
+            List<String> messages = Arrays.asList("Received fatal alert: handshake_failure",
+                "Received close_notify during handshake");
             failedCloseAlert(serverDriver, clientDriver, messages);
         }
     }
@@ -246,10 +248,6 @@ public class SSLDriverTests extends ESTestCase {
         sendNonApplicationWrites(clientDriver, serverDriver);
         serverDriver.read(serverBuffer);
         assertTrue(clientDriver.isClosed());
-    }
-
-    private void failedCloseAlert(SSLDriver sendDriver, SSLDriver receiveDriver) throws SSLException {
-        failedCloseAlert(sendDriver, receiveDriver, Collections.singletonList("Received close_notify during handshake"));
     }
 
     private void failedCloseAlert(SSLDriver sendDriver, SSLDriver receiveDriver, List<String> messages) throws SSLException {

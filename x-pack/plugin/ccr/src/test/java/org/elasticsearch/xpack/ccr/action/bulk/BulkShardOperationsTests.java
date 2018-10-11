@@ -149,8 +149,10 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
             final Translog.Operation op;
             if (randomBoolean()) {
                 op = new Translog.Index("_doc", id, seqno++, primaryTerm, 0, SOURCE, null, -1);
-            } else {
+            } else if (randomBoolean()) {
                 op = new Translog.Delete("_doc", id, new Term("_id", Uid.encodeId(id)), seqno++, primaryTerm, 0);
+            } else {
+                op = new Translog.NoOp(seqno++, primaryTerm, "test-" + i);
             }
             if (randomBoolean()) {
                 firstBulk.add(op);

@@ -60,6 +60,7 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -154,6 +155,7 @@ public class InternalEngine extends Engine {
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
 
     private final AtomicBoolean trackTranslogLocation = new AtomicBoolean(false);
+    private final KeyedLock<Long> noOpKeyedLock = new KeyedLock<>();
 
     @Nullable
     private final String historyUUID;
@@ -1390,32 +1392,42 @@ public class InternalEngine extends Engine {
         assert readLock.isHeldByCurrentThread() || writeLock.isHeldByCurrentThread();
         assert noOp.seqNo() > SequenceNumbers.NO_OPS_PERFORMED;
         final long seqNo = noOp.seqNo();
-        try {
-            Exception failure = null;
-            if (softDeleteEnabled) {
-                try {
-                    final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newNoopTombstoneDoc(noOp.reason());
-                    tombstone.updateSeqID(noOp.seqNo(), noOp.primaryTerm());
-                    // A noop tombstone does not require a _version but it's added to have a fully dense docvalues for the version field.
-                    // 1L is selected to optimize the compression because it might probably be the most common value in version field.
-                    tombstone.version().setLongValue(1L);
-                    assert tombstone.docs().size() == 1 : "Tombstone should have a single doc [" + tombstone + "]";
-                    final ParseContext.Document doc = tombstone.docs().get(0);
-                    assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null
-                        : "Noop tombstone document but _tombstone field is not set [" + doc + " ]";
-                    doc.add(softDeletesField);
-                    indexWriter.addDocument(doc);
-                } catch (Exception ex) {
-                    if (maybeFailEngine("noop", ex)) {
-                        throw ex;
+        try (Releasable ignored = noOpKeyedLock.acquire(seqNo)) {
+            final NoOpResult noOpResult;
+            final Optional<Exception> preFlightError = preFlightCheckForNoOp(noOp);
+            if (preFlightError.isPresent()) {
+                noOpResult = new NoOpResult(getPrimaryTerm(), noOp.seqNo(), preFlightError.get());
+            } else {
+                Exception failure = null;
+                if (softDeleteEnabled) {
+                    try {
+                        final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newNoopTombstoneDoc(noOp.reason());
+                        tombstone.updateSeqID(noOp.seqNo(), noOp.primaryTerm());
+                        // A noop tombstone does not require a _version but it's added to have a fully dense docvalues for the version field.
+                        // 1L is selected to optimize the compression because it might probably be the most common value in version field.
+                        tombstone.version().setLongValue(1L);
+                        assert tombstone.docs().size() == 1 : "Tombstone should have a single doc [" + tombstone + "]";
+                        final ParseContext.Document doc = tombstone.docs().get(0);
+                        assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null
+                            : "Noop tombstone document but _tombstone field is not set [" + doc + " ]";
+                        doc.add(softDeletesField);
+                        indexWriter.addDocument(doc);
+                    } catch (Exception ex) {
+                        if (maybeFailEngine("noop", ex)) {
+                            throw ex;
+                        }
+                        failure = ex;
                     }
-                    failure = ex;
                 }
-            }
-            final NoOpResult noOpResult = failure != null ? new NoOpResult(getPrimaryTerm(), noOp.seqNo(), failure) : new NoOpResult(getPrimaryTerm(), noOp.seqNo());
-            if (noOp.origin().isFromTranslog() == false) {
-                final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
-                noOpResult.setTranslogLocation(location);
+                if (failure == null) {
+                    noOpResult = new NoOpResult(getPrimaryTerm(), noOp.seqNo());
+                } else {
+                    noOpResult = new NoOpResult(getPrimaryTerm(), noOp.seqNo(), failure);
+                }
+                if (noOp.origin().isFromTranslog() == false && noOpResult.getResultType() == Result.Type.SUCCESS) {
+                    final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
+                    noOpResult.setTranslogLocation(location);
+                }
             }
             noOpResult.setTook(System.nanoTime() - noOp.startTime());
             noOpResult.freeze();
@@ -1425,6 +1437,14 @@ public class InternalEngine extends Engine {
                 localCheckpointTracker.markSeqNoAsCompleted(seqNo);
             }
         }
+    }
+
+    /**
+     * Executes a pre-flight check for a given NoOp.
+     * If this method returns a non-empty result, the engine won't process this NoOp and returns a failure.
+     */
+    protected Optional<Exception> preFlightCheckForNoOp(final NoOp noOp) {
+        return Optional.empty();
     }
 
     @Override
@@ -2338,7 +2358,7 @@ public class InternalEngine extends Engine {
      */
     protected final boolean hasBeenProcessedBefore(Operation op) {
         assert op.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "operation is not assigned seq_no";
-        assert versionMap.assertKeyedLockHeldByCurrentThread(op.uid().bytes());
+        assert noOpKeyedLock.isHeldByCurrentThread(op.seqNo()) || versionMap.assertKeyedLockHeldByCurrentThread(op.uid().bytes());
         return localCheckpointTracker.contains(op.seqNo());
     }
 

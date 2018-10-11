@@ -302,7 +302,7 @@ public class FollowingEngineTests extends ESTestCase {
 
     private Engine.Result applyOperation(Engine engine, Engine.Operation op,
                                          long primaryTerm, Engine.Operation.Origin origin) throws IOException {
-        final VersionType versionType = origin == Engine.Operation.Origin.PRIMARY ? op.versionType() : null;
+        final VersionType versionType = origin == Engine.Operation.Origin.PRIMARY ? VersionType.EXTERNAL : null;
         final Engine.Result result;
         if (op instanceof Engine.Index) {
             Engine.Index index = (Engine.Index) op;
@@ -565,9 +565,12 @@ public class FollowingEngineTests extends ESTestCase {
             if (randomBoolean()) {
                 operations.add(new Engine.Index(EngineTestCase.newUid(doc), doc, i, primaryTerm.get(), 1L,
                     VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, threadPool.relativeTimeInMillis(), -1, true));
-            } else {
+            } else if (randomBoolean()) {
                 operations.add(new Engine.Delete(doc.type(), doc.id(), EngineTestCase.newUid(doc), i, primaryTerm.get(), 1L,
                     VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, threadPool.relativeTimeInMillis()));
+            } else {
+                operations.add(new Engine.NoOp(i, primaryTerm.get(), Engine.Operation.Origin.PRIMARY,
+                    threadPool.relativeTimeInMillis(), "test-" + i));
             }
         }
         Randomness.shuffle(operations);

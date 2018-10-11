@@ -23,6 +23,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -234,6 +235,14 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             followerGroup.startAll();
             leaderGroup.appendDocs(between(10, 100));
             leaderGroup.refresh("test");
+            for (int numNoOps = between(1, 10), i = 0; i < numNoOps; i++) {
+                long seqNo = leaderGroup.getPrimary().seqNoStats().getMaxSeqNo() + 1;
+                Engine.NoOp noOp = new Engine.NoOp(seqNo, leaderGroup.getPrimary().getOperationPrimaryTerm(),
+                    Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis(), "test-" + i);
+                for (IndexShard shard : leaderGroup) {
+                    getEngine(shard).noOp(noOp);
+                }
+            }
             for (String deleteId : randomSubsetOf(IndexShardTestCase.getShardDocUIDs(leaderGroup.getPrimary()))) {
                 BulkItemResponse resp = leaderGroup.delete(new DeleteRequest("test", "type", deleteId));
                 assertThat(resp.getFailure(), nullValue());
@@ -270,11 +279,14 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             SeqNoStats followerSeqNoStats = followerGroup.getPrimary().seqNoStats();
             shardFollowTask.start(followerGroup.getPrimary().getHistoryUUID(), leadingPrimary.getGlobalCheckpoint(),
                 leadingPrimary.getMaxSeqNoOfUpdatesOrDeletes(), followerSeqNoStats.getGlobalCheckpoint(), followerSeqNoStats.getMaxSeqNo());
-            assertBusy(() -> {
-                assertThat(followerGroup.getPrimary().getGlobalCheckpoint(), equalTo(leadingPrimary.getGlobalCheckpoint()));
-                assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup);
-            });
-            shardFollowTask.markAsCompleted();
+            try {
+                assertBusy(() -> {
+                    assertThat(followerGroup.getPrimary().getGlobalCheckpoint(), equalTo(leadingPrimary.getGlobalCheckpoint()));
+                    assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup);
+                });
+            } finally {
+                shardFollowTask.markAsCompleted();
+            }
         }
     }
 

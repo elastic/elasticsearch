@@ -51,7 +51,7 @@ public class TransportPauseFollowAction extends HandledTransportAction<PauseFoll
         client.admin().cluster().state(new ClusterStateRequest(), ActionListener.wrap(r -> {
             PersistentTasksCustomMetaData persistentTasksMetaData = r.getState().metaData().custom(PersistentTasksCustomMetaData.TYPE);
             if (persistentTasksMetaData == null) {
-                listener.onFailure(new IllegalArgumentException("no shard follow tasks [" + request.getFollowIndex() + "]"));
+                listener.onFailure(new IllegalArgumentException("no shard follow tasks for [" + request.getFollowIndex() + "]"));
                 return;
             }
 
@@ -65,7 +65,7 @@ public class TransportPauseFollowAction extends HandledTransportAction<PauseFoll
                 .collect(Collectors.toList());
 
             if (shardFollowTaskIds.isEmpty()) {
-                listener.onFailure(new IllegalArgumentException("no shard follow tasks [" + request.getFollowIndex() + "]"));
+                listener.onFailure(new IllegalArgumentException("no shard follow tasks for [" + request.getFollowIndex() + "]"));
                 return;
             }
 

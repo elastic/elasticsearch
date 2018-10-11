@@ -87,7 +87,7 @@ public class CcrMultiClusterLicenseIT extends ESRestTestCase {
                 Locale.ROOT,
                 "can not fetch remote index [%s] metadata as the remote cluster [%s] is not licensed for [ccr]; " +
                         "the license mode [BASIC] on cluster [%s] does not enable [ccr]",
-                "leader",
+                "leader_cluster:leader",
                 "leader_cluster",
                 "leader_cluster");
         assertThat(e, hasToString(containsString(expected)));

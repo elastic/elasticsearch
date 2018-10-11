@@ -221,6 +221,23 @@
                           "type": "long"
                         }
                       }
+                    },
+                    "handles": {
+                      "properties": {
+                        "open": {
+                          "type": "long"
+                        },
+                        "limit": {
+                          "properties": {
+                            "hard": {
+                              "type": "long"
+                            },
+                            "soft": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
                     }
                   }
                 },

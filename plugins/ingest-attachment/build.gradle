@@ -30,16 +30,6 @@ versions << [
   'mime4j': '0.8.2'
 ]
 
-if (rootProject.ext.compilerJavaVersion.isJava11()) {
-  // disabled until https://github.com/elastic/elasticsearch/issues/31456 is fixed.
-  integTestRunner {
-    systemProperty 'tests.rest.blacklist', [
-            'ingest_attachment/20_attachment_processor/Test indexed chars are configurable',
-            'ingest_attachment/20_attachment_processor/Test indexed chars are configurable per document'
-    ].join(',')
-  }
-}
-
 dependencies {
   // mandatory for tika
   compile "org.apache.tika:tika-core:${versions.tika}"

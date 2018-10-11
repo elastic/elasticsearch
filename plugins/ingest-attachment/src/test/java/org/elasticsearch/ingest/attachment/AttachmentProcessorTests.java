@@ -297,7 +297,6 @@ public class AttachmentProcessorTests extends ESTestCase {
     }
 
     public void testIndexedChars() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/31305", JavaVersion.current().equals(JavaVersion.parse("11")));
         processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field",
             "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 19, false, null);
 

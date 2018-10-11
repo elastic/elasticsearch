@@ -95,25 +95,12 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
 /**
- * This class is used to generate the Java CRUD API documentation.
- * You need to wrap your code between two tags like:
- * // tag::example
- * // end::example
- *
- * Where example is your tag name.
- *
- * Then in the documentation, you can extract what is between tag and end tags with
- * ["source","java",subs="attributes,callouts,macros"]
- * --------------------------------------------------
- * include-tagged::{doc-tests}/CRUDDocumentationIT.java[example]
- * --------------------------------------------------
- *
- * The column width of the code block is 84. If the code contains a line longer
- * than 84, the line will be cut and a horizontal scroll bar will be displayed.
- * (the code indentation of the tag is not included in the width)
+ * Documentation for CRUD APIs in the high level java client.
+ * Code wrapped in {@code tag} and {@code end} tags is included in the docs.
  */
 public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
+    @SuppressWarnings("unused")
     public void testIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -189,7 +176,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 // <3>
             }
             if (shardInfo.getFailed() > 0) {
-                for (ReplicationResponse.ShardInfo.Failure failure : shardInfo.getFailures()) {
+                for (ReplicationResponse.ShardInfo.Failure failure :
+                        shardInfo.getFailures()) {
                     String reason = failure.reason(); // <4>
                 }
             }
@@ -252,8 +240,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             IndexRequest request = new IndexRequest("posts", "doc", "async").source("field", "value");
+            ActionListener<IndexResponse> listener;
             // tag::index-execute-listener
-            ActionListener<IndexResponse> listener = new ActionListener<IndexResponse>() {
+            listener = new ActionListener<IndexResponse>() {
                 @Override
                 public void onResponse(IndexResponse indexResponse) {
                     // <1>
@@ -278,6 +267,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testUpdate() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -317,8 +307,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
             request = new UpdateRequest("posts", "doc", "1").fetchSource(true);
             //tag::update-request-with-stored-script
-            Script stored =
-                    new Script(ScriptType.STORED, null, "increment-field", parameters);  // <1>
+            Script stored = new Script(
+                    ScriptType.STORED, null, "increment-field", parameters);  // <1>
             request.script(stored);  // <2>
             //end::update-request-with-stored-script
             updateResponse = client.update(request, RequestOptions.DEFAULT);
@@ -371,7 +361,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             //end::update-request-with-doc-as-string
             request.fetchSource(true);
             // tag::update-execute
-            UpdateResponse updateResponse = client.update(request, RequestOptions.DEFAULT);
+            UpdateResponse updateResponse = client.update(
+                    request, RequestOptions.DEFAULT);
             // end::update-execute
             assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
 
@@ -409,7 +400,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 // <1>
             }
             if (shardInfo.getFailed() > 0) {
-                for (ReplicationResponse.ShardInfo.Failure failure : shardInfo.getFailures()) {
+                for (ReplicationResponse.ShardInfo.Failure failure :
+                        shardInfo.getFailures()) {
                     String reason = failure.reason(); // <2>
                 }
             }
@@ -420,7 +412,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             UpdateRequest request = new UpdateRequest("posts", "type", "does_not_exist")
                     .doc("field", "value");
             try {
-                UpdateResponse updateResponse = client.update(request, RequestOptions.DEFAULT);
+                UpdateResponse updateResponse = client.update(
+                        request, RequestOptions.DEFAULT);
             } catch (ElasticsearchException e) {
                 if (e.status() == RestStatus.NOT_FOUND) {
                     // <1>
@@ -434,7 +427,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                     .doc("field", "value")
                     .version(1);
             try {
-                UpdateResponse updateResponse = client.update(request, RequestOptions.DEFAULT);
+                UpdateResponse updateResponse = client.update(
+                        request, RequestOptions.DEFAULT);
             } catch(ElasticsearchException e) {
                 if (e.status() == RestStatus.CONFLICT) {
                     // <1>
@@ -457,7 +451,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::update-request-source-include
             String[] includes = new String[]{"updated", "r*"};
             String[] excludes = Strings.EMPTY_ARRAY;
-            request.fetchSource(new FetchSourceContext(true, includes, excludes)); // <1>
+            request.fetchSource(
+                    new FetchSourceContext(true, includes, excludes)); // <1>
             //end::update-request-source-include
             UpdateResponse updateResponse = client.update(request, RequestOptions.DEFAULT);
             assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
@@ -471,7 +466,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::update-request-source-exclude
             String[] includes = Strings.EMPTY_ARRAY;
             String[] excludes = new String[]{"updated"};
-            request.fetchSource(new FetchSourceContext(true, includes, excludes)); // <1>
+            request.fetchSource(
+                    new FetchSourceContext(true, includes, excludes)); // <1>
             //end::update-request-source-exclude
             UpdateResponse updateResponse = client.update(request, RequestOptions.DEFAULT);
             assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
@@ -520,8 +516,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             UpdateRequest request = new UpdateRequest("posts", "doc", "async").doc("reason", "async update").docAsUpsert(true);
 
+            ActionListener<UpdateResponse> listener;
             // tag::update-execute-listener
-            ActionListener<UpdateResponse> listener = new ActionListener<UpdateResponse>() {
+            listener = new ActionListener<UpdateResponse>() {
                 @Override
                 public void onResponse(UpdateResponse updateResponse) {
                     // <1>
@@ -546,6 +543,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testDelete() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -559,12 +557,13 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::delete-request
             DeleteRequest request = new DeleteRequest(
                     "posts",    // <1>
-                    "doc",     // <2>
-                    "1");      // <3>
+                    "doc",      // <2>
+                    "1");       // <3>
             // end::delete-request
 
             // tag::delete-execute
-            DeleteResponse deleteResponse = client.delete(request, RequestOptions.DEFAULT);
+            DeleteResponse deleteResponse = client.delete(
+                    request, RequestOptions.DEFAULT);
             // end::delete-execute
             assertSame(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
 
@@ -578,7 +577,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 // <1>
             }
             if (shardInfo.getFailed() > 0) {
-                for (ReplicationResponse.ShardInfo.Failure failure : shardInfo.getFailures()) {
+                for (ReplicationResponse.ShardInfo.Failure failure :
+                        shardInfo.getFailures()) {
                     String reason = failure.reason(); // <2>
                 }
             }
@@ -609,7 +609,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::delete-notfound
             DeleteRequest request = new DeleteRequest("posts", "doc", "does_not_exist");
-            DeleteResponse deleteResponse = client.delete(request, RequestOptions.DEFAULT);
+            DeleteResponse deleteResponse = client.delete(
+                    request, RequestOptions.DEFAULT);
             if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
                 // <1>
             }
@@ -623,8 +624,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::delete-conflict
             try {
-                DeleteRequest request = new DeleteRequest("posts", "doc", "1").version(2);
-                DeleteResponse deleteResponse = client.delete(request, RequestOptions.DEFAULT);
+                DeleteResponse deleteResponse = client.delete(
+                        new DeleteRequest("posts", "doc", "1").version(2),
+                        RequestOptions.DEFAULT);
             } catch (ElasticsearchException exception) {
                 if (exception.status() == RestStatus.CONFLICT) {
                     // <1>
@@ -639,8 +641,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
             DeleteRequest request = new DeleteRequest("posts", "doc", "async");
 
+            ActionListener<DeleteResponse> listener;
             // tag::delete-execute-listener
-            ActionListener<DeleteResponse> listener = new ActionListener<DeleteResponse>() {
+            listener = new ActionListener<DeleteResponse>() {
                 @Override
                 public void onResponse(DeleteResponse deleteResponse) {
                     // <1>
@@ -665,6 +668,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testBulk() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -767,6 +771,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testReindex() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -905,24 +910,32 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testReindexRethrottle() throws Exception {
         RestHighLevelClient client = highLevelClient();
         TaskId taskId = new TaskId("oTUltX4IQMOUUVeiohTt8A:124");
         {
             // tag::rethrottle-disable-request
-            RethrottleRequest rethrottleRequest = new RethrottleRequest(taskId); // <1>
-            client.reindexRethrottle(rethrottleRequest, RequestOptions.DEFAULT);
+            RethrottleRequest request = new RethrottleRequest(taskId); // <1>
             // end::rethrottle-disable-request
         }
 
         {
             // tag::rethrottle-request
-            RethrottleRequest rethrottleRequest = new RethrottleRequest(taskId, 100.0f); // <1>
-            client.reindexRethrottle(rethrottleRequest, RequestOptions.DEFAULT);
+            RethrottleRequest request = new RethrottleRequest(taskId, 100.0f); // <1>
             // end::rethrottle-request
         }
 
-        // tag::rethrottle-request-async
+        {
+            RethrottleRequest request = new RethrottleRequest(taskId);
+            // tag::rethrottle-request-execution
+            client.reindexRethrottle(request, RequestOptions.DEFAULT);       // <1>
+            client.updateByQueryRethrottle(request, RequestOptions.DEFAULT); // <2>
+            client.deleteByQueryRethrottle(request, RequestOptions.DEFAULT); // <3>
+            // end::rethrottle-request-execution
+        }
+
+        // tag::rethrottle-request-async-listener
         ActionListener<ListTasksResponse> listener = new ActionListener<ListTasksResponse>() {
             @Override
             public void onResponse(ListTasksResponse response) {
@@ -934,19 +947,22 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 // <2>
             }
         };
-        // end::rethrottle-request-async
+        // end::rethrottle-request-async-listener
 
         // Replace the empty listener by a blocking listener in test
-        final CountDownLatch latch = new CountDownLatch(1);
+        final CountDownLatch latch = new CountDownLatch(3);
         listener = new LatchedActionListener<>(listener, latch);
 
-        RethrottleRequest rethrottleRequest = new RethrottleRequest(taskId);
+        RethrottleRequest request = new RethrottleRequest(taskId);
         // tag::rethrottle-execute-async
-        client.reindexRethrottleAsync(rethrottleRequest, RequestOptions.DEFAULT, listener); // <1>
+        client.reindexRethrottleAsync(request, RequestOptions.DEFAULT, listener);       // <1>
+        client.updateByQueryRethrottleAsync(request, RequestOptions.DEFAULT, listener); // <2>
+        client.deleteByQueryRethrottleAsync(request, RequestOptions.DEFAULT, listener); // <3>
         // end::rethrottle-execute-async
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+    @SuppressWarnings("unused")
     public void testUpdateByQuery() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -1066,6 +1082,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testDeleteByQuery() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -1173,6 +1190,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testGet() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -1487,6 +1505,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testMultiGet() throws Exception {
         RestHighLevelClient client = highLevelClient();
 

@@ -130,7 +130,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
 
     public void testBogusParameter() {
         IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
-            exec("return 5;", null, Collections.singletonMap("bogusParameterKey", "bogusParameterValue"), null, true);
+            exec("return 5;", null, Collections.singletonMap("bogusParameterKey", "bogusParameterValue"), true);
         });
         assertTrue(expected.getMessage().contains("Unrecognized compile-time parameter"));
     }
@@ -253,7 +253,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
     public void testRCurlyNotDelim() {
         IllegalArgumentException e = expectScriptThrows(IllegalArgumentException.class, () -> {
             // We don't want PICKY here so we get the normal error message
-            exec("def i = 1} return 1", emptyMap(), emptyMap(), null, false);
+            exec("def i = 1} return 1", emptyMap(), emptyMap(), false);
         });
         assertEquals("unexpected token ['}'] was expecting one of [{<EOF>, ';'}].", e.getMessage());
     }
@@ -285,7 +285,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
 
     public void testCanNotOverrideRegexEnabled() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> exec("", null, singletonMap(CompilerSettings.REGEX_ENABLED.getKey(), "true"), null, false));
+                () -> exec("", null, singletonMap(CompilerSettings.REGEX_ENABLED.getKey(), "true"), false));
         assertEquals("[painless.regex.enabled] can only be set on node startup.", e.getMessage());
     }
 

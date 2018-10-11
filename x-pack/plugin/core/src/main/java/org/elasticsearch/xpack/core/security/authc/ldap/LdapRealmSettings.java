@@ -29,7 +29,7 @@ public final class LdapRealmSettings {
      */
     public static Set<Setting<?>> getSettings(String type) {
         Set<Setting<?>> settings = new HashSet<>();
-        settings.addAll(CachingUsernamePasswordRealmSettings.getCachingSettings());
+        settings.addAll(CachingUsernamePasswordRealmSettings.getSettings());
         settings.addAll(CompositeRoleMapperSettings.getSettings());
         settings.add(LdapRealmSettings.EXECUTION_TIMEOUT);
         if (AD_TYPE.equals(type)) {

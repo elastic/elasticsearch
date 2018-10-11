@@ -43,7 +43,7 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
 
     public static class Request extends ActionRequest implements ToXContentObject {
 
-        private static final ParseField LEADER_CLUSTER_ALIAS_FIELD = new ParseField("leader_cluster_alias");
+        private static final ParseField LEADER_CLUSTER_FIELD = new ParseField("leader_cluster");
         private static final ParseField LEADER_INDEX_FIELD = new ParseField("leader_index");
         private static final ParseField FOLLOWER_INDEX_FIELD = new ParseField("follower_index");
         private static final ParseField MAX_BATCH_OPERATION_COUNT = new ParseField("max_batch_operation_count");
@@ -56,7 +56,7 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
         private static final ObjectParser<Request, String> PARSER = new ObjectParser<>(NAME, Request::new);
 
         static {
-            PARSER.declareString(Request::setLeaderClusterAlias, LEADER_CLUSTER_ALIAS_FIELD);
+            PARSER.declareString(Request::setLeaderClusterAlias, LEADER_CLUSTER_FIELD);
             PARSER.declareString(Request::setLeaderIndex, LEADER_INDEX_FIELD);
             PARSER.declareString(Request::setFollowerIndex, FOLLOWER_INDEX_FIELD);
             PARSER.declareInt(Request::setMaxBatchOperationCount, MAX_BATCH_OPERATION_COUNT);
@@ -271,7 +271,7 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
             builder.startObject();
             {
-                builder.field(LEADER_CLUSTER_ALIAS_FIELD.getPreferredName(), leaderClusterAlias);
+                builder.field(LEADER_CLUSTER_FIELD.getPreferredName(), leaderClusterAlias);
                 builder.field(LEADER_INDEX_FIELD.getPreferredName(), leaderIndex);
                 builder.field(FOLLOWER_INDEX_FIELD.getPreferredName(), followerIndex);
                 if (maxBatchOperationCount != null) {

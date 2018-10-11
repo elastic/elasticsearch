@@ -42,12 +42,12 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
-        static final ParseField LEADER_CLUSTER_ALIAS_FIELD = new ParseField("leader_cluster_alias");
+        static final ParseField LEADER_CLUSTER_FIELD = new ParseField("leader_cluster");
 
         private static final ObjectParser<Request, String> PARSER = new ObjectParser<>("put_auto_follow_pattern_request", Request::new);
 
         static {
-            PARSER.declareString(Request::setLeaderClusterAlias, LEADER_CLUSTER_ALIAS_FIELD);
+            PARSER.declareString(Request::setLeaderClusterAlias, LEADER_CLUSTER_FIELD);
             PARSER.declareStringArray(Request::setLeaderIndexPatterns, AutoFollowPattern.LEADER_PATTERNS_FIELD);
             PARSER.declareString(Request::setFollowIndexNamePattern, AutoFollowPattern.FOLLOW_PATTERN_FIELD);
             PARSER.declareInt(Request::setMaxBatchOperationCount, AutoFollowPattern.MAX_BATCH_OPERATION_COUNT);
@@ -97,7 +97,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
             if (leaderClusterAlias == null) {
-                validationException = addValidationError("[" + LEADER_CLUSTER_ALIAS_FIELD.getPreferredName() +
+                validationException = addValidationError("[" + LEADER_CLUSTER_FIELD.getPreferredName() +
                     "] is missing", validationException);
             }
             if (leaderIndexPatterns == null || leaderIndexPatterns.isEmpty()) {
@@ -234,7 +234,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             {
-                builder.field(LEADER_CLUSTER_ALIAS_FIELD.getPreferredName(), leaderClusterAlias);
+                builder.field(LEADER_CLUSTER_FIELD.getPreferredName(), leaderClusterAlias);
                 builder.field(AutoFollowPattern.LEADER_PATTERNS_FIELD.getPreferredName(), leaderIndexPatterns);
                 if (followIndexNamePattern != null) {
                     builder.field(AutoFollowPattern.FOLLOW_PATTERN_FIELD.getPreferredName(), followIndexNamePattern);

@@ -74,7 +74,7 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
         ActionRequestValidationException validationException = request.validate();
         assertThat(validationException, notNullValue());
-        assertThat(validationException.getMessage(), containsString("[leader_cluster_alias] is missing"));
+        assertThat(validationException.getMessage(), containsString("[leader_cluster] is missing"));
 
         request.setLeaderClusterAlias("_alias");
         validationException = request.validate();

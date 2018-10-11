@@ -151,7 +151,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                                         + "\"timestamp\":\"" + new DateTime(nodeTimestamp, DateTimeZone.UTC).toString() +  "\""
                                 + "},"
                                 + "\"ccr_stats\":{"
-                                        + "\"leader_cluster_alias\":\"cluster_alias\","
+                                        + "\"leader_cluster\":\"cluster_alias\","
                                         + "\"leader_index\":\"leader_index\","
                                         + "\"follower_index\":\"follower_index\","
                                         + "\"shard_id\":" + shardId + ","

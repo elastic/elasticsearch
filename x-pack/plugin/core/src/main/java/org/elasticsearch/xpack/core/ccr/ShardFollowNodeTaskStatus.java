@@ -34,7 +34,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
 
     public static final String STATUS_PARSER_NAME = "shard-follow-node-task-status";
 
-    private static final ParseField LEADER_CLUSTER_ALIAS = new ParseField("leader_cluster_alias");
+    private static final ParseField LEADER_CLUSTER = new ParseField("leader_cluster");
     private static final ParseField LEADER_INDEX = new ParseField("leader_index");
     private static final ParseField FOLLOWER_INDEX = new ParseField("follower_index");
     private static final ParseField SHARD_ID = new ParseField("shard_id");
@@ -100,7 +100,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                     args -> new AbstractMap.SimpleEntry<>((long) args[0], Tuple.tuple((Integer)args[1], (ElasticsearchException)args[2])));
 
     static {
-        STATUS_PARSER.declareString(ConstructingObjectParser.constructorArg(), LEADER_CLUSTER_ALIAS);
+        STATUS_PARSER.declareString(ConstructingObjectParser.constructorArg(), LEADER_CLUSTER);
         STATUS_PARSER.declareString(ConstructingObjectParser.constructorArg(), LEADER_INDEX);
         STATUS_PARSER.declareString(ConstructingObjectParser.constructorArg(), FOLLOWER_INDEX);
         STATUS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), SHARD_ID);
@@ -412,7 +412,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     }
 
     public XContentBuilder toXContentFragment(final XContentBuilder builder, final Params params) throws IOException {
-        builder.field(LEADER_CLUSTER_ALIAS.getPreferredName(), leaderClusterAlias);
+        builder.field(LEADER_CLUSTER.getPreferredName(), leaderClusterAlias);
         builder.field(LEADER_INDEX.getPreferredName(), leaderIndex);
         builder.field(FOLLOWER_INDEX.getPreferredName(), followerIndex);
         builder.field(SHARD_ID.getPreferredName(), shardId);

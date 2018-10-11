@@ -36,7 +36,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     public static final Set<String> HEADER_FILTERS =
         Collections.unmodifiableSet(new HashSet<>(Arrays.asList("es-security-runas-user", "_xpack_security_authentication")));
 
-    static final ParseField LEADER_CLUSTER_ALIAS_FIELD = new ParseField("leader_cluster_alias");
+    static final ParseField LEADER_CLUSTER_FIELD = new ParseField("leader_cluster");
     static final ParseField FOLLOW_SHARD_INDEX_FIELD = new ParseField("follow_shard_index");
     static final ParseField FOLLOW_SHARD_INDEX_UUID_FIELD = new ParseField("follow_shard_index_uuid");
     static final ParseField FOLLOW_SHARD_SHARDID_FIELD = new ParseField("follow_shard_shard");
@@ -59,7 +59,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
                 (int) a[10], (int) a[11], (TimeValue) a[12], (TimeValue) a[13], (Map<String, String>) a[14]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), LEADER_CLUSTER_ALIAS_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), LEADER_CLUSTER_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FOLLOW_SHARD_INDEX_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FOLLOW_SHARD_INDEX_UUID_FIELD);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), FOLLOW_SHARD_SHARDID_FIELD);
@@ -211,7 +211,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (leaderClusterAlias != null) {
-            builder.field(LEADER_CLUSTER_ALIAS_FIELD.getPreferredName(), leaderClusterAlias);
+            builder.field(LEADER_CLUSTER_FIELD.getPreferredName(), leaderClusterAlias);
         }
         builder.field(FOLLOW_SHARD_INDEX_FIELD.getPreferredName(), followShardId.getIndex().getName());
         builder.field(FOLLOW_SHARD_INDEX_UUID_FIELD.getPreferredName(), followShardId.getIndex().getUUID());

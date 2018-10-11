@@ -919,7 +919,7 @@
         },
         "ccr_stats": {
           "properties": {
-            "leader_cluster_alias": {
+            "leader_cluster": {
               "type": "keyword"
             },
             "leader_index": {

@@ -97,7 +97,7 @@ fi
 
     rm -rf "$ESPLUGINS"
     # The custom plugins directory is not under /tmp or /var/tmp because
-    # systemd's private temp directory functionaly means different
+    # systemd's private temp directory functionally means different
     # processes can have different views of what's in these directories
     local es_plugins=$(mktemp -p /var -d -t 'plugins.XXXX')
     chown -R elasticsearch:elasticsearch "$es_plugins"

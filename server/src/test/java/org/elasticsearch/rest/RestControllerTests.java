@@ -212,7 +212,6 @@ public class RestControllerTests extends ESTestCase {
         };
         final RestController restController = new RestController(Settings.EMPTY, Collections.emptySet(), wrapper, null,
             circuitBreakerService, usageService);
-        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         restController.dispatchRequest(new FakeRestRequest.Builder(xContentRegistry()).build(), null, null, Optional.of(handler));
         assertTrue(wrapperCalled.get());
         assertFalse(handlerCalled.get());

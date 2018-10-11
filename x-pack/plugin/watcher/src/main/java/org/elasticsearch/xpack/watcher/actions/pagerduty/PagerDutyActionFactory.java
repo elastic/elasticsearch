@@ -5,8 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions.pagerduty;
 
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
@@ -19,8 +18,8 @@ public class PagerDutyActionFactory extends ActionFactory {
     private final TextTemplateEngine templateEngine;
     private final PagerDutyService pagerDutyService;
 
-    public PagerDutyActionFactory(Settings settings, TextTemplateEngine templateEngine, PagerDutyService pagerDutyService) {
-        super(Loggers.getLogger(ExecutablePagerDutyAction.class, settings));
+    public PagerDutyActionFactory(TextTemplateEngine templateEngine, PagerDutyService pagerDutyService) {
+        super(LogManager.getLogger(ExecutablePagerDutyAction.class));
         this.templateEngine = templateEngine;
         this.pagerDutyService = pagerDutyService;
     }

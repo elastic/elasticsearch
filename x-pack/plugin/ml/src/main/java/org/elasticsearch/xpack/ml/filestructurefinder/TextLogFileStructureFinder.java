@@ -28,10 +28,11 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
     private final FileStructure structure;
 
     static TextLogFileStructureFinder makeTextLogFileStructureFinder(List<String> explanation, String sample, String charsetName,
-                                                                     Boolean hasByteOrderMarker, FileStructureOverrides overrides) {
+                                                                     Boolean hasByteOrderMarker, FileStructureOverrides overrides,
+                                                                     TimeoutChecker timeoutChecker) {
 
         String[] sampleLines = sample.split("\n");
-        Tuple<TimestampMatch, Set<String>> bestTimestamp = mostLikelyTimestamp(sampleLines, overrides);
+        Tuple<TimestampMatch, Set<String>> bestTimestamp = mostLikelyTimestamp(sampleLines, overrides, timeoutChecker);
         if (bestTimestamp == null) {
             // Is it appropriate to treat a file that is neither structured nor has
             // a regular pattern of timestamps as a log file?  Probably not...
@@ -68,6 +69,7 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
                     ++linesInMessage;
                 }
             }
+            timeoutChecker.check("multi-line message determination");
             if (sampleMessages.size() < 2) {
                 preamble.append(sampleLine).append('\n');
             }
@@ -88,7 +90,7 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
 
         SortedMap<String, FieldStats> fieldStats = new TreeMap<>();
 
-        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings, fieldStats);
+        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings, fieldStats, timeoutChecker);
         // We can't parse directly into @timestamp using Grok, so parse to some other time field, which the date filter will then remove
         String interimTimestampField = overrides.getTimestampField();
         String grokPattern = overrides.getGrokPattern();
@@ -98,7 +100,8 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
             }
             grokPatternCreator.validateFullLineGrokPattern(grokPattern, interimTimestampField);
         } else {
-            Tuple<String, String> timestampFieldAndFullMatchGrokPattern = grokPatternCreator.findFullLineGrokPattern(interimTimestampField);
+            Tuple<String, String> timestampFieldAndFullMatchGrokPattern =
+                grokPatternCreator.findFullLineGrokPattern(interimTimestampField);
             if (timestampFieldAndFullMatchGrokPattern != null) {
                 interimTimestampField = timestampFieldAndFullMatchGrokPattern.v1();
                 grokPattern = timestampFieldAndFullMatchGrokPattern.v2();
@@ -112,7 +115,8 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
 
         FileStructure structure = structureBuilder
             .setTimestampField(interimTimestampField)
-            .setTimestampFormats(bestTimestamp.v1().dateFormats)
+            .setJodaTimestampFormats(bestTimestamp.v1().jodaTimestampFormats)
+            .setJavaTimestampFormats(bestTimestamp.v1().javaTimestampFormats)
             .setNeedClientTimezone(bestTimestamp.v1().hasTimezoneDependentParsing())
             .setGrokPattern(grokPattern)
             .setMappings(mappings)
@@ -138,7 +142,8 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
         return structure;
     }
 
-    static Tuple<TimestampMatch, Set<String>> mostLikelyTimestamp(String[] sampleLines, FileStructureOverrides overrides) {
+    static Tuple<TimestampMatch, Set<String>> mostLikelyTimestamp(String[] sampleLines, FileStructureOverrides overrides,
+                                                                  TimeoutChecker timeoutChecker) {
 
         Map<TimestampMatch, Tuple<Double, Set<String>>> timestampMatches = new LinkedHashMap<>();
 
@@ -147,8 +152,8 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
         for (String sampleLine : sampleLines) {
             TimestampMatch match = TimestampFormatFinder.findFirstMatch(sampleLine, overrides.getTimestampFormat());
             if (match != null) {
-                TimestampMatch pureMatch = new TimestampMatch(match.candidateIndex, "", match.dateFormats, match.simplePattern,
-                    match.grokPatternName, "");
+                TimestampMatch pureMatch = new TimestampMatch(match.candidateIndex, "", match.jodaTimestampFormats,
+                    match.javaTimestampFormats, match.simplePattern, match.grokPatternName, "");
                 timestampMatches.compute(pureMatch, (k, v) -> {
                     if (v == null) {
                         return new Tuple<>(weightForMatch(match.preface), new HashSet<>(Collections.singletonList(match.preface)));
@@ -159,6 +164,7 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
                 });
                 differenceBetweenTwoHighestWeights = findDifferenceBetweenTwoHighestWeights(timestampMatches.values());
             }
+            timeoutChecker.check("timestamp format determination");
             // The highest possible weight is 1, so if the difference between the two highest weights
             // is less than the number of lines remaining then the leader cannot possibly be overtaken
             if (differenceBetweenTwoHighestWeights > --remainingLines) {

@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -114,9 +115,13 @@ public class ReplicationOperation<
             // of the sampled replication group, and advanced further than what the given replication group would allow it to.
             // This would entail that some shards could learn about a global checkpoint that would be higher than its local checkpoint.
             final long globalCheckpoint = primary.globalCheckpoint();
+            // we have to capture the max_seq_no_of_updates after this request was completed on the primary to make sure the value of
+            // max_seq_no_of_updates on replica when this request is executed is at least the value on the primary when it was executed on.
+            final long maxSeqNoOfUpdatesOrDeletes = primary.maxSeqNoOfUpdatesOrDeletes();
+            assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "seqno_of_updates still uninitialized";
             final ReplicationGroup replicationGroup = primary.getReplicationGroup();
             markUnavailableShardsAsStale(replicaRequest, replicationGroup);
-            performOnReplicas(replicaRequest, globalCheckpoint, replicationGroup);
+            performOnReplicas(replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, replicationGroup);
         }
 
         successfulShards.incrementAndGet();  // mark primary as successful
@@ -136,7 +141,7 @@ public class ReplicationOperation<
     }
 
     private void performOnReplicas(final ReplicaRequest replicaRequest, final long globalCheckpoint,
-                                   final ReplicationGroup replicationGroup) {
+                                   final long maxSeqNoOfUpdatesOrDeletes, final ReplicationGroup replicationGroup) {
         // for total stats, add number of unassigned shards and
         // number of initializing shards that are not ready yet to receive operations (recovery has not opened engine yet on the target)
         totalShards.addAndGet(replicationGroup.getSkippedShards().size());
@@ -145,19 +150,20 @@ public class ReplicationOperation<
 
         for (final ShardRouting shard : replicationGroup.getReplicationTargets()) {
             if (shard.isSameAllocation(primaryRouting) == false) {
-                performOnReplica(shard, replicaRequest, globalCheckpoint);
+                performOnReplica(shard, replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes);
             }
         }
     }
 
-    private void performOnReplica(final ShardRouting shard, final ReplicaRequest replicaRequest, final long globalCheckpoint) {
+    private void performOnReplica(final ShardRouting shard, final ReplicaRequest replicaRequest,
+                                  final long globalCheckpoint, final long maxSeqNoOfUpdatesOrDeletes) {
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] sending op [{}] to replica {} for request [{}]", shard.shardId(), opType, shard, replicaRequest);
         }
 
         totalShards.incrementAndGet();
         pendingActions.incrementAndGet();
-        replicasProxy.performOn(shard, replicaRequest, globalCheckpoint, new ActionListener<ReplicaResponse>() {
+        replicasProxy.performOn(shard, replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, new ActionListener<ReplicaResponse>() {
             @Override
             public void onResponse(ReplicaResponse response) {
                 successfulShards.incrementAndGet();
@@ -323,6 +329,12 @@ public class ReplicationOperation<
         long globalCheckpoint();
 
         /**
+         * Returns the maximum seq_no of updates (index operations overwrite Lucene) or deletes on the primary.
+         * This value must be captured after the execution of a replication request on the primary is completed.
+         */
+        long maxSeqNoOfUpdatesOrDeletes();
+
+        /**
          * Returns the current replication group on the primary shard
          *
          * @return the replication group
@@ -338,12 +350,15 @@ public class ReplicationOperation<
         /**
          * Performs the specified request on the specified replica.
          *
-         * @param replica          the shard this request should be executed on
-         * @param replicaRequest   the operation to perform
-         * @param globalCheckpoint the global checkpoint on the primary
-         * @param listener         callback for handling the response or failure
+         * @param replica                    the shard this request should be executed on
+         * @param replicaRequest             the operation to perform
+         * @param globalCheckpoint           the global checkpoint on the primary
+         * @param maxSeqNoOfUpdatesOrDeletes the max seq_no of updates (index operations overwriting Lucene) or deletes on primary
+         *                                   after this replication was executed on it.
+         * @param listener                   callback for handling the response or failure
          */
-        void performOn(ShardRouting replica, RequestT replicaRequest, long globalCheckpoint, ActionListener<ReplicaResponse> listener);
+        void performOn(ShardRouting replica, RequestT replicaRequest, long globalCheckpoint,
+                       long maxSeqNoOfUpdatesOrDeletes, ActionListener<ReplicaResponse> listener);
 
         /**
          * Fail the specified shard if needed, removing it from the current set

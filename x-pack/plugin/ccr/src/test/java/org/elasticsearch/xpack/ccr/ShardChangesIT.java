@@ -566,6 +566,75 @@ public class ShardChangesIT extends ESIntegTestCase {
             "this setting is managed via a dedicated API"));
     }
 
+    public void testLeaderReadBlock() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("index1")
+            .setSettings(Settings.builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()));
+
+        final PutFollowAction.Request followRequest = follow("index1", "index2");
+        client().execute(PutFollowAction.INSTANCE, followRequest).get();
+
+        client().prepareIndex("index1", "doc", "1").setSource("{}", XContentType.JSON).get();
+        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(1L)));
+
+        Settings settings = Settings.builder().put(IndexMetaData.INDEX_BLOCKS_READ_SETTING.getKey(), true).build();
+        assertAcked(client().admin().indices().updateSettings(new UpdateSettingsRequest(settings, "index1")).actionGet());
+        assertBusy(() -> {
+            StatsResponses response = client().execute(FollowStatsAction.INSTANCE, new StatsRequest()).actionGet();
+            assertThat(response.getNodeFailures(), empty());
+            assertThat(response.getTaskFailures(), empty());
+            assertThat(response.getStatsResponses(), hasSize(1));
+            assertThat(response.getStatsResponses().get(0).status().numberOfFailedFetches(), greaterThanOrEqualTo(1L));
+            assertThat(response.getStatsResponses().get(0).status().fetchExceptions().size(), equalTo(1));
+            ElasticsearchException exception = response.getStatsResponses().get(0).status()
+                .fetchExceptions().entrySet().iterator().next().getValue().v2();
+            assertThat(exception.getMessage(), equalTo("blocked by: [FORBIDDEN/7/index read (api)];"));
+        });
+
+        settings = Settings.builder().put(IndexMetaData.INDEX_BLOCKS_READ_SETTING.getKey(), false).build();
+        assertAcked(client().admin().indices().updateSettings(new UpdateSettingsRequest(settings, "index1")).actionGet());
+        client().prepareIndex("index1", "doc", "2").setSource("{}", XContentType.JSON).get();
+        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(2L)));
+
+        unfollowIndex("index2");
+    }
+
+    public void testFollowerWriteBlock() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("index1")
+            .setSettings(Settings.builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()));
+
+        final PutFollowAction.Request followRequest = follow("index1", "index2");
+        client().execute(PutFollowAction.INSTANCE, followRequest).get();
+
+        client().prepareIndex("index1", "doc", "1").setSource("{}", XContentType.JSON).get();
+        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(1L)));
+
+        Settings settings = Settings.builder().put(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey(), true).build();
+        assertAcked(client().admin().indices().updateSettings(new UpdateSettingsRequest(settings, "index2")).actionGet());
+        client().prepareIndex("index1", "doc", "2").setSource("{}", XContentType.JSON).get();
+        assertBusy(() -> {
+            StatsResponses response = client().execute(FollowStatsAction.INSTANCE, new StatsRequest()).actionGet();
+            assertThat(response.getNodeFailures(), empty());
+            assertThat(response.getTaskFailures(), empty());
+            assertThat(response.getStatsResponses(), hasSize(1));
+            assertThat(response.getStatsResponses().get(0).status().numberOfFailedFetches(), greaterThanOrEqualTo(0L));
+            assertThat(response.getStatsResponses().get(0).status().numberOfFailedBulkOperations(), greaterThanOrEqualTo(1L));
+        });
+
+        settings = Settings.builder().put(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey(), false).build();
+        assertAcked(client().admin().indices().updateSettings(new UpdateSettingsRequest(settings, "index2")).actionGet());
+        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(2L)));
+
+        unfollowIndex("index2");
+    }
+
     public void testCloseLeaderIndex() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("index1")
             .setSettings(Settings.builder()
@@ -581,23 +650,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(1L)));
 
         client().admin().indices().close(new CloseIndexRequest("index1")).actionGet();
-        assertBusy(() -> {
-            StatsResponses response = client().execute(FollowStatsAction.INSTANCE, new StatsRequest()).actionGet();
-            assertThat(response.getNodeFailures(), empty());
-            assertThat(response.getTaskFailures(), empty());
-            assertThat(response.getStatsResponses(), hasSize(1));
-            assertThat(response.getStatsResponses().get(0).status().numberOfFailedFetches(), greaterThanOrEqualTo(1L));
-            assertThat(response.getStatsResponses().get(0).status().fetchExceptions().size(), equalTo(1));
-            ElasticsearchException exception = response.getStatsResponses().get(0).status()
-                .fetchExceptions().entrySet().iterator().next().getValue().v2();
-            assertThat(exception.getMessage(), equalTo("blocked by: [FORBIDDEN/4/index closed];"));
-        });
-
-        client().admin().indices().open(new OpenIndexRequest("index1")).actionGet();
-        client().prepareIndex("index1", "doc", "2").setSource("{}", XContentType.JSON).get();
-        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(2L)));
-
-        unfollowIndex("index2");
+        ensureNoCcrTasks();
     }
 
     public void testCloseFollowIndex() throws Exception {
@@ -616,17 +669,7 @@ public class ShardChangesIT extends ESIntegTestCase {
 
         client().admin().indices().close(new CloseIndexRequest("index2")).actionGet();
         client().prepareIndex("index1", "doc", "2").setSource("{}", XContentType.JSON).get();
-        assertBusy(() -> {
-            StatsResponses response = client().execute(FollowStatsAction.INSTANCE, new StatsRequest()).actionGet();
-            assertThat(response.getNodeFailures(), empty());
-            assertThat(response.getTaskFailures(), empty());
-            assertThat(response.getStatsResponses(), hasSize(1));
-            assertThat(response.getStatsResponses().get(0).status().numberOfFailedBulkOperations(), greaterThanOrEqualTo(1L));
-        });
-        client().admin().indices().open(new OpenIndexRequest("index2")).actionGet();
-        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(2L)));
-
-        unfollowIndex("index2");
+        ensureNoCcrTasks();
     }
 
     public void testDeleteLeaderIndex() throws Exception {

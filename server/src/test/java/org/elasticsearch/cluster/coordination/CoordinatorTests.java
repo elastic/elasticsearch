@@ -74,6 +74,7 @@ import static org.elasticsearch.cluster.coordination.Coordinator.Mode.LEADER;
 import static org.elasticsearch.cluster.coordination.Coordinator.PUBLISH_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.CoordinatorTests.Cluster.DEFAULT_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_BACK_OFF_TIME_SETTING;
+import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_DURATION_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
@@ -490,6 +491,7 @@ public class CoordinatorTests extends ESTestCase {
         // Then wait for an election to be scheduled; we allow enough time for retries to allow for collisions
         + defaultMillis(ELECTION_INITIAL_TIMEOUT_SETTING) * ELECTION_RETRIES
         + defaultMillis(ELECTION_BACK_OFF_TIME_SETTING) * ELECTION_RETRIES * (ELECTION_RETRIES - 1) / 2
+        + defaultMillis(ELECTION_DURATION_SETTING) * ELECTION_RETRIES
         // Allow two round-trip for pre-voting and voting
         + 4 * DEFAULT_DELAY_VARIABILITY
         // Then a commit of the new leader's first cluster state

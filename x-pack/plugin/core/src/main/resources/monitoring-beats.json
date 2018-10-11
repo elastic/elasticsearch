@@ -487,6 +487,13 @@
                               "type": "long"
                             }
                           }
+                        },
+                        "span": {
+                          "properties": {
+                            "transformations": {
+                              "type": "long"
+                            }
+                          }
                         }
                       }
                     }
@@ -537,6 +544,9 @@
                               "type": "long"
                             },
                             "total": {
+                              "type": "long"
+                            },
+                            "toomany": {
                               "type": "long"
                             }
                           }

@@ -21,7 +21,7 @@ public final class NativeRealmSettings {
      * @return The {@link Setting setting configuration} for this realm type
      */
     public static Set<Setting.AffixSetting<?>> getSettings() {
-        final Set<Setting.AffixSetting<?>> set = new HashSet<>(CachingUsernamePasswordRealmSettings.getCachingSettings(TYPE));
+        final Set<Setting.AffixSetting<?>> set = new HashSet<>(CachingUsernamePasswordRealmSettings.getSettings(TYPE));
         set.addAll(RealmSettings.getStandardSettings(TYPE));
         return set;
     }

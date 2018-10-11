@@ -6,14 +6,8 @@
 package org.elasticsearch.xpack.security.authc.saml;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.joda.time.DateTime;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -207,18 +201,13 @@ public class SamlLogoutRequestHandlerTests extends SamlTestCase {
     }
 
     private SamlLogoutRequestHandler buildHandler() throws Exception {
-        final Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
-        final Settings realmSettings = Settings.EMPTY;
         final IdpConfiguration idp = new IdpConfiguration(IDP_ENTITY_ID, () -> Collections.singletonList(credential));
 
         final X509Credential spCredential = (X509Credential) buildOpenSamlCredential(readRandomKeyPair()).get(0);
         final SigningConfiguration signingConfiguration = new SigningConfiguration(Collections.singleton("*"), spCredential);
         final SpConfiguration sp = new SpConfiguration("https://sp.test/", "https://sp.test/saml/asc", LOGOUT_URL,
             signingConfiguration, Arrays.asList(spCredential), Collections.emptyList());
-        final Environment env = TestEnvironment.newEnvironment(globalSettings);
         return new SamlLogoutRequestHandler(
-            new RealmConfig(new RealmConfig.RealmIdentifier(SamlRealmSettings.TYPE, "saml_test"),
-                realmSettings, globalSettings, env, new ThreadContext(globalSettings)),
             clock,
             idp,
             sp,

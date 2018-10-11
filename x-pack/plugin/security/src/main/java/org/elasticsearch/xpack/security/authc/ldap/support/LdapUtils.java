@@ -23,6 +23,7 @@ import com.unboundid.ldap.sdk.SearchResultEntry;
 import com.unboundid.ldap.sdk.SearchResultReference;
 import com.unboundid.ldap.sdk.SearchScope;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.SetOnce;
@@ -31,7 +32,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -54,7 +54,7 @@ public final class LdapUtils {
 
     public static final Filter OBJECT_CLASS_PRESENCE_FILTER = Filter.createPresenceFilter("objectClass");
 
-    private static final Logger LOGGER = ESLoggerFactory.getLogger(LdapUtils.class);
+    private static final Logger LOGGER = LogManager.getLogger(LdapUtils.class);
 
     private LdapUtils() {
     }

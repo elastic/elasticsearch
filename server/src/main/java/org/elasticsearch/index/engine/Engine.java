@@ -43,6 +43,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
+import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequest;
@@ -663,7 +664,15 @@ public abstract class Engine implements Closeable {
         }
         Releasable releasable = store::decRef;
         try {
-            EngineSearcher engineSearcher = new EngineSearcher(source, getReferenceManager(scope), store, logger);
+            ReferenceManager<IndexSearcher> referenceManager = getReferenceManager(scope);
+            Searcher engineSearcher = new Searcher(source, referenceManager.acquire(),
+                s -> {
+                  try {
+                      referenceManager.release(s);
+                  } finally {
+                      store.decRef();
+                  }
+              }, logger);
             releasable = null; // success - hand over the reference to the engine searcher
             return engineSearcher;
         } catch (AlreadyClosedException ex) {
@@ -1167,40 +1176,67 @@ public abstract class Engine implements Closeable {
     }
 
     public static class Searcher implements Releasable {
-
         private final String source;
         private final IndexSearcher searcher;
+        private final AtomicBoolean released = new AtomicBoolean(false);
+        private final Logger logger;
+        private final IOUtils.IOConsumer<IndexSearcher> onClose;
 
-        public Searcher(String source, IndexSearcher searcher) {
+        public Searcher(String source, IndexSearcher searcher, Logger logger) {
+            this(source, searcher, s -> s.getIndexReader().close(), logger);
+        }
+
+        public Searcher(String source, IndexSearcher searcher, IOUtils.IOConsumer<IndexSearcher> onClose, Logger logger) {
             this.source = source;
             this.searcher = searcher;
+            this.onClose = onClose;
+            this.logger = logger;
         }
 
         /**
          * The source that caused this searcher to be acquired.
          */
-        public String source() {
+        public final String source() {
             return source;
         }
 
-        public IndexReader reader() {
+        public final IndexReader reader() {
             return searcher.getIndexReader();
         }
 
-        public DirectoryReader getDirectoryReader() {
+        public final DirectoryReader getDirectoryReader() {
             if (reader() instanceof DirectoryReader) {
                 return (DirectoryReader) reader();
             }
             throw new IllegalStateException("Can't use " + reader().getClass() + " as a directory reader");
         }
 
-        public IndexSearcher searcher() {
+        public final IndexSearcher searcher() {
             return searcher;
         }
 
         @Override
         public void close() {
-            // Nothing to close here
+            if (released.compareAndSet(false, true) == false) {
+                /* In general, searchers should never be released twice or this would break reference counting. There is one rare case
+                 * when it might happen though: when the request and the Reaper thread would both try to release it in a very short amount
+                 * of time, this is why we only log a warning instead of throwing an exception.
+                 */
+                logger.warn("Searcher was released twice", new IllegalStateException("Double release"));
+                return;
+            }
+            try {
+                onClose.accept(searcher());
+            } catch (IOException e) {
+                throw new IllegalStateException("Cannot close", e);
+            } catch (AlreadyClosedException e) {
+                // This means there's a bug somewhere: don't suppress it
+                throw new AssertionError(e);
+            }
+        }
+
+        public final Logger getLogger() {
+            return logger;
         }
     }
 
@@ -1798,6 +1834,33 @@ public abstract class Engine implements Closeable {
      * Returns the maximum sequence number of either update or delete operations have been processed in this engine
      * or the sequence number from {@link #advanceMaxSeqNoOfUpdatesOrDeletes(long)}. An index request is considered
      * as an update operation if it overwrites the existing documents in Lucene index with the same document id.
+     * <p>
+     * A note on the optimization using max_seq_no_of_updates_or_deletes:
+     * For each operation O, the key invariants are:
+     * <ol>
+     *     <li> I1: There is no operation on docID(O) with seqno that is {@literal > MSU(O) and < seqno(O)} </li>
+     *     <li> I2: If {@literal MSU(O) < seqno(O)} then docID(O) did not exist when O was applied; more precisely, if there is any O'
+     *              with {@literal seqno(O') < seqno(O) and docID(O') = docID(O)} then the one with the greatest seqno is a delete.</li>
+     * </ol>
+     * <p>
+     * When a receiving shard (either a replica or a follower) receives an operation O, it must first ensure its own MSU at least MSU(O),
+     * and then compares its MSU to its local checkpoint (LCP). If {@literal LCP < MSU} then there's a gap: there may be some operations
+     * that act on docID(O) about which we do not yet know, so we cannot perform an add. Note this also covers the case where a future
+     * operation O' with {@literal seqNo(O') > seqNo(O) and docId(O') = docID(O)} is processed before O. In that case MSU(O') is at least
+     * seqno(O') and this means {@literal MSU >= seqNo(O') > seqNo(O) > LCP} (because O wasn't processed yet).
+     * <p>
+     * However, if {@literal MSU <= LCP} then there is no gap: we have processed every {@literal operation <= LCP}, and no operation O'
+     * with {@literal seqno(O') > LCP and seqno(O') < seqno(O) also has docID(O') = docID(O)}, because such an operation would have
+     * {@literal seqno(O') > LCP >= MSU >= MSU(O)} which contradicts the first invariant. Furthermore in this case we immediately know
+     * that docID(O) has been deleted (or never existed) without needing to check Lucene for the following reason. If there's no earlier
+     * operation on docID(O) then this is clear, so suppose instead that the preceding operation on docID(O) is O':
+     * 1. The first invariant above tells us that {@literal seqno(O') <= MSU(O) <= LCP} so we have already applied O' to Lucene.
+     * 2. Also {@literal MSU(O) <= MSU <= LCP < seqno(O)} (we discard O if {@literal seqno(O) <= LCP}) so the second invariant applies,
+     *    meaning that the O' was a delete.
+     * <p>
+     * Therefore, if {@literal MSU <= LCP < seqno(O)} we know that O can safely be optimized with and added to lucene with addDocument.
+     * Moreover, operations that are optimized using the MSU optimization must not be processed twice as this will create duplicates
+     * in Lucene. To avoid this we check the local checkpoint tracker to see if an operation was already processed.
      *
      * @see #initializeMaxSeqNoOfUpdatesOrDeletes()
      * @see #advanceMaxSeqNoOfUpdatesOrDeletes(long)

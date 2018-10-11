@@ -35,7 +35,7 @@ public final class LdapRealmSettings {
      */
     public static Set<Setting.AffixSetting<?>> getSettings(String type) {
         Set<Setting.AffixSetting<?>> settings = new HashSet<>();
-        settings.addAll(CachingUsernamePasswordRealmSettings.getCachingSettings(type));
+        settings.addAll(CachingUsernamePasswordRealmSettings.getSettings(type));
         settings.addAll(CompositeRoleMapperSettings.getSettings(type));
         settings.add(LdapRealmSettings.EXECUTION_TIMEOUT.apply(type));
         if (AD_TYPE.equals(type)) {

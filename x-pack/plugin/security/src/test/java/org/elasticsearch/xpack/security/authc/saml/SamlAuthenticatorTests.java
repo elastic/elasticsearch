@@ -17,12 +17,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
@@ -182,10 +177,8 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         this.requestId = randomId();
     }
 
-    private SamlAuthenticator buildAuthenticator(Supplier<List<Credential>> credentials, List<String> reqAuthnCtxClassRef) throws
-        Exception {
-        final Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
-        final Settings realmSettings = Settings.EMPTY;
+    private SamlAuthenticator buildAuthenticator(Supplier<List<Credential>> credentials, List<String> reqAuthnCtxClassRef)
+            throws Exception {
         final IdpConfiguration idp = new IdpConfiguration(IDP_ENTITY_ID, credentials);
 
         final SigningConfiguration signingConfiguration = new SigningConfiguration(Collections.singleton("*"),
@@ -194,10 +187,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
                 .map((cred) -> (X509Credential) cred).collect(Collectors.<X509Credential>toList());
         final SpConfiguration sp = new SpConfiguration(SP_ENTITY_ID, SP_ACS_URL, null, signingConfiguration, spEncryptionCredentials,
             reqAuthnCtxClassRef);
-        final Environment env = TestEnvironment.newEnvironment(globalSettings);
         return new SamlAuthenticator(
-                new RealmConfig(new RealmConfig.RealmIdentifier("saml", "saml_test"),
-                        realmSettings, globalSettings, env, new ThreadContext(globalSettings)),
                 clock,
                 idp,
                 sp,
@@ -1645,7 +1635,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         /*
         Permutation 7 - Mangle the contents of the response to be
            <Response>
-               <Extentions>
+               <Extensions>
                    <ForgedAssertion><?ForgedAssertion>
                <LegitimateAssertion>
                    <LegitimateAssertionSignature></LegitimateAssertionSignature>
@@ -1654,16 +1644,16 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         */
         final Element response = (Element) legitimateDocument.
                 getElementsByTagNameNS(SAML20P_NS, "Response").item(0);
-        final Element extentions = legitimateDocument.createElement("Extensions");
+        final Element extensions = legitimateDocument.createElement("Extensions");
         final Element assertion = (Element) legitimateDocument.
                 getElementsByTagNameNS(SAML20_NS, "Assertion").item(0);
-        response.insertBefore(extentions, assertion);
+        response.insertBefore(extensions, assertion);
         final Element forgedAssertion = (Element) assertion.cloneNode(true);
         forgedAssertion.setAttribute("ID", "_forged_assertion_id");
         final Element forgedSignature = (Element) forgedAssertion.
                 getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature").item(0);
         forgedAssertion.removeChild(forgedSignature);
-        extentions.appendChild(forgedAssertion);
+        extensions.appendChild(forgedAssertion);
         final SamlToken forgedToken = token(SamlUtils.toString((legitimateDocument.getDocumentElement())));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(forgedToken));
         assertThat(exception.getMessage(), containsString("Failed to parse SAML"));

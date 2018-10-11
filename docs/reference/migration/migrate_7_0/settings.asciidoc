@@ -1,18 +1,21 @@
+[float]
 [[breaking_70_settings_changes]]
-
 === Settings changes
 
+[float]
 ==== The default for `node.name` is now the hostname
 
 `node.name` now defaults to the hostname at the time when Elasticsearch
 is started. Previously the default node name was the first eight characters
 of the node id. It can still be configured explicitly in `elasticsearch.yml`.
 
+[float]
 ==== Percolator
 
 * The deprecated `index.percolator.map_unmapped_fields_as_string` setting has been removed in favour of
   the `index.percolator.map_unmapped_fields_as_text` setting.
 
+[float]
 ==== Index thread pool
 
 * Internally, single-document index/delete/update requests are executed as bulk
@@ -21,6 +24,7 @@ of the node id. It can still be configured explicitly in `elasticsearch.yml`.
   longer needed and has been removed. As such, the  settings
   `thread_pool.index.size` and `thread_pool.index.queue_size` have been removed.
 
+[float]
 [[write-thread-pool-fallback]]
 ==== Write thread pool fallback
 
@@ -32,6 +36,7 @@ of the node id. It can still be configured explicitly in `elasticsearch.yml`.
   available to keep the display output in APIs as `bulk` instead of `write`.
   These fallback settings and this system property have been removed.
 
+[float]
 [[remove-http-enabled]]
 ==== Http enabled setting removed
 
@@ -39,6 +44,7 @@ of the node id. It can still be configured explicitly in `elasticsearch.yml`.
 use of the transport client. This setting has been removed, as the transport client
 will be removed in the future, thus requiring HTTP to always be enabled.
 
+[float]
 [[remove-http-pipelining-setting]]
 ==== Http pipelining setting removed
 
@@ -47,6 +53,7 @@ This setting has been removed, as disabling http pipelining support on the serve
 provided little value. The setting `http.pipelining.max_events` can still be used to
 limit the number of pipelined requests in-flight.
 
+[float]
 ==== Cross-cluster search settings renamed
 
 The cross-cluster search remote cluster connection infrastructure is also used

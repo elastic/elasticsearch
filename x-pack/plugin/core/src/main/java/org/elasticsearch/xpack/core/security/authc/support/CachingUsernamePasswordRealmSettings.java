@@ -30,17 +30,21 @@ public final class CachingUsernamePasswordRealmSettings {
     public static final Function<String, Setting.AffixSetting<Integer>> CACHE_MAX_USERS_SETTING = RealmSettings.affixSetting(
             CACHE_MAX_USERS_SUFFIX, key -> Setting.intSetting(key, DEFAULT_MAX_USERS, Setting.Property.NodeScope));
 
+    public static final Function<String, Setting.AffixSetting<Boolean>> AUTHC_ENABLED_SETTING = RealmSettings.affixSetting(
+        "authentication.enabled", key -> Setting.boolSetting(key, true, Setting.Property.NodeScope));
+
     private CachingUsernamePasswordRealmSettings() {
     }
 
     /**
      * Returns the {@link Setting setting configuration} that is common for all caching realms
      */
-    public static Set<Setting.AffixSetting<?>> getCachingSettings(String type) {
+    public static Set<Setting.AffixSetting<?>> getSettings(String type) {
         return new HashSet<>(Arrays.asList(
                 CACHE_HASH_ALGO_SETTING.apply(type),
                 CACHE_TTL_SETTING.apply(type),
-                CACHE_MAX_USERS_SETTING.apply(type)
+                CACHE_MAX_USERS_SETTING.apply(type),
+                AUTHC_ENABLED_SETTING.apply(type)
         ));
     }
 }

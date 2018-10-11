@@ -39,11 +39,11 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -142,7 +142,6 @@ public class StoreRecoveryTests extends ESTestCase {
         } else {
             indexSort = null;
         }
-        int id = 0;
         IndexWriterConfig iwc = newIndexWriterConfig()
             .setMergePolicy(NoMergePolicy.INSTANCE)
             .setOpenMode(IndexWriterConfig.OpenMode.CREATE);

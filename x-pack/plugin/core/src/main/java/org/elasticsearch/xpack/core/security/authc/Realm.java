@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
@@ -25,13 +26,12 @@ import java.util.Map;
  */
 public abstract class Realm implements Comparable<Realm> {
 
-    protected final Logger logger;
+    protected final Logger logger = LogManager.getLogger(getClass());
 
     protected RealmConfig config;
 
     public Realm(RealmConfig config) {
         this.config = config;
-        this.logger = config.logger(getClass());
     }
 
     /**

@@ -307,7 +307,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new FIPS140LicenseBootstrapCheck()));
             checks.addAll(InternalRealms.getBootstrapChecks(settings, env));
             this.bootstrapChecks = Collections.unmodifiableList(checks);
-            Automatons.updateMaxDeterminizedStates(settings);
+            Automatons.updateConfiguration(settings);
         } else {
             this.bootstrapChecks = Collections.emptyList();
         }
@@ -609,7 +609,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         ReservedRealm.addSettings(settingsList);
         AuthenticationService.addSettings(settingsList);
         AuthorizationService.addSettings(settingsList);
-        settingsList.add(Automatons.MAX_DETERMINIZED_STATES_SETTING);
+        Automatons.addSettings(settingsList);
         settingsList.add(CompositeRolesStore.CACHE_SIZE_SETTING);
         settingsList.add(FieldPermissionsCache.CACHE_SIZE_SETTING);
         settingsList.add(TokenService.TOKEN_EXPIRATION);
@@ -657,7 +657,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             assert getLicenseState() != null;
             if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
                 module.setSearcherWrapper(indexService ->
-                        new SecurityIndexSearcherWrapper(indexService.getIndexSettings(),
+                        new SecurityIndexSearcherWrapper(
                                 shardId -> indexService.newQueryShardContext(shardId.id(),
                                 // we pass a null index reader, which is legal and will disable rewrite optimizations
                                 // based on index statistics, which is probably safer...

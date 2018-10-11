@@ -132,7 +132,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                     // is cleared of the failed authentication
                     cache.invalidate(token.principal(), listenableCacheEntry);
                     authenticateWithCache(token, listener);
-                }), threadPool.executor(ThreadPool.Names.GENERIC));
+                }), threadPool.executor(ThreadPool.Names.GENERIC), threadPool.getThreadContext());
             } else {
                 // attempt authentication against the authentication source
                 doAuthenticate(token, ActionListener.wrap(authResult -> {
@@ -234,7 +234,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                 } else {
                     listener.onResponse(null);
                 }
-            }, listener::onFailure), threadPool.executor(ThreadPool.Names.GENERIC));
+            }, listener::onFailure), threadPool.executor(ThreadPool.Names.GENERIC), threadPool.getThreadContext());
         } catch (final ExecutionException e) {
             listener.onFailure(e);
         }

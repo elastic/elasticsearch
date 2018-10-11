@@ -16,16 +16,16 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
@@ -394,15 +394,22 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             return true;
         }
 
+        if (e instanceof ClusterBlockException) {
+            ClusterBlockException blockException = (ClusterBlockException) e;
+            if (blockException.blocks().contains(MetaDataIndexStateService.INDEX_CLOSED_BLOCK)) {
+                return false;
+            } else {
+                return true;
+            }
+        }
+
         final Throwable actual = ExceptionsHelper.unwrapCause(e);
         return actual instanceof ShardNotFoundException ||
             actual instanceof IllegalIndexShardStateException ||
             actual instanceof NoShardAvailableActionException ||
             actual instanceof UnavailableShardsException ||
             actual instanceof AlreadyClosedException ||
-            actual instanceof ElasticsearchSecurityException || // If user does not have sufficient privileges
-            actual instanceof ClusterBlockException || // If leader index is closed or no elected master
-            actual instanceof IndexClosedException; // If follow index is closed
+            actual instanceof ElasticsearchSecurityException; // If user does not have sufficient privileges
     }
 
     // These methods are protected for testing purposes:

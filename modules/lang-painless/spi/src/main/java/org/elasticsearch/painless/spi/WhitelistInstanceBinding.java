@@ -23,21 +23,17 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A class binding represents a method call that stores state. Each class binding's Java class must
- * have exactly one public constructor and one public method excluding those inherited directly
- * from {@link Object}. The canonical type name parameters provided must match those of the
- * constructor and method combined. The constructor for a class binding's Java class will be called
- * when the binding method is called for the first time at which point state may be stored for the
- * arguments passed into the constructor. The method for a binding class will be called each time
- * the binding method is called and may use the previously stored state.
+ * An instance binding represents a method call that stores state. Each instance binding must provide
+ * exactly one public method name. The canonical type name parameters provided must match those of the
+ * method. The method for an instance binding will target the specified Java instance.
  */
-public class WhitelistClassBinding {
+public class WhitelistInstanceBinding {
 
     /** Information about where this constructor was whitelisted from. */
     public final String origin;
 
-    /** The Java class name this class binding targets. */
-    public final String targetJavaClassName;
+    /** The Java instance this instance binding targets. */
+    public final Object targetInstance;
 
     /** The method name for this class binding. */
     public final String methodName;
@@ -52,11 +48,11 @@ public class WhitelistClassBinding {
     public final List<String> canonicalTypeNameParameters;
 
     /** Standard constructor. All values must be not {@code null}. */
-    public WhitelistClassBinding(String origin, String targetJavaClassName,
+    public WhitelistInstanceBinding(String origin, Object targetInstance,
             String methodName, String returnCanonicalTypeName, List<String> canonicalTypeNameParameters) {
 
         this.origin = Objects.requireNonNull(origin);
-        this.targetJavaClassName = Objects.requireNonNull(targetJavaClassName);
+        this.targetInstance = Objects.requireNonNull(targetInstance);
 
         this.methodName = Objects.requireNonNull(methodName);
         this.returnCanonicalTypeName = Objects.requireNonNull(returnCanonicalTypeName);

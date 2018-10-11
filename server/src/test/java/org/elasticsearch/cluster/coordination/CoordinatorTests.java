@@ -49,6 +49,8 @@ import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -636,7 +638,7 @@ public class CoordinatorTests extends ESTestCase {
                     // - reboot a node
                     // - abdicate leadership
 
-                } catch (CoordinationStateRejectedException ignored) {
+                } catch (CoordinationStateRejectedException | UncheckedIOException ignored) {
                     // This is ok: it just means a message couldn't currently be handled.
                 }
 
@@ -832,7 +834,12 @@ public class CoordinatorTests extends ESTestCase {
 
             private void possiblyFail(String description) {
                 if (disruptStorage && rarely()) {
-                    throw new CoordinationStateRejectedException("simulated IO exception [" + description + ']');
+                    // TODO revisit this when we've decided how PersistedState should throw exceptions
+                    if (randomBoolean()) {
+                        throw new UncheckedIOException(new IOException("simulated IO exception [" + description + ']'));
+                    } else {
+                        throw new CoordinationStateRejectedException("simulated IO exception [" + description + ']');
+                    }
                 }
             }
 

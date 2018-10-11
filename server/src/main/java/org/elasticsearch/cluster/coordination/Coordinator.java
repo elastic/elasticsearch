@@ -63,7 +63,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -103,7 +102,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private Releasable prevotingRound;
     @Nullable
     private Releasable leaderCheckScheduler;
-    private AtomicLong maxTermSeen = new AtomicLong();
+    private long maxTermSeen;
 
     private Mode mode;
     private Optional<DiscoveryNode> lastKnownLeader;
@@ -259,19 +258,25 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     private void updateMaxTermSeen(final long term) {
-        final long updatedMaxTermSeen = maxTermSeen.updateAndGet(oldMaxTerm -> Math.max(oldMaxTerm, term));
         synchronized (mutex) {
-            if (mode == Mode.LEADER && publicationInProgress() == false && updatedMaxTermSeen > getCurrentTerm()) {
+            maxTermSeen = Math.max(maxTermSeen, term);
+            final long currentTerm = getCurrentTerm();
+            if (mode == Mode.LEADER && maxTermSeen > currentTerm) {
                 // Bump our term. However if there is a publication in flight then doing so would cancel the publication, so don't do that
                 // since we check whether a term bump is needed at the end of the publication too.
-                try {
-                    ensureTermAtLeast(getLocalNode(), updatedMaxTermSeen);
-                } catch (Exception e) {
-                    logger.debug("failed to bump term", e);
-                    becomeCandidate("updateMaxTermSeen");
-                    return;
+                if (publicationInProgress()) {
+                    logger.debug("updateMaxTermSeen: maxTermSeen = {} > currentTerm = {}, enqueueing term bump",
+                        maxTermSeen, currentTerm);
+                } else {
+                    try {
+                        ensureTermAtLeast(getLocalNode(), maxTermSeen);
+                    } catch (Exception e) {
+                        logger.debug("failed to bump term", e);
+                        becomeCandidate("updateMaxTermSeen");
+                        return;
+                    }
+                    startElection();
                 }
-                startElection();
             }
         }
     }
@@ -282,7 +287,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             // to check our mode again here.
             if (mode == Mode.CANDIDATE) {
                 final StartJoinRequest startJoinRequest
-                    = new StartJoinRequest(getLocalNode(), Math.max(getCurrentTerm(), maxTermSeen.get()) + 1);
+                    = new StartJoinRequest(getLocalNode(), Math.max(getCurrentTerm(), maxTermSeen) + 1);
                 logger.debug("starting election with {}", startJoinRequest);
                 getDiscoveredNodes().forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
             }

@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_BACK_OFF_TIME_SETTING;
+import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_DURATION_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_MAX_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.toPositiveLongAtMost;
@@ -48,7 +49,7 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
 
     private void assertElectionSchedule(final DeterministicTaskQueue deterministicTaskQueue,
                                         final ElectionSchedulerFactory electionSchedulerFactory,
-                                        final long initialTimeout, final long backOffTime, final long maxTimeout) {
+                                        final long initialTimeout, final long backOffTime, final long maxTimeout, final long duration) {
 
         final TimeValue initialGracePeriod = randomGracePeriod();
         final AtomicBoolean electionStarted = new AtomicBoolean();
@@ -56,7 +57,7 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
         try (Releasable ignored = electionSchedulerFactory.startElectionScheduler(initialGracePeriod,
             () -> assertTrue(electionStarted.compareAndSet(false, true)))) {
 
-            long lastElectionTime = deterministicTaskQueue.getCurrentTimeMillis();
+            long lastElectionFinishTime = deterministicTaskQueue.getCurrentTimeMillis();
             int electionCount = 0;
 
             while (true) {
@@ -70,10 +71,10 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
                 }
                 assertTrue(electionStarted.compareAndSet(true, false));
 
-                final long thisElectionTime = deterministicTaskQueue.getCurrentTimeMillis();
+                final long thisElectionStartTime = deterministicTaskQueue.getCurrentTimeMillis();
 
                 if (electionCount == 1) {
-                    final long electionDelay = thisElectionTime - lastElectionTime;
+                    final long electionDelay = thisElectionStartTime - lastElectionFinishTime;
 
                     // Check grace period
                     assertThat(electionDelay, greaterThanOrEqualTo(initialGracePeriod.millis()));
@@ -84,7 +85,7 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
 
                 } else {
 
-                    final long electionDelay = thisElectionTime - lastElectionTime;
+                    final long electionDelay = thisElectionStartTime - lastElectionFinishTime;
 
                     // Check upper bound
                     assertThat(electionDelay, lessThanOrEqualTo(initialTimeout + backOffTime * (electionCount - 1)));
@@ -98,7 +99,7 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
                     }
                 }
 
-                lastElectionTime = thisElectionTime;
+                lastElectionFinishTime = thisElectionStartTime + duration;
             }
         }
         deterministicTaskQueue.runAllTasks();
@@ -125,19 +126,28 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
                 randomLongBetween(Math.max(200, initialTimeoutMillis), 180000) + "ms");
         }
 
+        final long electionDurationMillis;
+        if (randomBoolean()) {
+            electionDurationMillis = randomLongBetween(1, 300000);
+            settingsBuilder.put(ELECTION_DURATION_SETTING.getKey(), electionDurationMillis + "ms");
+        } else {
+            electionDurationMillis = ELECTION_DURATION_SETTING.get(Settings.EMPTY).millis();
+        }
+
         final Settings settings = settingsBuilder.put(NODE_NAME_SETTING.getKey(), "node").build();
         final long initialTimeout = ELECTION_INITIAL_TIMEOUT_SETTING.get(settings).millis();
         final long backOffTime = ELECTION_BACK_OFF_TIME_SETTING.get(settings).millis();
         final long maxTimeout = ELECTION_MAX_TIMEOUT_SETTING.get(settings).millis();
+        final long duration = ELECTION_DURATION_SETTING.get(settings).millis();
 
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
         final ElectionSchedulerFactory electionSchedulerFactory
             = new ElectionSchedulerFactory(settings, random(), deterministicTaskQueue.getThreadPool());
 
-        assertElectionSchedule(deterministicTaskQueue, electionSchedulerFactory, initialTimeout, backOffTime, maxTimeout);
+        assertElectionSchedule(deterministicTaskQueue, electionSchedulerFactory, initialTimeout, backOffTime, maxTimeout, duration);
 
         // do it again to show that the max is reset when the scheduler is restarted
-        assertElectionSchedule(deterministicTaskQueue, electionSchedulerFactory, initialTimeout, backOffTime, maxTimeout);
+        assertElectionSchedule(deterministicTaskQueue, electionSchedulerFactory, initialTimeout, backOffTime, maxTimeout, duration);
     }
 
     public void testSettingsValidation() {

@@ -838,14 +838,16 @@ public class CoordinatorTests extends ESTestCase {
 
             @Override
             public void setCurrentTerm(long currentTerm) {
-                possiblyFail("writing term of " + currentTerm);
+                possiblyFail("before writing term of " + currentTerm);
                 super.setCurrentTerm(currentTerm);
+                possiblyFail("after writing term of " + currentTerm);
             }
 
             @Override
             public void setLastAcceptedState(ClusterState clusterState) {
-                possiblyFail("writing last-accepted state of term=" + clusterState.term() + ", version=" + clusterState.version());
+                possiblyFail("before writing last-accepted state of term=" + clusterState.term() + ", version=" + clusterState.version());
                 super.setLastAcceptedState(clusterState);
+                possiblyFail("after writing last-accepted state of term=" + clusterState.term() + ", version=" + clusterState.version());
             }
         }
 

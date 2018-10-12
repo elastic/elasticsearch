@@ -1050,6 +1050,14 @@ public final class PainlessLookupBuilder {
         }
 
         String targetCanonicalClassName = typeToCanonicalTypeName(targetClass);
+        Class<?> existingTargetClass = javaClassNamesToClasses.get(targetClass.getName());
+
+        if (existingTargetClass == null) {
+            javaClassNamesToClasses.put(targetClass.getName(), targetClass);
+        } else if (existingTargetClass != targetClass) {
+            throw new IllegalArgumentException("class [" + targetCanonicalClassName + "] " +
+                    "cannot represent multiple java classes with the same name from different class loaders");
+        }
 
         if (METHOD_NAME_PATTERN.matcher(methodName).matches() == false) {
             throw new IllegalArgumentException(

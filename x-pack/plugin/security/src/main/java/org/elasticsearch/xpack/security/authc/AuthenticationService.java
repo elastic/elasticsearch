@@ -138,6 +138,7 @@ public class AuthenticationService extends AbstractComponent {
         private RealmRef authenticatedBy = null;
         private RealmRef lookedupBy = null;
         private AuthenticationToken authenticationToken = null;
+        private AuthenticationResult authenticationResult = null;
 
         Authenticator(RestRequest request, ActionListener<Authentication> listener) {
             this(new AuditableRestRequest(auditTrail, failureHandler, threadContext, request), null, listener);
@@ -265,6 +266,7 @@ public class AuthenticationService extends AbstractComponent {
                             if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
                                 // user was authenticated, populate the authenticated by information
                                 authenticatedBy = new RealmRef(realm.name(), realm.type(), nodeName);
+                                authenticationResult = result;
                                 userListener.onResponse(result.getUser());
                             } else {
                                 // the user was not authenticated, call this so we can audit the correct event
@@ -358,6 +360,7 @@ public class AuthenticationService extends AbstractComponent {
                 });
                 listener.onFailure(request.authenticationFailed(authenticationToken));
             } else {
+                threadContext.putTransient(AuthenticationResult.THREAD_CONTEXT_KEY, authenticationResult);
                 if (runAsEnabled) {
                     final String runAsUsername = threadContext.getHeader(AuthenticationServiceField.RUN_AS_USER_HEADER);
                     if (runAsUsername != null && runAsUsername.isEmpty() == false) {

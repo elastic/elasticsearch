@@ -544,6 +544,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
     public void testMaxConcurrentWrites() {
         ShardFollowNodeTask task = createShardFollowTask(64, 1, 2, Integer.MAX_VALUE, Long.MAX_VALUE);
+        startTask(task, 256L, -1L);
         ShardChangesAction.Response response = generateShardChangesResponse(0, 256, 0L, 256L);
         // Also invokes coordinatesWrites()
         task.innerHandleReadResponse(0L, 64L, response);
@@ -556,6 +557,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(status.numberOfConcurrentWrites(), equalTo(2));
 
         task = createShardFollowTask(64, 1, 4, Integer.MAX_VALUE, Long.MAX_VALUE);
+        startTask(task, 256L, -1L);
         response = generateShardChangesResponse(0, 256, 0L, 256L);
         // Also invokes coordinatesWrites()
         task.innerHandleReadResponse(0L, 64L, response);
@@ -572,6 +574,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
     public void testMaxBatchOperationCount() {
         ShardFollowNodeTask task = createShardFollowTask(8, 1, 32, Integer.MAX_VALUE, Long.MAX_VALUE);
+        startTask(task, 256L, -1L);
         ShardChangesAction.Response response = generateShardChangesResponse(0, 256, 0L, 256L);
         // Also invokes coordinatesWrites()
         task.innerHandleReadResponse(0L, 64L, response);
@@ -694,6 +697,35 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(ShardFollowNodeTask.computeDelay(7, maxDelayInMillis), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo(1000L)));
         assertThat(ShardFollowNodeTask.computeDelay(8, maxDelayInMillis), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo(1000L)));
         assertThat(ShardFollowNodeTask.computeDelay(1024, maxDelayInMillis), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo(1000L)));
+    }
+
+    public void testDelayWriteRequestIfGapInBuffer() {
+        ShardFollowNodeTask task = createShardFollowTask(10, 4, 2, between(1, 1000), Long.MAX_VALUE);
+        long lastWrittenSeqNo = randomLongBetween(-1L, 5L);
+        startTask(task, 5L, lastWrittenSeqNo);
+
+        task.innerHandleReadResponse(10, 19, generateShardChangesResponse(10, 19, 0, 256));
+        assertThat(bulkShardOperationRequests, hasSize(0));
+        assertThat(task.getLastWrittenSeqNo(), equalTo(lastWrittenSeqNo));
+
+        task.innerHandleReadResponse(30, 49, generateShardChangesResponse(30, 49, 0, 256));
+        assertThat(bulkShardOperationRequests, hasSize(0));
+        assertThat(task.getLastWrittenSeqNo(), equalTo(lastWrittenSeqNo));
+
+        followerGlobalCheckpoints.add(-1L);
+        followerGlobalCheckpoints.add(-1L);
+        task.innerHandleReadResponse(lastWrittenSeqNo + 1, 9, generateShardChangesResponse(lastWrittenSeqNo + 1, 9, 0, 256));
+        assertThat(bulkShardOperationRequests, hasSize(2));
+        assertThat(task.getLastWrittenSeqNo(), equalTo(19L));
+
+        followerGlobalCheckpoints.add(-1L);
+        task.innerHandleReadResponse(20, 24, generateShardChangesResponse(20, 24, 0, 256));
+        assertThat(task.getLastWrittenSeqNo(), equalTo(24L));
+
+        followerGlobalCheckpoints.add(-1L);
+        followerGlobalCheckpoints.add(-1L);
+        task.innerHandleReadResponse(25, 30, generateShardChangesResponse(25, 30, 0, 256));
+        assertThat(task.getLastWrittenSeqNo(), equalTo(49L));
     }
 
     private ShardFollowNodeTask createShardFollowTask(int maxBatchOperationCount,

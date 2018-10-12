@@ -26,3 +26,9 @@ has been removed. `missing_bucket` should be used instead.
 The object used to share aggregation state between the scripts in a Scripted Metric
 Aggregation is now a variable called `state` available in the script context, rather than
 being provided via the `params` object as `params._agg`.
+
+[float]
+==== Make metric aggregation script parameters `reduce_script` and `combine_script` mandatory
+
+The metric aggregation has been changed to require these two script parameters to ensure users are
+explicitly defining how their data is processed.

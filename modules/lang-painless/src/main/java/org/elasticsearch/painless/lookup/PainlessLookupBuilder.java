@@ -120,12 +120,15 @@ public final class PainlessLookupBuilder {
         return painlessLookupBuilder.build();
     }
 
-    // This is all the classes that need to be available to the custom classloader including classes
-    // used as part of imported methods and class bindings, but not necessarily whitelisted individually.
+    // javaClassNamesToClasses is all the classes that need to be available to the custom classloader
+    // including classes used as part of imported methods and class bindings but not necessarily whitelisted
+    // individually. The values of javaClassNamesToClasses are a superset of the values of
+    // canonicalClassNamesToClasses.
     private final Map<String, Class<?>> javaClassNamesToClasses;
-    // This is all the whitelisted classes available in a Painless script including classes with
-    // imported canonical names, but does not include classes from imported methods or class bindings
-    // unless also whitelisted separately.
+    // canonicalClassNamesToClasses is all the whitelisted classes available in a Painless script including
+    // classes with imported canonical names but does not include classes from imported methods or class
+    // bindings unless also whitelisted separately. The values of canonicalClassNamesToClasses are a subset
+    // of the values of javaClassNamesToClasses.
     private final Map<String, Class<?>> canonicalClassNamesToClasses;
     private final Map<Class<?>, PainlessClassBuilder> classesToPainlessClassBuilders;
 
@@ -982,6 +985,22 @@ public final class PainlessLookupBuilder {
 
         for (Map.Entry<Class<?>, PainlessClassBuilder> painlessClassBuilderEntry : classesToPainlessClassBuilders.entrySet()) {
             classesToPainlessClasses.put(painlessClassBuilderEntry.getKey(), painlessClassBuilderEntry.getValue().build());
+        }
+
+        if (javaClassNamesToClasses.values().containsAll(canonicalClassNamesToClasses.values()) == false) {
+            throw new IllegalArgumentException("the values of java class names to classes " +
+                    "must be a superset of the values of canonical class names to classes");
+        }
+
+        if (javaClassNamesToClasses.values().containsAll(classesToPainlessClasses.keySet()) == false) {
+            throw new IllegalArgumentException("the values of java class names to classes " +
+                    "must be a superset of the keys of classes to painless classes");
+        }
+
+        if (canonicalClassNamesToClasses.values().containsAll(classesToPainlessClasses.keySet()) == false ||
+                classesToPainlessClasses.keySet().containsAll(canonicalClassNamesToClasses.values()) == false) {
+            throw new IllegalArgumentException("the values of canonical class names to classes "  +
+                    "must have the same classes as the keys of classes to painless classes");
         }
 
         return new PainlessLookup(javaClassNamesToClasses, canonicalClassNamesToClasses, classesToPainlessClasses,

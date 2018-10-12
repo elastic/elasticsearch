@@ -82,7 +82,7 @@ subprojects {
      * dependencies but we don't really want them because they cause
      * all kinds of trouble with the jar hell checks. So we suppress
      * them explicitly for non-es projects. */
-    testCompile(xpackProject('qa:sql')) {
+    testCompile(xpackProject('plugin:sql:qa')) {
       transitive = false
     }
     testCompile "org.elasticsearch.test:framework:${version}"
@@ -124,5 +124,14 @@ subprojects {
       setting 'xpack.watcher.enabled', 'false'
       setting 'script.max_compilations_rate', '1000/1m'
     }
+  }
+
+  Task assemble = project.tasks.findByName('assemble')
+  if (assemble) {
+      assemble.enabled = false
+  }
+  Task dependenciesInfo = project.tasks.findByName('dependenciesInfo')
+  if (dependenciesInfo) {
+      dependenciesInfo.enabled = false
   }
 }

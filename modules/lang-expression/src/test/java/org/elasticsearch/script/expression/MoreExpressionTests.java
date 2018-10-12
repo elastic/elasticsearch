@@ -120,7 +120,8 @@ public class MoreExpressionTests extends ESIntegTestCase {
                 client().prepareIndex("test", "doc", "1").setSource("text", "hello goodbye"),
                 client().prepareIndex("test", "doc", "2").setSource("text", "hello hello hello goodbye"),
                 client().prepareIndex("test", "doc", "3").setSource("text", "hello hello goodebye"));
-        ScoreFunctionBuilder<?> score = ScoreFunctionBuilders.scriptFunction(new Script(ScriptType.INLINE, "expression", "1 / _score", Collections.emptyMap()));
+        ScoreFunctionBuilder<?> score = ScoreFunctionBuilders.scriptFunction(
+                new Script(ScriptType.INLINE, "expression", "1 / _score", Collections.emptyMap()));
         SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("text", "hello"), score).boostMode(CombineFunction.REPLACE));
         req.setSearchType(SearchType.DFS_QUERY_THEN_FETCH); // make sure DF is consistent
@@ -190,7 +191,10 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
 
     public void testMultiValueMethods() throws Exception {
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "double0", "type=double", "double1", "type=double", "double2", "type=double"));
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc",
+                "double0", "type=double",
+                "double1", "type=double",
+                "double2", "type=double"));
         ensureGreen("test");
 
         Map<String, Object> doc1 = new HashMap<>();

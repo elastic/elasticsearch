@@ -425,7 +425,8 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
     // TODO: document and/or error if params contains _score?
     // NOTE: by checking for the variable in params first, it allows masking document fields with a global constant,
     // but if we were to reverse it, we could provide a way to supply dynamic defaults for documents missing the field?
-    private static void bindFromParams(@Nullable final Map<String, Object> params, final SimpleBindings bindings, final String variable) throws ParseException {
+    private static void bindFromParams(@Nullable final Map<String, Object> params,
+            final SimpleBindings bindings, final String variable) throws ParseException {
         // NOTE: by checking for the variable in vars first, it allows masking document fields with a global constant,
         // but if we were to reverse it, we could provide a way to supply dynamic defaults for documents missing the field?
         Object value = params.get(variable);

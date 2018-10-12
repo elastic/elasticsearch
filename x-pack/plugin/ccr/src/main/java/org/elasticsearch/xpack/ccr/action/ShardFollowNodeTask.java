@@ -216,7 +216,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 }
                 Translog.Operation op = buffer.remove();
                 ops.add(op);
-                lastWrittenSeqNo = op.seqNo();
+                lastWrittenSeqNo = Math.max(lastWrittenSeqNo, op.seqNo());
                 sumEstimatedSize += op.estimateSize();
                 if (sumEstimatedSize > params.getMaxBatchSize().getBytes()) {
                     break;

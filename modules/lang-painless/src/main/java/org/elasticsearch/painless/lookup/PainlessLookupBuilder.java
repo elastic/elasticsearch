@@ -194,7 +194,7 @@ public final class PainlessLookupBuilder {
         Class<?> existingClass = javaClassNamesToClasses.get(clazz.getName());
 
         if (existingClass == null) {
-            javaClassNamesToClasses.put(clazz.getName(), existingClass);
+            javaClassNamesToClasses.put(clazz.getName(), clazz);
         } else if (existingClass != clazz) {
             throw new IllegalArgumentException("class [" + canonicalClassName + "] " +
                     "cannot represent multiple java classes with the same name from different class loaders");
@@ -699,7 +699,7 @@ public final class PainlessLookupBuilder {
         Class<?> existingTargetClass = javaClassNamesToClasses.get(targetClass.getName());
 
         if (existingTargetClass == null) {
-            javaClassNamesToClasses.put(targetClass.getName(), existingTargetClass);
+            javaClassNamesToClasses.put(targetClass.getName(), targetClass);
         } else if (existingTargetClass != targetClass) {
             throw new IllegalArgumentException("class [" + targetCanonicalClassName + "] " +
                     "cannot represent multiple java classes with the same name from different class loaders");
@@ -840,7 +840,7 @@ public final class PainlessLookupBuilder {
         Class<?> existingTargetClass = javaClassNamesToClasses.get(targetClass.getName());
 
         if (existingTargetClass == null) {
-            javaClassNamesToClasses.put(targetClass.getName(), existingTargetClass);
+            javaClassNamesToClasses.put(targetClass.getName(), targetClass);
         } else if (existingTargetClass != targetClass) {
             throw new IllegalArgumentException("class [" + targetCanonicalClassName + "] " +
                     "cannot represent multiple java classes with the same name from different class loaders");

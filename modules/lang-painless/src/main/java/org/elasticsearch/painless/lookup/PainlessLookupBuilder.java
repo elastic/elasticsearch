@@ -120,7 +120,12 @@ public final class PainlessLookupBuilder {
         return painlessLookupBuilder.build();
     }
 
+    // This is all the classes that need to be available to the custom classloader including classes
+    // used as part of imported methods and class bindings, but not necessarily whitelisted individually.
     private final Map<String, Class<?>> javaClassNamesToClasses;
+    // This is all the whitelisted classes available in a Painless script including classes with
+    // imported canonical names, but does not include classes from imported methods or class bindings
+    // unless also whitelisted separately.
     private final Map<String, Class<?>> canonicalClassNamesToClasses;
     private final Map<Class<?>, PainlessClassBuilder> classesToPainlessClassBuilders;
 

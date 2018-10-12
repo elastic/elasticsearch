@@ -19,27 +19,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
-import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
-import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
-import org.elasticsearch.xpack.ml.utils.ChainTaskExecutor;
-
-import java.util.Date;
 
 public class TransportFinalizeJobExecutionAction extends TransportMasterNodeAction<FinalizeJobExecutionAction.Request,
     AcknowledgedResponse> {
-
-    private final JobConfigProvider jobConfigProvider;
 
     @Inject
     public TransportFinalizeJobExecutionAction(Settings settings, TransportService transportService,
                                                ClusterService clusterService, ThreadPool threadPool,
                                                ActionFilters actionFilters,
-                                               IndexNameExpressionResolver indexNameExpressionResolver,
-                                               JobConfigProvider jobConfigProvider) {
+                                               IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, FinalizeJobExecutionAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, FinalizeJobExecutionAction.Request::new);
-        this.jobConfigProvider = jobConfigProvider;
     }
 
     @Override
@@ -55,28 +45,9 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
     @Override
     protected void masterOperation(FinalizeJobExecutionAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
-
-        String jobIdString = String.join(",", request.getJobIds());
-        logger.debug("finalizing jobs [{}]", jobIdString);
-
-        ChainTaskExecutor chainTaskExecutor = new ChainTaskExecutor(threadPool.executor(
-                MachineLearning.UTILITY_THREAD_POOL_NAME), false);
-
-        Date now = new Date();
-        for (String jobId : request.getJobIds()) {
-            JobUpdate finishedTimeUpdate = new JobUpdate.Builder(jobId).setFinishedTime(now).build();
-            chainTaskExecutor.add(updateListener -> {
-                jobConfigProvider.updateJob(jobId, finishedTimeUpdate, null, ActionListener.wrap(
-                        response -> updateListener.onResponse(null),
-                        updateListener::onFailure
-                ) );
-            });
-        }
-
-        chainTaskExecutor.execute(ActionListener.wrap(
-                response -> listener.onResponse(new AcknowledgedResponse(true)),
-                listener::onFailure
-        ));
+        // This action is no longer required but needs to be preserved
+        // in case it is called by an old node in a mixed cluster
+        listener.onResponse(new AcknowledgedResponse(true));
     }
 
     @Override

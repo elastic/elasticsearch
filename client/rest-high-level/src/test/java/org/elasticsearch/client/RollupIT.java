@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.client;
 
+import org.apache.http.entity.ContentType;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -63,6 +65,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
 public class RollupIT extends ESRestHighLevelClientTestCase {
@@ -143,8 +146,16 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         final RollupClient rollupClient = highLevelClient().rollup();
         PutRollupJobResponse response = execute(putRollupJobRequest, rollupClient::putRollupJob, rollupClient::putRollupJobAsync);
         DeleteRollupJobRequest deleteRollupJobRequest = new DeleteRollupJobRequest(id);
-        DeleteRollupJobResponse deleteRollupJobResponse = highLevelClient().rollup().deleteRollupJob(deleteRollupJobRequest, RequestOptions.DEFAULT);
+        DeleteRollupJobResponse deleteRollupJobResponse = highLevelClient().rollup()
+            .deleteRollupJob(deleteRollupJobRequest, RequestOptions.DEFAULT);
         assertTrue(deleteRollupJobResponse.isAcknowledged());
+    }
+
+    public void testDeleteMissingRollupJob() {
+        DeleteRollupJobRequest deleteRollupJobRequest = new DeleteRollupJobRequest(randomAlphaOfLength(10));
+        ElasticsearchStatusException responseException = expectThrows(ElasticsearchStatusException.class,() -> highLevelClient().rollup()
+            .deleteRollupJob(deleteRollupJobRequest, RequestOptions.DEFAULT));
+        assertThat(responseException.status().getStatus(), is(404));
     }
 
     @SuppressWarnings("unchecked")

@@ -2,8 +2,8 @@
 === Delete Rollup Job API
 
 The Delete Rollup Job API can be used to delete an existing Rollup job
-in the cluster. The API accepts a `PutRollupJobRequest` object
-as a request and returns a `PutRollupJobResponse`.
+in the cluster. The API accepts a `DeleteRollupJobRequest` object
+as a request and returns a `DeleteRollupJobResponse`.
 
 [[java-rest-high-x-pack-rollup-delete-rollup-job-request]]
 ==== Delete Rollup Job Request

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.client;
 
-import org.apache.http.entity.ContentType;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;

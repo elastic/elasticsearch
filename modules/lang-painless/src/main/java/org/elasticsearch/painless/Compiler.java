@@ -95,7 +95,7 @@ final class Compiler {
             if (found != null) {
                 return found;
             }
-            found = painlessLookup.canonicalTypeNameToType(name.replace('$', '.'));
+            found = painlessLookup.javaClassNameToClass(name);
 
             return found != null ? found : super.findClass(name);
         }

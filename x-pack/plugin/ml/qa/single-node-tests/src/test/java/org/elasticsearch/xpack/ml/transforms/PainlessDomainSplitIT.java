@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.utils.DomainSplitFunction;
 import org.joda.time.DateTime;
 
 import java.util.ArrayList;
@@ -190,8 +189,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
         Pattern pattern = Pattern.compile("domain_split\":\\[(.*?),(.*?)\\]");
 
-        Map<String, Object> params = new HashMap<>(DomainSplitFunction.params.size() + 1);
-        params.putAll(DomainSplitFunction.params);
+        Map<String, Object> params = new HashMap<>();
         for (TestConfiguration testConfig : tests) {
             params.put("host", testConfig.hostName);
             String mapAsJson = Strings.toString(jsonBuilder().map(params));
@@ -207,8 +205,8 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                     "        \"domain_split\" : {\n" +
                     "            \"script\" : {\n" +
                     "                \"lang\": \"painless\",\n" +
-                    "                \"inline\": \"" + DomainSplitFunction.function +
-                    " return domainSplit(params['host'], params); \",\n" +
+                    "                \"inline\": \"" +
+                    " return domainSplit(params['host']); \",\n" +
                     "                \"params\": " + mapAsJson + "\n" +
                     "            }\n" +
                     "        }\n" +

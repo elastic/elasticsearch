@@ -335,6 +335,5 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         } catch (Exception e) {
             // Swallow any exception, this test does not test actually cancelling.
         }
-
     }
 }

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.indices.breaker;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -316,7 +316,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         } else {
             CircuitBreaker oldBreaker;
             CircuitBreaker breaker = new ChildMemoryCircuitBreaker(breakerSettings,
-                    Loggers.getLogger(CHILD_LOGGER_PREFIX + breakerSettings.getName()),
+                    LogManager.getLogger(CHILD_LOGGER_PREFIX + breakerSettings.getName()),
                     this, breakerSettings.getName());
 
             for (;;) {
@@ -326,7 +326,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 }
                 breaker = new ChildMemoryCircuitBreaker(breakerSettings,
                         (ChildMemoryCircuitBreaker)oldBreaker,
-                        Loggers.getLogger(CHILD_LOGGER_PREFIX + breakerSettings.getName()),
+                        LogManager.getLogger(CHILD_LOGGER_PREFIX + breakerSettings.getName()),
                         this, breakerSettings.getName());
 
                 if (breakers.replace(breakerSettings.getName(), oldBreaker, breaker)) {

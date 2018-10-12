@@ -20,6 +20,7 @@ package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -132,7 +133,7 @@ public class SettingsFilterTests extends ESTestCase {
 
     private void assertExpectedLogMessages(Consumer<Logger> consumer,
                                            MockLogAppender.LoggingExpectation ... expectations) throws IllegalAccessException {
-        Logger testLogger = Loggers.getLogger("org.elasticsearch.test");
+        Logger testLogger = LogManager.getLogger("org.elasticsearch.test");
         MockLogAppender appender = new MockLogAppender();
         Loggers.addAppender(testLogger, appender);
         try {

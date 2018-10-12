@@ -22,7 +22,6 @@ package org.elasticsearch.test.test;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
@@ -48,8 +47,8 @@ public class LoggingListenerTests extends ESTestCase {
 
         Description suiteDescription = Description.createSuiteDescription(TestClass.class);
 
-        Logger xyzLogger = Loggers.getLogger("xyz");
-        Logger abcLogger = Loggers.getLogger("abc");
+        Logger xyzLogger = LogManager.getLogger("xyz");
+        Logger abcLogger = LogManager.getLogger("abc");
 
         final Level level = LogManager.getRootLogger().getLevel();
 
@@ -80,13 +79,13 @@ public class LoggingListenerTests extends ESTestCase {
 
         Description suiteDescription = Description.createSuiteDescription(AnnotatedTestClass.class);
 
-        Logger abcLogger = Loggers.getLogger("abc");
-        Logger xyzLogger = Loggers.getLogger("xyz");
+        Logger abcLogger = LogManager.getLogger("abc");
+        Logger xyzLogger = LogManager.getLogger("xyz");
         // we include foo and foo.bar to maintain that logging levels are applied from the top of the hierarchy down; this ensures that
         // setting the logging level for a parent logger and a child logger applies the parent level first and then the child as otherwise
         // setting the parent level would overwrite the child level
-        Logger fooLogger = Loggers.getLogger("foo");
-        Logger fooBarLogger = Loggers.getLogger("foo.bar");
+        Logger fooLogger = LogManager.getLogger("foo");
+        Logger fooBarLogger = LogManager.getLogger("foo.bar");
 
         final Level level = LogManager.getRootLogger().getLevel();
 
@@ -125,8 +124,8 @@ public class LoggingListenerTests extends ESTestCase {
 
         Description suiteDescription = Description.createSuiteDescription(AnnotatedTestClass.class);
 
-        Logger abcLogger = Loggers.getLogger("abc");
-        Logger xyzLogger = Loggers.getLogger("xyz");
+        Logger abcLogger = LogManager.getLogger("abc");
+        Logger xyzLogger = LogManager.getLogger("xyz");
 
         final Level level = LogManager.getRootLogger().getLevel();
 

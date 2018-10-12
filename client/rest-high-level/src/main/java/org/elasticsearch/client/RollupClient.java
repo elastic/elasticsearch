@@ -79,7 +79,7 @@ public class RollupClient {
     }
 
     /**
-     * delete a rollup job from the cluster
+     * Delete a rollup job from the cluster
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/rollup-delete-job.html">
      * the docs</a> for more.
      * @param request the request

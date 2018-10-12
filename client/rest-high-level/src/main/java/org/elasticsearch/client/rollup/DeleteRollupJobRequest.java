@@ -31,12 +31,12 @@ import java.util.Objects;
 
 public class DeleteRollupJobRequest implements Validatable, ToXContentObject {
 
+    private static final ParseField ID_FIELD = new ParseField("id");
     private final String id;
 
-    private static final ParseField ID_FIELD = new ParseField("id");
 
     public DeleteRollupJobRequest(String id) {
-        this.id = Objects.requireNonNull(id,"id parameter must not be null");
+        this.id = Objects.requireNonNull(id, "id parameter must not be null");
     }
 
     public String getId() {

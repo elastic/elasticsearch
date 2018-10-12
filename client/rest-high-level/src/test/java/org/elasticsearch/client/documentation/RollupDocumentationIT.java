@@ -328,7 +328,6 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         // tag::x-pack-rollup-delete-rollup-job-request
         DeleteRollupJobRequest request = new DeleteRollupJobRequest(id);
         // end::x-pack-rollup-delete-rollup-job-request
-
         try {
             // tag::x-pack-rollup-delete-rollup-job-execute
             client.rollup().deleteRollupJob(request, RequestOptions.DEFAULT); // <1>
@@ -336,7 +335,6 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         } catch (Exception e) {
             // Swallow any exception, this test does not test actually cancelling.
         }
-
 
     }
 }

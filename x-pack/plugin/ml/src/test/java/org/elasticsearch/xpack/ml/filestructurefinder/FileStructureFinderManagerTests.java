@@ -6,26 +6,50 @@
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
 import com.ibm.icu.text.CharsetMatch;
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.ml.filestructurefinder.FileStructureOverrides.EMPTY_OVERRIDES;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class FileStructureFinderManagerTests extends FileStructureTestCase {
 
-    private FileStructureFinderManager structureFinderManager = new FileStructureFinderManager();
+    private ScheduledExecutorService scheduler;
+    private FileStructureFinderManager structureFinderManager;
+
+    @Before
+    public void setup() {
+        scheduler = new ScheduledThreadPoolExecutor(1);
+        structureFinderManager = new FileStructureFinderManager(scheduler);
+    }
+
+    @After
+    public void shutdownScheduler() {
+        scheduler.shutdown();
+    }
 
     public void testFindCharsetGivenCharacterWidths() throws Exception {
 
         for (Charset charset : Arrays.asList(StandardCharsets.UTF_8, StandardCharsets.UTF_16LE, StandardCharsets.UTF_16BE)) {
             CharsetMatch charsetMatch = structureFinderManager.findCharset(explanation,
-                new ByteArrayInputStream(TEXT_SAMPLE.getBytes(charset)));
+                new ByteArrayInputStream(TEXT_SAMPLE.getBytes(charset)), NOOP_TIMEOUT_CHECKER);
             assertEquals(charset.name(), charsetMatch.getName());
         }
     }
@@ -41,7 +65,8 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
         }
 
         try {
-            CharsetMatch charsetMatch = structureFinderManager.findCharset(explanation, new ByteArrayInputStream(binaryBytes));
+            CharsetMatch charsetMatch = structureFinderManager.findCharset(explanation, new ByteArrayInputStream(binaryBytes),
+                NOOP_TIMEOUT_CHECKER);
             assertThat(charsetMatch.getName(), startsWith("UTF-16"));
         } catch (IllegalArgumentException e) {
             assertEquals("Could not determine a usable character encoding for the input - could it be binary data?", e.getMessage());
@@ -50,7 +75,7 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
 
     public void testMakeBestStructureGivenJson() throws Exception {
         assertThat(structureFinderManager.makeBestStructureFinder(explanation, JSON_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
-            EMPTY_OVERRIDES), instanceOf(JsonFileStructureFinder.class));
+            EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER), instanceOf(JsonFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenJsonAndDelimitedOverride() throws Exception {
@@ -61,12 +86,12 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
             .setFormat(FileStructure.Format.DELIMITED).setQuote('\'').build();
 
         assertThat(structureFinderManager.makeBestStructureFinder(explanation, JSON_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
-            overrides), instanceOf(DelimitedFileStructureFinder.class));
+            overrides, NOOP_TIMEOUT_CHECKER), instanceOf(DelimitedFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenXml() throws Exception {
         assertThat(structureFinderManager.makeBestStructureFinder(explanation, XML_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
-            EMPTY_OVERRIDES), instanceOf(XmlFileStructureFinder.class));
+            EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER), instanceOf(XmlFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenXmlAndTextOverride() throws Exception {
@@ -74,12 +99,12 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
         FileStructureOverrides overrides = FileStructureOverrides.builder().setFormat(FileStructure.Format.SEMI_STRUCTURED_TEXT).build();
 
         assertThat(structureFinderManager.makeBestStructureFinder(explanation, XML_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
-            overrides), instanceOf(TextLogFileStructureFinder.class));
+            overrides, NOOP_TIMEOUT_CHECKER), instanceOf(TextLogFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenCsv() throws Exception {
         assertThat(structureFinderManager.makeBestStructureFinder(explanation, CSV_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
-            EMPTY_OVERRIDES), instanceOf(DelimitedFileStructureFinder.class));
+            EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER), instanceOf(DelimitedFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenCsvAndJsonOverride() {
@@ -88,14 +113,14 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> structureFinderManager.makeBestStructureFinder(explanation, CSV_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
-                overrides));
+                overrides, NOOP_TIMEOUT_CHECKER));
 
         assertEquals("Input did not match the specified format [json]", e.getMessage());
     }
 
     public void testMakeBestStructureGivenText() throws Exception {
         assertThat(structureFinderManager.makeBestStructureFinder(explanation, TEXT_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
-            EMPTY_OVERRIDES), instanceOf(TextLogFileStructureFinder.class));
+            EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER), instanceOf(TextLogFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenTextAndDelimitedOverride() throws Exception {
@@ -105,6 +130,48 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
             .setFormat(FileStructure.Format.DELIMITED).setDelimiter(':').build();
 
         assertThat(structureFinderManager.makeBestStructureFinder(explanation, TEXT_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
-            overrides), instanceOf(DelimitedFileStructureFinder.class));
+            overrides, NOOP_TIMEOUT_CHECKER), instanceOf(DelimitedFileStructureFinder.class));
+    }
+
+    public void testFindFileStructureTimeout() throws IOException, InterruptedException {
+
+        // The number of lines might need increasing in the future if computers get really fast,
+        // but currently we're not even close to finding the structure of this much data in 10ms
+        int linesOfJunk = 10000;
+        TimeValue timeout = new TimeValue(10, TimeUnit.MILLISECONDS);
+
+        try (PipedOutputStream generator = new PipedOutputStream()) {
+
+            Thread junkProducer = new Thread(() -> {
+                try {
+                    // This is not just junk; this is comma separated junk
+                    for (int count = 0; count < linesOfJunk; ++count) {
+                        generator.write(randomAlphaOfLength(100).getBytes(StandardCharsets.UTF_8));
+                        generator.write(',');
+                        generator.write(randomAlphaOfLength(100).getBytes(StandardCharsets.UTF_8));
+                        generator.write(',');
+                        generator.write(randomAlphaOfLength(100).getBytes(StandardCharsets.UTF_8));
+                        generator.write('\n');
+                    }
+                } catch (IOException e) {
+                    // Expected if timeout occurs and the input stream is closed before junk generation is complete
+                }
+            });
+
+            try (InputStream bigInput = new PipedInputStream(generator)) {
+
+                junkProducer.start();
+
+                ElasticsearchTimeoutException e = expectThrows(ElasticsearchTimeoutException.class,
+                    () -> structureFinderManager.findFileStructure(explanation, linesOfJunk - 1, bigInput, EMPTY_OVERRIDES, timeout));
+
+                assertThat(e.getMessage(), startsWith("Aborting structure analysis during ["));
+                assertThat(e.getMessage(), endsWith("] as it has taken longer than the timeout of [" + timeout + "]"));
+            }
+
+            // This shouldn't take anything like 10 seconds, but VMs can stall so it's best to
+            // set the timeout fairly high to avoid the work that spurious failures cause
+            junkProducer.join(10000L);
+        }
     }
 }

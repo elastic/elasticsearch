@@ -691,13 +691,6 @@ public final class PainlessLookupBuilder {
                     "invalid imported method name [" + methodName + "] for target class [" + targetCanonicalClassName + "].");
         }
 
-        PainlessClassBuilder painlessClassBuilder = classesToPainlessClassBuilders.get(targetClass);
-
-        if (painlessClassBuilder == null) {
-            throw new IllegalArgumentException("target class [" + targetCanonicalClassName + "] not found for imported method " +
-                    "[[" + targetCanonicalClassName + "], [" + methodName + "], " + typesToCanonicalTypeNames(typeParameters) + "]");
-        }
-
         int typeParametersSize = typeParameters.size();
         List<Class<?>> javaTypeParameters = new ArrayList<>(typeParametersSize);
 

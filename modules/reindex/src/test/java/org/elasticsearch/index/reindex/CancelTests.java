@@ -122,7 +122,7 @@ public class CancelTests extends ReindexTestCase {
         logger.debug("waiting for updates to be blocked");
         boolean blocked = awaitBusy(
             () -> ALLOWED_OPERATIONS.hasQueuedThreads() && ALLOWED_OPERATIONS.availablePermits() == 0,
-            1, TimeUnit.MINUTES); // 10 seconds is usually fine but on heavilly loaded machines this can wake a while
+            1, TimeUnit.MINUTES); // 10 seconds is usually fine but on heavily loaded machines this can take a while
         assertTrue("updates blocked", blocked);
 
         // Status should show the task running

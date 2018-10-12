@@ -95,7 +95,8 @@ public class CustomFieldQuery extends FieldQuery {
         }
     }
 
-    private void convertMultiPhraseQuery(int currentPos, int[] termsIdx, MultiPhraseQuery orig, Term[][] terms, int[] pos, IndexReader reader, Collection<Query> flatQueries) throws IOException {
+    private void convertMultiPhraseQuery(int currentPos, int[] termsIdx, MultiPhraseQuery orig, Term[][] terms, int[] pos,
+            IndexReader reader, Collection<Query> flatQueries) throws IOException {
         if (currentPos == 0) {
             // if we have more than 16 terms
             int numTerms = 0;

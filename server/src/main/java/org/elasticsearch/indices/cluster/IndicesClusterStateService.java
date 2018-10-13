@@ -771,7 +771,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         IndexSettings getIndexSettings();
 
         /**
-         * Updates the metadata of this index. Changes become visible through {@link #getIndexSettings().
+         * Updates the metadata of this index. Changes become visible through {@link #getIndexSettings()}.
          *
          * @param currentIndexMetaData the current index metadata
          * @param newIndexMetaData the new index metadata

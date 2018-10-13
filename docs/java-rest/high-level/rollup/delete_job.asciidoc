@@ -1,67 +1,41 @@
-[[java-rest-high-x-pack-rollup-delete-job]]
+--
+:api: rollup-delete-job
+:request: DeleteRollupJobRequest
+:response: DeleteRollupJobResponse
+--
+
+[id="{upid}-{api}"]
 === Delete Rollup Job API
 
 The Delete Rollup Job API can be used to delete an existing Rollup job
 in the cluster. The API accepts a `DeleteRollupJobRequest` object
 as a request and returns a `DeleteRollupJobResponse`.
 
-[[java-rest-high-x-pack-rollup-delete-rollup-job-request]]
-==== Delete Rollup Job Request
 
-A `DeleteRollupJobRequest` requires the following argument:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-delete-rollup-job-request]
---------------------------------------------------
-
-[[java-rest-high-x-pack-rollup-delete-rollup-job-execution]]
+[id="{upid}-{api}-execution"]
 ==== Execution
 
 The Delete Rollup Job API can be executed through a `RollupClient`
 instance. Such instance can be retrieved from a `RestHighLevelClient`
-using the `rollup()` method:
+using the `rollup()` method.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-delete-rollup-job-execute]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
+<1> The ID of the job to delete.
 
-[[java-rest-high-x-pack-rollup-delete-rollup-job-execution-async]]
-==== Asynchronous Execution
-
-This request can be executed asynchronously:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-delete-rollup-job-execute-async]
---------------------------------------------------
-<1> The `DeleteRollupJobRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for `DeleteRollupJobResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-delete-rollup-job-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument
-<2> Called in case of failure. The raised exception is provided as an argument
-
-[[java-rest-high-x-pack-rollup-delete-rollup-job-response]]
+[id="{upid}-{api}-response"]
 ==== Response
 
-The returned `DeleteRollupJobResponse` indicates if the delete command was received:
+The returned +{response}+ indicates if the delete command was received.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-delete-rollup-job-execute-listener]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> `acknowledged` is a boolean indicating whether the delete command was received
+<1> Whether or not the delete job request was received.
+
+include::../execution.asciidoc[]
+
 

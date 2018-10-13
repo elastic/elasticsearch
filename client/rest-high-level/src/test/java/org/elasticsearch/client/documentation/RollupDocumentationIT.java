@@ -283,15 +283,29 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         });
     }
 
-    public void testDeleteRollupJobAsync() throws Exception {
+    public void testDeleteRollupJob() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         String id = "job_2";
-        // tag::x-pack-rollup-delete-rollup-job-request
-        DeleteRollupJobRequest request = new DeleteRollupJobRequest(id);
-        // end::x-pack-rollup-delete-rollup-job-request
 
-        // tag::x-pack-rollup-delete-rollup-job-execute-listener
+        // tag::rollup-delete-job-request
+        DeleteRollupJobRequest request = new DeleteRollupJobRequest(id); // <1>
+        // end::rollup-delete-job-request
+        try {
+            // tag::rollup-delete-job-execute
+            DeleteRollupJobResponse response = client.rollup().deleteRollupJob(request, RequestOptions.DEFAULT); // <1>
+            // end::rollup-delete-job-execute
+
+            // tag::rollup-delete-job-response
+            response.isAcknowledged(); // <1>
+            // end::rollup-delete-job-response
+        } catch (Exception e) {
+            // Swallow any exception, this test does not test actually cancelling.
+        }
+
+
+
+        // tag::rollup-delete-job-execute-listener
         ActionListener<DeleteRollupJobResponse> listener = new ActionListener<DeleteRollupJobResponse>() {
             @Override
             public void onResponse(DeleteRollupJobResponse response) {
@@ -303,37 +317,18 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
                 // <2>
             }
         };
-        // end::x-pack-rollup-delete-rollup-job-execute-listener
+        // end::rollup-delete-job-execute-listener
 
         // Replace the empty listener by a blocking listener in test
         final CountDownLatch latch = new CountDownLatch(1);
         listener = new LatchedActionListener<>(listener, latch);
 
-        // tag::x-pack-rollup-delete-rollup-job-execute
-        //client.rollup().deleteRollupJob(request, RequestOptions.DEFAULT); // <1>
-        // end::x-pack-rollup-delete-rollup-job-execute
-
-        // tag::x-pack-rollup-delete-rollup-job-execute-async
+        // tag::rollup-delete-job-execute-async
         client.rollup().deleteRollupJobAsync(request, RequestOptions.DEFAULT, listener); // <1>
-        // end::x-pack-rollup-delete-rollup-job-execute-async
+        // end::rollup-delete-job-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
 
     }
 
-    public void testDeleteRollupJob() throws Exception {
-        RestHighLevelClient client = highLevelClient();
-
-        String id = "job_2";
-        // tag::x-pack-rollup-delete-rollup-job-request
-        DeleteRollupJobRequest request = new DeleteRollupJobRequest(id);
-        // end::x-pack-rollup-delete-rollup-job-request
-        try {
-            // tag::x-pack-rollup-delete-rollup-job-execute
-            client.rollup().deleteRollupJob(request, RequestOptions.DEFAULT); // <1>
-            // end::x-pack-rollup-delete-rollup-job-execute
-        } catch (Exception e) {
-            // Swallow any exception, this test does not test actually cancelling.
-        }
-    }
 }

@@ -1,5 +1,5 @@
 ---
-"Internal version":
+"Compare And Swap Sequence Numbers":
 
  - skip:
       version: " - 6.99.99"
@@ -15,14 +15,13 @@
  - set: { _primary_term: $primary_term }
 
  - do:
-      catch:       conflict
+      catch:        conflict
       index:
           index:            test_1
           id:               1
           cas_seq_no:       10000
           cas_primary_term: $primary_term
           body:   { foo: bar2 }
- - catch: conflict
 
  - do:
       catch:       conflict

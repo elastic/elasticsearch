@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -51,6 +52,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
+import static org.elasticsearch.index.IndexSettings.same;
 
 /**
  * Service responsible for submitting update index settings requests
@@ -187,6 +189,14 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
                     }
                 }
 
+                // increment settings versions
+                for (final String index : actualIndices) {
+                    if (same(currentState.metaData().index(index).getSettings(), metaDataBuilder.get(index).getSettings()) == false) {
+                        final IndexMetaData.Builder builder = IndexMetaData.builder(metaDataBuilder.get(index));
+                        builder.settingsVersion(1 + builder.settingsVersion());
+                        metaDataBuilder.put(builder);
+                    }
+                }
 
                 ClusterState updatedState = ClusterState.builder(currentState).metaData(metaDataBuilder).routingTable(routingTableBuilder.build()).blocks(blocks).build();
 
@@ -220,9 +230,9 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
      */
     private static void maybeUpdateClusterBlock(String[] actualIndices, ClusterBlocks.Builder blocks, ClusterBlock block, Setting<Boolean> setting, Settings openSettings) {
         if (setting.exists(openSettings)) {
-            final boolean updateReadBlock = setting.get(openSettings);
+            final boolean updateBlock = setting.get(openSettings);
             for (String index : actualIndices) {
-                if (updateReadBlock) {
+                if (updateBlock) {
                     blocks.addIndexBlock(index, block);
                 } else {
                     blocks.removeIndexBlock(index, block);

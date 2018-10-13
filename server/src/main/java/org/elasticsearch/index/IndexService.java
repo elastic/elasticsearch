@@ -24,6 +24,8 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.Assertions;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -617,9 +619,27 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     @Override
-    public synchronized void updateMetaData(final IndexMetaData metadata) {
+    public synchronized void updateMetaData(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) {
         final Translog.Durability oldTranslogDurability = indexSettings.getTranslogDurability();
-        if (indexSettings.updateIndexMetaData(metadata)) {
+
+        final boolean updateIndexMetaData = indexSettings.updateIndexMetaData(newIndexMetaData);
+
+        if (Assertions.ENABLED
+                && currentIndexMetaData != null
+                && currentIndexMetaData.getCreationVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            final long currentSettingsVersion = currentIndexMetaData.getSettingsVersion();
+            final long newSettingsVersion = newIndexMetaData.getSettingsVersion();
+            if (currentSettingsVersion == newSettingsVersion) {
+                assert updateIndexMetaData == false;
+            } else {
+                assert updateIndexMetaData;
+                assert currentSettingsVersion < newSettingsVersion :
+                        "expected current settings version [" + currentSettingsVersion + "] "
+                                + "to be less than new settings version [" + newSettingsVersion + "]";
+            }
+        }
+
+        if (updateIndexMetaData) {
             for (final IndexShard shard : this.shards.values()) {
                 try {
                     shard.onSettingsChanged();

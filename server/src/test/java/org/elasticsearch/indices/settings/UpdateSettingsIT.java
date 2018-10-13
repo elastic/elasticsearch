@@ -20,7 +20,9 @@
 package org.elasticsearch.indices.settings;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Setting;
@@ -471,6 +473,109 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                 assertBlocked(client().admin().indices().prepareUpdateSettings("test").setSettings(builder));
             } finally {
                 disableIndexBlock("test", blockSetting);
+            }
+        }
+    }
+
+    public void testSettingsVersion() {
+        createIndex("test");
+        ensureGreen("test");
+
+        {
+            final long settingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.refresh_interval", "500ms"))
+                    .get());
+            final long newSettingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
+        }
+
+        {
+            final boolean block = randomBoolean();
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.blocks.read_only", block))
+                    .get());
+            final long settingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.blocks.read_only", block == false))
+                    .get());
+            final long newSettingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
+
+            // if the read-only block is present, remove it
+            if (block == false) {
+                assertAcked(client()
+                        .admin()
+                        .indices()
+                        .prepareUpdateSettings("test")
+                        .setSettings(Settings.builder().put("index.blocks.read_only", false))
+                        .get());
+            }
+        }
+    }
+
+    public void testSettingsVersionUnchanged() {
+        createIndex("test");
+        ensureGreen("test");
+
+        {
+            final long settingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            final String refreshInterval =
+                    client().admin().indices().prepareGetSettings("test").get().getSetting("test", "index.refresh_interval");
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.refresh_interval", refreshInterval))
+                    .get());
+            final long newSettingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertThat(newSettingsVersion, equalTo(settingsVersion));
+        }
+
+        {
+            final boolean block = randomBoolean();
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.blocks.read_only", block))
+                    .get());
+            // now put the same block again
+            final long settingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.blocks.read_only", block))
+                    .get());
+            final long newSettingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertThat(newSettingsVersion, equalTo(settingsVersion));
+
+            // if the read-only block is present, remove it
+            if (block) {
+                assertAcked(client()
+                        .admin()
+                        .indices()
+                        .prepareUpdateSettings("test")
+                        .setSettings(Settings.builder().put("index.blocks.read_only", false))
+                        .get());
             }
         }
     }

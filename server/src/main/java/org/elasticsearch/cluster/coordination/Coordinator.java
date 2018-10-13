@@ -597,10 +597,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 coordinationState.get().setInitialState(builder.build());
             } finally {
                 preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version
-                if (coordinationState.get().getLastAcceptedVersion() > 0 && electionScheduler == null) {
-                    // initial state application was successful
-                    startElectionScheduler();
-                }
+                startElectionScheduler();
             }
         }
     }

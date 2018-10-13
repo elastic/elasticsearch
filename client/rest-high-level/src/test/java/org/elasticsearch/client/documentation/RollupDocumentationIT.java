@@ -293,7 +293,7 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::rollup-delete-job-request
         try {
             // tag::rollup-delete-job-execute
-            DeleteRollupJobResponse response = client.rollup().deleteRollupJob(request, RequestOptions.DEFAULT); // <1>
+            DeleteRollupJobResponse response = client.rollup().deleteRollupJob(request, RequestOptions.DEFAULT);
             // end::rollup-delete-job-execute
 
             // tag::rollup-delete-job-response

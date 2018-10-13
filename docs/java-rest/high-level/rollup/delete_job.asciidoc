@@ -7,17 +7,11 @@
 [id="{upid}-{api}"]
 === Delete Rollup Job API
 
-The Delete Rollup Job API can be used to delete an existing Rollup job
-in the cluster. The API accepts a `DeleteRollupJobRequest` object
-as a request and returns a `DeleteRollupJobResponse`.
 
+[id="{upid}-{api}-request"]
+==== Request
 
-[id="{upid}-{api}-execution"]
-==== Execution
-
-The Delete Rollup Job API can be executed through a `RollupClient`
-instance. Such instance can be retrieved from a `RestHighLevelClient`
-using the `rollup()` method.
+The Delete Rollup Job API allows you to delete a job by ID.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

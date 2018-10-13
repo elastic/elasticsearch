@@ -268,13 +268,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     logger.debug("updateMaxTermSeen: maxTermSeen = {} > currentTerm = {}, enqueueing term bump",
                         maxTermSeen, currentTerm);
                 } else {
-                    try {
-                        ensureTermAtLeast(getLocalNode(), maxTermSeen);
-                    } catch (Exception e) {
-                        logger.debug("failed to bump term", e);
-                        becomeCandidate("updateMaxTermSeen");
-                        return;
-                    }
+                    ensureTermAtLeast(getLocalNode(), maxTermSeen);
                     startElection();
                 }
             }

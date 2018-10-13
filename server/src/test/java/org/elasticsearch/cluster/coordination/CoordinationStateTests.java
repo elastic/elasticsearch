@@ -809,7 +809,7 @@ public class CoordinationStateTests extends ESTestCase {
     public static long value(ClusterState clusterState) {
         return clusterState.metaData().persistentSettings().getAsLong("value", 0L);
     }
-
+    
     static class ClusterNode {
 
         final DiscoveryNode localNode;

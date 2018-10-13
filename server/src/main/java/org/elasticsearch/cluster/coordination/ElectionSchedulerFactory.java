@@ -48,6 +48,7 @@ public class ElectionSchedulerFactory extends AbstractComponent {
     private static final String ELECTION_INITIAL_TIMEOUT_SETTING_KEY = "cluster.election.initial_timeout";
     private static final String ELECTION_BACK_OFF_TIME_SETTING_KEY = "cluster.election.back_off_time";
     private static final String ELECTION_MAX_TIMEOUT_SETTING_KEY = "cluster.election.max_timeout";
+    private static final String ELECTION_DURATION_SETTING_KEY = "cluster.election.duration";
 
     /*
      * The first election is scheduled to occur a random number of milliseconds after the scheduler is started, where the random number of
@@ -59,6 +60,8 @@ public class ElectionSchedulerFactory extends AbstractComponent {
      * number of milliseconds is chosen uniformly from
      *
      *     (0, min(ELECTION_INITIAL_TIMEOUT_SETTING + (n-1) * ELECTION_BACK_OFF_TIME_SETTING, ELECTION_MAX_TIMEOUT_SETTING)]
+     *
+     * Each election lasts up to ELECTION_DURATION_SETTING.
      */
 
     public static final Setting<TimeValue> ELECTION_INITIAL_TIMEOUT_SETTING = Setting.timeSetting(ELECTION_INITIAL_TIMEOUT_SETTING_KEY,
@@ -70,9 +73,13 @@ public class ElectionSchedulerFactory extends AbstractComponent {
     public static final Setting<TimeValue> ELECTION_MAX_TIMEOUT_SETTING = Setting.timeSetting(ELECTION_MAX_TIMEOUT_SETTING_KEY,
         TimeValue.timeValueSeconds(10), TimeValue.timeValueMillis(200), TimeValue.timeValueSeconds(300), Property.NodeScope);
 
+    public static final Setting<TimeValue> ELECTION_DURATION_SETTING = Setting.timeSetting(ELECTION_DURATION_SETTING_KEY,
+        TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(1), TimeValue.timeValueSeconds(300), Property.NodeScope);
+
     private final TimeValue initialTimeout;
     private final TimeValue backoffTime;
     private final TimeValue maxTimeout;
+    private final TimeValue duration;
     private final ThreadPool threadPool;
     private final Random random;
 
@@ -85,6 +92,7 @@ public class ElectionSchedulerFactory extends AbstractComponent {
         initialTimeout = ELECTION_INITIAL_TIMEOUT_SETTING.get(settings);
         backoffTime = ELECTION_BACK_OFF_TIME_SETTING.get(settings);
         maxTimeout = ELECTION_MAX_TIMEOUT_SETTING.get(settings);
+        duration = ELECTION_DURATION_SETTING.get(settings);
 
         if (maxTimeout.millis() < initialTimeout.millis()) {
             throw new IllegalArgumentException(new ParameterizedMessage("[{}] is [{}], but must be at least [{}] which is [{}]",
@@ -154,15 +162,11 @@ public class ElectionSchedulerFactory extends AbstractComponent {
                 protected void doRun() {
                     if (isClosed.get()) {
                         logger.debug("{} not starting election", this);
-                        return;
+                    } else {
+                        logger.debug("{} starting election", this);
+                        scheduleNextElection(duration, scheduledRunnable);
+                        scheduledRunnable.run();
                     }
-                    logger.debug("{} starting election", this);
-                    scheduledRunnable.run();
-                }
-
-                @Override
-                public void onAfter() {
-                    scheduleNextElection(TimeValue.ZERO, scheduledRunnable);
                 }
 
                 @Override

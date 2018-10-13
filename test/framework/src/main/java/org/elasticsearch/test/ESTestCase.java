@@ -1104,17 +1104,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         return useNio ? MockNioTransportPlugin.class : MockTcpTransportPlugin.class;
     }
 
-    private static boolean useZen2;
-
-    @BeforeClass
-    public static void setUseZen2() throws Exception {
-        useZen2 = false; // TODO: change to randomBoolean() later
-    }
-
-    public static boolean getUseZen2() {
-        return useZen2;
-    }
-
     private static final GeohashGenerator geohashGenerator = new GeohashGenerator();
 
     public static class GeohashGenerator extends CodepointSetGenerator {

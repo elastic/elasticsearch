@@ -231,7 +231,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 return publishWithJoinResponse;
             } finally {
                 if (sourceNode.equals(getLocalNode()) || success == false) {
-                    preVoteCollector.update(getPreVoteResponse(), sourceNode);
+                    preVoteCollector.update(getPreVoteResponse(), getLocalNode());
                 } else {
                     becomeFollower("handlePublishRequest", sourceNode); // also updates preVoteCollector
                 }

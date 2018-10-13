@@ -331,17 +331,17 @@ public abstract class ESTestCase extends LuceneTestCase {
                     while (stopBootstrapThread.get() == false) {
                         final Discovery discovery = randomFrom(bootstrapRandom, zen2MasterNodes).injector().getInstance(Discovery.class);
                         assert discovery instanceof Coordinator;
-                        final Coordinator legislator = (Coordinator) discovery;
+                        final Coordinator coordinator = (Coordinator) discovery;
                         try {
-                            if (legislator.lifecycleState() == Lifecycle.State.STARTED) {
-                                legislator.setInitialConfiguration(initalConfiguration);
+                            if (coordinator.lifecycleState() == Lifecycle.State.STARTED) {
+                                coordinator.setInitialConfiguration(initalConfiguration);
                                 if (usually(bootstrapRandom)) {
                                     return;
                                 }
                             }
                         } catch (CoordinationStateRejectedException e) {
                             logger.trace(
-                                () -> new ParameterizedMessage("node [{}] rejected initial configuration", legislator.getLocalNode()), e);
+                                () -> new ParameterizedMessage("node [{}] rejected initial configuration", coordinator.getLocalNode()), e);
                         }
                         try {
                             Thread.sleep(100);

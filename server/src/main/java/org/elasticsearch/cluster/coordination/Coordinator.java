@@ -221,21 +221,17 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 throw new CoordinationStateRejectedException("no longer leading this publication's term: " + publishRequest);
             }
 
-            boolean success = false;
-            try {
-                ensureTermAtLeast(sourceNode, publishRequest.getAcceptedState().term());
-                final PublishWithJoinResponse publishWithJoinResponse
-                    = new PublishWithJoinResponse(coordinationState.get().handlePublishRequest(publishRequest),
-                    joinWithDestination(lastJoin, sourceNode, publishRequest.getAcceptedState().term()));
-                success = true;
-                return publishWithJoinResponse;
-            } finally {
-                if (sourceNode.equals(getLocalNode()) || success == false) {
-                    preVoteCollector.update(getPreVoteResponse(), getLocalNode());
-                } else {
-                    becomeFollower("handlePublishRequest", sourceNode); // also updates preVoteCollector
-                }
+            ensureTermAtLeast(sourceNode, publishRequest.getAcceptedState().term());
+            final PublishResponse publishResponse = coordinationState.get().handlePublishRequest(publishRequest);
+
+            if (sourceNode.equals(getLocalNode())) {
+                preVoteCollector.update(getPreVoteResponse(), getLocalNode());
+            } else {
+                becomeFollower("handlePublishRequest", sourceNode); // also updates preVoteCollector
             }
+
+            return new PublishWithJoinResponse(publishResponse,
+                joinWithDestination(lastJoin, sourceNode, publishRequest.getAcceptedState().term()));
         }
     }
 

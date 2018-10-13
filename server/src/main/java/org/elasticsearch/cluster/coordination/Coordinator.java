@@ -305,19 +305,16 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private Join joinLeaderInTerm(StartJoinRequest startJoinRequest) {
         synchronized (mutex) {
             logger.debug("joinLeaderInTerm: for [{}] with term {}", startJoinRequest.getSourceNode(), startJoinRequest.getTerm());
-            try {
-                final Join join = coordinationState.get().handleStartJoin(startJoinRequest);
-                lastJoin = Optional.of(join);
-                return join;
-            } finally {
-                peerFinder.setCurrentTerm(getCurrentTerm());
-                if (mode != Mode.CANDIDATE) {
-                    becomeCandidate("joinLeaderInTerm"); // updates followersChecker and preVoteCollector
-                } else {
-                    followersChecker.updateFastResponseState(getCurrentTerm(), mode);
-                    preVoteCollector.update(getPreVoteResponse(), null);
-                }
+            final Join join = coordinationState.get().handleStartJoin(startJoinRequest);
+            lastJoin = Optional.of(join);
+            peerFinder.setCurrentTerm(getCurrentTerm());
+            if (mode != Mode.CANDIDATE) {
+                becomeCandidate("joinLeaderInTerm"); // updates followersChecker and preVoteCollector
+            } else {
+                followersChecker.updateFastResponseState(getCurrentTerm(), mode);
+                preVoteCollector.update(getPreVoteResponse(), null);
             }
+            return join;
         }
     }
 
@@ -587,12 +584,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             final Builder builder = masterService.incrementVersion(currentState);
             builder.lastAcceptedConfiguration(votingConfiguration);
             builder.lastCommittedConfiguration(votingConfiguration);
-            try {
-                coordinationState.get().setInitialState(builder.build());
-            } finally {
-                preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version
-                startElectionScheduler();
-            }
+            coordinationState.get().setInitialState(builder.build());
+            preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version
+            startElectionScheduler();
         }
     }
 

@@ -29,7 +29,7 @@
           index:            test_1
           id:               1
           cas_seq_no:       $seqno
-          cas_primary_term: 1
+          cas_primary_term: 1000
           body:   { foo: bar2 }
 
  - do:

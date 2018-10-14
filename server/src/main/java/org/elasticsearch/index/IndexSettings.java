@@ -604,7 +604,7 @@ public final class IndexSettings {
             throw new IllegalArgumentException("uuid mismatch on settings update expected: " + getUUID() + " but was: " + newUUID);
         }
         this.indexMetaData = indexMetaData;
-        if (same(this.settings, newSettings)) {
+        if (same(this.indexMetaData.getSettings(), newSettings)) {
             // nothing to update, same settings
             return false;
         }

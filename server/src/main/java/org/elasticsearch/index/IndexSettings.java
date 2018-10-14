@@ -604,12 +604,13 @@ public final class IndexSettings {
             throw new IllegalArgumentException("uuid mismatch on settings update expected: " + getUUID() + " but was: " + newUUID);
         }
         this.indexMetaData = indexMetaData;
-        if (same(this.indexMetaData.getSettings(), newSettings)) {
+        final Settings newIndexSettings = Settings.builder().put(nodeSettings).put(newSettings).build();
+        if (same(this.settings, newIndexSettings)) {
             // nothing to update, same settings
             return false;
         }
         scopedSettings.applySettings(newSettings);
-        this.settings = Settings.builder().put(nodeSettings).put(newSettings).build();
+        this.settings = newIndexSettings;
         return true;
     }
 

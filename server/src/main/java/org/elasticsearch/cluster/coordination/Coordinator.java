@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
 import org.elasticsearch.cluster.coordination.JoinHelper.InitialJoinAccumulator;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -429,8 +430,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
-    // package-visible for testing
-    DiscoveryNode getLocalNode() {
+    // visible for testing
+    public DiscoveryNode getLocalNode() {
         return transportService.getLocalNode();
     }
 
@@ -578,6 +579,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             final Builder builder = masterService.incrementVersion(currentState);
             builder.lastAcceptedConfiguration(votingConfiguration);
             builder.lastCommittedConfiguration(votingConfiguration);
+            MetaData.Builder metaDataBuilder = MetaData.builder();
+            // automatically generate a UID for the metadata if we need to
+            metaDataBuilder.generateClusterUuidIfNeeded(); // TODO generate UUID in bootstrapping tool?
+            builder.metaData(metaDataBuilder);
             coordinationState.get().setInitialState(builder.build());
             preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version
             startElectionScheduler();

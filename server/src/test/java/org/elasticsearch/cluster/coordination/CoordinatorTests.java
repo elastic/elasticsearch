@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher.AckListener;
 import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
-import org.elasticsearch.cluster.coordination.CoordinationStateTests.InMemoryPersistedState;
 import org.elasticsearch.cluster.coordination.CoordinatorTests.Cluster.ClusterNode;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterApplier;

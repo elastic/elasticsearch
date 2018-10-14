@@ -142,6 +142,7 @@ import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_M
 import static org.elasticsearch.discovery.zen.FileBasedUnicastHostsProvider.UNICAST_HOSTS_FILE;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.awaitBusy;
+import static org.elasticsearch.test.ESTestCase.bootstrapNodes;
 import static org.elasticsearch.test.ESTestCase.getTestTransportType;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -509,6 +510,8 @@ public final class InternalTestCluster extends TestCluster {
         final int ord = nextNodeId.getAndIncrement();
         final Runnable onTransportServiceStarted = () -> {}; // do not create unicast host file for this one node.
         final NodeAndClient buildNode = buildNode(ord, random.nextLong(), null, false, 1, onTransportServiceStarted);
+        assert nodes.isEmpty();
+        bootstrapNodes(true, buildNode::startNode, Collections.singletonList(buildNode.node()), logger);
         buildNode.startNode();
         publishNode(buildNode);
         return buildNode;
@@ -1086,6 +1089,8 @@ public final class InternalTestCluster extends TestCluster {
             wipePendingDataDirectories();
         }
 
+        final int prevNodeCount = nodes.size();
+
         // start any missing node
         assert newSize == numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes;
         final int numberOfMasterNodes = numSharedDedicatedMasterNodes > 0 ? numSharedDedicatedMasterNodes : numSharedDataNodes;
@@ -1119,6 +1124,9 @@ public final class InternalTestCluster extends TestCluster {
                 onTransportServiceStarted);
             toStartAndPublish.add(nodeAndClient);
         }
+
+        bootstrapNodes(prevNodeCount == 0, () -> startAndPublishNodesAndClients(toStartAndPublish),
+            toStartAndPublish.stream().map(NodeAndClient::node).collect(Collectors.toList()), logger);
 
         startAndPublishNodesAndClients(toStartAndPublish);
 
@@ -1808,14 +1816,18 @@ public final class InternalTestCluster extends TestCluster {
             defaultMinMasterNodes = -1;
         }
         final List<NodeAndClient> nodes = new ArrayList<>();
+        final int prevMasterCount = getMasterNodesCount();
         for (Settings nodeSettings : settings) {
             nodes.add(buildNode(nodeSettings, defaultMinMasterNodes, () -> rebuildUnicastHostFiles(nodes)));
         }
-        startAndPublishNodesAndClients(nodes);
-        if (autoManageMinMasterNodes) {
-            validateClusterFormed();
-        }
-
+        bootstrapNodes(prevMasterCount == 0,
+            () -> {
+                startAndPublishNodesAndClients(nodes);
+                if (autoManageMinMasterNodes) {
+                    validateClusterFormed();
+                }
+            },
+            nodes.stream().map(NodeAndClient::node).collect(Collectors.toList()), logger);
         return nodes.stream().map(NodeAndClient::getName).collect(Collectors.toList());
     }
 

@@ -61,6 +61,14 @@
           "options" : ["internal", "external", "external_gte", "force"],
           "description" : "Specific version type"
         },
+        "cas_seq_no" : {
+          "type" : "number",
+          "description" : "only perform the index operation if the last operation to have changed the document has the specified sequence number"
+        },
+        "cas_primary_term" : {
+          "type" : "number",
+          "description" : "only perform the index operation if the last operation to have changed the document has the specified primary term"
+        },
         "pipeline" : {
           "type" : "string",
           "description" : "The pipeline id to preprocess incoming documents with"

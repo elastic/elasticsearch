@@ -17,6 +17,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
 
@@ -243,7 +244,7 @@ public final class DomainSplitFunction {
             return Arrays.asList("", host);
         }
         String normalizedHost = host;
-        normalizedHost = normalizedHost.toLowerCase();
+        normalizedHost = normalizedHost.toLowerCase(Locale.ROOT);
         List<String> parts = splitDomain(normalizedHost);
         int publicSuffixIndex = findPublicSuffix(parts);
         if (publicSuffixIndex == 0) {

@@ -11,8 +11,8 @@
           id:     1
           body:   { foo: bar }
  - match:   { _version: 1}
- - set: { _seq_no: $seqno }
- - set: { _primary_term: $primary_term }
+ - set: { _seq_no: seqno }
+ - set: { _primary_term: primary_term }
 
  - do:
       catch:        conflict

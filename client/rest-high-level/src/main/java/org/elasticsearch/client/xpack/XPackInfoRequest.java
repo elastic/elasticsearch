@@ -16,21 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack;
+package org.elasticsearch.client.xpack;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.client.Validatable;
 
-import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Locale;
 
 /**
  * Fetch information about X-Pack from the cluster.
  */
-public class XPackInfoRequest extends ActionRequest {
+public class XPackInfoRequest implements Validatable {
 
     public enum Category {
         BUILD, LICENSE, FEATURES;
@@ -72,28 +68,4 @@ public class XPackInfoRequest extends ActionRequest {
         return categories;
     }
 
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        this.verbose = in.readBoolean();
-        EnumSet<Category> categories = EnumSet.noneOf(Category.class);
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            categories.add(Category.valueOf(in.readString()));
-        }
-        this.categories = categories;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(verbose);
-        out.writeVInt(categories.size());
-        for (Category category : categories) {
-            out.writeString(category.name());
-        }
-    }
 }

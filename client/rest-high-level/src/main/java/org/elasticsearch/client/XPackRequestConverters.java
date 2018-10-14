@@ -20,8 +20,8 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.protocol.xpack.XPackInfoRequest;
-import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.client.xpack.XPackInfoRequest;
+import org.elasticsearch.client.xpack.XPackUsageRequest;
 
 import java.util.EnumSet;
 import java.util.Locale;

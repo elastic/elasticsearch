@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.protocol.xpack;
+package org.elasticsearch.client. xpack;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 

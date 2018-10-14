@@ -16,9 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.client.license;
 
-/**
- * Request and Response objects for the default distribution's License
- * APIs.
- */
-package org.elasticsearch.protocol.xpack.license;
+import org.elasticsearch.client.Validatable;
+
+
+public class GetLicenseRequest implements Validatable {
+
+    protected boolean local = false;
+
+    public GetLicenseRequest() {
+    }
+
+    public boolean isLocal() {
+        return local;
+    }
+
+    public void setLocal(boolean local) {
+        this.local = local;
+    }
+}

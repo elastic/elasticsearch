@@ -373,6 +373,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertMaxSeqNoOfUpdatesIsTransferred(resolveIndex("index1"), resolveIndex("index2"), numberOfShards);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/34412")
     public void testFollowIndexAndCloseNode() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
         String leaderIndexSettings = getIndexSettings(3, 1, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
@@ -693,6 +694,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertThat(client().prepareSearch("index2").get().getHits().getTotalHits(), equalTo(2L));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/34412")
     public void testFailOverOnFollower() throws Exception {
         int numberOfReplicas = between(1, 2);
         internalCluster().startMasterOnlyNode();

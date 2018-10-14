@@ -227,6 +227,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/34412")
     public void testRetryBulkShardOperations() throws Exception {
         try (ReplicationGroup leaderGroup = createGroup(between(0, 1));
              ReplicationGroup followerGroup = createFollowGroup(between(1, 3))) {

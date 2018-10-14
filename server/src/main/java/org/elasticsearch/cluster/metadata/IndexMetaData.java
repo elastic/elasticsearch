@@ -641,7 +641,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             } else {
                 mappingVersion = 1;
             }
-            if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
                 settingsVersion = in.readVLong();
             } else {
                 settingsVersion = 1;

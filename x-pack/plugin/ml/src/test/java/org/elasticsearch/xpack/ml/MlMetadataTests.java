@@ -124,7 +124,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
 
     public void testRemoveJob() {
         Job.Builder jobBuilder = buildJobBuilder("1");
-        jobBuilder.setDeleted(true);
+        jobBuilder.setDeleting(true);
         Job job1 = jobBuilder.build();
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(job1, false);
@@ -206,7 +206,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
     }
 
     public void testPutDatafeed_failBecauseJobIsBeingDeleted() {
-        Job job1 = createDatafeedJob().setDeleted(true).build(new Date());
+        Job job1 = createDatafeedJob().setDeleting(true).build(new Date());
         DatafeedConfig datafeedConfig1 = createDatafeedConfig("datafeed1", job1.getId()).build();
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(job1, false);

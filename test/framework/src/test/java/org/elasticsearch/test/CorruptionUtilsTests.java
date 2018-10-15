@@ -133,4 +133,49 @@ public class CorruptionUtilsTests extends IndexShardTestCase {
                 exception.getClass(), equalTo(IOException.class));
         }
     }
+
+    public void testLuceneFacesNegativeArraySize() throws Exception {
+        final IndexShard indexShard = newStartedShard(true);
+
+        // doesn't matter - we to generate segment file
+        final int numDocs = randomIntBetween(10, 20);
+        for (long i = 0; i < numDocs; i++) {
+            indexDoc(indexShard, "_doc", Long.toString(i), "{}");
+        }
+        indexShard.flush(new FlushRequest());
+        closeShards(indexShard);
+
+        final ShardPath shardPath = indexShard.shardPath();
+
+        final Path indexPath = shardPath.getDataPath().resolve(ShardPath.INDEX_FOLDER_NAME);
+
+        final Path segmentFile;
+        try (Stream<Path> paths = Files.walk(indexPath)) {
+            segmentFile = paths.filter(p -> p.getFileName().toString().startsWith("segments_")).findFirst()
+                .orElseThrow(() -> new IllegalStateException("segment file has to be there"));
+        }
+
+        try (FileChannel raf = FileChannel.open(segmentFile, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
+            // flipping a single byte at this position leads to reading numDVFields in SegmentInfos (while it was not there)
+            // after that the following data structure is handled as Map<Integer,Set<String>>
+            final int offset = 119;
+            corruptAt(segmentFile, raf, offset, (byte)1); // numDVFields = 1
+
+            for (int i = 0; i < 4; i++) {
+                // numDVFields use a compressed byte as integer (1 byte)
+                // size of Set is a  compressed byte as integer (1 byte)
+                // for the string size use all negatives
+                corruptAt(segmentFile, raf, 125 + i, (byte) -1);
+            }
+            // and the last one is 0x0F that results to length of string = -1
+            corruptAt(segmentFile, raf, 125 + 4, (byte) 0x0F);
+        }
+
+        try (Directory directory = new SimpleFSDirectory(indexPath)) {
+            expectThrows(NegativeArraySizeException.class,
+                "Lucene has fixed handling negative string sizes,"
+                    + " time to clean up Store#readSegmentsInfo",
+                () -> Lucene.readSegmentInfos(directory));
+        }
+    }
 }

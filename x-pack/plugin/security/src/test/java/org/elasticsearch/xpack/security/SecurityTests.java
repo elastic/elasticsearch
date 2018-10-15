@@ -65,6 +65,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_INDEX_FORMAT;
@@ -169,7 +170,8 @@ public class SecurityTests extends ESTestCase {
         Collection<Object> components = createComponents(settings);
         AuditTrailService service = findComponent(AuditTrailService.class, components);
         assertNotNull(service);
-        assertThat(service.getAuditTrails(), containsInAnyOrder(LoggingAuditTrail.NAME, DeprecatedLoggingAuditTrail.NAME));
+        assertThat(service.getAuditTrails().stream().map(x -> x.name()).collect(Collectors.toList()),
+                containsInAnyOrder(LoggingAuditTrail.NAME, DeprecatedLoggingAuditTrail.NAME));
     }
 
     public void testDisabledByDefault() throws Exception {
@@ -185,7 +187,8 @@ public class SecurityTests extends ESTestCase {
         Collection<Object> components = createComponents(settings);
         AuditTrailService service = findComponent(AuditTrailService.class, components);
         assertNotNull(service);
-        assertThat(service.getAuditTrails(), containsInAnyOrder(IndexAuditTrail.NAME));
+        assertThat(service.getAuditTrails().stream().map(x -> x.name()).collect(Collectors.toList()),
+                containsInAnyOrder(IndexAuditTrail.NAME));
     }
 
     public void testIndexAndLoggingAuditTrail() throws Exception {
@@ -195,7 +198,7 @@ public class SecurityTests extends ESTestCase {
         Collection<Object> components = createComponents(settings);
         AuditTrailService service = findComponent(AuditTrailService.class, components);
         assertNotNull(service);
-        assertThat(service.getAuditTrails(),
+        assertThat(service.getAuditTrails().stream().map(x -> x.name()).collect(Collectors.toList()),
                 containsInAnyOrder(LoggingAuditTrail.NAME, DeprecatedLoggingAuditTrail.NAME, IndexAuditTrail.NAME));
     }
 

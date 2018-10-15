@@ -454,8 +454,6 @@ public class ScrollDataExtractorTests extends ESTestCase {
         // Check for the scripts
         assertThat(searchRequest, containsString("{\"script\":{\"source\":\"return 1 + 1;\",\"lang\":\"mockscript\"}"
                 .replaceAll("\\s", "")));
-        assertThat(searchRequest, containsString("List domainSplit(String host, Map params)".replaceAll("\\s", "")));
-        assertThat(searchRequest, containsString("String replaceDots(String input) {".replaceAll("\\s", "")));
 
         assertThat(capturedContinueScrollIds.size(), equalTo(1));
         assertThat(capturedContinueScrollIds.get(0), equalTo(response1.getScrollId()));

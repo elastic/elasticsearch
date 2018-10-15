@@ -92,7 +92,7 @@ public class CorruptionUtilsTests extends IndexShardTestCase {
     public void testLuceneDetectsSegmentCorruptionDataAsIOException() throws Exception {
         final IndexShard indexShard = newStartedShard(true);
 
-        // doesn't matter - we to generate segment file
+        // doesn't matter - have to generate segment file
         final int numDocs = randomIntBetween(10, 20);
         for (long i = 0; i < numDocs; i++) {
             indexDoc(indexShard, "_doc", Long.toString(i), "{}");

@@ -35,7 +35,7 @@ dependencies {
     compile "commons-codec:commons-codec:${versions.commonscodec}"
 
     // security deps
-    compile 'com.unboundid:unboundid-ldapsdk:3.2.0'
+    compile 'com.unboundid:unboundid-ldapsdk:4.0.8'
     compile project(path: ':modules:transport-netty4', configuration: 'runtime')
     compile(project(path: ':plugins:transport-nio', configuration: 'runtime')) {
         // TODO: core exclusion should not be necessary, since it is a transitive dep of all plugins

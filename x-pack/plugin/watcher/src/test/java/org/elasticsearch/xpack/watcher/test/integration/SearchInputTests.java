@@ -101,9 +101,9 @@ public class SearchInputTests extends ESTestCase {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(boolQuery().must(matchQuery("event_type", "a")));
 
         WatcherSearchTemplateRequest request = WatcherTestUtils.templateRequest(searchSourceBuilder);
-        ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null, null), logger,
+        ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null, null),
                 client, watcherSearchTemplateService(), TimeValue.timeValueMinutes(1));
-        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
 
         SearchInput.Result result = searchInput.execute(ctx, new Payload.Simple());
 
@@ -127,9 +127,9 @@ public class SearchInputTests extends ESTestCase {
         SearchType searchType = getRandomSupportedSearchType();
         WatcherSearchTemplateRequest request = WatcherTestUtils.templateRequest(searchSourceBuilder, searchType);
 
-        ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null, null), logger,
+        ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null, null),
                 client, watcherSearchTemplateService(), TimeValue.timeValueMinutes(1));
-        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         SearchInput.Result result = searchInput.execute(ctx, new Payload.Simple());
 
         assertThat(result.status(), is(Input.Result.Status.SUCCESS));
@@ -179,7 +179,7 @@ public class SearchInputTests extends ESTestCase {
             assertThat(input.getRequest().getSearchSource(), is(BytesArray.EMPTY));
 
             ExecutableSearchInput executableSearchInput = factory.createExecutable(input);
-            WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
+            WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
             SearchInput.Result result = executableSearchInput.execute(ctx, Payload.Simple.EMPTY);
             assertThat(result.status(), is(Input.Result.Status.SUCCESS));
             // no body in the search request

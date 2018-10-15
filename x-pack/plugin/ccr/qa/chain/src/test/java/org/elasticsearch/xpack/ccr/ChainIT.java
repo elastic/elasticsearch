@@ -162,7 +162,7 @@ public class ChainIT extends ESRestTestCase {
     }
 
     private RestClient buildMiddleClient() throws IOException {
-        assert "middel".equals(targetCluster) == false;
+        assert "middle".equals(targetCluster) == false;
         return buildClient(System.getProperty("tests.middle_host"));
     }
 

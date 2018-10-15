@@ -245,9 +245,12 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            //tag::ack-watch-execute
+            //tag::ack-watch-request
             AckWatchRequest request = new AckWatchRequest("my_watch_id", // <1>
                 "logme", "emailme"); // <2>
+            //end::ack-watch-request
+
+            //tag::ack-watch-execute
             AckWatchResponse response = client.watcher().ackWatch(request, RequestOptions.DEFAULT);
             //end::ack-watch-execute
 

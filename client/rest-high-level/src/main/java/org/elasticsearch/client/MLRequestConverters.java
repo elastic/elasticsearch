@@ -38,6 +38,7 @@ import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
+import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
@@ -147,7 +148,12 @@ final class MLRequestConverters {
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params(request);
-        params.putParam("force", Boolean.toString(deleteJobRequest.isForce()));
+        if (deleteJobRequest.getForce() != null) {
+            params.putParam("force", Boolean.toString(deleteJobRequest.getForce()));
+        }
+        if (deleteJobRequest.getWaitForCompletion() != null) {
+            params.putParam("wait_for_completion", Boolean.toString(deleteJobRequest.getWaitForCompletion()));
+        }
 
         return request;
     }
@@ -257,6 +263,23 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         request.setEntity(createEntity(stopDatafeedRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getDatafeedStats(GetDatafeedStatsRequest getDatafeedStatsRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("datafeeds")
+            .addPathPart(Strings.collectionToCommaDelimitedString(getDatafeedStatsRequest.getDatafeedIds()))
+            .addPathPartAsIs("_stats")
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        if (getDatafeedStatsRequest.isAllowNoDatafeeds() != null) {
+            params.putParam("allow_no_datafeeds", Boolean.toString(getDatafeedStatsRequest.isAllowNoDatafeeds()));
+        }
         return request;
     }
 

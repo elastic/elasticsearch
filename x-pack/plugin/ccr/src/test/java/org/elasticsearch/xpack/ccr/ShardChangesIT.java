@@ -468,8 +468,10 @@ public class ShardChangesIT extends ESIntegTestCase {
     }
 
     public void testFollowNonExistentIndex() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test-leader").get());
-        assertAcked(client().admin().indices().prepareCreate("test-follower").get());
+        String indexSettings = getIndexSettings(1, 0, Collections.emptyMap());
+        assertAcked(client().admin().indices().prepareCreate("test-leader").setSource(indexSettings, XContentType.JSON).get());
+        assertAcked(client().admin().indices().prepareCreate("test-follower").setSource(indexSettings, XContentType.JSON).get());
+        ensureGreen("test-leader", "test-follower");
         // Leader index does not exist.
         ResumeFollowAction.Request followRequest1 = resumeFollow("non-existent-leader", "test-follower");
         expectThrows(IndexNotFoundException.class, () -> client().execute(ResumeFollowAction.INSTANCE, followRequest1).actionGet());

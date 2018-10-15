@@ -734,11 +734,11 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 break;
 
             case 1: // Simple elasticsearch exception with headers (other metadata of type number are not parsed)
-                failure = new TestException("B", 5_000);
+                failure = new ParsingException(3, 2, "B", null);
                 ((ElasticsearchException) failure).addHeader("header_name", "0", "1");
-                expected = new ElasticsearchException("Elasticsearch exception [type=test_exception, reason=B]");
+                expected = new ElasticsearchException("Elasticsearch exception [type=parsing_exception, reason=B]");
                 expected.addHeader("header_name", "0", "1");
-                suppressed = new ElasticsearchException("Elasticsearch exception [type=test_exception, reason=B]");
+                suppressed = new ElasticsearchException("Elasticsearch exception [type=parsing_exception, reason=B]");
                 suppressed.addHeader("header_name", "0", "1");
                 expected.addSuppressed(suppressed);
                 break;
@@ -916,8 +916,8 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                         "reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]");
                 break;
             case 1: // Simple elasticsearch exception with headers (other metadata of type number are not parsed)
-                actual = new TestException("Limit has been reached", 123);
-                expected = new ElasticsearchException("Elasticsearch exception [type=test_exception, reason=Limit has been reached]");
+                actual = new ParsingException(3, 2, "Unknown identifier", null);
+                expected = new ElasticsearchException("Elasticsearch exception [type=parsing_exception, reason=Unknown identifier]");
                 break;
             case 2:
                 actual = new SearchParseException(new TestSearchContext(null), "Parse failure", new XContentLocation(12, 98));
@@ -1018,19 +1018,5 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             }
         }
         return new Tuple<>(actual, expected);
-    }
-
-    private static class TestException extends ElasticsearchException {
-        private final long limit;
-
-        TestException(String message, long limit) {
-            super(message);
-            this.limit = limit;
-        }
-
-        @Override
-        protected void metadataToXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field("limit", limit);
-        }
     }
 }

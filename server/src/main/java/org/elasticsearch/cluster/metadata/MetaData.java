@@ -1034,10 +1034,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return this;
         }
 
-        public Builder updateNumberOfReplicas(int numberOfReplicas, String... indices) {
-            if (indices == null || indices.length == 0) {
-                indices = this.indices.keys().toArray(String.class);
-            }
+        /**
+         * Update the number of replicas for the specified indices.
+         *
+         * @param numberOfReplicas the number of replicas
+         * @param indices          the indices to update the number of replicas for
+         * @return the builder
+         */
+        public Builder updateNumberOfReplicas(int numberOfReplicas, final String[] indices) {
             for (String index : indices) {
                 IndexMetaData indexMetaData = this.indices.get(index);
                 if (indexMetaData == null) {

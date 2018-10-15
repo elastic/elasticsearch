@@ -275,7 +275,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
             assertThat(e.getMessage(), containsString("cannot be reused"));
         }
         try {
-            b.updateNumberOfReplicas(1, "foo");
+            b.updateNumberOfReplicas(1, new String[]{"foo"});
             fail("expected exception");
         } catch (IllegalStateException e) {
             assertThat(e.getMessage(), containsString("cannot be reused"));

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery;
 
+import java.nio.file.Path;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -33,7 +34,7 @@ import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
+import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.Bridge;
@@ -52,9 +53,9 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -62,7 +63,7 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
 
     static final TimeValue DISRUPTION_HEALING_OVERHEAD = TimeValue.timeValueSeconds(40); // we use 30s as timeout in many places.
 
-    private ClusterDiscoveryConfiguration discoveryConfig;
+    private NodeConfigurationSource discoveryConfig;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -116,18 +117,17 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
         }
     }
 
-    List<String> startCluster(int numberOfNodes) throws ExecutionException, InterruptedException {
+    List<String> startCluster(int numberOfNodes) {
         return startCluster(numberOfNodes, -1);
     }
 
-    List<String> startCluster(int numberOfNodes, int minimumMasterNode) throws ExecutionException, InterruptedException {
+    List<String> startCluster(int numberOfNodes, int minimumMasterNode) {
         return startCluster(numberOfNodes, minimumMasterNode, null);
     }
 
-    List<String> startCluster(int numberOfNodes, int minimumMasterNode, @Nullable int[] unicastHostsOrdinals) throws
-            ExecutionException, InterruptedException {
-        configureCluster(numberOfNodes, unicastHostsOrdinals, minimumMasterNode);
-        List<String> nodes = internalCluster().startNodes(numberOfNodes);
+    List<String> startCluster(int numberOfNodes, int minimumMasterNode, @Nullable int[] unicastHostsOrdinals) {
+        configureCluster(numberOfNodes, minimumMasterNode);
+        List<String> nodes = internalCluster().startNodes(numberOfNodes, unicastHostsOrdinals);
         ensureStableCluster(numberOfNodes);
 
         // TODO: this is a temporary solution so that nodes will not base their reaction to a partition based on previous successful results
@@ -154,20 +154,11 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
         return Arrays.asList(MockTransportService.TestPlugin.class);
     }
 
-    void configureCluster(
-            int numberOfNodes,
-            @Nullable int[] unicastHostsOrdinals,
-            int minimumMasterNode
-    ) throws ExecutionException, InterruptedException {
-        configureCluster(DEFAULT_SETTINGS, numberOfNodes, unicastHostsOrdinals, minimumMasterNode);
+    void configureCluster(int numberOfNodes, int minimumMasterNode) {
+        configureCluster(DEFAULT_SETTINGS, numberOfNodes, minimumMasterNode);
     }
 
-    void configureCluster(
-            Settings settings,
-            int numberOfNodes,
-            @Nullable int[] unicastHostsOrdinals,
-            int minimumMasterNode
-    ) throws ExecutionException, InterruptedException {
+    void configureCluster(Settings settings, int numberOfNodes, int minimumMasterNode) {
         if (minimumMasterNode < 0) {
             minimumMasterNode = numberOfNodes / 2 + 1;
         }
@@ -177,14 +168,21 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
                 .put(settings)
                 .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), numberOfNodes)
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minimumMasterNode)
+                .putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
                 .build();
 
         if (discoveryConfig == null) {
-            if (unicastHostsOrdinals == null) {
-                discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(numberOfNodes, nodeSettings);
-            } else {
-                discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(numberOfNodes, nodeSettings, unicastHostsOrdinals);
-            }
+            discoveryConfig = new NodeConfigurationSource() {
+                @Override
+                public Settings nodeSettings(final int nodeOrdinal) {
+                    return nodeSettings;
+                }
+
+                @Override
+                public Path nodeConfigPath(final int nodeOrdinal) {
+                    return null;
+                }
+            };
         }
     }
 

@@ -18,13 +18,11 @@
  */
 package org.elasticsearch.test.discovery;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SysGlobals;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.test.NodeConfigurationSource;
@@ -34,8 +32,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.file.Path;
-import java.util.HashSet;
-import java.util.Set;
 
 public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
 
@@ -89,34 +85,11 @@ public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
         private final int[] unicastHostPorts;
 
         public UnicastZen(int numOfNodes, Settings extraSettings) {
-            this(numOfNodes, numOfNodes, extraSettings);
-        }
-
-        public UnicastZen(int numOfNodes, int numOfUnicastHosts, Settings extraSettings) {
             super(numOfNodes, extraSettings);
-            if (numOfUnicastHosts == numOfNodes) {
-                unicastHostOrdinals = new int[numOfNodes];
-                for (int i = 0; i < numOfNodes; i++) {
+            unicastHostOrdinals = new int[numOfNodes];
+            for (int i = 0; i < numOfNodes; i++) {
                     unicastHostOrdinals[i] = i;
-                }
-            } else {
-                Set<Integer> ordinals = new HashSet<>(numOfUnicastHosts);
-                while (ordinals.size() != numOfUnicastHosts) {
-                    ordinals.add(RandomizedTest.randomInt(numOfNodes - 1));
-                }
-                unicastHostOrdinals = CollectionUtils.toArray(ordinals);
             }
-            this.unicastHostPorts = unicastHostPorts(numOfNodes);
-            assert unicastHostOrdinals.length <= unicastHostPorts.length;
-        }
-
-        public UnicastZen(int numOfNodes, int[] unicastHostOrdinals) {
-            this(numOfNodes, Settings.EMPTY, unicastHostOrdinals);
-        }
-
-        public UnicastZen(int numOfNodes, Settings extraSettings, int[] unicastHostOrdinals) {
-            super(numOfNodes, extraSettings);
-            this.unicastHostOrdinals = unicastHostOrdinals;
             this.unicastHostPorts = unicastHostPorts(numOfNodes);
             assert unicastHostOrdinals.length <= unicastHostPorts.length;
         }

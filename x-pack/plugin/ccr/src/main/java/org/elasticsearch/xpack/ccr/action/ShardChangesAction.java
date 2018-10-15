@@ -302,7 +302,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
                                IndexNameExpressionResolver indexNameExpressionResolver,
                                IndicesService indicesService) {
             super(settings, NAME, threadPool, clusterService, transportService, actionFilters,
-                    indexNameExpressionResolver, Request::new, ThreadPool.Names.GET);
+                    indexNameExpressionResolver, Request::new, ThreadPool.Names.SEARCH);
             this.indicesService = indicesService;
         }
 

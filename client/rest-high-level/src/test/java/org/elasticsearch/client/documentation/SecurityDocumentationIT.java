@@ -255,7 +255,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::get-certificates-execute-async
             client.security().getSslCertificatesAsync(RequestOptions.DEFAULT, listener); // <1>
-            // end::end-certificates-execute-async
+            // end::get-certificates-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

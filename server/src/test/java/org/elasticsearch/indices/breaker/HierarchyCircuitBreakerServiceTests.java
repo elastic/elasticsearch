@@ -117,10 +117,12 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             @Override
             public void checkParentLimit(long newBytesReserved, String label) throws CircuitBreakingException {
                 // Parent will trip right before regular breaker would trip
-                if (getBreaker(CircuitBreaker.REQUEST).getUsed() > parentLimit) {
+                long requestBreakerUsed = getBreaker(CircuitBreaker.REQUEST).getUsed();
+                if (requestBreakerUsed > parentLimit) {
                     parentTripped.incrementAndGet();
                     logger.info("--> parent tripped");
-                    throw new CircuitBreakingException("parent tripped");
+                    throw new CircuitBreakingException("parent tripped", requestBreakerUsed + newBytesReserved,
+                        parentLimit, CircuitBreaker.Durability.PERMANENT);
                 }
             }
         };
@@ -201,6 +203,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             assertThat(exception.getMessage(), containsString("which is larger than the limit of [209715200/200mb]"));
             assertThat(exception.getMessage(),
                 containsString("usages [request=157286400/150mb, fielddata=54001664/51.5mb, in_flight_requests=0/0b, accounting=0/0b]"));
+            assertThat(exception.getDurability(), equalTo(CircuitBreaker.Durability.TRANSIENT));
         }
     }
 
@@ -244,6 +247,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         assertThat(exception.getMessage(),
             containsString("real usage: [181/181b], new bytes reserved: [" + (reservationInBytes * 2) +
                 "/" + new ByteSizeValue(reservationInBytes * 2) + "]"));
+        assertThat(exception.getDurability(), equalTo(CircuitBreaker.Durability.TRANSIENT));
         assertEquals(0, requestBreaker.getTrippedCount());
         assertEquals(1, service.stats().getStats(CircuitBreaker.PARENT).getTrippedCount());
 
@@ -251,5 +255,42 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         memoryUsage.set(100);
         requestBreaker.addEstimateBytesAndMaybeBreak(reservationInBytes, "request");
         assertEquals(0, requestBreaker.getTrippedCount());
+    }
+
+    public void testTrippedCircuitBreakerDurability() {
+        Settings clusterSettings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), Boolean.FALSE)
+            .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "200mb")
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "150mb")
+            .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "150mb")
+            .build();
+        try (CircuitBreakerService service = new HierarchyCircuitBreakerService(clusterSettings,
+            new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
+            CircuitBreaker requestCircuitBreaker = service.getBreaker(MemoryCircuitBreaker.REQUEST);
+            CircuitBreaker fieldDataCircuitBreaker = service.getBreaker(MemoryCircuitBreaker.FIELDDATA);
+
+            CircuitBreaker.Durability expectedDurability;
+            if (randomBoolean()) {
+                fieldDataCircuitBreaker.addEstimateBytesAndMaybeBreak(mb(100), "should not break");
+                requestCircuitBreaker.addEstimateBytesAndMaybeBreak(mb(70), "should not break");
+                expectedDurability = CircuitBreaker.Durability.PERMANENT;
+            } else {
+                fieldDataCircuitBreaker.addEstimateBytesAndMaybeBreak(mb(70), "should not break");
+                requestCircuitBreaker.addEstimateBytesAndMaybeBreak(mb(120), "should not break");
+                expectedDurability = CircuitBreaker.Durability.TRANSIENT;
+            }
+
+            CircuitBreakingException exception = expectThrows(CircuitBreakingException.class, () ->
+                fieldDataCircuitBreaker.addEstimateBytesAndMaybeBreak(mb(40), "should break"));
+
+            assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [should break] would be"));
+            assertThat(exception.getMessage(), containsString("which is larger than the limit of [209715200/200mb]"));
+            assertThat("Expected [" + expectedDurability + "] due to [" + exception.getMessage() + "]",
+                exception.getDurability(), equalTo(expectedDurability));
+        }
+    }
+
+    private long mb(long size) {
+        return new ByteSizeValue(size, ByteSizeUnit.MB).getBytes();
     }
 }

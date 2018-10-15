@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
@@ -353,10 +354,12 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testCircuitBreakingException() throws IOException {
-        CircuitBreakingException ex = serialize(new CircuitBreakingException("I hate to say I told you so...", 0, 100));
-        assertEquals("I hate to say I told you so...", ex.getMessage());
+        CircuitBreakingException ex = serialize(new CircuitBreakingException("Too large", 0, 100, CircuitBreaker.Durability.TRANSIENT),
+            randomFrom(Version.V_7_0_0_alpha1));
+        assertEquals("Too large", ex.getMessage());
         assertEquals(100, ex.getByteLimit());
         assertEquals(0, ex.getBytesWanted());
+        assertEquals(CircuitBreaker.Durability.TRANSIENT, ex.getDurability());
     }
 
     public void testTooManyBucketsException() throws IOException {

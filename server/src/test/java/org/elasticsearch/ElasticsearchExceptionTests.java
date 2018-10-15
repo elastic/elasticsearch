@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -735,11 +734,11 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 break;
 
             case 1: // Simple elasticsearch exception with headers (other metadata of type number are not parsed)
-                failure = new CircuitBreakingException("B", 5_000, 2_000);
+                failure = new TestException("B", 5_000);
                 ((ElasticsearchException) failure).addHeader("header_name", "0", "1");
-                expected = new ElasticsearchException("Elasticsearch exception [type=circuit_breaking_exception, reason=B]");
+                expected = new ElasticsearchException("Elasticsearch exception [type=test_exception, reason=B]");
                 expected.addHeader("header_name", "0", "1");
-                suppressed = new ElasticsearchException("Elasticsearch exception [type=circuit_breaking_exception, reason=B]");
+                suppressed = new ElasticsearchException("Elasticsearch exception [type=test_exception, reason=B]");
                 suppressed.addHeader("header_name", "0", "1");
                 expected.addSuppressed(suppressed);
                 break;
@@ -916,9 +915,9 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 expected = new ElasticsearchException("Elasticsearch exception [type=cluster_block_exception, " +
                         "reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]");
                 break;
-            case 1:
-                actual = new CircuitBreakingException("Data too large", 123, 456);
-                expected = new ElasticsearchException("Elasticsearch exception [type=circuit_breaking_exception, reason=Data too large]");
+            case 1: // Simple elasticsearch exception with headers (other metadata of type number are not parsed)
+                actual = new TestException("Limit has been reached", 123);
+                expected = new ElasticsearchException("Elasticsearch exception [type=test_exception, reason=Limit has been reached]");
                 break;
             case 2:
                 actual = new SearchParseException(new TestSearchContext(null), "Parse failure", new XContentLocation(12, 98));
@@ -1019,5 +1018,19 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             }
         }
         return new Tuple<>(actual, expected);
+    }
+
+    private static class TestException extends ElasticsearchException {
+        private final long limit;
+
+        TestException(String message, long limit) {
+            super(message);
+            this.limit = limit;
+        }
+
+        @Override
+        protected void metadataToXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field("limit", limit);
+        }
     }
 }

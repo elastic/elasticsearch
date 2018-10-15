@@ -91,7 +91,7 @@ GET my_index/_ilm/explain
 // CONSOLE
 // TEST[continued]
 
-If the request does not encounter errors, you receive the following result:
+When the index is first taken over by ILM you will see a response like the following:
 
 [source,js]
 --------------------------------------------------
@@ -129,3 +129,161 @@ ILM the other fields will not be shown
 <8> The timestamp for when the index entered the current action
 <9> The current step
 <10> The timestamp for when the index entered the current step
+
+When the policy is running on the index the response will contain a
+`phase_execution` object that describes the exact phase that is being run.
+Changes to the underlying policy will not affect this index until the current
+phase definition has been completely executed.
+
+[source,js]
+--------------------------------------------------
+{
+  "indices": {
+    "test-000069": {
+      "index": "test-000069",
+      "managed": true,
+      "policy": "my_lifecycle3",
+      "skip": false,
+      "lifecycle_date": "2018-10-15T13:45:21.981Z",
+      "phase": "hot",
+      "phase_time": "2018-10-15T13:45:22.577Z",
+      "action": "rollover",
+      "action_time": "2018-10-15T13:45:22.577Z",
+      "step": "attempt_rollover",
+      "step_time": "2018-10-15T13:45:22.577Z",
+      "phase_execution": { <1>
+        "policy": "my_lifecycle3", <2>
+        "phase_definition": { <3>
+          "minimum_age": "0ms",
+          "actions": {
+            "rollover": {
+              "max_age": "30s"
+            }
+          }
+        },
+        "version": 3, <4>
+        "modified_date": "2018-10-15T13:21:41.576Z", <5>
+        "modified_date_in_millis": 1539609701576 <6>
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TESTRESPONSE[skip:not possible to get the cluster into this state in a docs test]
+<1> The phase execution information for this index in its current phase
+<2> The policy that this phase definition was loaded from
+<3> The phase definition itself. This is the JSON for the phase loaded from the
+policy at the time the index entered the current phase
+<4> The version of the policy at the time the phase definition was loaded
+<5> The last modified date of the policy at the time the phase definition was loaded 
+<6> The last modified epoch time of the policy at the time the phase definition was loaded
+
+
+If the policy is waiting for a step to complete for the index, the response will contain step information such as:
+
+[source,js]
+--------------------------------------------------
+{
+  "indices": {
+    "test-000020": {
+      "index": "test-000020",
+      "managed": true,
+      "policy": "my_lifecycle3",
+      "skip": false,
+      "lifecycle_date": "2018-10-15T13:20:28.042Z",
+      "phase": "warm",
+      "phase_time": "2018-10-15T13:20:28.428Z",
+      "action": "allocate",
+      "action_time": "2018-10-15T13:20:28.428Z",
+      "step": "check-allocation",
+      "step_time": "2018-10-15T13:20:28.633Z",
+      "step_info": { <1>
+        "message": "Waiting for all shard copies to be active",
+        "shards_left_to_allocate": -1,
+        "all_shards_active": false,
+        "actual_replicas": 2
+      },
+      "phase_execution": {
+        "policy": "my_lifecycle3",
+        "phase_definition": {
+          "minimum_age": "0ms",
+          "actions": {
+            "allocate": {
+              "number_of_replicas": 2,
+              "include": {
+                "box_type": "warm"
+              },
+              "exclude": {},
+              "require": {}
+            },
+            "forcemerge": {
+              "max_num_segments": 1
+            }
+          }
+        },
+        "version": 2,
+        "modified_date": "2018-10-15T13:20:02.489Z",
+        "modified_date_in_millis": 1539609602489
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TESTRESPONSE[skip:not possible to get the cluster into this state in a docs test]
+<1> `step_info` shows information about what ILM is waiting for on this index.
+In this case we are waiting for all shard copies of the index to be active.
+
+If the index is in the ERROR step, something has gone wrong when executing a
+step in the policy and will need to be investigated and resolved for the index
+to make progress. TO help determine how to resolve the error the explain response 
+will show the step that failed in `failed_step`, and the information on the error
+that occurred in `step_info`.
+
+[source,js]
+--------------------------------------------------
+{
+  "indices": {
+    "test-000056": {
+      "index": "test-000056",
+      "managed": true,
+      "policy": "my_lifecycle3",
+      "skip": false,
+      "lifecycle_date": "2018-10-15T13:38:26.209Z",
+      "phase": "hot",
+      "phase_time": "2018-10-15T13:38:26.706Z",
+      "action": "rollover",
+      "action_time": "2018-10-15T13:38:26.706Z",
+      "step": "ERROR",
+      "step_time": "2018-10-15T13:39:15.304Z",
+      "failed_step": "attempt_rollover", <1>
+      "step_info": { <2>
+        "type": "resource_already_exists_exception",
+        "reason": "index [test-000057/H7lF9n36Rzqa-KfKcnGQMg] already exists",
+        "index_uuid": "H7lF9n36Rzqa-KfKcnGQMg",
+        "index": "test-000057"
+      },
+      "phase_execution": {
+        "policy": "my_lifecycle3",
+        "phase_definition": {
+          "minimum_age": "0ms",
+          "actions": {
+            "rollover": {
+              "max_age": "30s"
+            }
+          }
+        },
+        "version": 3,
+        "modified_date": "2018-10-15T13:21:41.576Z",
+        "modified_date_in_millis": 1539609701576
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TESTRESPONSE[skip:not possible to get the cluster into this state in a docs test]
+<1> The step that caused an error
+<2> Information on the error that occurred. In this case the next index already
+existed when the rollover operation was performed

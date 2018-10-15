@@ -78,7 +78,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         "stack_monitoring_agent",
                         new String[] {
                             "monitor",
-                            "manage_index_templates"
+                            "indices:admin/template/get",
+                            "indices:admin/template/put"
                         },
                         new RoleDescriptor.IndicesPrivileges[] {
                             RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("monitor").build(),

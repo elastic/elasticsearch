@@ -13,6 +13,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
@@ -125,11 +126,14 @@ public class DatafeedJobBuilder {
             });
         };
 
-        // Get the job config
+        // Get the job config and re-validate
+        // Re-validation is required as the config has been re-read since
+        // the previous validation
         ActionListener<Job.Builder> jobConfigListener = ActionListener.wrap(
                 jobBuilder -> {
                     try {
                         jobHolder.set(jobBuilder.build());
+                        DatafeedJobValidator.validate(datafeedConfigHolder.get(), jobHolder.get());
                         jobIdConsumer.accept(jobHolder.get().getId());
                     } catch (Exception e) {
                         listener.onFailure(e);

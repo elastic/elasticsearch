@@ -76,6 +76,11 @@ public abstract class AggregationScript implements ScorerAware {
         this.params.putAll(leafLookup.asMap());
     }
 
+    protected AggregationScript() {
+        params = null;
+        leafLookup = null;
+    }
+
     /**
      * Return the parameters for this script.
      */

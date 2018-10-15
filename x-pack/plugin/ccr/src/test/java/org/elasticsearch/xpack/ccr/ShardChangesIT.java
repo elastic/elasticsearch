@@ -373,6 +373,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertMaxSeqNoOfUpdatesIsTransferred(resolveIndex("index1"), resolveIndex("index2"), numberOfShards);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/34412")
     public void testFollowIndexAndCloseNode() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
         String leaderIndexSettings = getIndexSettings(3, 1, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
@@ -467,8 +468,10 @@ public class ShardChangesIT extends ESIntegTestCase {
     }
 
     public void testFollowNonExistentIndex() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test-leader").get());
-        assertAcked(client().admin().indices().prepareCreate("test-follower").get());
+        String indexSettings = getIndexSettings(1, 0, Collections.emptyMap());
+        assertAcked(client().admin().indices().prepareCreate("test-leader").setSource(indexSettings, XContentType.JSON).get());
+        assertAcked(client().admin().indices().prepareCreate("test-follower").setSource(indexSettings, XContentType.JSON).get());
+        ensureGreen("test-leader", "test-follower");
         // Leader index does not exist.
         ResumeFollowAction.Request followRequest1 = resumeFollow("non-existent-leader", "test-follower");
         expectThrows(IndexNotFoundException.class, () -> client().execute(ResumeFollowAction.INSTANCE, followRequest1).actionGet());
@@ -693,6 +696,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertThat(client().prepareSearch("index2").get().getHits().getTotalHits(), equalTo(2L));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/34412")
     public void testFailOverOnFollower() throws Exception {
         int numberOfReplicas = between(1, 2);
         internalCluster().startMasterOnlyNode();

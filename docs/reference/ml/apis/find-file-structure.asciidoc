@@ -613,6 +613,20 @@ If the request does not encounter errors, you receive the following result:
       "type" : "double"
     }
   },
+  "ingest_pipeline" : {
+    "description" : "Ingest pipeline created by file structure finder",
+    "processors" : [
+      {
+        "date" : {
+          "field" : "tpep_pickup_datetime",
+          "timezone" : "{{ beat.timezone }}",
+          "formats" : [
+            "YYYY-MM-dd HH:mm:ss"
+          ]
+        }
+      }
+    ]
+  },
   "field_stats" : {
     "DOLocationID" : {
       "count" : 19998,
@@ -1366,6 +1380,33 @@ this:
       "type" : "text"
     }
   },
+  "ingest_pipeline" : {
+    "description" : "Ingest pipeline created by file structure finder",
+    "processors" : [
+      {
+        "grok" : {
+          "field" : "message",
+          "patterns" : [
+            "\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel}.*"
+          ]
+        }
+      },
+      {
+        "date" : {
+          "field" : "timestamp",
+          "timezone" : "{{ beat.timezone }}",
+          "formats" : [
+            "ISO8601"
+          ]
+        }
+      },
+      {
+        "remove" : {
+          "field" : "timestamp"
+        }
+      }
+    ]
+  },
   "field_stats" : {
     "loglevel" : {
       "count" : 53,
@@ -1498,6 +1539,33 @@ this:
     "node" : {
       "type" : "keyword"
     }
+  },
+  "ingest_pipeline" : {
+    "description" : "Ingest pipeline created by file structure finder",
+    "processors" : [
+      {
+        "grok" : {
+          "field" : "message",
+          "patterns" : [
+            "\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} *\\]\\[%{JAVACLASS:class} *\\] \\[%{HOSTNAME:node}\\] %{JAVALOGMESSAGE:message}"
+          ]
+        }
+      },
+      {
+        "date" : {
+          "field" : "timestamp",
+          "timezone" : "{{ beat.timezone }}",
+          "formats" : [
+            "ISO8601"
+          ]
+        }
+      },
+      {
+        "remove" : {
+          "field" : "timestamp"
+        }
+      }
+    ]
   },
   "field_stats" : { <2>
     "class" : {

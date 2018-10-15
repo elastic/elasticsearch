@@ -10,10 +10,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,9 +25,6 @@ import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -41,7 +36,6 @@ public class TransportFollowStatsAction extends TransportTasksAction<
         FollowStatsAction.StatsRequest,
         FollowStatsAction.StatsResponses, FollowStatsAction.StatsResponse> {
 
-    private final IndexNameExpressionResolver resolver;
     private final CcrLicenseChecker ccrLicenseChecker;
 
     @Inject
@@ -50,7 +44,6 @@ public class TransportFollowStatsAction extends TransportTasksAction<
             final ClusterService clusterService,
             final TransportService transportService,
             final ActionFilters actionFilters,
-            final IndexNameExpressionResolver resolver,
             final CcrLicenseChecker ccrLicenseChecker) {
         super(
                 settings,
@@ -61,7 +54,6 @@ public class TransportFollowStatsAction extends TransportTasksAction<
                 FollowStatsAction.StatsRequest::new,
                 FollowStatsAction.StatsResponses::new,
                 Ccr.CCR_THREAD_POOL_NAME);
-        this.resolver = Objects.requireNonNull(resolver);
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
     }
 

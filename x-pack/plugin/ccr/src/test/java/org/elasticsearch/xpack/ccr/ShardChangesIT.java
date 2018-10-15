@@ -373,6 +373,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertMaxSeqNoOfUpdatesIsTransferred(resolveIndex("index1"), resolveIndex("index2"), numberOfShards);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/34412")
     public void testFollowIndexAndCloseNode() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
         String leaderIndexSettings = getIndexSettings(3, 1, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
@@ -693,6 +694,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertThat(client().prepareSearch("index2").get().getHits().getTotalHits(), equalTo(2L));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/34412")
     public void testFailOverOnFollower() throws Exception {
         int numberOfReplicas = between(1, 2);
         internalCluster().startMasterOnlyNode();
@@ -722,9 +724,6 @@ public class ShardChangesIT extends ESIntegTestCase {
             threads[i].start();
         }
         PutFollowAction.Request follow = follow("leader-index", "follower-index");
-        follow.getFollowRequest().setMaxBatchOperationCount(randomIntBetween(1, 1000));
-        follow.getFollowRequest().setMaxConcurrentReadBatches(randomIntBetween(1, 10));
-        follow.getFollowRequest().setMaxConcurrentWriteBatches(randomIntBetween(1, 10));
         client().execute(PutFollowAction.INSTANCE, follow).get();
         ensureGreen("follower-index");
         atLeastDocsIndexed("follower-index", between(20, 60));

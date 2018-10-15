@@ -46,7 +46,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -68,7 +67,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private long leaderMaxSeqNo;
     private long leaderMaxSeqNoOfUpdatesOrDeletes = SequenceNumbers.UNASSIGNED_SEQ_NO;
     private long lastRequestedSeqNo;
-    private long lastWrittenSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
     private long followerGlobalCheckpoint = 0;
     private long followerMaxSeqNo = 0;
     private int numConcurrentReads = 0;
@@ -129,7 +127,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             this.followerGlobalCheckpoint = followerGlobalCheckpoint;
             this.followerMaxSeqNo = followerMaxSeqNo;
             this.lastRequestedSeqNo = followerGlobalCheckpoint;
-            this.lastWrittenSeqNo = followerGlobalCheckpoint;
         }
 
         // updates follower mapping, this gets us the leader mapping version and makes sure that leader and follower mapping are identical
@@ -201,28 +198,18 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             return;
         }
 
-        final Supplier<Boolean> hasNextSeqNoToWriteInBuffer = () -> {
-            assert lastWrittenSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO;
-            return buffer.isEmpty() == false && buffer.peek().seqNo() <= lastWrittenSeqNo + 1;
-        };
-
-        while (hasWriteBudget() && hasNextSeqNoToWriteInBuffer.get()) {
+        while (hasWriteBudget() && buffer.isEmpty() == false) {
             long sumEstimatedSize = 0L;
             int length = Math.min(params.getMaxBatchOperationCount(), buffer.size());
             List<Translog.Operation> ops = new ArrayList<>(length);
             for (int i = 0; i < length; i++) {
-                if (hasNextSeqNoToWriteInBuffer.get() == false) {
-                    break;
-                }
                 Translog.Operation op = buffer.remove();
                 ops.add(op);
-                lastWrittenSeqNo = Math.max(lastWrittenSeqNo, op.seqNo());
                 sumEstimatedSize += op.estimateSize();
                 if (sumEstimatedSize > params.getMaxBatchSize().getBytes()) {
                     break;
                 }
             }
-            assert ops.isEmpty() == false;
             numConcurrentWrites++;
             LOGGER.trace("{}[{}] write [{}/{}] [{}]", params.getFollowShardId(), numConcurrentWrites, ops.get(0).seqNo(),
                 ops.get(ops.size() - 1).seqNo(), ops.size());
@@ -441,11 +428,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     public ShardId getFollowShardId() {
         return params.getFollowShardId();
-    }
-
-    final synchronized long getLastWrittenSeqNo() {
-        // TODO: Remove this method and fold it to ShardFollowNodeTaskStatus (I'll do it in a follow-up).
-        return lastWrittenSeqNo;
     }
 
     @Override

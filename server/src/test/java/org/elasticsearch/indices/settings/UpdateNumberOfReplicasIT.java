@@ -93,7 +93,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
 
         final long afterStartingAnotherNodeVersion =
                 client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
-mit -
+
         logger.info("Running Cluster Health");
         clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNoRelocatingShards(true).setWaitForNodes(">=3").execute().actionGet();
         logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());

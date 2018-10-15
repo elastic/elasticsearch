@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -56,6 +58,7 @@ import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsFetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
@@ -73,6 +76,7 @@ import java.util.Set;
  * after reducing all of the matches returned by the query phase
  */
 public class FetchPhase implements SearchPhase {
+    private static final Logger LOGGER = LogManager.getLogger(FetchPhase.class);
 
     private final FetchSubPhase[] fetchSubPhases;
 
@@ -87,6 +91,9 @@ public class FetchPhase implements SearchPhase {
 
     @Override
     public void execute(SearchContext context) {
+
+        LOGGER.trace("{} source[{}]", context.indexShard().shardId(), context.request().source());
+
         final FieldsVisitor fieldsVisitor;
         Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
         StoredFieldsContext storedFieldsContext = context.storedFieldsContext();

@@ -166,13 +166,22 @@ abstract class GeoJsonParser {
         }
 
         List<CoordinateNode> nodes = new ArrayList<>();
-        while (token != XContentParser.Token.END_ARRAY) {
-            CoordinateNode node = parseCoordinates(parser, ignoreZValue);
-            if (nodes.isEmpty() == false && nodes.get(0).numDimensions() != node.numDimensions()) {
-                throw new ElasticsearchParseException("Exception parsing coordinates: number of dimensions do not match");
+        try {
+            while (token != XContentParser.Token.END_ARRAY) {
+                CoordinateNode node = parseCoordinates(parser, ignoreZValue);
+                if (nodes.isEmpty() == false && nodes.get(0).numDimensions() != node.numDimensions()) {
+                    throw new ElasticsearchParseException("Exception parsing coordinates: number of dimensions do not match");
+                }
+                nodes.add(node);
+                token = parser.nextToken();
             }
-            nodes.add(node);
-            token = parser.nextToken();
+        } catch (Exception ex) {
+            // Skip all other fields until the end of the array
+            while (parser.currentToken() != XContentParser.Token.END_ARRAY && parser.currentToken() != null) {
+                parser.nextToken();
+                parser.skipChildren();
+            }
+            throw ex;
         }
 
         return new CoordinateNode(nodes);
@@ -216,10 +225,20 @@ abstract class GeoJsonParser {
 
         XContentParser.Token token = parser.nextToken();
         GeometryCollectionBuilder geometryCollection = new GeometryCollectionBuilder();
-        while (token != XContentParser.Token.END_ARRAY) {
-            ShapeBuilder shapeBuilder = ShapeParser.parse(parser);
-            geometryCollection.shape(shapeBuilder);
-            token = parser.nextToken();
+        try {
+
+            while (token != XContentParser.Token.END_ARRAY) {
+                ShapeBuilder shapeBuilder = ShapeParser.parse(parser);
+                geometryCollection.shape(shapeBuilder);
+                token = parser.nextToken();
+            }
+        } catch (Exception ex) {
+            // Skip all other fields until the end of the array
+            while (parser.currentToken() != XContentParser.Token.END_ARRAY && parser.currentToken() != null) {
+                parser.nextToken();
+                parser.skipChildren();
+            }
+            throw ex;
         }
 
         return geometryCollection;

@@ -1213,4 +1213,33 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
             assertNull(parser.nextToken());
         }
     }
+
+    public void testParseInvalidGeometryCollectionShapes() throws IOException {
+        // single dimensions point
+        XContentBuilder invalidPoints = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("foo")
+            .field("type", "geometrycollection")
+            .startArray("geometries")
+            .startObject()
+            .field("type", "polygon")
+            .startArray("coordinates")
+            .startArray().value("46.6022226498514").value("24.7237442867977").endArray()
+            .startArray().value("46.6031857243798").value("24.722968774929").endArray()
+            .endArray() // coordinates
+            .endObject()
+            .endArray() // geometries
+            .endObject()
+            .endObject();
+
+
+        try (XContentParser parser = createParser(invalidPoints)) {
+            parser.nextToken(); // foo
+            parser.nextToken(); // start object
+            parser.nextToken(); // start object
+            ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken()); // end of the document
+            assertNull(parser.nextToken()); // no more elements afterwards
+        }
+    }
 }

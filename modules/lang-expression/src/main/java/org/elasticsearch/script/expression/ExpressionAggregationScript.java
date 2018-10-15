@@ -19,64 +19,42 @@
 
 package org.elasticsearch.script.expression;
 
+import java.io.IOException;
 import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.expressions.SimpleBindings;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.DoubleValuesSource;
+import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.GeneralScriptException;
-import org.elasticsearch.script.SearchScript;
-
-import java.io.IOException;
 
 /**
  * A bridge to evaluate an {@link Expression} against {@link Bindings} in the context
- * of a {@link SearchScript}.
+ * of a {@link AggregationScript}.
  */
-class ExpressionSearchScript implements SearchScript.LeafFactory {
+class ExpressionAggregationScript implements AggregationScript.LeafFactory {
 
     final Expression exprScript;
     final SimpleBindings bindings;
     final DoubleValuesSource source;
     final ReplaceableConstDoubleValueSource specialValue; // _value
-    final boolean needsScores;
 
-    ExpressionSearchScript(Expression e, SimpleBindings b, ReplaceableConstDoubleValueSource v, boolean needsScores) {
+    ExpressionAggregationScript(Expression e, SimpleBindings b, ReplaceableConstDoubleValueSource v) {
         exprScript = e;
         bindings = b;
         source = exprScript.getDoubleValuesSource(bindings);
         specialValue = v;
-        this.needsScores = needsScores;
     }
 
     @Override
-    public boolean needs_score() {
-        return needsScores;
-    }
-
-
-    @Override
-    public SearchScript newInstance(final LeafReaderContext leaf) throws IOException {
-        return new SearchScript(null, null, null) {
+    public AggregationScript newInstance(final LeafReaderContext leaf) throws IOException {
+        return new AggregationScript() {
             // Fake the scorer until setScorer is called.
-            DoubleValues values = source.getValues(leaf, new DoubleValues() {
-                @Override
-                public double doubleValue() throws IOException {
-                    return getScore();
-                }
-
-                @Override
-                public boolean advanceExact(int doc) throws IOException {
-                    return true;
-                }
-            });
+            DoubleValues values = source.getValues(leaf, null);
 
             @Override
-            public Object run() { return Double.valueOf(runAsDouble()); }
-
-            @Override
-            public double runAsDouble() {
+            public Object execute() {
                 try {
                     return values.doubleValue();
                 } catch (Exception exception) {
@@ -104,13 +82,12 @@ class ExpressionSearchScript implements SearchScript.LeafFactory {
                     }
                 }
             }
-
-            @Override
-            public void setNextVar(String name, Object value) {
-                // other per-document variables aren't supported yet, even if they are numbers
-                // but we shouldn't encourage this anyway.
-            }
         };
+    }
+
+    @Override
+    public boolean needs_score() {
+        return false;
     }
 
 }

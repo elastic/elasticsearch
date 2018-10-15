@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.ml.featureindexbuilder.job;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -16,8 +15,6 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-// broken upstream
-@AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/33942")
 public class AggregationConfigTests extends AbstractSerializingFeatureIndexBuilderTestCase<AggregationConfig> {
 
     public static AggregationConfig randomAggregationConfig() {

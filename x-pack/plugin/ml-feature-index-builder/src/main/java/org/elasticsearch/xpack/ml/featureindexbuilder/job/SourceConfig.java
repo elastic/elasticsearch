@@ -53,7 +53,7 @@ public class SourceConfig implements Writeable, ToXContentObject {
         List<CompositeValuesSourceBuilder<?>> sources = new ArrayList<>(num);
         for (int i = 0; i < num; i++) {
             CompositeValuesSourceBuilder<?> builder = CompositeValuesSourceParserHelper.readFrom(in);
-            getSources().add(builder);
+            sources.add(builder);
         }
         this.sources = Collections.unmodifiableList(sources);
     }

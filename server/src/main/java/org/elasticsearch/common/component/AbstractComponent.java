@@ -21,7 +21,6 @@ package org.elasticsearch.common.component;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 
@@ -36,23 +35,4 @@ public abstract class AbstractComponent {
         this.deprecationLogger = new DeprecationLogger(logger);
         this.settings = settings;
     }
-
-    /**
-     * Checks for a deprecated setting and logs the correct alternative
-     */
-    protected void logDeprecatedSetting(String settingName, String alternativeName) {
-        if (!Strings.isNullOrEmpty(settings.get(settingName))) {
-            deprecationLogger.deprecated("Setting [{}] is deprecated, use [{}] instead", settingName, alternativeName);
-        }
-    }
-
-    /**
-     * Checks for a removed setting and logs the correct alternative
-     */
-    protected void logRemovedSetting(String settingName, String alternativeName) {
-        if (!Strings.isNullOrEmpty(settings.get(settingName))) {
-            deprecationLogger.deprecated("Setting [{}] has been removed, use [{}] instead", settingName, alternativeName);
-        }
-    }
-
 }

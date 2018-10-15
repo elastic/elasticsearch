@@ -345,6 +345,75 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         assertNull(fieldStats.get("nothing"));
     }
 
+    public void testMakeIngestPipelineDefinitionGivenStructuredWithoutTimestamp() {
+
+        assertNull(FileStructureUtils.makeIngestPipelineDefinition(null, null, null, false));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMakeIngestPipelineDefinitionGivenStructuredWithTimestamp() {
+
+        String timestampField = randomAlphaOfLength(10);
+        List<String> timestampFormats = randomFrom(TimestampFormatFinder.ORDERED_CANDIDATE_FORMATS).jodaTimestampFormats;
+        boolean needClientTimezone = randomBoolean();
+
+        Map<String, Object> pipeline =
+            FileStructureUtils.makeIngestPipelineDefinition(null, timestampField, timestampFormats, needClientTimezone);
+        assertNotNull(pipeline);
+
+        assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
+
+        List<Map<String, Object>> processors = (List<Map<String, Object>>) pipeline.remove("processors");
+        assertNotNull(processors);
+        assertEquals(1, processors.size());
+
+        Map<String, Object> dateProcessor = (Map<String, Object>) processors.get(0).get("date");
+        assertNotNull(dateProcessor);
+        assertEquals(timestampField, dateProcessor.get("field"));
+        assertEquals(needClientTimezone, dateProcessor.containsKey("timezone"));
+        assertEquals(timestampFormats, dateProcessor.get("formats"));
+
+        // After removing the two expected fields there should be nothing left in the pipeline
+        assertEquals(Collections.emptyMap(), pipeline);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMakeIngestPipelineDefinitionGivenSemiStructured() {
+
+        String grokPattern = randomAlphaOfLength(100);
+        String timestampField = randomAlphaOfLength(10);
+        List<String> timestampFormats = randomFrom(TimestampFormatFinder.ORDERED_CANDIDATE_FORMATS).jodaTimestampFormats;
+        boolean needClientTimezone = randomBoolean();
+
+        Map<String, Object> pipeline =
+            FileStructureUtils.makeIngestPipelineDefinition(grokPattern, timestampField, timestampFormats, needClientTimezone);
+        assertNotNull(pipeline);
+
+        assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
+
+        List<Map<String, Object>> processors = (List<Map<String, Object>>) pipeline.remove("processors");
+        assertNotNull(processors);
+        assertEquals(3, processors.size());
+
+        Map<String, Object> grokProcessor = (Map<String, Object>) processors.get(0).get("grok");
+        assertNotNull(grokProcessor);
+        assertEquals("message", grokProcessor.get("field"));
+        assertEquals(Collections.singletonList(grokPattern), grokProcessor.get("patterns"));
+
+        Map<String, Object> dateProcessor = (Map<String, Object>) processors.get(1).get("date");
+        assertNotNull(dateProcessor);
+        assertEquals(timestampField, dateProcessor.get("field"));
+        assertEquals(needClientTimezone, dateProcessor.containsKey("timezone"));
+        assertEquals(timestampFormats, dateProcessor.get("formats"));
+
+        Map<String, Object> removeProcessor = (Map<String, Object>) processors.get(2).get("remove");
+        assertNotNull(removeProcessor);
+        assertEquals(timestampField, dateProcessor.get("field"));
+
+        // After removing the two expected fields there should be nothing left in the pipeline
+        assertEquals(Collections.emptyMap(), pipeline);
+    }
+
     private Map<String, String> guessMapping(List<String> explanation, String fieldName, List<Object> fieldValues) {
         Tuple<Map<String, String>, FieldStats> mappingAndFieldStats = FileStructureUtils.guessMappingAndCalculateFieldStats(explanation,
             fieldName, fieldValues, NOOP_TIMEOUT_CHECKER);

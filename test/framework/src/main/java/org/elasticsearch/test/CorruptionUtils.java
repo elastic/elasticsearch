@@ -118,6 +118,19 @@ public final class CorruptionUtils {
     static void corruptAt(Path path, FileChannel channel, int position) throws IOException {
         // read
         channel.position(position);
+        ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
+        channel.read(bb);
+        bb.flip();
+
+        // corrupt
+        byte newValue = (byte) (bb.get(0) + 1);
+
+        corruptAt(path, channel, position, newValue);
+    }
+
+    static void corruptAt(Path path, FileChannel channel, int position, byte newValue) throws IOException {
+        // read
+        channel.position(position);
         long filePointer = channel.position();
         ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
         channel.read(bb);
@@ -125,14 +138,13 @@ public final class CorruptionUtils {
 
         // corrupt
         byte oldValue = bb.get(0);
-        byte newValue = (byte) (oldValue + 1);
         bb.put(0, newValue);
 
         // rewrite
         channel.position(filePointer);
         channel.write(bb);
         logger.info("Corrupting file --  flipping at position {} from {} to {} file: {}", filePointer,
-                Integer.toHexString(oldValue), Integer.toHexString(newValue), path.getFileName());
+            Integer.toHexString(0xFF & oldValue), Integer.toHexString(0xFF & newValue), path.getFileName());
     }
 
 

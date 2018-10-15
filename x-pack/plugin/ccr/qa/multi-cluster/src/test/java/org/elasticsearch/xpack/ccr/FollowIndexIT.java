@@ -80,6 +80,12 @@ public class FollowIndexIT extends ESRestTestCase {
             }
             assertBusy(() -> verifyDocuments(followIndexName, numDocs + 3));
             assertBusy(() -> verifyCcrMonitoring(leaderIndexName, followIndexName));
+
+            pauseFollow(followIndexName);
+            assertOK(client().performRequest(new Request("POST", "/" + followIndexName + "/_close")));
+            assertOK(client().performRequest(new Request("POST", "/" + followIndexName + "/_ccr/unfollow")));
+            Exception e = expectThrows(ResponseException.class, () -> resumeFollow("leader_cluster:" + leaderIndexName, followIndexName));
+            assertThat(e.getMessage(), containsString("follow index [" + followIndexName + "] does not have ccr metadata"));
         }
     }
 

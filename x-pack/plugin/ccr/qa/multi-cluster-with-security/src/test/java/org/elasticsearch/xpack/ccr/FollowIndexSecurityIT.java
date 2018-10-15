@@ -104,16 +104,20 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
                 assertThat(countCcrNodeTasks(), equalTo(0));
             });
 
-            // User does not have create_follow_index index privilege for 'unallowedIndex':
-            Exception e = expectThrows(ResponseException.class,
-                () -> follow("leader_cluster:" + unallowedIndex, unallowedIndex));
+            assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_close")));
+            assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_ccr/unfollow")));
+            Exception e = expectThrows(ResponseException.class, () -> resumeFollow("leader_cluster:" + allowedIndex, allowedIndex));
+            assertThat(e.getMessage(), containsString("follow index [" + allowedIndex + "] does not have ccr metadata"));
+
+            // User does not have manage_follow_index index privilege for 'unallowedIndex':
+            e = expectThrows(ResponseException.class, () -> follow("leader_cluster:" + unallowedIndex, unallowedIndex));
             assertThat(e.getMessage(),
                 containsString("action [indices:admin/xpack/ccr/put_follow] is unauthorized for user [test_ccr]"));
             // Verify that the follow index has not been created and no node tasks are running
             assertThat(indexExists(adminClient(), unallowedIndex), is(false));
             assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
 
-            // User does have create_follow_index index privilege on 'allowed' index,
+            // User does have manage_follow_index index privilege on 'allowed' index,
             // but not read / monitor roles on 'disallowed' index:
             e = expectThrows(ResponseException.class,
                 () -> follow("leader_cluster:" + unallowedIndex, allowedIndex));
@@ -131,6 +135,10 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
                 "privilege for action [indices:data/read/xpack/ccr/shard_changes] is missing"));
             assertThat(indexExists(adminClient(), unallowedIndex), is(false));
             assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
+
+            e = expectThrows(ResponseException.class,
+                () -> client().performRequest(new Request("POST", "/" + unallowedIndex + "/_ccr/unfollow")));
+            assertThat(e.getMessage(), containsString("action [indices:admin/xpack/ccr/unfollow] is unauthorized for user [test_ccr]"));
         }
     }
 

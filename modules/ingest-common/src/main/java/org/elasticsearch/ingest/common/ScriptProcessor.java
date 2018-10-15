@@ -20,9 +20,9 @@
 package org.elasticsearch.ingest.common;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -85,7 +85,7 @@ public final class ScriptProcessor extends AbstractProcessor {
     }
 
     public static final class Factory implements Processor.Factory {
-        private final Logger logger = ESLoggerFactory.getLogger(Factory.class);
+        private final Logger logger = LogManager.getLogger(Factory.class);
         private final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
         private final ScriptService scriptService;

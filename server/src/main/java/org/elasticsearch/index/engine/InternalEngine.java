@@ -1152,7 +1152,7 @@ public class InternalEngine extends Engine {
             return new IndexingStrategy(true, false, true, false, seqNoForIndexing, versionForIndexing, null);
         }
 
-        static IndexingStrategy skipDueToVersionConflict(
+        public static IndexingStrategy skipDueToVersionConflict(
                 VersionConflictEngineException e, boolean currentNotFoundOrDeleted, long currentVersion, long term) {
             final IndexResult result = new IndexResult(e, currentVersion, term);
             return new IndexingStrategy(
@@ -1423,7 +1423,7 @@ public class InternalEngine extends Engine {
                 Optional.empty() : Optional.of(earlyResultOnPreflightError);
         }
 
-        static DeletionStrategy skipDueToVersionConflict(
+        public static DeletionStrategy skipDueToVersionConflict(
                 VersionConflictEngineException e, long currentVersion, long term, boolean currentlyDeleted) {
             final long unassignedSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
             final DeleteResult deleteResult = new DeleteResult(e, currentVersion, term, unassignedSeqNo, currentlyDeleted == false);

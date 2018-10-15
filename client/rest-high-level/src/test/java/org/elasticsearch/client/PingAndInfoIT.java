@@ -56,6 +56,7 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         assertEquals(versionMap.get("lucene_version"), info.getVersion().luceneVersion.toString());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34386")
     public void testXPackInfo() throws IOException {
         XPackInfoRequest request = new XPackInfoRequest();
         request.setCategories(EnumSet.allOf(XPackInfoRequest.Category.class));

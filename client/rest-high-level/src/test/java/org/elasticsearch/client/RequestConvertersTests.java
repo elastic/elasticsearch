@@ -1530,8 +1530,8 @@ public class RequestConvertersTests extends ESTestCase {
     public void testStartILM() throws Exception {
         StartILMRequest req = new StartILMRequest();
         Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(req, expectedParams);
-        setRandomTimeout(req::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomMasterTimeout(req::setMasterTimeout, StartILMRequest.DEFAULT_MASTER_TIMEOUT, expectedParams);
+        setRandomTimeoutTimeValue(req::setTimeout, StartILMRequest.DEFAULT_TIMEOUT, expectedParams);
 
         Request request = RequestConverters.startILM(req);
         assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
@@ -1542,8 +1542,8 @@ public class RequestConvertersTests extends ESTestCase {
     public void testStopILM() throws Exception {
         StopILMRequest req = new StopILMRequest();
         Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(req, expectedParams);
-        setRandomTimeout(req::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomMasterTimeout(req::setMasterTimeout, StopILMRequest.DEFAULT_MASTER_TIMEOUT, expectedParams);
+        setRandomTimeoutTimeValue(req::setTimeout, StopILMRequest.DEFAULT_TIMEOUT, expectedParams);
 
         Request request = RequestConverters.stopILM(req);
         assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));

@@ -21,14 +21,14 @@ dependencies {
 check.dependsOn 'qa:with-security:integTestRunner'
 
 integTestCluster {
-    numNodes = 2
+    numNodes = 4
     clusterName = 'ilm'
     setting 'xpack.security.enabled', 'false'
     setting 'xpack.watcher.enabled', 'false'
     setting 'xpack.monitoring.enabled', 'false'
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.ilm.enabled', 'true'
-    setting 'indices.lifecycle.poll_interval', '500ms'
+    setting 'indices.lifecycle.poll_interval', '2500ms'
     module project(xpackModule('core'))
 }
 

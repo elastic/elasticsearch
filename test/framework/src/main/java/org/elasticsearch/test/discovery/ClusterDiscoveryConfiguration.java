@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.test.NodeConfigurationSource;
-import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -101,20 +100,6 @@ public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
         @Override
         public Settings nodeSettings(int nodeOrdinal) {
             Settings.Builder builder = Settings.builder().put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), numOfNodes);
-
-            String[] unicastHosts = new String[unicastHostOrdinals.length];
-            if (nodeOrdinal >= unicastHostPorts.length) {
-                throw new ElasticsearchException("nodeOrdinal [" + nodeOrdinal + "] is greater than the number unicast ports ["
-                        + unicastHostPorts.length + "]");
-            } else {
-                // we need to pin the node port & host so we'd know where to point things
-                builder.put(TcpTransport.PORT.getKey(), unicastHostPorts[nodeOrdinal]);
-                builder.put(TcpTransport.HOST.getKey(), IP_ADDR); // only bind on one IF we use v4 here by default
-                for (int i = 0; i < unicastHostOrdinals.length; i++) {
-                    unicastHosts[i] = IP_ADDR + ":" + (unicastHostPorts[unicastHostOrdinals[i]]);
-                }
-            }
-            builder.putList("discovery.zen.ping.unicast.hosts", unicastHosts);
             return builder.put(super.nodeSettings(nodeOrdinal)).build();
         }
 

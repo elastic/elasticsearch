@@ -221,6 +221,9 @@ public final class InternalTestCluster extends TestCluster {
     private ServiceDisruptionScheme activeDisruptionScheme;
     private Function<Client, Client> clientWrapper;
 
+    // If set to tru only the first node in the cluster will be made a unicast node
+    private boolean hostsListContainsOnlyFirstNode;
+
     public InternalTestCluster(
             final long clusterSeed,
             final Path baseDir,
@@ -929,7 +932,7 @@ public final class InternalTestCluster extends TestCluster {
             if (!node.isClosed()) {
                 closeNode();
             }
-            recreateNodeOnRestart(callback, clearDataIfNeeded, minMasterNodes, () -> rebuildUnicastHostFiles(false, emptyList()));
+            recreateNodeOnRestart(callback, clearDataIfNeeded, minMasterNodes, () -> rebuildUnicastHostFiles(emptyList()));
             startNode();
         }
 
@@ -1091,7 +1094,7 @@ public final class InternalTestCluster extends TestCluster {
         final int numberOfMasterNodes = numSharedDedicatedMasterNodes > 0 ? numSharedDedicatedMasterNodes : numSharedDataNodes;
         final int defaultMinMasterNodes = (numberOfMasterNodes / 2) + 1;
         final List<NodeAndClient> toStartAndPublish = new ArrayList<>(); // we want to start nodes in one go due to min master nodes
-        final Runnable onTransportServiceStarted = () -> rebuildUnicastHostFiles(false, toStartAndPublish);
+        final Runnable onTransportServiceStarted = () -> rebuildUnicastHostFiles(toStartAndPublish);
         for (int i = 0; i < numSharedDedicatedMasterNodes; i++) {
             final Settings.Builder settings = Settings.builder();
             settings.put(Node.NODE_MASTER_SETTING.getKey(), true);
@@ -1493,7 +1496,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private final Object discoveryFileMutex = new Object();
 
-    private void rebuildUnicastHostFiles(boolean hostsListContainsOnlyFirstNode, List<NodeAndClient> newNodes) {
+    private void rebuildUnicastHostFiles(List<NodeAndClient> newNodes) {
         // cannot be a synchronized method since it's called on other threads from within synchronized startAndPublishNodesAndClients()
         synchronized (discoveryFileMutex) {
             try {
@@ -1693,7 +1696,7 @@ public final class InternalTestCluster extends TestCluster {
             logger.info("resetting node [{}] ", nodeAndClient.name);
             // we already cleared data folders, before starting nodes up
             nodeAndClient.recreateNodeOnRestart(callback, false, autoManageMinMasterNodes ? getMinMasterNodes(getMasterNodesCount()) : -1,
-                () -> rebuildUnicastHostFiles(false, startUpOrder));
+                () -> rebuildUnicastHostFiles(startUpOrder));
         }
 
         startAndPublishNodesAndClients(startUpOrder);
@@ -1795,13 +1798,6 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Starts multiple nodes with default settings and returns their names
-     */
-    public synchronized List<String> startNodes(int numOfNodes, boolean hostsListContainsOnlyFirstNode) {
-        return startNodes(numOfNodes, Settings.EMPTY, hostsListContainsOnlyFirstNode);
-    }
-
-    /**
      * Starts multiple nodes with the given settings and returns their names
      */
     public synchronized List<String> startNodes(int numOfNodes, Settings settings) {
@@ -1811,23 +1807,7 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Starts multiple nodes with the given settings and returns their names
      */
-    public synchronized List<String> startNodes(int numOfNodes, Settings settings, boolean hostsListContainsOnlyFirstNode) {
-        return startNodes(
-            hostsListContainsOnlyFirstNode, Collections.nCopies(numOfNodes, settings).stream().toArray(Settings[]::new)
-        );
-    }
-
-    /**
-     * Starts multiple nodes with the given settings and returns their names
-     */
     public synchronized List<String> startNodes(Settings... settings) {
-        return startNodes(false, settings);
-    }
-
-    /**
-     * Starts multiple nodes with the given settings and returns their names
-     */
-    public synchronized List<String> startNodes(boolean hostsListContainsOnlyFirstNode, Settings... settings) {
         final int defaultMinMasterNodes;
         if (autoManageMinMasterNodes) {
             int mastersDelta = (int) Stream.of(settings).filter(Node.NODE_MASTER_SETTING::get).count();
@@ -1837,7 +1817,7 @@ public final class InternalTestCluster extends TestCluster {
         }
         final List<NodeAndClient> nodes = new ArrayList<>();
         for (Settings nodeSettings : settings) {
-            nodes.add(buildNode(nodeSettings, defaultMinMasterNodes, () -> rebuildUnicastHostFiles(hostsListContainsOnlyFirstNode, nodes)));
+            nodes.add(buildNode(nodeSettings, defaultMinMasterNodes, () -> rebuildUnicastHostFiles(nodes)));
         }
         startAndPublishNodesAndClients(nodes);
         if (autoManageMinMasterNodes) {
@@ -1954,6 +1934,9 @@ public final class InternalTestCluster extends TestCluster {
       return filterNodes(nodes, NodeAndClient::isMasterEligible).size();
     }
 
+    public void setHostsListContainsOnlyFirstNode(boolean hostsListContainsOnlyFirstNode) {
+        this.hostsListContainsOnlyFirstNode = hostsListContainsOnlyFirstNode;
+    }
 
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
         assert activeDisruptionScheme == null :

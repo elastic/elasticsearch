@@ -34,6 +34,7 @@ import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -127,7 +128,9 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
 
     List<String> startCluster(int numberOfNodes, int minimumMasterNode, boolean hostsListContainsOnlyFirstNode) {
         configureCluster(numberOfNodes, minimumMasterNode);
-        List<String> nodes = internalCluster().startNodes(numberOfNodes, hostsListContainsOnlyFirstNode);
+        InternalTestCluster internalCluster = internalCluster();
+        internalCluster.setHostsListContainsOnlyFirstNode(hostsListContainsOnlyFirstNode);
+        List<String> nodes = internalCluster.startNodes(numberOfNodes);
         ensureStableCluster(numberOfNodes);
 
         // TODO: this is a temporary solution so that nodes will not base their reaction to a partition based on previous successful results

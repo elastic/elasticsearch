@@ -32,6 +32,7 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
+import io.netty.util.ReferenceCounted;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -108,8 +109,12 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
 
             try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
                 Collection<FullHttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests.toArray(new String[]{}));
-                Collection<String> responseBodies = Netty4HttpClient.returnHttpResponseBodies(responses);
-                assertThat(responseBodies, contains(requests.toArray()));
+                try {
+                    Collection<String> responseBodies = Netty4HttpClient.returnHttpResponseBodies(responses);
+                    assertThat(responseBodies, contains(requests.toArray()));
+                } finally {
+                    responses.forEach(ReferenceCounted::release);
+                }
             }
         }
 
@@ -139,21 +144,25 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
 
             try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
                 Collection<FullHttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests.toArray(new String[]{}));
-                List<String> responseBodies = new ArrayList<>(Netty4HttpClient.returnHttpResponseBodies(responses));
-                // we can not be sure about the order of the responses, but the slow ones should come last
-                assertThat(responseBodies, hasSize(numberOfRequests));
-                for (int i = 0; i < numberOfRequests - slowIds.size(); i++) {
-                    assertThat(responseBodies.get(i), matches("/\\d+"));
-                }
+                try {
+                    List<String> responseBodies = new ArrayList<>(Netty4HttpClient.returnHttpResponseBodies(responses));
+                    // we can not be sure about the order of the responses, but the slow ones should come last
+                    assertThat(responseBodies, hasSize(numberOfRequests));
+                    for (int i = 0; i < numberOfRequests - slowIds.size(); i++) {
+                        assertThat(responseBodies.get(i), matches("/\\d+"));
+                    }
 
-                final Set<Integer> ids = new HashSet<>();
-                for (int i = 0; i < slowIds.size(); i++) {
-                    final String response = responseBodies.get(numberOfRequests - slowIds.size() + i);
-                    assertThat(response, matches("/slow/\\d+" ));
-                    assertTrue(ids.add(Integer.parseInt(response.split("/")[2])));
-                }
+                    final Set<Integer> ids = new HashSet<>();
+                    for (int i = 0; i < slowIds.size(); i++) {
+                        final String response = responseBodies.get(numberOfRequests - slowIds.size() + i);
+                        assertThat(response, matches("/slow/\\d+"));
+                        assertTrue(ids.add(Integer.parseInt(response.split("/")[2])));
+                    }
 
-                assertThat(slowIds, equalTo(ids));
+                    assertThat(slowIds, equalTo(ids));
+                } finally {
+                    responses.forEach(ReferenceCounted::release);
+                }
             }
         }
 

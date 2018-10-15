@@ -66,18 +66,20 @@ public class MetaDataTests extends ESTestCase {
             assertThat(aliases.size(), equalTo(0));
         }
         {
+            final GetAliasesRequest request;
+            if (randomBoolean()) {
+                request = new GetAliasesRequest();
+            } else {
+                request = new GetAliasesRequest(randomFrom("alias1", "alias2"));
+                // replacing with empty aliases behaves as if aliases were unspecified at request building
+                request.replaceAliases(Strings.EMPTY_ARRAY);
+            }
             ImmutableOpenMap<String, List<AliasMetaData>> aliases = metaData.findAliases(new GetAliasesRequest(), new String[]{"index"});
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetaData> aliasMetaDataList = aliases.get("index");
             assertThat(aliasMetaDataList.size(), equalTo(2));
             assertThat(aliasMetaDataList.get(0).alias(), equalTo("alias1"));
             assertThat(aliasMetaDataList.get(1).alias(), equalTo("alias2"));
-        }
-        {
-            GetAliasesRequest getAliasesRequest = new GetAliasesRequest("alias1");
-            getAliasesRequest.replaceAliases(Strings.EMPTY_ARRAY);
-            ImmutableOpenMap<String, List<AliasMetaData>> aliases = metaData.findAliases(getAliasesRequest, new String[]{"index"});
-            assertThat(aliases.size(), equalTo(0));
         }
         {
             ImmutableOpenMap<String, List<AliasMetaData>> aliases =

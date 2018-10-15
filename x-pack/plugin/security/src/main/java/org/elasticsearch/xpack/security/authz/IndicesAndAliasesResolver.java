@@ -46,9 +46,9 @@ import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResol
 
 class IndicesAndAliasesResolver {
 
-    //`*,-*` what we replace indices with if we need Elasticsearch to return empty responses without throwing exception
-    private static final String[] NO_INDICES_ARRAY = new String[] { "*", "-*" };
-    static final List<String> NO_INDICES_LIST = Arrays.asList(NO_INDICES_ARRAY);
+    //`*,-*` what we replace indices and aliases with if we need Elasticsearch to return empty responses without throwing exception
+    static final String[] NO_INDICES_OR_ALIASES_ARRAY = new String[] { "*", "-*" };
+    static final List<String> NO_INDICES_OR_ALIASES_LIST = Arrays.asList(NO_INDICES_OR_ALIASES_ARRAY);
 
     private final IndexNameExpressionResolver nameExpressionResolver;
     private final RemoteClusterResolver remoteClusterResolver;
@@ -165,7 +165,7 @@ class IndicesAndAliasesResolver {
                     //this is how we tell es core to return an empty response, we can let the request through being sure
                     //that the '-*' wildcard expression will be resolved to no indices. We can't let empty indices through
                     //as that would be resolved to _all by es core.
-                    replaceable.indices(NO_INDICES_ARRAY);
+                    replaceable.indices(NO_INDICES_OR_ALIASES_ARRAY);
                     indicesReplacedWithNoIndices = true;
                     resolvedIndicesBuilder.addLocal(NO_INDEX_PLACEHOLDER);
                 } else {
@@ -176,8 +176,6 @@ class IndicesAndAliasesResolver {
             }
         } else {
             if (containsWildcards(indicesRequest)) {
-                //an alias can still contain '*' in its name as of 5.0. Such aliases cannot be referred to when using
-                //the security plugin, otherwise the following exception gets thrown
                 throw new IllegalStateException("There are no external requests known to support wildcards that don't support replacing " +
                         "their indices");
             }
@@ -194,12 +192,11 @@ class IndicesAndAliasesResolver {
         if (indicesRequest instanceof AliasesRequest) {
             //special treatment for AliasesRequest since we need to replace wildcards among the specified aliases too.
             //AliasesRequest extends IndicesRequest.Replaceable, hence its indices have already been properly replaced.
+            assert indicesRequest instanceof IndicesRequest.Replaceable;
             AliasesRequest aliasesRequest = (AliasesRequest) indicesRequest;
             if (aliasesRequest.expandAliasesWildcards()) {
                 List<String> aliases = replaceWildcardsWithAuthorizedAliases(aliasesRequest.aliases(),
                         loadAuthorizedAliases(authorizedIndices.get(), metaData));
-                //it may be that we replace aliases with an empty array, in case there are no authorized aliases for the action.
-                //MetaData#findAliases will return nothing when some alias was originally requested, which was replaced with empty.
                 aliasesRequest.replaceAliases(aliases.toArray(new String[aliases.size()]));
             }
             if (indicesReplacedWithNoIndices) {
@@ -212,6 +209,13 @@ class IndicesAndAliasesResolver {
                 //not get authorized. Leave only '-*' and ignore the rest, result will anyway be empty.
             } else {
                 resolvedIndicesBuilder.addLocal(aliasesRequest.aliases());
+            }
+            // if no aliases are authorized, then fill in an expression that
+            // MetaData#findAliases evaluates to the empty alias list. You cannot put
+            // "nothing" (the empty list) explicitly because this is resolved by es core to
+            // _all
+            if (aliasesRequest.aliases().length == 0) {
+                aliasesRequest.replaceAliases(NO_INDICES_OR_ALIASES_ARRAY);
             }
         }
         return resolvedIndicesBuilder.build();

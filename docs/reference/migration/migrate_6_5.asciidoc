@@ -11,6 +11,7 @@ your application to Elasticsearch 6.5.
 * <<breaking_65_search_changes>>
 * <<breaking_65_sql_changes>>
 * <<breaking_65_client_changes>>
+* <<breaking_65_security_changes>>
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
@@ -66,3 +67,17 @@ considered a single bucket.
 `Settings` is no longer required by `Retry` so the `withBackoff` methods that
 take `Settings` are now deprecated and there are new versions of those methods
 that do not require `Settings`.
+
+[float]
+[[breaking_65_security_changes]]
+=== Security changes
+
+[float]
+==== Custom role providers interface change
+
+Custom role providers previously accepted an `ActionListener` with a response
+type of `Set<RoleDescriptor>`, but in 6.5.0 the role provider requires an
+`ActionListener` with a response type of `RoleRetrievalResult`. The
+`RoleRetrievalResult` object accepts a `Set<RoleDescriptor>` if the provider
+was successful; if the provider was not successful the `RoleRetrievalResult`
+should be populated with the error.

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
+import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
 import org.junit.After;
 import org.junit.Before;
@@ -245,7 +246,10 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
         if (isWaitForPendingTasks()) {
             // This waits for pending tasks to complete, so must go last (otherwise
             // it could be waiting for pending tasks while monitoring is still running).
-            XPackRestTestHelper.waitForPendingTasks(adminClient());
+            XPackRestTestHelper.waitForPendingTasks(adminClient(), task -> {
+                    // Don't check rollup jobs because we clear them in the superclass.
+                    return task.contains(RollupJob.NAME);
+            });
         }
     }
 

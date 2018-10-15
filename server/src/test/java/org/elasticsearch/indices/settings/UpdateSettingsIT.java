@@ -578,4 +578,55 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * The setting {@link IndexMetaData#SETTING_NUMBER_OF_REPLICAS} is special due to handling in
+     * {@link IndexMetaData.Builder#numberOfReplicas(int)}. Therefore we have a dedicated test that this setting is handled properly with
+     * respect to settings version when applying a settings change that does not change the number of replicas.
+     */
+    public void testNumberOfReplicasSettingsVersionUnchanged() {
+        createIndex("test");
+
+        {
+            final long settingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            final int numberOfReplicas = Integer.valueOf(
+                    client().admin().indices().prepareGetSettings("test").get().getSetting("test", "index.number_of_replicas"));
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.number_of_replicas", numberOfReplicas))
+                    .get());
+            final long newSettingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertThat(newSettingsVersion, equalTo(settingsVersion));
+        }
+
+    }
+
+    /**
+     * The setting {@link IndexMetaData#SETTING_NUMBER_OF_REPLICAS} is special due to handling in
+     * {@link IndexMetaData.Builder#numberOfReplicas(int)}. Therefore we have a dedicated test that this setting is handled properly with
+     * respect to settings version when changing the number of replicas.
+     */
+    public void testNumberOfReplicasSettingsVersion() {
+        createIndex("test");
+
+        final long settingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+        final int numberOfReplicas =
+                Integer.valueOf(
+                        client().admin().indices().prepareGetSettings("test").get().getSetting("test", "index.number_of_replicas"));
+        assertAcked(client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put("index.number_of_replicas", 1 + numberOfReplicas))
+                .get());
+        final long newSettingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+        assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
+
+    }
+
 }

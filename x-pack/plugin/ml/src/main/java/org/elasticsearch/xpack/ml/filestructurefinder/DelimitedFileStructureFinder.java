@@ -142,10 +142,14 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
                     .collect(Collectors.joining(",")));
             }
 
+            boolean needClientTimeZone = timeField.v2().hasTimezoneDependentParsing();
+
             structureBuilder.setTimestampField(timeField.v1())
                 .setJodaTimestampFormats(timeField.v2().jodaTimestampFormats)
                 .setJavaTimestampFormats(timeField.v2().javaTimestampFormats)
-                .setNeedClientTimezone(timeField.v2().hasTimezoneDependentParsing())
+                .setNeedClientTimezone(needClientTimeZone)
+                .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, timeField.v1(),
+                    timeField.v2().jodaTimestampFormats, needClientTimeZone))
                 .setMultilineStartPattern(timeLineRegex);
         }
 

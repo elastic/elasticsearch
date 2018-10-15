@@ -27,12 +27,17 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
+import org.elasticsearch.client.security.GetSslCertificatesResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.EmptyResponse;
+import org.elasticsearch.client.security.support.CertificateInfo;
+import org.hamcrest.Matchers;
 
 import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -170,6 +175,87 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::disable-user-execute-async
             client.security().disableUserAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::disable-user-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetSslCertificates() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::get-certificates-execute
+            GetSslCertificatesResponse response = client.security().getSslCertificates(RequestOptions.DEFAULT);
+            //end::get-certificates-execute
+
+            assertNotNull(response);
+
+            //tag::get-certificates-response
+            List<CertificateInfo> certificates = response.getCertificates(); // <1>
+            //end::get-certificates-response
+
+            assertThat(certificates.size(), Matchers.equalTo(9));
+            final Iterator<CertificateInfo> it = certificates.iterator();
+            CertificateInfo c = it.next();
+            assertThat(c.getSubjectDn(), Matchers.equalTo("CN=testnode-client-profile"));
+            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
+            assertThat(c.getFormat(), Matchers.equalTo("jks"));
+            c = it.next();
+            assertThat(c.getSubjectDn(), Matchers.equalTo("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
+            assertThat(c.getPath(), Matchers.equalTo("testnode.crt"));
+            assertThat(c.getFormat(), Matchers.equalTo("PEM"));
+            c = it.next();
+            assertThat(c.getSubjectDn(), Matchers.equalTo("CN=OpenLDAP, OU=Elasticsearch, O=Elastic, L=Mountain View, ST=CA, C=US"));
+            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
+            assertThat(c.getFormat(), Matchers.equalTo("jks"));
+            c = it.next();
+            assertThat(c.getSubjectDn(), Matchers.equalTo("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
+            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
+            assertThat(c.getFormat(), Matchers.equalTo("jks"));
+            c = it.next();
+            assertThat(c.getSubjectDn(), Matchers.equalTo("CN=Elasticsearch Test Client, OU=elasticsearch, O=org"));
+            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
+            assertThat(c.getFormat(), Matchers.equalTo("jks"));
+            c = it.next();
+            assertThat(c.getSubjectDn(), Matchers.equalTo("CN=ad-ELASTICSEARCHAD-CA, DC=ad, DC=test, DC=elasticsearch, DC=com"));
+            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
+            assertThat(c.getFormat(), Matchers.equalTo("jks"));
+            c = it.next();
+            assertThat(c.getSubjectDn(), Matchers.equalTo("CN=Elasticsearch Test Node"));
+            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
+            assertThat(c.getFormat(), Matchers.equalTo("jks"));
+            c = it.next();
+            assertThat(c.getSubjectDn(), Matchers.equalTo("CN=samba4"));
+            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
+            assertThat(c.getFormat(), Matchers.equalTo("jks"));
+            c = it.next();
+            assertThat(c.getSubjectDn(), Matchers.equalTo("CN=Elasticsearch Test Node"));
+            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
+            assertThat(c.getFormat(), Matchers.equalTo("jks"));
+        }
+
+        {
+            // tag::get-certificates-execute-listener
+            ActionListener<GetSslCertificatesResponse> listener = new ActionListener<GetSslCertificatesResponse>() {
+                @Override
+                public void onResponse(GetSslCertificatesResponse getSslCertificatesResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+
+            // end::get-certificates-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-certificates-execute-async
+            client.security().getSslCertificatesAsync(RequestOptions.DEFAULT, listener); // <1>
+            // end::end-certificates-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

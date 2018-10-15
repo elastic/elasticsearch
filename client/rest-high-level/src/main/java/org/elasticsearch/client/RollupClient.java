@@ -20,6 +20,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.rollup.GetRollupJobRequest;
+import org.elasticsearch.client.rollup.GetRollupJobResponse;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobResponse;
 
@@ -71,6 +73,39 @@ public class RollupClient {
             RollupRequestConverters::putJob,
             options,
             PutRollupJobResponse::fromXContent,
+            listener, Collections.emptySet());
+    }
+
+    /**
+     * Get a rollup job from the cluster.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/rollup-put-job.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetRollupJobResponse getRollupJob(GetRollupJobRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            RollupRequestConverters::getJob,
+            options,
+            GetRollupJobResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Asynchronously get a rollup job from the cluster.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/rollup-put-job.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getRollupJobAsync(GetRollupJobRequest request, RequestOptions options, ActionListener<GetRollupJobResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            RollupRequestConverters::getJob,
+            options,
+            GetRollupJobResponse::fromXContent,
             listener, Collections.emptySet());
     }
 }

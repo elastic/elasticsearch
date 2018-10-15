@@ -4,7 +4,7 @@
     "methods": [ "GET" ],
     "url": {
       "path": "/_ccr/stats",
-      "paths": [ "/_ccr/stats", "/_ccr/stats/{index}" ],
+      "paths": [ "/_ccr/stats", "/{index}/_ccr/stats" ],
       "parts": {
         "index": {
           "type": "list",

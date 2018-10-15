@@ -166,7 +166,7 @@ public class ScriptServiceTests extends ESTestCase {
         buildScriptService(Settings.EMPTY);
 
         assertCompileAccepted("painless", "script", ScriptType.INLINE, FieldScript.CONTEXT);
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.AGGS_CONTEXT);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, AggregationScript.CONTEXT);
         assertCompileAccepted("painless", "script", ScriptType.INLINE, UpdateScript.CONTEXT);
         assertCompileAccepted("painless", "script", ScriptType.INLINE, IngestScript.CONTEXT);
     }
@@ -186,7 +186,7 @@ public class ScriptServiceTests extends ESTestCase {
         buildScriptService(builder.build());
 
         assertCompileAccepted("painless", "script", ScriptType.INLINE, FieldScript.CONTEXT);
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.AGGS_CONTEXT);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, AggregationScript.CONTEXT);
         assertCompileRejected("painless", "script", ScriptType.INLINE, UpdateScript.CONTEXT);
     }
 
@@ -205,7 +205,7 @@ public class ScriptServiceTests extends ESTestCase {
         buildScriptService(builder.build());
 
         assertCompileRejected("painless", "script", ScriptType.INLINE, FieldScript.CONTEXT);
-        assertCompileRejected("painless", "script", ScriptType.INLINE, SearchScript.AGGS_CONTEXT);
+        assertCompileRejected("painless", "script", ScriptType.INLINE, AggregationScript.CONTEXT);
     }
 
     public void testCompileNonRegisteredContext() throws IOException {

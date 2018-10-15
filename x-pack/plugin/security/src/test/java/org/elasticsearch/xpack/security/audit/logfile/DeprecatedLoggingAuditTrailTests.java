@@ -735,7 +735,8 @@ public class DeprecatedLoggingAuditTrailTests extends ESTestCase {
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.include", "_all")
                 .build();
-        final DeprecatedLoggingAuditTrail auditTrail = new DeprecatedLoggingAuditTrail(allEventsSettings, clusterService, logger, threadContext);
+        final DeprecatedLoggingAuditTrail auditTrail = new DeprecatedLoggingAuditTrail(allEventsSettings, clusterService,
+            logger, threadContext);
         final User user = new User("_username", new String[] { "r1" });
         final String role = randomAlphaOfLengthBetween(1, 6);
         final String realm = randomAlphaOfLengthBetween(1, 6);

@@ -455,7 +455,7 @@ public final class AnalysisRegistry implements Closeable {
 
         Index index = indexSettings.getIndex();
         analyzerProviders = new HashMap<>(analyzerProviders);
-        Logger logger = Loggers.getLogger(getClass(), indexSettings.getSettings());
+        Logger logger = Loggers.getLogger(getClass());
         DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
         Map<String, NamedAnalyzer> analyzerAliases = new HashMap<>();
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();

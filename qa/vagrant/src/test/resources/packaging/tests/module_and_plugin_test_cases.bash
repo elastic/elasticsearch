@@ -96,7 +96,7 @@ fi
 
     rm -rf "$ESPLUGINS"
     # The custom plugins directory is not under /tmp or /var/tmp because
-    # systemd's private temp directory functionaly means different
+    # systemd's private temp directory functionally means different
     # processes can have different views of what's in these directories
     local es_plugins=$(mktemp -p /var -d -t 'plugins.XXXX')
     chown -R elasticsearch:elasticsearch "$es_plugins"
@@ -228,10 +228,10 @@ fi
 }
 
 @test "[$GROUP] install ingest-attachment plugin" {
-    # we specify the version on the poi-3.17.jar so that the test does
+    # we specify the version on the poi-4.0.0.jar so that the test does
     # not spuriously pass if the jar is missing but the other poi jars
     # are present
-    install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-3.17.jar poi-ooxml-3.17.jar poi-ooxml-schemas-*.jar poi-scratchpad-*.jar
+    install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-4.0.0.jar poi-ooxml-4.0.0.jar poi-ooxml-schemas-*.jar poi-scratchpad-*.jar
 }
 
 @test "[$GROUP] install ingest-geoip plugin" {

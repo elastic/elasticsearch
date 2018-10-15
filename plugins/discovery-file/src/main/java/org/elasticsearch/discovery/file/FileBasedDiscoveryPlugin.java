@@ -22,7 +22,6 @@ package org.elasticsearch.discovery.file;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -38,8 +37,8 @@ public class FileBasedDiscoveryPlugin extends Plugin implements DiscoveryPlugin 
     static final String DEPRECATION_MESSAGE
         = "File-based discovery is now built into Elasticsearch and does not require the discovery-file plugin";
 
-    public FileBasedDiscoveryPlugin(Settings settings) {
-        deprecationLogger = new DeprecationLogger(Loggers.getLogger(this.getClass(), settings));
+    public FileBasedDiscoveryPlugin() {
+        deprecationLogger = new DeprecationLogger(Loggers.getLogger(this.getClass()));
     }
 
     @Override

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -27,7 +28,6 @@ import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 
 import java.io.IOException;
@@ -97,7 +97,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
     }
 
     public static final class Longs extends ScriptDocValues<Long> {
-        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Longs.class));
+        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Longs.class));
         private final SortedNumericDocValues in;
         /**
          * Callback for deprecated fields. In production this should always point to
@@ -218,7 +218,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static final class Dates extends ScriptDocValues<JodaCompatibleZonedDateTime> {
 
-        private static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Dates.class));
+        private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Dates.class));
 
         private final JodaCompatibleZonedDateTime EPOCH = new JodaCompatibleZonedDateTime(Instant.EPOCH, ZoneOffset.UTC);
 
@@ -348,7 +348,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         private double[] values = new double[0];
         private int count;
 
-        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Doubles.class));
+        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Doubles.class));
         private final BiConsumer<String, String> deprecationCallback;
 
         public Doubles(SortedNumericDoubleValues in) {
@@ -433,7 +433,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         private GeoPoint[] values = new GeoPoint[0];
         private int count;
 
-        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(GeoPoints.class));
+        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(GeoPoints.class));
         private final BiConsumer<String, String> deprecationCallback;
 
         public GeoPoints(MultiGeoPointValues in) {
@@ -585,7 +585,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         private boolean[] values = new boolean[0];
         private int count;
 
-        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Booleans.class));
+        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Booleans.class));
         private final BiConsumer<String, String> deprecationCallback;
 
         public Booleans(SortedNumericDocValues in) {
@@ -719,7 +719,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static final class Strings extends BinaryScriptDocValues<String> {
 
-        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Strings.class));
+        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Strings.class));
         private final BiConsumer<String, String> deprecationCallback;
 
         public Strings(SortedBinaryDocValues in) {
@@ -770,7 +770,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static final class BytesRefs extends BinaryScriptDocValues<BytesRef> {
 
-        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Strings.class));
+        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Strings.class));
         private final BiConsumer<String, String> deprecationCallback;
 
         public BytesRefs(SortedBinaryDocValues in) {

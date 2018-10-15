@@ -69,7 +69,7 @@ public class WatchParser extends AbstractComponent {
         this.actionRegistry = actionRegistry;
         this.inputRegistry = inputRegistry;
         this.cryptoService = cryptoService;
-        this.defaultInput = new ExecutableNoneInput(logger);
+        this.defaultInput = new ExecutableNoneInput();
         this.defaultCondition = InternalAlwaysCondition.INSTANCE;
         this.defaultActions = Collections.emptyList();
         this.clock = clock;

@@ -19,14 +19,13 @@
 
 package org.elasticsearch.discovery.file;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.discovery.file.FileBasedDiscoveryPlugin.DEPRECATION_MESSAGE;
 
 public class FileBasedDiscoveryPluginDeprecationTests extends ESTestCase {
     public void testDeprecationWarning() {
-        new FileBasedDiscoveryPlugin(Settings.EMPTY).getZenHostsProviders(null, null);
+        new FileBasedDiscoveryPlugin().getZenHostsProviders(null, null);
         assertWarnings(DEPRECATION_MESSAGE);
     }
 }

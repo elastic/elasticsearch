@@ -56,8 +56,21 @@ public final class FollowingEngine extends InternalEngine {
         final long maxSeqNoOfUpdatesOrDeletes = getMaxSeqNoOfUpdatesOrDeletes();
         assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is not initialized";
         if (hasBeenProcessedBefore(index)) {
-            return IndexingStrategy.processButSkipLucene(false, index.seqNo(), index.version());
-
+            if (index.origin() == Operation.Origin.PRIMARY) {
+                /*
+                 * The existing operation in this engine was probably assigned the term of the previous primary shard which is different
+                 * from the term of the current operation. If the current operation arrives on replicas before the previous operation,
+                 * then the Lucene content between the primary and replicas are not identical (primary terms are different). Since the
+                 * existing operations are guaranteed to be replicated to replicas either via peer-recovery or primary-replica resync,
+                 * we can safely skip this operation here and let the caller know the decision via AlreadyProcessedFollowingEngineException.
+                 * The caller then waits for the global checkpoint to advance at least the seq_no of this operation to make sure that
+                 * the existing operation was replicated to all replicas (see TransportBulkShardOperationsAction#shardOperationOnPrimary).
+                 */
+                final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(shardId, index.seqNo());
+                return IndexingStrategy.skipDueToVersionConflict(error, false, index.version(), index.primaryTerm());
+            } else {
+                return IndexingStrategy.processButSkipLucene(false, index.seqNo(), index.version());
+            }
         } else if (maxSeqNoOfUpdatesOrDeletes <= getLocalCheckpoint()) {
             assert maxSeqNoOfUpdatesOrDeletes < index.seqNo() : "seq_no[" + index.seqNo() + "] <= msu[" + maxSeqNoOfUpdatesOrDeletes + "]";
             numOfOptimizedIndexing.inc();
@@ -71,7 +84,19 @@ public final class FollowingEngine extends InternalEngine {
     @Override
     protected InternalEngine.DeletionStrategy deletionStrategyForOperation(final Delete delete) throws IOException {
         preFlight(delete);
-        return planDeletionAsNonPrimary(delete);
+        if (delete.origin() == Operation.Origin.PRIMARY && hasBeenProcessedBefore(delete)) {
+            // See the comment in #indexingStrategyForOperation for the explanation why we can safely skip this operation.
+            final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(shardId, delete.seqNo());
+            return DeletionStrategy.skipDueToVersionConflict(error, delete.version(), delete.primaryTerm(), false);
+        } else {
+            return planDeletionAsNonPrimary(delete);
+        }
+    }
+
+    @Override
+    public NoOpResult noOp(NoOp noOp) {
+        // TODO: Make sure we process NoOp once.
+        return super.noOp(noOp);
     }
 
     @Override

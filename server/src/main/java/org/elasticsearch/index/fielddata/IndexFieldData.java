@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.NestedSortBuilder;
 
 import java.io.IOException;
 
@@ -128,10 +129,12 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
 
             private final BitSetProducer rootFilter;
             private final Query innerQuery;
+            private final NestedSortBuilder nestedSort;
 
-            public Nested(BitSetProducer rootFilter, Query innerQuery) {
+            public Nested(BitSetProducer rootFilter, Query innerQuery, NestedSortBuilder nestedSort) {
                 this.rootFilter = rootFilter;
                 this.innerQuery = innerQuery;
+                this.nestedSort = nestedSort;
             }
 
             public Query getInnerQuery() {
@@ -141,6 +144,8 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
             public BitSetProducer getRootFilter() {
                 return rootFilter;
             }
+
+            public NestedSortBuilder getNestedSort() { return nestedSort; }
 
             /**
              * Get a {@link BitDocIdSet} that matches the root documents.

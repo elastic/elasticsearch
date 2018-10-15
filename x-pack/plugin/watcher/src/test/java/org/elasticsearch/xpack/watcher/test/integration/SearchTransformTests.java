@@ -230,7 +230,7 @@ public class SearchTransformTests extends ESIntegTestCase {
     }
 
     public void testDifferentSearchType() throws Exception {
-        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         SearchSourceBuilder searchSourceBuilder = searchSource().query(boolQuery()
               .must(matchQuery("event_type", "a")));
         final SearchType searchType = getRandomSupportedSearchType();

@@ -46,8 +46,10 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -555,7 +557,8 @@ public class FollowingEngineTests extends ESTestCase {
 
     public void testProcessOnceOnPrimary() throws Exception {
         final Settings settings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true).build();
+            .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true)
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
         int numOps = between(10, 100);
@@ -576,9 +579,12 @@ public class FollowingEngineTests extends ESTestCase {
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
                 followingEngine.advanceMaxSeqNoOfUpdatesOrDeletes(operations.size() - 1L);
                 final long oldTerm = randomLongBetween(1, Integer.MAX_VALUE);
+                final Map<Long,Long> operationWithTerms = new HashMap<>();
                 for (Engine.Operation op : operations) {
-                    Engine.Result result = applyOperation(followingEngine, op, oldTerm, randomFrom(Engine.Operation.Origin.values()));
+                    long term = randomLongBetween(1, oldTerm);
+                    Engine.Result result = applyOperation(followingEngine, op, term, randomFrom(Engine.Operation.Origin.values()));
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+                    operationWithTerms.put(op.seqNo(), term);
                 }
                 // Primary should reject duplicates
                 final long newTerm = randomLongBetween(oldTerm + 1, Long.MAX_VALUE);
@@ -586,9 +592,11 @@ public class FollowingEngineTests extends ESTestCase {
                     Engine.Result result = applyOperation(followingEngine, op, newTerm, Engine.Operation.Origin.PRIMARY);
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
                     assertThat(result.getFailure(), instanceOf(AlreadyProcessedFollowingEngineException.class));
+                    AlreadyProcessedFollowingEngineException failure = (AlreadyProcessedFollowingEngineException) result.getFailure();
+                    assertThat(failure.getExistingPrimaryTerm().getAsLong(), equalTo(operationWithTerms.get(op.seqNo())));
                 }
                 for (DocIdSeqNoAndTerm docId : getDocIds(followingEngine, true)) {
-                    assertThat(docId.getPrimaryTerm(), equalTo(oldTerm));
+                    assertThat(docId.getPrimaryTerm(), equalTo(operationWithTerms.get(docId.getSeqNo())));
                 }
                 // Replica should accept duplicates
                 primaryTerm.set(newTerm);
@@ -600,7 +608,7 @@ public class FollowingEngineTests extends ESTestCase {
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
                 }
                 for (DocIdSeqNoAndTerm docId : getDocIds(followingEngine, true)) {
-                    assertThat(docId.getPrimaryTerm(), equalTo(oldTerm));
+                    assertThat(docId.getPrimaryTerm(), equalTo(operationWithTerms.get(docId.getSeqNo())));
                 }
             }
         }

@@ -2410,9 +2410,7 @@ public class InternalEngine extends Engine {
                                                 long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
         // TODO: Should we defer the refresh until we really need it?
         ensureOpen();
-        if (lastRefreshedCheckpoint() < toSeqNo) {
-            refresh(source, SearcherScope.INTERNAL);
-        }
+        refreshIfNeeded(source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {
             LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(
@@ -2520,6 +2518,15 @@ public class InternalEngine extends Engine {
      */
     final long lastRefreshedCheckpoint() {
         return lastRefreshedCheckpointListener.refreshedCheckpoint.get();
+    }
+
+    /**
+     * Refresh this engine **internally** iff the requesting seq_no is greater than the last refreshed checkpoint.
+     */
+    protected final void refreshIfNeeded(String source, long requestingSeqNo) {
+        if (lastRefreshedCheckpoint() < requestingSeqNo) {
+            refresh(source, SearcherScope.INTERNAL);
+        }
     }
 
     private final class LastRefreshedCheckpointListener implements ReferenceManager.RefreshListener {

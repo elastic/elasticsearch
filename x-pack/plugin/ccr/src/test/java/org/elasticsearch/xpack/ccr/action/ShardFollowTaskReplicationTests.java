@@ -227,7 +227,6 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/34412")
     public void testRetryBulkShardOperations() throws Exception {
         try (ReplicationGroup leaderGroup = createGroup(between(0, 1));
              ReplicationGroup followerGroup = createFollowGroup(between(1, 3))) {
@@ -304,7 +303,9 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
     private ReplicationGroup createFollowGroup(int replicas) throws IOException {
         Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
+        settingsBuilder.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(between(1, 1000), ByteSizeUnit.KB));
         return createGroup(replicas, settingsBuilder.build());
     }
 

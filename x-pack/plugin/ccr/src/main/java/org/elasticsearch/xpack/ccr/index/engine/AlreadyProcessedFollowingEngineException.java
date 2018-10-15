@@ -9,8 +9,23 @@ package org.elasticsearch.xpack.ccr.index.engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.OptionalLong;
+
 public final class AlreadyProcessedFollowingEngineException extends VersionConflictEngineException {
-    AlreadyProcessedFollowingEngineException(ShardId shardId, long seqNo) {
-        super(shardId, "operation [{}] was processed before", null, seqNo);
+    private final long seqNo;
+    private final OptionalLong existingPrimaryTerm;
+
+    AlreadyProcessedFollowingEngineException(ShardId shardId, long seqNo, OptionalLong existingPrimaryTerm) {
+        super(shardId, "operation [{}] was processed before with term [{}]", null, seqNo, existingPrimaryTerm);
+        this.seqNo = seqNo;
+        this.existingPrimaryTerm = existingPrimaryTerm;
+    }
+
+    public long getSeqNo() {
+        return seqNo;
+    }
+
+    public OptionalLong getExistingPrimaryTerm() {
+        return existingPrimaryTerm;
     }
 }

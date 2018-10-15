@@ -135,11 +135,11 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
     private void checkMappingsCompatibility(IndexMetaData indexMetaData) {
         try {
 
-            // We cannot instantiate real analysis server or similiarity service at this point because the node
+            // We cannot instantiate real analysis server or similarity service at this point because the node
             // might not have been started yet. However, we don't really need real analyzers or similarities at
             // this stage - so we can fake it using constant maps accepting every key.
             // This is ok because all used similarities and analyzers for this index were known before the upgrade.
-            // Missing analyzers and similarities plugin will still trigger the apropriate error during the
+            // Missing analyzers and similarities plugin will still trigger the appropriate error during the
             // actual upgrade.
 
             IndexSettings indexSettings = new IndexSettings(indexMetaData, this.settings);

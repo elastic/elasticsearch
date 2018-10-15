@@ -276,6 +276,30 @@ include-tagged::{sql-specs}/docs.csv-spec[mathInlinePowerPositive]
 include-tagged::{sql-specs}/docs.csv-spec[mathInlinePowerNegative]
 --------------------------------------------------
 
+[[sql-functions-math-random]]
+===== `RANDOM`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+RANDOM(seed<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> numeric expression
+
+*Output*: double numeric value
+
+.Description:
+
+Returns a random double using the given seed.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[mathRandom]
+--------------------------------------------------
+
 [[sql-functions-math-round]]
 ===== `ROUND`
 

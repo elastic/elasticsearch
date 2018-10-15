@@ -797,7 +797,7 @@
                     }
                   }
                 },
-                "maanagement": {
+                "management": {
                   "properties": {
                     "threads": {
                       "type": "integer"

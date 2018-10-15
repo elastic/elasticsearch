@@ -9,7 +9,7 @@
              "password" : "x-pack-test-password",
              "roles" : [ "native_role" ]
            }
-  - match: { user: { created: true } }
+  - match: { created: true }
 
   - do:
       xpack.security.put_role:

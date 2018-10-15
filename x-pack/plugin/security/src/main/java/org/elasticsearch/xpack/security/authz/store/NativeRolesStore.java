@@ -19,9 +19,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -30,41 +27,38 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheResponse;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
+import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ROLE_TYPE;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
@@ -77,7 +71,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
  *
  * No caching is done by this class, it is handled at a higher level
  */
-public class NativeRolesStore extends AbstractComponent {
+public class NativeRolesStore extends AbstractComponent implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
 
     // these are no longer used, but leave them around for users upgrading
     private static final Setting<Integer> CACHE_SIZE_SETTING =
@@ -100,45 +94,32 @@ public class NativeRolesStore extends AbstractComponent {
         this.securityIndex = securityIndex;
     }
 
+    @Override
+    public void accept(Set<String> names, ActionListener<RoleRetrievalResult> listener) {
+        getRoleDescriptors(names, listener);
+    }
+
     /**
      * Retrieve a list of roles, if rolesToGet is null or empty, fetch all roles
      */
-    public void getRoleDescriptors(String[] names, final ActionListener<Collection<RoleDescriptor>> listener) {
+    public void getRoleDescriptors(Set<String> names, final ActionListener<RoleRetrievalResult> listener) {
         if (securityIndex.indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
-            listener.onResponse(Collections.emptyList());
-        } else if (names == null || names.length == 0) {
-            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-                QueryBuilder query = QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE);
-                final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
-                try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN)) {
-                    SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
-                        .setScroll(TimeValue.timeValueSeconds(10L))
-                        .setQuery(query)
-                        .setSize(1000)
-                        .setFetchSource(true)
-                        .request();
-                    request.indicesOptions().ignoreUnavailable();
-                    ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener),
-                        (hit) -> transformRole(hit.getId(), hit.getSourceRef(), logger, licenseState));
-                }
-            });
-        } else if (names.length == 1) {
-            getRoleDescriptor(Objects.requireNonNull(names[0]), ActionListener.wrap(roleDescriptor ->
-                    listener.onResponse(roleDescriptor == null ? Collections.emptyList() : Collections.singletonList(roleDescriptor)),
-                    listener::onFailure));
+            listener.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
+        } else if (names != null && names.size() == 1) {
+            getRoleDescriptor(Objects.requireNonNull(names.iterator().next()), listener);
         } else {
-            final String[] roleIds = Arrays.stream(names).map(NativeRolesStore::getIdForRole).toArray(String[]::new);
             securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+                final String[] roleIds = names.stream().map(NativeRolesStore::getIdForRole).toArray(String[]::new);
                 MultiGetRequest multiGetRequest = client.prepareMultiGet().add(SECURITY_INDEX_NAME, ROLE_DOC_TYPE, roleIds).request();
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, multiGetRequest,
                     ActionListener.<MultiGetResponse>wrap(mGetResponse ->
-                        listener.onResponse(Arrays.stream(mGetResponse.getResponses())
-                            .filter(item -> item.isFailed() == false)
-                            .filter(item -> item.getResponse().isExists())
-                            .map(item -> transformRole(item.getResponse()))
-                            .filter(Objects::nonNull)
-                            .collect(Collectors.toList())),
+                            listener.onResponse(RoleRetrievalResult.success(Arrays.stream(mGetResponse.getResponses())
+                                .filter(item -> item.isFailed() == false)
+                                .filter(item -> item.getResponse().isExists())
+                                .map(item -> transformRole(item.getResponse()))
+                                .filter(Objects::nonNull)
+                                .collect(Collectors.toSet()))),
                         listener::onFailure), client::multiGet);
             });
         }
@@ -271,30 +252,28 @@ public class NativeRolesStore extends AbstractComponent {
         }
     }
 
-    private void getRoleDescriptor(final String roleId, ActionListener<RoleDescriptor> roleActionListener) {
+    @Override
+    public String toString() {
+        return "native roles store";
+    }
+
+    private void getRoleDescriptor(final String roleId, ActionListener<RoleRetrievalResult> resultListener) {
         if (securityIndex.indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
-            roleActionListener.onResponse(null);
+            resultListener.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
         } else {
-            securityIndex.prepareIndexIfNeededThenExecute(roleActionListener::onFailure, () ->
+            securityIndex.prepareIndexIfNeededThenExecute(e -> resultListener.onResponse(RoleRetrievalResult.failure(e)), () ->
                     executeGetRoleRequest(roleId, new ActionListener<GetResponse>() {
                         @Override
                         public void onResponse(GetResponse response) {
                             final RoleDescriptor descriptor = transformRole(response);
-                            roleActionListener.onResponse(descriptor);
+                            resultListener.onResponse(RoleRetrievalResult.success(
+                                descriptor == null ? Collections.emptySet() : Collections.singleton(descriptor)));
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            // if the index or the shard is not there / available we just claim the role is not there
-                            if (TransportActions.isShardNotAvailableException(e)) {
-                                logger.warn((org.apache.logging.log4j.util.Supplier<?>) () ->
-                                        new ParameterizedMessage("failed to load role [{}] index not available", roleId), e);
-                                roleActionListener.onResponse(null);
-                            } else {
-                                logger.error(new ParameterizedMessage("failed to load role [{}]", roleId), e);
-                                roleActionListener.onFailure(e);
-                            }
+                            resultListener.onResponse(RoleRetrievalResult.failure(e));
                         }
                     }));
         }

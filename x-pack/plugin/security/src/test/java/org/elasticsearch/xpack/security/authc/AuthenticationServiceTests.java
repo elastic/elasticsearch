@@ -154,7 +154,6 @@ public class AuthenticationServiceTests extends ESTestCase {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.allowedRealmType()).thenReturn(XPackLicenseState.AllowedRealmType.ALL);
         when(licenseState.isAuthAllowed()).thenReturn(true);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         realms = new TestRealms(Settings.EMPTY, TestEnvironment.newEnvironment(settings), Collections.<String, Realm.Factory>emptyMap(),
                 licenseState, threadContext, mock(ReservedRealm.class), Arrays.asList(firstRealm, secondRealm),
                 Collections.singletonList(firstRealm));
@@ -717,7 +716,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(secondRealm.supports(token)).thenReturn(true);
         mockAuthenticate(secondRealm, token, new User("lookup user", new String[]{"user"}));
         mockRealmLookupReturnsNull(firstRealm, "run_as");
-        doThrow(authenticationError("realm doesn't want to " + "lookup"))
+        doThrow(authenticationError("realm doesn't want to lookup"))
                 .when(secondRealm).lookupUser(eq("run_as"), any(ActionListener.class));
 
         try {
@@ -1030,12 +1029,22 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     private void mockAuthenticate(Realm realm, AuthenticationToken token, User user) {
-        doAnswer((i) -> {
+        final boolean separateThread = randomBoolean();
+        doAnswer(i -> {
             ActionListener<AuthenticationResult> listener = (ActionListener<AuthenticationResult>) i.getArguments()[1];
-            if (user == null) {
-                listener.onResponse(AuthenticationResult.notHandled());
+            Runnable run = () -> {
+                if (user == null) {
+                    listener.onResponse(AuthenticationResult.notHandled());
+                } else {
+                    listener.onResponse(AuthenticationResult.success(user));
+                }
+            };
+            if (separateThread) {
+                final Thread thread = new Thread(run);
+                thread.start();
+                thread.join();
             } else {
-                listener.onResponse(AuthenticationResult.success(user));
+                run.run();
             }
             return null;
         }).when(realm).authenticate(eq(token), any(ActionListener.class));

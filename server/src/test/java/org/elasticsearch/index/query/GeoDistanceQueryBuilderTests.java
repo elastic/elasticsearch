@@ -298,9 +298,10 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.DEFAULT);
     }
 
-    private void assertGeoDistanceRangeQuery(String query, double lat, double lon, double distance, DistanceUnit distanceUnit) throws IOException {
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        // TODO: what can we check?
+    private void assertGeoDistanceRangeQuery(String query, double lat, double lon, double distance, DistanceUnit distanceUnit)
+            throws IOException {
+        parseQuery(query).toQuery(createShardContext());
+        // TODO: what can we check? See https://github.com/elastic/elasticsearch/issues/34043
     }
 
     public void testFromJson() throws IOException {

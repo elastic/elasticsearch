@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.security;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
@@ -58,7 +58,7 @@ public abstract class MigrateToolTestCase extends LuceneTestCase {
      */
     public static final String TESTS_CLUSTER_DEFAULT = "localhost:9300";
 
-    protected static final Logger logger = ESLoggerFactory.getLogger(MigrateToolTestCase.class.getName());
+    protected static final Logger logger = LogManager.getLogger(MigrateToolTestCase.class);
 
     private static final AtomicInteger counter = new AtomicInteger();
     private static Client client;
@@ -129,7 +129,6 @@ public abstract class MigrateToolTestCase extends LuceneTestCase {
 
     @BeforeClass
     public static void initializeSettings() throws UnknownHostException {
-        String port = System.getProperty("integ.http.port");
         clusterAddresses = System.getProperty(TESTS_CLUSTER);
         clusterHttpAddresses = System.getProperty(TESTS_HTTP_CLUSTER);
         if (clusterAddresses == null || clusterAddresses.isEmpty()) {

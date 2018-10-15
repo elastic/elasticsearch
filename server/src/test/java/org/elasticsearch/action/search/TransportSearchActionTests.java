@@ -44,7 +44,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -64,7 +63,7 @@ public class TransportSearchActionTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    public void testMergeShardsIterators() throws IOException {
+    public void testMergeShardsIterators() {
         List<ShardIterator> localShardIterators = new ArrayList<>();
         {
             ShardId shardId = new ShardId("local_index", "local_index_uuid", 0);
@@ -146,7 +145,7 @@ public class TransportSearchActionTests extends ESTestCase {
         }
     }
 
-    public void testProcessRemoteShards() throws IOException {
+    public void testProcessRemoteShards() {
         try (TransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool,
             null)) {
             RemoteClusterService service = transportService.getRemoteClusterService();
@@ -241,12 +240,12 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     public void testBuildClusters() {
-        OriginalIndices localIndices = randomOriginalIndices();
+        OriginalIndices localIndices = randomBoolean() ? null : randomOriginalIndices();
         Map<String, OriginalIndices> remoteIndices = new HashMap<>();
         Map<String, ClusterSearchShardsResponse> searchShardsResponses = new HashMap<>();
         int numRemoteClusters = randomIntBetween(0, 10);
         boolean onlySuccessful = randomBoolean();
-        int localClusters = localIndices.indices().length == 0 ? 0 : 1;
+        int localClusters = localIndices == null ? 0 : 1;
         int total = numRemoteClusters + localClusters;
         int successful = localClusters;
         int skipped = 0;

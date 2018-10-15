@@ -22,7 +22,8 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
-import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.script.AggregationScript;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.joda.time.ReadableInstant;
 
@@ -37,9 +38,9 @@ import java.util.Iterator;
  */
 public class ScriptLongValues extends AbstractSortingNumericDocValues implements ScorerAware {
 
-    final SearchScript script;
+    final AggregationScript script;
 
-    public ScriptLongValues(SearchScript script) {
+    public ScriptLongValues(AggregationScript script) {
         super();
         this.script = script;
     }
@@ -47,7 +48,7 @@ public class ScriptLongValues extends AbstractSortingNumericDocValues implements
     @Override
     public boolean advanceExact(int target) throws IOException {
         script.setDocument(target);
-        final Object value = script.run();
+        final Object value = script.execute();
 
         if (value == null) {
             return false;
@@ -94,6 +95,8 @@ public class ScriptLongValues extends AbstractSortingNumericDocValues implements
             return ((ReadableInstant) o).getMillis();
         } else if (o instanceof ZonedDateTime) {
             return ((ZonedDateTime) o).toInstant().toEpochMilli();
+        } else if (o instanceof JodaCompatibleZonedDateTime) {
+            return ((JodaCompatibleZonedDateTime) o).toInstant().toEpochMilli();
         } else if (o instanceof Boolean) {
             // We do expose boolean fields as boolean in scripts, however aggregations still expect
             // that scripts return the same internal representation as regular fields, so boolean

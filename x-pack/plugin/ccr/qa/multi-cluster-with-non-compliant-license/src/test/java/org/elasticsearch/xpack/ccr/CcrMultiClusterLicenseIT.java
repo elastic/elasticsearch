@@ -31,17 +31,17 @@ public class CcrMultiClusterLicenseIT extends ESRestTestCase {
         return true;
     }
 
-    public void testFollowIndex() {
+    public void testResumeFollow() {
         if (runningAgainstLeaderCluster == false) {
-            final Request request = new Request("POST", "/follower/_ccr/follow");
+            final Request request = new Request("POST", "/follower/_ccr/resume_follow");
             request.setJsonEntity("{\"leader_index\": \"leader_cluster:leader\"}");
             assertNonCompliantLicense(request);
         }
     }
 
-    public void testCreateAndFollowIndex() {
+    public void testFollow() {
         if (runningAgainstLeaderCluster == false) {
-            final Request request = new Request("POST", "/follower/_ccr/create_and_follow");
+            final Request request = new Request("PUT", "/follower/_ccr/follow");
             request.setJsonEntity("{\"leader_index\": \"leader_cluster:leader\"}");
             assertNonCompliantLicense(request);
         }
@@ -64,7 +64,7 @@ public class CcrMultiClusterLicenseIT extends ESRestTestCase {
                 while (it.hasNext()) {
                     final String line = it.next();
                     if (line.matches(".*\\[WARN\\s*\\]\\[o\\.e\\.x\\.c\\.a\\.AutoFollowCoordinator\\s*\\] \\[node-0\\] " +
-                            "failure occurred during auto-follower coordination")) {
+                            "failure occurred while fetching cluster state in leader cluster \\[leader_cluster\\]")) {
                         warn = true;
                         break;
                     }

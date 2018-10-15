@@ -14,6 +14,7 @@ import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
@@ -54,6 +55,7 @@ public class FileStructureTests extends AbstractSerializingTestCase<FileStructur
             builder.setColumnNames(Arrays.asList(generateRandomStringArray(10, 10, false, false)));
             builder.setHasHeaderRow(randomBoolean());
             builder.setDelimiter(randomFrom(',', '\t', ';', '|'));
+            builder.setQuote(randomFrom('"', '\''));
         }
 
         if (format == FileStructure.Format.SEMI_STRUCTURED_TEXT) {
@@ -62,7 +64,8 @@ public class FileStructureTests extends AbstractSerializingTestCase<FileStructur
 
         if (format == FileStructure.Format.SEMI_STRUCTURED_TEXT || randomBoolean()) {
             builder.setTimestampField(randomAlphaOfLength(10));
-            builder.setTimestampFormats(Arrays.asList(generateRandomStringArray(3, 20, false, false)));
+            builder.setJodaTimestampFormats(Arrays.asList(generateRandomStringArray(3, 20, false, false)));
+            builder.setJavaTimestampFormats(Arrays.asList(generateRandomStringArray(3, 20, false, false)));
             builder.setNeedClientTimezone(randomBoolean());
         }
 
@@ -71,6 +74,14 @@ public class FileStructureTests extends AbstractSerializingTestCase<FileStructur
             mappings.put(field, Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(10)));
         }
         builder.setMappings(mappings);
+
+        if (randomBoolean()) {
+            Map<String, Object> ingestPipeline = new LinkedHashMap<>();
+            for (String field : generateRandomStringArray(5, 20, false, false)) {
+                ingestPipeline.put(field, Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(10)));
+            }
+            builder.setMappings(ingestPipeline);
+        }
 
         if (randomBoolean()) {
             Map<String, FieldStats> fieldStats = new TreeMap<>();

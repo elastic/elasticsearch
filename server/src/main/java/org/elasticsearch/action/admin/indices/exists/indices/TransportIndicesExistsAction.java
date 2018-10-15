@@ -41,8 +41,10 @@ public class TransportIndicesExistsAction extends TransportMasterNodeReadAction<
 
     @Inject
     public TransportIndicesExistsAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                        ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, IndicesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters, IndicesExistsRequest::new, indexNameExpressionResolver);
+                                        ThreadPool threadPool, ActionFilters actionFilters,
+                                        IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, IndicesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            IndicesExistsRequest::new, indexNameExpressionResolver);
     }
 
     @Override
@@ -59,20 +61,25 @@ public class TransportIndicesExistsAction extends TransportMasterNodeReadAction<
     @Override
     protected ClusterBlockException checkBlock(IndicesExistsRequest request, ClusterState state) {
         //make sure through indices options that the concrete indices call never throws IndexMissingException
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, true, request.indicesOptions().expandWildcardsOpen(), request.indicesOptions().expandWildcardsClosed());
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request.indices()));
+        IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, true, request.indicesOptions().expandWildcardsOpen(),
+            request.indicesOptions().expandWildcardsClosed());
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
+            indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request.indices()));
     }
 
     @Override
-    protected void masterOperation(final IndicesExistsRequest request, final ClusterState state, final ActionListener<IndicesExistsResponse> listener) {
-        boolean exists;
+    protected void masterOperation(final IndicesExistsRequest request, final ClusterState state,
+                                   final ActionListener<IndicesExistsResponse> listener) {
+        listener.onResponse(new IndicesExistsResponse(doCheckIndicesExists(indexNameExpressionResolver, request, state)));
+    }
+
+    static boolean doCheckIndicesExists(IndexNameExpressionResolver resolver, IndicesExistsRequest request, ClusterState state) {
         try {
             // Similar as the previous behaviour, but now also aliases and wildcards are supported.
-            indexNameExpressionResolver.concreteIndexNames(state, request);
-            exists = true;
+            String[] concreteIndices = resolver.concreteIndexNames(state, request);
+            return concreteIndices.length != 0;
         } catch (IndexNotFoundException e) {
-            exists = false;
+            return false;
         }
-        listener.onResponse(new IndicesExistsResponse(exists));
     }
 }

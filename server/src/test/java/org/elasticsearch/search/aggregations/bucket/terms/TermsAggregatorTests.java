@@ -152,12 +152,16 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 document.add(new SortedSetDocValuesField("string", new BytesRef("b")));
                 indexWriter.addDocument(document);
                 document = new Document();
+                document.add(new SortedSetDocValuesField("string", new BytesRef("")));
                 document.add(new SortedSetDocValuesField("string", new BytesRef("c")));
                 document.add(new SortedSetDocValuesField("string", new BytesRef("a")));
                 indexWriter.addDocument(document);
                 document = new Document();
                 document.add(new SortedSetDocValuesField("string", new BytesRef("b")));
                 document.add(new SortedSetDocValuesField("string", new BytesRef("d")));
+                indexWriter.addDocument(document);
+                document = new Document();
+                document.add(new SortedSetDocValuesField("string", new BytesRef("")));
                 indexWriter.addDocument(document);
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
@@ -175,15 +179,17 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                         aggregator.postCollection();
                         Terms result = (Terms) aggregator.buildAggregation(0L);
-                        assertEquals(4, result.getBuckets().size());
-                        assertEquals("a", result.getBuckets().get(0).getKeyAsString());
+                        assertEquals(5, result.getBuckets().size());
+                        assertEquals("", result.getBuckets().get(0).getKeyAsString());
                         assertEquals(2L, result.getBuckets().get(0).getDocCount());
-                        assertEquals("b", result.getBuckets().get(1).getKeyAsString());
+                        assertEquals("a", result.getBuckets().get(1).getKeyAsString());
                         assertEquals(2L, result.getBuckets().get(1).getDocCount());
-                        assertEquals("c", result.getBuckets().get(2).getKeyAsString());
-                        assertEquals(1L, result.getBuckets().get(2).getDocCount());
-                        assertEquals("d", result.getBuckets().get(3).getKeyAsString());
+                        assertEquals("b", result.getBuckets().get(2).getKeyAsString());
+                        assertEquals(2L, result.getBuckets().get(2).getDocCount());
+                        assertEquals("c", result.getBuckets().get(3).getKeyAsString());
                         assertEquals(1L, result.getBuckets().get(3).getDocCount());
+                        assertEquals("d", result.getBuckets().get(4).getKeyAsString());
+                        assertEquals(1L, result.getBuckets().get(4).getDocCount());
                     }
                 }
             }

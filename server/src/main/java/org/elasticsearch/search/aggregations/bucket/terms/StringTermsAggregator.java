@@ -89,7 +89,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
                         if (includeExclude != null && !includeExclude.accept(bytes)) {
                             continue;
                         }
-                        if (previous.get().equals(bytes)) {
+                        if (i > 0 && previous.get().equals(bytes)) {
                             continue;
                         }
                         long bucketOrdinal = bucketOrds.add(bytes);

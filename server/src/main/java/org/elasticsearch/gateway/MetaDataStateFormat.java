@@ -277,6 +277,7 @@ public abstract class MetaDataStateFormat<T> {
         for (Path dataLocation : locations) {
             final Path stateFilePath = dataLocation.resolve(STATE_DIR_NAME).resolve(fileName);
             if (Files.exists(stateFilePath)) {
+                logger.trace("found state file: {}", stateFilePath);
                 files.add(stateFilePath);
             }
         }
@@ -297,6 +298,13 @@ public abstract class MetaDataStateFormat<T> {
         long maxStateId = findMaxStateId(prefix, dataLocations);
         List<Path> stateFiles = findStateFilesByGeneration(maxStateId, dataLocations);
 
+        if (maxStateId > -1 && stateFiles.isEmpty()) {
+            throw new IllegalStateException("unable to find state files with state id " + maxStateId +
+                    " returned by findMaxStateId function, in data folders [" +
+                    stateFiles.stream().map(Path::toAbsolutePath).map(Object::toString).collect(Collectors.joining(", ")) +
+                    "], concurrent writes?");
+        }
+
         final List<Throwable> exceptions = new ArrayList<>();
         for (Path stateFile : stateFiles) {
             try {
@@ -304,7 +312,7 @@ public abstract class MetaDataStateFormat<T> {
                 logger.trace("state id [{}] read from [{}]", maxStateId, stateFile.getFileName());
                 return state;
             } catch (Exception e) {
-                exceptions.add(new IOException("failed to read " + stateFile.getFileName(), e));
+                exceptions.add(new IOException("failed to read " + stateFile.toAbsolutePath(), e));
                 logger.debug(() -> new ParameterizedMessage(
                         "{}: failed to read [{}], ignoring...", stateFile.toAbsolutePath(), prefix), e);
             }

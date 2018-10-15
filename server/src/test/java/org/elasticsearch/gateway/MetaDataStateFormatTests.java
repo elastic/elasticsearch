@@ -371,7 +371,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
     }
 
     public void testFailRandomlyAndReadAnyState() throws IOException {
-        Path paths[] = new Path[randomIntBetween(2, 5)];
+        Path paths[] = new Path[randomIntBetween(1, 5)];
         for (int i = 0; i < paths.length; i++) {
             paths[i] = createTempDir();
         }

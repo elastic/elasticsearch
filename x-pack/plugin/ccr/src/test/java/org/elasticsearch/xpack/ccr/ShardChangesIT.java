@@ -28,6 +28,8 @@ import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -47,11 +49,13 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
@@ -79,6 +83,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -115,6 +120,14 @@ public class ShardChangesIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateCcr.class, CommonAnalysisPlugin.class);
+    }
+
+    @Override
+    protected void beforeIndexDeletion() throws Exception {
+        super.beforeIndexDeletion();
+        assertSeqNos();
+        assertSameDocIdsOnShards();
+        internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
     }
 
     @Override
@@ -360,7 +373,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertMaxSeqNoOfUpdatesIsTransferred(resolveIndex("index1"), resolveIndex("index2"), numberOfShards);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33337")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/34412")
     public void testFollowIndexAndCloseNode() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
         String leaderIndexSettings = getIndexSettings(3, 1, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
@@ -679,6 +692,57 @@ public class ShardChangesIT extends ESIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertThat(client().prepareSearch("index2").get().getHits().getTotalHits(), equalTo(2L));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/34412")
+    public void testFailOverOnFollower() throws Exception {
+        int numberOfReplicas = between(1, 2);
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNodes(numberOfReplicas + between(1, 2));
+        String leaderIndexSettings = getIndexSettings(1, numberOfReplicas,
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(client().admin().indices().prepareCreate("leader-index").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureGreen("leader-index");
+        AtomicBoolean stopped = new AtomicBoolean();
+        Thread[] threads = new Thread[between(1, 8)];
+        AtomicInteger docID = new AtomicInteger();
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                while (stopped.get() == false) {
+                    try {
+                        if (frequently()) {
+                            String id = Integer.toString(frequently() ? docID.incrementAndGet() : between(0, 10)); // sometimes update
+                            client().prepareIndex("leader-index", "doc", id).setSource("{\"f\":" + id + "}", XContentType.JSON).get();
+                        } else {
+                            String id = Integer.toString(between(0, docID.get()));
+                            client().prepareDelete("leader-index", "doc", id).get();
+                        }
+                    } catch (NodeClosedException ignored) {
+                    }
+                }
+            });
+            threads[i].start();
+        }
+        PutFollowAction.Request follow = follow("leader-index", "follower-index");
+        client().execute(PutFollowAction.INSTANCE, follow).get();
+        ensureGreen("follower-index");
+        atLeastDocsIndexed("follower-index", between(20, 60));
+        final ClusterState clusterState = clusterService().state();
+        for (ShardRouting shardRouting : clusterState.routingTable().allShards("follower-index")) {
+            if (shardRouting.primary()) {
+                DiscoveryNode assignedNode = clusterState.nodes().get(shardRouting.currentNodeId());
+                internalCluster().restartNode(assignedNode.getName(), new InternalTestCluster.RestartCallback());
+                break;
+            }
+        }
+        ensureGreen("follower-index");
+        atLeastDocsIndexed("follower-index", between(80, 150));
+        stopped.set(true);
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        assertSameDocCount("leader-index", "follower-index");
+        unfollowIndex("follower-index");
     }
 
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {

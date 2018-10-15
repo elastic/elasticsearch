@@ -26,17 +26,17 @@ import org.apache.logging.log4j.spi.ExtendedLogger;
 /**
  * Factory to get {@link Logger}s
  */
-public final class ESLoggerFactory {
+final class ESLoggerFactory {
 
     private ESLoggerFactory() {
 
     }
 
-    public static Logger getLogger(String prefix, String name) {
+    static Logger getLogger(String prefix, String name) {
         return getLogger(prefix, LogManager.getLogger(name));
     }
 
-    public static Logger getLogger(String prefix, Class<?> clazz) {
+    static Logger getLogger(String prefix, Class<?> clazz) {
         /*
          * At one point we didn't use LogManager.getLogger(clazz) because
          * of a bug in log4j that has since been fixed:
@@ -49,7 +49,7 @@ public final class ESLoggerFactory {
         return getLogger(prefix, LogManager.getLogger(clazz.getName()));
     }
 
-    public static Logger getLogger(String prefix, Logger logger) {
+    static Logger getLogger(String prefix, Logger logger) {
         /*
          * In a followup we'll throw an exception if prefix is null or empty
          * redirecting folks to LogManager.getLogger.
@@ -60,14 +60,5 @@ public final class ESLoggerFactory {
             return logger;
         }
         return new PrefixLogger((ExtendedLogger)logger, logger.getName(), prefix);
-    }
-
-    /**
-     * Get or build a logger.
-     * @deprecated Prefer {@link LogManager#getLogger}
-     */
-    @Deprecated
-    public static Logger getLogger(Class<?> clazz) {
-        return getLogger(null, clazz);
     }
 }

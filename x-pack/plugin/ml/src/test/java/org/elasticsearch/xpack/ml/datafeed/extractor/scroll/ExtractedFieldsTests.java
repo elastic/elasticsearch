@@ -64,11 +64,25 @@ public class ExtractedFieldsTests extends ESTestCase {
     }
 
     public void testTimeFieldValue() {
-        SearchHit hit = new SearchHitBuilder(1).addField("time", new DateTime(1000L)).build();
+        final long millis = randomLong();
+        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", new DateTime(millis)).build();
+        final ExtractedFields extractedFields = new ExtractedFields(timeField, Collections.singletonList(timeField));
+        assertThat(extractedFields.timeFieldValue(hit), equalTo(millis));
+    }
 
-        ExtractedFields extractedFields = new ExtractedFields(timeField, Arrays.asList(timeField));
+    public void testStringTimeFieldValue() {
+        final long millis = randomLong();
+        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", Long.toString(millis)).build();
+        final ExtractedFields extractedFields = new ExtractedFields(timeField, Collections.singletonList(timeField));
+        assertThat(extractedFields.timeFieldValue(hit), equalTo(millis));
+    }
 
-        assertThat(extractedFields.timeFieldValue(hit), equalTo(1000L));
+    public void testPre6xTimeFieldValue() {
+        // Prior to 6.x, timestamps were simply `long` milliseconds-past-the-epoch values
+        final long millis = randomLong();
+        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", millis).build();
+        final ExtractedFields extractedFields = new ExtractedFields(timeField, Collections.singletonList(timeField));
+        assertThat(extractedFields.timeFieldValue(hit), equalTo(millis));
     }
 
     public void testTimeFieldValueGivenEmptyArray() {

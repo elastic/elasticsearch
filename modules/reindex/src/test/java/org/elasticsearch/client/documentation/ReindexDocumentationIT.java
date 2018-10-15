@@ -45,6 +45,7 @@ import java.util.Collections;
 
 public class ReindexDocumentationIT extends ESIntegTestCase {
 
+    @SuppressWarnings("unused")
     public void reindex() {
         Client client = client();
         // tag::reindex1
@@ -55,6 +56,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         // end::reindex1
     }
 
+    @SuppressWarnings("unused")
     public void updateByQuery() {
         Client client = client();
         {
@@ -165,6 +167,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void deleteByQuery() {
         Client client = client();
         // tag::delete-by-query-sync

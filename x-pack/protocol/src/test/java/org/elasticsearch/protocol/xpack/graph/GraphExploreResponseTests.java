@@ -103,8 +103,16 @@ public class GraphExploreResponseTests extends AbstractXContentTestCase< GraphEx
         assertThat(newInstance.getTook(), equalTo(expectedInstance.getTook()));
         assertThat(newInstance.isTimedOut(), equalTo(expectedInstance.isTimedOut()));
         
+        Comparator<Connection> connComparator = new Comparator<Connection>() {
+            @Override
+            public int compare(Connection o1, Connection o2) {
+                return o1.getId().toString().compareTo(o2.getId().toString());
+            }
+        };
         Connection[] newConns = newInstance.getConnections().toArray(new Connection[0]);
         Connection[] expectedConns = expectedInstance.getConnections().toArray(new Connection[0]);
+        Arrays.sort(newConns, connComparator);
+        Arrays.sort(expectedConns, connComparator);
         assertArrayEquals(expectedConns, newConns);
         
         //Sort the vertices lists before equality test (map insertion sequences can cause order differences)

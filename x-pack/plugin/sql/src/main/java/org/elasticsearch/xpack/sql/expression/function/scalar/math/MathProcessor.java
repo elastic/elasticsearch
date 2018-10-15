@@ -9,7 +9,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 import java.io.IOException;
 import java.util.Random;
@@ -52,7 +52,6 @@ public class MathProcessor implements Processor {
         RANDOM((Object l) -> l != null ?
                 new Random(((Number) l).longValue()).nextDouble() :
                 Randomness.get().nextDouble(), true),
-        ROUND((DoubleFunction<Object>) Math::round),
         SIGN((DoubleFunction<Object>) Math::signum),
         SIN(Math::sin),
         SINH(Math::sinh),

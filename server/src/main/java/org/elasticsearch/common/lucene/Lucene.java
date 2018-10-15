@@ -30,6 +30,7 @@ import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterCodecReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
@@ -726,6 +727,9 @@ public class Lucene {
         } else if (reader instanceof FilterLeafReader) {
             final FilterLeafReader fReader = (FilterLeafReader) reader;
             return segmentReader(FilterLeafReader.unwrap(fReader));
+        } else if (reader instanceof FilterCodecReader) {
+            final FilterCodecReader fReader = (FilterCodecReader) reader;
+            return segmentReader(FilterCodecReader.unwrap(fReader));
         }
         // hard fail - we can't get a SegmentReader
         throw new IllegalStateException("Can not extract segment reader from given index reader [" + reader + "]");

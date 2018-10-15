@@ -21,6 +21,7 @@ import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.isIn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -75,8 +76,8 @@ public class MetricConfigSerializingTests extends AbstractSerializingTestCase<Me
 
         MetricConfig config = new MetricConfig("my_field", singletonList("max"));
         config.validateMappings(responseMap, e);
-        assertThat(e.validationErrors().get(0), equalTo("The field referenced by a metric group must be a [numeric] or [date] type," +
-            " but found [keyword] for field [my_field]"));
+        assertThat("The field referenced by a metric group must be a [numeric] or [date] type," +
+            " but found [keyword] for field [my_field]", isIn(e.validationErrors()));
     }
 
     public void testValidateFieldMatchingNotAggregatable() {

@@ -102,6 +102,10 @@ public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobActio
             } else {
                 isInternal = false;
             }
+            // TODO jindex change CURRENT to specific version when feature branch is merged
+            if (in.getVersion().onOrAfter(Version.V_6_3_0) && in.getVersion().before(Version.CURRENT)) {
+                in.readBoolean(); // was waitForAck
+            }
         }
 
         @Override
@@ -111,6 +115,10 @@ public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobActio
             update.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_6_2_2)) {
                 out.writeBoolean(isInternal);
+            }
+            // TODO jindex change CURRENT to specific version when feature branch is merged
+            if (out.getVersion().onOrAfter(Version.V_6_3_0) && out.getVersion().before(Version.CURRENT)) {
+                out.writeBoolean(false); // was waitForAck
             }
         }
 
@@ -127,7 +135,8 @@ public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobActio
             if (o == null || getClass() != o.getClass()) return false;
             UpdateJobAction.Request that = (UpdateJobAction.Request) o;
             return Objects.equals(jobId, that.jobId) &&
-                    Objects.equals(update, that.update);
+                    Objects.equals(update, that.update) &&
+                    isInternal == that.isInternal;
         }
 
         @Override

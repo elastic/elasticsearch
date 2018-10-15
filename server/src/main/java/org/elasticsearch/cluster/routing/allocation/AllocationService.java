@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
@@ -254,6 +255,13 @@ public class AllocationService extends AbstractComponent {
                 // operation which make these copies stale
                 routingTableBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
                 metaDataBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
+                // update settings version for each index
+                for (final String index : indices) {
+                    final IndexMetaData indexMetaData = metaDataBuilder.get(index);
+                    final IndexMetaData.Builder indexMetaDataBuilder =
+                            new IndexMetaData.Builder(indexMetaData).settingsVersion(1 + indexMetaData.getSettingsVersion());
+                    metaDataBuilder.put(indexMetaDataBuilder);
+                }
                 logger.info("updating number_of_replicas to [{}] for indices {}", numberOfReplicas, indices);
             }
             final ClusterState fixedState = ClusterState.builder(clusterState).routingTable(routingTableBuilder.build())

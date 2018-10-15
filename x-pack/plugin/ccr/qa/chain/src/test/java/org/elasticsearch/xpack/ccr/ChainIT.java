@@ -65,9 +65,6 @@ public class ChainIT extends ESRestTestCase {
             logger.info("Running against middle cluster");
             followIndex("leader_cluster:" + leaderIndexName, middleIndexName);
             assertBusy(() -> verifyDocuments(middleIndexName, numDocs));
-            // unfollow and then follow and then index a few docs in leader index:
-            pauseFollow(middleIndexName);
-            resumeFollow("leader_cluster:" + leaderIndexName, middleIndexName);
             try (RestClient leaderClient = buildLeaderClient()) {
                 int id = numDocs;
                 index(leaderClient, leaderIndexName, Integer.toString(id), "field", id, "filtered_field", "true");
@@ -82,7 +79,7 @@ public class ChainIT extends ESRestTestCase {
             assertBusy(() -> verifyDocuments(followIndexName, numDocs + 3));
 
             try (RestClient leaderClient = buildLeaderClient()) {
-                int id = numDocs;
+                int id = numDocs + 3;
                 index(leaderClient, leaderIndexName, Integer.toString(id), "field", id, "filtered_field", "true");
                 index(leaderClient, leaderIndexName, Integer.toString(id + 1), "field", id + 1, "filtered_field", "true");
                 index(leaderClient, leaderIndexName, Integer.toString(id + 2), "field", id + 2, "filtered_field", "true");

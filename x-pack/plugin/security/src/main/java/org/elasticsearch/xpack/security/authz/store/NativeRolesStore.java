@@ -120,7 +120,7 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
                                 .map(item -> transformRole(item.getResponse()))
                                 .filter(Objects::nonNull)
                                 .collect(Collectors.toSet()))),
-                        listener::onFailure), client::multiGet);
+                        e -> listener.onResponse(RoleRetrievalResult.failure(e))), client::multiGet);
             });
         }
     }
@@ -280,12 +280,8 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
     }
 
     private void executeGetRoleRequest(String role, ActionListener<GetResponse> listener) {
-        securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareGet(SECURITY_INDEX_NAME,
-                            ROLE_DOC_TYPE, getIdForRole(role)).request(),
-                    listener,
-                    client::get));
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                client.prepareGet(SECURITY_INDEX_NAME, ROLE_DOC_TYPE, getIdForRole(role)).request(), listener, client::get);
     }
 
     private <Response> void clearRoleCache(final String role, ActionListener<Response> listener, Response response) {

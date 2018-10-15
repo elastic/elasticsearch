@@ -122,12 +122,12 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
     }
 
     List<String> startCluster(int numberOfNodes, int minimumMasterNode) {
-        return startCluster(numberOfNodes, minimumMasterNode, null);
+        return startCluster(numberOfNodes, minimumMasterNode, false);
     }
 
-    List<String> startCluster(int numberOfNodes, int minimumMasterNode, @Nullable int[] unicastHostsOrdinals) {
+    List<String> startCluster(int numberOfNodes, int minimumMasterNode, boolean hostsListContainsOnlyFirstNode) {
         configureCluster(numberOfNodes, minimumMasterNode);
-        List<String> nodes = internalCluster().startNodes(numberOfNodes, unicastHostsOrdinals);
+        List<String> nodes = internalCluster().startNodes(numberOfNodes, hostsListContainsOnlyFirstNode);
         ensureStableCluster(numberOfNodes);
 
         // TODO: this is a temporary solution so that nodes will not base their reaction to a partition based on previous successful results

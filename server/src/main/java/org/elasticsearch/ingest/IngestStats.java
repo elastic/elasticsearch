@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,17 +36,19 @@ import java.util.concurrent.TimeUnit;
 
 public class IngestStats implements Writeable, ToXContentFragment {
     private final Stats totalStats;
-    private final Map<String, Tuple<IngestStats.Stats, List<Tuple<String, IngestStats.Stats>>>> statsPerPipeline;
+    private final List<PipelineStat> pipelineStats;
+    private final Map<String, List<ProcessorStat>> processorStats;
 
     /**
-     * @param totalStats       - The total stats for Ingest. This is the logically the sum of all pipeline stats,
-     *                         and pipeline stats are logically the sum of the processor stats.
-     * @param statsPerPipeline - A Map(pipelineId -> Tuple(pipelineStats, List(perProcessorStats))
-     *                         where perProcessorStats = Tuple(processorDisplayName, processorStats)
+     * @param totalStats - The total stats for Ingest. This is the logically the sum of all pipeline stats,
+     *                   and pipeline stats are logically the sum of the processor stats.
+     * @param pipelineStats - The stats for a given ingest pipeline.
+     * @param processorStats - The per-processor stats for a given pipeline. A map keyed by the pipeline identifier.
      */
-    public IngestStats(Stats totalStats, Map<String, Tuple<IngestStats.Stats, List<Tuple<String, IngestStats.Stats>>>> statsPerPipeline) {
+    public IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Map<String, List<ProcessorStat>> processorStats) {
         this.totalStats = totalStats;
-        this.statsPerPipeline = statsPerPipeline;
+        this.pipelineStats = pipelineStats;
+        this.processorStats = processorStats;
     }
 
     /**
@@ -55,61 +57,41 @@ public class IngestStats implements Writeable, ToXContentFragment {
     public IngestStats(StreamInput in) throws IOException {
         this.totalStats = new Stats(in);
         int size = in.readVInt();
-        this.statsPerPipeline = new HashMap<>(size);
+        this.pipelineStats = new ArrayList<>(size);
+        this.processorStats = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
-            String pipelineName = in.readString();
-            Stats pipelineStats = new Stats(in);
+            String pipelineId = in.readString();
+            Stats pipelineStat = new Stats(in);
+            this.pipelineStats.add(new PipelineStat(pipelineId, pipelineStat));
             int processorsSize = in.readVInt();
-            List<Tuple<String, IngestStats.Stats>> processors = new ArrayList<>(processorsSize);
+            List<ProcessorStat> processorStatsPerPipeline = new ArrayList<>(processorsSize);
             for (int j = 0; j < processorsSize; j++) {
                 String processorName = in.readString();
-                processors.add(new Tuple<>(processorName, new Stats(in)));
+                Stats processorStat = new Stats(in);
+                processorStatsPerPipeline.add(new ProcessorStat(processorName, processorStat));
             }
-            statsPerPipeline.put(pipelineName, new Tuple<>(pipelineStats, processors));
+            this.processorStats.put(pipelineId, processorStatsPerPipeline);
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         totalStats.writeTo(out);
-        out.writeVInt(statsPerPipeline.size());
-        for (Map.Entry<String, Tuple<Stats, List<Tuple<String, Stats>>>> entry : statsPerPipeline.entrySet()) {
-            String pipelineName = entry.getKey();
-            Stats pipelineStats = entry.getValue().v1();
-            out.writeString(pipelineName);
-            pipelineStats.writeTo(out);
-            List<Tuple<String, Stats>> processorStats = entry.getValue().v2();
-            out.writeVInt(processorStats.size());
-            for (Tuple<String, Stats> processorTuple : processorStats) {
-                String processorName = processorTuple.v1();
-                Stats processorStat = processorTuple.v2();
-                out.writeString(processorName);
-                processorStat.writeTo(out);
+        out.writeVInt(pipelineStats.size());
+        for (PipelineStat pipelineStat : pipelineStats) {
+            out.writeString(pipelineStat.getPipelineId());
+            pipelineStat.getStats().writeTo(out);
+            List<ProcessorStat> processorStatsForPipeline = processorStats.get(pipelineStat.getPipelineId());
+            if(processorStatsForPipeline == null) {
+                out.writeVInt(0);
+            }else{
+                out.writeVInt(processorStatsForPipeline.size());
+                for (ProcessorStat processorStat : processorStatsForPipeline) {
+                    out.writeString(processorStat.getName());
+                    processorStat.getStats().writeTo(out);
+                }
             }
         }
-    }
-
-    /**
-     * @return The accumulated stats for all pipelines
-     */
-    public Stats getTotalStats() {
-        return totalStats;
-    }
-
-    /**
-     * @return The stats on a per pipeline basis.  A Map(pipelineId -> Tuple(pipelineStats, List(perProcessorStats))
-     * where perProcessorStats = Tuple(processorDisplayName, processorStats)
-     */
-    public Map<String, Tuple<IngestStats.Stats, List<Tuple<String, IngestStats.Stats>>>> getStatsPerPipeline() {
-        return statsPerPipeline;
-    }
-
-    public IngestStats.Stats getStatsForPipeline(String id) {
-        return statsPerPipeline.get(id).v1();
-    }
-
-    public List<Tuple<String, Stats>> getProcessorStatsForPipeline(String id) {
-        return statsPerPipeline.get(id).v2();
     }
 
     @Override
@@ -119,26 +101,38 @@ public class IngestStats implements Writeable, ToXContentFragment {
         totalStats.toXContent(builder, params);
         builder.endObject();
         builder.startObject("pipelines");
-        for (Map.Entry<String, Tuple<Stats, List<Tuple<String,Stats>>>> entry : statsPerPipeline.entrySet()) {
-            builder.startObject(entry.getKey());
-            Stats pipelineStats = entry.getValue().v1();
-            pipelineStats.toXContent(builder, params);
-            List<Tuple<String,Stats>> perProcessorStats = entry.getValue().v2();
+        for (PipelineStat pipelineStat : pipelineStats) {
+            builder.startObject(pipelineStat.getPipelineId());
+            pipelineStat.getStats().toXContent(builder, params);
+            List<ProcessorStat> processorStatsForPipeline = processorStats.get(pipelineStat.getPipelineId());
             builder.startArray("processors");
-            for (Tuple<String,Stats> processorStats : perProcessorStats) {
-                builder.startObject();
-                builder.startObject(processorStats.v1());
-                processorStats.v2().toXContent(builder, params);
-                builder.endObject();
-                builder.endObject();
+            if (processorStatsForPipeline != null) {
+                for (ProcessorStat processorStat : processorStatsForPipeline) {
+                    builder.startObject();
+                    builder.startObject(processorStat.getName());
+                    processorStat.getStats().toXContent(builder, params);
+                    builder.endObject();
+                    builder.endObject();
+                }
             }
-
             builder.endArray();
             builder.endObject();
         }
         builder.endObject();
         builder.endObject();
         return builder;
+    }
+
+    public Stats getTotalStats() {
+        return totalStats;
+    }
+
+    public List<PipelineStat> getPipelineStats() {
+        return pipelineStats;
+    }
+
+    public Map<String, List<ProcessorStat>> getProcessorStats() {
+        return processorStats;
     }
 
     public static class Stats implements Writeable, ToXContentFragment {
@@ -181,7 +175,6 @@ public class IngestStats implements Writeable, ToXContentFragment {
         }
 
         /**
-         *
          * @return The total time spent of ingest preprocessing in millis.
          */
         public long getIngestTimeInMillis() {
@@ -209,6 +202,79 @@ public class IngestStats implements Writeable, ToXContentFragment {
             builder.field("current", ingestCurrent);
             builder.field("failed", ingestFailedCount);
             return builder;
+        }
+    }
+
+    /**
+     * Easy conversion from scoped {@link IngestMetric} objects to a serializable Stats objects
+     */
+    static class Builder {
+        private Stats totalStats;
+        private List<PipelineStat> pipelineStats = new ArrayList<>();
+        private Map<String, List<ProcessorStat>> processorStats = new HashMap<>();
+
+
+        Builder addTotalMetrics(IngestMetric totalMetric) {
+            this.totalStats = totalMetric.createStats();
+            return this;
+        }
+
+        Builder addPipelineMetrics(String pipelineId, IngestMetric pipelineMetric) {
+            this.pipelineStats.add(new PipelineStat(pipelineId, pipelineMetric.createStats()));
+            return this;
+        }
+
+        Builder addProcessorMetrics(String pipelineId, String processorName, IngestMetric metric) {
+            this.processorStats.computeIfAbsent(pipelineId, k -> new ArrayList<>())
+                .add(new ProcessorStat(processorName, metric.createStats()));
+            return this;
+        }
+
+        IngestStats build() {
+            return new IngestStats(totalStats, Collections.unmodifiableList(pipelineStats),
+                Collections.unmodifiableMap(processorStats));
+        }
+    }
+
+    /**
+     * Container for pipeline stats.
+     */
+    public static class PipelineStat {
+        private final String pipelineId;
+        private final Stats stats;
+
+        public PipelineStat(String pipelineId, Stats stats) {
+            this.pipelineId = pipelineId;
+            this.stats = stats;
+        }
+
+        public String getPipelineId() {
+            return pipelineId;
+        }
+
+        public Stats getStats() {
+            return stats;
+        }
+    }
+
+    /**
+     * Container for processor stats.
+     */
+    public static class ProcessorStat {
+        private final String name;
+        private final Stats stats;
+
+        public ProcessorStat(String name, Stats stats) {
+            this.name = name;
+            this.stats = stats;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public Stats getStats() {
+            return stats;
         }
     }
 }

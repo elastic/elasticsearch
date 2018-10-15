@@ -20,6 +20,10 @@
 *   Attempts to generate multi-term phrase queries against non-text fields
     with a custom analyzer will now throw an exception
 
+*   An `envelope` crossing the dateline in a `geo_shape `query is now processed
+    correctly when specified using REST API instead of having its left and
+    right corners flipped.
+
 [float]
 ==== Adaptive replica selection enabled by default
 

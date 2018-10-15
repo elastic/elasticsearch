@@ -20,6 +20,7 @@
 package org.elasticsearch.search.geo;
 
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
@@ -530,5 +532,62 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
             .setQuery(geoShapeQuery("alias", shape))
             .execute().actionGet();
         assertEquals(1, response.getHits().getTotalHits());
+    }
+
+    public void testIssue34418() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("doc")
+                .startObject("properties")
+                    .startObject("geo").field("type", "geo_shape").endObject()
+                .endObject()
+            .endObject()
+        .endObject();
+
+        createIndex("test", Settings.builder().put("index.number_of_shards", 1).build(), "doc", mapping);
+
+        String doc1 = "{\"geo\": {\r\n" + "\"coordinates\": [\r\n" + "-33.918711,\r\n" + "18.847685\r\n" + "],\r\n" +
+                "\"type\": \"Point\"\r\n" + "}}";
+        client().index(new IndexRequest("test", "doc", "1").source(doc1, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
+
+        String doc2 = "{\"geo\": {\r\n" + "\"coordinates\": [\r\n" + "-49.0,\r\n" + "18.847685\r\n" + "],\r\n" +
+            "\"type\": \"Point\"\r\n" + "}}";
+        client().index(new IndexRequest("test", "doc", "2").source(doc2, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
+
+        String doc3 = "{\"geo\": {\r\n" + "\"coordinates\": [\r\n" + "49.0,\r\n" + "18.847685\r\n" + "],\r\n" +
+            "\"type\": \"Point\"\r\n" + "}}";
+        client().index(new IndexRequest("test", "doc", "3").source(doc3, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
+
+        final GeoShapeQueryBuilder query;
+
+        if (randomBoolean()) {
+            query = QueryBuilders.geoShapeQuery(
+                "geo",
+                new EnvelopeBuilder(new Coordinate(-21, 44), new Coordinate(-39, 9))
+            ).relation(ShapeRelation.WITHIN);
+        } else {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startObject("geo")
+                    .startObject("shape")
+                        .field("type", "envelope")
+                        .startArray("coordinates")
+                            .startArray().value(-21).value(44).endArray()
+                            .startArray().value(-39).value(9).endArray()
+                        .endArray()
+                    .endObject()
+                    .field("relation", "within")
+                .endObject()
+            .endObject();
+            try (XContentParser parser = createParser(builder)){
+                parser.nextToken();
+                query = GeoShapeQueryBuilder.fromXContent(parser);
+            }
+        }
+
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(query)
+            .execute().actionGet();
+        assertEquals(2, response.getHits().getTotalHits());
+        assertNotEquals("1", response.getHits().getAt(0).getId());
+        assertNotEquals("1", response.getHits().getAt(1).getId());
     }
 }

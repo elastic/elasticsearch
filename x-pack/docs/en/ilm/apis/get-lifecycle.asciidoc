@@ -109,7 +109,7 @@ If the request does not encounter errors, you receive the following result:
   }
 }
 --------------------------------------------------
-<1> The version of the policy. This is increased whenever the policy is updated
-<2> The timestamp when this policy was last modified
 // CONSOLE
 // TESTRESPONSE[s/"modified_date": 82392349/"modified_date": $body.my_policy.modified_date/]
+<1> The version of the policy. This is increased whenever the policy is updated
+<2> The timestamp when this policy was last modified

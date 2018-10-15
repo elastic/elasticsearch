@@ -100,10 +100,10 @@ POST _ilm/move/my_index
   }
 }
 --------------------------------------------------
-<1> The step that the index is currently expected to be executing
-<1> The step that the index should move to when executing this request
 // CONSOLE
 // TEST[continued]
+<1> The step that the index is currently expected to be executing
+<2> The step that the index should move to when executing this request
 
 If the request does not encounter errors, you receive the following result:
 

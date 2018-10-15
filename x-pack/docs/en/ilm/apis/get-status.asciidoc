@@ -42,7 +42,7 @@ The following example stops the ILM plugin.
 GET _ilm/status
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
+// TEST
 
 If the request does not encounter errors, you receive the following result:
 

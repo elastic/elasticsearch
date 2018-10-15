@@ -113,6 +113,11 @@ If the request does not encounter errors, you receive the following result:
   }
 }
 --------------------------------------------------
+// CONSOLE
+// TESTRESPONSE[s/"lifecycle_date": 1538475653281/"lifecycle_date": $body.indices.my_index.lifecycle_date/]
+// TESTRESPONSE[s/"phase_time": 1538475653317/"phase_time": null/]
+// TESTRESPONSE[s/"action_time": 1538475653317/"action_time": $body.indices.my_index.action_time/]
+// TESTRESPONSE[s/"step_time": 1538475653317/"step_time": $body.indices.my_index.step_time/]
 <1> Shows if the index is being managed by ILM. If the index is not managed by
 ILM the other fields will not be shown
 <2> The name of the policy which ILM is using for this index
@@ -124,8 +129,3 @@ ILM the other fields will not be shown
 <8> The timestamp for when the index entered the current action
 <9> The current step
 <10> The timestamp for when the index entered the current step
-// CONSOLE
-// TESTRESPONSE[s/"lifecycle_date": 1538475653281/"lifecycle_date": $body.indices.my_index.lifecycle_date/]
-// TESTRESPONSE[s/"phase_time": 1538475653317/"phase_time": null/]
-// TESTRESPONSE[s/"action_time": 1538475653317/"action_time": $body.indices.my_index.action_time/]
-// TESTRESPONSE[s/"step_time": 1538475653317/"step_time": $body.indices.my_index.step_time/]

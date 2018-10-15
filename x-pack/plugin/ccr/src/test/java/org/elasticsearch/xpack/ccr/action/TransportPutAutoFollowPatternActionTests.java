@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
+import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
 import java.util.ArrayList;
@@ -28,7 +29,8 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
 
     public void testInnerPut() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setLeaderClusterAlias("eu_cluster");
+        request.setName("name1");
+        request.setLeaderCluster("eu_cluster");
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
         ClusterState localState = ClusterState.builder(new ClusterName("us_cluster"))
@@ -43,15 +45,17 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         AutoFollowMetadata autoFollowMetadata = result.metaData().custom(AutoFollowMetadata.TYPE);
         assertThat(autoFollowMetadata, notNullValue());
         assertThat(autoFollowMetadata.getPatterns().size(), equalTo(1));
-        assertThat(autoFollowMetadata.getPatterns().get("eu_cluster").getLeaderIndexPatterns().size(), equalTo(1));
-        assertThat(autoFollowMetadata.getPatterns().get("eu_cluster").getLeaderIndexPatterns().get(0), equalTo("logs-*"));
+        assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderCluster(), equalTo("eu_cluster"));
+        assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderIndexPatterns().size(), equalTo(1));
+        assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderIndexPatterns().get(0), equalTo("logs-*"));
         assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
-        assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("eu_cluster").size(), equalTo(0));
+        assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("name1").size(), equalTo(0));
     }
 
     public void testInnerPut_existingLeaderIndices() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setLeaderClusterAlias("eu_cluster");
+        request.setName("name1");
+        request.setLeaderCluster("eu_cluster");
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
         ClusterState localState = ClusterState.builder(new ClusterName("us_cluster"))
@@ -82,28 +86,30 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         AutoFollowMetadata autoFollowMetadata = result.metaData().custom(AutoFollowMetadata.TYPE);
         assertThat(autoFollowMetadata, notNullValue());
         assertThat(autoFollowMetadata.getPatterns().size(), equalTo(1));
-        assertThat(autoFollowMetadata.getPatterns().get("eu_cluster").getLeaderIndexPatterns().size(), equalTo(1));
-        assertThat(autoFollowMetadata.getPatterns().get("eu_cluster").getLeaderIndexPatterns().get(0), equalTo("logs-*"));
+        assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderCluster(), equalTo("eu_cluster"));
+        assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderIndexPatterns().size(), equalTo(1));
+        assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderIndexPatterns().get(0), equalTo("logs-*"));
         assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
-        assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("eu_cluster").size(), equalTo(numMatchingLeaderIndices));
+        assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("name1").size(), equalTo(numMatchingLeaderIndices));
     }
 
     public void testInnerPut_existingLeaderIndicesAndAutoFollowMetadata() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setLeaderClusterAlias("eu_cluster");
+        request.setName("name1");
+        request.setLeaderCluster("eu_cluster");
         request.setLeaderIndexPatterns(Arrays.asList("logs-*", "transactions-*"));
 
-        Map<String, AutoFollowMetadata.AutoFollowPattern> existingAutoFollowPatterns = new HashMap<>();
+        Map<String, AutoFollowPattern> existingAutoFollowPatterns = new HashMap<>();
         List<String> existingPatterns = new ArrayList<>();
         existingPatterns.add("transactions-*");
-        existingAutoFollowPatterns.put("eu_cluster",
-            new AutoFollowMetadata.AutoFollowPattern(existingPatterns, null, null, null, null, null, null, null, null));
+        existingAutoFollowPatterns.put("name1",
+            new AutoFollowPattern("eu_cluster", existingPatterns, null, null, null, null, null, null, null, null));
         Map<String, List<String>> existingAlreadyFollowedIndexUUIDS = new HashMap<>();
         List<String> existingUUIDS = new ArrayList<>();
         existingUUIDS.add("_val");
-        existingAlreadyFollowedIndexUUIDS.put("eu_cluster", existingUUIDS);
+        existingAlreadyFollowedIndexUUIDS.put("name1", existingUUIDS);
         Map<String, Map<String, String>> existingHeaders = new HashMap<>();
-        existingHeaders.put("eu_cluster", Collections.singletonMap("key", "val"));
+        existingHeaders.put("name1", Collections.singletonMap("key", "val"));
 
         ClusterState localState = ClusterState.builder(new ClusterName("us_cluster"))
             .metaData(MetaData.builder().putCustom(AutoFollowMetadata.TYPE,
@@ -127,13 +133,14 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         AutoFollowMetadata autoFollowMetadata = result.metaData().custom(AutoFollowMetadata.TYPE);
         assertThat(autoFollowMetadata, notNullValue());
         assertThat(autoFollowMetadata.getPatterns().size(), equalTo(1));
-        assertThat(autoFollowMetadata.getPatterns().get("eu_cluster").getLeaderIndexPatterns().size(), equalTo(2));
-        assertThat(autoFollowMetadata.getPatterns().get("eu_cluster").getLeaderIndexPatterns().get(0), equalTo("logs-*"));
-        assertThat(autoFollowMetadata.getPatterns().get("eu_cluster").getLeaderIndexPatterns().get(1), equalTo("transactions-*"));
+        assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderCluster(), equalTo("eu_cluster"));
+        assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderIndexPatterns().size(), equalTo(2));
+        assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderIndexPatterns().get(0), equalTo("logs-*"));
+        assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderIndexPatterns().get(1), equalTo("transactions-*"));
         assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
-        assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("eu_cluster").size(), equalTo(numLeaderIndices + 1));
+        assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("name1").size(), equalTo(numLeaderIndices + 1));
         assertThat(autoFollowMetadata.getHeaders().size(), equalTo(1));
-        assertThat(autoFollowMetadata.getHeaders().get("eu_cluster"), notNullValue());
+        assertThat(autoFollowMetadata.getHeaders().get("name1"), notNullValue());
     }
 
 }

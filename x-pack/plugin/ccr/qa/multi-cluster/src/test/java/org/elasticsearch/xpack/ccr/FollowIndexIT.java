@@ -104,8 +104,8 @@ public class FollowIndexIT extends ESRestTestCase {
     public void testAutoFollowPatterns() throws Exception {
         assumeFalse("Test should only run when both clusters are running", runningAgainstLeaderCluster);
 
-        Request request = new Request("PUT", "/_ccr/auto_follow/leader_cluster");
-        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"]}");
+        Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
+        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"], \"leader_cluster\": \"leader_cluster\"}");
         assertOK(client().performRequest(request));
 
         try (RestClient leaderClient = buildLeaderClient()) {

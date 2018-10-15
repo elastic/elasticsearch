@@ -148,14 +148,14 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
         String disallowedIndex = "logs-us-20190101";
 
         {
-            Request request = new Request("PUT", "/_ccr/auto_follow/leader_cluster");
-            request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"]}");
+            Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
+            request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"], \"leader_cluster\": \"leader_cluster\"}");
             Exception e = expectThrows(ResponseException.class, () -> assertOK(client().performRequest(request)));
             assertThat(e.getMessage(), containsString("insufficient privileges to follow index [logs-*]"));
         }
 
-        Request request = new Request("PUT", "/_ccr/auto_follow/leader_cluster");
-        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-eu-*\"]}");
+        Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
+        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-eu-*\"], \"leader_cluster\": \"leader_cluster\"}");
         assertOK(client().performRequest(request));
 
         try (RestClient leaderClient = buildLeaderClient()) {
@@ -187,7 +187,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
         });
 
         // Cleanup by deleting auto follow pattern and pause following:
-        request = new Request("DELETE", "/_ccr/auto_follow/leader_cluster");
+        request = new Request("DELETE", "/_ccr/auto_follow/test_pattern");
         assertOK(client().performRequest(request));
         pauseFollow(allowedIndex);
     }

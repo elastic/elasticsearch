@@ -55,7 +55,7 @@ public class TransportGetAutoFollowPatternAction
     protected void masterOperation(GetAutoFollowPatternAction.Request request,
                                    ClusterState state,
                                    ActionListener<GetAutoFollowPatternAction.Response> listener) throws Exception {
-        Map<String, AutoFollowPattern> autoFollowPatterns = getAutoFollowPattern(state.metaData(), request.getLeaderClusterAlias());
+        Map<String, AutoFollowPattern> autoFollowPatterns = getAutoFollowPattern(state.metaData(), request.getName());
         listener.onResponse(new GetAutoFollowPatternAction.Response(autoFollowPatterns));
     }
 
@@ -64,20 +64,20 @@ public class TransportGetAutoFollowPatternAction
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
-    static Map<String, AutoFollowPattern> getAutoFollowPattern(MetaData metaData, String leaderClusterAlias) {
+    static Map<String, AutoFollowPattern> getAutoFollowPattern(MetaData metaData, String name) {
         AutoFollowMetadata autoFollowMetadata = metaData.custom(AutoFollowMetadata.TYPE);
         if (autoFollowMetadata == null) {
-            throw new ResourceNotFoundException("no auto-follow patterns for cluster alias [{}] found", leaderClusterAlias);
+            throw new ResourceNotFoundException("auto-follow pattern [{}] is missing", name);
         }
 
-        if (leaderClusterAlias == null) {
+        if (name == null) {
             return autoFollowMetadata.getPatterns();
         }
 
-        AutoFollowPattern autoFollowPattern = autoFollowMetadata.getPatterns().get(leaderClusterAlias);
+        AutoFollowPattern autoFollowPattern = autoFollowMetadata.getPatterns().get(name);
         if (autoFollowPattern == null) {
-            throw new ResourceNotFoundException("no auto-follow patterns for cluster alias [{}] found", leaderClusterAlias);
+            throw new ResourceNotFoundException("auto-follow pattern [{}] is missing", name);
         }
-        return Collections.singletonMap(leaderClusterAlias, autoFollowPattern);
+        return Collections.singletonMap(name, autoFollowPattern);
     }
 }

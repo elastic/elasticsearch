@@ -119,7 +119,8 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
 
         // Enabling auto following:
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setLeaderClusterAlias("_local_");
+        request.setName("my-pattern");
+        request.setLeaderCluster("_local_");
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
         // Need to set this, because following an index in the same cluster
         request.setFollowIndexNamePattern("copy-{{leader_index}}");
@@ -181,7 +182,8 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
 
     private void putAutoFollowPatterns(String... patterns) {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setLeaderClusterAlias("_local_");
+        request.setName("my-pattern");
+        request.setLeaderCluster("_local_");
         request.setLeaderIndexPatterns(Arrays.asList(patterns));
         // Need to set this, because following an index in the same cluster
         request.setFollowIndexNamePattern("copy-{{leader_index}}");
@@ -190,7 +192,7 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
 
     private void deleteAutoFollowPatternSetting() {
         DeleteAutoFollowPatternAction.Request request = new DeleteAutoFollowPatternAction.Request();
-        request.setLeaderClusterAlias("_local_");
+        request.setName("my-pattern");
         assertTrue(client().execute(DeleteAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
     }
 

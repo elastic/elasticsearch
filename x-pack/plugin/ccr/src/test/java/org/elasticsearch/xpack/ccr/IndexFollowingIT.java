@@ -368,7 +368,8 @@ public class IndexFollowingIT extends CCRIntegTestCase {
         String indexSettings = getIndexSettings(1, 0, Collections.emptyMap());
         assertAcked(leaderClient().admin().indices().prepareCreate("test-leader").setSource(indexSettings, XContentType.JSON).get());
         assertAcked(followerClient().admin().indices().prepareCreate("test-follower").setSource(indexSettings, XContentType.JSON).get());
-        ensureGreen("test-leader", "test-follower");
+        ensureLeaderGreen("test-leader");
+        ensureFollowerGreen("test-follower");
         // Leader index does not exist.
         ResumeFollowAction.Request followRequest1 = resumeFollow("non-existent-leader", "test-follower");
         expectThrows(IndexNotFoundException.class, () -> followerClient().execute(ResumeFollowAction.INSTANCE, followRequest1).actionGet());

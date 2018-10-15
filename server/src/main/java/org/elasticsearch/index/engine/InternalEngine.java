@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
@@ -29,14 +30,20 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.search.TermQuery;
@@ -189,7 +196,6 @@ public class InternalEngine extends Engine {
                 translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier());
                 assert translog.getGeneration() != null;
                 this.translog = translog;
-                this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
                 this.softDeleteEnabled = engineConfig.getIndexSettings().isSoftDeleteEnabled();
                 this.softDeletesPolicy = newSoftDeletesPolicy();
                 this.combinedDeletionPolicy =
@@ -223,6 +229,7 @@ public class InternalEngine extends Engine {
             for (ReferenceManager.RefreshListener listener: engineConfig.getInternalRefreshListener()) {
                 this.internalSearcherManager.addListener(listener);
             }
+            this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
             this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker.getCheckpoint());
             this.internalSearcherManager.addListener(lastRefreshedCheckpointListener);
             success = true;
@@ -239,15 +246,45 @@ public class InternalEngine extends Engine {
     }
 
     private LocalCheckpointTracker createLocalCheckpointTracker(
-        BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) throws IOException {
-        final long maxSeqNo;
-        final long localCheckpoint;
-        final SequenceNumbers.CommitInfo seqNoStats =
-            SequenceNumbers.loadSeqNoInfoFromLuceneCommit(store.readLastCommittedSegmentsInfo().userData.entrySet());
-        maxSeqNo = seqNoStats.maxSeqNo;
-        localCheckpoint = seqNoStats.localCheckpoint;
-        logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
-        return localCheckpointTrackerSupplier.apply(maxSeqNo, localCheckpoint);
+        BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) {
+        try {
+            final SequenceNumbers.CommitInfo seqNoStats =
+                SequenceNumbers.loadSeqNoInfoFromLuceneCommit(store.readLastCommittedSegmentsInfo().userData.entrySet());
+            final long maxSeqNo = seqNoStats.maxSeqNo;
+            final long localCheckpoint = seqNoStats.localCheckpoint;
+            logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
+            final LocalCheckpointTracker tracker = localCheckpointTrackerSupplier.apply(maxSeqNo, localCheckpoint);
+            // scans existing sequence numbers in Lucene commit, then marks them as completed in the tracker.
+            if (localCheckpoint < maxSeqNo && softDeleteEnabled) {
+                try (Searcher engineSearcher = acquireSearcher("build_local_checkpoint_tracker", SearcherScope.INTERNAL)) {
+                    final DirectoryReader reader = Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader());
+                    final IndexSearcher searcher = new IndexSearcher(reader);
+                    searcher.setQueryCache(null);
+                    final Query query = LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, localCheckpoint + 1, maxSeqNo);
+                    for (LeafReaderContext leaf : reader.leaves()) {
+                        final Scorer scorer = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f).scorer(leaf);
+                        if (scorer == null) {
+                            continue;
+                        }
+                        final DocIdSetIterator docIdSetIterator = scorer.iterator();
+                        final NumericDocValues seqNoDocValues = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+                        int docId;
+                        while ((docId = docIdSetIterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                            if (seqNoDocValues == null || seqNoDocValues.advanceExact(docId) == false) {
+                                throw new IllegalStateException("invalid seq_no doc_values for doc_id=" + docId);
+                            }
+                            final long seqNo = seqNoDocValues.longValue();
+                            assert localCheckpoint < seqNo && seqNo <= maxSeqNo :
+                                "local_checkpoint=" + localCheckpoint + " seq_no=" + seqNo + " max_seq_no=" + maxSeqNo;
+                            tracker.markSeqNoAsCompleted(seqNo);
+                        }
+                    }
+                }
+            }
+            return tracker;
+        } catch (IOException ex) {
+            throw new EngineCreationFailureException(shardId, "failed to create local checkpoint tracker", ex);
+        }
     }
 
     private SoftDeletesPolicy newSoftDeletesPolicy() throws IOException {

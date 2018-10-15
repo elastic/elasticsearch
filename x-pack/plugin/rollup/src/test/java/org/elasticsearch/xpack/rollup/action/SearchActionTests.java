@@ -80,6 +80,7 @@ public class SearchActionTests extends ESTestCase {
 
     private NamedWriteableRegistry namedWriteableRegistry;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -383,7 +384,7 @@ public class SearchActionTests extends ESTestCase {
         SearchRequest rollup = msearch.requests().get(1);
         assertThat(rollup.indices().length, equalTo(1));
         assertThat(rollup.indices()[0], equalTo(rollupIndices[0]));
-        assert(rollup.source().aggregations().getAggregatorFactories().get(0) instanceof FilterAggregationBuilder);
+        assert(rollup.source().aggregations().getAggregatorFactories().iterator().next() instanceof FilterAggregationBuilder);
     }
 
     public void testGoodButNullQuery() {
@@ -416,7 +417,7 @@ public class SearchActionTests extends ESTestCase {
         SearchRequest rollup = msearch.requests().get(1);
         assertThat(rollup.indices().length, equalTo(1));
         assertThat(rollup.indices()[0], equalTo(rollupIndices[0]));
-        assert(rollup.source().aggregations().getAggregatorFactories().get(0) instanceof FilterAggregationBuilder);
+        assert(rollup.source().aggregations().getAggregatorFactories().iterator().next() instanceof FilterAggregationBuilder);
     }
 
     public void testTwoMatchingJobs() {
@@ -459,7 +460,7 @@ public class SearchActionTests extends ESTestCase {
         SearchRequest rollup = msearch.requests().get(1);
         assertThat(rollup.indices().length, equalTo(1));
         assertThat(rollup.indices()[0], equalTo(rollupIndices[0]));
-        assert(rollup.source().aggregations().getAggregatorFactories().get(0) instanceof FilterAggregationBuilder);
+        assert(rollup.source().aggregations().getAggregatorFactories().iterator().next() instanceof FilterAggregationBuilder);
 
         assertThat(msearch.requests().size(), equalTo(2));
     }
@@ -506,7 +507,7 @@ public class SearchActionTests extends ESTestCase {
         SearchRequest rollup = msearch.requests().get(1);
         assertThat(rollup.indices().length, equalTo(1));
         assertThat(rollup.indices()[0], equalTo(rollupIndices[0]));
-        assert(rollup.source().aggregations().getAggregatorFactories().get(0) instanceof FilterAggregationBuilder);
+        assert(rollup.source().aggregations().getAggregatorFactories().iterator().next() instanceof FilterAggregationBuilder);
 
 
         // The executed query should match the first job ("foo") because the second job contained a histo and the first didn't,
@@ -522,8 +523,7 @@ public class SearchActionTests extends ESTestCase {
     public void testNoIndicesToSeparate() {
         String[] indices = new String[]{};
         ImmutableOpenMap<String, IndexMetaData> meta = ImmutableOpenMap.<String, IndexMetaData>builder().build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> TransportRollupSearchAction.separateIndices(indices, meta));
+        expectThrows(IllegalArgumentException.class, () -> TransportRollupSearchAction.separateIndices(indices, meta));
     }
 
     public void testSeparateAll() {
@@ -773,6 +773,7 @@ public class SearchActionTests extends ESTestCase {
 
         MultiSearchResponse msearchResponse
                 = new MultiSearchResponse(new MultiSearchResponse.Item[]{unrolledResponse, rolledResponse}, 123);
+
         SearchResponse response = TransportRollupSearchAction.processResponses(separateIndices, msearchResponse,
                 mock(InternalAggregation.ReduceContext.class));
 

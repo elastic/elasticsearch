@@ -19,7 +19,6 @@
 package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
-
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -34,6 +33,7 @@ import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
+import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -42,6 +42,8 @@ import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCalendarsResponse;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedResponse;
+import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
+import org.elasticsearch.client.ml.GetDatafeedStatsResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobResponse;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
@@ -50,6 +52,8 @@ import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
+import org.elasticsearch.client.ml.PreviewDatafeedRequest;
+import org.elasticsearch.client.ml.PreviewDatafeedResponse;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
@@ -64,6 +68,8 @@ import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.calendars.CalendarTests;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.client.ml.datafeed.DatafeedState;
+import org.elasticsearch.client.ml.datafeed.DatafeedStats;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.DataDescription;
 import org.elasticsearch.client.ml.job.config.Detector;
@@ -77,8 +83,11 @@ import org.elasticsearch.rest.RestStatus;
 import org.junit.After;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -93,7 +102,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     @After
     public void cleanUp() throws IOException {
-        new MlRestTestStateCleaner(logger, client()).clearMlMetadata();
+        new MlTestStateCleaner(logger, highLevelClient().machineLearning()).clearMlMetadata();
     }
 
     public void testPutJob() throws Exception {
@@ -143,17 +152,33 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(response.jobs().stream().map(Job::getId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
     }
 
-    public void testDeleteJob() throws Exception {
+    public void testDeleteJob_GivenWaitForCompletionIsTrue() throws Exception {
         String jobId = randomValidJobId();
         Job job = buildJob(jobId);
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
-        AcknowledgedResponse response = execute(new DeleteJobRequest(jobId),
+        DeleteJobResponse response = execute(new DeleteJobRequest(jobId),
             machineLearningClient::deleteJob,
             machineLearningClient::deleteJobAsync);
 
-        assertTrue(response.isAcknowledged());
+        assertTrue(response.getAcknowledged());
+        assertNull(response.getTask());
+    }
+
+    public void testDeleteJob_GivenWaitForCompletionIsFalse() throws Exception {
+        String jobId = randomValidJobId();
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        DeleteJobRequest deleteJobRequest = new DeleteJobRequest(jobId);
+        deleteJobRequest.setWaitForCompletion(false);
+
+        DeleteJobResponse response = execute(deleteJobRequest, machineLearningClient::deleteJob, machineLearningClient::deleteJobAsync);
+
+        assertNull(response.getAcknowledged());
+        assertNotNull(response.getTask());
     }
 
     public void testOpenJob() throws Exception {
@@ -426,7 +451,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertTrue(response.isAcknowledged());
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/33966")
     public void testStartDatafeed() throws Exception {
         String jobId = "test-start-datafeed";
         String indexName = "start_data_1";
@@ -437,18 +461,18 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        long now = System.currentTimeMillis();
-        long oneDayAgo = now - 86400000;
+        long now = (System.currentTimeMillis()/1000)*1000;
+        long thePast = now - 60000;
         int i = 0;
-        long dayAgoCopy = oneDayAgo;
-        while(dayAgoCopy < now) {
+        long pastCopy = thePast;
+        while(pastCopy < now) {
             IndexRequest doc = new IndexRequest();
             doc.index(indexName);
             doc.type("doc");
             doc.id("id" + i);
-            doc.source("{\"total\":" +randomInt(1000) + ",\"timestamp\":"+ dayAgoCopy +"}", XContentType.JSON);
+            doc.source("{\"total\":" +randomInt(1000) + ",\"timestamp\":"+ pastCopy +"}", XContentType.JSON);
             bulk.add(doc);
-            dayAgoCopy += 1000000;
+            pastCopy += 1000;
             i++;
         }
         highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
@@ -470,9 +494,9 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
 
         StartDatafeedRequest startDatafeedRequest = new StartDatafeedRequest(datafeedId);
-        startDatafeedRequest.setStart(String.valueOf(oneDayAgo));
+        startDatafeedRequest.setStart(String.valueOf(thePast));
         // Should only process two documents
-        startDatafeedRequest.setEnd(String.valueOf(oneDayAgo + 2000000));
+        startDatafeedRequest.setEnd(String.valueOf(thePast + 2000));
         StartDatafeedResponse response = execute(startDatafeedRequest,
             machineLearningClient::startDatafeed,
             machineLearningClient::startDatafeedAsync);
@@ -564,6 +588,126 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 () -> execute(request, machineLearningClient::stopDatafeed, machineLearningClient::stopDatafeedAsync));
             assertThat(exception.status().getStatus(), equalTo(404));
         }
+    }
+
+    public void testGetDatafeedStats() throws Exception {
+        String jobId1 = "ml-get-datafeed-stats-test-id-1";
+        String jobId2 = "ml-get-datafeed-stats-test-id-2";
+        String indexName = "datafeed_stats_data_1";
+
+        // Set up the index
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+
+        // create the job and the datafeed
+        Job job1 = buildJob(jobId1);
+        putJob(job1);
+        openJob(job1);
+
+        Job job2 = buildJob(jobId2);
+        putJob(job2);
+
+        String datafeedId1 = createAndPutDatafeed(jobId1, indexName);
+        String datafeedId2 = createAndPutDatafeed(jobId2, indexName);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        machineLearningClient.startDatafeed(new StartDatafeedRequest(datafeedId1), RequestOptions.DEFAULT);
+
+        GetDatafeedStatsRequest request = new GetDatafeedStatsRequest(datafeedId1);
+
+        // Test getting specific
+        GetDatafeedStatsResponse response =
+            execute(request, machineLearningClient::getDatafeedStats, machineLearningClient::getDatafeedStatsAsync);
+
+        assertEquals(1, response.count());
+        assertThat(response.datafeedStats(), hasSize(1));
+        assertThat(response.datafeedStats().get(0).getDatafeedId(), equalTo(datafeedId1));
+        assertThat(response.datafeedStats().get(0).getDatafeedState().toString(), equalTo(DatafeedState.STARTED.toString()));
+
+        // Test getting all explicitly
+        request = GetDatafeedStatsRequest.getAllDatafeedStatsRequest();
+        response = execute(request, machineLearningClient::getDatafeedStats, machineLearningClient::getDatafeedStatsAsync);
+
+        assertTrue(response.count() >= 2L);
+        assertTrue(response.datafeedStats().size() >= 2L);
+        assertThat(response.datafeedStats().stream().map(DatafeedStats::getDatafeedId).collect(Collectors.toList()),
+            hasItems(datafeedId1, datafeedId2));
+
+        // Test getting all implicitly
+        response =
+            execute(new GetDatafeedStatsRequest(), machineLearningClient::getDatafeedStats, machineLearningClient::getDatafeedStatsAsync);
+
+        assertTrue(response.count() >= 2L);
+        assertTrue(response.datafeedStats().size() >= 2L);
+        assertThat(response.datafeedStats().stream().map(DatafeedStats::getDatafeedId).collect(Collectors.toList()),
+            hasItems(datafeedId1, datafeedId2));
+
+        // Test getting all with wildcard
+        request = new GetDatafeedStatsRequest("ml-get-datafeed-stats-test-id-*");
+        response = execute(request, machineLearningClient::getDatafeedStats, machineLearningClient::getDatafeedStatsAsync);
+        assertEquals(2L, response.count());
+        assertThat(response.datafeedStats(), hasSize(2));
+        assertThat(response.datafeedStats().stream().map(DatafeedStats::getDatafeedId).collect(Collectors.toList()),
+            hasItems(datafeedId1, datafeedId2));
+
+        // Test when allow_no_jobs is false
+        final GetDatafeedStatsRequest erroredRequest = new GetDatafeedStatsRequest("datafeeds-that-do-not-exist*");
+        erroredRequest.setAllowNoDatafeeds(false);
+        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+            () -> execute(erroredRequest, machineLearningClient::getDatafeedStats, machineLearningClient::getDatafeedStatsAsync));
+        assertThat(exception.status().getStatus(), equalTo(404));
+    }
+
+    public void testPreviewDatafeed() throws Exception {
+        String jobId = "test-preview-datafeed";
+        String indexName = "preview_data_1";
+
+        // Set up the index and docs
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        BulkRequest bulk = new BulkRequest();
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        long now = (System.currentTimeMillis()/1000)*1000;
+        long thePast = now - 60000;
+        int i = 0;
+        List<Integer> totalTotals = new ArrayList<>(60);
+        while(thePast < now) {
+            Integer total = randomInt(1000);
+            IndexRequest doc = new IndexRequest();
+            doc.index(indexName);
+            doc.type("doc");
+            doc.id("id" + i);
+            doc.source("{\"total\":" + total + ",\"timestamp\":"+ thePast +"}", XContentType.JSON);
+            bulk.add(doc);
+            thePast += 1000;
+            i++;
+            totalTotals.add(total);
+        }
+        highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        // create the job and the datafeed
+        Job job = buildJob(jobId);
+        putJob(job);
+        openJob(job);
+
+        String datafeedId = jobId + "-feed";
+        DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, jobId)
+            .setIndices(indexName)
+            .setQueryDelay(TimeValue.timeValueSeconds(1))
+            .setTypes(Collections.singletonList("doc"))
+            .setFrequency(TimeValue.timeValueSeconds(1)).build();
+        machineLearningClient.putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
+
+        PreviewDatafeedResponse response = execute(new PreviewDatafeedRequest(datafeedId),
+            machineLearningClient::previewDatafeed,
+            machineLearningClient::previewDatafeedAsync);
+
+        Integer[] totals = response.getDataList().stream().map(map -> (Integer)map.get("total")).toArray(Integer[]::new);
+        assertThat(totalTotals, containsInAnyOrder(totals));
     }
 
     public void testDeleteForecast() throws Exception {
@@ -701,7 +845,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setDetectorDescription(randomAlphaOfLength(10))
             .build();
         AnalysisConfig.Builder configBuilder = new AnalysisConfig.Builder(Arrays.asList(detector));
-        configBuilder.setBucketSpan(new TimeValue(randomIntBetween(1, 10), TimeUnit.SECONDS));
+        //should not be random, see:https://github.com/elastic/ml-cpp/issues/208
+        configBuilder.setBucketSpan(new TimeValue(5, TimeUnit.SECONDS));
         builder.setAnalysisConfig(configBuilder);
 
         DataDescription.Builder dataDescription = new DataDescription.Builder();

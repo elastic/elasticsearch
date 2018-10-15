@@ -47,6 +47,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
@@ -138,7 +139,6 @@ public class InternalEngine extends Engine {
     // incoming indexing ops to a single thread:
     private final AtomicInteger throttleRequestCount = new AtomicInteger();
     private final AtomicBoolean pendingTranslogRecovery = new AtomicBoolean(false);
-    public static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final AtomicLong maxSeenAutoIdTimestamp = new AtomicLong(-1);
     private final AtomicLong maxSeqNoOfNonAppendOnlyOperations = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
@@ -606,7 +606,7 @@ public class InternalEngine extends Engine {
                                     // in the case of a already pruned translog generation we might get null here - yet very unlikely
                                     TranslogLeafReader reader = new TranslogLeafReader((Translog.Index) operation, engineConfig
                                         .getIndexSettings().getIndexVersionCreated());
-                                    return new GetResult(new Searcher("realtime_get", new IndexSearcher(reader)),
+                                    return new GetResult(new Searcher("realtime_get", new IndexSearcher(reader), logger),
                                         new VersionsAndSeqNoResolver.DocIdAndVersion(0, ((Translog.Index) operation).version(), reader, 0));
                                 }
                             } catch (IOException e) {
@@ -875,7 +875,7 @@ public class InternalEngine extends Engine {
              * requests, we can assert the replica have not seen the document of that append-only request, thus we can apply optimization.
              */
             assert index.version() == 1L : "can optimize on replicas but incoming version is [" + index.version() + "]";
-            plan = IndexingStrategy.optimizedAppendOnly(index.seqNo());
+            plan = IndexingStrategy.optimizedAppendOnly(index.seqNo(), 1L);
         } else {
             if (appendOnlyRequest == false) {
                 maxSeqNoOfNonAppendOnlyOperations.updateAndGet(curr -> Math.max(index.seqNo(), curr));
@@ -927,7 +927,7 @@ public class InternalEngine extends Engine {
                 plan = IndexingStrategy.overrideExistingAsIfNotThere(generateSeqNoForOperation(index), 1L);
                 versionMap.enforceSafeAccess();
             } else {
-                plan = IndexingStrategy.optimizedAppendOnly(generateSeqNoForOperation(index));
+                plan = IndexingStrategy.optimizedAppendOnly(generateSeqNoForOperation(index), 1L);
             }
         } else {
             versionMap.enforceSafeAccess();
@@ -976,6 +976,7 @@ public class InternalEngine extends Engine {
             if (plan.addStaleOpToLucene) {
                 addStaleDocs(index.docs(), indexWriter);
             } else if (plan.useLuceneUpdateDocument) {
+                assert assertMaxSeqNoOfUpdatesIsAdvanced(index.uid(), plan.seqNoForIndexing, true, true);
                 updateDocs(index.uid(), index.docs(), indexWriter);
             } else {
                 // document does not exists, we can optimize for create, but double check if assertions are running
@@ -1081,11 +1082,11 @@ public class InternalEngine extends Engine {
                     Optional.of(earlyResultOnPreFlightError);
         }
 
-        static IndexingStrategy optimizedAppendOnly(long seqNoForIndexing) {
-            return new IndexingStrategy(true, false, true, false, seqNoForIndexing, 1, null);
+        public static IndexingStrategy optimizedAppendOnly(long seqNoForIndexing, long versionForIndexing) {
+            return new IndexingStrategy(true, false, true, false, seqNoForIndexing, versionForIndexing, null);
         }
 
-        static IndexingStrategy skipDueToVersionConflict(
+        public static IndexingStrategy skipDueToVersionConflict(
                 VersionConflictEngineException e, boolean currentNotFoundOrDeleted, long currentVersion, long term) {
             final IndexResult result = new IndexResult(e, currentVersion, term);
             return new IndexingStrategy(
@@ -1103,7 +1104,8 @@ public class InternalEngine extends Engine {
             return new IndexingStrategy(true, true, true, false, seqNoForIndexing, versionForIndexing, null);
         }
 
-        static IndexingStrategy processButSkipLucene(boolean currentNotFoundOrDeleted, long seqNoForIndexing, long versionForIndexing) {
+        public static IndexingStrategy processButSkipLucene(boolean currentNotFoundOrDeleted, long seqNoForIndexing,
+                                                            long versionForIndexing) {
             return new IndexingStrategy(currentNotFoundOrDeleted, false, false, false, seqNoForIndexing, versionForIndexing, null);
         }
 
@@ -1275,8 +1277,8 @@ public class InternalEngine extends Engine {
         return plan;
     }
 
-    private DeleteResult deleteInLucene(Delete delete, DeletionStrategy plan)
-        throws IOException {
+    private DeleteResult deleteInLucene(Delete delete, DeletionStrategy plan) throws IOException {
+        assert assertMaxSeqNoOfUpdatesIsAdvanced(delete.uid(), plan.seqNoOfDeletion, false, false);
         try {
             if (softDeleteEnabled) {
                 final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.type(), delete.id());
@@ -1341,7 +1343,7 @@ public class InternalEngine extends Engine {
                 Optional.empty() : Optional.of(earlyResultOnPreflightError);
         }
 
-        static DeletionStrategy skipDueToVersionConflict(
+        public static DeletionStrategy skipDueToVersionConflict(
                 VersionConflictEngineException e, long currentVersion, long term, boolean currentlyDeleted) {
             final long unassignedSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
             final DeleteResult deleteResult = new DeleteResult(e, currentVersion, term, unassignedSeqNo, currentlyDeleted == false);
@@ -2084,7 +2086,7 @@ public class InternalEngine extends Engine {
             if (warmer != null) {
                 try {
                     assert searcher.getIndexReader() instanceof ElasticsearchDirectoryReader : "this class needs an ElasticsearchDirectoryReader but got: " + searcher.getIndexReader().getClass();
-                    warmer.warm(new Searcher("top_reader_warming", searcher));
+                    warmer.warm(new Searcher("top_reader_warming", searcher, s -> {}, logger));
                 } catch (Exception e) {
                     if (isEngineClosed.get() == false) {
                         logger.warn("failed to prepare/warm", e);
@@ -2330,6 +2332,16 @@ public class InternalEngine extends Engine {
         localCheckpointTracker.waitForOpsToComplete(seqNo);
     }
 
+    /**
+     * Checks if the given operation has been processed in this engine or not.
+     * @return true if the given operation was processed; otherwise false.
+     */
+    protected final boolean hasBeenProcessedBefore(Operation op) {
+        assert op.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "operation is not assigned seq_no";
+        assert versionMap.assertKeyedLockHeldByCurrentThread(op.uid().bytes());
+        return localCheckpointTracker.contains(op.seqNo());
+    }
+
     @Override
     public SeqNoStats getSeqNoStats(long globalCheckpoint) {
         return localCheckpointTracker.getStats(globalCheckpoint);
@@ -2556,6 +2568,29 @@ public class InternalEngine extends Engine {
         assert maxUnsafeAutoIdTimestamp.get() <= maxSeenAutoIdTimestamp.get();
     }
 
+    private boolean assertMaxSeqNoOfUpdatesIsAdvanced(Term id, long seqNo, boolean allowDeleted, boolean relaxIfGapInSeqNo) {
+        final long maxSeqNoOfUpdates = getMaxSeqNoOfUpdatesOrDeletes();
+        // If the primary is on an old version which does not replicate msu, we need to relax this assertion for that.
+        if (maxSeqNoOfUpdates == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_5_0);
+            return true;
+        }
+        // We treat a delete on the tombstones on replicas as a regular document, then use updateDocument (not addDocument).
+        if (allowDeleted) {
+            final VersionValue versionValue = versionMap.getVersionForAssert(id.bytes());
+            if (versionValue != null && versionValue.isDelete()) {
+                return true;
+            }
+        }
+        // Operations can be processed on a replica in a different order than on the primary. If the order on the primary is index-1,
+        // delete-2, index-3, and the order on a replica is index-1, index-3, delete-2, then the msu of index-3 on the replica is 2
+        // even though it is an update (overwrites index-1). We should relax this assertion if there is a pending gap in the seq_no.
+        if (relaxIfGapInSeqNo && getLocalCheckpoint() < maxSeqNoOfUpdates) {
+            return true;
+        }
+        assert seqNo <= maxSeqNoOfUpdates : "id=" + id + " seq_no=" + seqNo + " msu=" + maxSeqNoOfUpdates;
+        return true;
+    }
 
     @Override
     public void initializeMaxSeqNoOfUpdatesOrDeletes() {

@@ -692,6 +692,7 @@ You can fetch the status of all running reindex requests with the
 GET _tasks?detailed=true&actions=*reindex
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:No tasks to retrieve]
 
 The response looks like:
 
@@ -726,32 +727,36 @@ The response looks like:
               "bulk": 0,
               "search": 0
             },
-            "throttled_millis": 0
+            "throttled_millis": 0,
+            "requests_per_second": -1,
+            "throttled_until_millis": 0
           },
-          "description" : ""
+          "description" : "",
+          "start_time_in_millis": 1535149899665,
+          "running_time_in_nanos": 5926916792,
+          "cancellable": true,
+          "headers": {}
         }
       }
     }
   }
 }
 --------------------------------------------------
-// NOTCONSOLE
-// We can't test tasks output
-
+// TESTRESPONSE
 <1> this object contains the actual status. It is identical to the response JSON
 except for the important addition of the `total` field. `total` is the total number
 of operations that the `_reindex` expects to perform. You can estimate the
 progress by adding the `updated`, `created`, and `deleted` fields. The request
 will finish when their sum is equal to the `total` field.
 
-With the task id you can look up the task directly:
+With the task id you can look up the task directly. The following example 
+retrieves information about the task `r1A2WoRbTwKZ516z6NEs5A:36619`:
 
 [source,js]
 --------------------------------------------------
-GET /_tasks/task_id
+GET /_tasks/r1A2WoRbTwKZ516z6NEs5A:36619
 --------------------------------------------------
 // CONSOLE
-// TEST[s/task_id/node_id:1/]
 // TEST[catch:missing]
 
 The advantage of this API is that it integrates with `wait_for_completion=false`
@@ -766,16 +771,16 @@ you to delete that document.
 [[docs-reindex-cancel-task-api]]
 === Works with the Cancel Task API
 
-Any Reindex can be canceled using the <<tasks,Task Cancel API>>:
+Any Reindex can be canceled using the <<task-cancellation,Task Cancel API>>. For 
+example:
 
 [source,js]
 --------------------------------------------------
-POST _tasks/task_id/_cancel
+POST _tasks/r1A2WoRbTwKZ516z6NEs5A:36619/_cancel
 --------------------------------------------------
 // CONSOLE
-// TEST[s/task_id/node_id:1/]
 
-The `task_id` can be found using the Tasks API.
+The task ID can be found using the <<tasks,Tasks API>>.
 
 Cancelation should happen quickly but might take a few seconds. The Tasks
 API will continue to list the task until it wakes to cancel itself.
@@ -790,12 +795,11 @@ the `_rethrottle` API:
 
 [source,js]
 --------------------------------------------------
-POST _reindex/task_id/_rethrottle?requests_per_second=-1
+POST _reindex/r1A2WoRbTwKZ516z6NEs5A:36619/_rethrottle?requests_per_second=-1
 --------------------------------------------------
 // CONSOLE
-// TEST[s/task_id/node_id:1/]
 
-The `task_id` can be found using the Tasks API above.
+The task ID can be found using the <<tasks,tasks API>>.
 
 Just like when setting it on the Reindex API, `requests_per_second`
 can be either `-1` to disable throttling or any decimal number

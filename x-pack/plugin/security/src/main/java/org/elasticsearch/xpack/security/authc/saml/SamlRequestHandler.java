@@ -6,14 +6,13 @@
 package org.elasticsearch.xpack.security.authc.saml;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.support.RestorableContextClassLoader;
 import org.joda.time.DateTime;
 import org.opensaml.core.xml.XMLObject;
@@ -82,7 +81,7 @@ public class SamlRequestHandler {
         }
     });
 
-    protected final Logger logger;
+    protected final Logger logger = LogManager.getLogger(getClass());
 
     @Nullable
     protected final Decrypter decrypter;
@@ -93,8 +92,7 @@ public class SamlRequestHandler {
     private final TimeValue maxSkew;
     private final UnmarshallerFactory unmarshallerFactory;
 
-    public SamlRequestHandler(RealmConfig realmConfig, Clock clock, IdpConfiguration idp, SpConfiguration sp, TimeValue maxSkew) {
-        this.logger = Loggers.getLogger(getClass(), realmConfig.globalSettings());
+    public SamlRequestHandler(Clock clock, IdpConfiguration idp, SpConfiguration sp, TimeValue maxSkew) {
         this.clock = clock;
         this.idp = idp;
         this.sp = sp;

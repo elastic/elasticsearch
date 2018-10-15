@@ -408,7 +408,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         try {
             final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
-            assertNotNull(actualWarnings);
+            assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarnings);
             final Set<String> actualWarningValues =
                     actualWarnings.stream().map(DeprecationLogger::extractWarningValueFromWarningHeader).collect(Collectors.toSet());
             for (String msg : expectedWarnings) {
@@ -1384,7 +1384,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return new ScriptModule(Settings.EMPTY, singletonList(new ScriptPlugin() {
             @Override
             public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-                return new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"));
+                return new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"), Collections.emptyMap());
             }
         }));
     }

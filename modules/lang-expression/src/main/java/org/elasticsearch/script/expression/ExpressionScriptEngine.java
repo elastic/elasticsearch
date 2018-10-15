@@ -221,8 +221,7 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
                 throw convertToScriptException("link error", expr.sourceText, variable, e);
             }
         }
-        ReplaceableConstDoubleValueSource specialValue = null;
-        return new ExpressionTermSetQueryScript(expr, bindings, specialValue);
+        return new ExpressionTermSetQueryScript(expr, bindings);
     }
 
     /**

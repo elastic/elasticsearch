@@ -490,10 +490,10 @@ PUT _xpack/ml/datafeeds/datafeed-test3
   },
   "script_fields":{
     "sub":{
-      "script":"return domainSplit(doc['query'].value, params).get(0);"
+      "script":"return domainSplit(doc['query'].value).get(0);"
     },
     "hrd":{
-      "script":"return domainSplit(doc['query'].value, params).get(1);"
+      "script":"return domainSplit(doc['query'].value).get(1);"
     }
   }
 }
@@ -510,10 +510,6 @@ registered domain. For example, the highest registered domain of
 `www.ml.elastic.co` is `elastic.co` and the sub-domain is `www.ml`. The
 `domainSplit()` function returns an array of two values: the first value is the
 subdomain; the second value is the highest registered domain.
-
-NOTE: The `domainSplit()` function takes two arguments. The first argument is
-the string you want to split. The second argument is always `params`. This is a
-technical implementation detail related to how Painless operates internally.
 
 The preview {dfeed} API returns the following results, which show that
 "www.ml.elastic.co" has been split into "elastic.co" and "www.ml":

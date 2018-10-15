@@ -109,6 +109,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class InternalEngine extends Engine {
@@ -229,7 +230,8 @@ public class InternalEngine extends Engine {
             for (ReferenceManager.RefreshListener listener: engineConfig.getInternalRefreshListener()) {
                 this.internalSearcherManager.addListener(listener);
             }
-            this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
+            this.localCheckpointTracker = createLocalCheckpointTracker(engineConfig, lastCommittedSegmentInfos, logger,
+                () -> acquireSearcher("create_local_checkpoint_tracker", SearcherScope.INTERNAL), localCheckpointTrackerSupplier);
             this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker.getCheckpoint());
             this.internalSearcherManager.addListener(lastRefreshedCheckpointListener);
             success = true;
@@ -245,18 +247,18 @@ public class InternalEngine extends Engine {
         logger.trace("created new InternalEngine");
     }
 
-    private LocalCheckpointTracker createLocalCheckpointTracker(
-        BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) {
+    private static LocalCheckpointTracker createLocalCheckpointTracker(EngineConfig engineConfig, SegmentInfos lastCommittedSegmentInfos,
+        Logger logger, Supplier<Searcher> searcherSupplier, BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) {
         try {
             final SequenceNumbers.CommitInfo seqNoStats =
-                SequenceNumbers.loadSeqNoInfoFromLuceneCommit(store.readLastCommittedSegmentsInfo().userData.entrySet());
+                SequenceNumbers.loadSeqNoInfoFromLuceneCommit(lastCommittedSegmentInfos.userData.entrySet());
             final long maxSeqNo = seqNoStats.maxSeqNo;
             final long localCheckpoint = seqNoStats.localCheckpoint;
             logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
             final LocalCheckpointTracker tracker = localCheckpointTrackerSupplier.apply(maxSeqNo, localCheckpoint);
             // scans existing sequence numbers in Lucene commit, then marks them as completed in the tracker.
-            if (localCheckpoint < maxSeqNo && softDeleteEnabled) {
-                try (Searcher engineSearcher = acquireSearcher("build_local_checkpoint_tracker", SearcherScope.INTERNAL)) {
+            if (localCheckpoint < maxSeqNo && engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
+                try (Searcher engineSearcher = searcherSupplier.get()) {
                     final DirectoryReader reader = Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader());
                     final IndexSearcher searcher = new IndexSearcher(reader);
                     searcher.setQueryCache(null);
@@ -283,7 +285,7 @@ public class InternalEngine extends Engine {
             }
             return tracker;
         } catch (IOException ex) {
-            throw new EngineCreationFailureException(shardId, "failed to create local checkpoint tracker", ex);
+            throw new EngineCreationFailureException(engineConfig.getShardId(), "failed to create local checkpoint tracker", ex);
         }
     }
 

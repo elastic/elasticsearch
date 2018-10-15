@@ -178,6 +178,16 @@ public class CompositeRolesStore extends AbstractComponent {
         }
     }
 
+    public void getRoleDescriptors(Set<String> roleNames, ActionListener<Set<RoleDescriptor>> listener) {
+        roleDescriptors(roleNames, ActionListener.wrap(rolesRetrievalResult -> {
+            if (rolesRetrievalResult.isSuccess()) {
+                listener.onResponse(rolesRetrievalResult.getRoleDescriptors());
+            } else {
+                listener.onResponse(Collections.emptySet());
+            }
+        }, listener::onFailure));
+    }
+
     private void roleDescriptors(Set<String> roleNames, ActionListener<RolesRetrievalResult> rolesResultListener) {
         final Set<String> filteredRoleNames = roleNames.stream().filter((s) -> {
             if (negativeLookupCache.get(s) != null) {

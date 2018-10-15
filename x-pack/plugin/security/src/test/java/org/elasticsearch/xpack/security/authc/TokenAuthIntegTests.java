@@ -23,6 +23,7 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenResponse;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
@@ -45,6 +47,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 @TestLogging("org.elasticsearch.xpack.security.authz.store.FileRolesStore:DEBUG")
 public class TokenAuthIntegTests extends SecurityIntegTestCase {
@@ -372,6 +375,32 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 .execute(AuthenticateAction.INSTANCE, request, responseFuture);
             responseFuture.actionGet();
         });
+    }
+
+    public void testCreateApiKey() {
+        final Instant start = Instant.now();
+        final RoleDescriptor descriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClient = new SecurityClient(client);
+        CreateApiKeyResponse response = securityClient.prepareCreateApiKey()
+            .setName("test key")
+            .setExpiration(TimeValue.timeValueHours(TimeUnit.DAYS.toHours(7L)))
+            .setRoleDescriptors(Collections.singletonList(descriptor))
+            .get();
+
+        assertEquals("test key", response.getName());
+        assertNotNull(response.getKey());
+        Instant expiration = response.getExpiration();
+        final long daysBetween = ChronoUnit.DAYS.between(start, expiration);
+        assertThat(daysBetween, is(7L));
+
+        // simple one
+        response = securityClient.prepareCreateApiKey().setName("simple").get();
+        assertEquals("simple", response.getName());
+        assertNotNull(response.getKey());
+        assertNull(response.getExpiration());
     }
 
     @Before

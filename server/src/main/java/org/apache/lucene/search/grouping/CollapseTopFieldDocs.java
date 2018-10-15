@@ -85,7 +85,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
 
     /**
      * if we need to tie-break since score / sort value are the same we first compare shard index (lower shard wins)
-     * and then if shard index is the same we use the hit index.
+     * and then iff shard index is the same we use the hit index.
      */
     static boolean tieBreakLessThan(ShardRef first, ScoreDoc firstDoc, ShardRef second, ScoreDoc secondDoc) {
         final int firstShardIndex = first.getShardIndex(firstDoc);

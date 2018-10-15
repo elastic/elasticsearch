@@ -1524,6 +1524,30 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
     }
 
+    private static class SetStepInfoUpdateTaskMatcher extends ArgumentMatcher<SetStepInfoUpdateTask> {
+        private Index index;
+        private String policy;
+        private StepKey currentStepKey;
+        private ToXContentObject stepInfo;
+
+        SetStepInfoUpdateTaskMatcher(Index index, String policy, StepKey currentStepKey, ToXContentObject stepInfo) {
+            this.index = index;
+            this.policy = policy;
+            this.currentStepKey = currentStepKey;
+            this.stepInfo = stepInfo;
+        }
+
+        @Override
+        public boolean matches(Object argument) {
+            if (argument == null || argument instanceof SetStepInfoUpdateTask == false) {
+                return false;
+            }
+            SetStepInfoUpdateTask task = (SetStepInfoUpdateTask) argument;
+            return Objects.equals(index, task.getIndex()) && Objects.equals(policy, task.getPolicy())
+                    && Objects.equals(currentStepKey, task.getCurrentStepKey()) && Objects.equals(stepInfo, task.getStepInfo());
+        }
+    }
+
     private static class ExecuteStepsUpdateTaskMatcher extends ArgumentMatcher<ExecuteStepsUpdateTask> {
 
         private Index index;

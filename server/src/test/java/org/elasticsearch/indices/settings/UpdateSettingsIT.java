@@ -586,22 +586,19 @@ public class UpdateSettingsIT extends ESIntegTestCase {
     public void testNumberOfReplicasSettingsVersionUnchanged() {
         createIndex("test");
 
-        {
-            final long settingsVersion =
-                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
-            final int numberOfReplicas = Integer.valueOf(
-                    client().admin().indices().prepareGetSettings("test").get().getSetting("test", "index.number_of_replicas"));
-            assertAcked(client()
-                    .admin()
-                    .indices()
-                    .prepareUpdateSettings("test")
-                    .setSettings(Settings.builder().put("index.number_of_replicas", numberOfReplicas))
-                    .get());
-            final long newSettingsVersion =
-                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
-            assertThat(newSettingsVersion, equalTo(settingsVersion));
-        }
-
+        final long settingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+        final int numberOfReplicas = Integer.valueOf(
+                client().admin().indices().prepareGetSettings("test").get().getSetting("test", "index.number_of_replicas"));
+        assertAcked(client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put("index.number_of_replicas", numberOfReplicas))
+                .get());
+        final long newSettingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+        assertThat(newSettingsVersion, equalTo(settingsVersion));
     }
 
     /**
@@ -626,7 +623,6 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         final long newSettingsVersion =
                 client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
         assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
-
     }
 
 }

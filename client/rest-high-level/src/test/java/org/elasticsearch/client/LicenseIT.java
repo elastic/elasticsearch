@@ -35,10 +35,15 @@ import static org.hamcrest.Matchers.empty;
 
 public class LicenseIT extends ESRestHighLevelClientTestCase {
 
+    /*
+     * todo there are some cases we can't test here because this gradle project starts the integ test cluster so that it'll generate
+     * a trial license at startup. we need to add a separate gradle project for the license-related tests so that we can start the
+     * integ test cluster without generating a trial license
+     */
+
     public void testStartTrial() throws Exception {
 
-        // we don't test the case where we successfully start a trial because the integ test cluster generates one on startup
-        // and we don't have a good way to prevent that / work around it in this test project
+        // todo add case where we successfully start a trial - see note above
 
         // case where we don't acknowledge trial license conditions
         {

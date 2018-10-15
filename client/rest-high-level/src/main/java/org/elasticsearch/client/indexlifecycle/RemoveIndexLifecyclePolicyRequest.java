@@ -32,22 +32,12 @@ public class RemoveIndexLifecyclePolicyRequest extends TimedRequest {
     private final IndicesOptions indicesOptions;
 
     public RemoveIndexLifecyclePolicyRequest(List<String> indices) {
-        if (indices == null) {
-            throw new IllegalArgumentException("indices cannot be null");
-        }
-        this.indices = Collections.unmodifiableList(indices);
-        this.indicesOptions = IndicesOptions.strictExpandOpen();
+        this(indices, IndicesOptions.strictExpandOpen());
     }
 
     public RemoveIndexLifecyclePolicyRequest(List<String> indices, IndicesOptions indicesOptions) {
-        if (indices == null) {
-            throw new IllegalArgumentException("indices cannot be null");
-        }
-        if (indicesOptions == null) {
-            throw new IllegalArgumentException("indices options cannot be null");
-        }
-        this.indices = Collections.unmodifiableList(indices);
-        this.indicesOptions = indicesOptions;
+        this.indices = Collections.unmodifiableList(Objects.requireNonNull(indices));
+        this.indicesOptions = Objects.requireNonNull(indicesOptions);
     }
 
     public List<String> indices() {

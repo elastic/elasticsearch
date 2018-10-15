@@ -30,15 +30,11 @@ import java.util.Collections;
 public class RemoveIndexLifecyclePolicyRequestTests extends ESTestCase {
 
     public void testNullIndices() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> new RemoveIndexLifecyclePolicyRequest(null));
-        assertEquals("indices cannot be null", exception.getMessage());
+        expectThrows(NullPointerException.class, () -> new RemoveIndexLifecyclePolicyRequest(null));
     }
 
     public void testNullIndicesOptions() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> new RemoveIndexLifecyclePolicyRequest(Collections.emptyList(), null));
-        assertEquals("indices options cannot be null", exception.getMessage());
+        expectThrows(NullPointerException.class, () -> new RemoveIndexLifecyclePolicyRequest(Collections.emptyList(), null));
     }
 
     public void testValidate() {

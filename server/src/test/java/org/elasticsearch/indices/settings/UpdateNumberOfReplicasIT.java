@@ -91,6 +91,9 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         logger.info("starting another node to new replicas will be allocated to it");
         allowNodes("test", 3);
 
+        final long afterStartingAnotherNodeVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+mit -
         logger.info("Running Cluster Health");
         clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNoRelocatingShards(true).setWaitForNodes(">=3").execute().actionGet();
         logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
@@ -125,7 +128,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
 
         final long afterReplicaDecreaseSettingsVersion =
                 client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
-        assertThat(afterReplicaDecreaseSettingsVersion, equalTo(1 + afterReplicaIncreaseSettingsVersion));
+        assertThat(afterReplicaDecreaseSettingsVersion, equalTo(1 + afterStartingAnotherNodeVersion));
     }
 
     public void testAutoExpandNumberOfReplicas0ToData() throws IOException {

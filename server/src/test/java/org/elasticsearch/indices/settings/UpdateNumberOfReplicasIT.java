@@ -21,6 +21,7 @@ package org.elasticsearch.indices.settings;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
+import java.util.EnumSet;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -327,4 +329,21 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
                     equalTo(settingsVersion));
         }
     }
+
+    public void testUpdateNumberOfReplicasAllowNoIndices() {
+        createIndex("test-index", Settings.builder().put("index.number_of_replicas", 0).build());
+        final IndicesOptions options =
+                new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES), EnumSet.of(IndicesOptions.WildcardStates.OPEN));
+        assertAcked(client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings("non-existent-*")
+                .setSettings(Settings.builder().put("index.number_of_replicas", 1))
+                .setIndicesOptions(options)
+                .get());
+        final int numberOfReplicas = Integer.parseInt(
+                client().admin().indices().prepareGetSettings("test-index").get().getSetting("test-index", "index.number_of_replicas"));
+        assertThat(numberOfReplicas, equalTo(0));
+    }
+
 }

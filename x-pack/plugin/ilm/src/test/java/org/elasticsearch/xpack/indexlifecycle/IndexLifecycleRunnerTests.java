@@ -80,8 +80,10 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     private static final NamedXContentRegistry REGISTRY;
 
     static {
-        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(new IndexLifecycle(Settings.EMPTY).getNamedXContent());
-        REGISTRY = new NamedXContentRegistry(entries);
+        try (IndexLifecycle indexLifecycle = new IndexLifecycle(Settings.EMPTY)) {
+            List<NamedXContentRegistry.Entry> entries = new ArrayList<>(indexLifecycle.getNamedXContent());
+            REGISTRY = new NamedXContentRegistry(entries);
+        }
     }
 
     /** A real policy steps registry where getStep can be overridden so that JSON doesn't have to be parsed */
@@ -1429,63 +1431,6 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
     }
 
-    private static class MoveToNextStepUpdateTaskMatcher extends ArgumentMatcher<MoveToNextStepUpdateTask> {
-
-        private Index index;
-        private String policy;
-        private StepKey currentStepKey;
-        private StepKey nextStepKey;
-
-        MoveToNextStepUpdateTaskMatcher(Index index, String policy, StepKey currentStepKey, StepKey nextStepKey) {
-            this.index = index;
-            this.policy = policy;
-            this.currentStepKey = currentStepKey;
-            this.nextStepKey = nextStepKey;
-        }
-
-        @Override
-        public boolean matches(Object argument) {
-            if (argument == null || argument instanceof MoveToNextStepUpdateTask == false) {
-                return false;
-            }
-            MoveToNextStepUpdateTask task = (MoveToNextStepUpdateTask) argument;
-            return Objects.equals(index, task.getIndex()) &&
-                    Objects.equals(policy, task.getPolicy()) &&
-                    Objects.equals(currentStepKey, task.getCurrentStepKey()) &&
-                    Objects.equals(nextStepKey, task.getNextStepKey());
-        }
-
-    }
-
-    private static class MoveToErrorStepUpdateTaskMatcher extends ArgumentMatcher<MoveToErrorStepUpdateTask> {
-
-        private Index index;
-        private String policy;
-        private StepKey currentStepKey;
-        private Exception cause;
-
-        MoveToErrorStepUpdateTaskMatcher(Index index, String policy, StepKey currentStepKey, Exception cause) {
-            this.index = index;
-            this.policy = policy;
-            this.currentStepKey = currentStepKey;
-            this.cause = cause;
-        }
-
-        @Override
-        public boolean matches(Object argument) {
-            if (argument == null || argument instanceof MoveToErrorStepUpdateTask == false) {
-                return false;
-            }
-            MoveToErrorStepUpdateTask task = (MoveToErrorStepUpdateTask) argument;
-            return Objects.equals(index, task.getIndex()) &&
-                    Objects.equals(policy, task.getPolicy())&&
-                    Objects.equals(currentStepKey, task.getCurrentStepKey()) &&
-                    Objects.equals(cause.getClass(), task.getCause().getClass()) &&
-                    Objects.equals(cause.getMessage(), task.getCause().getMessage());
-        }
-
-    }
-
     private static class SetStepInfoUpdateTaskMatcher extends ArgumentMatcher<SetStepInfoUpdateTask> {
 
         private Index index;
@@ -1522,30 +1467,6 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             }
         }
 
-    }
-
-    private static class SetStepInfoUpdateTaskMatcher extends ArgumentMatcher<SetStepInfoUpdateTask> {
-        private Index index;
-        private String policy;
-        private StepKey currentStepKey;
-        private ToXContentObject stepInfo;
-
-        SetStepInfoUpdateTaskMatcher(Index index, String policy, StepKey currentStepKey, ToXContentObject stepInfo) {
-            this.index = index;
-            this.policy = policy;
-            this.currentStepKey = currentStepKey;
-            this.stepInfo = stepInfo;
-        }
-
-        @Override
-        public boolean matches(Object argument) {
-            if (argument == null || argument instanceof SetStepInfoUpdateTask == false) {
-                return false;
-            }
-            SetStepInfoUpdateTask task = (SetStepInfoUpdateTask) argument;
-            return Objects.equals(index, task.getIndex()) && Objects.equals(policy, task.getPolicy())
-                    && Objects.equals(currentStepKey, task.getCurrentStepKey()) && Objects.equals(stepInfo, task.getStepInfo());
-        }
     }
 
     private static class ExecuteStepsUpdateTaskMatcher extends ArgumentMatcher<ExecuteStepsUpdateTask> {

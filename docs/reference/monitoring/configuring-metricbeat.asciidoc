@@ -96,11 +96,43 @@ You must specify the following settings in the `modules.d/elasticsearch.yml` fil
   xpack.enabled: true
 ----------------------------------
 <1> This setting identifies the host and port number that are used to access {es}.  
-
-NOTE: If you configured {es} to use <<configuring-tls,encrypted communications>>, 
-you must access it via HTTPS. For example, `https://localhost:9200`. 
-
 --
+
+.. If {security} is enabled, you must also provide a user ID and password so that 
+{metricbeat} can collect metrics successfully. 
++
+--
+////
+TIP: There is a `stack_monitoring_agent` built-in role that grants the privileges 
+necessary for {metricbeat} to monitor {stack} products. See 
+{stack-ov}/built-in-roles.html[Built-in roles].
+////
+--
+
+... Create or identify a user that you want to use to collect the metrics. 
++
+--
+// TBD: Give this user the `stack_monitoring_agent` role or grant equivalent privileges. 
+--
+
+... Add the `username` and `password` settings to the {es} module configuration 
+file.
++
+--
+For example, add the following settings in the `modules.d/kibana.yml` file:
+
+[source,yaml]
+----------------------------------
+- module: elasticsearch
+  ...
+  username: YOUR_USERNAME
+  password: YOUR_PASSWORD
+----------------------------------
+--
+
+.. If you configured {es} to use <<configuring-tls,encrypted communications>>, 
+you must access it via HTTPS. For example, use a `hosts` setting like 
+`https://localhost:9200` in the `modules.d/elasticsearch.yml` file.
 
 .. Identify where to send the monitoring data. +
 +
@@ -122,14 +154,35 @@ output.elasticsearch:
 <1> In this example, the data is stored on a monitoring cluster with nodes 
 `es-mon-1` and `es-mon-2`. 
 
-NOTE: If you configured the monitoring cluster to use 
-{ref}/configuring-tls.html[encrypted communications], you must access it via 
-HTTPS. For example, `https://es-mon-1:9200`. 
-
 For more information about these configuration options, see 
 {metricbeat-ref}/elasticsearch-output.html[Configure the {es} output].
-
 --
+
+.. If {security} is enabled on the monitoring cluster, you must provide a valid 
+user ID and password so that {metricbeat} can send metrics successfully. 
+
+... Create or identify a user that you want to use to send the metrics. 
++
+--
+//TBD: What privileges are required by this user?  Does the stack_monitoring_agent role suffice here too?
+--
+... Add the `username` and `password` settings to the {es} output information in 
+the {metricbeat} configuration file (`metricbeat.yml`):
++
+--
+[source,yaml]
+----------------------------------
+output.elasticsearch:
+  ...
+  username: YOUR_USERNAME
+  password: YOUR_PASSWORD
+----------------------------------
+--
+
+.. If you configured the monitoring cluster to use 
+<<configuring-tls,encrypted communications>>, you must access it via 
+HTTPS. For example, use a `hosts` setting like `https://es-mon-1:9200` in the 
+`metricbeat.yml` file. 
 
 . <<starting-elasticsearch,Start {es}>>.
 

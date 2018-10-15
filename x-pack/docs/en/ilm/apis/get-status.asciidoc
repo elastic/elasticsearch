@@ -23,7 +23,7 @@ and <<ilm-stop, Stop ILM>> APIs.
 
 `timeout`::
   (time units) Specifies the period of time to wait for the completion of the 
-  move operation. When this period of time elapses, the API fails and returns
+  get operation. When this period of time elapses, the API fails and returns
   an error. The default value is `30s`. For more information about time units, 
   see <<time-units>>.
 

@@ -14,13 +14,15 @@ Start the ILM plugin
 
 ==== Description
 
-This API will start the ILM plugin if it is currently stopped.
+This API will start the ILM plugin if it is currently stopped. ILM is started
+by default when the cluster is formed so this API is only needed if ILM has
+been stopped using the <<ilm-stop, Stop ILM API>>.
 
 ==== Request Parameters
 
 `timeout`::
   (time units) Specifies the period of time to wait for the completion of the 
-  move operation. When this period of time elapses, the API fails and returns
+  start operation. When this period of time elapses, the API fails and returns
   an error. The default value is `30s`. For more information about time units, 
   see <<time-units>>.
 

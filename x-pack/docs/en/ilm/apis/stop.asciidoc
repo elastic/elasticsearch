@@ -16,17 +16,17 @@ Stop the ILM plugin.
 
 This API will stop the ILM plugin. This can be used for period where 
 maintenance is required and ILM should not perform any actions on any indices.
-The plugin may not immediately stop but rather need to wait for some operations
+The API will return as soon as the stop request has been acknowledged but the 
+plugin may not immediately stop but rather need to wait for some operations
 to finish before it's stopped. Progress can be seen using the 
 <<ilm-get-status, Get ILM Status>> API.
 
 ==== Request Parameters
 
 `timeout`::
-  (time units) Specifies the period of time to wait for the completion of the 
-  move operation. When this period of time elapses, the API fails and returns
-  an error. The default value is `30s`. For more information about time units, 
-  see <<time-units>>.
+  (time units) Specifies the period of time to wait for the response. When this 
+  period of time elapses, the API fails and returns an error. The default value
+  is `30s`. For more information about time units, see <<time-units>>.
 
 `master_timeout`::
   (time units) Specifies the period of time to wait for the connection with master.

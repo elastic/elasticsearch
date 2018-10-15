@@ -28,7 +28,7 @@ Information on whether an index is in the ERROR step can be obtained from the
 
 `timeout`::
   (time units) Specifies the period of time to wait for the completion of the 
-  move operation. When this period of time elapses, the API fails and returns
+  retry operation. When this period of time elapses, the API fails and returns
   an error. The default value is `30s`. For more information about time units, 
   see <<time-units>>.
 

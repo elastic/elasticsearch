@@ -24,6 +24,8 @@ import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleMappingResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
+import org.elasticsearch.client.security.GetSslCertificatesRequest;
+import org.elasticsearch.client.security.GetSslCertificatesResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.EmptyResponse;
@@ -161,6 +163,33 @@ public final class SecurityClient {
                                  ActionListener<EmptyResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::disableUser, options,
             EmptyResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Synchronously retrieve the X.509 certificates that are used to encrypt communications in an Elasticsearch cluster.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-ssl.html">
+     * the docs</a> for more.
+     *
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the get certificates call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetSslCertificatesResponse getSslCertificates(RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(GetSslCertificatesRequest.INSTANCE, GetSslCertificatesRequest::getRequest,
+            options, GetSslCertificatesResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously retrieve the X.509 certificates that are used to encrypt communications in an Elasticsearch cluster.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-ssl.html">
+     * the docs</a> for more.
+     *
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getSslCertificatesAsync(RequestOptions options, ActionListener<GetSslCertificatesResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(GetSslCertificatesRequest.INSTANCE, GetSslCertificatesRequest::getRequest,
+            options, GetSslCertificatesResponse::fromXContent, listener, emptySet());
     }
 
     /**

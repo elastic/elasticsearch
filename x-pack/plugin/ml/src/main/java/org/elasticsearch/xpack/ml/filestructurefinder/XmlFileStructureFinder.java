@@ -95,10 +95,14 @@ public class XmlFileStructureFinder implements FileStructureFinder {
         Tuple<String, TimestampMatch> timeField =
             FileStructureUtils.guessTimestampField(explanation, sampleRecords, overrides, timeoutChecker);
         if (timeField != null) {
+            boolean needClientTimeZone = timeField.v2().hasTimezoneDependentParsing();
+
             structureBuilder.setTimestampField(timeField.v1())
                 .setJodaTimestampFormats(timeField.v2().jodaTimestampFormats)
                 .setJavaTimestampFormats(timeField.v2().javaTimestampFormats)
-                .setNeedClientTimezone(timeField.v2().hasTimezoneDependentParsing());
+                .setNeedClientTimezone(needClientTimeZone)
+                .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, topLevelTag + "." + timeField.v1(),
+                    timeField.v2().jodaTimestampFormats, needClientTimeZone));
         }
 
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats =

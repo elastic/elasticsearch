@@ -128,6 +128,8 @@ public class ShrinkIndexIT extends ESIntegTestCase {
     }
 
     public void testCreateShrinkIndex() {
+        assumeFalse("Broken on windows - https://github.com/elastic/elasticsearch/issues/33857", Constants.WINDOWS);
+
         internalCluster().ensureAtLeastNumDataNodes(2);
         Version version = VersionUtils.randomVersion(random());
         prepareCreate("source").setSettings(Settings.builder().put(indexSettings())

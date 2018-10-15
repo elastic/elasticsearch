@@ -279,7 +279,7 @@ public class RestControllerTests extends ESTestCase {
         int contentLength = BREAKER_LIMIT.bytesAsInt() + 1;
         String content = randomAlphaOfLength((int) Math.round(contentLength / inFlightRequestsBreaker.getOverhead()));
         RestRequest request = testRestRequest("/", content, XContentType.JSON);
-        AssertingChannel channel = new AssertingChannel(request, true, RestStatus.SERVICE_UNAVAILABLE);
+        AssertingChannel channel = new AssertingChannel(request, true, RestStatus.TOO_MANY_REQUESTS);
 
         restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
 

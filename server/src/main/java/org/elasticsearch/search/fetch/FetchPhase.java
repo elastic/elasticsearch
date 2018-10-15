@@ -58,7 +58,6 @@ import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsFetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
-import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;

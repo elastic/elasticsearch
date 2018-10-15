@@ -99,7 +99,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
         Consumer<String> jobIdProcessor = id -> {
             validateJobAndTaskState(id, mlMetadata, tasksMetaData);
             Job job = mlMetadata.getJobs().get(id);
-            if (job.isDeleted()) {
+            if (job.isDeleting()) {
                 return;
             }
             addJobAccordingToState(id, tasksMetaData, openJobIds, closingJobIds, failedJobs);

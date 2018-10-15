@@ -11,6 +11,7 @@ The Java High Level REST Client supports the following Document APIs:
 Single document APIs::
 * <<{upid}-index>>
 * <<{upid}-get>>
+* <<{upid}-exists>>
 * <<{upid}-delete>>
 * <<{upid}-update>>
 
@@ -21,7 +22,7 @@ Multi-document APIs::
 * <<{upid}-reindex>>
 * <<{upid}-update-by-query>>
 * <<{upid}-delete-by-query>>
-* <<{upid}-reindex-rethrottle>>
+* <<{upid}-rethrottle>>
 
 include::document/index.asciidoc[]
 include::document/get.asciidoc[]
@@ -33,7 +34,7 @@ include::document/multi-get.asciidoc[]
 include::document/reindex.asciidoc[]
 include::document/update-by-query.asciidoc[]
 include::document/delete-by-query.asciidoc[]
-include::document/reindex-rethrottle.asciidoc[]
+include::document/rethrottle.asciidoc[]
 
 == Search APIs
 
@@ -219,33 +220,37 @@ include::licensing/get-license.asciidoc[]
 include::licensing/delete-license.asciidoc[]
 
 == Machine Learning APIs
+:upid: {mainid}-x-pack-ml
+:doc-tests-file: {doc-tests}/MlClientDocumentationIT.java
 
 The Java High Level REST Client supports the following Machine Learning APIs:
 
-* <<java-rest-high-x-pack-ml-put-job>>
-* <<java-rest-high-x-pack-ml-get-job>>
-* <<java-rest-high-x-pack-ml-delete-job>>
-* <<java-rest-high-x-pack-ml-open-job>>
-* <<java-rest-high-x-pack-ml-close-job>>
-* <<java-rest-high-x-pack-ml-flush-job>>
-* <<java-rest-high-x-pack-ml-update-job>>
-* <<java-rest-high-x-pack-ml-get-job-stats>>
-* <<java-rest-high-x-pack-ml-put-datafeed>>
-* <<java-rest-high-x-pack-ml-get-datafeed>>
-* <<java-rest-high-x-pack-ml-delete-datafeed>>
-* <<java-rest-high-x-pack-ml-start-datafeed>>
-* <<java-rest-high-x-pack-ml-stop-datafeed>>
-* <<java-rest-high-x-pack-ml-forecast-job>>
-* <<java-rest-high-x-pack-ml-delete-forecast>>
-* <<java-rest-high-x-pack-ml-get-buckets>>
-* <<java-rest-high-x-pack-ml-get-overall-buckets>>
-* <<java-rest-high-x-pack-ml-get-records>>
-* <<java-rest-high-x-pack-ml-post-data>>
-* <<java-rest-high-x-pack-ml-get-influencers>>
-* <<java-rest-high-x-pack-ml-get-categories>>
-* <<java-rest-high-x-pack-ml-get-calendars>>
-* <<java-rest-high-x-pack-ml-put-calendar>>
-* <<java-rest-high-x-pack-ml-delete-calendar>>
+* <<{upid}-put-job>>
+* <<{upid}-get-job>>
+* <<{upid}-delete-job>>
+* <<{upid}-open-job>>
+* <<{upid}-close-job>>
+* <<{upid}-flush-job>>
+* <<{upid}-update-job>>
+* <<{upid}-get-job-stats>>
+* <<{upid}-put-datafeed>>
+* <<{upid}-get-datafeed>>
+* <<{upid}-delete-datafeed>>
+* <<{upid}-preview-datafeed>>
+* <<{upid}-start-datafeed>>
+* <<{upid}-stop-datafeed>>
+* <<{upid}-get-datafeed-stats>>
+* <<{upid}-forecast-job>>
+* <<{upid}-delete-forecast>>
+* <<{upid}-get-buckets>>
+* <<{upid}-get-overall-buckets>>
+* <<{upid}-get-records>>
+* <<{upid}-post-data>>
+* <<{upid}-get-influencers>>
+* <<{upid}-get-categories>>
+* <<{upid}-get-calendars>>
+* <<{upid}-put-calendar>>
+* <<{upid}-delete-calendar>>
 
 include::ml/put-job.asciidoc[]
 include::ml/get-job.asciidoc[]
@@ -257,8 +262,10 @@ include::ml/flush-job.asciidoc[]
 include::ml/put-datafeed.asciidoc[]
 include::ml/get-datafeed.asciidoc[]
 include::ml/delete-datafeed.asciidoc[]
+include::ml/preview-datafeed.asciidoc[]
 include::ml/start-datafeed.asciidoc[]
 include::ml/stop-datafeed.asciidoc[]
+include::ml/get-datafeed-stats.asciidoc[]
 include::ml/get-job-stats.asciidoc[]
 include::ml/forecast-job.asciidoc[]
 include::ml/delete-forecast.asciidoc[]
@@ -285,8 +292,10 @@ include::migration/get-assistance.asciidoc[]
 The Java High Level REST Client supports the following Rollup APIs:
 
 * <<java-rest-high-x-pack-rollup-put-job>>
+* <<java-rest-high-x-pack-rollup-get-job>>
 
 include::rollup/put_job.asciidoc[]
+include::rollup/get_job.asciidoc[]
 
 == Security APIs
 
@@ -304,13 +313,20 @@ include::security/change-password.asciidoc[]
 
 == Watcher APIs
 
+:upid: {mainid}-watcher
+:doc-tests-file: {doc-tests}/WatcherDocumentationIT.java
+
 The Java High Level REST Client supports the following Watcher APIs:
 
 * <<java-rest-high-x-pack-watcher-put-watch>>
 * <<java-rest-high-x-pack-watcher-delete-watch>>
+* <<{upid}-ack-watch>>
+* <<{upid}-activate-watch>>
 
 include::watcher/put-watch.asciidoc[]
 include::watcher/delete-watch.asciidoc[]
+include::watcher/ack-watch.asciidoc[]
+include::watcher/activate-watch.asciidoc[]
 
 == Graph APIs
 

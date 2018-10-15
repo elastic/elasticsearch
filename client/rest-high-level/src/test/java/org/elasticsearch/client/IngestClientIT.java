@@ -78,6 +78,16 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
         assertEquals(expectedConfig.getConfigAsMap(), response.pipelines().get(0).getConfigAsMap());
     }
 
+    public void testGetNonexistentPipeline() throws IOException {
+        String id = "nonexistent_pipeline_id";
+
+        GetPipelineRequest request = new GetPipelineRequest(id);
+
+        GetPipelineResponse response =
+            execute(request, highLevelClient().ingest()::getPipeline, highLevelClient().ingest()::getPipelineAsync);
+        assertFalse(response.isFound());
+    }
+
     public void testDeletePipeline() throws IOException {
         String id = "some_pipeline_id";
         {

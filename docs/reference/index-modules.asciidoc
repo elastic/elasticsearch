@@ -234,6 +234,11 @@ specific index module:
     The length of time that a <<delete-versioning,deleted document's version number>> remains available for <<index-versioning,further versioned operations>>.
     Defaults to `60s`.
 
+  `index.default_pipeline`::
+
+    The default <<ingest,ingest node>> pipeline for this index. Index requests will fail
+    if the default pipeline is set and the pipeline does not exist.
+
 [float]
 === Settings in other index modules
 

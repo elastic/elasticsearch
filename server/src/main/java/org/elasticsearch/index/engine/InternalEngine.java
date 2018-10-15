@@ -47,6 +47,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
@@ -263,8 +264,9 @@ public class InternalEngine extends Engine {
                     final IndexSearcher searcher = new IndexSearcher(reader);
                     searcher.setQueryCache(null);
                     final Query query = LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, localCheckpoint + 1, maxSeqNo);
+                    final Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
                     for (LeafReaderContext leaf : reader.leaves()) {
-                        final Scorer scorer = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f).scorer(leaf);
+                        final Scorer scorer = weight.scorer(leaf);
                         if (scorer == null) {
                             continue;
                         }

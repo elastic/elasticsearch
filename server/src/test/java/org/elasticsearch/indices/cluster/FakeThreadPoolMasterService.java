@@ -21,6 +21,7 @@ package org.elasticsearch.indices.cluster;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.ClusterStatePublisher.AckListener;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -120,7 +120,7 @@ public class FakeThreadPoolMasterService extends MasterService {
     protected void publish(ClusterChangedEvent clusterChangedEvent, TaskOutputs taskOutputs, long startTimeNS) {
         assert waitForPublish == false;
         waitForPublish = true;
-        final Discovery.AckListener ackListener = taskOutputs.createAckListener(threadPool, clusterChangedEvent.state());
+        final AckListener ackListener = taskOutputs.createAckListener(threadPool, clusterChangedEvent.state());
         clusterStatePublisher.publish(clusterChangedEvent, new ActionListener<Void>() {
 
             private boolean listenerCalled = false;
@@ -152,6 +152,10 @@ public class FakeThreadPoolMasterService extends MasterService {
                     scheduleNextTaskIfNecessary();
                 }
             }
-        }, ackListener);
+        }, wrapAckListener(ackListener));
+    }
+
+    protected AckListener wrapAckListener(AckListener ackListener) {
+        return ackListener;
     }
 }

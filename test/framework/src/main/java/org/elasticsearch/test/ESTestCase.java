@@ -39,6 +39,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.layout.PatternLayout;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
@@ -51,11 +52,17 @@ import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.CoordinationStateRejectedException;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -85,6 +92,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -100,6 +108,7 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -148,6 +157,7 @@ import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -288,6 +298,76 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static TransportAddress buildNewFakeTransportAddress() {
         return new TransportAddress(TransportAddress.META_ADDRESS, portGenerator.incrementAndGet());
+    }
+
+    public static void bootstrapNodes(boolean condition, Runnable startAction, List<Node> nodes, Logger logger) {
+        final AtomicBoolean stopBootstrapThread = new AtomicBoolean();
+        Thread bootstrapThread = null;
+
+        if (condition) {
+            final Set<String> zen2MasterNodeIds = new HashSet<>();
+            final Set<Node> zen2MasterNodes = new HashSet<>();
+            for (Node node : nodes) {
+                if (DiscoveryNode.isMasterNode(node.settings())) {
+                    Discovery discovery = node.injector().getInstance(Discovery.class);
+                    if (discovery instanceof Coordinator) {
+                        zen2MasterNodeIds.add(node.getNodeEnvironment().nodeId());
+                        zen2MasterNodes.add(node);
+                    }
+                }
+            }
+
+            if (zen2MasterNodes.isEmpty() == false) {
+                Set<String> configNodeIds = new HashSet<>(randomSubsetOf(zen2MasterNodeIds));
+                if (configNodeIds.isEmpty()) {
+                    configNodeIds = zen2MasterNodeIds;
+                }
+                final ClusterState.VotingConfiguration initalConfiguration = new ClusterState.VotingConfiguration(configNodeIds);
+
+                logger.info("Bootstrapping cluster using initial configuration {}", initalConfiguration);
+                final Random bootstrapRandom = new Random(randomLong());
+
+                bootstrapThread = new Thread(() -> {
+                    while (stopBootstrapThread.get() == false) {
+                        final Discovery discovery = randomFrom(bootstrapRandom, zen2MasterNodes).injector().getInstance(Discovery.class);
+                        assert discovery instanceof Coordinator;
+                        final Coordinator coordinator = (Coordinator) discovery;
+                        try {
+                            if (coordinator.lifecycleState() == Lifecycle.State.STARTED) {
+                                coordinator.setInitialConfiguration(initalConfiguration);
+                                if (usually(bootstrapRandom)) {
+                                    return;
+                                }
+                            }
+                        } catch (CoordinationStateRejectedException e) {
+                            logger.trace(
+                                () -> new ParameterizedMessage("node [{}] rejected initial configuration", coordinator.getLocalNode()), e);
+                        }
+                        try {
+                            Thread.sleep(100);
+                        } catch (InterruptedException e) {
+                            logger.trace("interrupted while sleeping", e);
+                            return;
+                        }
+                    }
+                }, "Bootstrap-Thread for " + ClusterName.CLUSTER_NAME_SETTING.get(zen2MasterNodes.iterator().next().settings()));
+                bootstrapThread.start();
+            }
+        }
+
+        try {
+            startAction.run();
+        } finally {
+            if (bootstrapThread != null) {
+                stopBootstrapThread.set(true);
+                try {
+                    bootstrapThread.join();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
+
     }
 
     /**

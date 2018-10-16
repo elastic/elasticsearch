@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionSchedulerFactory;
+import org.elasticsearch.cluster.coordination.JoinHelper;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -446,10 +447,14 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     IndexGraveyard.SETTING_MAX_TOMBSTONES,
                     EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING,
                     PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING,
+                    PeerFinder.DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING,
                     ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING,
                     ElectionSchedulerFactory.ELECTION_BACK_OFF_TIME_SETTING,
                     ElectionSchedulerFactory.ELECTION_MAX_TIMEOUT_SETTING,
                     Coordinator.PUBLISH_TIMEOUT_SETTING,
+                    ElectionSchedulerFactory.ELECTION_DURATION_SETTING,
+                    Coordinator.PUBLISH_TIMEOUT_SETTING,
+                    JoinHelper.JOIN_TIMEOUT_SETTING,
                     Reconfigurator.CLUSTER_MASTER_RESILIENCE_LEVEL_SETTING
             )));
 

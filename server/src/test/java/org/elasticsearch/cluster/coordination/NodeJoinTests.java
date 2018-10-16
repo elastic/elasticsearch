@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTests;
 import org.elasticsearch.common.Randomness;
@@ -63,6 +64,7 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -162,7 +164,9 @@ public class NodeJoinTests extends ESTestCase {
             transportService,
             ESAllocationTestCase.createAllocationService(Settings.EMPTY),
             masterService,
-            () -> new CoordinationStateTests.InMemoryPersistedState(term, initialState), r -> emptyList(), random);
+            () -> new InMemoryPersistedState(term, initialState), r -> emptyList(),
+            new NoOpClusterApplier(),
+            random);
         transportService.start();
         transportService.acceptIncomingRequests();
         transportRequestHandler = capturingTransport.getRequestHandler(JoinHelper.JOIN_ACTION_NAME);
@@ -514,5 +518,17 @@ public class NodeJoinTests extends ESTestCase {
 
     private boolean clusterStateHasNode(DiscoveryNode node) {
         return node.equals(MasterServiceTests.discoveryState(masterService).nodes().get(node.getId()));
+    }
+
+    private static class NoOpClusterApplier implements ClusterApplier {
+        @Override
+        public void setInitialState(ClusterState initialState) {
+
+        }
+
+        @Override
+        public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterApplyListener listener) {
+            listener.onSuccess(source);
+        }
     }
 }

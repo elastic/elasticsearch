@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.test;
 
+import com.carrotsearch.hppc.ObjectLongMap;
+import com.carrotsearch.hppc.cursors.IntObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.SysGlobals;
@@ -40,6 +43,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -76,8 +81,11 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
@@ -127,6 +135,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -142,12 +151,14 @@ import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_M
 import static org.elasticsearch.discovery.zen.FileBasedUnicastHostsProvider.UNICAST_HOSTS_FILE;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.awaitBusy;
+import static org.elasticsearch.test.ESTestCase.bootstrapNodes;
 import static org.elasticsearch.test.ESTestCase.getTestTransportType;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
@@ -509,6 +520,8 @@ public final class InternalTestCluster extends TestCluster {
         final int ord = nextNodeId.getAndIncrement();
         final Runnable onTransportServiceStarted = () -> {}; // do not create unicast host file for this one node.
         final NodeAndClient buildNode = buildNode(ord, random.nextLong(), null, false, 1, onTransportServiceStarted);
+        assert nodes.isEmpty();
+        bootstrapNodes(true, buildNode::startNode, Collections.singletonList(buildNode.node()), logger);
         buildNode.startNode();
         publishNode(buildNode);
         return buildNode;
@@ -1086,6 +1099,8 @@ public final class InternalTestCluster extends TestCluster {
             wipePendingDataDirectories();
         }
 
+        final int prevNodeCount = nodes.size();
+
         // start any missing node
         assert newSize == numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes;
         final int numberOfMasterNodes = numSharedDedicatedMasterNodes > 0 ? numSharedDedicatedMasterNodes : numSharedDataNodes;
@@ -1119,6 +1134,9 @@ public final class InternalTestCluster extends TestCluster {
                 onTransportServiceStarted);
             toStartAndPublish.add(nodeAndClient);
         }
+
+        bootstrapNodes(prevNodeCount == 0, () -> startAndPublishNodesAndClients(toStartAndPublish),
+            toStartAndPublish.stream().map(NodeAndClient::node).collect(Collectors.toList()), logger);
 
         startAndPublishNodesAndClients(toStartAndPublish);
 
@@ -1271,6 +1289,108 @@ public final class InternalTestCluster extends TestCluster {
                 }
             }
         }
+    }
+
+    public void assertSeqNos() throws Exception {
+        final BiFunction<ClusterState, ShardRouting, IndexShard> getInstanceShardInstance = (clusterState, shardRouting) -> {
+            if (shardRouting.assignedToNode() == false) {
+                return null;
+            }
+            final DiscoveryNode assignedNode = clusterState.nodes().get(shardRouting.currentNodeId());
+            if (assignedNode == null) {
+                return null;
+            }
+            return getInstance(IndicesService.class, assignedNode.getName()).getShardOrNull(shardRouting.shardId());
+        };
+        assertBusy(() -> {
+            final ClusterState state = clusterService().state();
+            for (ObjectObjectCursor<String, IndexRoutingTable> indexRoutingTable : state.routingTable().indicesRouting()) {
+                for (IntObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : indexRoutingTable.value.shards()) {
+                    ShardRouting primaryShardRouting = indexShardRoutingTable.value.primaryShard();
+                    if (primaryShardRouting == null) {
+                        continue;
+                    }
+                    final IndexShard primaryShard = getInstanceShardInstance.apply(state, primaryShardRouting);
+                    if (primaryShard == null) {
+                        continue; //just ignore - shard movement
+                    }
+                    final SeqNoStats primarySeqNoStats;
+                    final ObjectLongMap<String> syncGlobalCheckpoints;
+                    try {
+                        primarySeqNoStats = primaryShard.seqNoStats();
+                        syncGlobalCheckpoints = primaryShard.getInSyncGlobalCheckpoints();
+                    } catch (AlreadyClosedException ex) {
+                        continue; // shard is closed - just ignore
+                    }
+                    assertThat(primaryShardRouting + " should have set the global checkpoint",
+                        primarySeqNoStats.getGlobalCheckpoint(), not(equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO)));
+                    for (ShardRouting replicaShardRouting : indexShardRoutingTable.value.replicaShards()) {
+                        final IndexShard replicaShard = getInstanceShardInstance.apply(state, replicaShardRouting);
+                        if (replicaShard == null) {
+                            continue; //just ignore - shard movement
+                        }
+                        final SeqNoStats seqNoStats;
+                        try {
+                            seqNoStats = replicaShard.seqNoStats();
+                        } catch (AlreadyClosedException e) {
+                            continue; // shard is closed - just ignore
+                        }
+                        assertThat(replicaShardRouting + " local checkpoint mismatch",
+                            seqNoStats.getLocalCheckpoint(), equalTo(primarySeqNoStats.getLocalCheckpoint()));
+                        assertThat(replicaShardRouting + " global checkpoint mismatch",
+                            seqNoStats.getGlobalCheckpoint(), equalTo(primarySeqNoStats.getGlobalCheckpoint()));
+                        assertThat(replicaShardRouting + " max seq no mismatch",
+                            seqNoStats.getMaxSeqNo(), equalTo(primarySeqNoStats.getMaxSeqNo()));
+                        // the local knowledge on the primary of the global checkpoint equals the global checkpoint on the shard
+                        assertThat(replicaShardRouting + " global checkpoint syncs mismatch", seqNoStats.getGlobalCheckpoint(),
+                            equalTo(syncGlobalCheckpoints.get(replicaShardRouting.allocationId().getId())));
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * Asserts that all shards with the same shardId should have document Ids.
+     */
+    public void assertSameDocIdsOnShards() throws Exception {
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            for (ObjectObjectCursor<String, IndexRoutingTable> indexRoutingTable : state.routingTable().indicesRouting()) {
+                for (IntObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : indexRoutingTable.value.shards()) {
+                    ShardRouting primaryShardRouting = indexShardRoutingTable.value.primaryShard();
+                    if (primaryShardRouting == null || primaryShardRouting.assignedToNode() == false) {
+                        continue;
+                    }
+                    DiscoveryNode primaryNode = state.nodes().get(primaryShardRouting.currentNodeId());
+                    IndexShard primaryShard = getInstance(IndicesService.class, primaryNode.getName())
+                        .indexServiceSafe(primaryShardRouting.index()).getShard(primaryShardRouting.id());
+                    final List<DocIdSeqNoAndTerm> docsOnPrimary;
+                    try {
+                        docsOnPrimary = IndexShardTestCase.getDocIdAndSeqNos(primaryShard);
+                    } catch (AlreadyClosedException ex) {
+                        continue;
+                    }
+                    for (ShardRouting replicaShardRouting : indexShardRoutingTable.value.replicaShards()) {
+                        if (replicaShardRouting.assignedToNode() == false) {
+                            continue;
+                        }
+                        DiscoveryNode replicaNode = state.nodes().get(replicaShardRouting.currentNodeId());
+                        IndexShard replicaShard = getInstance(IndicesService.class, replicaNode.getName())
+                            .indexServiceSafe(replicaShardRouting.index()).getShard(replicaShardRouting.id());
+                        final List<DocIdSeqNoAndTerm> docsOnReplica;
+                        try {
+                            docsOnReplica = IndexShardTestCase.getDocIdAndSeqNos(replicaShard);
+                        } catch (AlreadyClosedException ex) {
+                            continue;
+                        }
+                        assertThat("out of sync shards: primary=[" + primaryShardRouting + "] num_docs_on_primary=[" + docsOnPrimary.size()
+                                + "] vs replica=[" + replicaShardRouting + "] num_docs_on_replica=[" + docsOnReplica.size() + "]",
+                            docsOnReplica, equalTo(docsOnPrimary));
+                    }
+                }
+            }
+        });
     }
 
     private void randomlyResetClients() throws IOException {
@@ -1808,14 +1928,18 @@ public final class InternalTestCluster extends TestCluster {
             defaultMinMasterNodes = -1;
         }
         final List<NodeAndClient> nodes = new ArrayList<>();
+        final int prevMasterCount = getMasterNodesCount();
         for (Settings nodeSettings : settings) {
             nodes.add(buildNode(nodeSettings, defaultMinMasterNodes, () -> rebuildUnicastHostFiles(nodes)));
         }
-        startAndPublishNodesAndClients(nodes);
-        if (autoManageMinMasterNodes) {
-            validateClusterFormed();
-        }
-
+        bootstrapNodes(prevMasterCount == 0,
+            () -> {
+                startAndPublishNodesAndClients(nodes);
+                if (autoManageMinMasterNodes) {
+                    validateClusterFormed();
+                }
+            },
+            nodes.stream().map(NodeAndClient::node).collect(Collectors.toList()), logger);
         return nodes.stream().map(NodeAndClient::getName).collect(Collectors.toList());
     }
 

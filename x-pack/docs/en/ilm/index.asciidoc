@@ -47,23 +47,23 @@ hardware.
 . Delete the index once the required 30 day retention period is reached.
 --
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/index-lifecycle-management/getting-started-ilm.asciidoc
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ilm/getting-started-ilm.asciidoc
 include::getting-started-ilm.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/index-lifecycle-management/using-policies--rollover.asciidoc
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ilm/using-policies--rollover.asciidoc
 include::using-policies-rollover.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/index-lifecycle-management/set-up-policy.asciidoc
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ilm/set-up-policy.asciidoc
 include::set-up-lifecycle-policy.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/index-lifecycle-management/update-lifecycle-policy.asciidoc
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ilm/update-lifecycle-policy.asciidoc
 include::update-lifecycle-policy.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/index-lifecycle-management/get-index-lifecycle-information.asciidoc
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ilm/get-index-lifecycle-information.asciidoc
 include::get-index-lifecycle-information.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/index-lifecycle-management/pause-resume-ilm.asciidoc
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ilm/pause-resume-ilm.asciidoc
 include::pause-resume-ilm.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/index-lifecycle-management/getting-started-ilm.asciidoc
-include::ilm-api.asciidoc[]
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ilm/apis/ilm-api.asciidoc
+include::{xes-repo-dir}/ilm/apis/ilm-api.asciidoc[]

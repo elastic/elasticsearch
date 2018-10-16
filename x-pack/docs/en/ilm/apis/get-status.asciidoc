@@ -1,0 +1,56 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-get-status]]
+=== Get ILM Status API
+++++
+<titleabbrev>Get ILM Status</titleabbrev>
+++++
+
+Gets the current status for ILM.
+
+==== Request
+
+`POST /_ilm/status`
+
+==== Description
+
+This API will return the current status of the ILM plugin. The response contains
+a `operation_mode` field which shows whether the ILM plugin is `STARTED`, `STOPPING`
+or `STOPPED`. This `operation_mode` is controlled by the <<ilm-start, Start ILM>>
+and <<ilm-stop, Stop ILM>> APIs.
+
+==== Request Parameters
+
+`timeout`::
+  (time units) Specifies the period of time to wait for the completion of the 
+  get operation. When this period of time elapses, the API fails and returns
+  an error. The default value is `30s`. For more information about time units, 
+  see <<time-units>>.
+
+`master_timeout`::
+  (time units) Specifies the period of time to wait for the connection with master.
+  When this period of time elapses, the API fails and returns an error.
+  The default value is `30s`. For more information about time units, see <<time-units>>.
+
+
+==== Examples
+
+The following example stops the ILM plugin.
+
+[source,js]
+--------------------------------------------------
+GET _ilm/status
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+If the request does not encounter errors, you receive the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "operation_mode": "RUNNING"
+}
+--------------------------------------------------
+// CONSOLE
+// TESTRESPONSE

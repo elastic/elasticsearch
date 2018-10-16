@@ -1,0 +1,115 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-get-lifecycle]]
+=== Get Lifecycle Policy API
+++++
+<titleabbrev>Get Policy</titleabbrev>
+++++
+
+Retrieves an existing policy
+
+==== Request
+
+`GET _ilm`
+`GET _ilm/<policy>`
+
+==== Description
+
+This API returns a policy definition along with some of its metadata like
+its last modified date and version. If no path parameters are provided, then
+all the policies defined will be returned.
+
+==== Path Parameters
+
+`policy` (optional)::
+  (string) Identifier for the policy.
+
+==== Request Parameters
+
+`timeout`::
+  (time units) Specifies the period of time to wait for the completion of the 
+  GET operation. When this period of time elapses, the API fails and returns
+  an error. The default value is `30s`. For more information about time units, 
+  see <<time-units>>.
+
+`master_timeout`::
+  (time units) Specifies the period of time to wait for the connection with master.
+  When this period of time elapses, the API fails and returns an error.
+  The default value is `30s`. For more information about time units, see <<time-units>>.
+
+
+==== Examples
+
+The following example retrieves the policy named `my_policy`:
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT _ilm/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "minimum_age": "10d",
+        "actions": {
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "delete": {
+        "minimum_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+GET _ilm
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+If the request does not encounter errors, you receive the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "my_policy": {
+    "version": 1, <1>
+    "modified_date": 82392349, <2>
+    "policy": {
+      "phases": {
+        "warm": {
+          "minimum_age": "10d",
+          "actions": {
+            "forcemerge": {
+              "max_num_segments": 1
+            }
+          }
+        },
+        "delete": {
+          "minimum_age": "30d",
+          "actions": {
+            "delete": {}
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TESTRESPONSE[s/"modified_date": 82392349/"modified_date": $body.my_policy.modified_date/]
+<1> The version of the policy. This is increased whenever the policy is updated
+<2> The timestamp when this policy was last modified

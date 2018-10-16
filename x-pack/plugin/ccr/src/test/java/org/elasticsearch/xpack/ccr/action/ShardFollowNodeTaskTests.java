@@ -45,7 +45,6 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class ShardFollowNodeTaskTests extends ESTestCase {
 
-    private Exception fatalError;
     private List<long[]> shardChangesRequests;
     private List<List<Translog.Operation>> bulkShardOperationRequests;
     private BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> task.run();
@@ -345,7 +344,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.get(0)[1], equalTo(64L));
 
         assertTrue("task is stopped", task.isStopped());
-        assertThat(fatalError, sameInstance(failure));
+        assertThat(task.getStatus().getFatalException().getRootCause(), sameInstance(failure));
         ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentWrites(), equalTo(0));
@@ -791,17 +790,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
             @Override
             protected boolean isStopped() {
-                return stopped.get();
+                return super.isStopped() || stopped.get();
             }
 
             @Override
             public void markAsCompleted() {
-                stopped.set(true);
-            }
-
-            @Override
-            public void markAsFailed(Exception e) {
-                fatalError = e;
                 stopped.set(true);
             }
         };

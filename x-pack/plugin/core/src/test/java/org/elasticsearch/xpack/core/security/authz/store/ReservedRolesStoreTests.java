@@ -402,21 +402,29 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:foo")
                 .test(randomAlphaOfLengthBetween(8, 24)), is(false));
 
-        Arrays.asList(
-            ".monitoring-" + randomAlphaOfLength(randomIntBetween(0, 13)),
-            "metricbeat-" + randomAlphaOfLength(randomIntBetween(0, 13))
-        ).forEach((index) -> {
-            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:foo").test(index), is(true));
-            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:bar").test(index), is(true));
-            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(true));
-            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(true));
-            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(true));
-            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(true));
-            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(true));
-            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
-            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));
-            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(index), is(true));
-        });
+        final String monitoringIndex = ".monitoring-" + randomAlphaOfLength(randomIntBetween(0, 13));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:foo").test(monitoringIndex), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:bar").test(monitoringIndex), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(monitoringIndex), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(monitoringIndex), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(monitoringIndex), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(monitoringIndex), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(monitoringIndex), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(monitoringIndex), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAction.NAME).test(monitoringIndex), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(monitoringIndex), is(true));
+
+        final String metricbeatIndex = "metricbeat-" + randomAlphaOfLength(randomIntBetween(0, 13));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:foo").test(metricbeatIndex), is(false));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:bar").test(metricbeatIndex), is(false));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(metricbeatIndex), is(false));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(metricbeatIndex), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(metricbeatIndex), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(metricbeatIndex), is(false));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(metricbeatIndex), is(false));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(metricbeatIndex), is(false));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAction.NAME).test(metricbeatIndex), is(false));
+
     }
 
     public void testRemoteMonitoringCollectorRole() {

@@ -24,6 +24,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
@@ -125,11 +126,18 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(DateFormatters.forPattern("strict_date_optional_time").getLocale(), is(Locale.ROOT));
         Locale locale = randomLocale(random());
         assertThat(DateFormatters.forPattern("strict_date_optional_time").withLocale(locale).getLocale(), is(locale));
-        IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> DateFormatters.forPattern("epoch_millis").withLocale(locale));
-        assertThat(e.getMessage(), is("epoch_millis date formatter can only be in locale ROOT"));
-        e = expectThrows(IllegalArgumentException.class, () -> DateFormatters.forPattern("epoch_second").withLocale(locale));
-        assertThat(e.getMessage(), is("epoch_second date formatter can only be in locale ROOT"));
+        if (locale.equals(Locale.ROOT)) {
+            DateFormatter millisFormatter = DateFormatters.forPattern("epoch_millis");
+            assertThat(millisFormatter.withLocale(locale), is(millisFormatter));
+            DateFormatter secondFormatter = DateFormatters.forPattern("epoch_second");
+            assertThat(secondFormatter.withLocale(locale), is(secondFormatter));
+        } else {
+            IllegalArgumentException e =
+                expectThrows(IllegalArgumentException.class, () -> DateFormatters.forPattern("epoch_millis").withLocale(locale));
+            assertThat(e.getMessage(), is("epoch_millis date formatter can only be in locale ROOT"));
+            e = expectThrows(IllegalArgumentException.class, () -> DateFormatters.forPattern("epoch_second").withLocale(locale));
+            assertThat(e.getMessage(), is("epoch_second date formatter can only be in locale ROOT"));
+        }
     }
 
     public void testTimeZones() {
@@ -137,11 +145,18 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(DateFormatters.forPattern("strict_date_optional_time").getZone(), is(nullValue()));
         ZoneId zoneId = randomZone();
         assertThat(DateFormatters.forPattern("strict_date_optional_time").withZone(zoneId).getZone(), is(zoneId));
-        IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> DateFormatters.forPattern("epoch_millis").withZone(zoneId));
-        assertThat(e.getMessage(), is("epoch_millis date formatter can only be in zone offset UTC"));
-        e = expectThrows(IllegalArgumentException.class, () -> DateFormatters.forPattern("epoch_second").withZone(zoneId));
-        assertThat(e.getMessage(), is("epoch_second date formatter can only be in zone offset UTC"));
+        if (zoneId.equals(ZoneOffset.UTC)) {
+            DateFormatter millisFormatter = DateFormatters.forPattern("epoch_millis");
+            assertThat(millisFormatter.withZone(zoneId), is(millisFormatter));
+            DateFormatter secondFormatter = DateFormatters.forPattern("epoch_second");
+            assertThat(secondFormatter.withZone(zoneId), is(secondFormatter));
+        } else {
+            IllegalArgumentException e =
+                expectThrows(IllegalArgumentException.class, () -> DateFormatters.forPattern("epoch_millis").withZone(zoneId));
+            assertThat(e.getMessage(), is("epoch_millis date formatter can only be in zone offset UTC"));
+            e = expectThrows(IllegalArgumentException.class, () -> DateFormatters.forPattern("epoch_second").withZone(zoneId));
+            assertThat(e.getMessage(), is("epoch_second date formatter can only be in zone offset UTC"));
+        }
     }
 
     public void testEqualsAndHashcode() {

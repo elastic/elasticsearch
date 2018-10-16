@@ -27,8 +27,8 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
@@ -113,11 +113,11 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return config;
     }
 
-    private static SearchScript.LeafFactory createScript(Script script, QueryShardContext context) {
+    private static AggregationScript.LeafFactory createScript(Script script, QueryShardContext context) {
         if (script == null) {
             return null;
         } else {
-            SearchScript.Factory factory = context.getScriptService().compile(script, SearchScript.AGGS_CONTEXT);
+            AggregationScript.Factory factory = context.getScriptService().compile(script, AggregationScript.CONTEXT);
             return factory.newFactory(script.getParams(), context.lookup());
         }
     }
@@ -135,7 +135,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
 
     private final ValuesSourceType valueSourceType;
     private FieldContext fieldContext;
-    private SearchScript.LeafFactory script;
+    private AggregationScript.LeafFactory script;
     private ValueType scriptValueType;
     private boolean unmapped = false;
     private DocValueFormat format = DocValueFormat.RAW;
@@ -154,7 +154,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return fieldContext;
     }
 
-    public SearchScript.LeafFactory script() {
+    public AggregationScript.LeafFactory script() {
         return script;
     }
 
@@ -171,7 +171,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return this;
     }
 
-    public ValuesSourceConfig<VS> script(SearchScript.LeafFactory script) {
+    public ValuesSourceConfig<VS> script(AggregationScript.LeafFactory script) {
         this.script = script;
         return this;
     }

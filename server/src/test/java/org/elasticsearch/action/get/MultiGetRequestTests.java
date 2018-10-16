@@ -98,24 +98,6 @@ public class MultiGetRequestTests extends ESTestCase {
                         "unexpected token [START_OBJECT], expected [FIELD_NAME] or [START_ARRAY]"));
     }
 
-    public void testAddWithInvalidSourceValueIsRejected() throws Exception {
-        String sourceValue = randomFrom("on", "off", "0", "1");
-        XContentParser parser = createParser(XContentFactory.jsonBuilder()
-            .startObject()
-                .startArray("docs")
-                    .startObject()
-                        .field("_source", sourceValue)
-                    .endObject()
-                .endArray()
-            .endObject()
-        );
-
-        MultiGetRequest multiGetRequest = new MultiGetRequest();
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> multiGetRequest.add
-            (randomAlphaOfLength(5), randomAlphaOfLength(3), null, FetchSourceContext.FETCH_SOURCE, null, parser, true));
-        assertEquals("Failed to parse value [" + sourceValue + "] as only [true] or [false] are allowed.", ex.getMessage());
-    }
-
     public void testAddWithValidSourceValueIsAccepted() throws Exception {
         XContentParser parser = createParser(XContentFactory.jsonBuilder()
             .startObject()

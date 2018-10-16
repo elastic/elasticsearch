@@ -41,6 +41,8 @@ import org.elasticsearch.client.indexlifecycle.OperationMode;
 import org.elasticsearch.client.indexlifecycle.Phase;
 import org.elasticsearch.client.indexlifecycle.PhaseExecutionInfo;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyResponse;
 import org.elasticsearch.client.indexlifecycle.RolloverAction;
 import org.elasticsearch.client.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.SetIndexLifecyclePolicyResponse;
@@ -52,6 +54,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -86,6 +89,44 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         GetSettingsResponse settingsResponse = highLevelClient().indices().getSettings(getSettingsRequest, RequestOptions.DEFAULT);
         assertThat(settingsResponse.getSetting("foo", "index.lifecycle.name"), equalTo(policyName));
         assertThat(settingsResponse.getSetting("baz", "index.lifecycle.name"), equalTo(policyName));
+    }
+
+    public void testRemoveIndexLifecyclePolicy() throws Exception {
+        String policyName = randomAlphaOfLength(10);
+        LifecyclePolicy policy = createRandomPolicy(policyName);
+        PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
+        assertAcked(execute(putRequest, highLevelClient().indexLifecycle()::putLifecyclePolicy,
+                highLevelClient().indexLifecycle()::putLifecyclePolicyAsync));
+
+        createIndex("foo", Settings.builder().put("index.lifecycle.name", "bar").build());
+        createIndex("baz", Settings.builder().put("index.lifecycle.name", "eggplant").build());
+        createIndex("rbh", Settings.builder().put("index.lifecycle.name", "whatisthis").build());
+        SetIndexLifecyclePolicyRequest setReq = new SetIndexLifecyclePolicyRequest(policyName, "foo", "baz", "rbh");
+        SetIndexLifecyclePolicyResponse setResp = execute(setReq, highLevelClient().indexLifecycle()::setIndexLifecyclePolicy,
+                highLevelClient().indexLifecycle()::setIndexLifecyclePolicyAsync);
+        assertThat(setResp.hasFailures(), is(false));
+        assertThat(setResp.getFailedIndexes().isEmpty(), is(true));
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices("foo", "baz", "rbh");
+        GetSettingsResponse settingsResponse = highLevelClient().indices().getSettings(getSettingsRequest, RequestOptions.DEFAULT);
+        assertThat(settingsResponse.getSetting("foo", "index.lifecycle.name"), equalTo(policyName));
+        assertThat(settingsResponse.getSetting("baz", "index.lifecycle.name"), equalTo(policyName));
+        assertThat(settingsResponse.getSetting("rbh", "index.lifecycle.name"), equalTo(policyName));
+
+        List<String> indices = new ArrayList<>();
+        indices.add("foo");
+        indices.add("rbh");
+        RemoveIndexLifecyclePolicyRequest removeReq = new RemoveIndexLifecyclePolicyRequest(indices);
+        RemoveIndexLifecyclePolicyResponse removeResp = execute(removeReq, highLevelClient().indexLifecycle()::removeIndexLifecyclePolicy,
+                highLevelClient().indexLifecycle()::removeIndexLifecyclePolicyAsync);
+        assertThat(removeResp.hasFailures(), is(false));
+        assertThat(removeResp.getFailedIndexes().isEmpty(), is(true));
+
+        getSettingsRequest = new GetSettingsRequest().indices("foo", "baz", "rbh");
+        settingsResponse = highLevelClient().indices().getSettings(getSettingsRequest, RequestOptions.DEFAULT);
+        assertNull(settingsResponse.getSetting("foo", "index.lifecycle.name"));
+        assertThat(settingsResponse.getSetting("baz", "index.lifecycle.name"), equalTo(policyName));
+        assertNull(settingsResponse.getSetting("rbh", "index.lifecycle.name"));
     }
 
     public void testStartStopILM() throws Exception {

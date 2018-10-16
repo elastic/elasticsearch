@@ -13,17 +13,17 @@ import org.elasticsearch.client.ElasticsearchClient;
 
 public class RemovePolicyForIndexActionRequestBuilder
         extends ActionRequestBuilder<
-        RemovePolicyForIndexAction.Request,
-        RemovePolicyForIndexAction.Response,
+        RemoveIndexLifecyclePolicyAction.Request,
+        RemoveIndexLifecyclePolicyAction.Response,
         RemovePolicyForIndexActionRequestBuilder> {
 
     public RemovePolicyForIndexActionRequestBuilder(
             final ElasticsearchClient client,
             final Action<
-                    RemovePolicyForIndexAction.Request,
-                    RemovePolicyForIndexAction.Response,
+                    RemoveIndexLifecyclePolicyAction.Request,
+                    RemoveIndexLifecyclePolicyAction.Response,
                     RemovePolicyForIndexActionRequestBuilder> action) {
-        super(client, action, new RemovePolicyForIndexAction.Request());
+        super(client, action, new RemoveIndexLifecyclePolicyAction.Request());
     }
 
     public RemovePolicyForIndexActionRequestBuilder setIndices(final String... indices) {

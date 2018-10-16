@@ -25,17 +25,17 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class RemovePolicyForIndexAction
-        extends Action<RemovePolicyForIndexAction.Request, RemovePolicyForIndexAction.Response, RemovePolicyForIndexActionRequestBuilder> {
-    public static final RemovePolicyForIndexAction INSTANCE = new RemovePolicyForIndexAction();
+public class RemoveIndexLifecyclePolicyAction
+        extends Action<RemoveIndexLifecyclePolicyAction.Request, RemoveIndexLifecyclePolicyAction.Response, RemovePolicyForIndexActionRequestBuilder> {
+    public static final RemoveIndexLifecyclePolicyAction INSTANCE = new RemoveIndexLifecyclePolicyAction();
     public static final String NAME = "indices:admin/ilm/remove_policy";
 
-    protected RemovePolicyForIndexAction() {
+    protected RemoveIndexLifecyclePolicyAction() {
         super(NAME);
     }
 
     @Override
-    public RemovePolicyForIndexAction.Response newResponse() {
+    public RemoveIndexLifecyclePolicyAction.Response newResponse() {
         return new Response();
     }
 

@@ -53,12 +53,12 @@ import java.util.Map;
  * that match the input. If more than N*num_contexts suggestions are duplicated with different contexts this collector
  * will not be able to return more than one suggestion even when N is greater than 1.
  **/
-public class TopSuggestGroupDocsCollector extends TopSuggestDocsCollector {
+class TopSuggestGroupDocsCollector extends TopSuggestDocsCollector {
     private final class SuggestScoreDocPriorityQueue extends PriorityQueue<TopSuggestDocs.SuggestScoreDoc> {
         /**
          * Creates a new priority queue of the specified size.
          */
-        public SuggestScoreDocPriorityQueue(int size) {
+        private SuggestScoreDocPriorityQueue(int size) {
             super(size);
         }
 
@@ -107,7 +107,7 @@ public class TopSuggestGroupDocsCollector extends TopSuggestDocsCollector {
      * Collects at most <code>num</code> completions
      * with corresponding document and weight
      */
-    public TopSuggestGroupDocsCollector(int num, boolean skipDuplicates) {
+    TopSuggestGroupDocsCollector(int num, boolean skipDuplicates) {
         super(1, skipDuplicates);
         if (num <= 0) {
             throw new IllegalArgumentException("'num' must be > 0");

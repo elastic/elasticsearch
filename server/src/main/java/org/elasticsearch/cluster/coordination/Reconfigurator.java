@@ -48,28 +48,19 @@ public class Reconfigurator extends AbstractComponent {
      * where a single node's failure can cause permanent unavailability. This setting determines the size of the smallest set of master
      * nodes required to process a cluster state update.
      */
-    public static final Setting<MasterResilienceLevel> CLUSTER_MASTER_RESILIENCE_LEVEL_SETTING =
-        new Setting<>("cluster.master_resilience_level", MasterResilienceLevel.recommended.toString(), MasterResilienceLevel::valueOf,
-            Property.NodeScope, Property.Dynamic);
+    public static final Setting<Integer> CLUSTER_MASTER_NODES_FAILURE_TOLERANCE =
+        Setting.intSetting("cluster.master_nodes_failure_tolerance", 0, 0, Property.NodeScope, Property.Dynamic);
 
-    public enum MasterResilienceLevel {
-        fragile(1), recommended(2), excessive(3);
-        final int minimumVotingNodes;
-        MasterResilienceLevel(int minimumVotingNodes) {
-            this.minimumVotingNodes = minimumVotingNodes;
-        }
-    }
-
-    private MasterResilienceLevel masterResilienceLevel;
+    private int masterNodesFailureTolerance;
 
     public Reconfigurator(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
-        masterResilienceLevel = CLUSTER_MASTER_RESILIENCE_LEVEL_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_MASTER_RESILIENCE_LEVEL_SETTING, this::setMasterResilienceLevel);
+        masterNodesFailureTolerance = CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE, this::setMasterNodesFailureTolerance);
     }
 
-    public void setMasterResilienceLevel(MasterResilienceLevel masterResilienceLevel) {
-        this.masterResilienceLevel = masterResilienceLevel;
+    public void setMasterNodesFailureTolerance(int masterNodesFailureTolerance) {
+        this.masterNodesFailureTolerance = masterNodesFailureTolerance;
     }
 
     private static int roundDownToOdd(int size) {
@@ -79,7 +70,7 @@ public class Reconfigurator extends AbstractComponent {
     @Override
     public String toString() {
         return "Reconfigurator{" +
-            "masterResilienceLevel=" + masterResilienceLevel +
+            "masterNodesFailureTolerance=" + masterNodesFailureTolerance +
             '}';
     }
 
@@ -143,8 +134,8 @@ public class Reconfigurator extends AbstractComponent {
         // ... except one, if even, because odd configurations are slightly more resilient ...
         final int votingNodeCount = roundDownToOdd(nonRetiredLiveNodeCount);
 
-        // ... except that if the current configuration satisfies MINIMUM_VOTING_MASTER_NODES_SETTING then the new one must too:
-        final int safeConfigurationSize = 2 * masterResilienceLevel.minimumVotingNodes - 1;
+        // ... except that if the current configuration satisfies CLUSTER_MASTER_NODES_FAILURE_TOLERANCE then the new one must too:
+        final int safeConfigurationSize = 2 * masterNodesFailureTolerance + 1;
         final int targetSize = currentConfig.getNodeIds().size() >= safeConfigurationSize && votingNodeCount < safeConfigurationSize
             ? safeConfigurationSize : votingNodeCount;
 

@@ -23,7 +23,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
-import org.elasticsearch.cluster.coordination.Reconfigurator.MasterResilienceLevel;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -37,53 +36,51 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_MASTER_RESILIENCE_LEVEL_SETTING;
+import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_MASTER_NODES_FAILURE_TOLERANCE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ReconfiguratorTests extends ESTestCase {
 
     public void testReconfigurationExamples() {
-        for (MasterResilienceLevel masterResilienceLevel : new MasterResilienceLevel[]
-            {MasterResilienceLevel.fragile, MasterResilienceLevel.recommended, MasterResilienceLevel.excessive}) {
-            check(nodes("a"), conf("a"), masterResilienceLevel, conf("a"));
-            check(nodes("a", "b"), conf("a"), masterResilienceLevel, conf("a"));
-            check(nodes("a", "b", "c"), conf("a"), masterResilienceLevel, conf("a", "b", "c"));
-            check(nodes("a", "b", "c"), conf("a", "b"), masterResilienceLevel, conf("a", "b", "c"));
-            check(nodes("a", "b", "c"), conf("a", "b", "c"), masterResilienceLevel, conf("a", "b", "c"));
-            check(nodes("a", "b", "c", "d"), conf("a", "b", "c"), masterResilienceLevel, conf("a", "b", "c"));
-            check(nodes("a", "b", "c", "d", "e"), conf("a", "b", "c"), masterResilienceLevel, conf("a", "b", "c", "d", "e"));
-            check(nodes("a", "b"), conf("a", "b", "e"), masterResilienceLevel,
-                masterResilienceLevel.equals(MasterResilienceLevel.recommended) ? conf("a", "b", "e") : conf("a"));
-            check(nodes("a", "b", "c"), conf("a", "b", "e"), masterResilienceLevel, conf("a", "b", "c"));
-            check(nodes("a", "b", "c", "d"), conf("a", "b", "e"), masterResilienceLevel, conf("a", "b", "c"));
-            check(nodes("a", "b", "c", "d", "e"), conf("a", "f", "g"), masterResilienceLevel, conf("a", "b", "c", "d", "e"));
-            check(nodes("a", "b", "c", "d"), conf("a", "b", "c", "d", "e"), masterResilienceLevel,
-                masterResilienceLevel.equals(MasterResilienceLevel.excessive) ? conf("a", "b", "c", "d", "e") : conf("a", "b", "c"));
+        for (int masterNodesFailureTolerance = 0; masterNodesFailureTolerance <= 2; masterNodesFailureTolerance++) {
+            check(nodes("a"), conf("a"), masterNodesFailureTolerance, conf("a"));
+            check(nodes("a", "b"), conf("a"), masterNodesFailureTolerance, conf("a"));
+            check(nodes("a", "b", "c"), conf("a"), masterNodesFailureTolerance, conf("a", "b", "c"));
+            check(nodes("a", "b", "c"), conf("a", "b"), masterNodesFailureTolerance, conf("a", "b", "c"));
+            check(nodes("a", "b", "c"), conf("a", "b", "c"), masterNodesFailureTolerance, conf("a", "b", "c"));
+            check(nodes("a", "b", "c", "d"), conf("a", "b", "c"), masterNodesFailureTolerance, conf("a", "b", "c"));
+            check(nodes("a", "b", "c", "d", "e"), conf("a", "b", "c"), masterNodesFailureTolerance, conf("a", "b", "c", "d", "e"));
+            check(nodes("a", "b"), conf("a", "b", "e"), masterNodesFailureTolerance,
+                masterNodesFailureTolerance == 1 ? conf("a", "b", "e") : conf("a"));
+            check(nodes("a", "b", "c"), conf("a", "b", "e"), masterNodesFailureTolerance, conf("a", "b", "c"));
+            check(nodes("a", "b", "c", "d"), conf("a", "b", "e"), masterNodesFailureTolerance, conf("a", "b", "c"));
+            check(nodes("a", "b", "c", "d", "e"), conf("a", "f", "g"), masterNodesFailureTolerance, conf("a", "b", "c", "d", "e"));
+            check(nodes("a", "b", "c", "d"), conf("a", "b", "c", "d", "e"), masterNodesFailureTolerance,
+                masterNodesFailureTolerance == 2 ? conf("a", "b", "c", "d", "e") : conf("a", "b", "c"));
         }
 
         // Retiring a single node shifts the votes elsewhere if possible.
-        check(nodes("a", "b"), retired("a"), conf("a"), MasterResilienceLevel.fragile, conf("b"));
+        check(nodes("a", "b"), retired("a"), conf("a"), 0, conf("b"));
 
         // If the safety level was never reached then retirement can take place
-        check(nodes("a", "b"), retired("a"), conf("a"), MasterResilienceLevel.recommended, conf("b"));
-        check(nodes("a", "b"), retired("a"), conf("b"), MasterResilienceLevel.recommended, conf("b"));
+        check(nodes("a", "b"), retired("a"), conf("a"), 1, conf("b"));
+        check(nodes("a", "b"), retired("a"), conf("b"), 1, conf("b"));
 
         // Retiring a node from a three-node cluster drops down to a one-node configuration if "fragile"
-        check(nodes("a", "b", "c"), retired("a"), conf("a"), MasterResilienceLevel.fragile, conf("b"));
-        check(nodes("a", "b", "c"), retired("a"), conf("a", "b", "c"), MasterResilienceLevel.fragile, conf("b"));
+        check(nodes("a", "b", "c"), retired("a"), conf("a"), 0, conf("b"));
+        check(nodes("a", "b", "c"), retired("a"), conf("a", "b", "c"), 0, conf("b"));
 
         // Retiring is prevented in a three-node cluster if "recommended"
-        check(nodes("a", "b", "c"), retired("a"), conf("a", "b", "c"), MasterResilienceLevel.recommended, conf("a", "b", "c"));
+        check(nodes("a", "b", "c"), retired("a"), conf("a", "b", "c"), 1, conf("a", "b", "c"));
 
         // 7 nodes, one for each combination of live/retired/current. Ideally we want the config to be the non-retired live nodes.
         // Since there are 2 non-retired live nodes we round down to 1 and just use the one that's already in the config.
-        check(nodes("a", "b", "c", "f"), retired("c", "e", "f", "g"), conf("a", "c", "d", "e"), MasterResilienceLevel.fragile, conf("a"));
+        check(nodes("a", "b", "c", "f"), retired("c", "e", "f", "g"), conf("a", "c", "d", "e"), 0, conf("a"));
         // If we want the config to be at least 3 nodes then we don't retire "c" just yet.
-        check(nodes("a", "b", "c", "f"), retired("c", "e", "f", "g"), conf("a", "c", "d", "e"), MasterResilienceLevel.recommended,
-            conf("a", "b", "c"));
+        check(nodes("a", "b", "c", "f"), retired("c", "e", "f", "g"), conf("a", "c", "d", "e"), 1, conf("a", "b", "c"));
         // The current config never reached 5 nodes so retirement is allowed
-        check(nodes("a", "b", "c", "f"), retired("c", "e", "f", "g"), conf("a", "c", "d", "e"), MasterResilienceLevel.excessive, conf("a"));
+        check(nodes("a", "b", "c", "f"), retired("c", "e", "f", "g"), conf("a", "c", "d", "e"), 2, conf("a"));
     }
 
     public void testReconfigurationProperty() {
@@ -95,29 +92,36 @@ public class ReconfiguratorTests extends ESTestCase {
         final String[] initialVotingNodes = new String[randomIntBetween(1, allNodes.length)];
         randomSubsetOf(initialVotingNodes.length, allNodes).toArray(initialVotingNodes);
 
-        final MasterResilienceLevel masterResilienceLevel
-            = randomFrom(MasterResilienceLevel.fragile, MasterResilienceLevel.recommended, MasterResilienceLevel.excessive);
+        final int masterNodesFailureTolerance
+            = randomFrom(0, 1, 2);
 
         final Reconfigurator reconfigurator = makeReconfigurator(
-            Settings.builder().put(CLUSTER_MASTER_RESILIENCE_LEVEL_SETTING.getKey(), masterResilienceLevel).build());
+            Settings.builder().put(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.getKey(), masterNodesFailureTolerance).build());
         final Set<DiscoveryNode> liveNodesSet = nodes(liveNodes);
         final ClusterState.VotingConfiguration initialConfig = conf(initialVotingNodes);
-        final ClusterState.VotingConfiguration finalConfig = reconfigurator.reconfigure(liveNodesSet, emptySet(), initialConfig);
 
-        // min configuration size comes from MINIMUM_VOTING_MASTER_NODES_SETTING as long as there are enough nodes in the current config
-        final boolean isSafeConfiguration = initialConfig.getNodeIds().size() >= masterResilienceLevel.minimumVotingNodes * 2 - 1;
+        // min configuration size comes from CLUSTER_MASTER_NODES_FAILURE_TOLERANCE as long as there are enough nodes in the current config
 
-        // actual size of a quorum: half the configured nodes, which is all the live nodes plus maybe some dead ones to make up numbers
-        final int quorumSize = Math.max(liveNodes.length / 2 + 1, isSafeConfiguration ? masterResilienceLevel.minimumVotingNodes : 0);
+        if (initialConfig.getNodeIds().size() >= masterNodesFailureTolerance * 2 + 1) {
+            // actual size of a quorum: half the configured nodes, which is all the live nodes plus maybe some dead ones to make up numbers
+            final int quorumSize = Math.max(liveNodes.length / 2 + 1, masterNodesFailureTolerance);
 
-        if (quorumSize > liveNodes.length) {
-            assertFalse("reconfigure " + liveNodesSet + " from " + initialConfig + " with safety factor of " + masterResilienceLevel
-                + " yielded " + finalConfig + " without a live quorum", finalConfig.hasQuorum(Arrays.asList(liveNodes)));
+            final ClusterState.VotingConfiguration finalConfig = reconfigurator.reconfigure(liveNodesSet, emptySet(), initialConfig);
+
+            final String description = "reconfigure " + liveNodesSet + " from " + initialConfig + " with safety factor of "
+                + masterNodesFailureTolerance + " yielded " + finalConfig;
+
+            if (quorumSize > liveNodes.length) {
+                assertFalse(description + " without a live quorum", finalConfig.hasQuorum(Arrays.asList(liveNodes)));
+            } else {
+                final List<String> expectedQuorum = randomSubsetOf(quorumSize, liveNodes);
+                assertTrue(description + " with quorum of " + expectedQuorum, finalConfig.hasQuorum(expectedQuorum));
+            }
         } else {
-            final List<String> expectedQuorum = randomSubsetOf(quorumSize, liveNodes);
-            assertTrue("reconfigure " + liveNodesSet + " from " + initialConfig + " with safety factor of " + masterResilienceLevel
-                    + " yielded " + finalConfig + " with quorum of " + expectedQuorum,
-                finalConfig.hasQuorum(expectedQuorum));
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+                () -> reconfigurator.reconfigure(liveNodesSet, emptySet(), initialConfig));
+
+            assertThat(exception.getMessage(), equalTo("foo"));
         }
     }
 
@@ -137,19 +141,20 @@ public class ReconfiguratorTests extends ESTestCase {
         return Arrays.stream(nodes).collect(Collectors.toSet());
     }
 
-    private void check(Set<DiscoveryNode> liveNodes, ClusterState.VotingConfiguration config, MasterResilienceLevel masterResilienceLevel,
+    private void check(Set<DiscoveryNode> liveNodes, ClusterState.VotingConfiguration config, int masterNodesFailureTolerance,
                        ClusterState.VotingConfiguration expectedConfig) {
-        check(liveNodes, retired(), config, masterResilienceLevel, expectedConfig);
+        check(liveNodes, retired(), config, masterNodesFailureTolerance, expectedConfig);
     }
 
     private void check(Set<DiscoveryNode> liveNodes, Set<String> retired, ClusterState.VotingConfiguration config,
-                       MasterResilienceLevel masterResilienceLevel, ClusterState.VotingConfiguration expectedConfig) {
+                       int masterNodesFailureTolerance, ClusterState.VotingConfiguration expectedConfig) {
         final Reconfigurator reconfigurator = makeReconfigurator(Settings.builder()
-            .put(CLUSTER_MASTER_RESILIENCE_LEVEL_SETTING.getKey(), masterResilienceLevel)
+            .put(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.getKey(), masterNodesFailureTolerance)
             .build());
+
         final ClusterState.VotingConfiguration adaptedConfig = reconfigurator.reconfigure(liveNodes, retired, config);
-        assertEquals(new ParameterizedMessage("[liveNodes={}, retired={}, config={}, masterResilienceLevel={}]",
-                liveNodes, retired, config, masterResilienceLevel).getFormattedMessage(),
+        assertEquals(new ParameterizedMessage("[liveNodes={}, retired={}, config={}, masterNodesFailureTolerance={}]",
+                liveNodes, retired, config, masterNodesFailureTolerance).getFormattedMessage(),
             expectedConfig, adaptedConfig);
     }
 
@@ -162,28 +167,24 @@ public class ReconfiguratorTests extends ESTestCase {
         final Reconfigurator reconfigurator = new Reconfigurator(Settings.EMPTY, clusterSettings);
         final VotingConfiguration initialConfig = conf("a", "b", "c", "d", "e");
 
-        // default is "recommended"
-        assertThat(reconfigurator.reconfigure(nodes("a"), retired(), initialConfig), sameInstance(initialConfig)); // cannot reconfigure
-        assertThat(reconfigurator.reconfigure(nodes("a", "b", "c"), retired(), initialConfig), equalTo(conf("a", "b", "c")));
-
-        // update to "fragile"
-        clusterSettings.applySettings(Settings.builder()
-            .put(CLUSTER_MASTER_RESILIENCE_LEVEL_SETTING.getKey(), MasterResilienceLevel.fragile.toString()).build());
+        // default is "0"
         assertThat(reconfigurator.reconfigure(nodes("a"), retired(), initialConfig), equalTo(conf("a")));
 
-        // update to "excessive"
-        clusterSettings.applySettings(Settings.builder()
-            .put(CLUSTER_MASTER_RESILIENCE_LEVEL_SETTING.getKey(), MasterResilienceLevel.excessive.toString()).build());
+        // update to "2"
+        clusterSettings.applySettings(Settings.builder().put(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.getKey(), "2").build());
         assertThat(reconfigurator.reconfigure(nodes("a"), retired(), initialConfig), sameInstance(initialConfig)); // cannot reconfigure
         assertThat(reconfigurator.reconfigure(nodes("a", "b", "c"), retired(), initialConfig), equalTo(conf("a", "b", "c", "d", "e")));
 
-        // explicitly specify "recommended"
-        clusterSettings.applySettings(Settings.builder()
-            .put(CLUSTER_MASTER_RESILIENCE_LEVEL_SETTING.getKey(), MasterResilienceLevel.recommended.toString()).build());
+        // update to "1"
+        clusterSettings.applySettings(Settings.builder().put(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.getKey(), "1").build());
         assertThat(reconfigurator.reconfigure(nodes("a"), retired(), initialConfig), sameInstance(initialConfig)); // cannot reconfigure
         assertThat(reconfigurator.reconfigure(nodes("a", "b", "c"), retired(), initialConfig), equalTo(conf("a", "b", "c")));
 
+        // explicitly set to "0"
+        clusterSettings.applySettings(Settings.builder().put(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.getKey(), "0").build());
+        assertThat(reconfigurator.reconfigure(nodes("a"), retired(), initialConfig), equalTo(conf("a")));
+
         expectThrows(IllegalArgumentException.class, () ->
-            clusterSettings.applySettings(Settings.builder().put(CLUSTER_MASTER_RESILIENCE_LEVEL_SETTING.getKey(), "illegal").build()));
+            clusterSettings.applySettings(Settings.builder().put(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.getKey(), "-1").build()));
     }
 }

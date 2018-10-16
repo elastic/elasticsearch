@@ -455,7 +455,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ElectionSchedulerFactory.ELECTION_DURATION_SETTING,
                     Coordinator.PUBLISH_TIMEOUT_SETTING,
                     JoinHelper.JOIN_TIMEOUT_SETTING,
-                    Reconfigurator.CLUSTER_MASTER_RESILIENCE_LEVEL_SETTING
+                    Reconfigurator.CLUSTER_MASTER_NODES_FAILURE_TOLERANCE
             )));
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(Arrays.asList(

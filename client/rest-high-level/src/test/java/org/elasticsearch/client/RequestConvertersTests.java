@@ -1591,6 +1591,7 @@ public class RequestConvertersTests extends ESTestCase {
     static void setRandomMasterTimeout(MasterNodeRequest<?> request, Map<String, String> expectedParams) {
         setRandomMasterTimeout(request::masterNodeTimeout, expectedParams);
     }
+
     static void setRandomMasterTimeout(TimedRequest request, Map<String, String> expectedParams) {
         setRandomMasterTimeout(s ->
                 request.setMasterTimeout(TimeValue.parseTimeValue(s, request.getClass().getName() + ".masterNodeTimeout")),

@@ -31,7 +31,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 public class TimedRequest implements Validatable {
 
     public static final TimeValue DEFAULT_ACK_TIMEOUT = timeValueSeconds(30);
-    public static final TimeValue DEFAULT_MASTER_NODE_TIMEOUT = timeValueSeconds(30);
+    public static final TimeValue DEFAULT_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
 
     private TimeValue timeout = DEFAULT_ACK_TIMEOUT;
     private TimeValue masterTimeout = DEFAULT_MASTER_NODE_TIMEOUT;

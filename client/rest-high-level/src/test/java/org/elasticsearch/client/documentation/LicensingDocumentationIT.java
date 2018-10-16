@@ -26,7 +26,17 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.license.StartBasicRequest;
+import org.elasticsearch.client.license.StartBasicResponse;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
+import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
+import org.elasticsearch.protocol.xpack.license.GetLicenseResponse;
+import org.elasticsearch.protocol.xpack.license.LicensesStatus;
+import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
+import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
+import org.junit.After;
+import org.junit.BeforeClass;
 import org.elasticsearch.client.license.DeleteLicenseRequest;
 import org.elasticsearch.client.license.GetLicenseRequest;
 import org.elasticsearch.client.license.GetLicenseResponse;
@@ -34,10 +44,12 @@ import org.elasticsearch.client.license.LicensesStatus;
 import org.elasticsearch.client.license.PutLicenseRequest;
 import org.elasticsearch.client.license.PutLicenseResponse;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.client.LicensingIT.putTrialLicense;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasSize;
@@ -50,8 +62,18 @@ import static org.hamcrest.Matchers.startsWith;
  */
 public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
 
+    @BeforeClass
+    public static void checkForSnapshot() {
+        assumeTrue("Trial license used to rollback is only valid when tested against snapshot/test builds",
+            Build.CURRENT.isSnapshot());
+    }
+
+    @After
+    public void rollbackToTrial() throws IOException {
+        putTrialLicense();
+    }
+
     public void testLicense() throws Exception {
-        assumeTrue("License is only valid when tested against snapshot/test builds", Build.CURRENT.isSnapshot());
         RestHighLevelClient client = highLevelClient();
         String license = "{\"license\": {\"uid\":\"893361dc-9749-4997-93cb-802e3d7fa4a8\",\"type\":\"gold\"," +
             "\"issue_date_in_millis\":1411948800000,\"expiry_date_in_millis\":1914278399999,\"max_nodes\":1,\"issued_to\":\"issued_to\"," +
@@ -213,6 +235,52 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(currentLicense, containsString("trial"));
             assertThat(currentLicense, containsString("client_rest-high-level_integTestCluster"));
             assertThat(currentLicense, endsWith("}"));
+        }
+    }
+
+    public void testPostStartBasic() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::start-basic-execute
+            StartBasicRequest request = new StartBasicRequest();
+
+            StartBasicResponse response = client.license().startBasic(request, RequestOptions.DEFAULT);
+            //end::start-basic-execute
+
+            //tag::start-basic-response
+            boolean acknowledged = response.isAcknowledged();                              // <1>
+            boolean basicStarted = response.isBasicStarted();                              // <2>
+            String errorMessage = response.getErrorMessage();                              // <3>
+            String acknowledgeMessage = response.getAcknowledgeMessage();                  // <4>
+            Map<String, String[]> acknowledgeMessages = response.getAcknowledgeMessages(); // <5>
+            //end::start-basic-response
+        }
+        {
+            StartBasicRequest request = new StartBasicRequest();
+            // tag::start-basic-listener
+            ActionListener<StartBasicResponse> listener = new ActionListener<StartBasicResponse>() {
+                @Override
+                public void onResponse(StartBasicResponse indexResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::start-basic-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::start-basic-execute-async
+            client.license().startBasicAsync(
+                request, RequestOptions.DEFAULT, listener); // <1>
+            // end::start-basic-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
 }

@@ -18,10 +18,12 @@
  */
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.client.license.StartBasicRequest;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPut;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.license.DeleteLicenseRequest;
 import org.elasticsearch.client.license.GetLicenseRequest;
 import org.elasticsearch.client.license.PutLicenseRequest;
@@ -80,6 +82,24 @@ public class LicenseRequestConvertersTests extends ESTestCase {
         Request request = LicenseRequestConverters.deleteLicense(deleteLicenseRequest);
         assertThat(request.getMethod(), equalTo(HttpDelete.METHOD_NAME));
         assertThat(request.getEndpoint(), equalTo("/_xpack/license"));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), is(nullValue()));
+    }
+
+    public void testStartBasic() {
+        final boolean acknowledge = randomBoolean();
+        StartBasicRequest startBasicRequest = new StartBasicRequest(acknowledge);
+        Map<String, String> expectedParams = new HashMap<>();
+        if (acknowledge) {
+            expectedParams.put("acknowledge", Boolean.TRUE.toString());
+        }
+
+        setRandomTimeout(startBasicRequest, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomMasterTimeout(startBasicRequest, expectedParams);
+        Request request = LicenseRequestConverters.startBasic(startBasicRequest);
+
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
+        assertThat(request.getEndpoint(), equalTo("/_xpack/license/start_basic"));
         assertThat(request.getParameters(), equalTo(expectedParams));
         assertThat(request.getEntity(), is(nullValue()));
     }

@@ -173,6 +173,9 @@ teardown:
       hits.hits.0._source:
         timestamp.date_histogram.time_zone: "UTC"
         timestamp.date_histogram.timestamp: 0
+        timestamp.value_count.value: 1.0
+        timestamp.max.value: 123.0
+        timestamp.min.value: 123.0
         value_field.max.value: 1232.0
         _rollup.version: 2
         timestamp.date_histogram.interval: "1s"
@@ -334,6 +337,9 @@ teardown:
       hits.hits.0._source:
         timestamp.date_histogram.time_zone: "UTC"
         timestamp.date_histogram.timestamp: 0
+        timestamp.value_count.value: 1.0
+        timestamp.max.value: 123.0
+        timestamp.min.value: 123.0
         value_field.max.value: 1232.0
         _rollup.version: 2
         timestamp.date_histogram.interval: "1s"

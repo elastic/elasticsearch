@@ -11,10 +11,23 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Random;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiAlphanumOfLengthBetween;
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomCron;
+import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomDateHistogramGroupConfig;
+import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomHistogramGroupConfig;
+import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomMetricsConfigs;
 import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomRollupJobConfig;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.isIn;
 
 
 public class RollupJobConfigTests extends AbstractSerializingTestCase<RollupJobConfig> {
@@ -171,5 +184,70 @@ public class RollupJobConfigTests extends AbstractSerializingTestCase<RollupJobC
             new RollupJobConfig(sample.getId(), sample.getIndexPattern(), sample.getRollupIndex(), sample.getCron(), sample.getPageSize(),
                 null, emptyList(), sample.getTimeout()));
         assertThat(e.getMessage(), equalTo("At least one grouping or metric must be configured"));
+    }
+
+    public void testDefaultFieldsForDateHistograms() {
+        final Random random = random();
+        DateHistogramGroupConfig dateHistogramGroupConfig = randomDateHistogramGroupConfig(random);
+        HistogramGroupConfig histogramGroupConfig1 = randomHistogramGroupConfig(random);
+        List<MetricConfig> metrics = new ArrayList<>(randomMetricsConfigs(random));
+        for (String histoField : histogramGroupConfig1.getFields()) {
+            metrics.add(new MetricConfig(histoField, Arrays.asList("max")));
+        }
+        GroupConfig groupConfig = new GroupConfig(dateHistogramGroupConfig, histogramGroupConfig1, null);
+        RollupJobConfig rollupJobConfig = new RollupJobConfig(
+            randomAsciiAlphanumOfLengthBetween(random, 1, 20),
+            "indexes_*",
+            "rollup_" + randomAsciiAlphanumOfLengthBetween(random, 1, 20),
+            randomCron(),
+            randomIntBetween(1, 10),
+            groupConfig,
+            metrics,
+            null);
+        Set<String> metricFields = rollupJobConfig.getMetricsConfig().stream().map(MetricConfig::getField).collect(Collectors.toSet());
+        assertThat(dateHistogramGroupConfig.getField(), isIn(metricFields));
+        List<String> histoFields = Arrays.asList(histogramGroupConfig1.getFields());
+        rollupJobConfig.getMetricsConfig().forEach(metricConfig -> {
+            if (histoFields.contains(metricConfig.getField())) {
+                // Since it is explicitly included, the defaults should not be added
+                assertThat(metricConfig.getMetrics(), containsInAnyOrder("max"));
+            }
+            if (metricConfig.getField().equals(dateHistogramGroupConfig.getField())) {
+                assertThat(metricConfig.getMetrics(), containsInAnyOrder("max", "min", "value_count"));
+            }
+        });
+    }
+
+    public void testDefaultFieldsForHistograms() {
+        final Random random = random();
+        DateHistogramGroupConfig dateHistogramGroupConfig = randomDateHistogramGroupConfig(random);
+        HistogramGroupConfig histogramGroupConfig1 = randomHistogramGroupConfig(random);
+        List<MetricConfig> metrics = new ArrayList<>(randomMetricsConfigs(random));
+        metrics.add(new MetricConfig(dateHistogramGroupConfig.getField(), Arrays.asList("max")));
+        GroupConfig groupConfig = new GroupConfig(dateHistogramGroupConfig, histogramGroupConfig1, null);
+        RollupJobConfig rollupJobConfig = new RollupJobConfig(
+            randomAsciiAlphanumOfLengthBetween(random, 1, 20),
+            "indexes_*",
+            "rollup_" + randomAsciiAlphanumOfLengthBetween(random, 1, 20),
+            randomCron(),
+            randomIntBetween(1, 10),
+            groupConfig,
+            metrics,
+            null);
+        Set<String> metricFields = rollupJobConfig.getMetricsConfig().stream().map(MetricConfig::getField).collect(Collectors.toSet());
+        for (String histoField : histogramGroupConfig1.getFields()) {
+            assertThat(histoField, isIn(metricFields));
+        }
+        assertThat(dateHistogramGroupConfig.getField(), isIn(metricFields));
+        List<String> histoFields = Arrays.asList(histogramGroupConfig1.getFields());
+        rollupJobConfig.getMetricsConfig().forEach(metricConfig -> {
+            if (histoFields.contains(metricConfig.getField())) {
+                // Since it is explicitly included, the defaults should not be added
+                assertThat(metricConfig.getMetrics(), containsInAnyOrder("max", "min", "value_count"));
+            }
+            if (metricConfig.getField().equals(dateHistogramGroupConfig.getField())) {
+                assertThat(metricConfig.getMetrics(), containsInAnyOrder("max"));
+            }
+        });
     }
 }

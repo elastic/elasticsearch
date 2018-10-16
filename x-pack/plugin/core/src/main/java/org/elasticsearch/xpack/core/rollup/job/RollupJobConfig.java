@@ -20,16 +20,21 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.rollup.RollupField;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.xpack.core.scheduler.Cron;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -48,6 +53,9 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
     private static final String PAGE_SIZE = "page_size";
     private static final String INDEX_PATTERN = "index_pattern";
     private static final String ROLLUP_INDEX = "rollup_index";
+    private static final List<String> DEFAULT_HISTO_METRICS = Arrays.asList(MaxAggregationBuilder.NAME,
+        MinAggregationBuilder.NAME,
+        ValueCountAggregationBuilder.NAME);
 
     private final String id;
     private final String indexPattern;
@@ -129,11 +137,10 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         this.indexPattern = indexPattern;
         this.rollupIndex = rollupIndex;
         this.groupConfig = groupConfig;
-        this.metricsConfig = metricsConfig != null ? metricsConfig : Collections.emptyList();
+        this.metricsConfig = addDefaultMetricsIfNeeded(metricsConfig, groupConfig);
         this.timeout = timeout != null ? timeout : DEFAULT_TIMEOUT;
         this.cron = cron;
         this.pageSize = pageSize;
-        this.addDefaultTimeValueMetricsIfNeeded();
     }
 
     public RollupJobConfig(final StreamInput in) throws IOException {
@@ -285,12 +292,22 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         return PARSER.parse(parser, optionalJobId);
     }
 
-    private void addDefaultTimeValueMetricsIfNeeded() {
+    private static List<MetricConfig> addDefaultMetricsIfNeeded(List<MetricConfig> metrics, GroupConfig groupConfig) {
+        List<MetricConfig> inputMetrics = metrics != null ? new ArrayList<>(metrics) : new ArrayList<>();
         if (groupConfig != null) {
             String timeField = groupConfig.getDateHistogram().getField();
-            if (metricsConfig.stream().map(MetricConfig::getField).noneMatch(field -> field.equals(timeField))){
-                metricsConfig.add(new MetricConfig(timeField, RollupField.SUPPORTED_DATE_METRICS));
+            Set<String> currentFields = inputMetrics.stream().map(MetricConfig::getField).collect(Collectors.toSet());
+            if (currentFields.contains(timeField) == false) {
+                inputMetrics.add(new MetricConfig(timeField, DEFAULT_HISTO_METRICS));
+            }
+            if (groupConfig.getHistogram() != null) {
+                for (String histoField : groupConfig.getHistogram().getFields()) {
+                    if (currentFields.contains(histoField) == false) {
+                        inputMetrics.add(new MetricConfig(histoField, DEFAULT_HISTO_METRICS));
+                    }
+                }
             }
         }
+        return Collections.unmodifiableList(inputMetrics);
     }
 }

@@ -77,6 +77,9 @@ setup:
                 - agg: "date_histogram"
                   interval: "1h"
                   time_zone: "UTC"
+                - agg: "max"
+                - agg: "min"
+                - agg: "value_count"
               value_field:
                 - agg: "min"
                 - agg: "max"
@@ -124,6 +127,9 @@ setup:
                 - agg: "date_histogram"
                   interval: "1h"
                   time_zone: "UTC"
+                - agg: "max"
+                - agg: "min"
+                - agg: "value_count"
               value_field:
                 - agg: "min"
                 - agg: "max"
@@ -136,6 +142,9 @@ setup:
                 - agg: "date_histogram"
                   interval: "1h"
                   time_zone: "UTC"
+                - agg: "max"
+                - agg: "min"
+                - agg: "value_count"
               value_field:
                 - agg: "min"
                 - agg: "max"
@@ -184,6 +193,9 @@ setup:
                 - agg: "date_histogram"
                   interval: "1h"
                   time_zone: "UTC"
+                - agg: "max"
+                - agg: "min"
+                - agg: "value_count"
               value_field:
                 - agg: "min"
                 - agg: "max"
@@ -257,6 +269,9 @@ setup:
                   - agg: "date_histogram"
                     interval: "1h"
                     time_zone: "UTC"
+                  - agg: "max"
+                  - agg: "min"
+                  - agg: "value_count"
                 value_field:
                   - agg: "min"
                   - agg: "max"
@@ -269,6 +284,9 @@ setup:
                   - agg: "date_histogram"
                     interval: "1h"
                     time_zone: "UTC"
+                  - agg: "max"
+                  - agg: "min"
+                  - agg: "value_count"
                 value_field:
                   - agg: "min"
                   - agg: "max"
@@ -283,6 +301,9 @@ setup:
                   - agg: "date_histogram"
                     interval: "1h"
                     time_zone: "UTC"
+                  - agg: "max"
+                  - agg: "min"
+                  - agg: "value_count"
                 value_field:
                   - agg: "min"
                   - agg: "max"
@@ -360,6 +381,9 @@ setup:
             - agg: "date_histogram"
               interval: "1h"
               time_zone: "UTC"
+            - agg: "max"
+            - agg: "min"
+            - agg: "value_count"
             value_field:
             - agg: "min"
             - agg: "max"
@@ -372,6 +396,9 @@ setup:
             - agg: "date_histogram"
               interval: "1h"
               time_zone: "UTC"
+            - agg: "max"
+            - agg: "min"
+            - agg: "value_count"
             value_field:
             - agg: "min"
             - agg: "max"
@@ -386,6 +413,9 @@ setup:
             - agg: "date_histogram"
               interval: "1h"
               time_zone: "UTC"
+            - agg: "max"
+            - agg: "min"
+            - agg: "value_count"
             value_field:
             - agg: "min"
             - agg: "max"
@@ -459,6 +489,9 @@ setup:
                   - agg: "date_histogram"
                     interval: "1h"
                     time_zone: "UTC"
+                  - agg: "max"
+                  - agg: "min"
+                  - agg: "value_count"
                 value_field:
                   - agg: "min"
                   - agg: "max"

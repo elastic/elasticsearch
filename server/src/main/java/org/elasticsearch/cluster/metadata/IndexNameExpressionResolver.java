@@ -27,27 +27,27 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.time.JavaDateMathParser;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
@@ -62,7 +62,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     public IndexNameExpressionResolver(Settings settings) {
         super(settings);
         expressionResolvers = Arrays.asList(
-                dateMathExpressionResolver = new DateMathExpressionResolver(settings),
+                dateMathExpressionResolver = new DateMathExpressionResolver(),
                 new WildcardExpressionResolver()
         );
     }
@@ -815,23 +815,13 @@ public class IndexNameExpressionResolver extends AbstractComponent {
 
     static final class DateMathExpressionResolver implements ExpressionResolver {
 
+        private static final DateFormatter DEFAULT_DATE_FORMATTER = DateFormatters.forPattern("YYYY.MM.dd");
         private static final String EXPRESSION_LEFT_BOUND = "<";
         private static final String EXPRESSION_RIGHT_BOUND = ">";
         private static final char LEFT_BOUND = '{';
         private static final char RIGHT_BOUND = '}';
         private static final char ESCAPE_CHAR = '\\';
         private static final char TIME_ZONE_BOUND = '|';
-
-        private final DateTimeZone defaultTimeZone;
-        private final String defaultDateFormatterPattern;
-        private final DateTimeFormatter defaultDateFormatter;
-
-        DateMathExpressionResolver(Settings settings) {
-            String defaultTimeZoneId = settings.get("date_math_expression_resolver.default_time_zone", "UTC");
-            this.defaultTimeZone = DateTimeZone.forID(defaultTimeZoneId);
-            defaultDateFormatterPattern = settings.get("date_math_expression_resolver.default_date_format", "YYYY.MM.dd");
-            this.defaultDateFormatter = DateTimeFormat.forPattern(defaultDateFormatterPattern);
-        }
 
         @Override
         public List<String> resolve(final Context context, List<String> expressions) {
@@ -896,13 +886,12 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                                 int dateTimeFormatLeftBoundIndex = inPlaceHolderString.indexOf(LEFT_BOUND);
                                 String mathExpression;
                                 String dateFormatterPattern;
-                                DateTimeFormatter dateFormatter;
-                                final DateTimeZone timeZone;
+                                DateFormatter dateFormatter;
+                                final ZoneId timeZone;
                                 if (dateTimeFormatLeftBoundIndex < 0) {
                                     mathExpression = inPlaceHolderString;
-                                    dateFormatterPattern = defaultDateFormatterPattern;
-                                    dateFormatter = defaultDateFormatter;
-                                    timeZone = defaultTimeZone;
+                                    dateFormatter = DEFAULT_DATE_FORMATTER;
+                                    timeZone = ZoneOffset.UTC;
                                 } else {
                                     if (inPlaceHolderString.lastIndexOf(RIGHT_BOUND) != inPlaceHolderString.length() - 1) {
                                         throw new ElasticsearchParseException("invalid dynamic name expression [{}]. missing closing `}` for date math format", inPlaceHolderString);
@@ -915,20 +904,18 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                                     int formatPatternTimeZoneSeparatorIndex = dateFormatterPatternAndTimeZoneId.indexOf(TIME_ZONE_BOUND);
                                     if (formatPatternTimeZoneSeparatorIndex != -1) {
                                         dateFormatterPattern = dateFormatterPatternAndTimeZoneId.substring(0, formatPatternTimeZoneSeparatorIndex);
-                                        timeZone = DateTimeZone.forID(dateFormatterPatternAndTimeZoneId.substring(formatPatternTimeZoneSeparatorIndex + 1));
+                                        timeZone = ZoneId.of(dateFormatterPatternAndTimeZoneId.substring(formatPatternTimeZoneSeparatorIndex + 1));
                                     } else {
                                         dateFormatterPattern = dateFormatterPatternAndTimeZoneId;
-                                        timeZone = defaultTimeZone;
+                                        timeZone = ZoneOffset.UTC;
                                     }
-                                    dateFormatter = DateTimeFormat.forPattern(dateFormatterPattern);
+                                    dateFormatter = DateFormatters.forPattern(dateFormatterPattern);
                                 }
-                                DateTimeFormatter parser = dateFormatter.withZone(timeZone);
-                                FormatDateTimeFormatter formatter = new FormatDateTimeFormatter(dateFormatterPattern, parser, Locale.ROOT);
-                                DateMathParser dateMathParser = formatter.toDateMathParser();
-                                long millis = dateMathParser.parse(mathExpression, context::getStartTime, false,
-                                    DateUtils.dateTimeZoneToZoneId(timeZone));
+                                DateFormatter formatter = dateFormatter.withZone(timeZone);
+                                DateMathParser dateMathParser = new JavaDateMathParser(formatter);
+                                long millis = dateMathParser.parse(mathExpression, context::getStartTime, false, timeZone);
 
-                                String time = formatter.printer().print(millis);
+                                String time = formatter.format(Instant.ofEpochMilli(millis));
                                 beforePlaceHolderSb.append(time);
                                 inPlaceHolderSb = new StringBuilder();
                                 inPlaceHolder = false;
@@ -968,18 +955,4 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             return beforePlaceHolderSb.toString();
         }
     }
-
-    /**
-     * Returns <code>true</code> iff the given expression resolves to the given index name otherwise <code>false</code>
-     */
-    public final boolean matchesIndex(String indexName, String expression, ClusterState state) {
-        final String[] concreteIndices = concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), expression);
-        for (String index : concreteIndices) {
-            if (Regex.simpleMatch(index, indexName)) {
-                return true;
-            }
-        }
-        return indexName.equals(expression);
-    }
-
 }

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -15,32 +16,24 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.ccr.LocalStateCcr;
+import org.elasticsearch.xpack.CCRIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.action.AutoFollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class AutoFollowTests extends ESSingleNodeTestCase {
+public class AutoFollowIT extends CCRIntegTestCase {
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(LocalStateCcr.class);
-    }
-
-    @Override
-    protected boolean resetNodeAfterTest() {
-        return true;
+    protected boolean reuseClusters() {
+        return false;
     }
 
     public void testAutoFollow() throws Exception {
@@ -50,7 +43,7 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
 
-        createIndex("logs-201812", leaderIndexSettings, "_doc");
+        createLeaderIndex("logs-201812", leaderIndexSettings);
 
         // Enabling auto following:
         if (randomBoolean()) {
@@ -60,26 +53,26 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
             putAutoFollowPatterns("my-pattern2", new String[] {"transactions-*"});
         }
 
-        createIndex("metrics-201901", leaderIndexSettings, "_doc");
+        createLeaderIndex("metrics-201901", leaderIndexSettings);
 
-        createIndex("logs-201901", leaderIndexSettings, "_doc");
+        createLeaderIndex("logs-201901", leaderIndexSettings);
         assertBusy(() -> {
             IndicesExistsRequest request = new IndicesExistsRequest("copy-logs-201901");
-            assertTrue(client().admin().indices().exists(request).actionGet().isExists());
+            assertTrue(followerClient().admin().indices().exists(request).actionGet().isExists());
         });
-        createIndex("transactions-201901", leaderIndexSettings, "_doc");
+        createLeaderIndex("transactions-201901", leaderIndexSettings);
         assertBusy(() -> {
             AutoFollowStats autoFollowStats = getAutoFollowStats();
             assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(2L));
 
             IndicesExistsRequest request = new IndicesExistsRequest("copy-transactions-201901");
-            assertTrue(client().admin().indices().exists(request).actionGet().isExists());
+            assertTrue(followerClient().admin().indices().exists(request).actionGet().isExists());
         });
 
         IndicesExistsRequest request = new IndicesExistsRequest("copy-metrics-201901");
-        assertFalse(client().admin().indices().exists(request).actionGet().isExists());
+        assertFalse(followerClient().admin().indices().exists(request).actionGet().isExists());
         request = new IndicesExistsRequest("copy-logs-201812");
-        assertFalse(client().admin().indices().exists(request).actionGet().isExists());
+        assertFalse(followerClient().admin().indices().exists(request).actionGet().isExists());
     }
 
     public void testAutoFollowManyIndices() throws Exception {
@@ -92,7 +85,7 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
         putAutoFollowPatterns("my-pattern", new String[] {"logs-*"});
         int numIndices = randomIntBetween(4, 32);
         for (int i = 0; i < numIndices; i++) {
-            createIndex("logs-" + i, leaderIndexSettings, "_doc");
+            createLeaderIndex("logs-" + i, leaderIndexSettings);
         }
         int expectedVal1 = numIndices;
         assertBusy(() -> {
@@ -101,17 +94,17 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
         });
 
         deleteAutoFollowPatternSetting();
-        createIndex("logs-does-not-count", leaderIndexSettings, "_doc");
+        createLeaderIndex("logs-does-not-count", leaderIndexSettings);
 
         putAutoFollowPatterns("my-pattern", new String[] {"logs-*"});
         int i = numIndices;
         numIndices = numIndices + randomIntBetween(4, 32);
         for (; i < numIndices; i++) {
-            createIndex("logs-" + i, leaderIndexSettings, "_doc");
+            createLeaderIndex("logs-" + i, leaderIndexSettings);
         }
         int expectedVal2 = numIndices;
         assertBusy(() -> {
-            MetaData metaData = client().admin().cluster().prepareState().get().getState().metaData();
+            MetaData metaData = followerClient().admin().cluster().prepareState().get().getState().metaData();
             int count = (int) Arrays.stream(metaData.getConcreteAllIndices()).filter(s -> s.startsWith("copy-")).count();
             assertThat(count, equalTo(expectedVal2));
         });
@@ -127,7 +120,7 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
         // Enabling auto following:
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
         request.setName("my-pattern");
-        request.setLeaderCluster("_local_");
+        request.setLeaderCluster("leader_cluster");
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
         // Need to set this, because following an index in the same cluster
         request.setFollowIndexNamePattern("copy-{{leader_index}}");
@@ -152,12 +145,12 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
         if (randomBoolean()) {
             request.setPollTimeout(TimeValue.timeValueMillis(500));
         }
-        assertTrue(client().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
+        assertTrue(followerClient().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
 
-        createIndex("logs-201901", leaderIndexSettings, "_doc");
+        createLeaderIndex("logs-201901", leaderIndexSettings);
         assertBusy(() -> {
             PersistentTasksCustomMetaData persistentTasksMetaData =
-                client().admin().cluster().prepareState().get().getState().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+                followerClient().admin().cluster().prepareState().get().getState().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
             assertThat(persistentTasksMetaData, notNullValue());
             assertThat(persistentTasksMetaData.tasks().size(), equalTo(1));
             ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTasksMetaData.tasks().iterator().next().getParams();
@@ -198,7 +191,7 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
         putAutoFollowPatterns("my-pattern1", new String[] {"logs-*"});
         putAutoFollowPatterns("my-pattern2", new String[] {"logs-2018*"});
 
-        createIndex("logs-201701", leaderIndexSettings, "_doc");
+        createLeaderIndex("logs-201701", leaderIndexSettings);
         assertBusy(() -> {
             AutoFollowStats autoFollowStats = getAutoFollowStats();
             assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
@@ -206,9 +199,9 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
             assertThat(autoFollowStats.getNumberOfFailedRemoteClusterStateRequests(), equalTo(0L));
         });
         IndicesExistsRequest request = new IndicesExistsRequest("copy-logs-201701");
-        assertTrue(client().admin().indices().exists(request).actionGet().isExists());
+        assertTrue(followerClient().admin().indices().exists(request).actionGet().isExists());
 
-        createIndex("logs-201801", leaderIndexSettings, "_doc");
+        createLeaderIndex("logs-201801", leaderIndexSettings);
         assertBusy(() -> {
             AutoFollowStats autoFollowStats = getAutoFollowStats();
             assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
@@ -228,28 +221,34 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
         });
 
         request = new IndicesExistsRequest("copy-logs-201801");
-        assertFalse(client().admin().indices().exists(request).actionGet().isExists());
+        assertFalse(followerClient().admin().indices().exists(request).actionGet().isExists());
     }
 
     private void putAutoFollowPatterns(String name, String[] patterns) {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
         request.setName(name);
-        request.setLeaderCluster("_local_");
+        request.setLeaderCluster("leader_cluster");
         request.setLeaderIndexPatterns(Arrays.asList(patterns));
         // Need to set this, because following an index in the same cluster
         request.setFollowIndexNamePattern("copy-{{leader_index}}");
-        assertTrue(client().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
+        assertTrue(followerClient().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
     }
 
     private void deleteAutoFollowPatternSetting() {
         DeleteAutoFollowPatternAction.Request request = new DeleteAutoFollowPatternAction.Request();
         request.setName("my-pattern");
-        assertTrue(client().execute(DeleteAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
+        assertTrue(followerClient().execute(DeleteAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
     }
 
     private AutoFollowStats getAutoFollowStats() {
         AutoFollowStatsAction.Request request = new AutoFollowStatsAction.Request();
-        return client().execute(AutoFollowStatsAction.INSTANCE, request).actionGet().getStats();
+        return followerClient().execute(AutoFollowStatsAction.INSTANCE, request).actionGet().getStats();
+    }
+
+    private void createLeaderIndex(String index, Settings settings) {
+        CreateIndexRequest request = new CreateIndexRequest(index);
+        request.settings(settings);
+        leaderClient().admin().indices().create(request).actionGet();
     }
 
 }

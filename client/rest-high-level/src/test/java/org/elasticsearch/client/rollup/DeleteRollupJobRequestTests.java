@@ -18,28 +18,39 @@
  */
 package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+public class DeleteRollupJobRequestTests extends AbstractXContentTestCase<DeleteRollupJobRequest> {
 
-public class PutRollupJobResponse extends AcknowledgedResponse {
+    private String jobId;
 
-
-    public PutRollupJobResponse(boolean acknowledged) {
-        super(acknowledged);
+    @Before
+    public void setUpOptionalId() {
+        jobId = randomAlphaOfLengthBetween(1, 10);
     }
 
-    public static PutRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    @Override
+    protected DeleteRollupJobRequest createTestInstance() {
+        return new DeleteRollupJobRequest(jobId);
     }
 
-    private static final ConstructingObjectParser<PutRollupJobResponse, Void> PARSER
-        = new ConstructingObjectParser<>("put_rollup_job_response", true, args -> new PutRollupJobResponse((boolean) args[0]));
-    static {
-        PARSER.declareBoolean(constructorArg(), new ParseField("acknowledged"));
+    @Override
+    protected DeleteRollupJobRequest doParseInstance(final XContentParser parser) throws IOException {
+        return DeleteRollupJobRequest.fromXContent(parser);
     }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
+    public void testRequireConfiguration() {
+        final NullPointerException e = expectThrows(NullPointerException.class, ()-> new DeleteRollupJobRequest(null));
+        assertEquals("id parameter must not be null", e.getMessage());
+    }
+
 }

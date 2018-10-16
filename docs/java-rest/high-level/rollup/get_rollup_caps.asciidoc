@@ -1,21 +1,27 @@
-[[java-rest-high-x-pack-rollup-get-rollup-caps]]
+--
+:api: get-rollup-caps
+:request: GetRollupCapsRequest
+:response: GetRollupCapsResponse
+--
+
+[id="{upid}-{api}"]
 === Get Rollup Capabilities Rollup Job API
 
 The Get Rollup Capabilities API allows the user to query a target index pattern (`logstash-*`, etc)
 and determine if there are any rollup jobs that are/were configured to rollup that pattern.
 The API accepts a `GetRollupCapsRequest` object as a request and returns a `GetRollupCapsResponse`.
 
-[[java-rest-high-x-pack-rollup-get-rollup-caps-request]]
+[id="{upid}-{api}-request"]
 ==== Get Rollup Capabilities Request
 
-A `GetRollupCapsRequest` requires a single parameter: the target index or index pattern (e.g. `logstash-*`):
+A +{request}+ requires a single parameter: the target index or index pattern (e.g. `logstash-*`):
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-get-rollup-caps-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 
-[[java-rest-high-x-pack-rollup-get-rollup-caps-execution]]
+[id="{upid}-{api}-execution"]
 ==== Execution
 
 The Get Rollup Capabilities API can be executed through a `RollupClient`
@@ -24,13 +30,13 @@ using the `rollup()` method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-put-rollup-job-execute]
+include-tagged::{doc-tests-file}[{api}-execute]
 --------------------------------------------------
 
-[[java-rest-high-x-pack-rollup-get-rollup-caps-response]]
+[id="{upid}-{api}-response"]
 ==== Response
 
-The returned `GetRollupCapsResponse` holds lists and maps of values which correspond to the capabilities
+The returned +{response}+ holds lists and maps of values which correspond to the capabilities
 of the target index/index pattern (what jobs were configured for the pattern, where the data is stored, what
 aggregations are available, etc).  It provides essentially the same data as the original job configuration,
 just presented in a different manner.
@@ -39,26 +45,26 @@ For example, if we had created a job with the following config:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-get-rollup-caps-setup]
+include-tagged::{doc-tests-file}[{api}-setup]
 --------------------------------------------------
 
-The `GetRollupCapsResponse` object would contain the same information, laid out in a slightly different manner:
+The +{response}+ object would contain the same information, laid out in a slightly different manner:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-get-rollup-caps-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 
-[[java-rest-high-x-pack-rollup-put-rollup-job-async]]
+[id="{upid}-{api}-async"]
 ==== Asynchronous Execution
 
 This request can be executed asynchronously:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-get-rollup-caps-execute-async]
+include-tagged::{doc-tests-file}[{api}-execute-async]
 --------------------------------------------------
-<1> The `GetRollupCapsRequest` to execute and the `ActionListener` to use when
+<1> The +{request}+ to execute and the `ActionListener` to use when
 the execution completes
 
 The asynchronous method does not block and returns immediately. Once it is
@@ -66,11 +72,11 @@ completed the `ActionListener` is called back using the `onResponse` method
 if the execution successfully completed or using the `onFailure` method if
 it failed.
 
-A typical listener for `GetRollupCapsResponse` looks like:
+A typical listener for +{response}+ looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-get-rollup-caps-execute-listener]
+include-tagged::{doc-tests-file}[{api}-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument

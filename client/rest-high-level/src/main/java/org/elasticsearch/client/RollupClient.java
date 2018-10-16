@@ -140,7 +140,11 @@ public class RollupClient {
      */
     public void getRollupCapabilitiesAsync(GetRollupCapsRequest request, RequestOptions options,
                                            ActionListener<GetRollupCapsResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, RollupRequestConverters::getRollupCaps, options,
-            GetRollupCapsResponse::fromXContent, listener, Collections.emptySet());
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            RollupRequestConverters::getRollupCaps,
+            options,
+            GetRollupCapsResponse::fromXContent,
+            listener,
+            Collections.emptySet());
     }
 }

@@ -65,7 +65,7 @@ public class GetRollupCapsResponse implements ToXContentObject {
                 }
             }
         }
-        return new GetRollupCapsResponse(Collections.unmodifiableMap(jobs));
+        return new GetRollupCapsResponse(jobs);
     }
 
     @Override

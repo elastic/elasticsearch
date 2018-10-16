@@ -56,7 +56,7 @@ final class RollupRequestConverters {
         return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 
-    static Request getRollupCaps(GetRollupCapsRequest getRollupCapsRequest) throws IOException {
+    static Request getRollupCaps(final GetRollupCapsRequest getRollupCapsRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_xpack")
             .addPathPartAsIs("rollup")

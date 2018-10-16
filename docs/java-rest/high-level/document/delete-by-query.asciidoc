@@ -24,14 +24,13 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-by-query-request-con
 --------------------------------------------------
 <1> Set `proceed` on version conflict
 
-You can limit the documents by adding a type to the source or by adding a query.
+You can limit the documents by adding a query.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-by-query-request-typeOrQuery]
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-by-query-request-query]
 --------------------------------------------------
-<1> Only copy `doc` type
-<2> Only copy documents which have field `user` set to `kimchy`
+<1> Only copy documents which have field `user` set to `kimchy`
 
 It’s also possible to limit the number of processed documents by setting size.
 

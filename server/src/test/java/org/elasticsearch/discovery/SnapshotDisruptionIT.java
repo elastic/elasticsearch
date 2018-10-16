@@ -59,7 +59,7 @@ public class SnapshotDisruptionIT extends AbstractDisruptionTestCase {
             .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s") // wait till cluster state is committed
             .build();
         final String idxName = "test";
-        configureCluster(settings, 4, null, 2);
+        configureCluster(settings, 4, 2);
         final List<String> allMasterEligibleNodes = internalCluster().startMasterOnlyNodes(3);
         final String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(4);

@@ -547,6 +547,17 @@ public class IndexFollowingIT extends CCRIntegTestCase {
         assertBusy(() -> assertThat(followerClient().prepareSearch("index2").get().getHits().totalHits, equalTo(1L)));
 
         leaderClient().admin().indices().delete(new DeleteIndexRequest("index1")).actionGet();
+        assertBusy(() -> {
+            StatsResponses response = followerClient().execute(FollowStatsAction.INSTANCE, new StatsRequest()).actionGet();
+            assertThat(response.getNodeFailures(), empty());
+            assertThat(response.getTaskFailures(), empty());
+            assertThat(response.getStatsResponses(), hasSize(1));
+            assertThat(response.getStatsResponses().get(0).status().numberOfFailedFetches(), greaterThanOrEqualTo(1L));
+            ElasticsearchException fatalException = response.getStatsResponses().get(0).status().getFatalException();
+            assertThat(fatalException, notNullValue());
+            assertThat(fatalException.getMessage(), equalTo("no such index"));
+        });
+        unfollowIndex("index2");
         ensureNoCcrTasks();
     }
 
@@ -566,6 +577,17 @@ public class IndexFollowingIT extends CCRIntegTestCase {
 
         followerClient().admin().indices().delete(new DeleteIndexRequest("index2")).actionGet();
         leaderClient().prepareIndex("index1", "doc", "2").setSource("{}", XContentType.JSON).get();
+        assertBusy(() -> {
+            StatsResponses response = followerClient().execute(FollowStatsAction.INSTANCE, new StatsRequest()).actionGet();
+            assertThat(response.getNodeFailures(), empty());
+            assertThat(response.getTaskFailures(), empty());
+            assertThat(response.getStatsResponses(), hasSize(1));
+            assertThat(response.getStatsResponses().get(0).status().numberOfFailedBulkOperations(), greaterThanOrEqualTo(1L));
+            ElasticsearchException fatalException = response.getStatsResponses().get(0).status().getFatalException();
+            assertThat(fatalException, notNullValue());
+            assertThat(fatalException.getMessage(), equalTo("no such index"));
+        });
+        unfollowIndex("index2");
         ensureNoCcrTasks();
     }
 

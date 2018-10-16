@@ -57,3 +57,11 @@ artifacts  {
     nodeps nodepsJar
     archives shadowJar
 }
+
+publishing {
+    publications {
+        nebula {
+            artifactId = archivesBaseName
+        }
+    }
+}

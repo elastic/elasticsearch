@@ -261,6 +261,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             Setting.intSetting("xpack.ml.node_concurrent_job_allocations", 2, 0, Property.Dynamic, Property.NodeScope);
     public static final Setting<Integer> MAX_MACHINE_MEMORY_PERCENT =
             Setting.intSetting("xpack.ml.max_machine_memory_percent", 30, 5, 90, Property.Dynamic, Property.NodeScope);
+    public static final Setting<Integer> MAX_LAZY_ML_NODES =
+        Setting.intSetting("xpack.ml.max_lazy_ml_nodes", 0, 0, 3, Property.Dynamic, Property.NodeScope);
 
     private static final Logger logger = Loggers.getLogger(XPackPlugin.class);
 
@@ -288,6 +290,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                         ML_ENABLED,
                         CONCURRENT_JOB_ALLOCATIONS,
                         MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
+                        MAX_LAZY_ML_NODES,
                         MAX_MACHINE_MEMORY_PERCENT,
                         AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING,
                         AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING,

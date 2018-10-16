@@ -555,7 +555,7 @@ public class IndexFollowingIT extends CCRIntegTestCase {
             assertThat(response.getStatsResponses().get(0).status().numberOfFailedFetches(), greaterThanOrEqualTo(1L));
             ElasticsearchException fatalException = response.getStatsResponses().get(0).status().getFatalException();
             assertThat(fatalException, notNullValue());
-            assertThat(fatalException.getMessage(), equalTo("no such index"));
+            assertThat(fatalException.getRootCause().getMessage(), equalTo("no such index"));
         });
         unfollowIndex("index2");
         ensureNoCcrTasks();

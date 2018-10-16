@@ -85,6 +85,7 @@ integTestRunner {
 }
 
 integTestCluster {
+  systemProperty 'es.scripting.update.ctx_in_params', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   // Truststore settings are not used since TLS is not enabled. Included for testing the get certificates API

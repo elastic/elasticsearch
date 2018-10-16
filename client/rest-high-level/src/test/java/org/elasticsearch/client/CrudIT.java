@@ -198,7 +198,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
     public void testSourceExists() throws IOException {     
         {
             GetRequest getRequest = new GetRequest("index", "type", "id");
-            assertFalse(execute(getRequest, highLevelClient()::sourceExists, highLevelClient()::sourceExistsAsync));
+            assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
         }
         IndexRequest index = new IndexRequest("index", "type", "id");
         index.source("{\"field1\":\"value1\",\"field2\":\"value2\"}", XContentType.JSON);
@@ -206,15 +206,15 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         highLevelClient().index(index, RequestOptions.DEFAULT);
         {
             GetRequest getRequest = new GetRequest("index", "type", "id");
-            assertTrue(execute(getRequest, highLevelClient()::sourceExists, highLevelClient()::sourceExistsAsync));
+            assertTrue(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
         }
         {
             GetRequest getRequest = new GetRequest("index", "type", "does_not_exist");
-            assertFalse(execute(getRequest, highLevelClient()::sourceExists, highLevelClient()::sourceExistsAsync));
+            assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
         }
         {
             GetRequest getRequest = new GetRequest("index", "type", "does_not_exist").version(1);
-            assertFalse(execute(getRequest, highLevelClient()::sourceExists, highLevelClient()::sourceExistsAsync));
+            assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
         }
     }
     
@@ -246,7 +246,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             GetRequest getRequest = new GetRequest(noSourceIndex, "_doc", "1");
             assertTrue(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
-            assertFalse(execute(getRequest, highLevelClient()::sourceExists, highLevelClient()::sourceExistsAsync));
+            assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
         }
     }    
 

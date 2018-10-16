@@ -736,7 +736,7 @@ public class RestHighLevelClient implements Closeable {
      * @return <code>true</code> if the document and _source field exists, <code>false</code> otherwise
      * @throws IOException in case there is a problem sending the request
      */
-    public boolean sourceExists(GetRequest getRequest, RequestOptions options) throws IOException {
+    public boolean existsSource(GetRequest getRequest, RequestOptions options) throws IOException {
         return performRequest(getRequest, RequestConverters::sourceExists, options, RestHighLevelClient::convertExistsResponse, emptySet());
     }     
     
@@ -748,7 +748,7 @@ public class RestHighLevelClient implements Closeable {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public final void sourceExistsAsync(GetRequest getRequest, RequestOptions options, ActionListener<Boolean> listener) {
+    public final void existsSourceAsync(GetRequest getRequest, RequestOptions options, ActionListener<Boolean> listener) {
         performRequestAsync(getRequest, RequestConverters::sourceExists, options, RestHighLevelClient::convertExistsResponse, listener,
                 emptySet());
     }    

@@ -53,8 +53,6 @@ import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
  */
 public class SecuritySettingsSource extends NodeConfigurationSource {
 
-    public static final Settings DEFAULT_SETTINGS = Settings.EMPTY;
-
     public static final String TEST_USER_NAME = "test_user";
     public static final String TEST_PASSWORD_HASHED =
         new String(Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt9", "bcrypt8", "bcrypt")).
@@ -82,9 +80,6 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
                     "    - names: '*'\n" +
                     "      privileges: [ ALL ]\n";
 
-    final Settings nodeSettings;
-    final Settings transportClientSettings;
-
     private final Path parentFolder;
     private final String subfolderPrefix;
     private final boolean sslEnabled;
@@ -94,14 +89,11 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
     /**
      * Creates a new {@link org.elasticsearch.test.NodeConfigurationSource} for the security configuration.
      *
-     * @param numOfNodes the number of nodes for proper unicast configuration (can be more than actually available)
      * @param sslEnabled whether ssl is enabled
      * @param parentFolder the parent folder that will contain all of the configuration files that need to be created
      * @param scope the scope of the test that is requiring an instance of SecuritySettingsSource
      */
-    public SecuritySettingsSource(int numOfNodes, boolean sslEnabled, Path parentFolder, Scope scope) {
-        this.nodeSettings = Settings.builder().put(Settings.EMPTY).put(DEFAULT_SETTINGS).build();
-        this.transportClientSettings = Settings.builder().put(DEFAULT_SETTINGS).build();
+    public SecuritySettingsSource(boolean sslEnabled, Path parentFolder, Scope scope) {
         this.parentFolder = parentFolder;
         this.subfolderPrefix = scope.name();
         this.sslEnabled = sslEnabled;
@@ -131,7 +123,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         writeFile(xpackConf, "users", configUsers());
         writeFile(xpackConf, "users_roles", configUsersRoles());
 
-        Settings.Builder builder = Settings.builder().put(nodeSettings)
+        Settings.Builder builder = Settings.builder()
                 .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
                 .put(NetworkModule.HTTP_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
@@ -158,7 +150,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
 
     @Override
     public Settings transportClientSettings() {
-        Settings superSettings = transportClientSettings;
+        Settings superSettings = Settings.EMPTY;
         Settings.Builder builder = Settings.builder().put(superSettings);
         addClientSSLSettings(builder, "");
         addDefaultSecurityTransportType(builder, superSettings);

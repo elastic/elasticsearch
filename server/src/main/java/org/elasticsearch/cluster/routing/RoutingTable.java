@@ -457,12 +457,16 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             return this;
         }
 
-        public Builder updateNumberOfReplicas(int numberOfReplicas, String... indices) {
+        /**
+         * Update the number of replicas for the specified indices.
+         *
+         * @param numberOfReplicas the number of replicas
+         * @param indices          the indices to update the number of replicas for
+         * @return the builder
+         */
+        public Builder updateNumberOfReplicas(final int numberOfReplicas, final String[] indices) {
             if (indicesRouting == null) {
                 throw new IllegalStateException("once build is called the builder cannot be reused");
-            }
-            if (indices == null || indices.length == 0) {
-                indices = indicesRouting.keys().toArray(String.class);
             }
             for (String index : indices) {
                 IndexRoutingTable indexRoutingTable = indicesRouting.get(index);

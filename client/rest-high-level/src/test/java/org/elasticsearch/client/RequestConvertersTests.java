@@ -60,6 +60,7 @@ import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
 import org.elasticsearch.client.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -1527,6 +1528,20 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(request.getParameters(), equalTo(expectedParams));
     }
 
+    public void testRemoveIndexLifecyclePolicy() {
+        Map<String, String> expectedParams = new HashMap<>();
+        String[] indices = randomIndicesNames(0, 10);
+        IndicesOptions indicesOptions = setRandomIndicesOptions(IndicesOptions.strictExpandOpen(), expectedParams);
+        RemoveIndexLifecyclePolicyRequest req = new RemoveIndexLifecyclePolicyRequest(Arrays.asList(indices), indicesOptions);
+        setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_TIMEOUT, expectedParams);
+
+        Request request = RequestConverters.removeIndexLifecyclePolicy(req);
+        assertThat(request.getMethod(), equalTo(HttpDelete.METHOD_NAME));
+        String idxString = Strings.arrayToCommaDelimitedString(indices);
+        assertThat(request.getEndpoint(), equalTo("/" + (idxString.isEmpty() ? "" : (idxString + "/")) + "_ilm"));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+    }
+
     public void testStartILM() throws Exception {
         StartILMRequest req = new StartILMRequest();
         Map<String, String> expectedParams = new HashMap<>();
@@ -1657,6 +1672,24 @@ public class RequestConvertersTests extends ESTestCase {
         } else {
             expectedParams.put("expand_wildcards", "none");
         }
+    }
+
+    static IndicesOptions setRandomIndicesOptions(IndicesOptions indicesOptions, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+        }
+        expectedParams.put("ignore_unavailable", Boolean.toString(indicesOptions.ignoreUnavailable()));
+        expectedParams.put("allow_no_indices", Boolean.toString(indicesOptions.allowNoIndices()));
+        if (indicesOptions.expandWildcardsOpen() && indicesOptions.expandWildcardsClosed()) {
+            expectedParams.put("expand_wildcards", "open,closed");
+        } else if (indicesOptions.expandWildcardsOpen()) {
+            expectedParams.put("expand_wildcards", "open");
+        } else if (indicesOptions.expandWildcardsClosed()) {
+            expectedParams.put("expand_wildcards", "closed");
+        } else {
+            expectedParams.put("expand_wildcards", "none");
+        }
+        return indicesOptions;
     }
 
     static void setRandomIncludeDefaults(GetIndexRequest request, Map<String, String> expectedParams) {

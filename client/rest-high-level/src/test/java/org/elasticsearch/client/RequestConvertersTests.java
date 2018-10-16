@@ -1609,7 +1609,6 @@ public class RequestConvertersTests extends ESTestCase {
         IndicesOptions indicesOptions = setRandomIndicesOptions(IndicesOptions.strictExpandOpen(), expectedParams);
         RemoveIndexLifecyclePolicyRequest req = new RemoveIndexLifecyclePolicyRequest(Arrays.asList(indices), indicesOptions);
         setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT, expectedParams);
-        setRandomTimeoutTimeValue(req::setTimeout, TimedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
 
         Request request = RequestConverters.removeIndexLifecyclePolicy(req);
         assertThat(request.getMethod(), equalTo(HttpDelete.METHOD_NAME));

@@ -169,15 +169,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
             } else {
                 try {
                     LazyDirectoryReader lazyDirectoryReader = new LazyDirectoryReader(reader);
-                    FrozenEngineSearcher newSearcher = new FrozenEngineSearcher(source, lazyDirectoryReader,
-                        new IndexSearcher(lazyDirectoryReader),
-                        s -> {
-                        try {
-                            s.getIndexReader().close();
-                        } finally {
-                            store.decRef();
-                        }
-                    }, logger);
+                    Searcher newSearcher = new Searcher(source, new IndexSearcher(lazyDirectoryReader),
+                        () -> IOUtils.close(lazyDirectoryReader, store::decRef));
                     success = true;
                     return newSearcher;
                 } finally {
@@ -195,27 +188,22 @@ public final class FrozenEngine extends ReadOnlyEngine {
         }
     }
 
-    /**
-     * A Searcher impl that makes it straight forward to release readers after a search phase
-     */
-    final class FrozenEngineSearcher extends Searcher {
+    void release(LazyDirectoryReader reader) throws IOException {
+        reader.release();
+    }
 
-        private final LazyDirectoryReader lazyDirectoryReader;
+    void reset(LazyDirectoryReader reader) throws IOException {
+        reader.reset(getOrOpenReader(true));
+    }
 
-        FrozenEngineSearcher(String source, LazyDirectoryReader lazyDirectoryReader, IndexSearcher searcher,
-                                    IOUtils.IOConsumer<IndexSearcher>
-            onClose, Logger logger) {
-            super(source, searcher, onClose, logger);
-            this.lazyDirectoryReader = lazyDirectoryReader;
+    static LazyDirectoryReader unwrapLazyReader(DirectoryReader reader) {
+        while (reader instanceof FilterDirectoryReader) {
+            if (reader instanceof LazyDirectoryReader) {
+                return (LazyDirectoryReader) reader;
+            }
+            reader = ((FilterDirectoryReader) reader).getDelegate();
         }
-
-        void releaseReader() throws IOException {
-            lazyDirectoryReader.release();
-        }
-
-        void resetReader() throws IOException {
-            lazyDirectoryReader.reset(getOrOpenReader(true));
-        }
+        return null;
     }
 
     /**
@@ -242,7 +230,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
         }
 
         @SuppressForbidden(reason = "we manage references explicitly here")
-        synchronized void release() throws IOException {
+        private synchronized void release() throws IOException {
             if (delegate != null) { // we are lenient here it's ok to double close
                 delegate.decRef();
                 delegate = null;
@@ -259,7 +247,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
             }
         }
 
-        synchronized void reset(DirectoryReader delegate) {
+        private synchronized void reset(DirectoryReader delegate) {
             if (this.delegate != null) {
                 throw new IllegalStateException("lazy reader is not released");
             }

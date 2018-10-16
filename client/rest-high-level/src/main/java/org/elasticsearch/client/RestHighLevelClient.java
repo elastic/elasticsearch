@@ -19,7 +19,12 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.HttpEntity;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
@@ -51,43 +56,142 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.cluster.ClusterClient;
-import org.elasticsearch.client.graph.GraphClient;
-import org.elasticsearch.client.index.IndicesClient;
-import org.elasticsearch.client.ingest.IngestClient;
-import org.elasticsearch.client.license.LicenseClient;
-import org.elasticsearch.client.migration.MigrationClient;
-import org.elasticsearch.client.ml.MachineLearningClient;
-import org.elasticsearch.client.rollup.RollupClient;
-import org.elasticsearch.client.security.SecurityClient;
-import org.elasticsearch.client.snapshot.SnapshotClient;
-import org.elasticsearch.client.tasks.TasksClient;
-import org.elasticsearch.client.watcher.WatcherClient;
-import org.elasticsearch.client.xpack.XPackClient;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ContextParser;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalResponse;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
+import org.elasticsearch.plugins.spi.NamedXContentProvider;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.MultiSearchTemplateResponse;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateResponse;
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.adjacency.ParsedAdjacencyMatrix;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.ParsedComposite;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.ParsedFilter;
+import org.elasticsearch.search.aggregations.bucket.filter.ParsedFilters;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.ParsedGeoHashGrid;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.global.ParsedGlobal;
+import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.ParsedAutoDateHistogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.ParsedDateHistogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.ParsedHistogram;
+import org.elasticsearch.search.aggregations.bucket.missing.MissingAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.missing.ParsedMissing;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.nested.ParsedNested;
+import org.elasticsearch.search.aggregations.bucket.nested.ParsedReverseNested;
+import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.IpRangeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.ParsedBinaryRange;
+import org.elasticsearch.search.aggregations.bucket.range.ParsedDateRange;
+import org.elasticsearch.search.aggregations.bucket.range.ParsedGeoDistance;
+import org.elasticsearch.search.aggregations.bucket.range.ParsedRange;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
+import org.elasticsearch.search.aggregations.bucket.sampler.ParsedSampler;
+import org.elasticsearch.search.aggregations.bucket.significant.ParsedSignificantLongTerms;
+import org.elasticsearch.search.aggregations.bucket.significant.ParsedSignificantStringTerms;
+import org.elasticsearch.search.aggregations.bucket.significant.SignificantLongTerms;
+import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedLongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentiles;
+import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ParsedAvg;
+import org.elasticsearch.search.aggregations.metrics.ParsedCardinality;
+import org.elasticsearch.search.aggregations.metrics.ParsedExtendedStats;
+import org.elasticsearch.search.aggregations.metrics.ParsedGeoBounds;
+import org.elasticsearch.search.aggregations.metrics.ParsedGeoCentroid;
+import org.elasticsearch.search.aggregations.metrics.ParsedHDRPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.ParsedHDRPercentiles;
+import org.elasticsearch.search.aggregations.metrics.ParsedMax;
+import org.elasticsearch.search.aggregations.metrics.ParsedMin;
+import org.elasticsearch.search.aggregations.metrics.ParsedScriptedMetric;
+import org.elasticsearch.search.aggregations.metrics.ParsedStats;
+import org.elasticsearch.search.aggregations.metrics.ParsedSum;
+import org.elasticsearch.search.aggregations.metrics.ParsedTDigestPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.ParsedTDigestPercentiles;
+import org.elasticsearch.search.aggregations.metrics.ParsedTopHits;
+import org.elasticsearch.search.aggregations.metrics.ParsedValueCount;
+import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
+import org.elasticsearch.search.aggregations.pipeline.ParsedSimpleValue;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValue;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.ParsedBucketMetricValue;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.ParsedPercentilesBucket;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.ParsedStatsBucket;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsBucketPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ParsedExtendedStatsBucket;
+import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.derivative.ParsedDerivative;
+import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
+import org.elasticsearch.search.suggest.term.TermSuggestion;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.ServiceLoader;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
+import static java.util.stream.Collectors.toList;
 
 /**
  * High level REST client that wraps an instance of the low level {@link RestClient} and allows to build requests and read responses.
@@ -100,8 +204,23 @@ import static java.util.Collections.singleton;
  */
 public class RestHighLevelClient implements Closeable {
 
-    final CoreClient coreClient;
+    private final RestClient client;
+    private final NamedXContentRegistry registry;
     private final CheckedConsumer<RestClient, IOException> doClose;
+
+    private final IndicesClient indicesClient = new IndicesClient(this);
+    private final ClusterClient clusterClient = new ClusterClient(this);
+    private final IngestClient ingestClient = new IngestClient(this);
+    private final SnapshotClient snapshotClient = new SnapshotClient(this);
+    private final TasksClient tasksClient = new TasksClient(this);
+    private final XPackClient xPackClient = new XPackClient(this);
+    private final WatcherClient watcherClient = new WatcherClient(this);
+    private final GraphClient graphClient = new GraphClient(this);
+    private final LicenseClient licenseClient = new LicenseClient(this);
+    private final MigrationClient migrationClient = new MigrationClient(this);
+    private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
+    private final SecurityClient securityClient = new SecurityClient(this);
+    private final RollupClient rollupClient = new RollupClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -128,27 +247,23 @@ public class RestHighLevelClient implements Closeable {
      */
     protected RestHighLevelClient(RestClient restClient, CheckedConsumer<RestClient, IOException> doClose,
                                   List<NamedXContentRegistry.Entry> namedXContentEntries) {
+        this.client = Objects.requireNonNull(restClient, "restClient must not be null");
         this.doClose = Objects.requireNonNull(doClose, "doClose consumer must not be null");
-        this.coreClient = new CoreClient(restClient, namedXContentEntries);
-    }
-
-    /**
-     * Build an area client.
-     */
-    protected final <T> T buildSubClient(Function<CoreClient, T> ctor) {
-        return ctor.apply(coreClient);
+        this.registry = new NamedXContentRegistry(
+                Stream.of(getDefaultNamedXContents().stream(), getProvidedNamedXContents().stream(), namedXContentEntries.stream())
+                    .flatMap(Function.identity()).collect(toList()));
     }
 
     /**
      * Returns the low-level client that the current high-level client instance is using to perform requests
      */
     public final RestClient getLowLevelClient() {
-        return coreClient.client;
+        return client;
     }
 
     @Override
-    public void close() throws IOException {
-        doClose.accept(coreClient.client);
+    public final void close() throws IOException {
+        doClose.accept(client);
     }
 
     /**
@@ -157,7 +272,7 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices.html">Indices API on elastic.co</a>
      */
     public final IndicesClient indices() {
-        return buildSubClient(IndicesClient::new);
+        return indicesClient;
     }
 
     /**
@@ -166,7 +281,7 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster.html">Cluster API on elastic.co</a>
      */
     public final ClusterClient cluster() {
-        return buildSubClient(ClusterClient::new);
+        return clusterClient;
     }
 
     /**
@@ -175,7 +290,7 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ingest.html">Ingest API on elastic.co</a>
      */
     public final IngestClient ingest() {
-        return buildSubClient(IngestClient::new);
+        return ingestClient;
     }
 
     /**
@@ -184,7 +299,7 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html">Snapshot API on elastic.co</a>
      */
     public final SnapshotClient snapshot() {
-        return buildSubClient(SnapshotClient::new);
+        return snapshotClient;
     }
 
     /**
@@ -196,7 +311,7 @@ public class RestHighLevelClient implements Closeable {
      * Watcher APIs on elastic.co</a> for more information.
      */
     public RollupClient rollup() {
-        return buildSubClient(RollupClient::new);
+        return rollupClient;
     }
 
     /**
@@ -205,7 +320,7 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html">Task Management API on elastic.co</a>
      */
     public final TasksClient tasks() {
-        return buildSubClient(TasksClient::new);
+        return tasksClient;
     }
 
     /**
@@ -218,7 +333,7 @@ public class RestHighLevelClient implements Closeable {
      * Info APIs on elastic.co</a> for more information.
      */
     public final XPackClient xpack() {
-        return buildSubClient(XPackClient::new);
+        return xPackClient;
     }
 
     /**
@@ -229,7 +344,7 @@ public class RestHighLevelClient implements Closeable {
      * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api.html">
      * Watcher APIs on elastic.co</a> for more information.
      */
-    public WatcherClient watcher() { return buildSubClient(WatcherClient::new); }
+    public WatcherClient watcher() { return watcherClient; }
 
     /**
      * Provides methods for accessing the Elastic Licensed Graph explore API that
@@ -239,7 +354,7 @@ public class RestHighLevelClient implements Closeable {
      * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/graph-explore-api.html">
      * Graph API on elastic.co</a> for more information.
      */
-    public GraphClient graph() { return buildSubClient(GraphClient::new); }
+    public GraphClient graph() { return graphClient; }
 
     /**
      * Provides methods for accessing the Elastic Licensed Licensing APIs that
@@ -249,7 +364,7 @@ public class RestHighLevelClient implements Closeable {
      * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/licensing-apis.html">
      * Licensing APIs on elastic.co</a> for more information.
      */
-    public LicenseClient license() { return buildSubClient(LicenseClient::new); }
+    public LicenseClient license() { return licenseClient; }
 
     /**
      * Provides methods for accessing the Elastic Licensed Licensing APIs that
@@ -260,7 +375,7 @@ public class RestHighLevelClient implements Closeable {
      * Migration APIs on elastic.co</a> for more information.
      */
     public MigrationClient migration() {
-        return buildSubClient(MigrationClient::new);
+        return migrationClient;
     }
 
     /**
@@ -274,7 +389,7 @@ public class RestHighLevelClient implements Closeable {
      * @return the client wrapper for making Machine Learning API calls
      */
     public MachineLearningClient machineLearning() {
-        return buildSubClient(MachineLearningClient::new);
+        return machineLearningClient;
     }
 
     /**
@@ -288,7 +403,7 @@ public class RestHighLevelClient implements Closeable {
      * @return the client wrapper for making Security API calls
      */
     public SecurityClient security() {
-        return buildSubClient(SecurityClient::new);
+        return securityClient;
     }
 
     /**
@@ -300,8 +415,7 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final BulkResponse bulk(BulkRequest bulkRequest, RequestOptions options) throws IOException {
-        return coreClient.performRequestAndParseEntity(bulkRequest, RequestConverters::bulk, options, BulkResponse::fromXContent,
-            emptySet());
+        return performRequestAndParseEntity(bulkRequest, RequestConverters::bulk, options, BulkResponse::fromXContent, emptySet());
     }
 
     /**
@@ -312,8 +426,7 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      */
     public final void bulkAsync(BulkRequest bulkRequest, RequestOptions options, ActionListener<BulkResponse> listener) {
-        coreClient.performRequestAsyncAndParseEntity(bulkRequest, RequestConverters::bulk, options, BulkResponse::fromXContent, listener,
-            emptySet());
+        performRequestAsyncAndParseEntity(bulkRequest, RequestConverters::bulk, options, BulkResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -325,7 +438,7 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final BulkByScrollResponse reindex(ReindexRequest reindexRequest, RequestOptions options) throws IOException {
-        return coreClient.performRequestAndParseEntity(
+        return performRequestAndParseEntity(
             reindexRequest, RequestConverters::reindex, options, BulkByScrollResponse::fromXContent, emptySet()
         );
     }
@@ -338,7 +451,7 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      */
     public final void reindexAsync(ReindexRequest reindexRequest, RequestOptions options, ActionListener<BulkByScrollResponse> listener) {
-        coreClient.performRequestAsyncAndParseEntity(
+        performRequestAsyncAndParseEntity(
             reindexRequest, RequestConverters::reindex, options, BulkByScrollResponse::fromXContent, listener, emptySet()
         );
     }
@@ -353,7 +466,7 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final BulkByScrollResponse updateByQuery(UpdateByQueryRequest updateByQueryRequest, RequestOptions options) throws IOException {
-        return coreClient.performRequestAndParseEntity(
+        return performRequestAndParseEntity(
             updateByQueryRequest, RequestConverters::updateByQuery, options, BulkByScrollResponse::fromXContent, emptySet()
         );
     }
@@ -368,7 +481,7 @@ public class RestHighLevelClient implements Closeable {
      */
     public final void updateByQueryAsync(UpdateByQueryRequest updateByQueryRequest, RequestOptions options,
                                    ActionListener<BulkByScrollResponse> listener) {
-        coreClient.performRequestAsyncAndParseEntity(
+        performRequestAsyncAndParseEntity(
                 updateByQueryRequest, RequestConverters::updateByQuery, options, BulkByScrollResponse::fromXContent, listener, emptySet()
         );
     }
@@ -383,7 +496,7 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final BulkByScrollResponse deleteByQuery(DeleteByQueryRequest deleteByQueryRequest, RequestOptions options) throws IOException {
-        return coreClient.performRequestAndParseEntity(
+        return performRequestAndParseEntity(
             deleteByQueryRequest, RequestConverters::deleteByQuery, options, BulkByScrollResponse::fromXContent, emptySet()
         );
     }
@@ -398,7 +511,7 @@ public class RestHighLevelClient implements Closeable {
      */
     public final void deleteByQueryAsync(DeleteByQueryRequest deleteByQueryRequest, RequestOptions options,
                                          ActionListener<BulkByScrollResponse> listener) {
-        coreClient.performRequestAsyncAndParseEntity(
+        performRequestAsyncAndParseEntity(
                 deleteByQueryRequest, RequestConverters::deleteByQuery, options, BulkByScrollResponse::fromXContent, listener, emptySet()
         );
     }
@@ -413,8 +526,8 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final ListTasksResponse reindexRethrottle(RethrottleRequest rethrottleRequest, RequestOptions options) throws IOException {
-        return coreClient.performRequestAndParseEntity(rethrottleRequest, RequestConverters::rethrottle, options,
-            ListTasksResponse::fromXContent, emptySet());
+        return performRequestAndParseEntity(rethrottleRequest, RequestConverters::rethrottle, options, ListTasksResponse::fromXContent,
+                emptySet());
     }
 
     /**
@@ -427,8 +540,8 @@ public class RestHighLevelClient implements Closeable {
      */
     public final void reindexRethrottleAsync(RethrottleRequest rethrottleRequest, RequestOptions options,
             ActionListener<ListTasksResponse> listener) {
-        coreClient.performRequestAsyncAndParseEntity(rethrottleRequest, RequestConverters::rethrottle, options,
-            ListTasksResponse::fromXContent, listener, emptySet());
+        performRequestAsyncAndParseEntity(rethrottleRequest, RequestConverters::rethrottle, options, ListTasksResponse::fromXContent,
+                listener, emptySet());
     }
 
     /**
@@ -438,8 +551,8 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request
      */
     public final boolean ping(RequestOptions options) throws IOException {
-        return coreClient.performRequest(new MainRequest(), (request) -> RequestConverters.ping(), options,
-            CoreClient::convertExistsResponse, emptySet());
+        return performRequest(new MainRequest(), (request) -> RequestConverters.ping(), options, RestHighLevelClient::convertExistsResponse,
+                emptySet());
     }
 
     /**
@@ -449,7 +562,7 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final MainResponse info(RequestOptions options) throws IOException {
-        return coreClient.performRequestAndParseEntity(new MainRequest(), (request) -> RequestConverters.info(), options,
+        return performRequestAndParseEntity(new MainRequest(), (request) -> RequestConverters.info(), options,
                 MainResponse::fromXContent, emptySet());
     }
 
@@ -462,8 +575,7 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final GetResponse get(GetRequest getRequest, RequestOptions options) throws IOException {
-        return coreClient.performRequestAndParseEntity(getRequest, RequestConverters::get, options, GetResponse::fromXContent,
-            singleton(404));
+        return performRequestAndParseEntity(getRequest, RequestConverters::get, options, GetResponse::fromXContent, singleton(404));
     }
 
     /**
@@ -474,7 +586,7 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      */
     public final void getAsync(GetRequest getRequest, RequestOptions options, ActionListener<GetResponse> listener) {
-        coreClient.performRequestAsyncAndParseEntity(getRequest, RequestConverters::get, options, GetResponse::fromXContent, listener,
+        performRequestAsyncAndParseEntity(getRequest, RequestConverters::get, options, GetResponse::fromXContent, listener,
                 singleton(404));
     }
 
@@ -502,8 +614,8 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final MultiGetResponse mget(MultiGetRequest multiGetRequest, RequestOptions options) throws IOException {
-        return coreClient.performRequestAndParseEntity(multiGetRequest, RequestConverters::multiGet, options,
-            MultiGetResponse::fromXContent, singleton(404));
+        return performRequestAndParseEntity(multiGetRequest, RequestConverters::multiGet, options, MultiGetResponse::fromXContent,
+                singleton(404));
     }
 
     /**
@@ -527,8 +639,8 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      */
     public final void mgetAsync(MultiGetRequest multiGetRequest, RequestOptions options, ActionListener<MultiGetResponse> listener) {
-        coreClient.performRequestAsyncAndParseEntity(multiGetRequest, RequestConverters::multiGet, options, MultiGetResponse::fromXContent,
-            listener, singleton(404));
+        performRequestAsyncAndParseEntity(multiGetRequest, RequestConverters::multiGet, options, MultiGetResponse::fromXContent, listener,
+                singleton(404));
     }
 
     /**
@@ -540,7 +652,7 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request
      */
     public final boolean exists(GetRequest getRequest, RequestOptions options) throws IOException {
-        return coreClient.performRequest(getRequest, RequestConverters::exists, options, CoreClient::convertExistsResponse, emptySet());
+        return performRequest(getRequest, RequestConverters::exists, options, RestHighLevelClient::convertExistsResponse, emptySet());
     }
 
     /**
@@ -551,7 +663,7 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      */
     public final void existsAsync(GetRequest getRequest, RequestOptions options, ActionListener<Boolean> listener) {
-        coreClient.performRequestAsync(getRequest, RequestConverters::exists, options, CoreClient::convertExistsResponse, listener,
+        performRequestAsync(getRequest, RequestConverters::exists, options, RestHighLevelClient::convertExistsResponse, listener,
                 emptySet());
     }
 
@@ -564,8 +676,7 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final IndexResponse index(IndexRequest indexRequest, RequestOptions options) throws IOException {
-        return coreClient.performRequestAndParseEntity(indexRequest, RequestConverters::index, options, IndexResponse::fromXContent,
-            emptySet());
+        return performRequestAndParseEntity(indexRequest, RequestConverters::index, options, IndexResponse::fromXContent, emptySet());
     }
 
     /**
@@ -576,7 +687,7 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      */
     public final void indexAsync(IndexRequest indexRequest, RequestOptions options, ActionListener<IndexResponse> listener) {
-        coreClient.performRequestAsyncAndParseEntity(indexRequest, RequestConverters::index, options, IndexResponse::fromXContent, listener,
+        performRequestAsyncAndParseEntity(indexRequest, RequestConverters::index, options, IndexResponse::fromXContent, listener,
                 emptySet());
     }
 
@@ -589,8 +700,7 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final UpdateResponse update(UpdateRequest updateRequest, RequestOptions options) throws IOException {
-        return coreClient.performRequestAndParseEntity(updateRequest, RequestConverters::update, options, UpdateResponse::fromXContent,
-            emptySet());
+        return performRequestAndParseEntity(updateRequest, RequestConverters::update, options, UpdateResponse::fromXContent, emptySet());
     }
 
     /**
@@ -601,8 +711,8 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      */
     public final void updateAsync(UpdateRequest updateRequest, RequestOptions options, ActionListener<UpdateResponse> listener) {
-        coreClient.performRequestAsyncAndParseEntity(updateRequest, RequestConverters::update, options, UpdateResponse::fromXContent,
-            listener, emptySet());
+        performRequestAsyncAndParseEntity(updateRequest, RequestConverters::update, options, UpdateResponse::fromXContent, listener,
+                emptySet());
     }
 
     /**
@@ -614,7 +724,7 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final DeleteResponse delete(DeleteRequest deleteRequest, RequestOptions options) throws IOException {
-        return coreClient.performRequestAndParseEntity(deleteRequest, RequestConverters::delete, options, DeleteResponse::fromXContent,
+        return performRequestAndParseEntity(deleteRequest, RequestConverters::delete, options, DeleteResponse::fromXContent,
                 singleton(404));
     }
 
@@ -626,8 +736,8 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      */
     public final void deleteAsync(DeleteRequest deleteRequest, RequestOptions options, ActionListener<DeleteResponse> listener) {
-        coreClient.performRequestAsyncAndParseEntity(deleteRequest, RequestConverters::delete, options, DeleteResponse::fromXContent,
-            listener, Collections.singleton(404));
+        performRequestAsyncAndParseEntity(deleteRequest, RequestConverters::delete, options, DeleteResponse::fromXContent, listener,
+            Collections.singleton(404));
     }
 
     /**
@@ -639,8 +749,7 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final SearchResponse search(SearchRequest searchRequest, RequestOptions options) throws IOException {
-        return coreClient.performRequestAndParseEntity(searchRequest, RequestConverters::search, options, SearchResponse::fromXContent,
-            emptySet());
+        return performRequestAndParseEntity(searchRequest, RequestConverters::search, options, SearchResponse::fromXContent, emptySet());
     }
 
     /**
@@ -651,8 +760,8 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      */
     public final void searchAsync(SearchRequest searchRequest, RequestOptions options, ActionListener<SearchResponse> listener) {
-        coreClient.performRequestAsyncAndParseEntity(searchRequest, RequestConverters::search, options, SearchResponse::fromXContent,
-            listener, emptySet());
+        performRequestAsyncAndParseEntity(searchRequest, RequestConverters::search, options, SearchResponse::fromXContent, listener,
+                emptySet());
     }
 
     /**
@@ -680,8 +789,8 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final MultiSearchResponse msearch(MultiSearchRequest multiSearchRequest, RequestOptions options) throws IOException {
-        return coreClient.performRequestAndParseEntity(multiSearchRequest, RequestConverters::multiSearch, options,
-            MultiSearchResponse::fromXContext, emptySet());
+        return performRequestAndParseEntity(multiSearchRequest, RequestConverters::multiSearch, options, MultiSearchResponse::fromXContext,
+                emptySet());
     }
 
     /**
@@ -709,8 +818,8 @@ public class RestHighLevelClient implements Closeable {
      */
     public final void msearchAsync(MultiSearchRequest searchRequest, RequestOptions options,
                                    ActionListener<MultiSearchResponse> listener) {
-        coreClient.performRequestAsyncAndParseEntity(searchRequest, RequestConverters::multiSearch, options,
-            MultiSearchResponse::fromXContext, listener, emptySet());
+        performRequestAsyncAndParseEntity(searchRequest, RequestConverters::multiSearch, options, MultiSearchResponse::fromXContext,
+                listener, emptySet());
     }
 
     /**
@@ -738,8 +847,8 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final SearchResponse scroll(SearchScrollRequest searchScrollRequest, RequestOptions options) throws IOException {
-        return coreClient.performRequestAndParseEntity(searchScrollRequest, RequestConverters::searchScroll, options,
-            SearchResponse::fromXContent, emptySet());
+        return performRequestAndParseEntity(searchScrollRequest, RequestConverters::searchScroll, options, SearchResponse::fromXContent,
+                emptySet());
     }
 
     /**
@@ -767,8 +876,8 @@ public class RestHighLevelClient implements Closeable {
      */
     public final void scrollAsync(SearchScrollRequest searchScrollRequest, RequestOptions options,
                                   ActionListener<SearchResponse> listener) {
-        coreClient.performRequestAsyncAndParseEntity(searchScrollRequest, RequestConverters::searchScroll, options,
-            SearchResponse::fromXContent, listener, emptySet());
+        performRequestAsyncAndParseEntity(searchScrollRequest, RequestConverters::searchScroll, options, SearchResponse::fromXContent,
+                listener, emptySet());
     }
 
     /**
@@ -781,8 +890,8 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final ClearScrollResponse clearScroll(ClearScrollRequest clearScrollRequest, RequestOptions options) throws IOException {
-        return coreClient.performRequestAndParseEntity(clearScrollRequest, RequestConverters::clearScroll, options,
-            ClearScrollResponse::fromXContent, emptySet());
+        return performRequestAndParseEntity(clearScrollRequest, RequestConverters::clearScroll, options, ClearScrollResponse::fromXContent,
+                emptySet());
     }
 
     /**
@@ -795,8 +904,8 @@ public class RestHighLevelClient implements Closeable {
      */
     public final void clearScrollAsync(ClearScrollRequest clearScrollRequest, RequestOptions options,
                                        ActionListener<ClearScrollResponse> listener) {
-        coreClient.performRequestAsyncAndParseEntity(clearScrollRequest, RequestConverters::clearScroll, options,
-            ClearScrollResponse::fromXContent, listener, emptySet());
+        performRequestAsyncAndParseEntity(clearScrollRequest, RequestConverters::clearScroll, options, ClearScrollResponse::fromXContent,
+                listener, emptySet());
     }
 
     /**
@@ -810,7 +919,7 @@ public class RestHighLevelClient implements Closeable {
      */
     public final SearchTemplateResponse searchTemplate(SearchTemplateRequest searchTemplateRequest,
                                                        RequestOptions options) throws IOException {
-        return coreClient.performRequestAndParseEntity(searchTemplateRequest, RequestConverters::searchTemplate, options,
+        return performRequestAndParseEntity(searchTemplateRequest, RequestConverters::searchTemplate, options,
             SearchTemplateResponse::fromXContent, emptySet());
     }
 
@@ -822,7 +931,7 @@ public class RestHighLevelClient implements Closeable {
      */
     public final void searchTemplateAsync(SearchTemplateRequest searchTemplateRequest, RequestOptions options,
                                           ActionListener<SearchTemplateResponse> listener) {
-        coreClient.performRequestAsyncAndParseEntity(searchTemplateRequest, RequestConverters::searchTemplate, options,
+        performRequestAsyncAndParseEntity(searchTemplateRequest, RequestConverters::searchTemplate, options,
             SearchTemplateResponse::fromXContent, listener, emptySet());
     }
 
@@ -835,11 +944,11 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final ExplainResponse explain(ExplainRequest explainRequest, RequestOptions options) throws IOException {
-        return coreClient.performRequest(explainRequest, RequestConverters::explain, options,
+        return performRequest(explainRequest, RequestConverters::explain, options,
             response -> {
                 CheckedFunction<XContentParser, ExplainResponse, IOException> entityParser =
-                    parser -> ExplainResponse.fromXContent(parser, CoreClient.convertExistsResponse(response));
-                return coreClient.parseEntity(response.getEntity(), entityParser);
+                    parser -> ExplainResponse.fromXContent(parser, convertExistsResponse(response));
+                return parseEntity(response.getEntity(), entityParser);
             },
             singleton(404));
     }
@@ -853,11 +962,11 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      */
     public final void explainAsync(ExplainRequest explainRequest, RequestOptions options, ActionListener<ExplainResponse> listener) {
-        coreClient.performRequestAsync(explainRequest, RequestConverters::explain, options,
+        performRequestAsync(explainRequest, RequestConverters::explain, options,
             response -> {
                 CheckedFunction<XContentParser, ExplainResponse, IOException> entityParser =
-                    parser -> ExplainResponse.fromXContent(parser, CoreClient.convertExistsResponse(response));
-                return coreClient.parseEntity(response.getEntity(), entityParser);
+                    parser -> ExplainResponse.fromXContent(parser, convertExistsResponse(response));
+                return parseEntity(response.getEntity(), entityParser);
             },
             listener, singleton(404));
     }
@@ -872,8 +981,8 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final RankEvalResponse rankEval(RankEvalRequest rankEvalRequest, RequestOptions options) throws IOException {
-        return coreClient.performRequestAndParseEntity(rankEvalRequest, RequestConverters::rankEval, options,
-            RankEvalResponse::fromXContent, emptySet());
+        return performRequestAndParseEntity(rankEvalRequest, RequestConverters::rankEval, options, RankEvalResponse::fromXContent,
+                emptySet());
     }
 
 
@@ -885,7 +994,7 @@ public class RestHighLevelClient implements Closeable {
      */
     public final MultiSearchTemplateResponse msearchTemplate(MultiSearchTemplateRequest multiSearchTemplateRequest,
                                                              RequestOptions options) throws IOException {
-        return coreClient.performRequestAndParseEntity(multiSearchTemplateRequest, RequestConverters::multiSearchTemplate,
+        return performRequestAndParseEntity(multiSearchTemplateRequest, RequestConverters::multiSearchTemplate,
                 options, MultiSearchTemplateResponse::fromXContext, emptySet());
     }
 
@@ -898,7 +1007,7 @@ public class RestHighLevelClient implements Closeable {
     public final void msearchTemplateAsync(MultiSearchTemplateRequest multiSearchTemplateRequest,
                                            RequestOptions options,
                                            ActionListener<MultiSearchTemplateResponse> listener) {
-        coreClient.performRequestAsyncAndParseEntity(multiSearchTemplateRequest, RequestConverters::multiSearchTemplate,
+        performRequestAsyncAndParseEntity(multiSearchTemplateRequest, RequestConverters::multiSearchTemplate,
             options, MultiSearchTemplateResponse::fromXContext, listener, emptySet());
     }
 
@@ -911,8 +1020,8 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      */
     public final void rankEvalAsync(RankEvalRequest rankEvalRequest, RequestOptions options,  ActionListener<RankEvalResponse> listener) {
-        coreClient.performRequestAsyncAndParseEntity(rankEvalRequest, RequestConverters::rankEval, options,  RankEvalResponse::fromXContent,
-            listener, emptySet());
+        performRequestAsyncAndParseEntity(rankEvalRequest, RequestConverters::rankEval, options,  RankEvalResponse::fromXContent, listener,
+                emptySet());
     }
 
     /**
@@ -926,7 +1035,7 @@ public class RestHighLevelClient implements Closeable {
      */
     public final FieldCapabilitiesResponse fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest,
                                                      RequestOptions options) throws IOException {
-        return coreClient.performRequestAndParseEntity(fieldCapabilitiesRequest, RequestConverters::fieldCaps, options,
+        return performRequestAndParseEntity(fieldCapabilitiesRequest, RequestConverters::fieldCaps, options,
             FieldCapabilitiesResponse::fromXContent, emptySet());
     }
 
@@ -940,7 +1049,7 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public GetStoredScriptResponse getScript(GetStoredScriptRequest request, RequestOptions options) throws IOException {
-        return coreClient.performRequestAndParseEntity(request, RequestConverters::getScript, options,
+        return performRequestAndParseEntity(request, RequestConverters::getScript, options,
             GetStoredScriptResponse::fromXContent, emptySet());
     }
 
@@ -954,7 +1063,7 @@ public class RestHighLevelClient implements Closeable {
      */
     public void getScriptAsync(GetStoredScriptRequest request, RequestOptions options,
                                ActionListener<GetStoredScriptResponse> listener) {
-        coreClient.performRequestAsyncAndParseEntity(request, RequestConverters::getScript, options,
+        performRequestAsyncAndParseEntity(request, RequestConverters::getScript, options,
             GetStoredScriptResponse::fromXContent, listener, emptySet());
     }
 
@@ -968,7 +1077,7 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse deleteScript(DeleteStoredScriptRequest request, RequestOptions options) throws IOException {
-        return coreClient.performRequestAndParseEntity(request, RequestConverters::deleteScript, options,
+        return performRequestAndParseEntity(request, RequestConverters::deleteScript, options,
             AcknowledgedResponse::fromXContent, emptySet());
     }
 
@@ -982,7 +1091,7 @@ public class RestHighLevelClient implements Closeable {
      */
     public void deleteScriptAsync(DeleteStoredScriptRequest request, RequestOptions options,
                                   ActionListener<AcknowledgedResponse> listener) {
-        coreClient.performRequestAsyncAndParseEntity(request, RequestConverters::deleteScript, options,
+        performRequestAsyncAndParseEntity(request, RequestConverters::deleteScript, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -997,7 +1106,7 @@ public class RestHighLevelClient implements Closeable {
      */
     public AcknowledgedResponse putScript(PutStoredScriptRequest putStoredScriptRequest,
                                              RequestOptions options) throws IOException {
-        return coreClient.performRequestAndParseEntity(putStoredScriptRequest, RequestConverters::putScript, options,
+        return performRequestAndParseEntity(putStoredScriptRequest, RequestConverters::putScript, options,
             AcknowledgedResponse::fromXContent, emptySet());
     }
 
@@ -1011,7 +1120,7 @@ public class RestHighLevelClient implements Closeable {
      */
     public void putScriptAsync(PutStoredScriptRequest putStoredScriptRequest, RequestOptions options,
                                ActionListener<AcknowledgedResponse> listener) {
-        coreClient.performRequestAsyncAndParseEntity(putStoredScriptRequest, RequestConverters::putScript, options,
+        performRequestAsyncAndParseEntity(putStoredScriptRequest, RequestConverters::putScript, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -1025,7 +1134,352 @@ public class RestHighLevelClient implements Closeable {
      */
     public final void fieldCapsAsync(FieldCapabilitiesRequest fieldCapabilitiesRequest, RequestOptions options,
                                      ActionListener<FieldCapabilitiesResponse> listener) {
-        coreClient.performRequestAsyncAndParseEntity(fieldCapabilitiesRequest, RequestConverters::fieldCaps, options,
+        performRequestAsyncAndParseEntity(fieldCapabilitiesRequest, RequestConverters::fieldCaps, options,
             FieldCapabilitiesResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
+     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
+     */
+    @Deprecated
+    protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
+                                                                            CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                            RequestOptions options,
+                                                                            CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                                                                            Set<Integer> ignores) throws IOException {
+        return performRequest(request, requestConverter, options,
+                response -> parseEntity(response.getEntity(), entityParser), ignores);
+    }
+
+    /**
+     * Defines a helper method for performing a request and then parsing the returned entity using the provided entityParser.
+     */
+    protected final <Req extends Validatable, Resp> Resp performRequestAndParseEntity(Req request,
+                                                                  CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                  RequestOptions options,
+                                                                  CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                                                                  Set<Integer> ignores) throws IOException {
+        return performRequest(request, requestConverter, options,
+                response -> parseEntity(response.getEntity(), entityParser), ignores);
+    }
+
+    /**
+     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
+     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
+     */
+    @Deprecated
+    protected final <Req extends ActionRequest, Resp> Resp performRequest(Req request,
+                                                                           CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                           RequestOptions options,
+                                                                           CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                                           Set<Integer> ignores) throws IOException {
+        ActionRequestValidationException validationException = request.validate();
+        if (validationException != null && validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
+        return internalPerformRequest(request, requestConverter, options, responseConverter, ignores);
+    }
+
+    /**
+     * Defines a helper method for performing a request.
+     */
+    protected final <Req extends Validatable, Resp> Resp performRequest(Req request,
+                                                             CheckedFunction<Req, Request, IOException> requestConverter,
+                                                             RequestOptions options,
+                                                             CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                             Set<Integer> ignores) throws IOException {
+        Optional<ValidationException> validationException = request.validate();
+        if (validationException != null && validationException.isPresent()) {
+            throw validationException.get();
+        }
+        return internalPerformRequest(request, requestConverter, options, responseConverter, ignores);
+    }
+
+    /**
+     * Provides common functionality for performing a request.
+     */
+    private <Req, Resp> Resp internalPerformRequest(Req request,
+                                            CheckedFunction<Req, Request, IOException> requestConverter,
+                                            RequestOptions options,
+                                            CheckedFunction<Response, Resp, IOException> responseConverter,
+                                            Set<Integer> ignores) throws IOException {
+        Request req = requestConverter.apply(request);
+        req.setOptions(options);
+        Response response;
+        try {
+            response = client.performRequest(req);
+        } catch (ResponseException e) {
+            if (ignores.contains(e.getResponse().getStatusLine().getStatusCode())) {
+                try {
+                    return responseConverter.apply(e.getResponse());
+                } catch (Exception innerException) {
+                    // the exception is ignored as we now try to parse the response as an error.
+                    // this covers cases like get where 404 can either be a valid document not found response,
+                    // or an error for which parsing is completely different. We try to consider the 404 response as a valid one
+                    // first. If parsing of the response breaks, we fall back to parsing it as an error.
+                    throw parseResponseException(e);
+                }
+            }
+            throw parseResponseException(e);
+        }
+
+        try {
+            return responseConverter.apply(response);
+        } catch(Exception e) {
+            throw new IOException("Unable to parse response body for " + response, e);
+        }
+    }
+
+    /**
+     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
+     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
+     */
+    @Deprecated
+    protected final <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
+                                                                         CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                         RequestOptions options,
+                                                                         CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                                                                         ActionListener<Resp> listener, Set<Integer> ignores) {
+        performRequestAsync(request, requestConverter, options,
+                response -> parseEntity(response.getEntity(), entityParser), listener, ignores);
+    }
+
+    /**
+     * Defines a helper method for asynchronously performing a request.
+     */
+    protected final <Req extends Validatable, Resp> void performRequestAsyncAndParseEntity(Req request,
+                                                                       CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                       RequestOptions options,
+                                                                       CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                                                                       ActionListener<Resp> listener, Set<Integer> ignores) {
+        performRequestAsync(request, requestConverter, options,
+                response -> parseEntity(response.getEntity(), entityParser), listener, ignores);
+    }
+
+
+    /**
+     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
+     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
+     */
+    @Deprecated
+    protected final <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
+                                                                            CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                            RequestOptions options,
+                                                                            CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                                            ActionListener<Resp> listener, Set<Integer> ignores) {
+        ActionRequestValidationException validationException = request.validate();
+        if (validationException != null && validationException.validationErrors().isEmpty() == false) {
+            listener.onFailure(validationException);
+            return;
+        }
+        internalPerformRequestAsync(request, requestConverter, options, responseConverter, listener, ignores);
+    }
+
+    /**
+     * Defines a helper method for asynchronously performing a request.
+     */
+    protected final <Req extends Validatable, Resp> void performRequestAsync(Req request,
+                                                                          CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                          RequestOptions options,
+                                                                          CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                                          ActionListener<Resp> listener, Set<Integer> ignores) {
+        Optional<ValidationException> validationException = request.validate();
+        if (validationException != null && validationException.isPresent()) {
+            listener.onFailure(validationException.get());
+            return;
+        }
+        internalPerformRequestAsync(request, requestConverter, options, responseConverter, listener, ignores);
+    }
+
+    /**
+     * Provides common functionality for asynchronously performing a request.
+     */
+    private <Req, Resp> void internalPerformRequestAsync(Req request,
+                                                 CheckedFunction<Req, Request, IOException> requestConverter,
+                                                 RequestOptions options,
+                                                 CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                 ActionListener<Resp> listener, Set<Integer> ignores) {
+        Request req;
+        try {
+            req = requestConverter.apply(request);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        req.setOptions(options);
+
+        ResponseListener responseListener = wrapResponseListener(responseConverter, listener, ignores);
+        client.performRequestAsync(req, responseListener);
+    }
+
+
+    final <Resp> ResponseListener wrapResponseListener(CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                        ActionListener<Resp> actionListener, Set<Integer> ignores) {
+        return new ResponseListener() {
+            @Override
+            public void onSuccess(Response response) {
+                try {
+                    actionListener.onResponse(responseConverter.apply(response));
+                } catch(Exception e) {
+                    IOException ioe = new IOException("Unable to parse response body for " + response, e);
+                    onFailure(ioe);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                if (exception instanceof ResponseException) {
+                    ResponseException responseException = (ResponseException) exception;
+                    Response response = responseException.getResponse();
+                    if (ignores.contains(response.getStatusLine().getStatusCode())) {
+                        try {
+                            actionListener.onResponse(responseConverter.apply(response));
+                        } catch (Exception innerException) {
+                            // the exception is ignored as we now try to parse the response as an error.
+                            // this covers cases like get where 404 can either be a valid document not found response,
+                            // or an error for which parsing is completely different. We try to consider the 404 response as a valid one
+                            // first. If parsing of the response breaks, we fall back to parsing it as an error.
+                            actionListener.onFailure(parseResponseException(responseException));
+                        }
+                    } else {
+                        actionListener.onFailure(parseResponseException(responseException));
+                    }
+                } else {
+                    actionListener.onFailure(exception);
+                }
+            }
+        };
+    }
+
+    /**
+     * Converts a {@link ResponseException} obtained from the low level REST client into an {@link ElasticsearchException}.
+     * If a response body was returned, tries to parse it as an error returned from Elasticsearch.
+     * If no response body was returned or anything goes wrong while parsing the error, returns a new {@link ElasticsearchStatusException}
+     * that wraps the original {@link ResponseException}. The potential exception obtained while parsing is added to the returned
+     * exception as a suppressed exception. This method is guaranteed to not throw any exception eventually thrown while parsing.
+     */
+    protected final ElasticsearchStatusException parseResponseException(ResponseException responseException) {
+        Response response = responseException.getResponse();
+        HttpEntity entity = response.getEntity();
+        ElasticsearchStatusException elasticsearchException;
+        if (entity == null) {
+            elasticsearchException = new ElasticsearchStatusException(
+                    responseException.getMessage(), RestStatus.fromCode(response.getStatusLine().getStatusCode()), responseException);
+        } else {
+            try {
+                elasticsearchException = parseEntity(entity, BytesRestResponse::errorFromXContent);
+                elasticsearchException.addSuppressed(responseException);
+            } catch (Exception e) {
+                RestStatus restStatus = RestStatus.fromCode(response.getStatusLine().getStatusCode());
+                elasticsearchException = new ElasticsearchStatusException("Unable to parse response body", restStatus, responseException);
+                elasticsearchException.addSuppressed(e);
+            }
+        }
+        return elasticsearchException;
+    }
+
+    protected final <Resp> Resp parseEntity(final HttpEntity entity,
+                                      final CheckedFunction<XContentParser, Resp, IOException> entityParser) throws IOException {
+        if (entity == null) {
+            throw new IllegalStateException("Response body expected but not returned");
+        }
+        if (entity.getContentType() == null) {
+            throw new IllegalStateException("Elasticsearch didn't return the [Content-Type] header, unable to parse response body");
+        }
+        XContentType xContentType = XContentType.fromMediaTypeOrFormat(entity.getContentType().getValue());
+        if (xContentType == null) {
+            throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType().getValue());
+        }
+        try (XContentParser parser = xContentType.xContent().createParser(registry, DEPRECATION_HANDLER, entity.getContent())) {
+            return entityParser.apply(parser);
+        }
+    }
+
+    static boolean convertExistsResponse(Response response) {
+        return response.getStatusLine().getStatusCode() == 200;
+    }
+
+    /**
+     * Ignores deprecation warnings. This is appropriate because it is only
+     * used to parse responses from Elasticsearch. Any deprecation warnings
+     * emitted there just mean that you are talking to an old version of
+     * Elasticsearch. There isn't anything you can do about the deprecation.
+     */
+    private static final DeprecationHandler DEPRECATION_HANDLER = new DeprecationHandler() {
+        @Override
+        public void usedDeprecatedName(String usedName, String modernName) {}
+        @Override
+        public void usedDeprecatedField(String usedName, String replacedWith) {}
+    };
+
+    static List<NamedXContentRegistry.Entry> getDefaultNamedXContents() {
+        Map<String, ContextParser<Object, ? extends Aggregation>> map = new HashMap<>();
+        map.put(CardinalityAggregationBuilder.NAME, (p, c) -> ParsedCardinality.fromXContent(p, (String) c));
+        map.put(InternalHDRPercentiles.NAME, (p, c) -> ParsedHDRPercentiles.fromXContent(p, (String) c));
+        map.put(InternalHDRPercentileRanks.NAME, (p, c) -> ParsedHDRPercentileRanks.fromXContent(p, (String) c));
+        map.put(InternalTDigestPercentiles.NAME, (p, c) -> ParsedTDigestPercentiles.fromXContent(p, (String) c));
+        map.put(InternalTDigestPercentileRanks.NAME, (p, c) -> ParsedTDigestPercentileRanks.fromXContent(p, (String) c));
+        map.put(PercentilesBucketPipelineAggregationBuilder.NAME, (p, c) -> ParsedPercentilesBucket.fromXContent(p, (String) c));
+        map.put(MinAggregationBuilder.NAME, (p, c) -> ParsedMin.fromXContent(p, (String) c));
+        map.put(MaxAggregationBuilder.NAME, (p, c) -> ParsedMax.fromXContent(p, (String) c));
+        map.put(SumAggregationBuilder.NAME, (p, c) -> ParsedSum.fromXContent(p, (String) c));
+        map.put(AvgAggregationBuilder.NAME, (p, c) -> ParsedAvg.fromXContent(p, (String) c));
+        map.put(ValueCountAggregationBuilder.NAME, (p, c) -> ParsedValueCount.fromXContent(p, (String) c));
+        map.put(InternalSimpleValue.NAME, (p, c) -> ParsedSimpleValue.fromXContent(p, (String) c));
+        map.put(DerivativePipelineAggregationBuilder.NAME, (p, c) -> ParsedDerivative.fromXContent(p, (String) c));
+        map.put(InternalBucketMetricValue.NAME, (p, c) -> ParsedBucketMetricValue.fromXContent(p, (String) c));
+        map.put(StatsAggregationBuilder.NAME, (p, c) -> ParsedStats.fromXContent(p, (String) c));
+        map.put(StatsBucketPipelineAggregationBuilder.NAME, (p, c) -> ParsedStatsBucket.fromXContent(p, (String) c));
+        map.put(ExtendedStatsAggregationBuilder.NAME, (p, c) -> ParsedExtendedStats.fromXContent(p, (String) c));
+        map.put(ExtendedStatsBucketPipelineAggregationBuilder.NAME,
+                (p, c) -> ParsedExtendedStatsBucket.fromXContent(p, (String) c));
+        map.put(GeoBoundsAggregationBuilder.NAME, (p, c) -> ParsedGeoBounds.fromXContent(p, (String) c));
+        map.put(GeoCentroidAggregationBuilder.NAME, (p, c) -> ParsedGeoCentroid.fromXContent(p, (String) c));
+        map.put(HistogramAggregationBuilder.NAME, (p, c) -> ParsedHistogram.fromXContent(p, (String) c));
+        map.put(DateHistogramAggregationBuilder.NAME, (p, c) -> ParsedDateHistogram.fromXContent(p, (String) c));
+        map.put(AutoDateHistogramAggregationBuilder.NAME, (p, c) -> ParsedAutoDateHistogram.fromXContent(p, (String) c));
+        map.put(StringTerms.NAME, (p, c) -> ParsedStringTerms.fromXContent(p, (String) c));
+        map.put(LongTerms.NAME, (p, c) -> ParsedLongTerms.fromXContent(p, (String) c));
+        map.put(DoubleTerms.NAME, (p, c) -> ParsedDoubleTerms.fromXContent(p, (String) c));
+        map.put(MissingAggregationBuilder.NAME, (p, c) -> ParsedMissing.fromXContent(p, (String) c));
+        map.put(NestedAggregationBuilder.NAME, (p, c) -> ParsedNested.fromXContent(p, (String) c));
+        map.put(ReverseNestedAggregationBuilder.NAME, (p, c) -> ParsedReverseNested.fromXContent(p, (String) c));
+        map.put(GlobalAggregationBuilder.NAME, (p, c) -> ParsedGlobal.fromXContent(p, (String) c));
+        map.put(FilterAggregationBuilder.NAME, (p, c) -> ParsedFilter.fromXContent(p, (String) c));
+        map.put(InternalSampler.PARSER_NAME, (p, c) -> ParsedSampler.fromXContent(p, (String) c));
+        map.put(GeoGridAggregationBuilder.NAME, (p, c) -> ParsedGeoHashGrid.fromXContent(p, (String) c));
+        map.put(RangeAggregationBuilder.NAME, (p, c) -> ParsedRange.fromXContent(p, (String) c));
+        map.put(DateRangeAggregationBuilder.NAME, (p, c) -> ParsedDateRange.fromXContent(p, (String) c));
+        map.put(GeoDistanceAggregationBuilder.NAME, (p, c) -> ParsedGeoDistance.fromXContent(p, (String) c));
+        map.put(FiltersAggregationBuilder.NAME, (p, c) -> ParsedFilters.fromXContent(p, (String) c));
+        map.put(AdjacencyMatrixAggregationBuilder.NAME, (p, c) -> ParsedAdjacencyMatrix.fromXContent(p, (String) c));
+        map.put(SignificantLongTerms.NAME, (p, c) -> ParsedSignificantLongTerms.fromXContent(p, (String) c));
+        map.put(SignificantStringTerms.NAME, (p, c) -> ParsedSignificantStringTerms.fromXContent(p, (String) c));
+        map.put(ScriptedMetricAggregationBuilder.NAME, (p, c) -> ParsedScriptedMetric.fromXContent(p, (String) c));
+        map.put(IpRangeAggregationBuilder.NAME, (p, c) -> ParsedBinaryRange.fromXContent(p, (String) c));
+        map.put(TopHitsAggregationBuilder.NAME, (p, c) -> ParsedTopHits.fromXContent(p, (String) c));
+        map.put(CompositeAggregationBuilder.NAME, (p, c) -> ParsedComposite.fromXContent(p, (String) c));
+        List<NamedXContentRegistry.Entry> entries = map.entrySet().stream()
+                .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
+                .collect(Collectors.toList());
+        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(TermSuggestionBuilder.SUGGESTION_NAME),
+                (parser, context) -> TermSuggestion.fromXContent(parser, (String)context)));
+        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(PhraseSuggestionBuilder.SUGGESTION_NAME),
+                (parser, context) -> PhraseSuggestion.fromXContent(parser, (String)context)));
+        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(CompletionSuggestionBuilder.SUGGESTION_NAME),
+                (parser, context) -> CompletionSuggestion.fromXContent(parser, (String)context)));
+        return entries;
+    }
+
+    /**
+     * Loads and returns the {@link NamedXContentRegistry.Entry} parsers provided by plugins.
+     */
+    static List<NamedXContentRegistry.Entry> getProvidedNamedXContents() {
+        List<NamedXContentRegistry.Entry> entries = new ArrayList<>();
+        for (NamedXContentProvider service : ServiceLoader.load(NamedXContentProvider.class)) {
+            entries.addAll(service.getNamedXContentParsers());
+        }
+        return entries;
     }
 }

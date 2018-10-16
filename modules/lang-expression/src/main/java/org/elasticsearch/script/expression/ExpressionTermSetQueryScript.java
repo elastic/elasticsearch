@@ -38,13 +38,11 @@ class ExpressionTermSetQueryScript implements TermsSetQueryScript.LeafFactory {
     final Expression exprScript;
     final SimpleBindings bindings;
     final DoubleValuesSource source;
-    final ReplaceableConstDoubleValueSource specialValue; // _value
 
-    ExpressionTermSetQueryScript(Expression e, SimpleBindings b, ReplaceableConstDoubleValueSource v) {
+    ExpressionTermSetQueryScript(Expression e, SimpleBindings b) {
         exprScript = e;
         bindings = b;
         source = exprScript.getDoubleValuesSource(bindings);
-        specialValue = v;
     }
 
     @Override

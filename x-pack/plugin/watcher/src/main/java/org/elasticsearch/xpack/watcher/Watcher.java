@@ -476,7 +476,6 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         settings.add(Setting.simpleString("xpack.watcher.input.search.default_timeout", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.transform.search.default_timeout", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.execution.scroll.timeout", Setting.Property.NodeScope));
-        settings.add(WatcherLifeCycleService.SETTING_REQUIRE_MANUAL_START);
 
         // bulk processor configuration
         settings.add(SETTING_BULK_ACTIONS);

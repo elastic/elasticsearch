@@ -65,7 +65,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     public static void initDefaultSettings() {
         if (SECURITY_DEFAULT_SETTINGS == null) {
             SECURITY_DEFAULT_SETTINGS =
-                    new SecuritySettingsSource(1, randomBoolean(), createTempDir(), ESIntegTestCase.Scope.SUITE);
+                    new SecuritySettingsSource(randomBoolean(), createTempDir(), ESIntegTestCase.Scope.SUITE);
         }
     }
 
@@ -235,7 +235,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     private class CustomSecuritySettingsSource extends SecuritySettingsSource {
 
         private CustomSecuritySettingsSource(boolean sslEnabled, Path configDir, ESIntegTestCase.Scope scope) {
-            super(1, sslEnabled, configDir, scope);
+            super(sslEnabled, configDir, scope);
         }
 
         @Override

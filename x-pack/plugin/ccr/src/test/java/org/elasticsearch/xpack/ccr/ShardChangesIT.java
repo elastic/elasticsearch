@@ -747,6 +747,71 @@ public class ShardChangesIT extends ESIntegTestCase {
         unfollowIndex("follower-index");
     }
 
+    public void testAddNewReplicasOnFollower() throws Exception {
+        int numberOfReplicas = between(0, 1);
+        internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + between(2, 3));
+        String leaderIndexSettings = getIndexSettings(1, numberOfReplicas,
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(client().admin().indices().prepareCreate("leader-index").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureGreen("leader-index");
+        PutFollowAction.Request follow = follow("leader-index", "follower-index");
+        client().execute(PutFollowAction.INSTANCE, follow).get();
+        ensureGreen("follower-index");
+        AtomicBoolean stopped = new AtomicBoolean();
+        Thread[] threads = new Thread[between(1, 8)];
+        AtomicInteger docID = new AtomicInteger();
+        boolean appendOnly = randomBoolean();
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                while (stopped.get() == false) {
+                    try {
+                        if (appendOnly) {
+                            String id = Integer.toString(docID.incrementAndGet());
+                            client().prepareIndex("leader-index", "doc", id).setSource("{\"f\":" + id + "}", XContentType.JSON).get();
+                        } else if (frequently()) {
+                            String id = Integer.toString(frequently() ? docID.incrementAndGet() : between(0, 100));
+                            client().prepareIndex("leader-index", "doc", id).setSource("{\"f\":" + id + "}", XContentType.JSON).get();
+                        } else {
+                            String id = Integer.toString(between(0, docID.get()));
+                            client().prepareDelete("leader-index", "doc", id).get();
+                        }
+                    } catch (Exception ex) {
+                        throw new AssertionError(ex);
+                    }
+                }
+            });
+            threads[i].start();
+        }
+        Thread flushOnFollower = new Thread(() -> {
+            while (stopped.get() == false) {
+                try {
+                    if (rarely()) {
+                        client().admin().indices().prepareFlush("follower-index").get();
+                    }
+                    if (rarely()) {
+                        client().admin().indices().prepareRefresh("follower-index").get();
+                    }
+                } catch (Exception ex) {
+                    throw new AssertionError(ex);
+                }
+            }
+        });
+        flushOnFollower.start();
+        atLeastDocsIndexed("follower-index", 50);
+        client().admin().indices().prepareUpdateSettings("follower-index")
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas + 1).build())
+            .get();
+        ensureGreen("follower-index");
+        atLeastDocsIndexed("follower-index", 100);
+        stopped.set(true);
+        flushOnFollower.join();
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        assertSameDocCount("leader-index", "follower-index");
+        unfollowIndex("follower-index");
+    }
+
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {
         return () -> {
             final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();

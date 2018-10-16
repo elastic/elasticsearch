@@ -279,33 +279,6 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         }
     }
 
-    public void testOutOfOrderOnFollower() throws Exception {
-        try (ReplicationGroup leaderGroup = createGroup(0);
-             ReplicationGroup followerGroup = createFollowGroup(0)) {
-            leaderGroup.startAll();
-            followerGroup.startAll();
-            leaderGroup.indexDocs(3); // doc#1, doc#2, doc#3
-            IndexShard leadingPrimary = leaderGroup.getPrimary();
-            Translog.Operation[] operations = ShardChangesAction.getOperations(leadingPrimary, leadingPrimary.getGlobalCheckpoint(),
-                0, 3, leadingPrimary.getHistoryUUID(), new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES));
-            // replicate doc#1 and doc#3 and flush
-            BulkShardOperationsRequest firstBulk = new BulkShardOperationsRequest(followerGroup.getPrimary().shardId(),
-                followerGroup.getPrimary().getHistoryUUID(), Arrays.asList(operations[0], operations[2]),
-                leadingPrimary.getMaxSeqNoOfUpdatesOrDeletes());
-            new CCRAction(firstBulk, new PlainActionFuture<>(), followerGroup).execute();
-            followerGroup.flush();
-            // replicate doc#2
-            BulkShardOperationsRequest secondBulk = new BulkShardOperationsRequest(followerGroup.getPrimary().shardId(),
-                followerGroup.getPrimary().getHistoryUUID(), Arrays.asList(operations[1]), leadingPrimary.getMaxSeqNoOfUpdatesOrDeletes());
-            new CCRAction(secondBulk, new PlainActionFuture<>(), followerGroup).execute();
-            followerGroup.syncGlobalCheckpoint();
-            // add a new replica
-            IndexShard newReplica = followerGroup.addReplica();
-            followerGroup.recoverReplica(newReplica);
-            followerGroup.assertAllEqual(3);
-        }
-    }
-
     @Override
     protected ReplicationGroup createGroup(int replicas, Settings settings) throws IOException {
         Settings newSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -332,7 +305,6 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
     private ReplicationGroup createFollowGroup(int replicas) throws IOException {
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        settingsBuilder.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true); // follower requires soft-deletes
         return createGroup(replicas, settingsBuilder.build());
     }
 

@@ -25,6 +25,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -61,6 +62,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.anyOf;
@@ -678,6 +680,50 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             for (IndexShard shard : shards) {
                 assertThat(shard.getMaxSeenAutoIdTimestamp(), equalTo(Math.max(maxTimestampOnReplica1, maxTimestampOnReplica2)));
             }
+        }
+    }
+
+    public void testAddNewReplicas() throws Exception {
+        try (ReplicationGroup shards = createGroup(between(0, 1))) {
+            shards.startAll();
+            Thread[] threads = new Thread[between(1, 8)];
+            AtomicBoolean isStopped = new AtomicBoolean();
+            boolean appendOnly = randomBoolean();
+            AtomicInteger docId = new AtomicInteger();
+            for (int i = 0; i < threads.length; i++) {
+                threads[i] = new Thread(() -> {
+                    while (isStopped.get() == false) {
+                        try {
+                            if (appendOnly) {
+                                String id = randomBoolean() ? Integer.toString(docId.incrementAndGet()) : null;
+                                shards.index(new IndexRequest(index.getName(), "type", id).source("{}", XContentType.JSON));
+                            } else if (frequently()) {
+                                String id = Integer.toString(frequently() ? docId.incrementAndGet() : between(0, 10));
+                                shards.index(new IndexRequest(index.getName(), "type", id).source("{}", XContentType.JSON));
+                            } else {
+                                String id = Integer.toString(between(0, docId.get()));
+                                shards.delete(new DeleteRequest(index.getName(), "type", id));
+                            }
+                            if (randomInt(100) < 10) {
+                                shards.getPrimary().flush(new FlushRequest());
+                            }
+                        } catch (Exception ex) {
+                            throw new AssertionError(ex);
+                        }
+                    }
+                });
+                threads[i].start();
+            }
+            assertBusy(() -> assertThat(docId.get(), greaterThanOrEqualTo(50)));
+            shards.getPrimary().sync();
+            IndexShard newReplica = shards.addReplica();
+            shards.recoverReplica(newReplica);
+            assertBusy(() -> assertThat(docId.get(), greaterThanOrEqualTo(100)));
+            isStopped.set(true);
+            for (Thread thread : threads) {
+                thread.join();
+            }
+            assertBusy(() -> assertThat(getDocIdAndSeqNos(newReplica), equalTo(getDocIdAndSeqNos(shards.getPrimary()))));
         }
     }
 

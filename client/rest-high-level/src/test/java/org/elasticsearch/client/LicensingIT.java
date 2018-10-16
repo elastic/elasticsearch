@@ -18,13 +18,23 @@
  */
 package org.elasticsearch.client;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.client.license.StartBasicRequest;
 import org.elasticsearch.client.license.StartBasicResponse;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.protocol.xpack.license.LicensesStatus;
+import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
+import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
+import org.junit.After;
+import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -34,10 +44,53 @@ import static org.hamcrest.Matchers.empty;
 
 public class LicensingIT extends ESRestHighLevelClientTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/33406")
-    public void testStartBasic() throws Exception {
-        // TODO: remove @AwaitsFix when a start trial license is implemented, and start trial licence after basic or in @AfterClass
+    @BeforeClass
+    public static void checkForSnapshot() {
+        assumeTrue("Trial license used to rollback is only valid when tested against snapshot/test builds",
+            Build.CURRENT.isSnapshot());
+    }
 
+    @After
+    public void rollbackToTrial() throws IOException {
+        putTrialLicense();
+    }
+
+    public static void putTrialLicense() throws IOException {
+        assumeTrue("Trial license is only valid when tested against snapshot/test builds",
+            Build.CURRENT.isSnapshot());
+
+        // use a hard-coded trial license for 20 yrs to be able to roll back from another licenses
+        final String licenseDefinition = Strings.toString(jsonBuilder()
+            .startObject()
+            .field("licenses", Arrays.asList(
+                MapBuilder.<String, Object>newMapBuilder()
+                    .put("uid", "96fc37c6-6fc9-43e2-a40d-73143850cd72")
+                    .put("type", "trial")
+                    // 2018-10-16 07:02:48 UTC
+                    .put("issue_date_in_millis", "1539673368158")
+                    // 2038-10-11 07:02:48 UTC, 20 yrs later
+                    .put("expiry_date_in_millis", "2170393368158")
+                    .put("max_nodes", "5")
+                    .put("issued_to", "client_rest-high-level_integTestCluster")
+                    .put("issuer", "elasticsearch")
+                    .put("start_date_in_millis", "-1")
+                    .put("signature",
+                        "AAAABAAAAA3FXON9kGmNqmH+ASDWAAAAIAo5/x6hrsGh1GqqrJmy4qgmEC7gK0U4zQ6q5ZEMhm4jAAABAAcdKHL0BfM2uqTgT7BDuFxX5lb"
+                        + "t/bHDVJ421Wwgm5p3IMbw/W13iiAHz0hhDziF7acJbc/y65L+BKGtVC1gSSHeLDHaAD66VrjKxfc7VbGyJIAYBOdujf0rheurmaD3IcNo"
+                        + "/tWDjCdtTwrNziFkorsGcPadBP5Yc6csk3/Q74DlfiYweMBxLUfkBERwxwd5OQS6ujGvl/4bb8p5zXvOw8vMSaAXSXXnExP6lam+0934W"
+                        + "0kHvU7IGk+fCUjOaiSWKSoE4TEcAtVNYj/oRoRtfQ1KQGpdCHxTHs1BimdZaG0nBHDsvhYlVVLSvHN6QzqsHWgFDG6JJxhtU872oTRSUHA=")
+                    .immutableMap()))
+            .endObject());
+
+        final PutLicenseRequest request = new PutLicenseRequest();
+        request.setAcknowledge(true);
+        request.setLicenseDefinition(licenseDefinition);
+        final PutLicenseResponse response = highLevelClient().license().putLicense(request, RequestOptions.DEFAULT);
+        assertThat(response.isAcknowledged(), equalTo(true));
+        assertThat(response.status(), equalTo(LicensesStatus.VALID));
+    }
+
+    public void testStartBasic() throws Exception {
         // we don't test the case where we successfully start a basic because the integ test cluster generates one on startup
         // and we don't have a good way to prevent that / work around it in this test project
         // case where we don't acknowledge basic license conditions

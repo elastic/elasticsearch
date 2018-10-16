@@ -21,15 +21,15 @@ package org.elasticsearch.client;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.license.GetLicenseRequest;
 import org.elasticsearch.client.license.GetLicenseResponse;
+import org.elasticsearch.client.license.LicensesStatus;
+import org.elasticsearch.client.license.PutLicenseRequest;
+import org.elasticsearch.client.license.PutLicenseResponse;
 import org.elasticsearch.client.license.StartBasicRequest;
 import org.elasticsearch.client.license.StartBasicResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.protocol.xpack.license.LicensesStatus;
-import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
-import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.junit.After;
 import org.junit.BeforeClass;
 

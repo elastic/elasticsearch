@@ -81,7 +81,6 @@ public class NativeUsersStore extends AbstractComponent {
     static final String USER_DOC_TYPE = "user";
 
 
-    private final Hasher hasher = Hasher.BCRYPT;
     public static final String RESERVED_USER_TYPE = "reserved-user";
     private final Client client;
     private final boolean isTribeNode;
@@ -124,8 +123,7 @@ public class NativeUsersStore extends AbstractComponent {
             }
         };
 
-        if (securityIndex.indexExists() == false) {
-            // TODO remove this short circuiting and fix tests that fail without this!
+        if (securityIndex.isAvailable() == false) {
             listener.onResponse(Collections.emptyList());
         } else if (userNames.length == 1) { // optimization for single user lookup
             final String username = userNames[0];
@@ -133,7 +131,7 @@ public class NativeUsersStore extends AbstractComponent {
                     (uap) -> listener.onResponse(uap == null ? Collections.emptyList() : Collections.singletonList(uap.user())),
                     handleException));
         } else {
-            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 final QueryBuilder query;
                 if (userNames == null || userNames.length == 0) {
                     query = QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), USER_DOC_TYPE);
@@ -161,10 +159,10 @@ public class NativeUsersStore extends AbstractComponent {
     }
 
     void getUserCount(final ActionListener<Long> listener) {
-        if (securityIndex.indexExists() == false) {
+        if (securityIndex.isAvailable() == false) {
             listener.onResponse(0L);
         } else {
-            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                     client.prepareSearch(SECURITY_INDEX_NAME)
                         .setQuery(QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), USER_DOC_TYPE))
@@ -188,11 +186,10 @@ public class NativeUsersStore extends AbstractComponent {
      * Async method to retrieve a user and their password
      */
     private void getUserAndPassword(final String user, final ActionListener<UserAndPassword> listener) {
-        if (securityIndex.indexExists() == false) {
-            // TODO remove this short circuiting and fix tests that fail without this!
+        if (securityIndex.isAvailable() == false) {
             listener.onResponse(null);
         } else {
-            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                             client.prepareGet(SECURITY_INDEX_NAME,
                                     NativeUserStoreField.INDEX_TYPE, getIdForUser(USER_DOC_TYPE, user)).request(),
@@ -475,24 +472,26 @@ public class NativeUsersStore extends AbstractComponent {
     public void deleteUser(final DeleteUserRequest deleteUserRequest, final ActionListener<Boolean> listener) {
         if (isTribeNode) {
             listener.onFailure(new UnsupportedOperationException("users may not be deleted using a tribe node"));
+        } else if (securityIndex.isAvailable() == false) {
+            listener.onResponse(false);
         } else {
-            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 DeleteRequest request = client.prepareDelete(SECURITY_INDEX_NAME,
-                        NativeUserStoreField.INDEX_TYPE, getIdForUser(USER_DOC_TYPE, deleteUserRequest.username())).request();
+                    NativeUserStoreField.INDEX_TYPE, getIdForUser(USER_DOC_TYPE, deleteUserRequest.username())).request();
                 request.setRefreshPolicy(deleteUserRequest.getRefreshPolicy());
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
-                        new ActionListener<DeleteResponse>() {
-                            @Override
-                            public void onResponse(DeleteResponse deleteResponse) {
-                                clearRealmCache(deleteUserRequest.username(), listener,
-                                        deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
-                            }
+                    new ActionListener<DeleteResponse>() {
+                        @Override
+                        public void onResponse(DeleteResponse deleteResponse) {
+                            clearRealmCache(deleteUserRequest.username(), listener,
+                                deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
+                        }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                listener.onFailure(e);
-                            }
-                        }, client::delete);
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    }, client::delete);
             });
         }
     }
@@ -516,11 +515,10 @@ public class NativeUsersStore extends AbstractComponent {
     }
 
     void getReservedUserInfo(String username, ActionListener<ReservedUserInfo> listener) {
-        if (securityIndex.indexExists() == false) {
-            // TODO remove this short circuiting and fix tests that fail without this!
+        if (securityIndex.isAvailable() == false) {
             listener.onResponse(null);
         } else {
-            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                             client.prepareGet(SECURITY_INDEX_NAME, NativeUserStoreField.INDEX_TYPE,
                                     getIdForUser(NativeUserStoreField.RESERVED_USER_TYPE, username)).request(),
@@ -559,49 +557,53 @@ public class NativeUsersStore extends AbstractComponent {
     }
 
     void getAllReservedUserInfo(ActionListener<Map<String, ReservedUserInfo>> listener) {
-        securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                client.prepareSearch(SECURITY_INDEX_NAME)
-                        .setQuery(QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), NativeUserStoreField.RESERVED_USER_TYPE))
+        if (securityIndex.isAvailable() == false) {
+            listener.onResponse(Collections.emptyMap());
+        } else {
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                    client.prepareSearch(SECURITY_INDEX_NAME)
+                        .setQuery(QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE))
                         .setFetchSource(true).request(),
-                new ActionListener<SearchResponse>() {
-                    @Override
-                    public void onResponse(SearchResponse searchResponse) {
-                        Map<String, ReservedUserInfo> userInfos = new HashMap<>();
-                        assert searchResponse.getHits().getTotalHits() <= 10 :
+                    new ActionListener<SearchResponse>() {
+                        @Override
+                        public void onResponse(SearchResponse searchResponse) {
+                            Map<String, ReservedUserInfo> userInfos = new HashMap<>();
+                            assert searchResponse.getHits().getTotalHits() <= 10 :
                                 "there are more than 10 reserved users we need to change this to retrieve them all!";
-                        for (SearchHit searchHit : searchResponse.getHits().getHits()) {
-                            Map<String, Object> sourceMap = searchHit.getSourceAsMap();
-                            String password = (String) sourceMap.get(Fields.PASSWORD.getPreferredName());
-                            Boolean enabled = (Boolean) sourceMap.get(Fields.ENABLED.getPreferredName());
-                            final String id = searchHit.getId();
-                            assert id != null && id.startsWith(NativeUserStoreField.RESERVED_USER_TYPE) :
+                            for (SearchHit searchHit : searchResponse.getHits().getHits()) {
+                                Map<String, Object> sourceMap = searchHit.getSourceAsMap();
+                                String password = (String) sourceMap.get(Fields.PASSWORD.getPreferredName());
+                                Boolean enabled = (Boolean) sourceMap.get(Fields.ENABLED.getPreferredName());
+                                final String id = searchHit.getId();
+                                assert id != null && id.startsWith(RESERVED_USER_TYPE) :
                                     "id [" + id + "] does not start with reserved-user prefix";
-                            final String username = id.substring(NativeUserStoreField.RESERVED_USER_TYPE.length() + 1);
-                            if (password == null) {
-                                listener.onFailure(new IllegalStateException("password hash must not be null!"));
-                                return;
-                            } else if (enabled == null) {
-                                listener.onFailure(new IllegalStateException("enabled must not be null!"));
-                                return;
+                                final String username = id.substring(RESERVED_USER_TYPE.length() + 1);
+                                if (password == null) {
+                                    listener.onFailure(new IllegalStateException("password hash must not be null!"));
+                                    return;
+                                } else if (enabled == null) {
+                                    listener.onFailure(new IllegalStateException("enabled must not be null!"));
+                                    return;
+                                } else {
+                                    userInfos.put(username, new ReservedUserInfo(password.toCharArray(), enabled, false));
+                                }
+                            }
+                            listener.onResponse(userInfos);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            if (e instanceof IndexNotFoundException) {
+                                logger.trace("could not retrieve built in users since security index does not exist", e);
+                                listener.onResponse(Collections.emptyMap());
                             } else {
-                                userInfos.put(username, new ReservedUserInfo(password.toCharArray(), enabled, false));
+                                logger.error("failed to retrieve built in users", e);
+                                listener.onFailure(e);
                             }
                         }
-                        listener.onResponse(userInfos);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (e instanceof IndexNotFoundException) {
-                            logger.trace("could not retrieve built in users since security index does not exist", e);
-                            listener.onResponse(Collections.emptyMap());
-                        } else {
-                            logger.error("failed to retrieve built in users", e);
-                            listener.onFailure(e);
-                        }
-                    }
-                }, client::search));
+                    }, client::search));
+        }
     }
 
     private <Response> void clearRealmCache(String username, ActionListener<Response> listener, Response response) {

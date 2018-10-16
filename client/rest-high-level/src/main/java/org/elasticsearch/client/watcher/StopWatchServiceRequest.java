@@ -23,7 +23,4 @@ import org.elasticsearch.client.Validatable;
 
 public class StopWatchServiceRequest implements Validatable {
 
-    public StopWatchServiceRequest() {
-
-    }
 }

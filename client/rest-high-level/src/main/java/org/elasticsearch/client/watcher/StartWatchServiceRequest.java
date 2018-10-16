@@ -23,7 +23,4 @@ import org.elasticsearch.client.Validatable;
 
 public class StartWatchServiceRequest implements Validatable {
 
-    public StartWatchServiceRequest() {
-
-    }
 }

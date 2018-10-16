@@ -37,6 +37,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.BucketAggregationScript;
 import org.elasticsearch.script.BucketAggregationSelectorScript;
 import org.elasticsearch.script.ClassPermission;
@@ -131,6 +132,9 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
         } else if (context.instanceClazz.equals(TermsSetQueryScript.class)) {
             TermsSetQueryScript.Factory factory = (p, lookup) -> newTermsSetQueryScript(expr, lookup, p);
             return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(AggregationScript.class)) {
+            AggregationScript.Factory factory = (p, lookup) -> newAggregationScript(expr, lookup, p);
+            return context.factoryClazz.cast(factory);
         }
         throw new IllegalArgumentException("expression engine does not know how to handle script context [" + context.name + "]");
     }
@@ -221,8 +225,38 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
                 throw convertToScriptException("link error", expr.sourceText, variable, e);
             }
         }
+        return new ExpressionTermSetQueryScript(expr, bindings);
+    }
+
+    private AggregationScript.LeafFactory newAggregationScript(Expression expr, SearchLookup lookup,
+        @Nullable Map<String, Object> vars) {
+        // NOTE: if we need to do anything complicated with bindings in the future, we can just extend Bindings,
+        // instead of complicating SimpleBindings (which should stay simple)
+        SimpleBindings bindings = new SimpleBindings();
         ReplaceableConstDoubleValueSource specialValue = null;
-        return new ExpressionTermSetQueryScript(expr, bindings, specialValue);
+        for (String variable : expr.variables) {
+            try {
+                if (variable.equals("_value")) {
+                    specialValue = new ReplaceableConstDoubleValueSource();
+                    bindings.add("_value", specialValue);
+                    // noop: _value is special for aggregations, and is handled in ExpressionScriptBindings
+                    // TODO: if some uses it in a scoring expression, they will get a nasty failure when evaluating...need a
+                    // way to know this is for aggregations and so _value is ok to have...
+
+                } else if (vars != null && vars.containsKey(variable)) {
+                    bindFromParams(vars, bindings, variable);
+                } else {
+                    // delegate valuesource creation based on field's type
+                    // there are three types of "fields" to expressions, and each one has a different "api" of variables and methods.
+                    final ValueSource valueSource = getDocValueSource(variable, lookup);
+                    bindings.add(variable, valueSource.asDoubleValuesSource());
+                }
+            } catch (Exception e) {
+                // we defer "binding" of variables until here: give context for that variable
+                throw convertToScriptException("link error", expr.sourceText, variable, e);
+            }
+        }
+        return new ExpressionAggregationScript(expr, bindings, specialValue);
     }
 
     /**

@@ -815,7 +815,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
 
     static final class DateMathExpressionResolver implements ExpressionResolver {
 
-        private static final DateFormatter DEFAULT_DATE_FORMATTER = DateFormatters.forPattern("YYYY.MM.dd");
+        private static final DateFormatter DEFAULT_DATE_FORMATTER = DateFormatters.forPattern("uuuu.MM.dd");
         private static final String EXPRESSION_LEFT_BOUND = "<";
         private static final String EXPRESSION_RIGHT_BOUND = ">";
         private static final char LEFT_BOUND = '{';

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ccr.action;
 
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -46,7 +47,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
@@ -180,7 +180,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
             assertBusy(() -> {
                 assertThat(shardFollowTask.isStopped(), is(true));
-                assertThat(shardFollowTask.getFailure().getMessage(), equalTo("unexpected history uuid, expected [" + oldHistoryUUID +
+                ElasticsearchException failure = shardFollowTask.getStatus().getFatalException();
+                assertThat(failure.getRootCause().getMessage(), equalTo("unexpected history uuid, expected [" + oldHistoryUUID +
                     "], actual [" + newHistoryUUID + "]"));
             });
         }
@@ -221,7 +222,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
             assertBusy(() -> {
                 assertThat(shardFollowTask.isStopped(), is(true));
-                assertThat(shardFollowTask.getFailure().getMessage(), equalTo("unexpected history uuid, expected [" + oldHistoryUUID +
+                ElasticsearchException failure = shardFollowTask.getStatus().getFatalException();
+                assertThat(failure.getRootCause().getMessage(), equalTo("unexpected history uuid, expected [" + oldHistoryUUID +
                     "], actual [" + newHistoryUUID + "], shard is likely restored from snapshot or force allocated"));
             });
         }
@@ -326,7 +328,6 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
         BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> threadPool.schedule(delay, ThreadPool.Names.GENERIC, task);
         AtomicBoolean stopped = new AtomicBoolean(false);
-        AtomicReference<Exception> failureHolder = new AtomicReference<>();
         LongSet fetchOperations = new LongHashSet();
         return new ShardFollowNodeTask(
                 1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler, System::nanoTime) {
@@ -404,7 +405,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
             @Override
             protected boolean isStopped() {
-                return stopped.get();
+                return super.isStopped() || stopped.get();
             }
 
             @Override
@@ -412,16 +413,6 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 stopped.set(true);
             }
 
-            @Override
-            public void markAsFailed(Exception e) {
-                failureHolder.set(e);
-                stopped.set(true);
-            }
-
-            @Override
-            public Exception getFailure() {
-                return failureHolder.get();
-            }
         };
     }
 

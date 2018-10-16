@@ -221,6 +221,23 @@
                           "type": "long"
                         }
                       }
+                    },
+                    "handles": {
+                      "properties": {
+                        "open": {
+                          "type": "long"
+                        },
+                        "limit": {
+                          "properties": {
+                            "hard": {
+                              "type": "long"
+                            },
+                            "soft": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
                     }
                   }
                 },
@@ -487,6 +504,13 @@
                               "type": "long"
                             }
                           }
+                        },
+                        "span": {
+                          "properties": {
+                            "transformations": {
+                              "type": "long"
+                            }
+                          }
                         }
                       }
                     }
@@ -537,6 +561,9 @@
                               "type": "long"
                             },
                             "total": {
+                              "type": "long"
+                            },
+                            "toomany": {
                               "type": "long"
                             }
                           }

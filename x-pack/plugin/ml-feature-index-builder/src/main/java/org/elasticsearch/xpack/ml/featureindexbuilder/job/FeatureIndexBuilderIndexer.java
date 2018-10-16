@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.indexing.IterationResult;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -62,29 +63,41 @@ public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Ma
     }
 
     /*
-     * Mocked demo case
-     *
-     * TODO: replace with proper implementation
+     * Parses the result and creates indexable documents
      */
     private List<IndexRequest> processBuckets(CompositeAggregation agg) {
-        // for now only 1 source supported
-        String destinationFieldName = job.getConfig().getSourceConfig().getSources().get(0).name();
-        String aggName = job.getConfig().getAggregationConfig().getAggregatorFactories().iterator().next().getName();
+        String indexName = job.getConfig().getDestinationIndex();
+        List<CompositeValuesSourceBuilder<?>> sources = job.getConfig().getSourceConfig().getSources();
+        Collection<AggregationBuilder> aggregationBuilders = job.getConfig().getAggregationConfig().getAggregatorFactories();
 
         return agg.getBuckets().stream().map(b -> {
-            NumericMetricsAggregation.SingleValue aggResult = b.getAggregations().get(aggName);
             XContentBuilder builder;
             try {
                 builder = jsonBuilder();
                 builder.startObject();
-                builder.field(destinationFieldName, b.getKey().get(destinationFieldName));
-                builder.field(aggName, aggResult.value());
+                for (CompositeValuesSourceBuilder<?> source : sources) {
+                    String destinationFieldName = source.name();
+                    builder.field(destinationFieldName, b.getKey().get(destinationFieldName));
+                }
+                for (AggregationBuilder aggregationBuilder : aggregationBuilders) {
+                    String aggName = aggregationBuilder.getName();
+
+                    // TODO: support other aggregation types
+                    NumericMetricsAggregation.SingleValue aggResult = b.getAggregations().get(aggName);
+
+                    if (aggResult != null) {
+                        builder.field(aggName, aggResult.value());
+                    } else {
+                        // should never be reached as we should prevent creating
+                        // jobs with unsupported aggregations
+                        logger.error("Unsupported aggregation type for job [" + getJobId() + "]. Ignoring aggregation.");
+                    }
+                }
                 builder.endObject();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
 
-            String indexName = job.getConfig().getDestinationIndex();
             IndexRequest request = new IndexRequest(indexName, DOC_TYPE).source(builder);
             return request;
         }).collect(Collectors.toList());

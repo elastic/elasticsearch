@@ -410,6 +410,7 @@ public class CoordinatorTests extends ESTestCase {
         leader.blackhole();
         follower0.onDisconnectEventFrom(leader);
         follower1.onDisconnectEventFrom(leader);
+        // let followers elect a leader among themselves before healing the leader and running the publication
         cluster.runFor(DEFAULT_DELAY_VARIABILITY // disconnect is scheduled
             + DEFAULT_ELECTION_DELAY, "elect new leader");
         leader.heal();

@@ -144,7 +144,7 @@ public class CoordinatorTests extends ESTestCase {
         assertEquals(currentTerm, newTerm);
     }
 
-    public void testLeaderDisconnectionDetectedQuickly() {
+    public void testLeaderDisconnectionWithDisconnectEventDetectedQuickly() {
         final Cluster cluster = new Cluster(randomIntBetween(3, 5));
         cluster.runRandomly();
         cluster.stabilise();
@@ -152,38 +152,45 @@ public class CoordinatorTests extends ESTestCase {
         final ClusterNode originalLeader = cluster.getAnyLeader();
         logger.info("--> disconnecting leader {}", originalLeader);
         originalLeader.disconnect();
-        boolean followersGetDisconnectEvent = randomBoolean();
-        if (followersGetDisconnectEvent) {
-            logger.info("--> followers get disconnect event for leader {} ", originalLeader);
-            cluster.getAllNodesExcept(originalLeader).forEach(cn -> cn.onDisconnectEventFrom(originalLeader));
-            // turn leader into candidate, which stabilisation asserts at the end
-            cluster.getAllNodesExcept(originalLeader).forEach(cn -> originalLeader.onDisconnectEventFrom(cn));
-            cluster.stabilise(DEFAULT_DELAY_VARIABILITY // disconnect is scheduled
-                + DEFAULT_ELECTION_DELAY
-                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
-        } else {
-            cluster.stabilise(Math.max(
-                // Each follower may have just sent a leader check, which receives no response
-                defaultMillis(LEADER_CHECK_TIMEOUT_SETTING)
-                    // then wait for the follower to check the leader
-                    + defaultMillis(LEADER_CHECK_INTERVAL_SETTING)
-                    // then wait for the exception response
-                    + DEFAULT_DELAY_VARIABILITY
-                    // then wait for a new election
-                    + DEFAULT_ELECTION_DELAY
-                    // then wait for the old leader's removal to be committed
-                    + DEFAULT_CLUSTER_STATE_UPDATE_DELAY,
+        logger.info("--> followers get disconnect event for leader {} ", originalLeader);
+        cluster.getAllNodesExcept(originalLeader).forEach(cn -> cn.onDisconnectEventFrom(originalLeader));
+        // turn leader into candidate, which stabilisation asserts at the end
+        cluster.getAllNodesExcept(originalLeader).forEach(cn -> originalLeader.onDisconnectEventFrom(cn));
+        cluster.stabilise(DEFAULT_DELAY_VARIABILITY // disconnect is scheduled
+            + DEFAULT_ELECTION_DELAY
+            + DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+        assertThat(cluster.getAnyLeader().getId(), not(equalTo(originalLeader.getId())));
+    }
 
-                // ALSO the leader may have just sent a follower check, which receives no response
-                defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING)
-                    // wait for the leader to check its followers
-                    + defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING)
-                    // then wait for the exception response
-                    + DEFAULT_DELAY_VARIABILITY
-                    // then wait for the removal to be committed
-                    + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
-            ));
-        }
+    public void testLeaderDisconnectionWithoutDisconnectEventDetectedQuickly() {
+        final Cluster cluster = new Cluster(randomIntBetween(3, 5));
+        cluster.runRandomly();
+        cluster.stabilise();
+
+        final ClusterNode originalLeader = cluster.getAnyLeader();
+        logger.info("--> disconnecting leader {}", originalLeader);
+        originalLeader.disconnect();
+        cluster.stabilise(Math.max(
+            // Each follower may have just sent a leader check, which receives no response
+            defaultMillis(LEADER_CHECK_TIMEOUT_SETTING)
+                // then wait for the follower to check the leader
+                + defaultMillis(LEADER_CHECK_INTERVAL_SETTING)
+                // then wait for the exception response
+                + DEFAULT_DELAY_VARIABILITY
+                // then wait for a new election
+                + DEFAULT_ELECTION_DELAY
+                // then wait for the old leader's removal to be committed
+                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY,
+
+            // ALSO the leader may have just sent a follower check, which receives no response
+            defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING)
+                // wait for the leader to check its followers
+                + defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING)
+                // then wait for the exception response
+                + DEFAULT_DELAY_VARIABILITY
+                // then wait for the removal to be committed
+                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+        ));
         assertThat(cluster.getAnyLeader().getId(), not(equalTo(originalLeader.getId())));
     }
 
@@ -229,7 +236,7 @@ public class CoordinatorTests extends ESTestCase {
         assertThat(cluster.getAnyLeader().getId(), not(equalTo(originalLeader.getId())));
     }
 
-    public void testFollowerDisconnectionDetectedQuickly() {
+    public void testFollowerDisconnectionWithDisconnectEventDetectedQuickly() {
         final Cluster cluster = new Cluster(randomIntBetween(3, 5));
         cluster.runRandomly();
         cluster.stabilise();
@@ -238,32 +245,40 @@ public class CoordinatorTests extends ESTestCase {
         final ClusterNode follower = cluster.getAnyNodeExcept(leader);
         logger.info("--> disconnecting follower {}", follower);
         follower.disconnect();
-        boolean leaderGetsDisconnectEvent = randomBoolean();
-        if (leaderGetsDisconnectEvent) {
-            logger.info("--> leader {} and follower {} get disconnect event", leader, follower);
-            leader.onDisconnectEventFrom(follower);
-            follower.onDisconnectEventFrom(leader); // to turn follower into candidate, which stabilisation asserts at the end
-            cluster.stabilise(DEFAULT_DELAY_VARIABILITY // disconnect is scheduled
-                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
-        } else {
-            cluster.stabilise(Math.max(
-                // the leader may have just sent a follower check, which receives no response
-                defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING)
-                    // wait for the leader to check the follower
-                    + defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING)
-                    // then wait for the exception response
-                    + DEFAULT_DELAY_VARIABILITY
-                    // then wait for the removal to be committed
-                    + DEFAULT_CLUSTER_STATE_UPDATE_DELAY,
+        logger.info("--> leader {} and follower {} get disconnect event", leader, follower);
+        leader.onDisconnectEventFrom(follower);
+        follower.onDisconnectEventFrom(leader); // to turn follower into candidate, which stabilisation asserts at the end
+        cluster.stabilise(DEFAULT_DELAY_VARIABILITY // disconnect is scheduled
+            + DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+        assertThat(cluster.getAnyLeader().getId(), equalTo(leader.getId()));
+    }
 
-                // ALSO the follower may have just sent a leader check, which receives no response
-                defaultMillis(LEADER_CHECK_TIMEOUT_SETTING)
-                    // then wait for the follower to check the leader
-                    + defaultMillis(LEADER_CHECK_INTERVAL_SETTING)
-                    // then wait for the exception response, causing the follower to become a candidate
-                    + DEFAULT_DELAY_VARIABILITY
-            ));
-        }
+    public void testFollowerDisconnectionWithoutDisconnectEventDetectedQuickly() {
+        final Cluster cluster = new Cluster(randomIntBetween(3, 5));
+        cluster.runRandomly();
+        cluster.stabilise();
+
+        final ClusterNode leader = cluster.getAnyLeader();
+        final ClusterNode follower = cluster.getAnyNodeExcept(leader);
+        logger.info("--> disconnecting follower {}", follower);
+        follower.disconnect();
+        cluster.stabilise(Math.max(
+            // the leader may have just sent a follower check, which receives no response
+            defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING)
+                // wait for the leader to check the follower
+                + defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING)
+                // then wait for the exception response
+                + DEFAULT_DELAY_VARIABILITY
+                // then wait for the removal to be committed
+                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY,
+
+            // ALSO the follower may have just sent a leader check, which receives no response
+            defaultMillis(LEADER_CHECK_TIMEOUT_SETTING)
+                // then wait for the follower to check the leader
+                + defaultMillis(LEADER_CHECK_INTERVAL_SETTING)
+                // then wait for the exception response, causing the follower to become a candidate
+                + DEFAULT_DELAY_VARIABILITY
+        ));
         assertThat(cluster.getAnyLeader().getId(), equalTo(leader.getId()));
     }
 

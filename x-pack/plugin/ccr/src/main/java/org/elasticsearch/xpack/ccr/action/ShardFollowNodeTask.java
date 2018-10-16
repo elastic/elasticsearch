@@ -62,6 +62,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private final BiConsumer<TimeValue, Runnable> scheduler;
     private final LongSupplier relativeTimeProvider;
 
+    private String followerHistoryUUID;
     private long leaderGlobalCheckpoint;
     private long leaderMaxSeqNo;
     private long leaderMaxSeqNoOfUpdatesOrDeletes = SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -83,6 +84,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private long lastFetchTime = -1;
     private final Queue<Translog.Operation> buffer = new PriorityQueue<>(Comparator.comparing(Translog.Operation::seqNo));
     private final LinkedHashMap<Long, Tuple<AtomicInteger, ElasticsearchException>> fetchExceptions;
+
+    private volatile ElasticsearchException fatalException;
 
     ShardFollowNodeTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers,
                         ShardFollowTask params, BiConsumer<TimeValue, Runnable> scheduler, final LongSupplier relativeTimeProvider) {
@@ -110,15 +113,17 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     void start(
-            final long leaderGlobalCheckpoint,
-            final long leaderMaxSeqNo,
-            final long followerGlobalCheckpoint,
-            final long followerMaxSeqNo) {
+        final String followerHistoryUUID,
+        final long leaderGlobalCheckpoint,
+        final long leaderMaxSeqNo,
+        final long followerGlobalCheckpoint,
+        final long followerMaxSeqNo) {
         /*
          * While this should only ever be called once and before any other threads can touch these fields, we use synchronization here to
          * avoid the need to declare these fields as volatile. That is, we are ensuring thesefields are always accessed under the same lock.
          */
         synchronized (this) {
+            this.followerHistoryUUID = followerHistoryUUID;
             this.leaderGlobalCheckpoint = leaderGlobalCheckpoint;
             this.leaderMaxSeqNo = leaderMaxSeqNo;
             this.followerGlobalCheckpoint = followerGlobalCheckpoint;
@@ -235,15 +240,16 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
         innerSendShardChangesRequest(from, maxOperationCount,
                 response -> {
-                    if (response.getOperations().length > 0) {
-                        // do not count polls against fetch stats
-                        synchronized (ShardFollowNodeTask.this) {
+                    synchronized (ShardFollowNodeTask.this) {
+                        // Always clear fetch exceptions:
+                        fetchExceptions.remove(from);
+                        if (response.getOperations().length > 0) {
+                            // do not count polls against fetch stats
                             totalFetchTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
                             numberOfSuccessfulFetches++;
-                            fetchExceptions.remove(from);
                             operationsReceived += response.getOperations().length;
                             totalTransferredBytes +=
-                                    Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
+                                Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
                         }
                     }
                     handleReadResponse(from, maxRequiredSeqNo, response);
@@ -305,7 +311,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                                                 AtomicInteger retryCounter) {
         assert leaderMaxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "mus is not replicated";
         final long startTime = relativeTimeProvider.getAsLong();
-        innerSendBulkShardOperationsRequest(operations, leaderMaxSeqNoOfUpdatesOrDeletes,
+        innerSendBulkShardOperationsRequest(followerHistoryUUID, operations, leaderMaxSeqNoOfUpdatesOrDeletes,
                 response -> {
                     synchronized (ShardFollowNodeTask.this) {
                         totalIndexTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
@@ -369,7 +375,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             long delay = computeDelay(currentRetry, params.getPollTimeout().getMillis());
             scheduler.accept(TimeValue.timeValueMillis(delay), task);
         } else {
-            markAsFailed(e);
+            fatalException = ExceptionsHelper.convertToElastic(e);
         }
     }
 
@@ -404,8 +410,11 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     // These methods are protected for testing purposes:
     protected abstract void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler);
 
-    protected abstract void innerSendBulkShardOperationsRequest(List<Translog.Operation> operations, long leaderMaxSeqNoOfUpdatesOrDeletes,
-                                    Consumer<BulkShardOperationsResponse> handler, Consumer<Exception> errorHandler);
+    protected abstract void innerSendBulkShardOperationsRequest(String followerHistoryUUID,
+                                                                List<Translog.Operation> operations,
+                                                                long leaderMaxSeqNoOfUpdatesOrDeletes,
+                                                                Consumer<BulkShardOperationsResponse> handler,
+                                                                Consumer<Exception> errorHandler);
 
     protected abstract void innerSendShardChangesRequest(long from, int maxOperationCount, Consumer<ShardChangesAction.Response> handler,
                                                          Consumer<Exception> errorHandler);
@@ -416,7 +425,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     protected boolean isStopped() {
-        return isCancelled() || isCompleted();
+        return fatalException != null || isCancelled() || isCompleted();
     }
 
     public ShardId getFollowShardId() {
@@ -460,7 +469,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                                 .stream()
                                 .collect(
                                         Collectors.toMap(Map.Entry::getKey, e -> Tuple.tuple(e.getValue().v1().get(), e.getValue().v2())))),
-                timeSinceLastFetchMillis);
+                timeSinceLastFetchMillis,
+                fatalException);
     }
 
 }

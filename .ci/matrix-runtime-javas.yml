@@ -8,5 +8,4 @@
 ES_RUNTIME_JAVA:
   - java8
   - java8fips
-  - java10
   - java11

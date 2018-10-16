@@ -176,7 +176,7 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
 
         // Create RollupFieldCaps for the metrics
         final List<MetricConfig> metricsConfig = rollupJobConfig.getMetricsConfig();
-            if (metricsConfig.size() > 0) {
+        if (metricsConfig.size() > 0) {
             metricsConfig.forEach(metricConfig -> {
                 final List<Map<String, Object>> metrics = metricConfig.getMetrics().stream()
                     .map(metric -> singletonMap("agg", (Object) metric))

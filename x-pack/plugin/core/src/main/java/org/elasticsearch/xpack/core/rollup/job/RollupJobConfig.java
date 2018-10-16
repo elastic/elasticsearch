@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.scheduler.Cron;
 
 import java.io.IOException;
@@ -132,6 +133,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         this.timeout = timeout != null ? timeout : DEFAULT_TIMEOUT;
         this.cron = cron;
         this.pageSize = pageSize;
+        this.addDefaultTimeValueMetricsIfNeeded();
     }
 
     public RollupJobConfig(final StreamInput in) throws IOException {
@@ -281,5 +283,14 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
 
     public static RollupJobConfig fromXContent(final XContentParser parser, @Nullable final String optionalJobId) throws IOException {
         return PARSER.parse(parser, optionalJobId);
+    }
+
+    private void addDefaultTimeValueMetricsIfNeeded() {
+        if (groupConfig != null) {
+            String timeField = groupConfig.getDateHistogram().getField();
+            if (metricsConfig.stream().map(MetricConfig::getField).noneMatch(field -> field.equals(timeField))){
+                metricsConfig.add(new MetricConfig(timeField, RollupField.SUPPORTED_DATE_METRICS));
+            }
+        }
     }
 }

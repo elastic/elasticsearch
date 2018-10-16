@@ -131,7 +131,8 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                 numberOfFailedBulkOperations,
                 numberOfOperationsIndexed,
                 fetchExceptions,
-                timeSinceLastFetchMillis);
+                timeSinceLastFetchMillis,
+                new ElasticsearchException("fatal error"));
         final FollowStatsMonitoringDoc document = new FollowStatsMonitoringDoc("_cluster", timestamp, intervalMillis, node, status);
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
         assertThat(
@@ -183,7 +184,8 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                                                         + "}"
                                                 + "}"
                                         + "],"
-                                        + "\"time_since_last_fetch_millis\":" + timeSinceLastFetchMillis
+                                        + "\"time_since_last_fetch_millis\":" + timeSinceLastFetchMillis + ","
+                                        + "\"fatal_exception\":{\"type\":\"exception\",\"reason\":\"fatal error\"}"
                                 + "}"
                         + "}"));
     }
@@ -215,7 +217,8 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
             0,
             10,
             fetchExceptions,
-            2);
+            2,
+            null);
         XContentBuilder builder = jsonBuilder();
         builder.value(status);
         Map<String, Object> serializedStatus = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(builder), false);

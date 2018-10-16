@@ -76,9 +76,6 @@ class ExpressionSearchScript implements SearchScript.LeafFactory {
             public Object run() { return Double.valueOf(runAsDouble()); }
 
             @Override
-            public long runAsLong() { return (long)runAsDouble(); }
-
-            @Override
             public double runAsDouble() {
                 try {
                     return values.doubleValue();

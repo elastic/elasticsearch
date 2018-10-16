@@ -68,8 +68,10 @@ public class PreferPrimaryAllocationTests extends ESAllocationTestCase {
         }
 
         logger.info("increasing the number of replicas to 1, and perform a reroute (to get the replicas allocation going)");
-        RoutingTable updatedRoutingTable = RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(1).build();
-        metaData = MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(1).build();
+        final String[] indices = {"test1", "test2"};
+        RoutingTable updatedRoutingTable =
+                RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(1, indices).build();
+        metaData = MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(1, indices).build();
         clusterState = ClusterState.builder(clusterState).routingTable(updatedRoutingTable).metaData(metaData).build();
 
         clusterState = strategy.reroute(clusterState, "reroute");

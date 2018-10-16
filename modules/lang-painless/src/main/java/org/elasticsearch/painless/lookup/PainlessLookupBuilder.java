@@ -120,6 +120,15 @@ public final class PainlessLookupBuilder {
         return painlessLookupBuilder.build();
     }
 
+    // javaClassNamesToClasses is all the classes that need to be available to the custom classloader
+    // including classes used as part of imported methods and class bindings but not necessarily whitelisted
+    // individually. The values of javaClassNamesToClasses are a superset of the values of
+    // canonicalClassNamesToClasses.
+    private final Map<String, Class<?>> javaClassNamesToClasses;
+    // canonicalClassNamesToClasses is all the whitelisted classes available in a Painless script including
+    // classes with imported canonical names but does not include classes from imported methods or class
+    // bindings unless also whitelisted separately. The values of canonicalClassNamesToClasses are a subset
+    // of the values of javaClassNamesToClasses.
     private final Map<String, Class<?>> canonicalClassNamesToClasses;
     private final Map<Class<?>, PainlessClassBuilder> classesToPainlessClassBuilders;
 
@@ -127,6 +136,7 @@ public final class PainlessLookupBuilder {
     private final Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings;
 
     public PainlessLookupBuilder() {
+        javaClassNamesToClasses = new HashMap<>();
         canonicalClassNamesToClasses = new HashMap<>();
         classesToPainlessClassBuilders = new HashMap<>();
 
@@ -189,7 +199,16 @@ public final class PainlessLookupBuilder {
             throw new IllegalArgumentException("invalid class name [" + canonicalClassName + "]");
         }
 
-        Class<?> existingClass = canonicalClassNamesToClasses.get(canonicalClassName);
+        Class<?> existingClass = javaClassNamesToClasses.get(clazz.getName());
+
+        if (existingClass == null) {
+            javaClassNamesToClasses.put(clazz.getName(), clazz);
+        } else if (existingClass != clazz) {
+            throw new IllegalArgumentException("class [" + canonicalClassName + "] " +
+                    "cannot represent multiple java classes with the same name from different class loaders");
+        }
+
+        existingClass = canonicalClassNamesToClasses.get(canonicalClassName);
 
         if (existingClass != null && existingClass != clazz) {
             throw new IllegalArgumentException("class [" + canonicalClassName + "] " +
@@ -685,6 +704,14 @@ public final class PainlessLookupBuilder {
         }
 
         String targetCanonicalClassName = typeToCanonicalTypeName(targetClass);
+        Class<?> existingTargetClass = javaClassNamesToClasses.get(targetClass.getName());
+
+        if (existingTargetClass == null) {
+            javaClassNamesToClasses.put(targetClass.getName(), targetClass);
+        } else if (existingTargetClass != targetClass) {
+            throw new IllegalArgumentException("class [" + targetCanonicalClassName + "] " +
+                    "cannot represent multiple java classes with the same name from different class loaders");
+        }
 
         if (METHOD_NAME_PATTERN.matcher(methodName).matches() == false) {
             throw new IllegalArgumentException(
@@ -818,6 +845,14 @@ public final class PainlessLookupBuilder {
         }
 
         String targetCanonicalClassName = typeToCanonicalTypeName(targetClass);
+        Class<?> existingTargetClass = javaClassNamesToClasses.get(targetClass.getName());
+
+        if (existingTargetClass == null) {
+            javaClassNamesToClasses.put(targetClass.getName(), targetClass);
+        } else if (existingTargetClass != targetClass) {
+            throw new IllegalArgumentException("class [" + targetCanonicalClassName + "] " +
+                    "cannot represent multiple java classes with the same name from different class loaders");
+        }
 
         Constructor<?>[] javaConstructors = targetClass.getConstructors();
         Constructor<?> javaConstructor = null;
@@ -952,7 +987,23 @@ public final class PainlessLookupBuilder {
             classesToPainlessClasses.put(painlessClassBuilderEntry.getKey(), painlessClassBuilderEntry.getValue().build());
         }
 
-        return new PainlessLookup(canonicalClassNamesToClasses, classesToPainlessClasses,
+        if (javaClassNamesToClasses.values().containsAll(canonicalClassNamesToClasses.values()) == false) {
+            throw new IllegalArgumentException("the values of java class names to classes " +
+                    "must be a superset of the values of canonical class names to classes");
+        }
+
+        if (javaClassNamesToClasses.values().containsAll(classesToPainlessClasses.keySet()) == false) {
+            throw new IllegalArgumentException("the values of java class names to classes " +
+                    "must be a superset of the keys of classes to painless classes");
+        }
+
+        if (canonicalClassNamesToClasses.values().containsAll(classesToPainlessClasses.keySet()) == false ||
+                classesToPainlessClasses.keySet().containsAll(canonicalClassNamesToClasses.values()) == false) {
+            throw new IllegalArgumentException("the values of canonical class names to classes "  +
+                    "must have the same classes as the keys of classes to painless classes");
+        }
+
+        return new PainlessLookup(javaClassNamesToClasses, canonicalClassNamesToClasses, classesToPainlessClasses,
                 painlessMethodKeysToImportedPainlessMethods, painlessMethodKeysToPainlessClassBindings);
     }
 

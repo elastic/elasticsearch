@@ -57,7 +57,8 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomReadExceptions(),
-                randomLong());
+                randomLong(),
+                randomBoolean() ? new ElasticsearchException("fatal error") : null);
     }
 
     @Override

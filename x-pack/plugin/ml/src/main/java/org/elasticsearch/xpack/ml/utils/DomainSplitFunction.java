@@ -12,7 +12,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import java.io.InputStream;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -109,62 +108,9 @@ public final class DomainSplitFunction {
         return output;
     }
 
-    private static List<String> split(String value) {
-        int nextWord = 0;
-        List<String> splits  = new ArrayList<>();
-        for(int i = 0; i < value.length(); i++) {
-            if(value.charAt(i) == '.') {
-                splits.add(value.substring(nextWord, i));
-                nextWord = i+1;
-            }
-        }
-        if (nextWord != value.length()) {
-            splits.add(value.substring(nextWord));
-        }
-        return splits;
-    }
-
     private static List<String> splitDomain(String domain) {
         String dotDomain = replaceDots(domain);
-        return split(dotDomain);
-    }
-
-    private static boolean validateSyntax(List<String> parts) {
-        int lastIndex = parts.size() - 1;
-        /* Validate the last part specially, as it has different syntax rules. */
-        if (!validatePart(parts.get(lastIndex), true)) {
-            return false;
-        }
-        for (int i = 0; i < lastIndex; i++) {
-            String part = parts.get(i);
-            if (!validatePart(part, false)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private static boolean validatePart(String part, boolean isFinalPart) {
-        if (part.length() < 1 || part.length() > MAX_DOMAIN_PART_LENGTH) {
-            return false;
-        }
-        int offset = 0;
-        int strLen = part.length();
-        while (offset < strLen) {
-            int curChar = part.charAt(offset);
-            offset += 1;
-            if (!(Character.isLetterOrDigit(curChar) || curChar == '-' || curChar == '_')) {
-                return false;
-            }
-        }
-        if (part.charAt(0) == '-' || part.charAt(0) == '_' ||
-            part.charAt(part.length() - 1) == '-' || part.charAt(part.length() - 1) == '_') {
-            return false;
-        }
-        if (isFinalPart && Character.isDigit(part.charAt(0))) {
-            return false;
-        }
-        return true;
+        return Arrays.asList(dotDomain.split("\\."));
     }
 
     private static int findPublicSuffix(List<String> parts) {
@@ -184,8 +130,8 @@ public final class DomainSplitFunction {
             if (excluded.containsKey(ancestorName)) {
                 return i + 1;
             }
-            List<String> pieces = split(ancestorName);
-            if (pieces.size() >= 2 && under.containsKey(pieces.get(1))) {
+            String [] pieces = ancestorName.split("\\.");
+            if (pieces.length >= 2 && under.containsKey(pieces[1])) {
                 return i;
             }
         }
@@ -224,6 +170,14 @@ public final class DomainSplitFunction {
         return domainSplit(host);
     }
 
+    /**
+     * Split {@code host} into sub domain and highest registered domain.
+     * The result is a list containing exactly 2 items the first is the sub domain
+     * and the second the highest registered domain.
+     *
+     * @param host The hostname to split
+     * @return The sub domain and highest registered domain
+     */
     public static List<String> domainSplit(String host) {
         host = host.trim();
         if (host.contains(":")) {

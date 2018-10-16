@@ -30,7 +30,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
-import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
@@ -49,9 +48,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJobAction.JobTask, CloseJobAction.Request,
         CloseJobAction.Response, CloseJobAction.Response> {
@@ -427,10 +423,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
         }, request.getCloseTimeout(), new ActionListener<Boolean>() {
             @Override
             public void onResponse(Boolean result) {
-                FinalizeJobExecutionAction.Request finalizeRequest = new FinalizeJobExecutionAction.Request(
-                        waitForCloseRequest.jobsToFinalize.toArray(new String[0]));
-                executeAsyncWithOrigin(client, ML_ORIGIN, FinalizeJobExecutionAction.INSTANCE, finalizeRequest,
-                        ActionListener.wrap(r -> listener.onResponse(response), listener::onFailure));
+                listener.onResponse(response);
             }
 
             @Override

@@ -150,10 +150,9 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
 
     @Override
     public Settings transportClientSettings() {
-        Settings superSettings = Settings.EMPTY;
-        Settings.Builder builder = Settings.builder().put(superSettings);
+        Settings.Builder builder = Settings.builder();
         addClientSSLSettings(builder, "");
-        addDefaultSecurityTransportType(builder, superSettings);
+        addDefaultSecurityTransportType(builder, Settings.EMPTY);
 
         if (randomBoolean()) {
             builder.put(SecurityField.USER_SETTING.getKey(),

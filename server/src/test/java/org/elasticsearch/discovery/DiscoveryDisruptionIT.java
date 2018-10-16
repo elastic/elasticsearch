@@ -59,8 +59,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 
     public void testIsolatedUnicastNodes() throws Exception {
-        List<String> nodes = startCluster(4, -1);
         internalCluster().setHostsListContainsOnlyFirstNode(true);
+        List<String> nodes = startCluster(4, -1);
         // Figure out what is the elected master node
         final String unicastTarget = nodes.get(0);
 
@@ -99,8 +99,8 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
      * The rejoining node should take this master node and connect.
      */
     public void testUnicastSinglePingResponseContainsMaster() throws Exception {
-        List<String> nodes = startCluster(4, -1);
         internalCluster().setHostsListContainsOnlyFirstNode(true);
+        List<String> nodes = startCluster(4, -1);
         // Figure out what is the elected master node
         final String masterNode = internalCluster().getMasterName();
         logger.info("---> legit elected master node={}", masterNode);

@@ -564,7 +564,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     }
 
     private void clearJobFinishedTime(String jobId, ActionListener<AcknowledgedResponse> listener) {
-        JobUpdate update = new JobUpdate.Builder(jobId).setClearJobFinishTime(true).build();
+        JobUpdate update = new JobUpdate.Builder(jobId).setClearFinishTime(true).build();
 
         jobConfigProvider.updateJob(jobId, update, null, ActionListener.wrap(
                 job -> listener.onResponse(new AcknowledgedResponse(true)),

@@ -94,7 +94,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
             update.setJobVersion(randomFrom(Version.CURRENT, Version.V_6_2_0, Version.V_6_1_0));
         }
         if (useInternalParser) {
-            update.setClearJobFinishTime(randomBoolean());
+            update.setClearFinishTime(randomBoolean());
         }
 
         return update.build();

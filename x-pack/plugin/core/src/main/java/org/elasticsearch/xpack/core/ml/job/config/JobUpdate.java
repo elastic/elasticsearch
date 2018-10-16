@@ -59,7 +59,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         INTERNAL_PARSER.declareString(Builder::setModelSnapshotId, Job.MODEL_SNAPSHOT_ID);
         INTERNAL_PARSER.declareLong(Builder::setEstablishedModelMemory, Job.ESTABLISHED_MODEL_MEMORY);
         INTERNAL_PARSER.declareString(Builder::setJobVersion, Job.JOB_VERSION);
-        INTERNAL_PARSER.declareBoolean(Builder::setClearJobFinishTime, CLEAR_JOB_FINISH_TIME);
+        INTERNAL_PARSER.declareBoolean(Builder::setClearFinishTime, CLEAR_JOB_FINISH_TIME);
     }
 
     private final String jobId;
@@ -710,7 +710,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setClearJobFinishTime(boolean clearJobFinishTime) {
+        public Builder setClearFinishTime(boolean clearJobFinishTime) {
             this.clearJobFinishTime = clearJobFinishTime;
             return this;
         }

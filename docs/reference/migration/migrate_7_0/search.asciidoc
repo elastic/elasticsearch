@@ -123,3 +123,11 @@ max number of concurrent shard requests per node. The default is now `5`.
 
 `max_score` used to be set to `0` whenever scores are not tracked. `null` is now used
 instead which is a more appropriate value for a scenario where scores are not available.
+
+[float]
+==== `popular` mode for Suggesters
+
+The `popular` mode for Suggesters (`term` and `phrase`) now uses the doc frequency
+(instead of the sum of the doc frequency) of the input terms to compute the frequency
+threshold for candidate suggestions.
+

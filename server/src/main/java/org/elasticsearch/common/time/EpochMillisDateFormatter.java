@@ -57,6 +57,11 @@ class EpochMillisDateFormatter implements DateFormatter {
                     // this is BWC compatible to joda time, nothing after the dot is allowed
                     return Instant.ofEpochMilli(milliSeconds).atZone(ZoneOffset.UTC);
                 }
+                // scientific notation it is!
+                if (inputs[1].contains("e")) {
+                    return Instant.ofEpochMilli(Double.valueOf(input).longValue()).atZone(ZoneOffset.UTC);
+                }
+
                 if (inputs[1].length() > 9) {
                     throw new DateTimeParseException("too much granularity after dot [" + input + "]", input, 0);
                 }

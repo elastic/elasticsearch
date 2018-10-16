@@ -26,8 +26,8 @@ public class TimedRequestTests extends ESTestCase {
 
     public void testDefaults() {
         TimedRequest timedRequest = new TimedRequest(){};
-        assertEquals(timedRequest.timeout(), TimedRequest.DEFAULT_TIMEOUT);
-        assertEquals(timedRequest.masterNodeTimeout(), TimedRequest.DEFAULT_MASTER_TIMEOUT);
+        assertEquals(timedRequest.timeout(), TimedRequest.DEFAULT_ACK_TIMEOUT);
+        assertEquals(timedRequest.masterNodeTimeout(), TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT);
     }
 
     public void testNonDefaults() {

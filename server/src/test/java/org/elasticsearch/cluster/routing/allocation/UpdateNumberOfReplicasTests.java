@@ -96,8 +96,10 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
 
         logger.info("add another replica");
         routingNodes = clusterState.getRoutingNodes();
-        RoutingTable updatedRoutingTable = RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(2).build();
-        metaData = MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(2).build();
+        final String[] indices = {"test"};
+        RoutingTable updatedRoutingTable =
+                RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(2, indices).build();
+        metaData = MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(2, indices).build();
         clusterState = ClusterState.builder(clusterState).routingTable(updatedRoutingTable).metaData(metaData).build();
 
         assertThat(clusterState.metaData().index("test").getNumberOfReplicas(), equalTo(2));
@@ -143,8 +145,8 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
 
         logger.info("now remove a replica");
         routingNodes = clusterState.getRoutingNodes();
-        updatedRoutingTable = RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(1).build();
-        metaData = MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(1).build();
+        updatedRoutingTable = RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(1, indices).build();
+        metaData = MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(1, indices).build();
         clusterState = ClusterState.builder(clusterState).routingTable(updatedRoutingTable).metaData(metaData).build();
 
         assertThat(clusterState.metaData().index("test").getNumberOfReplicas(), equalTo(1));

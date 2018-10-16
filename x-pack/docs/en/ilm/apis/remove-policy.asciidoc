@@ -1,0 +1,95 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-remove-policy]]
+=== Remove Policy On Index API
+++++
+<titleabbrev>Remove Policy From Index</titleabbrev>
+++++
+
+Unassigns a policy from a specified index pattern
+
+==== Request
+
+`DELETE <index>/_ilm`
+
+==== Description
+
+This action removes a policy from managing an index. It is effectively the same as setting an index's
+`index.lifecycle.name` setting to null.
+
+==== Path Parameters
+
+`index` (required)::
+  (string) Identifier for the index.
+
+==== Request Parameters
+
+`timeout`::
+  (time units) Specifies the period of time to wait for the completion of the 
+  operation. When this period of time elapses, the API fails and returns
+  an error. The default value is `30s`. For more information about time units, 
+  see <<time-units>>.
+
+`master_timeout`::
+  (time units) Specifies the period of time to wait for the connection with master.
+  When this period of time elapses, the API fails and returns an error.
+  The default value is `30s`. For more information about time units, see <<time-units>>.
+
+
+==== Examples
+
+The following example removes a policy `my_policy` from an index `my_index`.
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT _ilm/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "minimum_age": "10d",
+        "actions": {
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "delete": {
+        "minimum_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+
+PUT my_index
+
+PUT my_index/_ilm/my_policy
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+DELETE my_index/_ilm
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+If the request does not encounter errors, you receive the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "has_failures" : false,
+  "failed_indexes" : []
+}
+--------------------------------------------------
+// CONSOLE
+// TESTRESPONSE

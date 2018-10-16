@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.http.HttpStatus;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Request;
@@ -20,6 +21,7 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.xpack.core.indexlifecycle.ILMRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -240,6 +242,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
         disableMonitoring();
         clearMlState();
         clearRollupState();
+        clearILMState();
         if (isWaitForPendingTasks()) {
             // This waits for pending tasks to complete, so must go last (otherwise
             // it could be waiting for pending tasks while monitoring is still running).
@@ -264,6 +267,12 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
     private void clearRollupState() throws Exception {
         if (isRollupTest()) {
             RollupRestTestStateCleaner.clearRollupMetadata(adminClient());
+        }
+    }
+
+    private void clearILMState() throws Exception {
+        if (isILMTest()) {
+            ILMRestTestStateCleaner.clearILMMetadata(adminClient());
         }
     }
 
@@ -330,6 +339,12 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
     protected boolean isRollupTest() {
         String testName = getTestName();
         return testName != null && (testName.contains("=rollup/") || testName.contains("=rollup\\"));
+    }
+
+    protected boolean isILMTest() {
+        String testName = getTestName();
+        return testName != null && (testName.contains("=ilm/") || testName.contains("=ilm\\"))
+                || (testName.contains("/ilm/") || testName.contains("\\ilm\\"));
     }
 
     /**

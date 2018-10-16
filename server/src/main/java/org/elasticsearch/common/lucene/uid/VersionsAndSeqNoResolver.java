@@ -19,12 +19,21 @@
 
 package org.elasticsearch.common.lucene.uid;
 
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.CloseableThreadLocal;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 
@@ -192,5 +201,40 @@ public final class VersionsAndSeqNoResolver {
     public static long loadVersion(IndexReader reader, Term term) throws IOException {
         final DocIdAndVersion docIdAndVersion = loadDocIdAndVersion(reader, term);
         return docIdAndVersion == null ? NOT_FOUND : docIdAndVersion.version;
+    }
+
+    /**
+     * Looks up the primary term for a given seq_no in the provided directory reader. The caller must ensure that an operation with the
+     * given {@code seqNo} exists the provided {@code directoryReader}; otherwise this method will throw {@link IllegalStateException}.
+     */
+    public static long lookupPrimaryTerm(final DirectoryReader directoryReader, final long seqNo) throws IOException {
+        final DirectoryReader reader = Lucene.wrapAllDocsLive(directoryReader);
+        final IndexSearcher searcher = new IndexSearcher(reader);
+        searcher.setQueryCache(null);
+        final Query query = LongPoint.newExactQuery(SeqNoFieldMapper.NAME, seqNo);
+        final Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        // iterate backwards since the existing operation is likely in the most recent segments.
+        for (int i = reader.leaves().size() - 1; i >= 0; i--) {
+            final LeafReaderContext leaf = reader.leaves().get(i);
+            final Scorer scorer = weight.scorer(leaf);
+            if (scorer == null) {
+                continue;
+            }
+            final NumericDocValues primaryTermDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+            if (primaryTermDV == null) {
+                assert false : "seq_no[" + seqNo + "] does not have primary_term";
+                throw new IllegalStateException("seq_no[" + seqNo + "] does not have primary_term");
+            }
+            final DocIdSetIterator docIdSetIterator = scorer.iterator();
+            int docId;
+            while ((docId = docIdSetIterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                // make sure to skip the non-root nested documents
+                if (primaryTermDV.advanceExact(docId - leaf.docBase) && primaryTermDV.longValue() > 0) {
+                    return primaryTermDV.longValue();
+                }
+            }
+        }
+        assert false : "primary term for seq_no[" + seqNo + "] is not found";
+        throw new IllegalStateException("primary term for seq_no[" + seqNo + "] is not found");
     }
 }

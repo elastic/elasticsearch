@@ -129,11 +129,12 @@ public class TransportBulkShardOperationsAction
                 location = locationToSync(location, result.getTranslogLocation());
             } else {
                 if (result.getFailure() instanceof AlreadyProcessedFollowingEngineException) {
-                    // The existing operations below the global checkpoint won't be replicated as they all were processed
-                    // in every replicas already. However, the existing operations after the global checkpoint will be
+                    // The existing operations below the global checkpoint won't be replicated as they were processed
+                    // in every replicas already. However, the existing operations above the global checkpoint will be
                     // replicated to replicas but with the existing primary term (not the current primary term) in order
                     // to guarantee the consistency between the primary and replicas, and between translog and Lucene index.
                     final AlreadyProcessedFollowingEngineException failure = (AlreadyProcessedFollowingEngineException) result.getFailure();
+                    assert failure.getSeqNo() == targetOp.seqNo() : targetOp.seqNo() + " != " + failure.getSeqNo();
                     if (failure.getExistingPrimaryTerm().isPresent()) {
                         appliedOperations.add(rewriteOperationWithPrimaryTerm(sourceOp, failure.getExistingPrimaryTerm().getAsLong()));
                     } else {

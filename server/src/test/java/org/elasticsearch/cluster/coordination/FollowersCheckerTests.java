@@ -165,6 +165,7 @@ public class FollowersCheckerTests extends ESTestCase {
         final Settings settings = settingsBuilder.build();
 
         testBehaviourOfFailingNode(settings, () -> null,
+            "followers check retry count exceeded",
             (FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings) - 1) * FOLLOWER_CHECK_INTERVAL_SETTING.get(settings).millis()
                 + FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings) * FOLLOWER_CHECK_TIMEOUT_SETTING.get(settings).millis());
     }
@@ -182,6 +183,7 @@ public class FollowersCheckerTests extends ESTestCase {
         testBehaviourOfFailingNode(settings, () -> {
                 throw new ElasticsearchException("simulated exception");
             },
+            "followers check retry count exceeded",
             (FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings) - 1) * FOLLOWER_CHECK_INTERVAL_SETTING.get(settings).millis());
     }
 
@@ -213,6 +215,7 @@ public class FollowersCheckerTests extends ESTestCase {
                     throw new ElasticsearchException("simulated exception");
                 }
             },
+            "followers check retry count exceeded",
             (FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings) * (maxRecoveries + 1) - 1)
                 * FOLLOWER_CHECK_INTERVAL_SETTING.get(settings).millis());
     }
@@ -220,7 +223,7 @@ public class FollowersCheckerTests extends ESTestCase {
     public void testFailsNodeThatIsDisconnected() {
         testBehaviourOfFailingNode(Settings.EMPTY, () -> {
             throw new ConnectTransportException(null, "simulated exception");
-        }, 0);
+        }, "disconnected", 0);
     }
 
     public void testFailsNodeThatDisconnects() {
@@ -262,6 +265,7 @@ public class FollowersCheckerTests extends ESTestCase {
             assert false : fcr;
         }, (node, reason) -> {
             assertTrue(nodeFailed.compareAndSet(false, true));
+            assertThat(reason, equalTo("disconnected"));
         });
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).build();
@@ -274,7 +278,8 @@ public class FollowersCheckerTests extends ESTestCase {
         assertThat(followersChecker.getFaultyNodes(), contains(otherNode));
     }
 
-    private void testBehaviourOfFailingNode(Settings testSettings, Supplier<TransportResponse.Empty> responder, long expectedFailureTime) {
+    private void testBehaviourOfFailingNode(Settings testSettings, Supplier<TransportResponse.Empty> responder, String failureReason,
+                                            long expectedFailureTime) {
         final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getName()).put(testSettings).build();
@@ -321,6 +326,7 @@ public class FollowersCheckerTests extends ESTestCase {
             assert false : fcr;
         }, (node, reason) -> {
             assertTrue(nodeFailed.compareAndSet(false, true));
+            assertThat(reason, equalTo(failureReason));
         });
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).build();

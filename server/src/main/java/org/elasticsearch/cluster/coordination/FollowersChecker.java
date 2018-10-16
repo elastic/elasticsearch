@@ -240,7 +240,7 @@ public class FollowersChecker extends AbstractComponent {
         synchronized (mutex) {
             FollowerChecker followerChecker = followerCheckers.get(discoveryNode);
             if (followerChecker != null && followerChecker.running()) {
-                followerChecker.failNode();
+                followerChecker.failNode("disconnected");
             }
         }
     }
@@ -320,18 +320,21 @@ public class FollowersChecker extends AbstractComponent {
 
                         failureCountSinceLastSuccess++;
 
+                        final String reason;
                         if (failureCountSinceLastSuccess >= followerCheckRetryCount) {
                             logger.debug(() -> new ParameterizedMessage("{} failed too many times", FollowerChecker.this), exp);
+                            reason = "followers check retry count exceeded";
                         } else if (exp instanceof ConnectTransportException
                             || exp.getCause() instanceof ConnectTransportException) {
                             logger.debug(() -> new ParameterizedMessage("{} disconnected", FollowerChecker.this), exp);
+                            reason = "disconnected";
                         } else {
                             logger.debug(() -> new ParameterizedMessage("{} failed, retrying", FollowerChecker.this), exp);
                             scheduleNextWakeUp();
                             return;
                         }
 
-                        failNode();
+                        failNode(reason);
                     }
 
 
@@ -342,7 +345,7 @@ public class FollowersChecker extends AbstractComponent {
                 });
         }
 
-        void failNode() {
+        void failNode(String reason) {
             transportService.getThreadPool().generic().execute(new Runnable() {
                 @Override
                 public void run() {
@@ -354,7 +357,7 @@ public class FollowersChecker extends AbstractComponent {
                         faultyNodes.add(discoveryNode);
                         followerCheckers.remove(discoveryNode);
                     }
-                    onNodeFailure.accept(discoveryNode, "followers_checker");
+                    onNodeFailure.accept(discoveryNode, reason);
                 }
 
                 @Override

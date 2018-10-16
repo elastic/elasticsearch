@@ -17,7 +17,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -49,11 +48,10 @@ import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
 
 /**
  * {@link org.elasticsearch.test.NodeConfigurationSource} subclass that allows to set all needed settings for x-pack security.
- * Unicast discovery is configured through {@link org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration.UnicastZen},
- * also x-pack is installed with all the needed configuration and files.
+ * X-pack is installed with all the needed configuration and files.
  * To avoid conflicts, every cluster should have its own instance of this class as some configuration files need to be created.
  */
-public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.UnicastZen {
+public class SecuritySettingsSource extends NodeConfigurationSource {
 
     public static final Settings DEFAULT_SETTINGS = Settings.EMPTY;
 
@@ -84,6 +82,9 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
                     "    - names: '*'\n" +
                     "      privileges: [ ALL ]\n";
 
+    final Settings nodeSettings;
+    final Settings transportClientSettings;
+
     private final Path parentFolder;
     private final String subfolderPrefix;
     private final boolean sslEnabled;
@@ -99,7 +100,8 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
      * @param scope the scope of the test that is requiring an instance of SecuritySettingsSource
      */
     public SecuritySettingsSource(int numOfNodes, boolean sslEnabled, Path parentFolder, Scope scope) {
-        super(numOfNodes, DEFAULT_SETTINGS);
+        this.nodeSettings = Settings.builder().put(Settings.EMPTY).put(DEFAULT_SETTINGS).build();
+        this.transportClientSettings = Settings.builder().put(DEFAULT_SETTINGS).build();
         this.parentFolder = parentFolder;
         this.subfolderPrefix = scope.name();
         this.sslEnabled = sslEnabled;
@@ -129,7 +131,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
         writeFile(xpackConf, "users", configUsers());
         writeFile(xpackConf, "users_roles", configUsersRoles());
 
-        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal))
+        Settings.Builder builder = Settings.builder().put(nodeSettings)
                 .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
                 .put(NetworkModule.HTTP_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
@@ -156,7 +158,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
 
     @Override
     public Settings transportClientSettings() {
-        Settings superSettings = super.transportClientSettings();
+        Settings superSettings = transportClientSettings;
         Settings.Builder builder = Settings.builder().put(superSettings);
         addClientSSLSettings(builder, "");
         addDefaultSecurityTransportType(builder, superSettings);

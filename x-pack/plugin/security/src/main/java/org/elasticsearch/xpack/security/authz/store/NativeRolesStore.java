@@ -115,7 +115,7 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
             // TODO remove this short circuiting and fix tests that fail without this!
             listener.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
         } else if (names == null || names.isEmpty()) {
-            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 QueryBuilder query = QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE);
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN)) {
@@ -135,7 +135,7 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
         } else if (names.size() == 1) {
             getRoleDescriptor(Objects.requireNonNull(names.iterator().next()), listener);
         } else {
-            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 final String[] roleIds = names.stream().map(NativeRolesStore::getIdForRole).toArray(String[]::new);
                 MultiGetRequest multiGetRequest = client.prepareMultiGet().add(SECURITY_INDEX_NAME, ROLE_DOC_TYPE, roleIds).request();
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, multiGetRequest,
@@ -152,16 +152,19 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
     }
 
     public void deleteRole(final DeleteRoleRequest deleteRoleRequest, final ActionListener<Boolean> listener) {
-        securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-            DeleteRequest request = client.prepareDelete(SecurityIndexManager.SECURITY_INDEX_NAME,
+        if (securityIndex.isAvailable() == false) {
+            listener.onResponse(false);
+        } else {
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
+                DeleteRequest request = client.prepareDelete(SecurityIndexManager.SECURITY_INDEX_NAME,
                     ROLE_DOC_TYPE, getIdForRole(deleteRoleRequest.name())).request();
-            request.setRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
+                request.setRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
                     new ActionListener<DeleteResponse>() {
                         @Override
                         public void onResponse(DeleteResponse deleteResponse) {
                             clearRoleCache(deleteRoleRequest.name(), listener,
-                                    deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
+                                deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
                         }
 
                         @Override
@@ -170,7 +173,8 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
                             listener.onFailure(e);
                         }
                     }, client::delete);
-        });
+            });
+        }
     }
 
     public void putRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
@@ -218,13 +222,13 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {
         Map<String, Object> usageStats = new HashMap<>(3);
-        if (securityIndex.indexExists() == false) {
+        if (securityIndex.isAvailable() == false) {
             usageStats.put("size", 0L);
             usageStats.put("fls", false);
             usageStats.put("dls", false);
             listener.onResponse(usageStats);
         } else {
-            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                     client.prepareMultiSearch()
                         .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
@@ -306,8 +310,12 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
     }
 
     private void executeGetRoleRequest(String role, ActionListener<GetResponse> listener) {
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                client.prepareGet(SECURITY_INDEX_NAME, ROLE_DOC_TYPE, getIdForRole(role)).request(), listener, client::get);
+        securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                    client.prepareGet(SECURITY_INDEX_NAME,
+                            ROLE_DOC_TYPE, getIdForRole(role)).request(),
+                    listener,
+                    client::get));
     }
 
     private <Response> void clearRoleCache(final String role, ActionListener<Response> listener, Response response) {

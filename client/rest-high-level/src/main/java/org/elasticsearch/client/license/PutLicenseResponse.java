@@ -39,8 +39,6 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 
 public final class PutLicenseResponse {
 
-    private static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
-
     private static final ConstructingObjectParser<PutLicenseResponse, Void> PARSER = new ConstructingObjectParser<>(
         "put_license_response", true, (a, v) -> {
         boolean acknowledged = (Boolean) a[0];
@@ -55,7 +53,7 @@ public final class PutLicenseResponse {
     });
 
     static {
-        PARSER.declareBoolean(constructorArg(), ACKNOWLEDGED);
+        PARSER.declareBoolean(constructorArg(), new ParseField("acknowledged"));
         PARSER.declareString(constructorArg(), new ParseField("license_status"));
         PARSER.declareObject(optionalConstructorArg(), (parser, v) -> {
                 Map<String, String[]> acknowledgeMessages = new HashMap<>();

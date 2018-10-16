@@ -245,8 +245,8 @@ class VagrantTestPlugin implements Plugin<Project> {
 
         Task createLinuxRunnerScript = project.tasks.create('createLinuxRunnerScript', FileContentsTask) {
             dependsOn copyPackagingTests
-            file "${testsDir}/run-tests.sh"
-            contents """\
+            file = "${testsDir}/run-tests.sh"
+            contents = """\
                      if [ "\$#" -eq 0 ]; then
                        test_args=( "${-> project.extensions.esvagrant.testClass}" )
                      else
@@ -257,10 +257,10 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
         Task createWindowsRunnerScript = project.tasks.create('createWindowsRunnerScript', FileContentsTask) {
             dependsOn copyPackagingTests
-            file "${testsDir}/run-tests.ps1"
+            file = "${testsDir}/run-tests.ps1"
             // the use of $args rather than param() here is deliberate because the syntax for array (multivalued) parameters is likely
             // a little trappy for those unfamiliar with powershell
-            contents """\
+            contents = """\
                      if (\$args.Count -eq 0) {
                        \$testArgs = @("${-> project.extensions.esvagrant.testClass}")
                      } else {
@@ -273,14 +273,14 @@ class VagrantTestPlugin implements Plugin<Project> {
 
         Task createVersionFile = project.tasks.create('createVersionFile', FileContentsTask) {
             dependsOn copyPackagingArchives
-            file "${archivesDir}/version"
-            contents project.version
+            file = "${archivesDir}/version"
+            contents = project.version
         }
 
         Task createUpgradeFromFile = project.tasks.create('createUpgradeFromFile', FileContentsTask) {
             dependsOn copyPackagingArchives
-            file "${archivesDir}/upgrade_from_version"
-            contents project.extensions.esvagrant.upgradeFromVersion.toString()
+            file = "${archivesDir}/upgrade_from_version"
+            contents = project.extensions.esvagrant.upgradeFromVersion.toString()
         }
 
         Task createUpgradeIsOssFile = project.tasks.create('createUpgradeIsOssFile', FileContentsTask) {
@@ -291,8 +291,8 @@ class VagrantTestPlugin implements Plugin<Project> {
                     throw new StopExecutionException("upgrade version is before 6.3.0")
                 }
             }
-            file "${archivesDir}/upgrade_is_oss"
-            contents ''
+            file = "${archivesDir}/upgrade_is_oss"
+            contents = ''
         }
 
         File batsDir = new File(packagingDir, BATS)

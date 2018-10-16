@@ -221,7 +221,7 @@ public final class InternalTestCluster extends TestCluster {
     private ServiceDisruptionScheme activeDisruptionScheme;
     private Function<Client, Client> clientWrapper;
 
-    // If set to tru only the first node in the cluster will be made a unicast node
+    // If set to true only the first node in the cluster will be made a unicast node
     private boolean hostsListContainsOnlyFirstNode;
 
     public InternalTestCluster(

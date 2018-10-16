@@ -151,9 +151,8 @@ public class InternalIndexReindexer<T> {
                                 .put(IndexMetaData.INDEX_READ_ONLY_SETTING.getKey(), true)
                                 .build();
                 final IndexMetaData.Builder builder = IndexMetaData.builder(indexMetaData).settings(indexSettingsBuilder);
-                if (same(indexMetaData.getSettings(), indexSettingsBuilder) == false) {
-                    builder.settingsVersion(1 + builder.settingsVersion());
-                }
+                assert same(indexMetaData.getSettings(), indexSettingsBuilder) == false;
+                builder.settingsVersion(1 + builder.settingsVersion());
 
                 MetaData.Builder metaDataBuilder = MetaData.builder(currentState.metaData()).put(builder);
 

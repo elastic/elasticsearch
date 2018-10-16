@@ -237,7 +237,9 @@ public class JobConfigProvider extends AbstractComponent {
      *
      * @param jobId The Id of the job to update
      * @param update The job update
-     * @param maxModelMemoryLimit The maximum model memory allowed
+     * @param maxModelMemoryLimit The maximum model memory allowed. This can be {@code null}
+     *                            if the job's {@link org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits}
+     *                            are not changed.
      * @param updatedJobListener Updated job listener
      */
     public void updateJob(String jobId, JobUpdate update, ByteSizeValue maxModelMemoryLimit, ActionListener<Job> updatedJobListener) {
@@ -372,7 +374,6 @@ public class JobConfigProvider extends AbstractComponent {
                     new ElasticsearchParseException("Failed to serialise job with id [" + updatedJob.getId() + "]", e));
         }
     }
-
 
     /**
      * Check a job exists. A job exists if it has a configuration document.

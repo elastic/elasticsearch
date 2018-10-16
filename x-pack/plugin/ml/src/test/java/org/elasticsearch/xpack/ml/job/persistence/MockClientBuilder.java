@@ -274,7 +274,7 @@ public class MockClientBuilder {
      * Creates a {@link SearchResponse} with a {@link SearchHit} for each element of {@code docs}
      * @param indexName Index being searched
      * @param docs Returned in the SearchResponse
-     * @return
+     * @return this
      */
     @SuppressWarnings("unchecked")
     public MockClientBuilder prepareSearch(String indexName, List<BytesReference> docs) {

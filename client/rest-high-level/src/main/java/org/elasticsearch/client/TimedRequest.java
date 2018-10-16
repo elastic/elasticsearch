@@ -20,6 +20,8 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.common.unit.TimeValue;
 
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+
 /**
  * A base request for any requests that supply timeouts.
  *
@@ -28,11 +30,11 @@ import org.elasticsearch.common.unit.TimeValue;
  */
 public abstract class TimedRequest implements Validatable {
 
-    public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30);
-    public static final TimeValue DEFAULT_MASTER_TIMEOUT = TimeValue.timeValueSeconds(30);
+    public static final TimeValue DEFAULT_ACK_TIMEOUT = timeValueSeconds(30);
+    public static final TimeValue DEFAULT_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
 
-    private TimeValue timeout = DEFAULT_TIMEOUT;
-    private TimeValue masterTimeout = DEFAULT_MASTER_TIMEOUT;
+    private TimeValue timeout = DEFAULT_ACK_TIMEOUT;
+    private TimeValue masterTimeout = DEFAULT_MASTER_NODE_TIMEOUT;
 
     public void setTimeout(TimeValue timeout) {
         this.timeout = timeout;

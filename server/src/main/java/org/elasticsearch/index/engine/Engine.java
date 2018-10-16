@@ -83,6 +83,7 @@ import org.elasticsearch.search.suggest.completion.CompletionStats;
 import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.Base64;
@@ -663,7 +664,24 @@ public abstract class Engine implements Closeable {
         }
         Releasable releasable = store::decRef;
         try {
-            EngineSearcher engineSearcher = new EngineSearcher(source, getReferenceManager(scope), store, logger);
+            ReferenceManager<IndexSearcher> referenceManager = getReferenceManager(scope);
+            IndexSearcher acquire = referenceManager.acquire();
+            AtomicBoolean released = new AtomicBoolean(false);
+            Searcher engineSearcher = new Searcher(source, acquire,
+                () -> {
+                if (released.compareAndSet(false, true)) {
+                    try {
+                        referenceManager.release(acquire);
+                    } finally {
+                        store.decRef();
+                    }
+                } else {
+                    /* In general, searchers should never be released twice or this would break reference counting. There is one rare case
+                     * when it might happen though: when the request and the Reaper thread would both try to release it in a very short
+                     * amount of time, this is why we only log a warning instead of throwing an exception. */
+                    logger.warn("Searcher was released twice", new IllegalStateException("Double release"));
+                }
+              });
             releasable = null; // success - hand over the reference to the engine searcher
             return engineSearcher;
         } catch (AlreadyClosedException ex) {
@@ -1166,14 +1184,15 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public static class Searcher implements Releasable {
-
+    public static final class Searcher implements Releasable {
         private final String source;
         private final IndexSearcher searcher;
+        private final Closeable onClose;
 
-        public Searcher(String source, IndexSearcher searcher) {
+        public Searcher(String source, IndexSearcher searcher, Closeable onClose) {
             this.source = source;
             this.searcher = searcher;
+            this.onClose = onClose;
         }
 
         /**
@@ -1200,7 +1219,14 @@ public abstract class Engine implements Closeable {
 
         @Override
         public void close() {
-            // Nothing to close here
+            try {
+                onClose.close();
+            } catch (IOException e) {
+                throw new UncheckedIOException("failed to close", e);
+            } catch (AlreadyClosedException e) {
+                // This means there's a bug somewhere: don't suppress it
+                throw new AssertionError(e);
+            }
         }
     }
 

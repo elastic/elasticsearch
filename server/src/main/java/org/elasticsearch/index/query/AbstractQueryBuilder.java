@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanBoostQuery;
@@ -29,6 +31,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
@@ -49,6 +52,9 @@ import java.util.Objects;
  * Supports conversion to BytesReference and creation of lucene Query objects.
  */
 public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> implements QueryBuilder {
+
+    private static final Logger logger = LogManager.getLogger(AbstractQueryBuilder.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     /** Default for boost to apply to resulting Lucene query. Defaults to 1.0*/
     public static final float DEFAULT_BOOST = 1.0f;
@@ -159,6 +165,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     @SuppressWarnings("unchecked")
     @Override
     public final QB boost(float boost) {
+        if (Float.compare(boost, 0f) < 0) {
+            deprecationLogger.deprecatedAndMaybeLog("negative boost", "setting a negative [boost] on a query " +
+                "is deprecated and will throw an error in the next version. You can use a value between 0 and 1 to deboost.");
+        }
         this.boost = boost;
         return (QB) this;
     }

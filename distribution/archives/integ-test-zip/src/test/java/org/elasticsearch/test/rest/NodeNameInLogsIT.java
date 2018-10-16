@@ -32,6 +32,8 @@ import java.security.PrivilegedAction;
 public class NodeNameInLogsIT extends NodeNameInLogsIntegTestCase {
     @Override
     protected BufferedReader openReader(Path logFile) throws IOException {
+        assumeFalse("Skipping test because it is being run against an external cluster.",
+                logFile.getFileName().toString().equals("--external--"));
         return AccessController.doPrivileged((PrivilegedAction<BufferedReader>) () -> {
             try {
                 return Files.newBufferedReader(logFile, StandardCharsets.UTF_8);

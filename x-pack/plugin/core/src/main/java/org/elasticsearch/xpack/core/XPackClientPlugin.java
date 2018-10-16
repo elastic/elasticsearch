@@ -400,6 +400,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(PersistentTaskState.class, RollupJobStatus.NAME, RollupJobStatus::new),
                 // ccr
                 new NamedWriteableRegistry.Entry(AutoFollowMetadata.class, AutoFollowMetadata.TYPE, AutoFollowMetadata::new),
+                new NamedWriteableRegistry.Entry(MetaData.Custom.class, AutoFollowMetadata.TYPE, AutoFollowMetadata::new),
+                new NamedWriteableRegistry.Entry(NamedDiff.class, AutoFollowMetadata.TYPE,
+                    in -> AutoFollowMetadata.readDiffFrom(MetaData.Custom.class, AutoFollowMetadata.TYPE, in)),
                 // ILM
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.INDEX_LIFECYCLE,
                     IndexLifecycleFeatureSetUsage::new),

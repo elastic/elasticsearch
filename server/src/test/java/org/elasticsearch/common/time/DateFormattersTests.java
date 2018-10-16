@@ -37,6 +37,48 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class DateFormattersTests extends ESTestCase {
 
+    // this is not in the duelling tests, because the epoch millis parser in joda time drops the milliseconds after the comma
+    // but is able to parse the rest
+    // as this feature is supported it also makes sense to make it exact
+    public void testEpochMillisParser() {
+        DateFormatter formatter = DateFormatters.forPattern("epoch_millis");
+        {
+            Instant instant = Instant.from(formatter.parse("12345.6789"));
+            assertThat(instant.getEpochSecond(), is(12L));
+            assertThat(instant.getNano(), is(345_678_900));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("12345"));
+            assertThat(instant.getEpochSecond(), is(12L));
+            assertThat(instant.getNano(), is(345_000_000));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("12345."));
+            assertThat(instant.getEpochSecond(), is(12L));
+            assertThat(instant.getNano(), is(345_000_000));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-12345.6789"));
+            assertThat(instant.getEpochSecond(), is(-13L));
+            assertThat(instant.getNano(), is(1_000_000_000 - 345_678_900));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-436134.241272"));
+            assertThat(instant.getEpochSecond(), is(-437L));
+            assertThat(instant.getNano(), is(1_000_000_000 - 134_241_272));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-12345"));
+            assertThat(instant.getEpochSecond(), is(-13L));
+            assertThat(instant.getNano(), is(1_000_000_000 - 345_000_000));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("0"));
+            assertThat(instant.getEpochSecond(), is(0L));
+            assertThat(instant.getNano(), is(0));
+        }
+    }
+
     public void testEpochMilliParser() {
         DateFormatter formatter = DateFormatters.forPattern("epoch_millis");
         DateTimeParseException e = expectThrows(DateTimeParseException.class, () -> formatter.parse("invalid"));

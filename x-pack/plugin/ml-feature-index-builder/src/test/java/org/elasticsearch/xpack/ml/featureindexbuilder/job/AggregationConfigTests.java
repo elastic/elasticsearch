@@ -6,25 +6,29 @@
 
 package org.elasticsearch.xpack.ml.featureindexbuilder.job;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-// broken upstream
-@AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/33942")
 public class AggregationConfigTests extends AbstractSerializingFeatureIndexBuilderTestCase<AggregationConfig> {
 
     public static AggregationConfig randomAggregationConfig() {
         AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
 
-        for (int i = 0; i < randomIntBetween(1, 20); ++i) {
-            builder.addAggregator(getRandomSupportedAggregation());
+        // ensure that the unlikely does not happen: 2 aggs share the same name
+        Set<String> names = new HashSet<>();
+        for (int i = 1; i < randomIntBetween(1, 20); ++i) {
+            AggregationBuilder aggBuilder = getRandomSupportedAggregation();
+            if (names.add(aggBuilder.getName())) {
+                builder.addAggregator(aggBuilder);
+            }
         }
 
         return new AggregationConfig(builder);

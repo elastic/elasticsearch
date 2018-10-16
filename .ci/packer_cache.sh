@@ -15,5 +15,19 @@ while [ -h "$SCRIPT" ] ; do
   fi
 done
 
-source $(dirname "${SCRIPT}")/java-versions.properties
-JAVA_HOME="${HOME}"/.java/${ES_BUILD_JAVA} ./gradlew resolveAllDependencies --parallel
+cd $(dirname "${SCRIPT}")/..
+
+source .ci/java-versions.properties
+
+REFRESH_FAILED=no
+MAX_TRIES=3
+for i in $(seq 1 $MAX_TRIES) ; do 
+    echo "Resolving dependencies try $i/$MAX_TRIES"
+    JAVA_HOME="${HOME}"/.java/${ES_BUILD_JAVA} ./gradlew resolveAllDependencies --parallel && break
+    REFRESH_FAILED=yes
+done
+if [ $REFRESH_FAILED != "no" ] ; then
+    echo "Resolving dependencies failed after 3 retries ..."
+    exit 1
+fi   
+exit 0

@@ -1,0 +1,18 @@
+//
+// CSV spec used by the geo docs
+//
+
+///////////////////////////////
+//
+// ST_AsWKT()
+//
+///////////////////////////////
+
+selectAsWKT
+// tag::aswkt
+SELECT city, ST_ASWKT(location) location FROM "geo" WHERE city = 'Amsterdam';
+
+     city:s    |     location:s
+Amsterdam      |point (4.850312 52.347557)
+// end::aswkt
+;

@@ -1,0 +1,32 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-functions-geo]]
+=== Geo Functions
+
+The geo functions work with geometries stored in `geo_point` and `geo_shape` fields, or returned by other geo functions.
+
+==== Geometry Conversion
+
+[[sql-functions-geo-st-as-wkt]]
+===== `ST_AsWKT`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+ST_AsWKT(geometry<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> geometry
+
+*Output*: string
+
+.Description:
+
+Returns the WKT representation of the `geometry`. The return type is string.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/geo/docs.csv-spec[aswkt]
+--------------------------------------------------

@@ -36,6 +36,7 @@ public abstract class GeoCsvSpecTestCase extends SpecBaseIntegrationTestCase {
         List<Object[]> tests = new ArrayList<>();
         tests.addAll(readScriptSpec("/ogc/ogc.csv-spec", parser));
         tests.addAll(readScriptSpec("/geo/geosql.csv-spec", parser));
+        tests.addAll(readScriptSpec("/geo/docs.csv-spec", parser));
         return tests;
     }
 

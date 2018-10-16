@@ -6,7 +6,7 @@ showTables
 SHOW TABLES "geo";
 
  name:s        | type:s
-geo       |BASE TABLE
+geo            |BASE TABLE
 ;
 
 // DESCRIBE
@@ -47,9 +47,9 @@ Tokyo          |35.669616, 139.76402225|point (139.76402225 35.669616)|Asia
 
 // TODO: Both shape and location contain the same data for now, we should change it later to make things more interesting
 selectAllPointsAsWKT
-SELECT city, ST_ASWKT(location) location, ST_ASWKT(shape) shape, region FROM "geo" ORDER BY "city";
+SELECT city, ST_ASWKT(location) location_wkt, ST_ASWKT(shape) shape_wkt, region FROM "geo" ORDER BY "city";
 
-     city:s    |     location:s               |        shape:s               |  region:s
+     city:s    |     location_wkt:s           |        shape_wkt:s           |  region:s
 Amsterdam      |point (4.850312 52.347557)    |point (4.850312 52.347557)    |Europe
 Berlin         |point (13.390889 52.486701)   |point (13.390889 52.486701)   |Europe
 Chicago        |point (-87.637874 41.888783)  |point (-87.637874 41.888783)  |Americas
@@ -68,8 +68,37 @@ Tokyo          |point (139.76402225 35.669616)|point (139.76402225 35.669616)|As
 ;
 
 selectWithAsWKTInWhere
-SELECT city, ST_ASWKT(location) location, region FROM "geo" WHERE LOCATE('114', ST_ASWKT(location)) > 0 ORDER BY "city";
+SELECT city, ST_ASWKT(location) location_wkt, region FROM "geo" WHERE LOCATE('114', ST_ASWKT(location)) > 0 ORDER BY "city";
 
-     city:s    |     location:s               |  region:s
+     city:s    |     location_wkt:s           |  region:s
 Hong Kong      |point (114.183925 22.281397)  |Asia
+;
+
+selectAllPointsOrderByLonFromAsWKT
+SELECT city, SUBSTRING(ST_ASWKT(location), 8, LOCATE(' ', ST_ASWKT(location), 8) - 8) lon FROM "geo" ORDER BY lon;
+
+     city:s    |  lon:s
+London         |-0.121672
+Phoenix        |-111.973505
+Mountain View  |-122.083843
+San Francisco  |-122.394228
+New York       |-73.990027
+Chicago        |-87.637874
+Singapore      |103.855535
+Munich         |11.537505
+Hong Kong      |114.183925
+Seoul          |127.060851
+Berlin         |13.390889
+Tokyo          |139.76402225
+Sydney         |151.208629
+Paris          |2.351773
+Amsterdam      |4.850312
+;
+
+selectAllPointsGroupByHemisphereFromAsWKT
+SELECT COUNT(city) count, CAST(SUBSTRING(ST_ASWKT(location), 8, 1) = '-' AS STRING) west FROM "geo" GROUP BY west ORDER BY west;
+
+    count:l    |  west:s
+9              |false
+6              |true
 ;

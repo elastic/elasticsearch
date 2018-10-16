@@ -14,6 +14,9 @@ import java.io.IOException;
 
 /**
  * Wrapper class to represent a GeoShape in SQL
+ *
+ * It is required to override the XContent serialization. The ShapeBuilder serializes using GeoJSON by default,
+ * but in SQL we need the serialization to be WKT-based.
  */
 public class GeoShape implements ToXContentFragment {
 

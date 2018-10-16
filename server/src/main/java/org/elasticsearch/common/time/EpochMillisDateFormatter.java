@@ -25,6 +25,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalField;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -40,7 +41,8 @@ class EpochMillisDateFormatter implements DateFormatter {
 
     public static DateFormatter INSTANCE = new EpochMillisDateFormatter();
 
-    private EpochMillisDateFormatter() {}
+    private EpochMillisDateFormatter() {
+    }
 
     @Override
     public TemporalAccessor parse(String input) {
@@ -53,6 +55,17 @@ class EpochMillisDateFormatter implements DateFormatter {
 
     @Override
     public DateFormatter withZone(ZoneId zoneId) {
+        if (ZoneOffset.UTC.equals(zoneId) == false) {
+            throw new IllegalArgumentException(pattern() + " date formatter can only be in zone offset UTC");
+        }
+        return INSTANCE;
+    }
+
+    @Override
+    public DateFormatter withLocale(Locale locale) {
+        if (Locale.ROOT.equals(locale) == false) {
+            throw new IllegalArgumentException(pattern() + " date formatter can only be in locale ROOT");
+        }
         return this;
     }
 
@@ -69,5 +82,15 @@ class EpochMillisDateFormatter implements DateFormatter {
     @Override
     public DateFormatter parseDefaulting(Map<TemporalField, Long> fields) {
         return this;
+    }
+
+    @Override
+    public Locale getLocale() {
+        return Locale.ROOT;
+    }
+
+    @Override
+    public ZoneId getZone() {
+        return ZoneOffset.UTC;
     }
 }

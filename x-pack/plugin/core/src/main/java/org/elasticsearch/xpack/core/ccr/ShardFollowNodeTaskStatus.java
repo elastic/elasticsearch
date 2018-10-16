@@ -57,6 +57,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     private static final ParseField NUMBER_OF_OPERATIONS_INDEXED_FIELD = new ParseField("number_of_operations_indexed");
     private static final ParseField FETCH_EXCEPTIONS = new ParseField("fetch_exceptions");
     private static final ParseField TIME_SINCE_LAST_FETCH_MILLIS_FIELD = new ParseField("time_since_last_fetch_millis");
+    private static final ParseField FATAL_EXCEPTION = new ParseField("fatal_exception");
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<ShardFollowNodeTaskStatus, Void> STATUS_PARSER =
@@ -88,7 +89,8 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                                     ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[21])
                                             .stream()
                                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
-                            (long) args[22]));
+                            (long) args[22],
+                            (ElasticsearchException) args[23]));
 
     public static final String FETCH_EXCEPTIONS_ENTRY_PARSER_NAME = "shard-follow-node-task-status-fetch-exceptions-entry";
 
@@ -121,6 +123,9 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_OPERATIONS_INDEXED_FIELD);
         STATUS_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), FETCH_EXCEPTIONS_ENTRY_PARSER, FETCH_EXCEPTIONS);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TIME_SINCE_LAST_FETCH_MILLIS_FIELD);
+        STATUS_PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> ElasticsearchException.fromXContent(p),
+                FATAL_EXCEPTION);
     }
 
     static final ParseField FETCH_EXCEPTIONS_ENTRY_FROM_SEQ_NO = new ParseField("from_seq_no");
@@ -274,6 +279,12 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         return timeSinceLastFetchMillis;
     }
 
+    private final ElasticsearchException fatalException;
+
+    public ElasticsearchException getFatalException() {
+        return fatalException;
+    }
+
     public ShardFollowNodeTaskStatus(
             final String leaderIndex,
             final String followerIndex,
@@ -297,7 +308,8 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
             final long numberOfFailedBulkOperations,
             final long numberOfOperationsIndexed,
             final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> fetchExceptions,
-            final long timeSinceLastFetchMillis) {
+            final long timeSinceLastFetchMillis,
+            final ElasticsearchException fatalException) {
         this.leaderIndex = leaderIndex;
         this.followerIndex = followerIndex;
         this.shardId = shardId;
@@ -321,6 +333,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         this.numberOfOperationsIndexed = numberOfOperationsIndexed;
         this.fetchExceptions = Objects.requireNonNull(fetchExceptions);
         this.timeSinceLastFetchMillis = timeSinceLastFetchMillis;
+        this.fatalException = fatalException;
     }
 
     public ShardFollowNodeTaskStatus(final StreamInput in) throws IOException {
@@ -348,6 +361,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         this.fetchExceptions =
                 new TreeMap<>(in.readMap(StreamInput::readVLong, stream -> Tuple.tuple(stream.readVInt(), stream.readException())));
         this.timeSinceLastFetchMillis = in.readZLong();
+        this.fatalException = in.readException();
     }
 
     @Override
@@ -381,8 +395,12 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         out.writeMap(
                 fetchExceptions,
                 StreamOutput::writeVLong,
-                (stream, value) -> { stream.writeVInt(value.v1()); stream.writeException(value.v2()); });
+                (stream, value) -> {
+                    stream.writeVInt(value.v1());
+                    stream.writeException(value.v2());
+                });
         out.writeZLong(timeSinceLastFetchMillis);
+        out.writeException(fatalException);
     }
 
     @Override
@@ -448,6 +466,14 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                 TIME_SINCE_LAST_FETCH_MILLIS_FIELD.getPreferredName(),
                 "time_since_last_fetch",
                 new TimeValue(timeSinceLastFetchMillis, TimeUnit.MILLISECONDS));
+        if (fatalException != null) {
+            builder.field(FATAL_EXCEPTION.getPreferredName());
+            builder.startObject();
+            {
+                ElasticsearchException.generateThrowableXContent(builder, params, fatalException);
+            }
+            builder.endObject();
+        }
         return builder;
     }
 
@@ -460,6 +486,8 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final ShardFollowNodeTaskStatus that = (ShardFollowNodeTaskStatus) o;
+        String fatalExceptionMessage = fatalException != null ? fatalException.getMessage() : null;
+        String otherFatalExceptionMessage = that.fatalException != null ? that.fatalException.getMessage() : null;
         return leaderIndex.equals(that.leaderIndex) &&
                 followerIndex.equals(that.followerIndex) &&
                 shardId == that.shardId &&
@@ -487,11 +515,13 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                  */
                 fetchExceptions.keySet().equals(that.fetchExceptions.keySet()) &&
                 getFetchExceptionMessages(this).equals(getFetchExceptionMessages(that)) &&
-                timeSinceLastFetchMillis == that.timeSinceLastFetchMillis;
+                timeSinceLastFetchMillis == that.timeSinceLastFetchMillis &&
+                Objects.equals(fatalExceptionMessage, otherFatalExceptionMessage);
     }
 
     @Override
     public int hashCode() {
+        String fatalExceptionMessage = fatalException != null ? fatalException.getMessage() : null;
         return Objects.hash(
                 leaderIndex,
                 followerIndex,
@@ -519,13 +549,15 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                  */
                 fetchExceptions.keySet(),
                 getFetchExceptionMessages(this),
-                timeSinceLastFetchMillis);
+                timeSinceLastFetchMillis,
+                fatalExceptionMessage);
     }
 
     private static List<String> getFetchExceptionMessages(final ShardFollowNodeTaskStatus status) {
         return status.fetchExceptions().values().stream().map(t -> t.v2().getMessage()).collect(Collectors.toList());
     }
 
+    @Override
     public String toString() {
         return Strings.toString(this);
     }

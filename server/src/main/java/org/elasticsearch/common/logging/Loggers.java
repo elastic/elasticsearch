@@ -28,7 +28,6 @@ import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -62,10 +61,10 @@ public class Loggers {
     }
 
     public static Logger getLogger(Class<?> clazz, Index index, String... prefixes) {
-        return getLogger(clazz, Settings.EMPTY, asArrayList(Loggers.SPACE, index.getName(), prefixes).toArray(new String[0]));
+        return getLogger(clazz, asArrayList(Loggers.SPACE, index.getName(), prefixes).toArray(new String[0]));
     }
 
-    public static Logger getLogger(Class<?> clazz, Settings settings, String... prefixes) {
+    public static Logger getLogger(Class<?> clazz, String... prefixes) {
         return ESLoggerFactory.getLogger(formatPrefix(prefixes), clazz);
     }
 
@@ -83,7 +82,7 @@ public class Loggers {
      */
     @Deprecated
     public static Logger getLogger(String s) {
-        return ESLoggerFactory.getLogger(s);
+        return LogManager.getLogger(s);
     }
 
     /**
@@ -92,7 +91,7 @@ public class Loggers {
      */
     @Deprecated
     public static Logger getLogger(Class<?> clazz) {
-        return ESLoggerFactory.getLogger(clazz);
+        return ESLoggerFactory.getLogger(null, clazz);
     }
 
     private static String formatPrefix(String... prefixes) {

@@ -81,31 +81,21 @@ public class SourceOnlySnapshot {
         String segmentFileName;
         try (Lock writeLock = targetDirectory.obtainLock(IndexWriter.WRITE_LOCK_NAME);
              StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(commit)) {
-            SegmentInfos segmentInfos = reader.getSegmentInfos();
+            SegmentInfos segmentInfos = reader.getSegmentInfos().clone();
+            DirectoryReader wrappedReader = wrapReader(reader);
             List<SegmentCommitInfo> newInfos = new ArrayList<>();
-            for (LeafReaderContext ctx : reader.leaves()) {
+            for (LeafReaderContext ctx : wrappedReader.leaves()) {
                 LeafReader leafReader = ctx.reader();
-                SegmentCommitInfo info = reader.getSegmentInfos().info(ctx.ord);
-                assert info.info.equals(Lucene.segmentReader(ctx.reader()).getSegmentInfo().info);
-                /* We could do this totally different without wrapping this dummy directory reader if FilterCodecReader would have a
-                 * getDelegate method. This is fixed in LUCENE-8502 but we need to wait for it to come in 7.5.1 or 7.6.
-                 * The reason here is that the ctx.ord is not guaranteed to be equivalent to the SegmentCommitInfo ord in the SegmentInfo
-                 * object since we might drop fully deleted segments. if that happens we are using the wrong reader for the SI and
-                 * might almost certainly expose deleted documents.
-                 */
-                DirectoryReader wrappedReader = wrapReader(new DummyDirectoryReader(reader.directory(), leafReader));
-                if (wrappedReader.leaves().isEmpty() == false) {
-                    leafReader = wrappedReader.leaves().get(0).reader();
-                    LiveDocs liveDocs = getLiveDocs(leafReader);
-                    if (leafReader.numDocs() != 0) { // fully deleted segments don't need to be processed
-                        SegmentCommitInfo newInfo = syncSegment(info, liveDocs, leafReader.getFieldInfos(), existingSegments, createdFiles);
-                        newInfos.add(newInfo);
-                    }
+                SegmentCommitInfo info = Lucene.segmentReader(leafReader).getSegmentInfo();
+                LiveDocs liveDocs = getLiveDocs(leafReader);
+                if (leafReader.numDocs() != 0) { // fully deleted segments don't need to be processed
+                    SegmentCommitInfo newInfo = syncSegment(info, liveDocs, leafReader.getFieldInfos(), existingSegments, createdFiles);
+                    newInfos.add(newInfo);
                 }
             }
             segmentInfos.clear();
             segmentInfos.addAll(newInfos);
-            segmentInfos.setNextWriteGeneration(Math.max(segmentInfos.getGeneration(), generation)+1);
+            segmentInfos.setNextWriteGeneration(Math.max(segmentInfos.getGeneration(), generation) + 1);
             String pendingSegmentFileName = IndexFileNames.fileNameFromGeneration(IndexFileNames.PENDING_SEGMENTS,
                 "", segmentInfos.getGeneration());
             try (IndexOutput segnOutput = targetDirectory.createOutput(pendingSegmentFileName, IOContext.DEFAULT)) {
@@ -207,9 +197,9 @@ public class SourceOnlySnapshot {
             newInfo = new SegmentCommitInfo(newSegmentInfo, 0, 0, -1, -1, -1);
             List<FieldInfo> fieldInfoCopy = new ArrayList<>(fieldInfos.size());
             for (FieldInfo fieldInfo : fieldInfos) {
-                    fieldInfoCopy.add(new FieldInfo(fieldInfo.name, fieldInfo.number,
-                        false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, fieldInfo.attributes(), 0, 0,
-                        fieldInfo.isSoftDeletesField()));
+                fieldInfoCopy.add(new FieldInfo(fieldInfo.name, fieldInfo.number,
+                    false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, fieldInfo.attributes(), 0, 0,
+                    fieldInfo.isSoftDeletesField()));
             }
             FieldInfos newFieldInfos = new FieldInfos(fieldInfoCopy.toArray(new FieldInfo[0]));
             codec.fieldInfosFormat().write(trackingDir, newSegmentInfo, segmentSuffix, newFieldInfos, IOContext.DEFAULT);
@@ -250,7 +240,7 @@ public class SourceOnlySnapshot {
 
     private boolean assertLiveDocs(Bits liveDocs, int deletes) {
         int actualDeletes = 0;
-        for (int i = 0; i < liveDocs.length(); i++ ) {
+        for (int i = 0; i < liveDocs.length(); i++) {
             if (liveDocs.get(i) == false) {
                 actualDeletes++;
             }
@@ -266,53 +256,6 @@ public class SourceOnlySnapshot {
         LiveDocs(int numDeletes, Bits bits) {
             this.numDeletes = numDeletes;
             this.bits = bits;
-        }
-    }
-
-    private static class DummyDirectoryReader extends DirectoryReader {
-
-        protected DummyDirectoryReader(Directory directory, LeafReader... segmentReaders) throws IOException {
-            super(directory, segmentReaders);
-        }
-
-        @Override
-        protected DirectoryReader doOpenIfChanged() throws IOException {
-            return null;
-        }
-
-        @Override
-        protected DirectoryReader doOpenIfChanged(IndexCommit commit) throws IOException {
-            return null;
-        }
-
-        @Override
-        protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes) throws IOException {
-            return null;
-        }
-
-        @Override
-        public long getVersion() {
-            return 0;
-        }
-
-        @Override
-        public boolean isCurrent() throws IOException {
-            return false;
-        }
-
-        @Override
-        public IndexCommit getIndexCommit() throws IOException {
-            return null;
-        }
-
-        @Override
-        protected void doClose() throws IOException {
-
-        }
-
-        @Override
-        public CacheHelper getReaderCacheHelper() {
-            return null;
         }
     }
 }

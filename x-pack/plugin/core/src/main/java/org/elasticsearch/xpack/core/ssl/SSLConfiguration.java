@@ -206,18 +206,17 @@ public final class SSLConfiguration {
     private static TrustConfig createTrustConfig(Settings settings, KeyConfig keyConfig, SSLConfiguration global) {
         final TrustConfig trustConfig = createCertChainTrustConfig(settings, keyConfig, global);
         return SETTINGS_PARSER.trustRestrictionsPath.get(settings)
-                .map(path -> (TrustConfig) new RestrictedTrustConfig(settings, path, trustConfig))
+                .map(path -> (TrustConfig) new RestrictedTrustConfig(path, trustConfig))
                 .orElse(trustConfig);
     }
 
     private static TrustConfig createCertChainTrustConfig(Settings settings, KeyConfig keyConfig, SSLConfiguration global) {
         String trustStorePath = SETTINGS_PARSER.truststorePath.get(settings).orElse(null);
-
+        String trustStoreType = getKeyStoreType(SETTINGS_PARSER.truststoreType, settings, trustStorePath);
         List<String> caPaths = getListOrNull(SETTINGS_PARSER.caPaths, settings);
         if (trustStorePath != null && caPaths != null) {
             throw new IllegalArgumentException("you cannot specify a truststore and ca files");
         }
-
         VerificationMode verificationMode = SETTINGS_PARSER.verificationMode.get(settings).orElseGet(() -> {
             if (global != null) {
                 return global.verificationMode();
@@ -228,24 +227,39 @@ public final class SSLConfiguration {
             return TrustAllConfig.INSTANCE;
         } else if (caPaths != null) {
             return new PEMTrustConfig(caPaths);
-        } else if (trustStorePath != null) {
-            SecureString trustStorePassword = SETTINGS_PARSER.truststorePassword.get(settings);
+        } else if (trustStorePath != null || trustStoreType.equalsIgnoreCase("pkcs11")) {
             String trustStoreAlgorithm = SETTINGS_PARSER.truststoreAlgorithm.get(settings);
-            String trustStoreType = getKeyStoreType(SETTINGS_PARSER.truststoreType, settings, trustStorePath);
+            SecureString trustStorePassword = SETTINGS_PARSER.truststorePassword.get(settings);
             return new StoreTrustConfig(trustStorePath, trustStoreType, trustStorePassword, trustStoreAlgorithm);
         } else if (global == null && System.getProperty("javax.net.ssl.trustStore") != null
             && System.getProperty("javax.net.ssl.trustStore").equals("NONE") == false) {
             try (SecureString truststorePassword = new SecureString(System.getProperty("javax.net.ssl.trustStorePassword", ""))) {
                 return new StoreTrustConfig(System.getProperty("javax.net.ssl.trustStore"), KeyStore.getDefaultType(), truststorePassword,
-                        System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()));
+                    System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()));
             }
         } else if (global != null && keyConfig == global.keyConfig()) {
             return global.trustConfig();
         } else if (keyConfig != KeyConfig.NONE) {
-            return DefaultJDKTrustConfig.merge(keyConfig);
+            return DefaultJDKTrustConfig.merge(keyConfig, getDefaultTrustStorePassword(settings));
         } else {
-            return DefaultJDKTrustConfig.INSTANCE;
+            return new DefaultJDKTrustConfig(getDefaultTrustStorePassword(settings));
         }
+    }
+
+    private static SecureString getDefaultTrustStorePassword(Settings settings) {
+        // We only handle the default store password if it's a PKCS#11 token
+        if (System.getProperty("javax.net.ssl.trustStoreType", "").equalsIgnoreCase("PKCS11")) {
+            try (SecureString systemTrustStorePassword =
+                     new SecureString(System.getProperty("javax.net.ssl.trustStorePassword", "").toCharArray())) {
+                if (systemTrustStorePassword.length() == 0) {
+                    try (SecureString trustStorePassword = SETTINGS_PARSER.truststorePassword.get(settings)) {
+                        return trustStorePassword;
+                    }
+                }
+                return systemTrustStorePassword;
+            }
+        }
+        return null;
     }
 
     private static List<String> getListOrNull(Setting<List<String>> listSetting, Settings settings) {

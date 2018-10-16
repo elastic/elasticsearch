@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -658,7 +659,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             "indices.get_upgrade",
             "indices.put_alias",
             "mtermvectors",
-            "reindex_rethrottle",
             "render_search_template",
             "scripts_painless_execute",
             "tasks.get",
@@ -721,10 +721,16 @@ public class RestHighLevelClientTests extends ESTestCase {
                         methods.containsKey(apiName.substring(0, apiName.length() - 6)));
                 assertThat(method.getReturnType(), equalTo(Void.TYPE));
                 assertEquals(0, method.getExceptionTypes().length);
-                assertEquals(3, method.getParameterTypes().length);
-                assertThat(method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
-                assertThat(method.getParameterTypes()[1], equalTo(RequestOptions.class));
-                assertThat(method.getParameterTypes()[2], equalTo(ActionListener.class));
+                if (apiName.equals("security.get_ssl_certificates_async")) {
+                    assertEquals(2, method.getParameterTypes().length);
+                    assertThat(method.getParameterTypes()[0], equalTo(RequestOptions.class));
+                    assertThat(method.getParameterTypes()[1], equalTo(ActionListener.class));
+                } else {
+                    assertEquals(3, method.getParameterTypes().length);
+                    assertThat(method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
+                    assertThat(method.getParameterTypes()[1], equalTo(RequestOptions.class));
+                    assertThat(method.getParameterTypes()[2], equalTo(ActionListener.class));
+                }
             } else {
                 //A few methods return a boolean rather than a response object
                 if (apiName.equals("ping") || apiName.contains("exist")) {
@@ -735,7 +741,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
                 assertEquals(1, method.getExceptionTypes().length);
                 //a few methods don't accept a request object as argument
-                if (apiName.equals("ping") || apiName.equals("info")) {
+                if (apiName.equals("ping") || apiName.equals("info") || apiName.equals("security.get_ssl_certificates")) {
                     assertEquals(1, method.getParameterTypes().length);
                     assertThat(method.getParameterTypes()[0], equalTo(RequestOptions.class));
                 } else {

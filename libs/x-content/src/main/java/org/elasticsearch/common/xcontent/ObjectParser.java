@@ -324,9 +324,15 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         switch (token) {
             case START_OBJECT:
                 parseValue(parser, fieldParser, currentFieldName, value, context);
+                if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
+                    throw new IllegalStateException("parser for [" + currentFieldName + "] did not end on END_OBJECT");
+                }
                 break;
             case START_ARRAY:
                 parseArray(parser, fieldParser, currentFieldName, value, context);
+                if (parser.currentToken() != XContentParser.Token.END_ARRAY) {
+                    throw new IllegalStateException("parser for [" + currentFieldName + "] did not end on END_ARRAY");
+                }
                 break;
             case END_OBJECT:
             case END_ARRAY:

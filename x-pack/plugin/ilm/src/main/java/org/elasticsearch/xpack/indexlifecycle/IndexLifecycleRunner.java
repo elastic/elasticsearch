@@ -513,7 +513,9 @@ public class IndexLifecycleRunner {
 
         Settings.Builder newSettings = Settings.builder().put(indexMetadata.getSettings());
         newSettings.put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), newPolicyName);
-        return IndexMetaData.builder(indexMetadata).settings(newSettings).putCustom(ILM_CUSTOM_METADATA_KEY, newState.asMap());
+        return IndexMetaData.builder(indexMetadata)
+            .settings(newSettings).putCustom(ILM_CUSTOM_METADATA_KEY, newState.asMap())
+            .settingsVersion(1 + indexMetadata.getSettingsVersion());
     }
 
     public static ClusterState removePolicyForIndexes(final Index[] indices, ClusterState currentState, List<String> failedIndexes) {
@@ -551,7 +553,7 @@ public class IndexLifecycleRunner {
 
         IndexMetaData.Builder builder = IndexMetaData.builder(indexMetadata);
         builder.removeCustom(ILM_CUSTOM_METADATA_KEY);
-        return builder.settings(newSettings);
+        return builder.settings(newSettings).settingsVersion(1 + indexMetadata.getSettingsVersion());
     }
 
     private void markPolicyDoesNotExist(String policyName, Index index, LifecycleExecutionState executionState) {

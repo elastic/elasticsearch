@@ -256,7 +256,8 @@ public class SecurityIndexManager extends AbstractComponent implements ClusterSt
     /**
      * Validates the security index is up to date and does not need to migrated. If it is not, the
      * consumer is called with an exception. If the security index is up to date, the runnable will
-     * be executed.
+     * be executed. <b>NOTE:</b> this method does not check the availability of the index; this check
+     * is left to the caller so that this condition can be handled appropriately.
      */
     public void checkIndexVersionThenExecute(final Consumer<Exception> consumer, final Runnable andThen) {
         final State indexState = this.indexState; // use a local copy so all checks execute against the same state!

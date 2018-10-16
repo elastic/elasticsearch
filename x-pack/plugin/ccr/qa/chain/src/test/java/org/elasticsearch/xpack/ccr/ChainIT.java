@@ -110,20 +110,10 @@ public class ChainIT extends ESRestTestCase {
         assertOK(client().performRequest(new Request("POST", "/" + index + "/_refresh")));
     }
 
-    private static void resumeFollow(String leaderIndex, String followIndex) throws IOException {
-        final Request request = new Request("POST", "/" + followIndex + "/_ccr/resume_follow");
-        request.setJsonEntity("{\"leader_index\": \"" + leaderIndex + "\", \"poll_timeout\": \"10ms\"}");
-        assertOK(client().performRequest(request));
-    }
-
     private static void followIndex(String leaderIndex, String followIndex) throws IOException {
         final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow");
         request.setJsonEntity("{\"leader_index\": \"" + leaderIndex + "\", \"poll_timeout\": \"10ms\"}");
         assertOK(client().performRequest(request));
-    }
-
-    private static void pauseFollow(String followIndex) throws IOException {
-        assertOK(client().performRequest(new Request("POST", "/" + followIndex + "/_ccr/pause_follow")));
     }
 
     private static void verifyDocuments(String index, int expectedNumDocs) throws IOException {

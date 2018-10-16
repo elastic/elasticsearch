@@ -78,6 +78,6 @@ final class MockInternalEngine extends InternalEngine {
     @Override
     public Searcher acquireSearcher(String source, SearcherScope scope) {
         final Searcher engineSearcher = super.acquireSearcher(source, scope);
-        return support().wrapSearcher(source, engineSearcher);
+        return support().wrapSearcher(engineSearcher);
     }
 }

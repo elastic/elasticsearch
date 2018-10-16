@@ -13,6 +13,7 @@ import org.joda.time.DateTime;
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class ExtractedFieldTests extends ESTestCase {
 
@@ -96,11 +97,32 @@ public class ExtractedFieldTests extends ESTestCase {
     }
 
     public void testValueGivenTimeField() {
-        SearchHit hit = new SearchHitBuilder(42).addField("time", new DateTime(123456789L)).build();
+        final long millis = randomLong();
+        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", new DateTime(millis)).build();
+        final ExtractedField timeField = ExtractedField.newTimeField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
+        assertThat(timeField.value(hit), equalTo(new Object[] { millis }));
+    }
 
-        ExtractedField timeField = ExtractedField.newTimeField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
+    public void testValueGivenStringTimeField() {
+        final long millis = randomLong();
+        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", Long.toString(millis)).build();
+        final ExtractedField timeField = ExtractedField.newTimeField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
+        assertThat(timeField.value(hit), equalTo(new Object[] { millis }));
+    }
 
-        assertThat(timeField.value(hit), equalTo(new Object[] { 123456789L }));
+    public void testValueGivenPre6xTimeField() {
+        // Prior to 6.x, timestamps were simply `long` milliseconds-past-the-epoch values
+        final long millis = randomLong();
+        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", millis).build();
+        final ExtractedField timeField = ExtractedField.newTimeField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
+        assertThat(timeField.value(hit), equalTo(new Object[] { millis }));
+    }
+
+    public void testValueGivenUnknownFormatTimeField() {
+        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", new Object()).build();
+        final ExtractedField timeField = ExtractedField.newTimeField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
+        assertThat(expectThrows(IllegalStateException.class, () -> timeField.value(hit)).getMessage(),
+            startsWith("Unexpected value for a time field"));
     }
 
     public void testAliasVersusName() {

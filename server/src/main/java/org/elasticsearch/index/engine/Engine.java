@@ -84,6 +84,7 @@ import org.elasticsearch.search.suggest.completion.CompletionStats;
 import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.Base64;
@@ -665,14 +666,23 @@ public abstract class Engine implements Closeable {
         Releasable releasable = store::decRef;
         try {
             ReferenceManager<IndexSearcher> referenceManager = getReferenceManager(scope);
-            Searcher engineSearcher = new Searcher(source, referenceManager.acquire(),
-                s -> {
-                  try {
-                      referenceManager.release(s);
-                  } finally {
-                      store.decRef();
-                  }
-              }, logger);
+            IndexSearcher acquire = referenceManager.acquire();
+            AtomicBoolean released = new AtomicBoolean(false);
+            Searcher engineSearcher = new Searcher(source, acquire,
+                () -> {
+                if (released.compareAndSet(false, true)) {
+                    try {
+                        referenceManager.release(acquire);
+                    } finally {
+                        store.decRef();
+                    }
+                } else {
+                    /* In general, searchers should never be released twice or this would break reference counting. There is one rare case
+                     * when it might happen though: when the request and the Reaper thread would both try to release it in a very short
+                     * amount of time, this is why we only log a warning instead of throwing an exception. */
+                    logger.warn("Searcher was released twice", new IllegalStateException("Double release"));
+                }
+              });
             releasable = null; // success - hand over the reference to the engine searcher
             return engineSearcher;
         } catch (AlreadyClosedException ex) {
@@ -1175,69 +1185,51 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public static class Searcher implements Releasable {
+    public static final class Searcher implements Releasable {
         private final String source;
         private final IndexSearcher searcher;
-        private final AtomicBoolean released = new AtomicBoolean(false);
-        private final Logger logger;
-        private final IOUtils.IOConsumer<IndexSearcher> onClose;
+        private final Closeable onClose;
 
-        public Searcher(String source, IndexSearcher searcher, Logger logger) {
-            this(source, searcher, s -> s.getIndexReader().close(), logger);
-        }
-
-        public Searcher(String source, IndexSearcher searcher, IOUtils.IOConsumer<IndexSearcher> onClose, Logger logger) {
+        public Searcher(String source, IndexSearcher searcher, Closeable onClose) {
             this.source = source;
             this.searcher = searcher;
             this.onClose = onClose;
-            this.logger = logger;
         }
 
         /**
          * The source that caused this searcher to be acquired.
          */
-        public final String source() {
+        public String source() {
             return source;
         }
 
-        public final IndexReader reader() {
+        public IndexReader reader() {
             return searcher.getIndexReader();
         }
 
-        public final DirectoryReader getDirectoryReader() {
+        public DirectoryReader getDirectoryReader() {
             if (reader() instanceof DirectoryReader) {
                 return (DirectoryReader) reader();
             }
             throw new IllegalStateException("Can't use " + reader().getClass() + " as a directory reader");
         }
 
-        public final IndexSearcher searcher() {
+        public IndexSearcher searcher() {
             return searcher;
         }
 
         @Override
         public void close() {
-            if (released.compareAndSet(false, true) == false) {
-                /* In general, searchers should never be released twice or this would break reference counting. There is one rare case
-                 * when it might happen though: when the request and the Reaper thread would both try to release it in a very short amount
-                 * of time, this is why we only log a warning instead of throwing an exception.
-                 */
-                logger.warn("Searcher was released twice", new IllegalStateException("Double release"));
-                return;
-            }
             try {
-                onClose.accept(searcher());
+                onClose.close();
             } catch (IOException e) {
-                throw new IllegalStateException("Cannot close", e);
+                throw new UncheckedIOException("failed to close", e);
             } catch (AlreadyClosedException e) {
                 // This means there's a bug somewhere: don't suppress it
                 throw new AssertionError(e);
             }
         }
 
-        public final Logger getLogger() {
-            return logger;
-        }
     }
 
     public abstract static class Operation {

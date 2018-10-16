@@ -33,7 +33,6 @@ public class ILMRestTestStateCleaner {
             try {
                 adminClient.performRequest(new Request("DELETE", indexName + "/_ilm/"));
             } catch (Exception e) {
-                e.printStackTrace();
                 // ok
             }
         }
@@ -51,7 +50,6 @@ public class ILMRestTestStateCleaner {
             try {
                 adminClient.performRequest(new Request("DELETE", "/_ilm/" + policyName));
             } catch (Exception e) {
-                e.printStackTrace();
                 // ok
             }
         }

@@ -214,10 +214,12 @@ The Java High Level REST Client supports the following Licensing APIs:
 * <<java-rest-high-put-license>>
 * <<java-rest-high-get-license>>
 * <<java-rest-high-delete-license>>
+* <<java-rest-high-start-basic>>
 
 include::licensing/put-license.asciidoc[]
 include::licensing/get-license.asciidoc[]
 include::licensing/delete-license.asciidoc[]
+include::licensing/start-basic.asciidoc[]
 
 == Machine Learning APIs
 :upid: {mainid}-x-pack-ml

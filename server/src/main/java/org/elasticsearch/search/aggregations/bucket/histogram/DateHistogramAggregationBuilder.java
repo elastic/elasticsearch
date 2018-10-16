@@ -25,10 +25,10 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.rounding.Rounding;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -72,7 +72,7 @@ import static java.util.Collections.unmodifiableMap;
 public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, DateHistogramAggregationBuilder>
         implements MultiBucketAggregationBuilder {
     public static final String NAME = "date_histogram";
-    private static DateMathParser EPOCH_MILLIS_PARSER = new DateMathParser(Joda.forPattern("epoch_millis", Locale.ROOT));
+    private static DateMathParser EPOCH_MILLIS_PARSER = Joda.forPattern("epoch_millis", Locale.ROOT).toDateMathParser();
 
     public static final Map<String, DateTimeUnit> DATE_FIELD_UNITS;
 

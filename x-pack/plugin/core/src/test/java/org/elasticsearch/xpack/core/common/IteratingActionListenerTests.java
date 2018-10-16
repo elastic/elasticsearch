@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.core.common;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.collect.HppcMaps.Object;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
@@ -18,8 +17,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class IteratingActionListenerTests extends ESTestCase {
@@ -135,5 +138,50 @@ public class IteratingActionListenerTests extends ESTestCase {
         // we never really went async, its all chained together so verify this for sanity
         assertEquals(numberOfIterations, iterations.get());
         assertTrue(onFailureCalled.get());
+    }
+
+    public void testFunctionApplied() {
+        final int numberOfItems = scaledRandomIntBetween(2, 32);
+        final int numberOfIterations = scaledRandomIntBetween(1, numberOfItems);
+        List<Object> items = new ArrayList<>(numberOfItems);
+        for (int i = 0; i < numberOfItems; i++) {
+            items.add(new Object());
+        }
+
+        final AtomicInteger iterations = new AtomicInteger(0);
+        final Predicate<Object> iterationPredicate = object -> {
+            final int current = iterations.incrementAndGet();
+            return current != numberOfIterations;
+        };
+        final BiConsumer<Object, ActionListener<Object>> consumer = (listValue, listener) -> {
+            listener.onResponse(items.get(iterations.get()));
+        };
+
+        final AtomicReference<Object> originalObject = new AtomicReference<>();
+        final AtomicReference<Object> result = new AtomicReference<>();
+        final Function<Object, Object> responseFunction = object -> {
+            originalObject.set(object);
+            Object randomResult;
+            do {
+                randomResult = randomFrom(items);
+            } while (randomResult == object);
+            result.set(randomResult);
+            return randomResult;
+        };
+
+        IteratingActionListener<Object, Object> iteratingListener = new IteratingActionListener<>(ActionListener.wrap((object) -> {
+            assertNotNull(object);
+            assertNotNull(originalObject.get());
+            assertThat(object, sameInstance(result.get()));
+            assertThat(object, not(sameInstance(originalObject.get())));
+            assertThat(originalObject.get(), sameInstance(items.get(iterations.get() - 1)));
+        }, (e) -> {
+            logger.error("unexpected exception", e);
+            fail("exception should not have been thrown");
+        }), consumer, items, new ThreadContext(Settings.EMPTY), responseFunction, iterationPredicate);
+        iteratingListener.run();
+
+        // we never really went async, its all chained together so verify this for sanity
+        assertEquals(numberOfIterations, iterations.get());
     }
 }

@@ -59,6 +59,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
@@ -466,7 +467,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertToXContentBody(deleteByQueryRequest, request.getEntity());
     }
 
-    public void testRethrottle() throws IOException {
+    public void testRethrottle() {
         TaskId taskId = new TaskId(randomAlphaOfLength(10), randomIntBetween(1, 100));
         RethrottleRequest rethrottleRequest;
         Float requestsPerSecond;
@@ -480,11 +481,20 @@ public class RequestConvertersTests extends ESTestCase {
             expectedParams.put(RethrottleRequest.REQUEST_PER_SECOND_PARAMETER, "-1");
         }
         expectedParams.put("group_by", "none");
-        Request request = RequestConverters.rethrottle(rethrottleRequest);
-        assertEquals("/_reindex/" + taskId + "/_rethrottle", request.getEndpoint());
-        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertEquals(expectedParams, request.getParameters());
-        assertNull(request.getEntity());
+        List<Tuple<String, Supplier<Request>>> variants = new ArrayList<>();
+        variants.add(new Tuple<String, Supplier<Request>>("_reindex", () -> RequestConverters.rethrottleReindex(rethrottleRequest)));
+        variants.add(new Tuple<String, Supplier<Request>>("_update_by_query",
+                () -> RequestConverters.rethrottleUpdateByQuery(rethrottleRequest)));
+        variants.add(new Tuple<String, Supplier<Request>>("_delete_by_query",
+                () -> RequestConverters.rethrottleDeleteByQuery(rethrottleRequest)));
+
+        for (Tuple<String, Supplier<Request>> variant : variants) {
+            Request request = variant.v2().get();
+            assertEquals("/" + variant.v1() + "/" + taskId + "/_rethrottle", request.getEndpoint());
+            assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+            assertEquals(expectedParams, request.getParameters());
+            assertNull(request.getEntity());
+        }
 
         // test illegal RethrottleRequest values
         Exception e = expectThrows(NullPointerException.class, () -> new RethrottleRequest(null, 1.0f));
@@ -1562,6 +1572,12 @@ public class RequestConvertersTests extends ESTestCase {
         setRandomLocal(request::local, expectedParams);
     }
 
+    static void setRandomTimeout(TimedRequest request, TimeValue defaultTimeout, Map<String, String> expectedParams) {
+        setRandomTimeout(s ->
+                request.setTimeout(TimeValue.parseTimeValue(s, request.getClass().getName() + ".timeout")),
+            defaultTimeout, expectedParams);
+    }
+
     static void setRandomTimeout(Consumer<String> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             String timeout = randomTimeValue();
@@ -1573,9 +1589,19 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     static void setRandomMasterTimeout(MasterNodeRequest<?> request, Map<String, String> expectedParams) {
+        setRandomMasterTimeout(request::masterNodeTimeout, expectedParams);
+    }
+
+    static void setRandomMasterTimeout(TimedRequest request, Map<String, String> expectedParams) {
+        setRandomMasterTimeout(s ->
+                request.setMasterTimeout(TimeValue.parseTimeValue(s, request.getClass().getName() + ".masterNodeTimeout")),
+            expectedParams);
+    }
+
+    static void setRandomMasterTimeout(Consumer<String> setter, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             String masterTimeout = randomTimeValue();
-            request.masterNodeTimeout(masterTimeout);
+            setter.accept(masterTimeout);
             expectedParams.put("master_timeout", masterTimeout);
         } else {
             expectedParams.put("master_timeout", MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT.getStringRep());

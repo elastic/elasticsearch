@@ -7,6 +7,7 @@
         Content-Type: "application/json"
       xpack.ml.find_file_structure:
         lines_to_sample: 3
+        timeout: 10s
         body:
           - airline: AAL
             responsetime: 132.2046
@@ -27,13 +28,17 @@
   - match: { has_byte_order_marker: false }
   - match: { format: json }
   - match: { timestamp_field: time }
-  - match: { timestamp_formats.0: UNIX }
+  - match: { joda_timestamp_formats.0: UNIX }
+  - match: { java_timestamp_formats.0: UNIX }
   - match: { need_client_timezone: false }
   - match: { mappings.airline.type: keyword }
   - match: { mappings.responsetime.type: double }
   - match: { mappings.sourcetype.type: keyword }
   - match: { mappings.time.type: date }
   - match: { mappings.time.format: epoch_second }
+  - match: { ingest_pipeline.description: "Ingest pipeline created by file structure finder" }
+  - match: { ingest_pipeline.processors.0.date.field: time }
+  - match: { ingest_pipeline.processors.0.date.formats.0: UNIX }
   - match: { field_stats.airline.count: 3 }
   - match: { field_stats.airline.cardinality: 2 }
   - match: { field_stats.responsetime.count: 3 }
@@ -83,13 +88,17 @@
   - match: { has_byte_order_marker: false }
   - match: { format: json }
   - match: { timestamp_field: time }
-  - match: { timestamp_formats.0: UNIX }
+  - match: { joda_timestamp_formats.0: UNIX }
+  - match: { java_timestamp_formats.0: UNIX }
   - match: { need_client_timezone: false }
   - match: { mappings.airline.type: keyword }
   - match: { mappings.responsetime.type: double }
   - match: { mappings.sourcetype.type: keyword }
   - match: { mappings.time.type: date }
   - match: { mappings.time.format: epoch_second }
+  - match: { ingest_pipeline.description: "Ingest pipeline created by file structure finder" }
+  - match: { ingest_pipeline.processors.0.date.field: time }
+  - match: { ingest_pipeline.processors.0.date.formats.0: UNIX }
   - match: { field_stats.airline.count: 3 }
   - match: { field_stats.airline.cardinality: 2 }
   - match: { field_stats.responsetime.count: 3 }

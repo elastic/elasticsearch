@@ -39,8 +39,14 @@ public class ILMRestTestStateCleaner {
     }
 
     private static void deleteAllPolicies(RestClient adminClient) throws Exception {
-        Response response = adminClient.performRequest(new Request("GET", "/_ilm"));
-        Map<String, Object> policies = ESRestTestCase.entityAsMap(response);
+        Map<String, Object> policies;
+
+        try {
+            Response response = adminClient.performRequest(new Request("GET", "/_ilm"));
+            policies = ESRestTestCase.entityAsMap(response);
+        } catch (Exception e) {
+            return;
+        }
 
         if (policies == null || policies.isEmpty()) {
             return;

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -27,6 +28,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class AutoFollowTests extends ESSingleNodeTestCase {
@@ -51,7 +53,12 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
         createIndex("logs-201812", leaderIndexSettings, "_doc");
 
         // Enabling auto following:
-        putAutoFollowPatterns("logs-*", "transactions-*");
+        if (randomBoolean()) {
+            putAutoFollowPatterns("my-pattern", new String[] {"logs-*", "transactions-*"});
+        } else {
+            putAutoFollowPatterns("my-pattern1", new String[] {"logs-*"});
+            putAutoFollowPatterns("my-pattern2", new String[] {"transactions-*"});
+        }
 
         createIndex("metrics-201901", leaderIndexSettings, "_doc");
 
@@ -82,7 +89,7 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
 
-        putAutoFollowPatterns("logs-*");
+        putAutoFollowPatterns("my-pattern", new String[] {"logs-*"});
         int numIndices = randomIntBetween(4, 32);
         for (int i = 0; i < numIndices; i++) {
             createIndex("logs-" + i, leaderIndexSettings, "_doc");
@@ -96,7 +103,7 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
         deleteAutoFollowPatternSetting();
         createIndex("logs-does-not-count", leaderIndexSettings, "_doc");
 
-        putAutoFollowPatterns("logs-*");
+        putAutoFollowPatterns("my-pattern", new String[] {"logs-*"});
         int i = numIndices;
         numIndices = numIndices + randomIntBetween(4, 32);
         for (; i < numIndices; i++) {
@@ -180,9 +187,53 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
         });
     }
 
-    private void putAutoFollowPatterns(String... patterns) {
+    public void testConflictingPatterns() throws Exception {
+        Settings leaderIndexSettings = Settings.builder()
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .build();
+
+        // Enabling auto following:
+        putAutoFollowPatterns("my-pattern1", new String[] {"logs-*"});
+        putAutoFollowPatterns("my-pattern2", new String[] {"logs-2018*"});
+
+        createIndex("logs-201701", leaderIndexSettings, "_doc");
+        assertBusy(() -> {
+            AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
+            assertThat(autoFollowStats.getNumberOfFailedFollowIndices(), equalTo(0L));
+            assertThat(autoFollowStats.getNumberOfFailedRemoteClusterStateRequests(), equalTo(0L));
+        });
+        IndicesExistsRequest request = new IndicesExistsRequest("copy-logs-201701");
+        assertTrue(client().admin().indices().exists(request).actionGet().isExists());
+
+        createIndex("logs-201801", leaderIndexSettings, "_doc");
+        assertBusy(() -> {
+            AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
+            assertThat(autoFollowStats.getNumberOfFailedFollowIndices(), greaterThanOrEqualTo(1L));
+            assertThat(autoFollowStats.getNumberOfFailedRemoteClusterStateRequests(), equalTo(0L));
+
+            assertThat(autoFollowStats.getRecentAutoFollowErrors().size(), equalTo(2));
+            ElasticsearchException autoFollowError1 = autoFollowStats.getRecentAutoFollowErrors().get("my-pattern1:logs-201801");
+            assertThat(autoFollowError1, notNullValue());
+            assertThat(autoFollowError1.getRootCause().getMessage(), equalTo("index to follow [logs-201801] for pattern [my-pattern1] " +
+                "matches with other patterns [my-pattern2]"));
+
+            ElasticsearchException autoFollowError2 = autoFollowStats.getRecentAutoFollowErrors().get("my-pattern2:logs-201801");
+            assertThat(autoFollowError2, notNullValue());
+            assertThat(autoFollowError2.getRootCause().getMessage(), equalTo("index to follow [logs-201801] for pattern [my-pattern2] " +
+                "matches with other patterns [my-pattern1]"));
+        });
+
+        request = new IndicesExistsRequest("copy-logs-201801");
+        assertFalse(client().admin().indices().exists(request).actionGet().isExists());
+    }
+
+    private void putAutoFollowPatterns(String name, String[] patterns) {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setName("my-pattern");
+        request.setName(name);
         request.setLeaderCluster("_local_");
         request.setLeaderIndexPatterns(Arrays.asList(patterns));
         // Need to set this, because following an index in the same cluster

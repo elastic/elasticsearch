@@ -17,7 +17,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -31,9 +30,10 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.DOC_TYPE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.DOC_TYPE;
 
 public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Map<String, Object>, FeatureIndexBuilderJobStats> {
 
@@ -59,40 +59,24 @@ public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Ma
     @Override
     protected IterationResult<Map<String, Object>> doProcess(SearchResponse searchResponse) {
         final CompositeAggregation agg = searchResponse.getAggregations().get("feature");
-        return new IterationResult<>(processBuckets(agg), agg.afterKey(), agg.getBuckets().isEmpty());
+        return new IterationResult<>(processBucketsToIndexRequests(agg).collect(Collectors.toList()), agg.afterKey(),
+                agg.getBuckets().isEmpty());
     }
 
     /*
      * Parses the result and creates indexable documents
      */
-    private List<IndexRequest> processBuckets(CompositeAggregation agg) {
+    private Stream<IndexRequest> processBucketsToIndexRequests(CompositeAggregation agg) {
         String indexName = job.getConfig().getDestinationIndex();
         List<CompositeValuesSourceBuilder<?>> sources = job.getConfig().getSourceConfig().getSources();
         Collection<AggregationBuilder> aggregationBuilders = job.getConfig().getAggregationConfig().getAggregatorFactories();
 
-        return agg.getBuckets().stream().map(b -> {
+        return AggregationResultUtils.extractCompositeAggregationResults(agg, sources, aggregationBuilders).map(document -> {
             XContentBuilder builder;
             try {
                 builder = jsonBuilder();
                 builder.startObject();
-                for (CompositeValuesSourceBuilder<?> source : sources) {
-                    String destinationFieldName = source.name();
-                    builder.field(destinationFieldName, b.getKey().get(destinationFieldName));
-                }
-                for (AggregationBuilder aggregationBuilder : aggregationBuilders) {
-                    String aggName = aggregationBuilder.getName();
-
-                    // TODO: support other aggregation types
-                    NumericMetricsAggregation.SingleValue aggResult = b.getAggregations().get(aggName);
-
-                    if (aggResult != null) {
-                        builder.field(aggName, aggResult.value());
-                    } else {
-                        // should never be reached as we should prevent creating
-                        // jobs with unsupported aggregations
-                        logger.error("Unsupported aggregation type for job [" + getJobId() + "]. Ignoring aggregation.");
-                    }
-                }
+                builder.map(document);
                 builder.endObject();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -100,7 +84,7 @@ public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Ma
 
             IndexRequest request = new IndexRequest(indexName, DOC_TYPE).source(builder);
             return request;
-        }).collect(Collectors.toList());
+        });
     }
 
     @Override

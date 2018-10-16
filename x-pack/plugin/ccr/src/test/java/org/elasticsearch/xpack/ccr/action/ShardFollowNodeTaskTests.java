@@ -45,7 +45,6 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class ShardFollowNodeTaskTests extends ESTestCase {
 
-    private Exception fatalError;
     private List<long[]> shardChangesRequests;
     private List<List<Translog.Operation>> bulkShardOperationRequests;
     private BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> task.run();
@@ -190,6 +189,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         mappingVersions.add(1L);
         leaderGlobalCheckpoints.add(63L);
         maxSeqNos.add(63L);
+        responseSizes.add(64);
         simulateResponse.set(true);
         final AtomicLong retryCounter = new AtomicLong();
         // before each retry, we assert the fetch failures; after the last retry, the fetch failure should clear
@@ -228,6 +228,35 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(status.leaderGlobalCheckpoint(), equalTo(63L));
     }
 
+    public void testEmptyShardChangesResponseShouldClearFetchException() {
+        ShardFollowNodeTask task = createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, Long.MAX_VALUE);
+        startTask(task, -1, -1);
+
+        readFailures.add(new ShardNotFoundException(new ShardId("leader_index", "", 0)));
+        mappingVersions.add(1L);
+        leaderGlobalCheckpoints.add(-1L);
+        maxSeqNos.add(-1L);
+        simulateResponse.set(true);
+        task.coordinateReads();
+
+        // number of requests is equal to initial request + retried attempts
+        assertThat(shardChangesRequests.size(), equalTo(2));
+        for (long[] shardChangesRequest : shardChangesRequests) {
+            assertThat(shardChangesRequest[0], equalTo(0L));
+            assertThat(shardChangesRequest[1], equalTo(64L));
+        }
+
+        assertFalse("task is not stopped", task.isStopped());
+        ShardFollowNodeTaskStatus status = task.getStatus();
+        assertThat(status.numberOfConcurrentReads(), equalTo(1));
+        assertThat(status.numberOfConcurrentWrites(), equalTo(0));
+        assertThat(status.numberOfFailedFetches(), equalTo(1L));
+        // the fetch failure should have been cleared:
+        assertThat(status.fetchExceptions().entrySet(), hasSize(0));
+        assertThat(status.lastRequestedSeqNo(), equalTo(-1L));
+        assertThat(status.leaderGlobalCheckpoint(), equalTo(-1L));
+    }
+
     public void testReceiveTimeout() {
         final ShardFollowNodeTask task = createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, Long.MAX_VALUE);
         startTask(task, 63, -1);
@@ -262,6 +291,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         mappingVersions.add(1L);
         leaderGlobalCheckpoints.add(63L);
         maxSeqNos.add(63L);
+        responseSizes.add(64);
         simulateResponse.set(true);
 
         task.coordinateReads();
@@ -314,7 +344,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.get(0)[1], equalTo(64L));
 
         assertTrue("task is stopped", task.isStopped());
-        assertThat(fatalError, sameInstance(failure));
+        assertThat(task.getStatus().getFatalException().getRootCause(), sameInstance(failure));
         ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentWrites(), equalTo(0));
@@ -742,7 +772,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                 if (readFailure != null) {
                     errorHandler.accept(readFailure);
                 } else if (simulateResponse.get()) {
-                    final int responseSize = responseSizes.size() == 0 ? requestBatchSize : responseSizes.poll();
+                    final int responseSize = responseSizes.size() == 0 ? 0 : responseSizes.poll();
                     final Translog.Operation[] operations = new Translog.Operation[responseSize];
                     for (int i = 0; i < responseSize; i++) {
                         operations[i] = new Translog.NoOp(from + i, 0, "test");
@@ -760,17 +790,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
             @Override
             protected boolean isStopped() {
-                return stopped.get();
+                return super.isStopped() || stopped.get();
             }
 
             @Override
             public void markAsCompleted() {
-                stopped.set(true);
-            }
-
-            @Override
-            public void markAsFailed(Exception e) {
-                fatalError = e;
                 stopped.set(true);
             }
         };

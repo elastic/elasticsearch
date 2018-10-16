@@ -796,33 +796,34 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertTrue("expected to find a primary but didn't\n" + recoveryResponse, foundPrimary);
             assertEquals("mismatch while checking for translog recovery\n" + recoveryResponse, shouldHaveTranslog, restoredFromTranslog);
 
-        String currentLuceneVersion = Version.CURRENT.luceneVersion.toString();
-        String bwcLuceneVersion = getOldClusterVersion().luceneVersion.toString();
-        if (shouldHaveTranslog && false == currentLuceneVersion.equals(bwcLuceneVersion)) {
-            int numCurrentVersion = 0;
-            int numBwcVersion = 0;
-            Request segmentsRequest = new Request("GET", "/_cat/segments/" + index);
-            segmentsRequest.addParameter("h", "prirep,shard,index,version");
-            segmentsRequest.addParameter("s", "prirep,shard,index");
-            String segmentsResponse = toStr(client().performRequest(segmentsRequest));
-            for (String line : segmentsResponse.split("\n")) {
-                if (false == line.startsWith("p")) {
-                    continue;
+            String currentLuceneVersion = Version.CURRENT.luceneVersion.toString();
+            String bwcLuceneVersion = getOldClusterVersion().luceneVersion.toString();
+            if (shouldHaveTranslog && false == currentLuceneVersion.equals(bwcLuceneVersion)) {
+                int numCurrentVersion = 0;
+                int numBwcVersion = 0;
+                Request segmentsRequest = new Request("GET", "/_cat/segments/" + index);
+                segmentsRequest.addParameter("h", "prirep,shard,index,version");
+                segmentsRequest.addParameter("s", "prirep,shard,index");
+                String segmentsResponse = toStr(client().performRequest(segmentsRequest));
+                for (String line : segmentsResponse.split("\n")) {
+                    if (false == line.startsWith("p")) {
+                        continue;
+                    }
+                    Matcher m = Pattern.compile("(\\d+\\.\\d+\\.\\d+)$").matcher(line);
+                    assertTrue(line, m.find());
+                    String version = m.group(1);
+                    if (currentLuceneVersion.equals(version)) {
+                        numCurrentVersion++;
+                    } else if (bwcLuceneVersion.equals(version)) {
+                        numBwcVersion++;
+                    } else {
+                        fail("expected version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was " + line);
+                    }
                 }
-                Matcher m = Pattern.compile("(\\d+\\.\\d+\\.\\d+)$").matcher(line);
-                assertTrue(line, m.find());
-                String version = m.group(1);
-                if (currentLuceneVersion.equals(version)) {
-                    numCurrentVersion++;
-                } else if (bwcLuceneVersion.equals(version)) {
-                    numBwcVersion++;
-                } else {
-                    fail("expected version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was " + line);
-                }
+                assertNotEquals("expected at least 1 current segment after translog recovery. segments:\n" + segmentsResponse,
+                    0, numCurrentVersion);
+                assertNotEquals("expected at least 1 old segment. segments:\n" + segmentsResponse, 0, numBwcVersion);
             }
-            assertNotEquals("expected at least 1 current segment after translog recovery. segments:\n" + segmentsResponse,
-                0, numCurrentVersion);
-            assertNotEquals("expected at least 1 old segment. segments:\n" + segmentsResponse, 0, numBwcVersion);}
         }
     }
 

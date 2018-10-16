@@ -842,14 +842,15 @@ public class CoordinatorTests extends ESTestCase {
         }
 
         ClusterNode getAnyNodeExcept(ClusterNode... clusterNodes) {
-            return randomFrom(getAllNodesExcept(clusterNodes));
+            List<ClusterNode> filteredNodes = getAllNodesExcept(clusterNodes);
+            assert filteredNodes.isEmpty() == false;
+            return randomFrom(filteredNodes);
         }
 
         List<ClusterNode> getAllNodesExcept(ClusterNode... clusterNodes) {
             Set<String> forbiddenIds = Arrays.stream(clusterNodes).map(ClusterNode::getId).collect(Collectors.toSet());
             List<ClusterNode> acceptableNodes
                 = this.clusterNodes.stream().filter(n -> forbiddenIds.contains(n.getId()) == false).collect(Collectors.toList());
-            assert acceptableNodes.isEmpty() == false;
             return acceptableNodes;
         }
 

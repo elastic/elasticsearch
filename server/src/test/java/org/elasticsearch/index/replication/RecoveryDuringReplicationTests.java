@@ -686,7 +686,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
     public void testAddNewReplicas() throws Exception {
         try (ReplicationGroup shards = createGroup(between(0, 1))) {
             shards.startAll();
-            Thread[] threads = new Thread[between(1, 8)];
+            Thread[] threads = new Thread[between(1, 3)];
             AtomicBoolean isStopped = new AtomicBoolean();
             boolean appendOnly = randomBoolean();
             AtomicInteger docId = new AtomicInteger();

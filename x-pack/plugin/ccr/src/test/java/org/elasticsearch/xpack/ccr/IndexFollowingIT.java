@@ -679,31 +679,28 @@ public class IndexFollowingIT extends CCRIntegTestCase {
         getFollowerCluster().ensureAtLeastNumDataNodes(numberOfReplicas + between(2, 3));
         ensureFollowerGreen("follower-index");
         AtomicBoolean stopped = new AtomicBoolean();
-        Thread[] threads = new Thread[between(1, 8)];
         AtomicInteger docID = new AtomicInteger();
         boolean appendOnly = randomBoolean();
-        for (int i = 0; i < threads.length; i++) {
-            threads[i] = new Thread(() -> {
-                while (stopped.get() == false) {
-                    try {
-                        if (appendOnly) {
-                            String id = Integer.toString(docID.incrementAndGet());
-                            leaderClient().prepareIndex("leader-index", "doc", id).setSource("{\"f\":" + id + "}", XContentType.JSON).get();
-                        } else if (frequently()) {
-                            String id = Integer.toString(frequently() ? docID.incrementAndGet() : between(0, 100));
-                            leaderClient().prepareIndex("leader-index", "doc", id).setSource("{\"f\":" + id + "}", XContentType.JSON).get();
-                        } else {
-                            String id = Integer.toString(between(0, docID.get()));
-                            leaderClient().prepareDelete("leader-index", "doc", id).get();
-                        }
-                    } catch (Exception ex) {
-                        throw new AssertionError(ex);
+        Thread indexingOnLeader = new Thread(() -> {
+            while (stopped.get() == false) {
+                try {
+                    if (appendOnly) {
+                        String id = Integer.toString(docID.incrementAndGet());
+                        leaderClient().prepareIndex("leader-index", "doc", id).setSource("{\"f\":" + id + "}", XContentType.JSON).get();
+                    } else if (frequently()) {
+                        String id = Integer.toString(frequently() ? docID.incrementAndGet() : between(0, 100));
+                        leaderClient().prepareIndex("leader-index", "doc", id).setSource("{\"f\":" + id + "}", XContentType.JSON).get();
+                    } else {
+                        String id = Integer.toString(between(0, docID.get()));
+                        leaderClient().prepareDelete("leader-index", "doc", id).get();
                     }
+                } catch (Exception ex) {
+                    throw new AssertionError(ex);
                 }
-            });
-            threads[i].start();
-        }
-        Thread flushOnFollower = new Thread(() -> {
+            }
+        });
+        indexingOnLeader.start();
+        Thread flushingOnFollower = new Thread(() -> {
             while (stopped.get() == false) {
                 try {
                     if (rarely()) {
@@ -717,18 +714,15 @@ public class IndexFollowingIT extends CCRIntegTestCase {
                 }
             }
         });
-        flushOnFollower.start();
+        flushingOnFollower.start();
         atLeastDocsIndexed(followerClient(), "follower-index", 50);
         followerClient().admin().indices().prepareUpdateSettings("follower-index")
-            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas + 1).build())
-            .get();
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas + 1).build()).get();
         ensureFollowerGreen("follower-index");
         atLeastDocsIndexed(followerClient(), "follower-index", 100);
         stopped.set(true);
-        flushOnFollower.join();
-        for (Thread thread : threads) {
-            thread.join();
-        }
+        flushingOnFollower.join();
+        indexingOnLeader.join();
         assertSameDocCount("leader-index", "follower-index");
         unfollowIndex("follower-index");
     }

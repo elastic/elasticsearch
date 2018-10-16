@@ -21,7 +21,6 @@ package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
@@ -30,24 +29,17 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ReferenceManager;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
@@ -257,32 +249,14 @@ public class InternalEngine extends Engine {
             final long localCheckpoint = seqNoStats.localCheckpoint;
             logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
             final LocalCheckpointTracker tracker = localCheckpointTrackerSupplier.apply(maxSeqNo, localCheckpoint);
-            // scans existing sequence numbers in Lucene commit, then marks them as completed in the tracker.
+            // Operations that are optimized using max_seq_no_of_updates optimization must not be processed twice; otherwise, they will
+            // create duplicates in Lucene. To avoid this we check the LocalCheckpointTracker to see if an operation was already processed.
+            // Thus, we need to restore the LocalCheckpointTracker bit by bit to ensure the consistency between LocalCheckpointTracker and
+            // Lucene index. This is not the only solution since we can bootstrap max_seq_no_of_updates with max_seq_no of the commit to
+            // disable the MSU optimization during recovery. Here we prefer to maintain the consistency of LocalCheckpointTracker.
             if (localCheckpoint < maxSeqNo && engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
-                try (Searcher engineSearcher = searcherSupplier.get()) {
-                    final DirectoryReader reader = Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader());
-                    final IndexSearcher searcher = new IndexSearcher(reader);
-                    searcher.setQueryCache(null);
-                    final Query query = LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, localCheckpoint + 1, maxSeqNo);
-                    final Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
-                    for (LeafReaderContext leaf : reader.leaves()) {
-                        final Scorer scorer = weight.scorer(leaf);
-                        if (scorer == null) {
-                            continue;
-                        }
-                        final DocIdSetIterator docIdSetIterator = scorer.iterator();
-                        final NumericDocValues seqNoDocValues = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
-                        int docId;
-                        while ((docId = docIdSetIterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                            if (seqNoDocValues == null || seqNoDocValues.advanceExact(docId) == false) {
-                                throw new IllegalStateException("invalid seq_no doc_values for doc_id=" + docId);
-                            }
-                            final long seqNo = seqNoDocValues.longValue();
-                            assert localCheckpoint < seqNo && seqNo <= maxSeqNo :
-                                "local_checkpoint=" + localCheckpoint + " seq_no=" + seqNo + " max_seq_no=" + maxSeqNo;
-                            tracker.markSeqNoAsCompleted(seqNo);
-                        }
-                    }
+                try (Searcher searcher = searcherSupplier.get()) {
+                    Lucene.scanSeqNosInReader(searcher.getDirectoryReader(), localCheckpoint + 1, maxSeqNo, tracker::markSeqNoAsCompleted);
                 }
             }
             return tracker;
@@ -706,6 +680,8 @@ public class InternalEngine extends Engine {
                 } else if (op.seqNo() > docAndSeqNo.seqNo) {
                     status = OpVsLuceneDocStatus.OP_NEWER;
                 } else if (op.seqNo() == docAndSeqNo.seqNo) {
+                    assert localCheckpointTracker.contains(op.seqNo()) || softDeleteEnabled == false :
+                        "local checkpoint tracker is not updated seq_no=" + op.seqNo() + " id=" + op.id();
                     // load term to tie break
                     final long existingTerm = VersionsAndSeqNoResolver.loadPrimaryTerm(docAndSeqNo, op.uid().field());
                     if (op.primaryTerm() > existingTerm) {

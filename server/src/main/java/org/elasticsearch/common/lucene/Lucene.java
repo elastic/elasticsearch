@@ -27,6 +27,7 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
@@ -42,6 +43,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
@@ -82,6 +84,7 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -91,6 +94,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongConsumer;
 
 public class Lucene {
     public static final String LATEST_DOC_VALUES_FORMAT = "Lucene70";
@@ -966,5 +970,40 @@ public class Lucene {
      */
     public static NumericDocValuesField newSoftDeletesField() {
         return new NumericDocValuesField(SOFT_DELETES_FIELD, 1);
+    }
+
+    /**
+     * Scans sequence numbers (i.e., {@link SeqNoFieldMapper#NAME}) between {@code fromSeqNo}(inclusive) and {@code toSeqNo}(inclusive)
+     * in the provided directory reader. This method invokes the callback {@code onNewSeqNo} whenever a sequence number value is found.
+     *
+     * @param directoryReader the directory reader to scan
+     * @param fromSeqNo       the lower bound of a range of seq_no to scan (inclusive)
+     * @param toSeqNo         the upper bound of a range of seq_no to scan (inclusive)
+     * @param onNewSeqNo      the callback to be called whenever a new valid sequence number is found
+     */
+    public static void scanSeqNosInReader(DirectoryReader directoryReader, long fromSeqNo, long toSeqNo,
+                                          LongConsumer onNewSeqNo) throws IOException {
+        final DirectoryReader reader = Lucene.wrapAllDocsLive(directoryReader);
+        final IndexSearcher searcher = new IndexSearcher(reader);
+        searcher.setQueryCache(null);
+        final Query query = LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, fromSeqNo, toSeqNo);
+        final Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        for (LeafReaderContext leaf : reader.leaves()) {
+            final Scorer scorer = weight.scorer(leaf);
+            if (scorer == null) {
+                continue;
+            }
+            final DocIdSetIterator docIdSetIterator = scorer.iterator();
+            final NumericDocValues seqNoDocValues = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+            int docId;
+            while ((docId = docIdSetIterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                if (seqNoDocValues == null || seqNoDocValues.advanceExact(docId) == false) {
+                    throw new IllegalStateException("seq_no doc_values not found for doc_id=" + docId);
+                }
+                final long seqNo = seqNoDocValues.longValue();
+                assert fromSeqNo <= seqNo && seqNo <= toSeqNo : "from_seq_no=" + fromSeqNo + " seq_no=" + seqNo + " to_seq_no=" + toSeqNo;
+                onNewSeqNo.accept(seqNo);
+            }
+        }
     }
 }

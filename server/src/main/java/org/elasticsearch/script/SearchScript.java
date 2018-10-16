@@ -38,7 +38,7 @@ import java.util.Map;
  *     <li>Construct a {@link LeafFactory} for a an index using {@link Factory#newFactory(Map, SearchLookup)}</li>
  *     <li>Construct a {@link SearchScript} for a Lucene segment using {@link LeafFactory#newInstance(LeafReaderContext)}</li>
  *     <li>Call {@link #setDocument(int)} to indicate which document in the segment the script should be run for next</li>
- *     <li>Call one of the {@code run} methods: {@link #run()}, {@link #runAsDouble()}, or {@link #runAsLong()}</li>
+ *     <li>Call one of the {@code run} methods: {@link #run()} or {@link #runAsDouble()}</li>
  * </ol>
  */
 public abstract class SearchScript implements ScorerAware {
@@ -114,10 +114,6 @@ public abstract class SearchScript implements ScorerAware {
 
     public void setNextVar(String field, Object value) {}
 
-    /** Return the result as a long. This is used by aggregation scripts over long fields. */
-    public long runAsLong() {
-        throw new UnsupportedOperationException("runAsLong is not implemented");
-    }
 
     public Object run() {
         return runAsDouble();
@@ -144,7 +140,6 @@ public abstract class SearchScript implements ScorerAware {
     /** The context used to compile {@link SearchScript} factories. */
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("search", Factory.class);
     // TODO: remove these contexts when it has its own interface
-    public static final ScriptContext<Factory> AGGS_CONTEXT = new ScriptContext<>("aggs", Factory.class);
     // Can return a double. (For ScriptSortType#NUMBER only, for ScriptSortType#STRING normal CONTEXT should be used)
     public static final ScriptContext<Factory> SCRIPT_SORT_CONTEXT = new ScriptContext<>("sort", Factory.class);
 }

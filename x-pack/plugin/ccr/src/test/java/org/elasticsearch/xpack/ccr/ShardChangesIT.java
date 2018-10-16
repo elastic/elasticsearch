@@ -373,6 +373,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertMaxSeqNoOfUpdatesIsTransferred(resolveIndex("index1"), resolveIndex("index2"), numberOfShards);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/34412")
     public void testFollowIndexAndCloseNode() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
         String leaderIndexSettings = getIndexSettings(3, 1, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
@@ -467,8 +468,10 @@ public class ShardChangesIT extends ESIntegTestCase {
     }
 
     public void testFollowNonExistentIndex() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test-leader").get());
-        assertAcked(client().admin().indices().prepareCreate("test-follower").get());
+        String indexSettings = getIndexSettings(1, 0, Collections.emptyMap());
+        assertAcked(client().admin().indices().prepareCreate("test-leader").setSource(indexSettings, XContentType.JSON).get());
+        assertAcked(client().admin().indices().prepareCreate("test-follower").setSource(indexSettings, XContentType.JSON).get());
+        ensureGreen("test-leader", "test-follower");
         // Leader index does not exist.
         ResumeFollowAction.Request followRequest1 = resumeFollow("non-existent-leader", "test-follower");
         expectThrows(IndexNotFoundException.class, () -> client().execute(ResumeFollowAction.INSTANCE, followRequest1).actionGet());
@@ -644,6 +647,17 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(1L)));
 
         client().admin().indices().delete(new DeleteIndexRequest("index1")).actionGet();
+        assertBusy(() -> {
+            StatsResponses response = client().execute(FollowStatsAction.INSTANCE, new StatsRequest()).actionGet();
+            assertThat(response.getNodeFailures(), empty());
+            assertThat(response.getTaskFailures(), empty());
+            assertThat(response.getStatsResponses(), hasSize(1));
+            assertThat(response.getStatsResponses().get(0).status().numberOfFailedFetches(), greaterThanOrEqualTo(1L));
+            ElasticsearchException fatalException = response.getStatsResponses().get(0).status().getFatalException();
+            assertThat(fatalException, notNullValue());
+            assertThat(fatalException.getMessage(), equalTo("no such index"));
+        });
+        unfollowIndex("index2");
         ensureNoCcrTasks();
     }
 
@@ -663,6 +677,17 @@ public class ShardChangesIT extends ESIntegTestCase {
 
         client().admin().indices().delete(new DeleteIndexRequest("index2")).actionGet();
         client().prepareIndex("index1", "doc", "2").setSource("{}", XContentType.JSON).get();
+        assertBusy(() -> {
+            StatsResponses response = client().execute(FollowStatsAction.INSTANCE, new StatsRequest()).actionGet();
+            assertThat(response.getNodeFailures(), empty());
+            assertThat(response.getTaskFailures(), empty());
+            assertThat(response.getStatsResponses(), hasSize(1));
+            assertThat(response.getStatsResponses().get(0).status().numberOfFailedBulkOperations(), greaterThanOrEqualTo(1L));
+            ElasticsearchException fatalException = response.getStatsResponses().get(0).status().getFatalException();
+            assertThat(fatalException, notNullValue());
+            assertThat(fatalException.getMessage(), equalTo("no such index"));
+        });
+        unfollowIndex("index2");
         ensureNoCcrTasks();
     }
 
@@ -693,6 +718,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertThat(client().prepareSearch("index2").get().getHits().getTotalHits(), equalTo(2L));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/34412")
     public void testFailOverOnFollower() throws Exception {
         int numberOfReplicas = between(1, 2);
         internalCluster().startMasterOnlyNode();

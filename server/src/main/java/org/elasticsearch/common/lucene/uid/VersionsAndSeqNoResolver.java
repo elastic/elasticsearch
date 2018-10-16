@@ -229,7 +229,7 @@ public final class VersionsAndSeqNoResolver {
             int docId;
             while ((docId = docIdSetIterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
                 // make sure to skip the non-root nested documents
-                if (primaryTermDV.advanceExact(docId - leaf.docBase) && primaryTermDV.longValue() > 0) {
+                if (primaryTermDV.advanceExact(docId) && primaryTermDV.longValue() > 0) {
                     return primaryTermDV.longValue();
                 }
             }

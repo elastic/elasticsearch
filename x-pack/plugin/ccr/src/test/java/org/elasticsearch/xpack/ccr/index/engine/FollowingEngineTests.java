@@ -574,17 +574,21 @@ public class FollowingEngineTests extends ESTestCase {
             }
         }
         Randomness.shuffle(operations);
+        final long oldTerm = randomLongBetween(1, Integer.MAX_VALUE);
+        primaryTerm.set(oldTerm);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
                 followingEngine.advanceMaxSeqNoOfUpdatesOrDeletes(operations.size() - 1L);
-                final long oldTerm = randomLongBetween(1, Integer.MAX_VALUE);
                 final Map<Long,Long> operationWithTerms = new HashMap<>();
                 for (Engine.Operation op : operations) {
                     long term = randomLongBetween(1, oldTerm);
                     Engine.Result result = applyOperation(followingEngine, op, term, randomFrom(Engine.Operation.Origin.values()));
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
                     operationWithTerms.put(op.seqNo(), term);
+                    if (rarely()) {
+                        followingEngine.refresh("test");
+                    }
                 }
                 // Primary should reject duplicates
                 final long newTerm = randomLongBetween(oldTerm + 1, Long.MAX_VALUE);

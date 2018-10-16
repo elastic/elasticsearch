@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.test.RestIntegTestTask
-
 gradle.projectsEvaluated {
     subprojects {
         Task assemble = project.tasks.findByName('assemble')

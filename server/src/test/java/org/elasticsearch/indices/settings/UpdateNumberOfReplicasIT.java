@@ -72,6 +72,8 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
             assertHitCount(countResponse, 10L);
         }
 
+        final long settingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
         logger.info("Increasing the number of replicas from 1 to 2");
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.number_of_replicas", 2)).execute().actionGet());
         logger.info("Running Cluster Health");
@@ -84,8 +86,15 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         //only 2 copies allocated (1 replica) across 2 nodes
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 2));
 
+        final long afterReplicaIncreaseSettingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+        assertThat(afterReplicaIncreaseSettingsVersion, equalTo(1 + settingsVersion));
+
         logger.info("starting another node to new replicas will be allocated to it");
         allowNodes("test", 3);
+
+        final long afterStartingAnotherNodeVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
 
         logger.info("Running Cluster Health");
         clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNoRelocatingShards(true).setWaitForNodes(">=3").execute().actionGet();
@@ -118,6 +127,10 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 10);
         }
+
+        final long afterReplicaDecreaseSettingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+        assertThat(afterReplicaDecreaseSettingsVersion, equalTo(1 + afterStartingAnotherNodeVersion));
     }
 
     public void testAutoExpandNumberOfReplicas0ToData() throws IOException {
@@ -136,6 +149,9 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getNumberOfReplicas(), equalTo(1));
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 2));
 
+        final long settingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+
         logger.info("--> add another node, should increase the number of replicas");
         allowNodes("test", 3);
 
@@ -147,6 +163,10 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getActivePrimaryShards(), equalTo(numShards.numPrimaries));
         assertThat(clusterHealth.getIndices().get("test").getNumberOfReplicas(), equalTo(2));
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 3));
+
+        final long afterAddingOneNodeSettingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+        assertThat(afterAddingOneNodeSettingsVersion, equalTo(1 + settingsVersion));
 
         logger.info("--> closing one node");
         internalCluster().ensureAtMostNumDataNodes(2);
@@ -161,6 +181,10 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getNumberOfReplicas(), equalTo(1));
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 2));
 
+        final long afterClosingOneNodeSettingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+        assertThat(afterClosingOneNodeSettingsVersion, equalTo(1 + afterAddingOneNodeSettingsVersion));
+
         logger.info("--> closing another node");
         internalCluster().ensureAtMostNumDataNodes(1);
         allowNodes("test", 1);
@@ -173,6 +197,10 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getActivePrimaryShards(), equalTo(numShards.numPrimaries));
         assertThat(clusterHealth.getIndices().get("test").getNumberOfReplicas(), equalTo(0));
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries));
+
+        final long afterClosingAnotherNodeSettingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+        assertThat(afterClosingAnotherNodeSettingsVersion, equalTo(1 + afterClosingOneNodeSettingsVersion));
     }
 
     public void testAutoExpandNumberReplicas1ToData() throws IOException {
@@ -191,6 +219,8 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getNumberOfReplicas(), equalTo(1));
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 2));
 
+        final long settingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
         logger.info("--> add another node, should increase the number of replicas");
         allowNodes("test", 3);
 
@@ -202,6 +232,10 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getActivePrimaryShards(), equalTo(numShards.numPrimaries));
         assertThat(clusterHealth.getIndices().get("test").getNumberOfReplicas(), equalTo(2));
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 3));
+
+        final long afterAddingOneNodeSettingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+        assertThat(afterAddingOneNodeSettingsVersion, equalTo(1 + settingsVersion));
 
         logger.info("--> closing one node");
         internalCluster().ensureAtMostNumDataNodes(2);
@@ -215,6 +249,10 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getActivePrimaryShards(), equalTo(numShards.numPrimaries));
         assertThat(clusterHealth.getIndices().get("test").getNumberOfReplicas(), equalTo(1));
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 2));
+
+        final long afterClosingOneNodeSettingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+        assertThat(afterClosingOneNodeSettingsVersion, equalTo(1 + afterAddingOneNodeSettingsVersion));
 
         logger.info("--> closing another node");
         internalCluster().ensureAtMostNumDataNodes(1);
@@ -249,6 +287,8 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         allowNodes("test", 4);
         allowNodes("test", 5);
 
+        final long settingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
         logger.info("--> update the auto expand replicas to 0-3");
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("auto_expand_replicas", "0-3")).execute().actionGet();
 
@@ -260,10 +300,20 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getActivePrimaryShards(), equalTo(numShards.numPrimaries));
         assertThat(clusterHealth.getIndices().get("test").getNumberOfReplicas(), equalTo(3));
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 4));
+
+        /*
+         * The settings version increases twice, the first time from the settings update increasing auto expand replicas, and the second
+         * time from the number of replicas changed by the allocation service.
+         */
+        assertThat(
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion(),
+                equalTo(1 + 1 + settingsVersion));
     }
 
     public void testUpdateWithInvalidNumberOfReplicas() {
         createIndex("test");
+        final long settingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
         final int value = randomIntBetween(-10, -1);
         try {
             client().admin().indices().prepareUpdateSettings("test")
@@ -274,6 +324,9 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
             fail("should have thrown an exception about the replica shard count");
         } catch (IllegalArgumentException e) {
             assertEquals("Failed to parse value [" + value + "] for setting [index.number_of_replicas] must be >= 0", e.getMessage());
+            assertThat(
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion(),
+                    equalTo(settingsVersion));
         }
     }
 

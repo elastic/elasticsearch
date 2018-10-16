@@ -116,7 +116,6 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexSearcherWrapper;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -184,6 +183,7 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
+import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
@@ -257,9 +257,11 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     static final Setting<List<String>> AUDIT_OUTPUTS_SETTING =
         Setting.listSetting(SecurityField.setting("audit.outputs"),
-            s -> s.keySet().contains(SecurityField.setting("audit.outputs")) ?
-                Collections.emptyList() : Collections.singletonList(LoggingAuditTrail.NAME),
-            Function.identity(), Property.NodeScope);
+                Function.identity(),
+                s -> s.keySet().contains(SecurityField.setting("audit.outputs"))
+                        ? Collections.emptyList()
+                        : Collections.singletonList(LoggingAuditTrail.NAME),
+                Property.NodeScope);
 
     private final Settings settings;
     private final Environment env;
@@ -305,7 +307,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new FIPS140LicenseBootstrapCheck()));
             checks.addAll(InternalRealms.getBootstrapChecks(settings, env));
             this.bootstrapChecks = Collections.unmodifiableList(checks);
-            Automatons.updateMaxDeterminizedStates(settings);
+            Automatons.updateConfiguration(settings);
         } else {
             this.bootstrapChecks = Collections.emptyList();
         }
@@ -456,7 +458,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         final FileRolesStore fileRolesStore = new FileRolesStore(settings, env, resourceWatcherService, getLicenseState());
         final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client, getLicenseState(), securityIndex.get());
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
-        List<BiConsumer<Set<String>, ActionListener<Set<RoleDescriptor>>>> rolesProviders = new ArrayList<>();
+        List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> rolesProviders = new ArrayList<>();
         for (SecurityExtension extension : securityExtensions) {
             rolesProviders.addAll(extension.getRolesProviders(settings, resourceWatcherService));
         }
@@ -607,8 +609,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         ReservedRealm.addSettings(settingsList);
         AuthenticationService.addSettings(settingsList);
         AuthorizationService.addSettings(settingsList);
-        settingsList.add(Automatons.MAX_DETERMINIZED_STATES_SETTING);
-        settingsList.add(CompositeRolesStore.CACHE_SIZE_SETTING);
+        Automatons.addSettings(settingsList);
+        settingsList.addAll(CompositeRolesStore.getSettings());
         settingsList.add(FieldPermissionsCache.CACHE_SIZE_SETTING);
         settingsList.add(TokenService.TOKEN_EXPIRATION);
         settingsList.add(TokenService.DELETE_INTERVAL);
@@ -656,7 +658,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             assert getLicenseState() != null;
             if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
                 module.setSearcherWrapper(indexService ->
-                        new SecurityIndexSearcherWrapper(indexService.getIndexSettings(),
+                        new SecurityIndexSearcherWrapper(
                                 shardId -> indexService.newQueryShardContext(shardId.id(),
                                 // we pass a null index reader, which is legal and will disable rewrite optimizations
                                 // based on index statistics, which is probably safer...
@@ -969,7 +971,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     public Function<String, Predicate<String>> getFieldFilter() {
         if (enabled) {
             return index -> {
-                if (getLicenseState().isSecurityEnabled() == false || getLicenseState().isDocumentAndFieldLevelSecurityAllowed() == false) {
+                if (getLicenseState().isDocumentAndFieldLevelSecurityAllowed() == false) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
                 IndicesAccessControl indicesAccessControl = threadContext.get().getTransient(

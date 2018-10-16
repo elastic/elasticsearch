@@ -20,14 +20,16 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.StddevPop;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.SumOfSquares;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.VarPop;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mod;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfWeek;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.HourOfDay;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MinuteOfDay;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MinuteOfHour;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthOfYear;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Quarter;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.SecondOfMinute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.WeekOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
@@ -58,25 +60,28 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sin;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sinh;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Tan;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Truncate;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Ascii;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BitLength;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Char;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.CharLength;
-import org.elasticsearch.xpack.sql.expression.function.scalar.string.LCase;
-import org.elasticsearch.xpack.sql.expression.function.scalar.string.LTrim;
-import org.elasticsearch.xpack.sql.expression.function.scalar.string.Length;
-import org.elasticsearch.xpack.sql.expression.function.scalar.string.RTrim;
-import org.elasticsearch.xpack.sql.expression.function.scalar.string.Space;
-import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Insert;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.LCase;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Left;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Locate;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.OctetLength;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Position;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.RTrim;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Replace;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Right;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.util.StringUtils;
@@ -86,138 +91,164 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.TimeZone;
 import java.util.function.BiFunction;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.toList;
 
 public class FunctionRegistry {
-    private static final List<FunctionDefinition> DEFAULT_FUNCTIONS = unmodifiableList(Arrays.asList(
-        // Aggregate functions
-            def(Avg.class, Avg::new),
-            def(Count.class, Count::new),
-            def(Max.class, Max::new),
-            def(Min.class, Min::new),
-            def(Sum.class, Sum::new),
-            // Statistics
-            def(StddevPop.class, StddevPop::new),
-            def(VarPop.class, VarPop::new),
-            def(Percentile.class, Percentile::new),
-            def(PercentileRank.class, PercentileRank::new),
-            def(SumOfSquares.class, SumOfSquares::new),
-            def(Skewness.class, Skewness::new),
-            def(Kurtosis.class, Kurtosis::new),
-        // Scalar functions
-            // Date
-            def(DayOfMonth.class, DayOfMonth::new, "DAY", "DOM"),
-            def(DayOfWeek.class, DayOfWeek::new, "DOW"),
-            def(DayOfYear.class, DayOfYear::new, "DOY"),
-            def(HourOfDay.class, HourOfDay::new, "HOUR"),
-            def(MinuteOfDay.class, MinuteOfDay::new),
-            def(MinuteOfHour.class, MinuteOfHour::new, "MINUTE"),
-            def(SecondOfMinute.class, SecondOfMinute::new, "SECOND"),
-            def(MonthOfYear.class, MonthOfYear::new, "MONTH"),
-            def(Year.class, Year::new),
-            def(WeekOfYear.class, WeekOfYear::new, "WEEK"),
-            // Math
-            def(Abs.class, Abs::new),
-            def(ACos.class, ACos::new),
-            def(ASin.class, ASin::new),
-            def(ATan.class, ATan::new),
-            def(ATan2.class, ATan2::new),
-            def(Cbrt.class, Cbrt::new),
-            def(Ceil.class, Ceil::new, "CEILING"),
-            def(Cos.class, Cos::new),
-            def(Cosh.class, Cosh::new),
-            def(Cot.class, Cot::new),
-            def(Degrees.class, Degrees::new),
-            def(E.class, E::new),
-            def(Exp.class, Exp::new),
-            def(Expm1.class, Expm1::new),
-            def(Floor.class, Floor::new),
-            def(Log.class, Log::new),
-            def(Log10.class, Log10::new),
-            // SQL and ODBC require MOD as a _function_
-            def(Mod.class, Mod::new),
-            def(Pi.class, Pi::new),
-            def(Power.class, Power::new),
-            def(Radians.class, Radians::new),
-            def(Random.class, Random::new, "RAND"),
-            def(Round.class, Round::new),
-            def(Sign.class, Sign::new, "SIGNUM"),
-            def(Sin.class, Sin::new),
-            def(Sinh.class, Sinh::new),
-            def(Sqrt.class, Sqrt::new),
-            def(Tan.class, Tan::new),
-            // String
-            def(Ascii.class, Ascii::new),
-            def(Char.class, Char::new),
-            def(BitLength.class, BitLength::new),
-            def(CharLength.class, CharLength::new),
-            def(LCase.class, LCase::new),
-            def(Length.class, Length::new),
-            def(LTrim.class, LTrim::new),
-            def(RTrim.class, RTrim::new),
-            def(Space.class, Space::new),
-            def(Concat.class, Concat::new),
-            def(Insert.class, Insert::new),
-            def(Left.class, Left::new),
-            def(Locate.class, Locate::new),
-            def(Position.class, Position::new),
-            def(Repeat.class, Repeat::new),
-            def(Replace.class, Replace::new),
-            def(Right.class, Right::new),
-            def(Substring.class, Substring::new),
-            def(UCase.class, UCase::new),
-        // Special
-            def(Score.class, Score::new)));
-
+    // list of functions grouped by type of functions (aggregate, statistics, math etc) and ordered alphabetically inside each group
+    // a single function will have one entry for itself with its name associated to its instance and, also, one entry for each alias
+    // it has with the alias name associated to the FunctionDefinition instance
     private final Map<String, FunctionDefinition> defs = new LinkedHashMap<>();
-    private final Map<String, String> aliases;
+    private final Map<String, String> aliases = new HashMap<>();
 
     /**
      * Constructor to build with the default list of functions.
      */
     public FunctionRegistry() {
-        this(DEFAULT_FUNCTIONS);
+        defineDefaultFunctions();
     }
-
+    
     /**
      * Constructor specifying alternate functions for testing.
      */
-    FunctionRegistry(List<FunctionDefinition> functions) {
-        this.aliases = new HashMap<>();
+    FunctionRegistry(FunctionDefinition... functions) {
+        addToMap(functions);
+    }
+    
+    private void defineDefaultFunctions() {
+        // Aggregate functions
+        addToMap(def(Avg.class, Avg::new),
+                def(Count.class, Count::new),
+                def(Max.class, Max::new),
+                def(Min.class, Min::new),
+                def(Sum.class, Sum::new));
+        // Statistics
+        addToMap(def(StddevPop.class, StddevPop::new),
+                def(VarPop.class, VarPop::new),
+                def(Percentile.class, Percentile::new),
+                def(PercentileRank.class, PercentileRank::new),
+                def(SumOfSquares.class, SumOfSquares::new),
+                def(Skewness.class, Skewness::new),
+                def(Kurtosis.class, Kurtosis::new));
+        // Scalar functions
+        // Date
+        addToMap(def(DayName.class, DayName::new, "DAYNAME"),
+                def(DayOfMonth.class, DayOfMonth::new, "DAYOFMONTH", "DAY", "DOM"),
+                def(DayOfWeek.class, DayOfWeek::new, "DAYOFWEEK", "DOW"),
+                def(DayOfYear.class, DayOfYear::new, "DAYOFYEAR", "DOY"),
+                def(HourOfDay.class, HourOfDay::new, "HOUR"),
+                def(MinuteOfDay.class, MinuteOfDay::new),
+                def(MinuteOfHour.class, MinuteOfHour::new, "MINUTE"),
+                def(MonthName.class, MonthName::new, "MONTHNAME"),
+                def(MonthOfYear.class, MonthOfYear::new, "MONTH"),
+                def(SecondOfMinute.class, SecondOfMinute::new, "SECOND"),
+                def(Quarter.class, Quarter::new),
+                def(Year.class, Year::new),
+                def(WeekOfYear.class, WeekOfYear::new, "WEEK"));
+        // Math
+        addToMap(def(Abs.class, Abs::new),
+                def(ACos.class, ACos::new),
+                def(ASin.class, ASin::new),
+                def(ATan.class, ATan::new),
+                def(ATan2.class, ATan2::new),
+                def(Cbrt.class, Cbrt::new),
+                def(Ceil.class, Ceil::new, "CEILING"),
+                def(Cos.class, Cos::new),
+                def(Cosh.class, Cosh::new),
+                def(Cot.class, Cot::new),
+                def(Degrees.class, Degrees::new),
+                def(E.class, E::new),
+                def(Exp.class, Exp::new),
+                def(Expm1.class, Expm1::new),
+                def(Floor.class, Floor::new),
+                def(Log.class, Log::new),
+                def(Log10.class, Log10::new),
+                // SQL and ODBC require MOD as a _function_
+                def(Mod.class, Mod::new),
+                def(Pi.class, Pi::new),
+                def(Power.class, Power::new),
+                def(Radians.class, Radians::new),
+                def(Random.class, Random::new, "RAND"),
+                def(Round.class, Round::new),
+                def(Sign.class, Sign::new, "SIGNUM"),
+                def(Sin.class, Sin::new),
+                def(Sinh.class, Sinh::new),
+                def(Sqrt.class, Sqrt::new),
+                def(Tan.class, Tan::new),
+                def(Truncate.class, Truncate::new));
+        // String
+        addToMap(def(Ascii.class, Ascii::new),
+                def(BitLength.class, BitLength::new),
+                def(Char.class, Char::new),
+                def(CharLength.class, CharLength::new, "CHARACTER_LENGTH"),
+                def(Concat.class, Concat::new),
+                def(Insert.class, Insert::new),
+                def(LCase.class, LCase::new),
+                def(Left.class, Left::new),
+                def(Length.class, Length::new),
+                def(Locate.class, Locate::new),
+                def(LTrim.class, LTrim::new),
+                def(OctetLength.class, OctetLength::new),
+                def(Position.class, Position::new),
+                def(Repeat.class, Repeat::new),
+                def(Replace.class, Replace::new),
+                def(Right.class, Right::new),
+                def(RTrim.class, RTrim::new),
+                def(Space.class, Space::new),
+                def(Substring.class, Substring::new),
+                def(UCase.class, UCase::new));
+        // Special
+        addToMap(def(Score.class, Score::new));
+    }
+    
+    protected void addToMap(FunctionDefinition...functions) {
+        // temporary map to hold [function_name/alias_name : function instance]
+        Map<String, FunctionDefinition> batchMap = new HashMap<>();
         for (FunctionDefinition f : functions) {
-            defs.put(f.name(), f);
+            batchMap.put(f.name(), f);
             for (String alias : f.aliases()) {
-                Object old = aliases.put(alias, f.name());
-                if (old != null) {
-                    throw new IllegalArgumentException("alias [" + alias + "] is used by [" + old + "] and [" + f.name() + "]");
+                Object old = batchMap.put(alias, f);
+                if (old != null || defs.containsKey(alias)) {
+                    throw new IllegalArgumentException("alias [" + alias + "] is used by "
+                            + "[" + (old != null ? old : defs.get(alias).name()) + "] and [" + f.name() + "]");
                 }
-                defs.put(alias, f);
+                aliases.put(alias, f.name());
             }
         }
+        // sort the temporary map by key name and add it to the global map of functions
+        defs.putAll(batchMap.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .collect(Collectors.<Entry<String, FunctionDefinition>, String, 
+                        FunctionDefinition, LinkedHashMap<String, FunctionDefinition>> toMap(Map.Entry::getKey, Map.Entry::getValue,
+                (oldValue, newValue) -> oldValue, LinkedHashMap::new)));
     }
 
-    public FunctionDefinition resolveFunction(String name) {
-        FunctionDefinition def = defs.get(normalize(name));
+    public FunctionDefinition resolveFunction(String functionName) {
+        FunctionDefinition def = defs.get(functionName);
         if (def == null) {
-            throw new SqlIllegalArgumentException("Cannot find function {}; this should have been caught during analysis", name);
+            throw new SqlIllegalArgumentException(
+                "Cannot find function {}; this should have been caught during analysis",
+                functionName);
         }
         return def;
     }
 
-    public String concreteFunctionName(String alias) {
-        String normalized = normalize(alias);
-        return aliases.getOrDefault(normalized, normalized);
+    public String resolveAlias(String alias) {
+        String upperCase = alias.toUpperCase(Locale.ROOT);
+        return aliases.getOrDefault(upperCase, upperCase);
     }
 
-    public boolean functionExists(String name) {
-        return defs.containsKey(normalize(name));
+    public boolean functionExists(String functionName) {
+        return defs.containsKey(functionName);
     }
 
     public Collection<FunctionDefinition> listFunctions() {
@@ -324,13 +355,17 @@ public class FunctionRegistry {
     static <T extends Function> FunctionDefinition def(Class<T> function,
             BinaryFunctionBuilder<T> ctorRef, String... aliases) {
         FunctionBuilder builder = (location, children, distinct, tz) -> {
-            if (children.size() != 2) {
+            boolean isBinaryOptionalParamFunction = function.isAssignableFrom(Round.class) || function.isAssignableFrom(Truncate.class);
+            if (isBinaryOptionalParamFunction && (children.size() > 2 || children.size() < 1)) {
+                throw new IllegalArgumentException("expects one or two arguments");
+            } else if (!isBinaryOptionalParamFunction && children.size() != 2) {
                 throw new IllegalArgumentException("expects exactly two arguments");
             }
+
             if (distinct) {
                 throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
             }
-            return ctorRef.build(location, children.get(0), children.get(1));
+            return ctorRef.build(location, children.get(0), children.size() == 2 ? children.get(1) : null);
         };
         return def(function, builder, false, aliases);
     }

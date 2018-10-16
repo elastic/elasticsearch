@@ -7,13 +7,26 @@ package org.elasticsearch.xpack.core.ml.utils.time;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 
+import java.io.IOException;
+import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
 public final class TimeUtils {
     private TimeUtils() {
         // Do nothing
+    }
+
+    public static Date parseTimeField(XContentParser parser, String fieldName) throws IOException {
+        if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+            return new Date(parser.longValue());
+        } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+            return new Date(TimeUtils.dateStringToEpoch(parser.text()));
+        }
+        throw new IllegalArgumentException(
+                "unexpected token [" + parser.currentToken() + "] for [" + fieldName + "]");
     }
 
     /**

@@ -19,17 +19,36 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.security.PutRoleMappingRequest;
+import org.elasticsearch.client.security.DisableUserRequest;
+import org.elasticsearch.client.security.EnableUserRequest;
+import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.PutUserRequest;
+import org.elasticsearch.client.security.SetUserEnabledRequest;
 
 import java.io.IOException;
 
 import static org.elasticsearch.client.RequestConverters.REQUEST_BODY_CONTENT_TYPE;
 import static org.elasticsearch.client.RequestConverters.createEntity;
 
-public final class SecurityRequestConverters {
+final class SecurityRequestConverters {
 
     private SecurityRequestConverters() {}
+
+    static Request changePassword(ChangePasswordRequest changePasswordRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack/security/user")
+            .addPathPart(changePasswordRequest.getUsername())
+            .addPathPartAsIs("_password")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(changePasswordRequest, REQUEST_BODY_CONTENT_TYPE));
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withRefreshPolicy(changePasswordRequest.getRefreshPolicy());
+        return request;
+    }
 
     static Request putUser(PutUserRequest putUserRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder()
@@ -40,6 +59,38 @@ public final class SecurityRequestConverters {
         request.setEntity(createEntity(putUserRequest, REQUEST_BODY_CONTENT_TYPE));
         RequestConverters.Params params = new RequestConverters.Params(request);
         params.withRefreshPolicy(putUserRequest.getRefreshPolicy());
+        return request;
+    }
+
+    static Request putRoleMapping(final PutRoleMappingRequest putRoleMappingRequest) throws IOException {
+        final String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack/security/role_mapping")
+            .addPathPart(putRoleMappingRequest.getName())
+            .build();
+        final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(putRoleMappingRequest, REQUEST_BODY_CONTENT_TYPE));
+        final RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withRefreshPolicy(putRoleMappingRequest.getRefreshPolicy());
+        return request;
+    }
+
+    static Request enableUser(EnableUserRequest enableUserRequest) {
+        return setUserEnabled(enableUserRequest);
+    }
+
+    static Request disableUser(DisableUserRequest disableUserRequest) {
+        return setUserEnabled(disableUserRequest);
+    }
+
+    private static Request setUserEnabled(SetUserEnabledRequest setUserEnabledRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack/security/user")
+            .addPathPart(setUserEnabledRequest.getUsername())
+            .addPathPart(setUserEnabledRequest.isEnabled() ? "_enable" : "_disable")
+            .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withRefreshPolicy(setUserEnabledRequest.getRefreshPolicy());
         return request;
     }
 }

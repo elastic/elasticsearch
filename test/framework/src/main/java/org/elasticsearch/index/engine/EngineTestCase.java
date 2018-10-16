@@ -33,6 +33,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -77,7 +78,6 @@ import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
@@ -96,11 +96,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -125,6 +124,7 @@ public abstract class EngineTestCase extends ESTestCase {
     protected static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
 
     protected ThreadPool threadPool;
+    protected TranslogHandler translogHandler;
 
     protected Store store;
     protected Store storeReplica;
@@ -189,6 +189,7 @@ public abstract class EngineTestCase extends ESTestCase {
         Lucene.cleanLuceneIndex(store.directory());
         Lucene.cleanLuceneIndex(storeReplica.directory());
         primaryTranslogDir = createTempDir("translog-primary");
+        translogHandler = createTranslogHandler(defaultSettings);
         engine = createEngine(store, primaryTranslogDir);
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
 
@@ -213,7 +214,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getWarmer(), config.getStore(), config.getMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
             new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
             config.getTranslogConfig(), config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(), config.getTranslogRecoveryRunner(),
+            config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(),
             config.getCircuitBreakerService(), globalCheckpointSupplier, config.getPrimaryTermSupplier(), tombstoneDocSupplier());
     }
 
@@ -222,7 +223,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 config.getWarmer(), config.getStore(), config.getMergePolicy(), analyzer, config.getSimilarity(),
                 new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
                 config.getTranslogConfig(), config.getFlushMergesAfter(),
-                config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(), config.getTranslogRecoveryRunner(),
+                config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(),
                 config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.getPrimaryTermSupplier(),
                 config.getTombstoneDocSupplier());
     }
@@ -232,7 +233,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getWarmer(), config.getStore(), mergePolicy, config.getAnalyzer(), config.getSimilarity(),
             new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
             config.getTranslogConfig(), config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(), config.getTranslogRecoveryRunner(),
+            config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(),
             config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.getPrimaryTermSupplier(),
             config.getTombstoneDocSupplier());
     }
@@ -356,13 +357,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected Store createStore(final IndexSettings indexSettings, final Directory directory) throws IOException {
-        final DirectoryService directoryService = new DirectoryService(shardId, indexSettings) {
-            @Override
-            public Directory newDirectory() throws IOException {
-                return directory;
-            }
-        };
-        return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
+        return new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
     }
 
     protected Translog createTranslog(LongSupplier primaryTermSupplier) throws IOException {
@@ -375,6 +370,10 @@ public abstract class EngineTestCase extends ESTestCase {
             primaryTermSupplier.getAsLong());
         return new Translog(translogConfig, translogUUID, createTranslogDeletionPolicy(INDEX_SETTINGS),
             () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTermSupplier);
+    }
+
+    protected TranslogHandler createTranslogHandler(IndexSettings indexSettings) {
+        return new TranslogHandler(xContentRegistry(), indexSettings);
     }
 
     protected InternalEngine createEngine(Store store, Path translogPath) throws IOException {
@@ -478,7 +477,8 @@ public abstract class EngineTestCase extends ESTestCase {
 
         }
         InternalEngine internalEngine = createInternalEngine(indexWriterFactory, localCheckpointTrackerSupplier, seqNoForOperation, config);
-        internalEngine.recoverFromTranslog(Long.MAX_VALUE);
+        internalEngine.initializeMaxSeqNoOfUpdatesOrDeletes();
+        internalEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
         return internalEngine;
     }
 
@@ -503,7 +503,7 @@ public abstract class EngineTestCase extends ESTestCase {
             @Nullable final ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
             final EngineConfig config) {
         if (localCheckpointTrackerSupplier == null) {
-            return new InternalEngine(config) {
+            return new InternalTestEngine(config) {
                 @Override
                 IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
                     return (indexWriterFactory != null) ?
@@ -519,7 +519,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
             };
         } else {
-            return new InternalEngine(config, localCheckpointTrackerSupplier) {
+            return new InternalTestEngine(config, localCheckpointTrackerSupplier) {
                 @Override
                 IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
                     return (indexWriterFactory != null) ?
@@ -553,14 +553,12 @@ public abstract class EngineTestCase extends ESTestCase {
                 // we don't need to notify anybody in this test
             }
         };
-        final TranslogHandler handler = new TranslogHandler(xContentRegistry(), IndexSettingsModule.newIndexSettings(shardId.getIndexName(),
-                indexSettings.getSettings()));
         final List<ReferenceManager.RefreshListener> refreshListenerList =
                 refreshListener == null ? emptyList() : Collections.singletonList(refreshListener);
         EngineConfig config = new EngineConfig(shardId, allocationId.getId(), threadPool, indexSettings, null, store,
                 mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), listener,
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
-                TimeValue.timeValueMinutes(5), refreshListenerList, Collections.emptyList(), indexSort, handler,
+                TimeValue.timeValueMinutes(5), refreshListenerList, Collections.emptyList(), indexSort,
                 new NoneCircuitBreakerService(),
                 globalCheckpointSupplier == null ?
                     new ReplicationTracker(shardId, allocationId.getId(), indexSettings, SequenceNumbers.NO_OPS_PERFORMED, update -> {}) :
@@ -577,11 +575,11 @@ public abstract class EngineTestCase extends ESTestCase {
         return new BytesArray(string.getBytes(Charset.defaultCharset()));
     }
 
-    protected static Term newUid(String id) {
+    public static Term newUid(String id) {
         return new Term("_id", Uid.encodeId(id));
     }
 
-    protected Term newUid(ParsedDocument doc) {
+    public static Term newUid(ParsedDocument doc) {
         return newUid(doc.id());
     }
 
@@ -645,7 +643,7 @@ public abstract class EngineTestCase extends ESTestCase {
                     throw new UnsupportedOperationException("unknown version type: " + versionType);
             }
             if (randomBoolean()) {
-                op = new Engine.Index(id, testParsedDocument(docId, null, testDocumentWithTextField(valuePrefix + i), B_1, null),
+                op = new Engine.Index(id, testParsedDocument(docId, null, testDocumentWithTextField(valuePrefix + i), SOURCE, null),
                     forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
                     forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
                     version,
@@ -736,7 +734,7 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
-    protected void concurrentlyApplyOps(List<Engine.Operation> ops, InternalEngine engine) throws InterruptedException {
+    public static void concurrentlyApplyOps(List<Engine.Operation> ops, InternalEngine engine) throws InterruptedException {
         Thread[] thread = new Thread[randomIntBetween(3, 5)];
         CountDownLatch startGun = new CountDownLatch(thread.length);
         AtomicInteger offset = new AtomicInteger(-1);
@@ -778,26 +776,40 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     /**
-     * Gets all docId from the given engine.
+     * Gets a collection of tuples of docId, sequence number, and primary term of all live documents in the provided engine.
      */
-    public static Set<String> getDocIds(Engine engine, boolean refresh) throws IOException {
+    public static List<DocIdSeqNoAndTerm> getDocIds(Engine engine, boolean refresh) throws IOException {
         if (refresh) {
             engine.refresh("test_get_doc_ids");
         }
         try (Engine.Searcher searcher = engine.acquireSearcher("test_get_doc_ids")) {
-            Set<String> ids = new HashSet<>();
+            List<DocIdSeqNoAndTerm> docs = new ArrayList<>();
             for (LeafReaderContext leafContext : searcher.reader().leaves()) {
                 LeafReader reader = leafContext.reader();
+                NumericDocValues seqNoDocValues = reader.getNumericDocValues(SeqNoFieldMapper.NAME);
+                NumericDocValues primaryTermDocValues = reader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
                 Bits liveDocs = reader.getLiveDocs();
                 for (int i = 0; i < reader.maxDoc(); i++) {
                     if (liveDocs == null || liveDocs.get(i)) {
+                        if (primaryTermDocValues.advanceExact(i) == false) {
+                            // We have to skip non-root docs because its _id field is not stored (indexed only).
+                            continue;
+                        }
+                        final long primaryTerm = primaryTermDocValues.longValue();
                         Document uuid = reader.document(i, Collections.singleton(IdFieldMapper.NAME));
                         BytesRef binaryID = uuid.getBinaryValue(IdFieldMapper.NAME);
-                        ids.add(Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length)));
+                        String id = Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length));
+                        if (seqNoDocValues.advanceExact(i) == false) {
+                            throw new AssertionError("seqNoDocValues not found for doc[" + i + "] id[" + id + "]");
+                        }
+                        final long seqNo = seqNoDocValues.longValue();
+                        docs.add(new DocIdSeqNoAndTerm(id, seqNo, primaryTerm));
                     }
                 }
             }
-            return ids;
+            docs.sort(Comparator.comparing(DocIdSeqNoAndTerm::getId)
+                .thenComparingLong(DocIdSeqNoAndTerm::getSeqNo).thenComparingLong(DocIdSeqNoAndTerm::getPrimaryTerm));
+            return docs;
         }
     }
 
@@ -821,7 +833,8 @@ public abstract class EngineTestCase extends ESTestCase {
      * Asserts the provided engine has a consistent document history between translog and Lucene index.
      */
     public static void assertConsistentHistoryBetweenTranslogAndLuceneIndex(Engine engine, MapperService mapper) throws IOException {
-        if (mapper.documentMapper() == null || engine.config().getIndexSettings().isSoftDeleteEnabled() == false) {
+        if (mapper.documentMapper() == null || engine.config().getIndexSettings().isSoftDeleteEnabled() == false
+            || (engine instanceof InternalEngine) == false) {
             return;
         }
         final long maxSeqNo = ((InternalEngine) engine).getLocalCheckpointTracker().getMaxSeqNo();
@@ -863,7 +876,7 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
-    protected MapperService createMapperService(String type) throws IOException {
+    public static MapperService createMapperService(String type) throws IOException {
         IndexMetaData indexMetaData = IndexMetaData.builder("test")
             .settings(Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)

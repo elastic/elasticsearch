@@ -49,6 +49,7 @@ import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
+import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -59,7 +60,6 @@ import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -83,15 +83,18 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -124,14 +127,14 @@ public abstract class IndexShardTestCase extends ESTestCase {
     };
 
     protected ThreadPool threadPool;
-    private long primaryTerm;
+    protected long primaryTerm;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool(getClass().getName(), threadPoolSettings());
         primaryTerm = randomIntBetween(1, 100); // use random but fixed term for creating shards
-        failOnShardFailures.set(true);
+        failOnShardFailures();
     }
 
     @Override
@@ -152,6 +155,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
         failOnShardFailures.set(false);
     }
 
+    protected void failOnShardFailures() {
+        failOnShardFailures.set(true);
+    }
+
     public Settings threadPoolSettings() {
         return Settings.EMPTY;
     }
@@ -161,13 +168,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected Store createStore(ShardId shardId, IndexSettings indexSettings, Directory directory) throws IOException {
-        final DirectoryService directoryService = new DirectoryService(shardId, indexSettings) {
-            @Override
-            public Directory newDirectory() throws IOException {
-                return directory;
-            }
-        };
-        return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
+        return new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
     }
 
     /**
@@ -200,7 +201,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
      */
     protected IndexShard newShard(boolean primary, Settings settings, EngineFactory engineFactory) throws IOException {
         final RecoverySource recoverySource =
-                primary ? RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE;
+                primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE;
         final ShardRouting shardRouting =
                 TestShardRouting.newShardRouting(
                         new ShardId("index", "_na_", 0), randomAlphaOfLength(10), primary, ShardRoutingState.INITIALIZING, recoverySource);
@@ -237,7 +238,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             .settings(indexSettings)
             .primaryTerm(0, primaryTerm)
             .putMapping("_doc", "{ \"properties\": {} }");
-        return newShard(shardRouting, metaData.build(), engineFactory, listeners);
+        return newShard(shardRouting, metaData.build(), null, engineFactory, () -> {}, listeners);
     }
 
     /**
@@ -251,7 +252,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     protected IndexShard newShard(ShardId shardId, boolean primary, IndexingOperationListener... listeners) throws IOException {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, randomAlphaOfLength(5), primary,
             ShardRoutingState.INITIALIZING,
-            primary ? RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
+            primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
         return newShard(shardRouting, Settings.EMPTY, new InternalEngineFactory(), listeners);
     }
 
@@ -279,10 +280,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
     protected IndexShard newShard(ShardId shardId, boolean primary, String nodeId, IndexMetaData indexMetaData,
                                   @Nullable IndexSearcherWrapper searcherWrapper, Runnable globalCheckpointSyncer) throws IOException {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, nodeId, primary, ShardRoutingState.INITIALIZING,
-            primary ? RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
+            primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
         return newShard(shardRouting, indexMetaData, searcherWrapper, new InternalEngineFactory(), globalCheckpointSyncer);
     }
-
 
     /**
      * creates a new initializing shard. The shard will will be put in its proper path under the
@@ -378,7 +378,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     protected IndexShard reinitShard(IndexShard current, IndexingOperationListener... listeners) throws IOException {
         final ShardRouting shardRouting = current.routingEntry();
         return reinitShard(current, ShardRoutingHelper.initWithSameId(shardRouting,
-            shardRouting.primary() ? RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
+            shardRouting.primary() ? RecoverySource.ExistingStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
         ), listeners);
     }
 
@@ -448,6 +448,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         IndexShard shard = shardFunction.apply(primary);
         if (primary) {
             recoverShardFromStore(shard);
+            assertThat(shard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(shard.seqNoStats().getMaxSeqNo()));
         } else {
             recoveryEmptyReplica(shard, true);
         }
@@ -458,15 +459,20 @@ public abstract class IndexShardTestCase extends ESTestCase {
         closeShards(Arrays.asList(shards));
     }
 
+    protected void closeShard(IndexShard shard, boolean assertConsistencyBetweenTranslogAndLucene) throws IOException {
+        try {
+            if (assertConsistencyBetweenTranslogAndLucene) {
+                assertConsistentHistoryBetweenTranslogAndLucene(shard);
+            }
+        } finally {
+            IOUtils.close(() -> shard.close("test", false), shard.store());
+        }
+    }
+
     protected void closeShards(Iterable<IndexShard> shards) throws IOException {
         for (IndexShard shard : shards) {
             if (shard != null) {
-                try {
-                    assertConsistentHistoryBetweenTranslogAndLucene(shard);
-                    shard.close("test", false);
-                } finally {
-                    IOUtils.close(shard.store());
-                }
+                closeShard(shard, true);
             }
         }
     }
@@ -642,7 +648,11 @@ public abstract class IndexShardTestCase extends ESTestCase {
         return result;
     }
 
-    protected Set<String> getShardDocUIDs(final IndexShard shard) throws IOException {
+    public static Set<String> getShardDocUIDs(final IndexShard shard) throws IOException {
+        return getDocIdAndSeqNos(shard).stream().map(DocIdSeqNoAndTerm::getId).collect(Collectors.toSet());
+    }
+
+    public static List<DocIdSeqNoAndTerm> getDocIdAndSeqNos(final IndexShard shard) throws IOException {
         return EngineTestCase.getDocIds(shard.getEngine(), true);
     }
 
@@ -689,8 +699,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
             shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(),
                 shard.getLocalCheckpoint());
         } else {
-            result = shard.applyIndexOperationOnReplica(shard.seqNoStats().getMaxSeqNo() + 1, 0,
-                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
+            final long seqNo = shard.seqNoStats().getMaxSeqNo() + 1;
+            shard.advanceMaxSeqNoOfUpdatesOrDeletes(seqNo); // manually replicate max_seq_no_of_updates
+            result = shard.applyIndexOperationOnReplica(seqNo, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
             if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
                 throw new TransportReplicationAction.RetryOnReplicaException(shard.shardId,
                     "Mappings are not available on the replica yet, triggered update: " + result.getRequiredMappingUpdate());
@@ -710,7 +721,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
             result = shard.applyDeleteOperationOnPrimary(Versions.MATCH_ANY, type, id, VersionType.INTERNAL);
             shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(), shard.getEngine().getLocalCheckpoint());
         } else {
-            result = shard.applyDeleteOperationOnReplica(shard.seqNoStats().getMaxSeqNo() + 1, 0L, type, id);
+            final long seqNo = shard.seqNoStats().getMaxSeqNo() + 1;
+            shard.advanceMaxSeqNoOfUpdatesOrDeletes(seqNo); // manually replicate max_seq_no_of_updates
+            result = shard.applyDeleteOperationOnReplica(seqNo, 0L, type, id);
         }
         return result;
     }
@@ -733,7 +746,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final IndexId indexId = new IndexId(shardId.getIndex().getName(), shardId.getIndex().getUUID());
         final DiscoveryNode node = getFakeDiscoNode(shard.routingEntry().currentNodeId());
         final RecoverySource.SnapshotRecoverySource recoverySource = new RecoverySource.SnapshotRecoverySource(snapshot, version, index);
-        final ShardRouting shardRouting = newShardRouting(shardId, node.getId(), true, recoverySource, ShardRoutingState.INITIALIZING);
+        final ShardRouting shardRouting = newShardRouting(shardId, node.getId(), true, ShardRoutingState.INITIALIZING, recoverySource);
 
         shard.markAsRecovering("from snapshot", new RecoveryState(shardRouting, node, null));
         repository.restoreShard(shard, snapshot.getSnapshotId(), version, indexId, shard.shardId(), shard.recoveryState());
@@ -748,7 +761,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
             Index index = shard.shardId().getIndex();
             IndexId indexId = new IndexId(index.getName(), index.getUUID());
 
-            repository.snapshotShard(shard, snapshot.getSnapshotId(), indexId, indexCommitRef.getIndexCommit(), snapshotStatus);
+            repository.snapshotShard(shard, shard.store(), snapshot.getSnapshotId(), indexId, indexCommitRef.getIndexCommit(),
+                snapshotStatus);
         }
 
         final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();

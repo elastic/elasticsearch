@@ -277,6 +277,12 @@ public final class IndexSettings {
         return s;
        }, Property.Dynamic, Property.IndexScope);
 
+    /**
+     * Marks an index to be searched throttled. This means that never more than one shard of such an index will be searched concurrently
+     */
+    public static final Setting<Boolean> INDEX_SEARCH_THROTTLED = Setting.boolSetting("index.search.throttled", false,
+        Property.IndexScope, Property.PrivateIndex, Property.Dynamic);
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -319,6 +325,7 @@ public final class IndexSettings {
     private volatile int maxAnalyzedOffset;
     private volatile int maxTermsCount;
     private volatile String defaultPipeline;
+    private volatile boolean searchThrottled;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -402,6 +409,7 @@ public final class IndexSettings {
         this.indexMetaData = indexMetaData;
         numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
 
+        this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
         this.queryStringAllowLeadingWildcard = QUERY_STRING_ALLOW_LEADING_WILDCARD.get(nodeSettings);
@@ -478,6 +486,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_THROTTLED, this::setSearchThrottled);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) { this.searchIdleAfter = searchIdleAfter; }
@@ -595,15 +604,26 @@ public final class IndexSettings {
             throw new IllegalArgumentException("uuid mismatch on settings update expected: " + getUUID() + " but was: " + newUUID);
         }
         this.indexMetaData = indexMetaData;
-        final Settings existingSettings = this.settings;
-        if (existingSettings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE)
-            .equals(newSettings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE))) {
+        final Settings newIndexSettings = Settings.builder().put(nodeSettings).put(newSettings).build();
+        if (same(this.settings, newIndexSettings)) {
             // nothing to update, same settings
             return false;
         }
         scopedSettings.applySettings(newSettings);
-        this.settings = Settings.builder().put(nodeSettings).put(newSettings).build();
+        this.settings = newIndexSettings;
         return true;
+    }
+
+    /**
+     * Compare the specified settings for equality.
+     *
+     * @param left  the left settings
+     * @param right the right settings
+     * @return true if the settings are the same, otherwise false
+     */
+    public static boolean same(final Settings left, final Settings right) {
+        return left.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE)
+                .equals(right.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE));
     }
 
     /**
@@ -878,5 +898,17 @@ public final class IndexSettings {
      */
     public long getSoftDeleteRetentionOperations() {
         return this.softDeleteRetentionOperations;
+    }
+
+    /**
+     * Returns true if the this index should be searched throttled ie. using the
+     * {@link org.elasticsearch.threadpool.ThreadPool.Names#SEARCH_THROTTLED} thread-pool
+     */
+    public boolean isSearchThrottled() {
+        return searchThrottled;
+    }
+
+    private void setSearchThrottled(boolean searchThrottled) {
+        this.searchThrottled = searchThrottled;
     }
 }

@@ -5,12 +5,21 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContentTestCase<PutAutoFollowPatternAction.Request> {
 
@@ -38,10 +47,10 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
             request.setFollowIndexNamePattern(randomAlphaOfLength(4));
         }
         if (randomBoolean()) {
-            request.setIdleShardRetryDelay(TimeValue.timeValueMillis(500));
+            request.setPollTimeout(TimeValue.timeValueMillis(500));
         }
         if (randomBoolean()) {
-            request.setRetryTimeout(TimeValue.timeValueMillis(500));
+            request.setMaxRetryDelay(TimeValue.timeValueMillis(500));
         }
         if (randomBoolean()) {
             request.setMaxBatchOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
@@ -53,11 +62,46 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
             request.setMaxConcurrentWriteBatches(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxOperationSizeInBytes(randomNonNegativeLong());
+            request.setMaxBatchSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
         }
         if (randomBoolean()) {
             request.setMaxWriteBufferSize(randomIntBetween(0, Integer.MAX_VALUE));
         }
         return request;
+    }
+
+    public void testValidate() {
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        ActionRequestValidationException validationException = request.validate();
+        assertThat(validationException, notNullValue());
+        assertThat(validationException.getMessage(), containsString("[leader_cluster_alias] is missing"));
+
+        request.setLeaderClusterAlias("_alias");
+        validationException = request.validate();
+        assertThat(validationException, notNullValue());
+        assertThat(validationException.getMessage(), containsString("[leader_index_patterns] is missing"));
+
+        request.setLeaderIndexPatterns(Collections.emptyList());
+        validationException = request.validate();
+        assertThat(validationException, notNullValue());
+        assertThat(validationException.getMessage(), containsString("[leader_index_patterns] is missing"));
+
+        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+        validationException = request.validate();
+        assertThat(validationException, nullValue());
+
+        request.setMaxRetryDelay(TimeValue.ZERO);
+        validationException = request.validate();
+        assertThat(validationException, notNullValue());
+        assertThat(validationException.getMessage(), containsString("[max_retry_delay] must be positive but was [0ms]"));
+
+        request.setMaxRetryDelay(TimeValue.timeValueMinutes(10));
+        validationException = request.validate();
+        assertThat(validationException, notNullValue());
+        assertThat(validationException.getMessage(), containsString("[max_retry_delay] must be less than [5m] but was [10m]"));
+
+        request.setMaxRetryDelay(TimeValue.timeValueMinutes(1));
+        validationException = request.validate();
+        assertThat(validationException, nullValue());
     }
 }

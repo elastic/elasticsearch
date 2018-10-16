@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.search.aggregations.support.values;
 
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
-import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.script.AggregationScript;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -34,9 +34,9 @@ import java.util.Collection;
  */
 public class ScriptBytesValues extends SortingBinaryDocValues implements ScorerAware {
 
-    private final SearchScript script;
+    private final AggregationScript script;
 
-    public ScriptBytesValues(SearchScript script) {
+    public ScriptBytesValues(AggregationScript script) {
         super();
         this.script = script;
     }
@@ -53,7 +53,7 @@ public class ScriptBytesValues extends SortingBinaryDocValues implements ScorerA
     @Override
     public boolean advanceExact(int doc) throws IOException {
         script.setDocument(doc);
-        final Object value = script.run();
+        final Object value = script.execute();
         if (value == null) {
             return false;
         } else if (value.getClass().isArray()) {
@@ -85,7 +85,7 @@ public class ScriptBytesValues extends SortingBinaryDocValues implements ScorerA
     }
 
     @Override
-    public void setScorer(Scorer scorer) {
+    public void setScorer(Scorable scorer) {
         script.setScorer(scorer);
     }
 }

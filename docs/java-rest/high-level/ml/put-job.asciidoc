@@ -1,22 +1,27 @@
-[[java-rest-high-x-pack-ml-put-job]]
+--
+:api: put-job
+:request: PutJobRequest
+:response: PutJobResponse
+--
+[id="{upid}-{api}"]
 === Put Job API
 
 The Put Job API can be used to create a new {ml} job
-in the cluster. The API accepts a `PutJobRequest` object
-as a request and returns a `PutJobResponse`.
+in the cluster. The API accepts a +{request}+ object
+as a request and returns a +{response}+.
 
-[[java-rest-high-x-pack-ml-put-job-request]]
+[id="{upid}-{api}-request"]
 ==== Put Job Request
 
-A `PutJobRequest` requires the following argument:
+A +{request}+ requires the following argument:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-put-job-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> The configuration of the {ml} job to create as a `Job`
 
-[[java-rest-high-x-pack-ml-put-job-config]]
+[id="{upid}-{api}-config"]
 ==== Job Configuration
 
 The `Job` object contains all the details about the {ml} job
@@ -26,14 +31,14 @@ A `Job` requires the following arguments:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-put-job-config]
+include-tagged::{doc-tests-file}[{api}-config]
 --------------------------------------------------
 <1> The job ID
 <2> An analysis configuration
 <3> A data description
 <4> Optionally, a human-readable description
 
-[[java-rest-high-x-pack-ml-put-job-analysis-config]]
+[id="{upid}-{api}-analysis-config"]
 ==== Analysis Configuration
 
 The analysis configuration of the {ml} job is defined in the `AnalysisConfig`.
@@ -64,7 +69,7 @@ An example of building a `Detector` instance is as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-put-job-detector]
+include-tagged::{doc-tests-file}[{api}-detector]
 --------------------------------------------------
 <1> The function to use
 <2> The field to apply the function to
@@ -74,13 +79,13 @@ Then the same configuration would be:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-put-job-analysis-config]
+include-tagged::{doc-tests-file}[{api}-analysis-config]
 --------------------------------------------------
 <1> Create a list of detectors
 <2> Pass the list of detectors to the analysis config builder constructor
 <3> The bucket span
 
-[[java-rest-high-x-pack-ml-put-job-data-description]]
+[id="{upid}-{api}-data-description"]
 ==== Data Description
 
 After defining the analysis config, the next thing to define is the
@@ -103,59 +108,22 @@ configuration would be:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-put-job-data-description]
+include-tagged::{doc-tests-file}[{api}-data-description]
 --------------------------------------------------
 <1> The time field
 
-[[java-rest-high-x-pack-ml-put-job-execution]]
-==== Execution
+include::../execution.asciidoc[]
 
-The Put Job API can be executed through a `MachineLearningClient`
-instance. Such an instance can be retrieved from a `RestHighLevelClient`
-using the `machineLearning()` method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-put-job-execute]
---------------------------------------------------
-
-[[java-rest-high-x-pack-ml-put-job-response]]
+[id="{upid}-{api}-response"]
 ==== Response
 
-The returned `PutJobResponse` returns the full representation of
+The returned +{response}+ returns the full representation of
 the new {ml} job if it has been successfully created. This will
 contain the creation time and other fields initialized using
 default values:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-put-job-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> The creation time is a field that was not passed in the `Job` object in the request
-
-[[java-rest-high-x-pack-ml-put-job-async]]
-==== Asynchronous Execution
-
-This request can be executed asynchronously:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-put-job-execute-async]
---------------------------------------------------
-<1> The `PutMlJobRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for `PutJobResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-put-job-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument
-<2> Called in case of failure. The raised exception is provided as an argument

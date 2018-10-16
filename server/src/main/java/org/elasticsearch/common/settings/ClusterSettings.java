@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.settings;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
@@ -44,7 +45,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
@@ -100,6 +100,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -107,8 +108,13 @@ import java.util.function.Predicate;
  * Encapsulates all valid cluster level settings.
  */
 public final class ClusterSettings extends AbstractScopedSettings {
-    public ClusterSettings(Settings nodeSettings, Set<Setting<?>> settingsSet) {
-        super(nodeSettings, settingsSet, Property.NodeScope);
+    public ClusterSettings(final Settings nodeSettings, final Set<Setting<?>> settingsSet) {
+        this(nodeSettings, settingsSet, Collections.emptySet());
+    }
+
+    public ClusterSettings(
+            final Settings nodeSettings, final Set<Setting<?>> settingsSet, final Set<SettingUpgrader<?>> settingUpgraders) {
+        super(nodeSettings, settingsSet, settingUpgraders, Property.NodeScope);
         addSettingsUpdater(new LoggingSettingUpdater(nodeSettings));
     }
 
@@ -152,12 +158,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 if ("_root".equals(component)) {
                     final String rootLevel = value.get(key);
                     if (rootLevel == null) {
-                        Loggers.setLevel(ESLoggerFactory.getRootLogger(), Loggers.LOG_DEFAULT_LEVEL_SETTING.get(settings));
+                        Loggers.setLevel(LogManager.getRootLogger(), Loggers.LOG_DEFAULT_LEVEL_SETTING.get(settings));
                     } else {
-                        Loggers.setLevel(ESLoggerFactory.getRootLogger(), rootLevel);
+                        Loggers.setLevel(LogManager.getRootLogger(), rootLevel);
                     }
                 } else {
-                    Loggers.setLevel(ESLoggerFactory.getLogger(component), value.get(key));
+                    Loggers.setLevel(LogManager.getLogger(component), value.get(key));
                 }
             }
         }
@@ -436,4 +442,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     IndexGraveyard.SETTING_MAX_TOMBSTONES,
                     EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING
             )));
+
+    public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(Arrays.asList(
+            RemoteClusterAware.SEARCH_REMOTE_CLUSTER_SEEDS_UPGRADER,
+            RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_PROXY_UPGRADER,
+            RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE_UPGRADER));
+
 }

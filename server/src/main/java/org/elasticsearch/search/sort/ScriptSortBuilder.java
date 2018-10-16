@@ -21,7 +21,7 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -319,6 +319,14 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
         final Nested nested;
         if (nestedSort != null) {
+            if (context.indexVersionCreated().before(Version.V_6_5_0) && nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
+                throw new QueryShardException(context,
+                    "max_children is only supported on v6.5.0 or higher");
+            }
+            if (nestedSort.getNestedSort() != null && nestedSort.getMaxChildren() != Integer.MAX_VALUE)  {
+                throw new QueryShardException(context,
+                    "max_children is only supported on last level of nested sort");
+            }
             // new nested sorts takes priority
             nested = resolveNested(context, nestedSort);
         } else {
@@ -351,7 +359,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                         return FieldData.singleton(values);
                     }
                     @Override
-                    protected void setScorer(Scorer scorer) {
+                    protected void setScorer(Scorable scorer) {
                         leafScript.setScorer(scorer);
                     }
                 };
@@ -376,7 +384,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                         return FieldData.singleton(values);
                     }
                     @Override
-                    protected void setScorer(Scorer scorer) {
+                    protected void setScorer(Scorable scorer) {
                         leafScript.setScorer(scorer);
                     }
                 };

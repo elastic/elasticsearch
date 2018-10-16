@@ -434,6 +434,14 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         return maps.current.ramBytesUsed.get();
     }
 
+    /**
+     * Returns how much RAM is current being freed up by refreshing.  This is {@link #ramBytesUsed()}
+     * except does not include tombstones because they don't clear on refresh.
+     */
+    long getRefreshingBytes() {
+        return maps.old.ramBytesUsed.get();
+    }
+
     @Override
     public Collection<Accountable> getChildResources() {
         // TODO: useful to break down RAM usage here?
@@ -462,7 +470,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         return keyedLock.acquire(uid);
     }
 
-    private boolean assertKeyedLockHeldByCurrentThread(BytesRef uid) {
+    boolean assertKeyedLockHeldByCurrentThread(BytesRef uid) {
         assert keyedLock.isHeldByCurrentThread(uid) : "Thread [" + Thread.currentThread().getName() + "], uid [" + uid.utf8ToString() + "]";
         return true;
     }

@@ -1,18 +1,23 @@
-[[java-rest-high-x-pack-ml-get-buckets]]
+--
+:api: get-buckets 
+:request: GetBucketsRequest
+:response: GetBucketsResponse
+--
+[id="{upid}-{api}"]
 === Get Buckets API
 
 The Get Buckets API retrieves one or more bucket results.
-It accepts a `GetBucketsRequest` object and responds
-with a `GetBucketsResponse` object.
+It accepts a +{request}+ object and responds
+with a +{response}+ object.
 
-[[java-rest-high-x-pack-ml-get-buckets-request]]
+[id="{upid}-{api}-request"]
 ==== Get Buckets Request
 
-A `GetBucketsRequest` object gets created with an existing non-null `jobId`.
+A +{request}+ object gets created with an existing non-null `jobId`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-buckets-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Constructing a new request referencing an existing `jobId`
 
@@ -21,105 +26,69 @@ The following arguments are optional:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-buckets-timestamp]
+include-tagged::{doc-tests-file}[{api}-timestamp]
 --------------------------------------------------
 <1> The timestamp of the bucket to get. Otherwise it will return all buckets.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-buckets-anomaly-score]
+include-tagged::{doc-tests-file}[{api}-anomaly-score]
 --------------------------------------------------
 <1> Buckets with anomaly scores greater or equal than this value will be returned.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-buckets-desc]
+include-tagged::{doc-tests-file}[{api}-desc]
 --------------------------------------------------
 <1> If `true`, the buckets are sorted in descending order. Defaults to `false`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-buckets-end]
+include-tagged::{doc-tests-file}[{api}-end]
 --------------------------------------------------
 <1> Buckets with timestamps earlier than this time will be returned.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-buckets-exclude-interim]
+include-tagged::{doc-tests-file}[{api}-exclude-interim]
 --------------------------------------------------
 <1> If `true`, interim results will be excluded. Defaults to `false`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-buckets-expand]
+include-tagged::{doc-tests-file}[{api}-expand]
 --------------------------------------------------
 <1> If `true`, buckets will include their anomaly records. Defaults to `false`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-buckets-page]
+include-tagged::{doc-tests-file}[{api}-page]
 --------------------------------------------------
 <1> The page parameters `from` and `size`. `from` specifies the number of buckets to skip.
 `size` specifies the maximum number of buckets to get. Defaults to `0` and `100` respectively.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-buckets-sort]
+include-tagged::{doc-tests-file}[{api}-sort]
 --------------------------------------------------
 <1> The field to sort buckets on. Defaults to `timestamp`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-buckets-start]
+include-tagged::{doc-tests-file}[{api}-start]
 --------------------------------------------------
 <1> Buckets with timestamps on or after this time will be returned.
 
-[[java-rest-high-x-pack-ml-get-buckets-execution]]
-==== Execution
+include::../execution.asciidoc[]
 
-The request can be executed through the `MachineLearningClient` contained
-in the `RestHighLevelClient` object, accessed via the `machineLearningClient()` method.
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-buckets-execute]
---------------------------------------------------
-
-
-[[java-rest-high-x-pack-ml-get-buckets-execution-async]]
-==== Asynchronous Execution
-
-The request can also be executed asynchronously:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-buckets-execute-async]
---------------------------------------------------
-<1> The `GetBucketsRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back with the `onResponse` method
-if the execution is successful or the `onFailure` method if the execution
-failed.
-
-A typical listener for `GetBucketsResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-buckets-listener]
---------------------------------------------------
-<1> `onResponse` is called back when the action is completed successfully
-<2> `onFailure` is called back when some unexpected error occurs
-
-[[java-rest-high-snapshot-ml-get-buckets-response]]
+[id="{upid}-{api}-response"]
 ==== Get Buckets Response
 
-The returned `GetBucketsResponse` contains the requested buckets:
+The returned +{response}+ contains the requested buckets:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-buckets-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> The count of buckets that were matched
 <2> The buckets retrieved

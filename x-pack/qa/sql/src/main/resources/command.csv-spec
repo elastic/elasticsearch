@@ -7,88 +7,99 @@ showFunctions
 SHOW FUNCTIONS;
 
     name:s      |    type:s
-AVG             |AGGREGATE
-COUNT           |AGGREGATE
-MAX             |AGGREGATE
-MIN             |AGGREGATE
-SUM             |AGGREGATE
-STDDEV_POP      |AGGREGATE
-VAR_POP         |AGGREGATE
-PERCENTILE      |AGGREGATE
-PERCENTILE_RANK |AGGREGATE
-SUM_OF_SQUARES  |AGGREGATE
-SKEWNESS        |AGGREGATE
-KURTOSIS        |AGGREGATE
-DAY_OF_MONTH    |SCALAR
-DAY             |SCALAR
-DOM             |SCALAR
-DAY_OF_WEEK     |SCALAR
-DOW             |SCALAR
-DAY_OF_YEAR     |SCALAR
-DOY             |SCALAR
-HOUR_OF_DAY     |SCALAR
-HOUR            |SCALAR
-MINUTE_OF_DAY   |SCALAR
-MINUTE_OF_HOUR  |SCALAR
-MINUTE          |SCALAR
-SECOND_OF_MINUTE|SCALAR
-SECOND          |SCALAR
-MONTH_OF_YEAR   |SCALAR
-MONTH           |SCALAR
-YEAR            |SCALAR
-WEEK_OF_YEAR    |SCALAR
-WEEK            |SCALAR
-ABS             |SCALAR
-ACOS            |SCALAR
-ASIN            |SCALAR
-ATAN            |SCALAR
-ATAN2           |SCALAR
-CBRT            |SCALAR
-CEIL            |SCALAR
-CEILING         |SCALAR
-COS             |SCALAR
-COSH            |SCALAR
-COT             |SCALAR
-DEGREES         |SCALAR
-E               |SCALAR
-EXP             |SCALAR
-EXPM1           |SCALAR
-FLOOR           |SCALAR
-LOG             |SCALAR
-LOG10           |SCALAR
-MOD             |SCALAR
-PI              |SCALAR
-POWER           |SCALAR
-RADIANS         |SCALAR
-RANDOM          |SCALAR
-RAND            |SCALAR
-ROUND           |SCALAR
-SIGN            |SCALAR
-SIGNUM          |SCALAR
-SIN             |SCALAR
-SINH            |SCALAR
-SQRT            |SCALAR
-TAN             |SCALAR
-ASCII           |SCALAR
-CHAR            |SCALAR
-BIT_LENGTH      |SCALAR
-CHAR_LENGTH     |SCALAR
-LCASE           |SCALAR
-LENGTH          |SCALAR
-LTRIM           |SCALAR
-RTRIM           |SCALAR
-SPACE           |SCALAR
-CONCAT          |SCALAR
-INSERT          |SCALAR
-LEFT            |SCALAR
-LOCATE          |SCALAR
-POSITION        |SCALAR
-REPEAT          |SCALAR
-REPLACE         |SCALAR
-RIGHT           |SCALAR
-SUBSTRING       |SCALAR
-UCASE           |SCALAR
-SCORE           |SCORE
+AVG             |AGGREGATE      
+COUNT           |AGGREGATE      
+MAX             |AGGREGATE      
+MIN             |AGGREGATE      
+SUM             |AGGREGATE      
+KURTOSIS        |AGGREGATE      
+PERCENTILE      |AGGREGATE      
+PERCENTILE_RANK |AGGREGATE      
+SKEWNESS        |AGGREGATE      
+STDDEV_POP      |AGGREGATE      
+SUM_OF_SQUARES  |AGGREGATE      
+VAR_POP         |AGGREGATE      
+DAY             |SCALAR         
+DAYNAME         |SCALAR         
+DAYOFMONTH      |SCALAR         
+DAYOFWEEK       |SCALAR         
+DAYOFYEAR       |SCALAR         
+DAY_NAME        |SCALAR         
+DAY_OF_MONTH    |SCALAR         
+DAY_OF_WEEK     |SCALAR         
+DAY_OF_YEAR     |SCALAR         
+DOM             |SCALAR         
+DOW             |SCALAR         
+DOY             |SCALAR         
+HOUR            |SCALAR         
+HOUR_OF_DAY     |SCALAR         
+MINUTE          |SCALAR         
+MINUTE_OF_DAY   |SCALAR         
+MINUTE_OF_HOUR  |SCALAR         
+MONTH           |SCALAR         
+MONTHNAME       |SCALAR         
+MONTH_NAME      |SCALAR         
+MONTH_OF_YEAR   |SCALAR         
+QUARTER         |SCALAR         
+SECOND          |SCALAR         
+SECOND_OF_MINUTE|SCALAR         
+WEEK            |SCALAR         
+WEEK_OF_YEAR    |SCALAR         
+YEAR            |SCALAR         
+ABS             |SCALAR         
+ACOS            |SCALAR         
+ASIN            |SCALAR         
+ATAN            |SCALAR         
+ATAN2           |SCALAR         
+CBRT            |SCALAR         
+CEIL            |SCALAR         
+CEILING         |SCALAR         
+COS             |SCALAR         
+COSH            |SCALAR         
+COT             |SCALAR         
+DEGREES         |SCALAR         
+E               |SCALAR         
+EXP             |SCALAR         
+EXPM1           |SCALAR         
+FLOOR           |SCALAR         
+LOG             |SCALAR         
+LOG10           |SCALAR         
+MOD             |SCALAR         
+PI              |SCALAR         
+POWER           |SCALAR         
+RADIANS         |SCALAR         
+RAND            |SCALAR         
+RANDOM          |SCALAR         
+ROUND           |SCALAR         
+SIGN            |SCALAR         
+SIGNUM          |SCALAR         
+SIN             |SCALAR         
+SINH            |SCALAR         
+SQRT            |SCALAR         
+TAN             |SCALAR         
+TRUNCATE        |SCALAR         
+ASCII           |SCALAR         
+BIT_LENGTH      |SCALAR         
+CHAR            |SCALAR         
+CHARACTER_LENGTH|SCALAR         
+CHAR_LENGTH     |SCALAR         
+CONCAT          |SCALAR         
+INSERT          |SCALAR         
+LCASE           |SCALAR         
+LEFT            |SCALAR         
+LENGTH          |SCALAR         
+LOCATE          |SCALAR         
+LTRIM           |SCALAR         
+OCTET_LENGTH    |SCALAR         
+POSITION        |SCALAR         
+REPEAT          |SCALAR         
+REPLACE         |SCALAR         
+RIGHT           |SCALAR         
+RTRIM           |SCALAR         
+SPACE           |SCALAR         
+SUBSTRING       |SCALAR         
+UCASE           |SCALAR         
+SCORE           |SCORE          
 ;
 
 showFunctionsWithExactMatch
@@ -123,13 +134,18 @@ ABS             |SCALAR
 showFunctionsWithLeadingPattern
 SHOW FUNCTIONS LIKE '%DAY%';
 
-    name:s      |    type:s
-DAY_OF_MONTH    |SCALAR
-DAY             |SCALAR
-DAY_OF_WEEK     |SCALAR
-DAY_OF_YEAR     |SCALAR
-HOUR_OF_DAY     |SCALAR
-MINUTE_OF_DAY   |SCALAR
+    name:s     |    type:s
+DAY            |SCALAR
+DAYNAME        |SCALAR
+DAYOFMONTH     |SCALAR
+DAYOFWEEK      |SCALAR
+DAYOFYEAR      |SCALAR
+DAY_NAME       |SCALAR
+DAY_OF_MONTH   |SCALAR
+DAY_OF_WEEK    |SCALAR
+DAY_OF_YEAR    |SCALAR
+HOUR_OF_DAY    |SCALAR         
+MINUTE_OF_DAY  |SCALAR         
 ;
 
 showTables
@@ -172,6 +188,14 @@ SHOW TABLES "test_e*,-test_emp";
  name:s            | type:s
 test_emp_copy      |BASE TABLE
 test_emp_with_nulls|BASE TABLE
+;
+
+showTablesIdentifierPatternOnAliases
+SHOW TABLES "test*,-test_emp*";
+
+ name:s        | type:s
+test_alias     |ALIAS          
+test_alias_emp |ALIAS          
 ;
 
 // DESCRIBE

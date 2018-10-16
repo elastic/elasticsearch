@@ -88,7 +88,7 @@ import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.avg.Avg;
+import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -144,10 +144,9 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::search-request-basic
         }
         {
-            // tag::search-request-indices-types
+            // tag::search-request-indices
             SearchRequest searchRequest = new SearchRequest("posts"); // <1>
-            searchRequest.types("doc"); // <2>
-            // end::search-request-indices-types
+            // end::search-request-indices
             // tag::search-request-routing
             searchRequest.routing("routing"); // <1>
             // end::search-request-routing
@@ -417,6 +416,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testSearchRequestHighlighting() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
@@ -835,6 +835,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+
+    @SuppressWarnings("unused")
     public void testMultiSearchTemplateWithInlineScript() throws Exception {
         indexSearchTestData();
         RestHighLevelClient client = highLevelClient();

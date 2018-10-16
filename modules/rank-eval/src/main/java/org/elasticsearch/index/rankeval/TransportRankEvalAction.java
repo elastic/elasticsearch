@@ -119,7 +119,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             }
 
             if (metric.forcedSearchSize().isPresent()) {
-                evaluationRequest.size(metric.forcedSearchSize().get());
+                evaluationRequest.size(metric.forcedSearchSize().getAsInt());
             }
 
             ratedRequestsInSearch.add(ratedRequest);

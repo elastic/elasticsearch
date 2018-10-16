@@ -208,7 +208,7 @@ public class WebhookActionTests extends ESTestCase {
     }
 
     private WebhookActionFactory webhookFactory(HttpClient client) {
-        return new WebhookActionFactory(Settings.EMPTY, client, templateEngine);
+        return new WebhookActionFactory(client, templateEngine);
     }
 
     public void testThatSelectingProxyWorks() throws Exception {

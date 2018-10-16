@@ -49,7 +49,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter.convertFieldValue;
-import static org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter.getAnalyzer;
 
 public class PlainHighlighter implements Highlighter {
     private static final String CACHE_KEY = "highlight-plain";
@@ -102,7 +101,7 @@ public class PlainHighlighter implements Highlighter {
         int numberOfFragments = field.fieldOptions().numberOfFragments() == 0 ? 1 : field.fieldOptions().numberOfFragments();
         ArrayList<TextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
-        Analyzer analyzer = getAnalyzer(context.mapperService().documentMapper(hitContext.hit().getType()), fieldType);
+        Analyzer analyzer = HighlightUtils.getAnalyzer(context.mapperService().documentMapper(hitContext.hit().getType()), fieldType);
         final int maxAnalyzedOffset = context.indexShard().indexSettings().getHighlightMaxAnalyzedOffset();
 
         try {

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -72,16 +73,20 @@ public interface SecurityExtension {
      * should be asynchronous if the computation is lengthy or any disk and/or network
      * I/O is involved.  The implementation is responsible for resolving whatever roles
      * it can into a set of {@link RoleDescriptor} instances.  If successful, the
-     * implementation must invoke {@link ActionListener#onResponse(Object)} to pass along
-     * the resolved set of role descriptors.  If a failure was encountered, the
-     * implementation must invoke {@link ActionListener#onFailure(Exception)}.
+     * implementation must wrap the set of {@link RoleDescriptor} instances in a
+     * {@link RoleRetrievalResult} using {@link RoleRetrievalResult#success(Set)} and then invoke
+     * {@link ActionListener#onResponse(Object)}.  If a failure was encountered, the
+     * implementation should wrap the failure in a {@link RoleRetrievalResult} using
+     * {@link RoleRetrievalResult#failure(Exception)} and then invoke
+     * {@link ActionListener#onResponse(Object)} unless the failure needs to terminate the request,
+     * in which case the implementation should invoke {@link ActionListener#onFailure(Exception)}.
      *
      * By default, an empty list is returned.
      *
      * @param settings The configured settings for the node
      * @param resourceWatcherService Use to watch configuration files for changes
      */
-    default List<BiConsumer<Set<String>, ActionListener<Set<RoleDescriptor>>>>
+    default List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>
         getRolesProviders(Settings settings, ResourceWatcherService resourceWatcherService) {
         return Collections.emptyList();
     }

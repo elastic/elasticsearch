@@ -22,6 +22,8 @@ package org.elasticsearch.client;
 import org.apache.http.HttpEntity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.license.StartBasicRequest;
+import org.elasticsearch.client.license.StartBasicResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -65,7 +67,7 @@ public final class LicenseClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public PutLicenseResponse putLicense(PutLicenseRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::putLicense, options,
+        return restHighLevelClient.performRequestAndParseEntity(request, LicenseRequestConverters::putLicense, options,
             PutLicenseResponse::fromXContent, emptySet());
     }
 
@@ -75,7 +77,7 @@ public final class LicenseClient {
      * @param listener the listener to be notified upon request completion
      */
     public void putLicenseAsync(PutLicenseRequest request, RequestOptions options, ActionListener<PutLicenseResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::putLicense, options,
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, LicenseRequestConverters::putLicense, options,
             PutLicenseResponse::fromXContent, listener, emptySet());
     }
 
@@ -86,7 +88,7 @@ public final class LicenseClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public GetLicenseResponse getLicense(GetLicenseRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequest(request, RequestConverters::getLicense, options,
+        return restHighLevelClient.performRequest(request, LicenseRequestConverters::getLicense, options,
             response -> new GetLicenseResponse(convertResponseToJson(response)), emptySet());
     }
 
@@ -96,7 +98,7 @@ public final class LicenseClient {
      * @param listener the listener to be notified upon request completion
      */
     public void getLicenseAsync(GetLicenseRequest request, RequestOptions options, ActionListener<GetLicenseResponse> listener) {
-        restHighLevelClient.performRequestAsync(request, RequestConverters::getLicense, options,
+        restHighLevelClient.performRequestAsync(request, LicenseRequestConverters::getLicense, options,
             response -> new GetLicenseResponse(convertResponseToJson(response)), listener, emptySet());
     }
 
@@ -107,7 +109,7 @@ public final class LicenseClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse deleteLicense(DeleteLicenseRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::deleteLicense, options,
+        return restHighLevelClient.performRequestAndParseEntity(request, LicenseRequestConverters::deleteLicense, options,
             AcknowledgedResponse::fromXContent, emptySet());
     }
 
@@ -117,8 +119,30 @@ public final class LicenseClient {
      * @param listener the listener to be notified upon request completion
      */
     public void deleteLicenseAsync(DeleteLicenseRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::deleteLicense, options,
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, LicenseRequestConverters::deleteLicense, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Initiates an indefinite basic license.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public StartBasicResponse startBasic(StartBasicRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, LicenseRequestConverters::startBasic, options,
+            StartBasicResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously initiates an indefinite basic license.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void startBasicAsync(StartBasicRequest request, RequestOptions options,
+                                ActionListener<StartBasicResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, LicenseRequestConverters::startBasic, options,
+            StartBasicResponse::fromXContent, listener, emptySet());
     }
 
     /**

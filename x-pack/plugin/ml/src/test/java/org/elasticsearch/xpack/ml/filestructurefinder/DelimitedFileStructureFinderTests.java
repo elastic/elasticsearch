@@ -19,7 +19,7 @@ import static org.hamcrest.Matchers.arrayContaining;
 
 public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
 
-    private FileStructureFinderFactory csvFactory = new DelimitedFileStructureFinderFactory(',', 2, false);
+    private FileStructureFinderFactory csvFactory = new DelimitedFileStructureFinderFactory(',', '"', 2, false);
 
     public void testCreateConfigsGivenCompleteCsv() throws Exception {
         String sample = "time,message\n" +
@@ -29,7 +29,8 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = csvFactory.createFromSample(explanation, sample, charset, hasByteOrderMarker);
+        FileStructureFinder structureFinder = csvFactory.createFromSample(explanation, sample, charset, hasByteOrderMarker,
+            FileStructureOverrides.EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER);
 
         FileStructure structure = structureFinder.getStructure();
 
@@ -43,12 +44,85 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertEquals("^\"?time\"?,\"?message\"?", structure.getExcludeLinesPattern());
         assertEquals("^\"?\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
+        assertEquals(Character.valueOf('"'), structure.getQuote());
         assertTrue(structure.getHasHeaderRow());
         assertNull(structure.getShouldTrimFields());
-        assertEquals(Arrays.asList("time", "message"), structure.getInputFields());
+        assertEquals(Arrays.asList("time", "message"), structure.getColumnNames());
         assertNull(structure.getGrokPattern());
         assertEquals("time", structure.getTimestampField());
-        assertEquals(Collections.singletonList("ISO8601"), structure.getTimestampFormats());
+        assertEquals(Collections.singletonList("ISO8601"), structure.getJodaTimestampFormats());
+    }
+
+    public void testCreateConfigsGivenCompleteCsvAndColumnNamesOverride() throws Exception {
+
+        FileStructureOverrides overrides = FileStructureOverrides.builder().setColumnNames(Arrays.asList("my_time", "my_message")).build();
+
+        String sample = "time,message\n" +
+            "2018-05-17T13:41:23,hello\n" +
+            "2018-05-17T13:41:32,hello again\n";
+        assertTrue(csvFactory.canCreateFromSample(explanation, sample));
+
+        String charset = randomFrom(POSSIBLE_CHARSETS);
+        Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
+        FileStructureFinder structureFinder = csvFactory.createFromSample(explanation, sample, charset, hasByteOrderMarker, overrides,
+            NOOP_TIMEOUT_CHECKER);
+
+        FileStructure structure = structureFinder.getStructure();
+
+        assertEquals(FileStructure.Format.DELIMITED, structure.getFormat());
+        assertEquals(charset, structure.getCharset());
+        if (hasByteOrderMarker == null) {
+            assertNull(structure.getHasByteOrderMarker());
+        } else {
+            assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
+        }
+        assertEquals("^\"?time\"?,\"?message\"?", structure.getExcludeLinesPattern());
+        assertEquals("^\"?\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", structure.getMultilineStartPattern());
+        assertEquals(Character.valueOf(','), structure.getDelimiter());
+        assertEquals(Character.valueOf('"'), structure.getQuote());
+        assertTrue(structure.getHasHeaderRow());
+        assertNull(structure.getShouldTrimFields());
+        assertEquals(Arrays.asList("my_time", "my_message"), structure.getColumnNames());
+        assertNull(structure.getGrokPattern());
+        assertEquals("my_time", structure.getTimestampField());
+        assertEquals(Collections.singletonList("ISO8601"), structure.getJodaTimestampFormats());
+    }
+
+    public void testCreateConfigsGivenCompleteCsvAndHasHeaderRowOverride() throws Exception {
+
+        // It's obvious the first row really should be a header row, so by overriding
+        // detection with the wrong choice the results will be completely changed
+        FileStructureOverrides overrides = FileStructureOverrides.builder().setHasHeaderRow(false).build();
+
+        String sample = "time,message\n" +
+            "2018-05-17T13:41:23,hello\n" +
+            "2018-05-17T13:41:32,hello again\n";
+        assertTrue(csvFactory.canCreateFromSample(explanation, sample));
+
+        String charset = randomFrom(POSSIBLE_CHARSETS);
+        Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
+        FileStructureFinder structureFinder = csvFactory.createFromSample(explanation, sample, charset, hasByteOrderMarker, overrides,
+            NOOP_TIMEOUT_CHECKER);
+
+        FileStructure structure = structureFinder.getStructure();
+
+        assertEquals(FileStructure.Format.DELIMITED, structure.getFormat());
+        assertEquals(charset, structure.getCharset());
+        if (hasByteOrderMarker == null) {
+            assertNull(structure.getHasByteOrderMarker());
+        } else {
+            assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
+        }
+        assertNull(structure.getExcludeLinesPattern());
+        assertNull(structure.getMultilineStartPattern());
+        assertEquals(Character.valueOf(','), structure.getDelimiter());
+        assertEquals(Character.valueOf('"'), structure.getQuote());
+        assertFalse(structure.getHasHeaderRow());
+        assertNull(structure.getShouldTrimFields());
+        assertEquals(Arrays.asList("column1", "column2"), structure.getColumnNames());
+        assertNull(structure.getGrokPattern());
+        assertNull(structure.getTimestampField());
+        assertNull(structure.getJodaTimestampFormats());
     }
 
     public void testCreateConfigsGivenCsvWithIncompleteLastRecord() throws Exception {
@@ -60,7 +134,8 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = csvFactory.createFromSample(explanation, sample, charset, hasByteOrderMarker);
+        FileStructureFinder structureFinder = csvFactory.createFromSample(explanation, sample, charset, hasByteOrderMarker,
+            FileStructureOverrides.EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER);
 
         FileStructure structure = structureFinder.getStructure();
 
@@ -74,12 +149,13 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertEquals("^\"?message\"?,\"?time\"?,\"?count\"?", structure.getExcludeLinesPattern());
         assertEquals("^.*?,\"?\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
+        assertEquals(Character.valueOf('"'), structure.getQuote());
         assertTrue(structure.getHasHeaderRow());
         assertNull(structure.getShouldTrimFields());
-        assertEquals(Arrays.asList("message", "time", "count"), structure.getInputFields());
+        assertEquals(Arrays.asList("message", "time", "count"), structure.getColumnNames());
         assertNull(structure.getGrokPattern());
         assertEquals("time", structure.getTimestampField());
-        assertEquals(Collections.singletonList("ISO8601"), structure.getTimestampFormats());
+        assertEquals(Collections.singletonList("ISO8601"), structure.getJodaTimestampFormats());
     }
 
     public void testCreateConfigsGivenCsvWithTrailingNulls() throws Exception {
@@ -93,7 +169,8 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = csvFactory.createFromSample(explanation, sample, charset, hasByteOrderMarker);
+        FileStructureFinder structureFinder = csvFactory.createFromSample(explanation, sample, charset, hasByteOrderMarker,
+            FileStructureOverrides.EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER);
 
         FileStructure structure = structureFinder.getStructure();
 
@@ -110,14 +187,60 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
             structure.getExcludeLinesPattern());
         assertEquals("^.*?,\"?\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}", structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
+        assertEquals(Character.valueOf('"'), structure.getQuote());
         assertTrue(structure.getHasHeaderRow());
         assertNull(structure.getShouldTrimFields());
         assertEquals(Arrays.asList("VendorID", "tpep_pickup_datetime", "tpep_dropoff_datetime", "passenger_count", "trip_distance",
             "RatecodeID", "store_and_fwd_flag", "PULocationID", "DOLocationID", "payment_type", "fare_amount", "extra", "mta_tax",
-            "tip_amount", "tolls_amount", "improvement_surcharge", "total_amount", "column18", "column19"), structure.getInputFields());
+            "tip_amount", "tolls_amount", "improvement_surcharge", "total_amount", "column18", "column19"), structure.getColumnNames());
         assertNull(structure.getGrokPattern());
         assertEquals("tpep_pickup_datetime", structure.getTimestampField());
-        assertEquals(Collections.singletonList("YYYY-MM-dd HH:mm:ss"), structure.getTimestampFormats());
+        assertEquals(Collections.singletonList("YYYY-MM-dd HH:mm:ss"), structure.getJodaTimestampFormats());
+    }
+
+    public void testCreateConfigsGivenCsvWithTrailingNullsAndOverriddenTimeField() throws Exception {
+
+        // Default timestamp field is the first field from the start of each row that contains a
+        // consistent timestamp format, so if we want the second we need an override
+        FileStructureOverrides overrides = FileStructureOverrides.builder().setTimestampField("tpep_dropoff_datetime").build();
+
+        String sample = "VendorID,tpep_pickup_datetime,tpep_dropoff_datetime,passenger_count,trip_distance,RatecodeID," +
+            "store_and_fwd_flag,PULocationID,DOLocationID,payment_type,fare_amount,extra,mta_tax,tip_amount,tolls_amount," +
+            "improvement_surcharge,total_amount,,\n" +
+            "2,2016-12-31 15:15:01,2016-12-31 15:15:09,1,.00,1,N,264,264,2,1,0,0.5,0,0,0.3,1.8,,\n" +
+            "1,2016-12-01 00:00:01,2016-12-01 00:10:22,1,1.60,1,N,163,143,2,9,0.5,0.5,0,0,0.3,10.3,,\n" +
+            "1,2016-12-01 00:00:01,2016-12-01 00:11:01,1,1.40,1,N,164,229,1,9,0.5,0.5,2.05,0,0.3,12.35,,\n";
+        assertTrue(csvFactory.canCreateFromSample(explanation, sample));
+
+        String charset = randomFrom(POSSIBLE_CHARSETS);
+        Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
+        FileStructureFinder structureFinder = csvFactory.createFromSample(explanation, sample, charset, hasByteOrderMarker, overrides,
+            NOOP_TIMEOUT_CHECKER);
+
+        FileStructure structure = structureFinder.getStructure();
+
+        assertEquals(FileStructure.Format.DELIMITED, structure.getFormat());
+        assertEquals(charset, structure.getCharset());
+        if (hasByteOrderMarker == null) {
+            assertNull(structure.getHasByteOrderMarker());
+        } else {
+            assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
+        }
+        assertEquals("^\"?VendorID\"?,\"?tpep_pickup_datetime\"?,\"?tpep_dropoff_datetime\"?,\"?passenger_count\"?,\"?trip_distance\"?," +
+            "\"?RatecodeID\"?,\"?store_and_fwd_flag\"?,\"?PULocationID\"?,\"?DOLocationID\"?,\"?payment_type\"?,\"?fare_amount\"?," +
+            "\"?extra\"?,\"?mta_tax\"?,\"?tip_amount\"?,\"?tolls_amount\"?,\"?improvement_surcharge\"?,\"?total_amount\"?,\"?\"?,\"?\"?",
+            structure.getExcludeLinesPattern());
+        assertEquals("^.*?,.*?,\"?\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}", structure.getMultilineStartPattern());
+        assertEquals(Character.valueOf(','), structure.getDelimiter());
+        assertEquals(Character.valueOf('"'), structure.getQuote());
+        assertTrue(structure.getHasHeaderRow());
+        assertNull(structure.getShouldTrimFields());
+        assertEquals(Arrays.asList("VendorID", "tpep_pickup_datetime", "tpep_dropoff_datetime", "passenger_count", "trip_distance",
+            "RatecodeID", "store_and_fwd_flag", "PULocationID", "DOLocationID", "payment_type", "fare_amount", "extra", "mta_tax",
+            "tip_amount", "tolls_amount", "improvement_surcharge", "total_amount", "column18", "column19"), structure.getColumnNames());
+        assertNull(structure.getGrokPattern());
+        assertEquals("tpep_dropoff_datetime", structure.getTimestampField());
+        assertEquals(Collections.singletonList("YYYY-MM-dd HH:mm:ss"), structure.getJodaTimestampFormats());
     }
 
     public void testCreateConfigsGivenCsvWithTrailingNullsExceptHeader() throws Exception {
@@ -131,7 +254,8 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = csvFactory.createFromSample(explanation, sample, charset, hasByteOrderMarker);
+        FileStructureFinder structureFinder = csvFactory.createFromSample(explanation, sample, charset, hasByteOrderMarker,
+            FileStructureOverrides.EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER);
 
         FileStructure structure = structureFinder.getStructure();
 
@@ -148,14 +272,63 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
             structure.getExcludeLinesPattern());
         assertEquals("^.*?,\"?\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}", structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
+        assertEquals(Character.valueOf('"'), structure.getQuote());
         assertTrue(structure.getHasHeaderRow());
         assertNull(structure.getShouldTrimFields());
         assertEquals(Arrays.asList("VendorID", "tpep_pickup_datetime", "tpep_dropoff_datetime", "passenger_count", "trip_distance",
             "RatecodeID", "store_and_fwd_flag", "PULocationID", "DOLocationID", "payment_type", "fare_amount", "extra", "mta_tax",
-            "tip_amount", "tolls_amount", "improvement_surcharge", "total_amount"), structure.getInputFields());
+            "tip_amount", "tolls_amount", "improvement_surcharge", "total_amount"), structure.getColumnNames());
         assertNull(structure.getGrokPattern());
         assertEquals("tpep_pickup_datetime", structure.getTimestampField());
-        assertEquals(Collections.singletonList("YYYY-MM-dd HH:mm:ss"), structure.getTimestampFormats());
+        assertEquals(Collections.singletonList("YYYY-MM-dd HH:mm:ss"), structure.getJodaTimestampFormats());
+    }
+
+    public void testCreateConfigsGivenCsvWithTrailingNullsExceptHeaderAndColumnNamesOverride() throws Exception {
+
+        FileStructureOverrides overrides = FileStructureOverrides.builder()
+            .setColumnNames(Arrays.asList("my_VendorID", "my_tpep_pickup_datetime", "my_tpep_dropoff_datetime", "my_passenger_count",
+                "my_trip_distance", "my_RatecodeID", "my_store_and_fwd_flag", "my_PULocationID", "my_DOLocationID", "my_payment_type",
+                "my_fare_amount", "my_extra", "my_mta_tax", "my_tip_amount", "my_tolls_amount", "my_improvement_surcharge",
+                "my_total_amount")).build();
+
+        String sample = "VendorID,tpep_pickup_datetime,tpep_dropoff_datetime,passenger_count,trip_distance,RatecodeID," +
+            "store_and_fwd_flag,PULocationID,DOLocationID,payment_type,fare_amount,extra,mta_tax,tip_amount,tolls_amount," +
+            "improvement_surcharge,total_amount\n" +
+            "2,2016-12-31 15:15:01,2016-12-31 15:15:09,1,.00,1,N,264,264,2,1,0,0.5,0,0,0.3,1.8,,\n" +
+            "1,2016-12-01 00:00:01,2016-12-01 00:10:22,1,1.60,1,N,163,143,2,9,0.5,0.5,0,0,0.3,10.3,,\n" +
+            "1,2016-12-01 00:00:01,2016-12-01 00:11:01,1,1.40,1,N,164,229,1,9,0.5,0.5,2.05,0,0.3,12.35,,\n";
+        assertTrue(csvFactory.canCreateFromSample(explanation, sample));
+
+        String charset = randomFrom(POSSIBLE_CHARSETS);
+        Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
+        FileStructureFinder structureFinder = csvFactory.createFromSample(explanation, sample, charset, hasByteOrderMarker, overrides,
+            NOOP_TIMEOUT_CHECKER);
+
+        FileStructure structure = structureFinder.getStructure();
+
+        assertEquals(FileStructure.Format.DELIMITED, structure.getFormat());
+        assertEquals(charset, structure.getCharset());
+        if (hasByteOrderMarker == null) {
+            assertNull(structure.getHasByteOrderMarker());
+        } else {
+            assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
+        }
+        assertEquals("^\"?VendorID\"?,\"?tpep_pickup_datetime\"?,\"?tpep_dropoff_datetime\"?,\"?passenger_count\"?,\"?trip_distance\"?," +
+                "\"?RatecodeID\"?,\"?store_and_fwd_flag\"?,\"?PULocationID\"?,\"?DOLocationID\"?,\"?payment_type\"?,\"?fare_amount\"?," +
+                "\"?extra\"?,\"?mta_tax\"?,\"?tip_amount\"?,\"?tolls_amount\"?,\"?improvement_surcharge\"?,\"?total_amount\"?",
+            structure.getExcludeLinesPattern());
+        assertEquals("^.*?,\"?\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}", structure.getMultilineStartPattern());
+        assertEquals(Character.valueOf(','), structure.getDelimiter());
+        assertEquals(Character.valueOf('"'), structure.getQuote());
+        assertTrue(structure.getHasHeaderRow());
+        assertNull(structure.getShouldTrimFields());
+        assertEquals(Arrays.asList("my_VendorID", "my_tpep_pickup_datetime", "my_tpep_dropoff_datetime", "my_passenger_count",
+            "my_trip_distance", "my_RatecodeID", "my_store_and_fwd_flag", "my_PULocationID", "my_DOLocationID", "my_payment_type",
+            "my_fare_amount", "my_extra", "my_mta_tax", "my_tip_amount", "my_tolls_amount", "my_improvement_surcharge", "my_total_amount"),
+            structure.getColumnNames());
+        assertNull(structure.getGrokPattern());
+        assertEquals("my_tpep_pickup_datetime", structure.getTimestampField());
+        assertEquals(Collections.singletonList("YYYY-MM-dd HH:mm:ss"), structure.getJodaTimestampFormats());
     }
 
     public void testCreateConfigsGivenCsvWithTimeLastColumn() throws Exception {
@@ -166,7 +339,8 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = csvFactory.createFromSample(explanation, sample, charset, hasByteOrderMarker);
+        FileStructureFinder structureFinder = csvFactory.createFromSample(explanation, sample, charset, hasByteOrderMarker,
+            FileStructureOverrides.EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER);
 
         FileStructure structure = structureFinder.getStructure();
 
@@ -181,12 +355,13 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
             structure.getExcludeLinesPattern());
         assertNull(structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
+        assertEquals(Character.valueOf('"'), structure.getQuote());
         assertTrue(structure.getHasHeaderRow());
         assertNull(structure.getShouldTrimFields());
-        assertEquals(Arrays.asList("pos_id", "trip_id", "latitude", "longitude", "altitude", "timestamp"), structure.getInputFields());
+        assertEquals(Arrays.asList("pos_id", "trip_id", "latitude", "longitude", "altitude", "timestamp"), structure.getColumnNames());
         assertNull(structure.getGrokPattern());
         assertEquals("timestamp", structure.getTimestampField());
-        assertEquals(Collections.singletonList("YYYY-MM-dd HH:mm:ss.SSSSSS"), structure.getTimestampFormats());
+        assertEquals(Collections.singletonList("YYYY-MM-dd HH:mm:ss.SSSSSS"), structure.getJodaTimestampFormats());
     }
 
     public void testFindHeaderFromSampleGivenHeaderInSample() throws IOException {
@@ -197,23 +372,25 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
             "2014-06-23 00:00:01Z,KLM,1355.4812,farequote\n";
 
         Tuple<Boolean, String[]> header = DelimitedFileStructureFinder.findHeaderFromSample(explanation,
-            DelimitedFileStructureFinder.readRows(withHeader, CsvPreference.EXCEL_PREFERENCE).v1());
+            DelimitedFileStructureFinder.readRows(withHeader, CsvPreference.EXCEL_PREFERENCE, NOOP_TIMEOUT_CHECKER).v1(),
+            FileStructureOverrides.EMPTY_OVERRIDES);
 
         assertTrue(header.v1());
         assertThat(header.v2(), arrayContaining("time", "airline", "responsetime", "sourcetype"));
     }
 
     public void testFindHeaderFromSampleGivenHeaderNotInSample() throws IOException {
-        String withoutHeader = "2014-06-23 00:00:00Z,AAL,132.2046,farequote\n" +
+        String noHeader = "2014-06-23 00:00:00Z,AAL,132.2046,farequote\n" +
             "2014-06-23 00:00:00Z,JZA,990.4628,farequote\n" +
             "2014-06-23 00:00:01Z,JBU,877.5927,farequote\n" +
             "2014-06-23 00:00:01Z,KLM,1355.4812,farequote\n";
 
         Tuple<Boolean, String[]> header = DelimitedFileStructureFinder.findHeaderFromSample(explanation,
-            DelimitedFileStructureFinder.readRows(withoutHeader, CsvPreference.EXCEL_PREFERENCE).v1());
+            DelimitedFileStructureFinder.readRows(noHeader, CsvPreference.EXCEL_PREFERENCE, NOOP_TIMEOUT_CHECKER).v1(),
+            FileStructureOverrides.EMPTY_OVERRIDES);
 
         assertFalse(header.v1());
-        assertThat(header.v2(), arrayContaining("column1", "column2", "column3", "column4"));
+        assertThat(header.v2(), arrayContaining("", "", "", ""));
     }
 
     public void testLevenshteinDistance() {
@@ -283,12 +460,12 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
 
     public void testRowContainsDuplicateNonEmptyValues() {
 
-        assertFalse(DelimitedFileStructureFinder.rowContainsDuplicateNonEmptyValues(Collections.singletonList("a")));
-        assertFalse(DelimitedFileStructureFinder.rowContainsDuplicateNonEmptyValues(Collections.singletonList("")));
-        assertFalse(DelimitedFileStructureFinder.rowContainsDuplicateNonEmptyValues(Arrays.asList("a", "b", "c")));
-        assertTrue(DelimitedFileStructureFinder.rowContainsDuplicateNonEmptyValues(Arrays.asList("a", "b", "a")));
-        assertTrue(DelimitedFileStructureFinder.rowContainsDuplicateNonEmptyValues(Arrays.asList("a", "b", "b")));
-        assertFalse(DelimitedFileStructureFinder.rowContainsDuplicateNonEmptyValues(Arrays.asList("a", "", "")));
-        assertFalse(DelimitedFileStructureFinder.rowContainsDuplicateNonEmptyValues(Arrays.asList("", "a", "")));
+        assertNull(DelimitedFileStructureFinder.findDuplicateNonEmptyValues(Collections.singletonList("a")));
+        assertNull(DelimitedFileStructureFinder.findDuplicateNonEmptyValues(Collections.singletonList("")));
+        assertNull(DelimitedFileStructureFinder.findDuplicateNonEmptyValues(Arrays.asList("a", "b", "c")));
+        assertEquals("a", DelimitedFileStructureFinder.findDuplicateNonEmptyValues(Arrays.asList("a", "b", "a")));
+        assertEquals("b", DelimitedFileStructureFinder.findDuplicateNonEmptyValues(Arrays.asList("a", "b", "b")));
+        assertNull(DelimitedFileStructureFinder.findDuplicateNonEmptyValues(Arrays.asList("a", "", "")));
+        assertNull(DelimitedFileStructureFinder.findDuplicateNonEmptyValues(Arrays.asList("", "a", "")));
     }
 }

@@ -7,12 +7,15 @@ package org.elasticsearch.xpack.ml.filestructurefinder;
 
 import com.ibm.icu.text.CharsetDetector;
 import com.ibm.icu.text.CharsetMatch;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -22,19 +25,23 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.stream.Collectors;
 
 /**
  * Runs the high-level steps needed to create ingest configs for the specified file.  In order:
  * 1. Determine the most likely character set (UTF-8, UTF-16LE, ISO-8859-2, etc.)
  * 2. Load a sample of the file, consisting of the first 1000 lines of the file
- * 3. Determine the most likely file structure - one of ND-JSON, XML, CSV, TSV or semi-structured text
+ * 3. Determine the most likely file structure - one of ND-JSON, XML, delimited or semi-structured text
  * 4. Create an appropriate structure object and delegate writing configs to it
  */
 public final class FileStructureFinderManager {
 
     public static final int MIN_SAMPLE_LINE_COUNT = 2;
+    public static final int DEFAULT_IDEAL_SAMPLE_LINE_COUNT = 1000;
 
     static final Set<String> FILEBEAT_SUPPORTED_ENCODINGS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
         "866", "ansi_x3.4-1968", "arabic", "ascii", "asmo-708", "big5", "big5-hkscs", "chinese", "cn-big5", "cp1250", "cp1251", "cp1252",
@@ -69,41 +76,82 @@ public final class FileStructureFinderManager {
         new JsonFileStructureFinderFactory(),
         new XmlFileStructureFinderFactory(),
         // ND-JSON will often also be valid (although utterly weird) CSV, so JSON must come before CSV
-        new DelimitedFileStructureFinderFactory(',', 2, false),
-        new DelimitedFileStructureFinderFactory('\t', 2, false),
-        new DelimitedFileStructureFinderFactory(';', 4, false),
-        new DelimitedFileStructureFinderFactory('|', 5, true),
+        new DelimitedFileStructureFinderFactory(',', '"', 2, false),
+        new DelimitedFileStructureFinderFactory('\t', '"', 2, false),
+        new DelimitedFileStructureFinderFactory(';', '"', 4, false),
+        new DelimitedFileStructureFinderFactory('|', '"', 5, true),
         new TextLogFileStructureFinderFactory()
     ));
 
     private static final int BUFFER_SIZE = 8192;
 
+    private final ScheduledExecutorService scheduler;
+
+    /**
+     * Create the file structure manager.
+     * @param scheduler Used for checking timeouts.
+     */
+    public FileStructureFinderManager(ScheduledExecutorService scheduler) {
+        this.scheduler = Objects.requireNonNull(scheduler);
+    }
+
+    public FileStructureFinder findFileStructure(Integer idealSampleLineCount, InputStream fromFile) throws Exception {
+        return findFileStructure(idealSampleLineCount, fromFile, FileStructureOverrides.EMPTY_OVERRIDES, null);
+    }
+
     /**
      * Given a stream of data from some file, determine its structure.
      * @param idealSampleLineCount Ideally, how many lines from the stream will be read to determine the structure?
      *                             If the stream has fewer lines then an attempt will still be made, providing at
-     *                             least {@link #MIN_SAMPLE_LINE_COUNT} lines can be read.
+     *                             least {@link #MIN_SAMPLE_LINE_COUNT} lines can be read.  If <code>null</code>
+     *                             the value of {@link #DEFAULT_IDEAL_SAMPLE_LINE_COUNT} will be used.
      * @param fromFile A stream from which the sample will be read.
+     * @param overrides Aspects of the file structure that are known in advance.  These take precedence over
+     *                  values determined by structure analysis.  An exception will be thrown if the file structure
+     *                  is incompatible with an overridden value.
+     * @param timeout The maximum time the analysis is permitted to take.  If it takes longer than this an
+     *                {@link ElasticsearchTimeoutException} may be thrown (although not necessarily immediately
+     *                the timeout is exceeded).
      * @return A {@link FileStructureFinder} object from which the structure and messages can be queried.
      * @throws Exception A variety of problems could occur at various stages of the structure finding process.
      */
-    public FileStructureFinder findLogStructure(int idealSampleLineCount, InputStream fromFile) throws Exception {
-        return findLogStructure(new ArrayList<>(), idealSampleLineCount, fromFile);
-    }
-
-    public FileStructureFinder findLogStructure(List<String> explanation, int idealSampleLineCount, InputStream fromFile)
+    public FileStructureFinder findFileStructure(Integer idealSampleLineCount, InputStream fromFile, FileStructureOverrides overrides,
+                                                 TimeValue timeout)
         throws Exception {
-
-        CharsetMatch charsetMatch = findCharset(explanation, fromFile);
-        String charsetName = charsetMatch.getName();
-
-        Tuple<String, Boolean> sampleInfo = sampleFile(charsetMatch.getReader(), charsetName, MIN_SAMPLE_LINE_COUNT,
-            Math.max(MIN_SAMPLE_LINE_COUNT, idealSampleLineCount));
-
-        return makeBestStructureFinder(explanation, sampleInfo.v1(), charsetName, sampleInfo.v2());
+        return findFileStructure(new ArrayList<>(), (idealSampleLineCount == null) ? DEFAULT_IDEAL_SAMPLE_LINE_COUNT : idealSampleLineCount,
+            fromFile, overrides, timeout);
     }
 
-    CharsetMatch findCharset(List<String> explanation, InputStream inputStream) throws Exception {
+    public FileStructureFinder findFileStructure(List<String> explanation, int idealSampleLineCount, InputStream fromFile)
+        throws Exception {
+        return findFileStructure(explanation, idealSampleLineCount, fromFile, FileStructureOverrides.EMPTY_OVERRIDES, null);
+    }
+
+    public FileStructureFinder findFileStructure(List<String> explanation, int idealSampleLineCount, InputStream fromFile,
+                                                 FileStructureOverrides overrides, TimeValue timeout) throws Exception {
+
+        try (TimeoutChecker timeoutChecker = new TimeoutChecker("structure analysis", timeout, scheduler)) {
+
+            String charsetName = overrides.getCharset();
+            Reader sampleReader;
+            if (charsetName != null) {
+                // Creating the reader will throw if the specified character set does not exist
+                sampleReader = new InputStreamReader(fromFile, charsetName);
+                explanation.add("Using specified character encoding [" + charsetName + "]");
+            } else {
+                CharsetMatch charsetMatch = findCharset(explanation, fromFile, timeoutChecker);
+                charsetName = charsetMatch.getName();
+                sampleReader = charsetMatch.getReader();
+            }
+
+            Tuple<String, Boolean> sampleInfo = sampleFile(sampleReader, charsetName, MIN_SAMPLE_LINE_COUNT,
+                Math.max(MIN_SAMPLE_LINE_COUNT, idealSampleLineCount), timeoutChecker);
+
+            return makeBestStructureFinder(explanation, sampleInfo.v1(), charsetName, sampleInfo.v2(), overrides, timeoutChecker);
+        }
+    }
+
+    CharsetMatch findCharset(List<String> explanation, InputStream inputStream, TimeoutChecker timeoutChecker) throws Exception {
 
         // We need an input stream that supports mark and reset, so wrap the argument
         // in a BufferedInputStream if it doesn't already support this feature
@@ -114,6 +162,7 @@ public final class FileStructureFinderManager {
         // This is from ICU4J
         CharsetDetector charsetDetector = new CharsetDetector().setText(inputStream);
         CharsetMatch[] charsetMatches = charsetDetector.detectAll();
+        timeoutChecker.check("character set detection");
 
         // Determine some extra characteristics of the input to compensate for some deficiencies of ICU4J
         boolean pureAscii = true;
@@ -137,6 +186,7 @@ public final class FileStructureFinderManager {
             remainingLength -= bytesRead;
         } while (containsZeroBytes == false && remainingLength > 0);
         inputStream.reset();
+        timeoutChecker.check("character set detection");
 
         if (pureAscii) {
             // If the input is pure ASCII then many single byte character sets will match.  We want to favour
@@ -192,18 +242,49 @@ public final class FileStructureFinderManager {
             (containsZeroBytes ? " - could it be binary data?" : ""));
     }
 
-    FileStructureFinder makeBestStructureFinder(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
-        throws Exception {
+    FileStructureFinder makeBestStructureFinder(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker,
+                                                FileStructureOverrides overrides, TimeoutChecker timeoutChecker) throws Exception {
 
-        for (FileStructureFinderFactory factory : ORDERED_STRUCTURE_FACTORIES) {
+        Character delimiter = overrides.getDelimiter();
+        Character quote = overrides.getQuote();
+        Boolean shouldTrimFields = overrides.getShouldTrimFields();
+        List<FileStructureFinderFactory> factories;
+        if (delimiter != null) {
+
+            // If a precise delimiter is specified, we only need one structure finder
+            // factory, and we'll tolerate as little as one column in the input
+            factories = Collections.singletonList(new DelimitedFileStructureFinderFactory(delimiter, (quote == null) ? '"' : quote, 1,
+                (shouldTrimFields == null) ? (delimiter == '|') : shouldTrimFields));
+
+        } else if (quote != null || shouldTrimFields != null) {
+
+            // The delimiter is not specified, but some other aspect of delimited files is,
+            // so clone our default delimited factories altering the overridden values
+            factories = ORDERED_STRUCTURE_FACTORIES.stream().filter(factory -> factory instanceof DelimitedFileStructureFinderFactory)
+                .map(factory -> ((DelimitedFileStructureFinderFactory) factory).makeSimilar(quote, shouldTrimFields))
+                .collect(Collectors.toList());
+
+        } else {
+
+            // We can use the default factories, but possibly filtered down to a specific format
+            factories = ORDERED_STRUCTURE_FACTORIES.stream()
+                .filter(factory -> factory.canFindFormat(overrides.getFormat())).collect(Collectors.toList());
+
+        }
+
+        for (FileStructureFinderFactory factory : factories) {
+            timeoutChecker.check("high level format detection");
             if (factory.canCreateFromSample(explanation, sample)) {
-                return factory.createFromSample(explanation, sample, charsetName, hasByteOrderMarker);
+                return factory.createFromSample(explanation, sample, charsetName, hasByteOrderMarker, overrides, timeoutChecker);
             }
         }
-        throw new IllegalArgumentException("Input did not match any known formats");
+
+        throw new IllegalArgumentException("Input did not match " +
+            ((overrides.getFormat() == null) ? "any known formats" : "the specified format [" + overrides.getFormat() + "]"));
     }
 
-    private Tuple<String, Boolean> sampleFile(Reader reader, String charsetName, int minLines, int maxLines) throws IOException {
+    private Tuple<String, Boolean> sampleFile(Reader reader, String charsetName, int minLines, int maxLines, TimeoutChecker timeoutChecker)
+        throws IOException {
 
         int lineCount = 0;
         BufferedReader bufferedReader = new BufferedReader(reader);
@@ -227,10 +308,11 @@ public final class FileStructureFinderManager {
         String line;
         while ((line = bufferedReader.readLine()) != null && ++lineCount <= maxLines) {
             sample.append(line).append('\n');
+            timeoutChecker.check("sample line splitting");
         }
 
         if (lineCount < minLines) {
-            throw new IllegalArgumentException("Input contained too few lines to sample");
+            throw new IllegalArgumentException("Input contained too few lines [" + lineCount + "] to obtain a meaningful sample");
         }
 
         return new Tuple<>(sample.toString(), hasByteOrderMarker);

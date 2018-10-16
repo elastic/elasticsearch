@@ -77,7 +77,6 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
-
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends AbstractBuilderTestCase {
 
     private static final int NUMBER_OF_TESTQUERIES = 20;
@@ -100,6 +99,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * Create the query that is being tested
      */
     protected abstract QB doCreateTestQueryBuilder();
+
+    public void testNegativeBoosts() {
+        QB testQuery = createTestQueryBuilder();
+        testQuery.boost(-0.5f);
+        assertWarnings("setting a negative [boost] on a query" +
+            " is deprecated and will throw an error in the next version. You can use a value between 0 and 1 to deboost.");
+    }
 
     /**
      * Generic test that creates new query from the test query and checks both for equality

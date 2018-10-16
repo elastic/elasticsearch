@@ -250,3 +250,9 @@ can set the <<query-dsl-multi-term-rewrite, rewrite method>> of the multi term q
 rewrite. Or, if you use `span_multi` on `prefix` query only, you can activate the
 <<index-prefix-config,`index_prefixes`>> field option of the `text` field instead. This will
 rewrite any prefix query on the field to a a single term query that matches the indexed prefix.
+
+[float]
+==== Negative boosts are deprecated
+
+Setting a negative `boost` in a query is deprecated and will throw an error in the next version.
+To deboost a specific query you can use a `boost` comprise between 0 and 1.

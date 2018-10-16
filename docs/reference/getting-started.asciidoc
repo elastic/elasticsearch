@@ -1,5 +1,5 @@
 [[getting-started]]
-= Getting Started
+= Getting started
 
 [partintro]
 --
@@ -157,19 +157,6 @@ And now we are ready to start our node and single cluster:
 --------------------------------------------------
 ./elasticsearch
 --------------------------------------------------
-
-[float]
-=== Installation with Homebrew
-
-On macOS, Elasticsearch can also be installed via https://brew.sh[Homebrew]:
-
-["source","sh"]
---------------------------------------------------
-brew install elasticsearch
---------------------------------------------------
-
-If installation succeeds, Homebrew will finish by saying that you can start Elasticsearch by entering
-`elasticsearch`. Do that now. The expected response is described below, under <<successfully-running-node>>.
 
 [float]
 === Installation example with MSI Windows Installer
@@ -499,7 +486,7 @@ If we study the above commands carefully, we can actually see a pattern of how w
 
 [source,js]
 --------------------------------------------------
-<REST Verb> /<Index>/<Type>/<ID>
+<HTTP Verb> /<Index>/<Type>/<ID>
 --------------------------------------------------
 // NOTCONSOLE
 

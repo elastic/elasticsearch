@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.filestructurefinder;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.grok.Grok;
+import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FieldStats;
 import org.elasticsearch.xpack.ml.filestructurefinder.TimestampFormatFinder.TimestampMatch;
 
@@ -15,6 +16,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -37,6 +39,8 @@ public final class FileStructureUtils {
     private static final int KEYWORD_MAX_LEN = 256;
     private static final int KEYWORD_MAX_SPACES = 5;
 
+    private static final String BEAT_TIMEZONE_FIELD = "beat.timezone";
+
     private FileStructureUtils() {
     }
 
@@ -54,11 +58,12 @@ public final class FileStructureUtils {
      * @param overrides Aspects of the file structure that are known in advance.  These take precedence over
      *                  values determined by structure analysis.  An exception will be thrown if the file structure
      *                  is incompatible with an overridden value.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
      * @return A tuple of (field name, timestamp format) if one can be found, or <code>null</code> if
      *         there is no consistent timestamp.
      */
     static Tuple<String, TimestampMatch> guessTimestampField(List<String> explanation, List<Map<String, ?>> sampleRecords,
-                                                             FileStructureOverrides overrides) {
+                                                             FileStructureOverrides overrides, TimeoutChecker timeoutChecker) {
         if (sampleRecords.isEmpty()) {
             return null;
         }
@@ -79,6 +84,8 @@ public final class FileStructureUtils {
                     allGood = false;
                     break;
                 }
+
+                timeoutChecker.check("timestamp field determination");
 
                 TimestampMatch match = TimestampFormatFinder.findFirstFullMatch(fieldValue.toString(), overrides.getTimestampFormat());
                 if (match == null || match.candidateIndex != candidate.v2().candidateIndex) {
@@ -143,11 +150,14 @@ public final class FileStructureUtils {
 
     /**
      * Given the sampled records, guess appropriate Elasticsearch mappings.
+     * @param explanation List of reasons for making decisions.  May contain items when passed and new reasons
+     *                    can be appended by this method.
      * @param sampleRecords The sampled records.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
      * @return A map of field name to mapping settings.
      */
-    static Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>>
-        guessMappingsAndCalculateFieldStats(List<String> explanation, List<Map<String, ?>> sampleRecords) {
+    static Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> guessMappingsAndCalculateFieldStats(
+        List<String> explanation, List<Map<String, ?>> sampleRecords, TimeoutChecker timeoutChecker) {
 
         SortedMap<String, Object> mappings = new TreeMap<>();
         SortedMap<String, FieldStats> fieldStats = new TreeMap<>();
@@ -163,7 +173,7 @@ public final class FileStructureUtils {
             ).collect(Collectors.toList());
 
             Tuple<Map<String, String>, FieldStats> mappingAndFieldStats =
-                guessMappingAndCalculateFieldStats(explanation, fieldName, fieldValues);
+                guessMappingAndCalculateFieldStats(explanation, fieldName, fieldValues, timeoutChecker);
             if (mappingAndFieldStats != null) {
                 if (mappingAndFieldStats.v1() != null) {
                     mappings.put(fieldName, mappingAndFieldStats.v1());
@@ -178,7 +188,8 @@ public final class FileStructureUtils {
     }
 
     static Tuple<Map<String, String>, FieldStats> guessMappingAndCalculateFieldStats(List<String> explanation,
-                                                                                     String fieldName, List<Object> fieldValues) {
+                                                                                     String fieldName, List<Object> fieldValues,
+                                                                                     TimeoutChecker timeoutChecker) {
         if (fieldValues == null || fieldValues.isEmpty()) {
             // We can get here if all the records that contained a given field had a null value for it.
             // In this case it's best not to make any statement about what the mapping type should be.
@@ -196,11 +207,13 @@ public final class FileStructureUtils {
         if (fieldValues.stream().anyMatch(value -> value instanceof List || value instanceof Object[])) {
             // Elasticsearch fields can be either arrays or single values, but array values must all have the same type
             return guessMappingAndCalculateFieldStats(explanation, fieldName,
-                fieldValues.stream().flatMap(FileStructureUtils::flatten).collect(Collectors.toList()));
+                fieldValues.stream().flatMap(FileStructureUtils::flatten).collect(Collectors.toList()), timeoutChecker);
         }
 
         Collection<String> fieldValuesAsStrings = fieldValues.stream().map(Object::toString).collect(Collectors.toList());
-        return new Tuple<>(guessScalarMapping(explanation, fieldName, fieldValuesAsStrings), calculateFieldStats(fieldValuesAsStrings));
+        Map<String, String> mapping = guessScalarMapping(explanation, fieldName, fieldValuesAsStrings);
+        timeoutChecker.check("mapping determination");
+        return new Tuple<>(mapping, calculateFieldStats(fieldValuesAsStrings, timeoutChecker));
     }
 
     private static Stream<Object> flatten(Object value) {
@@ -240,7 +253,7 @@ public final class FileStructureUtils {
         Iterator<String> iter = fieldValues.iterator();
         TimestampMatch timestampMatch = TimestampFormatFinder.findFirstFullMatch(iter.next());
         while (timestampMatch != null && iter.hasNext()) {
-            // To be mapped as type date all the values must match the same date format - it is
+            // To be mapped as type date all the values must match the same timestamp format - it is
             // not acceptable for all values to be dates, but with different formats
             if (timestampMatch.equals(TimestampFormatFinder.findFirstFullMatch(iter.next(), timestampMatch.candidateIndex)) == false) {
                 timestampMatch = null;
@@ -278,12 +291,14 @@ public final class FileStructureUtils {
     /**
      * Calculate stats for a set of field values.
      * @param fieldValues Values of the field for which field stats are to be calculated.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
      * @return The stats calculated from the field values.
      */
-    static FieldStats calculateFieldStats(Collection<String> fieldValues) {
+    static FieldStats calculateFieldStats(Collection<String> fieldValues, TimeoutChecker timeoutChecker) {
 
         FieldStatsCalculator calculator = new FieldStatsCalculator();
         calculator.accept(fieldValues);
+        timeoutChecker.check("field stats calculation");
         return calculator.calculate(NUM_TOP_HITS);
     }
 
@@ -294,5 +309,54 @@ public final class FileStructureUtils {
     static boolean isMoreLikelyTextThanKeyword(String str) {
         int length = str.length();
         return length > KEYWORD_MAX_LEN || length - str.replaceAll("\\s", "").length() > KEYWORD_MAX_SPACES;
+    }
+
+    /**
+     * Create an ingest pipeline definition appropriate for the file structure.
+     * @param grokPattern The Grok pattern used for parsing semi-structured text formats.  <code>null</code> for
+     *                    fully structured formats.
+     * @param timestampField The input field containing the timestamp to be parsed into <code>@timestamp</code>.
+     *                       <code>null</code> if there is no timestamp.
+     * @param timestampFormats Timestamp formats to be used for parsing {@code timestampField}.
+     *                         May be <code>null</code> if {@code timestampField} is also <code>null</code>.
+     * @param needClientTimezone Is the timezone of the client supplying data to ingest required to uniquely parse the timestamp?
+     * @return The ingest pipeline definition, or <code>null</code> if none is required.
+     */
+    public static Map<String, Object> makeIngestPipelineDefinition(String grokPattern, String timestampField, List<String> timestampFormats,
+                                                                   boolean needClientTimezone) {
+
+        if (grokPattern == null && timestampField == null) {
+            return null;
+        }
+
+        Map<String, Object> pipeline = new LinkedHashMap<>();
+        pipeline.put(Pipeline.DESCRIPTION_KEY, "Ingest pipeline created by file structure finder");
+
+        List<Map<String, Object>> processors = new ArrayList<>();
+
+        if (grokPattern != null) {
+            Map<String, Object> grokProcessorSettings = new LinkedHashMap<>();
+            grokProcessorSettings.put("field", "message");
+            grokProcessorSettings.put("patterns", Collections.singletonList(grokPattern));
+            processors.add(Collections.singletonMap("grok", grokProcessorSettings));
+        }
+
+        if (timestampField != null) {
+            Map<String, Object> dateProcessorSettings = new LinkedHashMap<>();
+            dateProcessorSettings.put("field", timestampField);
+            if (needClientTimezone) {
+                dateProcessorSettings.put("timezone", "{{ " + BEAT_TIMEZONE_FIELD + " }}");
+            }
+            dateProcessorSettings.put("formats", timestampFormats);
+            processors.add(Collections.singletonMap("date", dateProcessorSettings));
+        }
+
+        // This removes the interim timestamp field used for semi-structured text formats
+        if (grokPattern != null && timestampField != null) {
+            processors.add(Collections.singletonMap("remove", Collections.singletonMap("field", timestampField)));
+        }
+
+        pipeline.put(Pipeline.PROCESSORS_KEY, processors);
+        return pipeline;
     }
 }

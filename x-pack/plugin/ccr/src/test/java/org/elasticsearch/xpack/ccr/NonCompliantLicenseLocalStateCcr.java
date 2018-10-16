@@ -17,7 +17,7 @@ public class NonCompliantLicenseLocalStateCcr extends LocalStateCompositeXPackPl
     public NonCompliantLicenseLocalStateCcr(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
 
-        plugins.add(new Ccr(settings, new CcrLicenseChecker(() -> false)) {
+        plugins.add(new Ccr(settings, new CcrLicenseChecker(() -> false, () -> false)) {
 
             @Override
             protected XPackLicenseState getLicenseState() {

@@ -18,12 +18,13 @@
  */
 package org.elasticsearch.common.util.concurrent;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -83,6 +84,7 @@ public final class ThreadContext implements Closeable, Writeable {
 
     public static final String PREFIX = "request.headers";
     public static final Setting<Settings> DEFAULT_HEADERS_SETTING = Setting.groupSetting(PREFIX + ".", Property.NodeScope);
+    private static final Logger logger = LogManager.getLogger(ThreadContext.class);
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
     private final Map<String, String> defaultHeader;
     private final ContextThreadLocal threadLocal;
@@ -469,18 +471,16 @@ public final class ThreadContext implements Closeable, Writeable {
             //check if we can add another warning header - if max size within limits
             if (key.equals("Warning") && (maxWarningHeaderSize != -1)) { //if size is NOT unbounded, check its limits
                 if (warningHeadersSize > maxWarningHeaderSize) { // if max size has already been reached before
-                    final String message = "Dropping a warning header, as their total size reached the maximum allowed of [" +
-                        maxWarningHeaderSize + "] bytes set in [" +
-                        HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey() + "]!";
-                    ESLoggerFactory.getLogger(ThreadContext.class).warn(message);
+                    logger.warn("Dropping a warning header, as their total size reached the maximum allowed of ["
+                            + maxWarningHeaderSize + "] bytes set in ["
+                            + HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey() + "]!");
                     return this;
                 }
                 newWarningHeaderSize += "Warning".getBytes(StandardCharsets.UTF_8).length + value.getBytes(StandardCharsets.UTF_8).length;
                 if (newWarningHeaderSize > maxWarningHeaderSize) {
-                    final String message = "Dropping a warning header, as their total size reached the maximum allowed of [" +
-                        maxWarningHeaderSize + "] bytes set in [" +
-                        HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey() + "]!";
-                    ESLoggerFactory.getLogger(ThreadContext.class).warn(message);
+                    logger.warn("Dropping a warning header, as their total size reached the maximum allowed of ["
+                            + maxWarningHeaderSize + "] bytes set in ["
+                            + HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey() + "]!");
                     return new ThreadContextStruct(requestHeaders, responseHeaders, transientHeaders, isSystemContext, newWarningHeaderSize);
                 }
             }
@@ -505,9 +505,9 @@ public final class ThreadContext implements Closeable, Writeable {
             if ((key.equals("Warning")) && (maxWarningHeaderCount != -1)) { //if count is NOT unbounded, check its limits
                 final int warningHeaderCount = newResponseHeaders.containsKey("Warning") ? newResponseHeaders.get("Warning").size() : 0;
                 if (warningHeaderCount > maxWarningHeaderCount) {
-                    final String message = "Dropping a warning header, as their total count reached the maximum allowed of [" +
-                        maxWarningHeaderCount + "] set in [" + HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT.getKey() + "]!";
-                    ESLoggerFactory.getLogger(ThreadContext.class).warn(message);
+                    logger.warn("Dropping a warning header, as their total count reached the maximum allowed of ["
+                            + maxWarningHeaderCount + "] set in ["
+                            + HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT.getKey() + "]!");
                     return this;
                 }
             }
@@ -641,7 +641,7 @@ public final class ThreadContext implements Closeable, Writeable {
                         assert e instanceof CancellationException
                                 || e instanceof InterruptedException
                                 || e instanceof ExecutionException : e;
-                        final Optional<Error> maybeError = ExceptionsHelper.maybeError(e, ESLoggerFactory.getLogger(ThreadContext.class));
+                        final Optional<Error> maybeError = ExceptionsHelper.maybeError(e, logger);
                         if (maybeError.isPresent()) {
                             // throw this error where it will propagate to the uncaught exception handler
                             throw maybeError.get();

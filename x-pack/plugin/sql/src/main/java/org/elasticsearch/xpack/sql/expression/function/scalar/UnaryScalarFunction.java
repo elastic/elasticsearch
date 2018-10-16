@@ -6,12 +6,12 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 
-import static java.util.Collections.singletonList;
-
 import java.util.List;
+
+import static java.util.Collections.singletonList;
 
 public abstract class UnaryScalarFunction extends ScalarFunction {
 

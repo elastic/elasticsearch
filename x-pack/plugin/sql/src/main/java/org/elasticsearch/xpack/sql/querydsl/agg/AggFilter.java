@@ -11,18 +11,20 @@ import java.util.Objects;
 
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.util.Check;
 
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.bucketSelector;
 
 public class AggFilter extends PipelineAgg {
 
+    private static final String BUCKET_SELECTOR_ID_PREFIX = "having";
+
     private final ScriptTemplate scriptTemplate;
     private final Map<String, String> aggPaths;
 
     public AggFilter(String name, ScriptTemplate scriptTemplate) {
-        super(name);
+        super(BUCKET_SELECTOR_ID_PREFIX + name);
         Check.isTrue(scriptTemplate != null, "a valid script is required");
         this.scriptTemplate = scriptTemplate;
         this.aggPaths = scriptTemplate.aggPaths();

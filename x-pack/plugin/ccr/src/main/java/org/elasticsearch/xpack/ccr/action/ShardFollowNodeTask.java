@@ -72,6 +72,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private int numConcurrentReads = 0;
     private int numConcurrentWrites = 0;
     private long currentMappingVersion = 0;
+    private long totalFetchTookTimeMillis = 0;
     private long totalFetchTimeMillis = 0;
     private long numberOfSuccessfulFetches = 0;
     private long numberOfFailedFetches = 0;
@@ -245,6 +246,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                         fetchExceptions.remove(from);
                         if (response.getOperations().length > 0) {
                             // do not count polls against fetch stats
+                            totalFetchTookTimeMillis += response.getTookInMillis();
                             totalFetchTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
                             numberOfSuccessfulFetches++;
                             operationsReceived += response.getOperations().length;
@@ -455,6 +457,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 buffer.size(),
                 currentMappingVersion,
                 totalFetchTimeMillis,
+                totalFetchTookTimeMillis,
                 numberOfSuccessfulFetches,
                 numberOfFailedFetches,
                 operationsReceived,

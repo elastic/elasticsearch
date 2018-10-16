@@ -48,6 +48,7 @@ public class StatsResponsesTests extends AbstractStreamableTestCase<FollowStatsA
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
+                randomNonNegativeLong(),
                 Collections.emptyNavigableMap(),
                 randomLong(),
                 randomBoolean() ? new ElasticsearchException("fatal error") : null);

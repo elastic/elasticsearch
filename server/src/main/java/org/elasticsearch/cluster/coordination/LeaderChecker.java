@@ -112,7 +112,7 @@ public class LeaderChecker extends AbstractComponent {
      * @param leader the node to be checked as leader, or null if checks should be disabled
      */
     public void updateLeader(@Nullable final DiscoveryNode leader) {
-        assert leader == null || transportService.getLocalNode().equals(leader) == false;
+        assert transportService.getLocalNode().equals(leader) == false;
         final CheckScheduler checkScheduler;
         if (leader != null) {
             checkScheduler = new CheckScheduler(leader);

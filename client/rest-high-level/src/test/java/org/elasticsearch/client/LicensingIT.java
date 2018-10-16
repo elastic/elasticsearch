@@ -19,6 +19,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.license.DeleteLicenseRequest;
 import org.elasticsearch.client.license.GetLicenseRequest;
 import org.elasticsearch.client.license.GetLicenseResponse;
 import org.elasticsearch.client.license.LicensesStatus;
@@ -150,10 +152,12 @@ public class LicensingIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testPutLicense() throws Exception {
-        // TODO
+        putTrialLicense();
     }
 
     public void testDeleteLicense() throws Exception {
-        // TODO
+        final DeleteLicenseRequest request = new DeleteLicenseRequest();
+        final AcknowledgedResponse response = highLevelClient().license().deleteLicense(request, RequestOptions.DEFAULT);
+        assertThat(response.isAcknowledged(), equalTo(true));
     }
 }

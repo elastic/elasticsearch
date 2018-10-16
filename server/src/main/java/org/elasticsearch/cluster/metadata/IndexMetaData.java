@@ -641,7 +641,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             } else {
                 mappingVersion = 1;
             }
-            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
                 settingsVersion = in.readVLong();
             } else {
                 settingsVersion = 1;
@@ -674,7 +674,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
                 out.writeVLong(mappingVersion);
             }
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
                 out.writeVLong(settingsVersion);
             }
             out.writeByte(state.id);
@@ -716,7 +716,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         } else {
             builder.mappingVersion(1);
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
             builder.settingsVersion(in.readVLong());
         } else {
             builder.settingsVersion(1);
@@ -770,7 +770,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
             out.writeVLong(mappingVersion);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
             out.writeVLong(settingsVersion);
         }
         out.writeInt(routingNumShards);
@@ -1355,8 +1355,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(Version.V_6_5_0)) {
                 assert mappingVersion : "mapping version should be present for indices created on or after 6.5.0";
             }
-            if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(Version.V_7_0_0_alpha1)) {
-                assert settingsVersion : "settings version should be present for indices created on or after 7.0.0";
+            if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(Version.V_6_5_0)) {
+                assert settingsVersion : "settings version should be present for indices created on or after 6.5.0";
             }
             return builder.build();
         }

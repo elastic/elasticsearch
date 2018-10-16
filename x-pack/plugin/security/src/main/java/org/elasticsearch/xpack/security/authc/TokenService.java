@@ -935,7 +935,9 @@ public final class TokenService extends AbstractComponent {
      */
     private void checkIfTokenIsRevoked(UserToken userToken, ActionListener<UserToken> listener) {
         if (securityIndex.indexExists() == false) {
-            // index doesn't exist so the token is considered valid.
+            // index doesn't exist so the token is considered valid. it is important to note that
+            // we do not use isAvailable as the lack of a shard being available is not equivalent
+            // to the index not existing in the case of revocation checking.
             listener.onResponse(userToken);
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {

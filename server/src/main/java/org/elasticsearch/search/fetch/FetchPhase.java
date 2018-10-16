@@ -91,7 +91,9 @@ public class FetchPhase implements SearchPhase {
     @Override
     public void execute(SearchContext context) {
 
-        LOGGER.trace("{}", new SearchContextRequestLog(context));
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("{}", new SearchContextSourcePrinter(context));
+        }
 
         final FieldsVisitor fieldsVisitor;
         Map<String, Set<String>> storedToRequestedFields = new HashMap<>();

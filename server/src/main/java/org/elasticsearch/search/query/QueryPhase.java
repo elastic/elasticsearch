@@ -104,7 +104,9 @@ public class QueryPhase implements SearchPhase {
             return;
         }
 
-        LOGGER.trace("{}", new SearchContextRequestLog(searchContext));
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("{}", new SearchContextSourcePrinter(searchContext));
+        }
 
         // Pre-process aggregations as late as possible. In the case of a DFS_Q_T_F
         // request, preProcess is called on the DFS phase phase, this is why we pre-process them

@@ -37,10 +37,10 @@ public interface SearchPhase {
      */
     void execute(SearchContext context);
 
-    class SearchContextRequestLog {
+    class SearchContextSourcePrinter {
         private final SearchContext searchContext;
 
-        public SearchContextRequestLog(SearchContext searchContext) {
+        public SearchContextSourcePrinter(SearchContext searchContext) {
             this.searchContext = searchContext;
         }
 

@@ -91,7 +91,6 @@ Run any test methods that contain 'esi' (like: ...r*esi*ze...).
 
 You can also filter tests by certain annotations ie:
 
-  * `@Nightly` - tests that only run in nightly builds (disabled by default)
   * `@Backwards` - backwards compatibility tests (disabled by default)
   * `@AwaitsFix` - tests that are waiting for a bugfix (disabled by default)
   * `@BadApple` - tests that are known to fail randomly (disabled by default)
@@ -99,15 +98,15 @@ You can also filter tests by certain annotations ie:
 Those annotation names can be combined into a filter expression like:
 
 ------------------------------------------------
-./gradlew test -Dtests.filter="@nightly and not @backwards"
+./gradlew test -Dtests.filter="@awaitsfix and not @backwards"
 ------------------------------------------------
 
-to run all nightly test but not the ones that are backwards tests. `tests.filter` supports
-the boolean operators `and, or, not` and grouping ie:
+to run all tests waiting for a bug fix but not the ones that are backwards tests.
+`tests.filter` supports the boolean operators `and, or, not` and grouping ie:
 
 
 ---------------------------------------------------------------
-./gradlew test -Dtests.filter="@nightly and not(@badapple or @backwards)"
+./gradlew test -Dtests.filter="@awaitsfix and not(@badapple or @backwards)"
 ---------------------------------------------------------------
 
 === Seed and repetitions.
@@ -160,7 +159,6 @@ Test groups can be enabled or disabled (true/false).
 Default value provided below in [brackets].
 
 ------------------------------------------------------------------
-./gradlew test -Dtests.nightly=[false]   - nightly test group (@Nightly)
 ./gradlew test -Dtests.weekly=[false]    - weekly tests (@Weekly)
 ./gradlew test -Dtests.awaitsfix=[false] - known issue (@AwaitsFix)
 ------------------------------------------------------------------

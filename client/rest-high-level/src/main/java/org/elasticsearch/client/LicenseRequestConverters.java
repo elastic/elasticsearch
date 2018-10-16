@@ -24,6 +24,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.license.StartTrialRequest;
+import org.elasticsearch.client.license.StartBasicRequest;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
@@ -68,7 +69,20 @@ public class LicenseRequestConverters {
         if (startTrialRequest.getLicenseType() != null) {
             parameters.putParam("type", startTrialRequest.getLicenseType());
         }
+        return request;
+    }
 
+    static Request startBasic(StartBasicRequest startBasicRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack", "license", "start_basic")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        parameters.withTimeout(startBasicRequest.timeout());
+        parameters.withMasterTimeout(startBasicRequest.masterNodeTimeout());
+        if (startBasicRequest.isAcknowledge()) {
+            parameters.putParam("acknowledge", "true");
+        }
         return request;
     }
 }

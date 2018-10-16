@@ -59,7 +59,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 
     public void testIsolatedUnicastNodes() throws Exception {
-        List<String> nodes = startCluster(4, -1, new int[]{0});
+        internalCluster().setHostsListContainsOnlyFirstNode(true);
+        List<String> nodes = startCluster(4, -1);
         // Figure out what is the elected master node
         final String unicastTarget = nodes.get(0);
 
@@ -98,7 +99,8 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
      * The rejoining node should take this master node and connect.
      */
     public void testUnicastSinglePingResponseContainsMaster() throws Exception {
-        List<String> nodes = startCluster(4, -1, new int[]{0});
+        internalCluster().setHostsListContainsOnlyFirstNode(true);
+        List<String> nodes = startCluster(4, -1);
         // Figure out what is the elected master node
         final String masterNode = internalCluster().getMasterName();
         logger.info("---> legit elected master node={}", masterNode);
@@ -194,7 +196,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
     }
 
     public void testClusterFormingWithASlowNode() throws Exception {
-        configureCluster(3, null, 2);
+        configureCluster(3, 2);
 
         SlowClusterStateProcessing disruption = new SlowClusterStateProcessing(random(), 0, 0, 1000, 2000);
 
@@ -210,7 +212,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
     }
 
     public void testElectMasterWithLatestVersion() throws Exception {
-        configureCluster(3, null, 2);
+        configureCluster(3, 2);
         final Set<String> nodes = new HashSet<>(internalCluster().startNodes(3));
         ensureStableCluster(3);
         ServiceDisruptionScheme isolateAllNodes =

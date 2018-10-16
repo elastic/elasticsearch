@@ -21,6 +21,8 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.client.license.StartTrialRequest;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.client.license.StartBasicRequest;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -28,6 +30,9 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.elasticsearch.client.RequestConvertersTests.setRandomMasterTimeout;
+import static org.elasticsearch.client.RequestConvertersTests.setRandomTimeout;
+import static org.hamcrest.CoreMatchers.is;
 
 
 public class LicenseRequestConvertersTests extends ESTestCase {
@@ -51,5 +56,23 @@ public class LicenseRequestConvertersTests extends ESTestCase {
         assertThat(restRequest.getEndpoint(), equalTo("/_xpack/license/start_trial"));
         assertThat(restRequest.getParameters(), equalTo(expectedParams));
         assertThat(restRequest.getEntity(), nullValue());
+    }
+
+    public void testStartBasic() {
+        final boolean acknowledge = randomBoolean();
+        StartBasicRequest startBasicRequest = new StartBasicRequest(acknowledge);
+        Map<String, String> expectedParams = new HashMap<>();
+        if (acknowledge) {
+            expectedParams.put("acknowledge", Boolean.TRUE.toString());
+        }
+
+        setRandomTimeout(startBasicRequest, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomMasterTimeout(startBasicRequest, expectedParams);
+        Request request = LicenseRequestConverters.startBasic(startBasicRequest);
+
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
+        assertThat(request.getEndpoint(), equalTo("/_xpack/license/start_basic"));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), is(nullValue()));
     }
 }

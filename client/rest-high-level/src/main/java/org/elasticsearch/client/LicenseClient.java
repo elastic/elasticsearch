@@ -24,6 +24,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.license.StartTrialRequest;
 import org.elasticsearch.client.license.StartTrialResponse;
+import org.elasticsearch.client.license.StartBasicRequest;
+import org.elasticsearch.client.license.StartBasicResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -146,6 +148,28 @@ public final class LicenseClient {
 
         restHighLevelClient.performRequestAsyncAndParseEntity(request, LicenseRequestConverters::startTrial, options,
             StartTrialResponse::fromXContent, listener, singleton(403));
+    }
+
+    /**
+     * Initiates an indefinite basic license.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public StartBasicResponse startBasic(StartBasicRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, LicenseRequestConverters::startBasic, options,
+            StartBasicResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously initiates an indefinite basic license.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void startBasicAsync(StartBasicRequest request, RequestOptions options,
+                                ActionListener<StartBasicResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, LicenseRequestConverters::startBasic, options,
+            StartBasicResponse::fromXContent, listener, emptySet());
     }
 
     /**

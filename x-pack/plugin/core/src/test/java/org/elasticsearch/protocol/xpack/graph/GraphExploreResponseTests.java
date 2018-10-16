@@ -75,6 +75,11 @@ public class GraphExploreResponseTests extends AbstractXContentTestCase< GraphEx
     protected boolean supportsUnknownFields() {
         return true;
     }
+    
+    @Override
+    protected boolean assertToXContentEquivalence() {
+        return false;
+    }     
 
     @Override
     protected String[] getShuffleFieldsExceptions() {

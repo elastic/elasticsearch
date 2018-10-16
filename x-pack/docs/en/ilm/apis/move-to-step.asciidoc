@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="basic"]
-[[ilm-put-policy]]
+[[ilm-move-to-step]]
 === Move To Step API
 ++++
 <titleabbrev>Move To Step</titleabbrev>

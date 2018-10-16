@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="basic"]
-[[ilm-put-policy]]
+[[ilm-put-lifecycle]]
 === Put Lifecycle Policy API
 ++++
 <titleabbrev>Put Policy</titleabbrev>

@@ -6,7 +6,7 @@
 <titleabbrev>Explain Lifecycle</titleabbrev>
 ++++
 
-Shows the current lifecycle staus for an index.
+Shows the current lifecycle status for an index.
 
 ==== Request
 
@@ -17,7 +17,7 @@ Shows the current lifecycle staus for an index.
 This API returns information relating to the current lifecycle state of an
 index. This includes information such as the currently executing phase, action,
 and step and the timestamp when the index entered them. It also shows the
-definitiom of the current phase that is being run and in the event that there
+definition of the current phase that is being run and in the event that there
 has been a failure, information regarding the failure.
 
 ==== Path Parameters

@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="basic"]
-[[ilm-put-policy]]
+[[ilm-retry-policy]]
 === Retry Policy Execution API
 ++++
 <titleabbrev>Retry Policy Execution</titleabbrev>

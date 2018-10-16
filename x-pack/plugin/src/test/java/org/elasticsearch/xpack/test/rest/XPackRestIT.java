@@ -276,7 +276,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
 
     private void clearILMState() throws Exception {
         if (isILMTest()) {
-            ILMRestTestStateCleaner.clearRollupMetadata(adminClient());
+            ILMRestTestStateCleaner.clearILMMetadata(adminClient());
         }
     }
 

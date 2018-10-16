@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="basic"]
-[[ilm-put-policy]]
+[[ilm-set-policy]]
 === Set Policy On Index API
 ++++
 <titleabbrev>Set Policy On Index</titleabbrev>

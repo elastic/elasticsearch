@@ -15,7 +15,7 @@ import java.util.Map;
 
 public class ILMRestTestStateCleaner {
 
-    public static void clearRollupMetadata(RestClient adminClient) throws Exception {
+    public static void clearILMMetadata(RestClient adminClient) throws Exception {
         removePoliciesFromAllIndexes(adminClient);
         deleteAllPolicies(adminClient);
         // indices will be deleted by the ESRestTestCase class
@@ -31,7 +31,7 @@ public class ILMRestTestStateCleaner {
 
         for (String indexName : indexes.keySet()) {
             try {
-                response = adminClient.performRequest(new Request("DELETE", indexName + "/_ilm/"));
+                adminClient.performRequest(new Request("DELETE", indexName + "/_ilm/"));
             } catch (Exception e) {
                 e.printStackTrace();
                 // ok
@@ -49,7 +49,7 @@ public class ILMRestTestStateCleaner {
 
         for (String policyName : policies.keySet()) {
             try {
-                response = adminClient.performRequest(new Request("DELETE", "/_ilm/" + policyName));
+                adminClient.performRequest(new Request("DELETE", "/_ilm/" + policyName));
             } catch (Exception e) {
                 e.printStackTrace();
                 // ok

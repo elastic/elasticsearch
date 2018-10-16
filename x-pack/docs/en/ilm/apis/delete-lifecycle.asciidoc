@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="basic"]
-[[ilm-put-policy]]
+[[ilm-delete-lifecycle]]
 === Delete Lifecycle Policy API
 ++++
 <titleabbrev>Delete Policy</titleabbrev>

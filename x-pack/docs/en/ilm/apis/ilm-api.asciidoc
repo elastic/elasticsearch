@@ -1,5 +1,5 @@
 [[index-lifecycle-management-api]]
-== {ilm} API
+== Index Lifecycle Management API
 
 You can use the following APIs to manage policies on indices.
 

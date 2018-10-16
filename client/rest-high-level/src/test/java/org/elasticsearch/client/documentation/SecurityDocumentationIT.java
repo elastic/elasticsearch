@@ -122,7 +122,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                     .build();
             final PutRoleMappingRequest request = new PutRoleMappingRequest("mapping-example", true, Collections.singletonList("superuser"),
                     rules, null, RefreshPolicy.NONE);
-            // tag::put-role-mapping-execute-async
+            // tag::put-role-mapping-execute-listener
             ActionListener<PutRoleMappingResponse> listener = new ActionListener<PutRoleMappingResponse>() {
                 @Override
                 public void onResponse(PutRoleMappingResponse response) {
@@ -134,15 +134,15 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                     // <2>
                 }
             };
-            // end::put-role-mapping-execute-async
+            // end::put-role-mapping-execute-listener
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
-            // tag::put-role-mapping-execute-listener
+            // tag::put-role-mapping-execute-async
             client.security().putRoleMappingAsync(request, RequestOptions.DEFAULT, listener); // <1>
-            // end::put-role-mapping-execute-listener
+            // end::put-role-mapping-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

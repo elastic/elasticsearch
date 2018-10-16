@@ -414,7 +414,6 @@ public class CoordinatorTests extends ESTestCase {
             + DEFAULT_ELECTION_DELAY, "elect new leader");
         leader.heal();
         AckCollector ackCollector = leader.submitValue(randomLong());
-        cluster.runFor(DEFAULT_DELAY_VARIABILITY, "start publishing");
         cluster.stabilise();
         assertTrue("expected nack from " + leader, ackCollector.hasAckedUnsuccessfully(leader));
         assertTrue("expected nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));

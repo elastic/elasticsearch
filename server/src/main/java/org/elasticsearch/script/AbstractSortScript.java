@@ -69,6 +69,11 @@ abstract class AbstractSortScript implements ScorerAware {
         this.params = new ParameterMap(parameters, DEPRECATIONS);
     }
 
+    protected AbstractSortScript() {
+        this.params = null;
+        this.leafLookup = null;
+    }
+
     /**
      * Return the parameters for this script.
      */

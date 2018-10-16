@@ -106,14 +106,23 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(NumberSortScript.class)) {
-            NumberSortScript.Factory factory = (parameters, lookup) -> (NumberSortScript.LeafFactory) ctx
-                -> new NumberSortScript(parameters, lookup, ctx) {
+            NumberSortScript.Factory factory = (parameters, lookup) -> new NumberSortScript.LeafFactory() {
                 @Override
-                public double execute() {
-                    Map<String, Object> vars = new HashMap<>(parameters);
-                    vars.put("params", parameters);
-                    vars.put("doc", getDoc());
-                    return ((Number) script.apply(vars)).doubleValue();
+                public NumberSortScript newInstance(final LeafReaderContext ctx) {
+                    return new NumberSortScript(parameters, lookup, ctx) {
+                        @Override
+                        public double execute() {
+                            Map<String, Object> vars = new HashMap<>(parameters);
+                            vars.put("params", parameters);
+                            vars.put("doc", getDoc());
+                            return ((Number) script.apply(vars)).doubleValue();
+                        }
+                    };
+                }
+
+                @Override
+                public boolean needs_score() {
+                    return false;
                 }
             };
             return context.factoryClazz.cast(factory);

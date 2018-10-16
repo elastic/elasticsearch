@@ -33,6 +33,10 @@ public abstract class NumberSortScript extends AbstractSortScript {
         super(params, lookup, leafContext);
     }
 
+    protected NumberSortScript() {
+        super();
+    }
+
     public abstract double execute();
 
     /**
@@ -40,6 +44,11 @@ public abstract class NumberSortScript extends AbstractSortScript {
      */
     public interface LeafFactory {
         NumberSortScript newInstance(LeafReaderContext ctx) throws IOException;
+
+        /**
+         * Return {@code true} if the script needs {@code _score} calculated, or {@code false} otherwise.
+         */
+        boolean needs_score();
     }
 
     /**

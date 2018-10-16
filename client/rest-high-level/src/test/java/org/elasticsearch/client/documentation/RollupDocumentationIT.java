@@ -36,6 +36,8 @@ import org.elasticsearch.client.rollup.GetRollupJobResponse;
 import org.elasticsearch.client.rollup.GetRollupJobResponse.JobWrapper;
 import org.elasticsearch.client.rollup.GetRollupJobResponse.RollupIndexerJobStats;
 import org.elasticsearch.client.rollup.GetRollupJobResponse.RollupJobStatus;
+import org.elasticsearch.client.rollup.DeleteRollupJobRequest;
+import org.elasticsearch.client.rollup.DeleteRollupJobResponse;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobResponse;
 import org.elasticsearch.client.rollup.job.config.DateHistogramGroupConfig;
@@ -280,4 +282,53 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
             }
         });
     }
+
+    public void testDeleteRollupJob() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        String id = "job_2";
+
+        // tag::rollup-delete-job-request
+        DeleteRollupJobRequest request = new DeleteRollupJobRequest(id); // <1>
+        // end::rollup-delete-job-request
+        try {
+            // tag::rollup-delete-job-execute
+            DeleteRollupJobResponse response = client.rollup().deleteRollupJob(request, RequestOptions.DEFAULT);
+            // end::rollup-delete-job-execute
+
+            // tag::rollup-delete-job-response
+            response.isAcknowledged(); // <1>
+            // end::rollup-delete-job-response
+        } catch (Exception e) {
+            // Swallow any exception, this test does not test actually cancelling.
+        }
+
+
+
+        // tag::rollup-delete-job-execute-listener
+        ActionListener<DeleteRollupJobResponse> listener = new ActionListener<DeleteRollupJobResponse>() {
+            @Override
+            public void onResponse(DeleteRollupJobResponse response) {
+                boolean acknowledged = response.isAcknowledged(); // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::rollup-delete-job-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::rollup-delete-job-execute-async
+        client.rollup().deleteRollupJobAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::rollup-delete-job-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+    }
+
 }

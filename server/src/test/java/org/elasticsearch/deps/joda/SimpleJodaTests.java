@@ -714,41 +714,6 @@ public class SimpleJodaTests extends ESTestCase {
         assertDateFormatParsingThrowingException("strictYearMonthDay", "2014-05-5");
     }
 
-    // TODO MOVE ME SOMEWHERE ELSE
-//    public void testThatRootObjectParsingIsStrict() throws Exception {
-//        String[] datesThatWork = new String[] { "2014/10/10", "2014/10/10 12:12:12", "2014-05-05",  "2014-05-05T12:12:12.123Z" };
-//        String[] datesThatShouldNotWork = new String[]{ "5-05-05", "2014-5-05", "2014-05-5",
-//                "2014-05-05T1:12:12.123Z", "2014-05-05T12:1:12.123Z", "2014-05-05T12:12:1.123Z",
-//                "4/10/10", "2014/1/10", "2014/10/1",
-//                "2014/10/10 1:12:12", "2014/10/10 12:1:12", "2014/10/10 12:12:1"
-//        };
-//
-//        // good case
-//        for (String date : datesThatWork) {
-//            boolean dateParsingSuccessful = false;
-//            for (FormatDateTimeFormatter dateTimeFormatter : RootObjectMapper.Defaults.DYNAMIC_DATE_TIME_FORMATTERS) {
-//                try {
-//                    dateTimeFormatter.parser().parseMillis(date);
-//                    dateParsingSuccessful = true;
-//                    break;
-//                } catch (Exception e) {}
-//            }
-//            if (!dateParsingSuccessful) {
-//                fail("Parsing for date " + date + " in root object mapper failed, but shouldnt");
-//            }
-//        }
-//
-//        // bad case
-//        for (String date : datesThatShouldNotWork) {
-//            for (FormatDateTimeFormatter dateTimeFormatter : RootObjectMapper.Defaults.DYNAMIC_DATE_TIME_FORMATTERS) {
-//                try {
-//                    dateTimeFormatter.parser().parseMillis(date);
-//                    fail(String.format(Locale.ROOT, "Expected exception when parsing date %s in root mapper", date));
-//                } catch (Exception e) {}
-//            }
-//        }
-//    }
-
     private void assertValidDateFormatParsing(String pattern, String dateToParse) {
         assertValidDateFormatParsing(pattern, dateToParse, dateToParse);
     }

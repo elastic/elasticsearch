@@ -1008,7 +1008,6 @@ public class DateHistogramIT extends ESIntegTestCase {
         // we're testing on days, so the base must be rounded to a day
         int interval = randomIntBetween(1, 2); // in days
         long intervalMillis = interval * 24 * 60 * 60 * 1000;
-        // TODO correct?
         ZonedDateTime base = ZonedDateTime.now(ZoneOffset.UTC).withDayOfMonth(1);
         ZonedDateTime baseKey = Instant.ofEpochMilli(intervalMillis * (base.toInstant().toEpochMilli() / intervalMillis))
             .atZone(ZoneOffset.UTC);

@@ -20,6 +20,7 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
@@ -186,5 +187,36 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(epochMillisFormatter.hashCode(), is(DateFormatters.forPattern("epoch_millis").hashCode()));
         assertThat(epochMillisFormatter, sameInstance(DateFormatters.forPattern("epoch_millis")));
         assertThat(epochMillisFormatter, equalTo(DateFormatters.forPattern("epoch_millis")));
+    }
+
+    public void testThatRootObjectParsingIsStrict() {
+        String[] datesThatWork = new String[] { "2014/10/10", "2014/10/10 12:12:12", "2014-05-05",  "2014-05-05T12:12:12.123Z" };
+        String[] datesThatShouldNotWork = new String[]{ "5-05-05", "2014-5-05", "2014-05-5",
+                "2014-05-05T1:12:12.123Z", "2014-05-05T12:1:12.123Z", "2014-05-05T12:12:1.123Z",
+                "4/10/10", "2014/1/10", "2014/10/1",
+                "2014/10/10 1:12:12", "2014/10/10 12:1:12", "2014/10/10 12:12:1"
+        };
+
+        // good case
+        for (String date : datesThatWork) {
+            boolean dateParsingSuccessful = false;
+            for (DateFormatter dateTimeFormatter : RootObjectMapper.Defaults.DYNAMIC_DATE_TIME_FORMATTERS) {
+                try {
+                    dateTimeFormatter.parse(date);
+                    dateParsingSuccessful = true;
+                    break;
+                } catch (Exception e) {}
+            }
+            if (!dateParsingSuccessful) {
+                fail("Parsing for date " + date + " in root object mapper failed, but shouldnt");
+            }
+        }
+
+        // bad case
+        for (String date : datesThatShouldNotWork) {
+            for (DateFormatter dateTimeFormatter : RootObjectMapper.Defaults.DYNAMIC_DATE_TIME_FORMATTERS) {
+                expectThrows(Exception.class, () -> dateTimeFormatter.parse(date));
+            }
+        }
     }
 }

@@ -86,10 +86,6 @@ import java.nio.charset.Charset;
 import java.util.Locale;
 import java.util.StringJoiner;
 
-/**
- * A set of methods used to facilitate conversion of specific actions requests into generic {@link Request}. These are meant to be helper
- * methods used by subclients, which need to send generic {@link Request}'s down to the {@link RestClient}.
- */
 public final class RequestConverters {
     public static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
 

@@ -43,7 +43,7 @@ public class ResumeFollowActionRequestTests extends AbstractStreamableXContentTe
 
     static ResumeFollowAction.Request createTestRequest() {
         ResumeFollowAction.Request request = new ResumeFollowAction.Request();
-        request.setLeaderClusterAlias(randomAlphaOfLength(4));
+        request.setLeaderCluster(randomAlphaOfLength(4));
         request.setLeaderIndex(randomAlphaOfLength(4));
         request.setFollowerIndex(randomAlphaOfLength(4));
         if (randomBoolean()) {

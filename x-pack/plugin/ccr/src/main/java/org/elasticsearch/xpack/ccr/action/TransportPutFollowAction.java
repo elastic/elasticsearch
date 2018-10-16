@@ -96,7 +96,7 @@ public final class TransportPutFollowAction
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
-        String clusterAlias = request.getFollowRequest().getLeaderClusterAlias();
+        String clusterAlias = request.getFollowRequest().getLeaderCluster();
         if (clusterAlias == null) {
             createFollowerIndexAndFollowLocalIndex(request, state, listener);
         } else {

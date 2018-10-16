@@ -306,7 +306,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
 
             ResumeFollowAction.Request request = new ResumeFollowAction.Request();
             if ("_local_".equals(clusterAlias) == false) {
-                request.setLeaderClusterAlias(clusterAlias);
+                request.setLeaderCluster(clusterAlias);
             }
             request.setLeaderIndex(indexToFollow.getName());
             request.setFollowerIndex(followIndexName);

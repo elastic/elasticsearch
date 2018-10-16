@@ -41,7 +41,7 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
     @Override
     protected PutAutoFollowPatternAction.Request createTestInstance() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setLeaderClusterAlias(randomAlphaOfLength(4));
+        request.setLeaderCluster(randomAlphaOfLength(4));
         request.setLeaderIndexPatterns(Arrays.asList(generateRandomStringArray(4, 4, false)));
         if (randomBoolean()) {
             request.setFollowIndexNamePattern(randomAlphaOfLength(4));
@@ -76,7 +76,7 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[leader_cluster] is missing"));
 
-        request.setLeaderClusterAlias("_alias");
+        request.setLeaderCluster("_alias");
         validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[leader_index_patterns] is missing"));

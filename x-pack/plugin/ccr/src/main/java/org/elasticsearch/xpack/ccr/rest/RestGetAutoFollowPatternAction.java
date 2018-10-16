@@ -33,7 +33,7 @@ public class RestGetAutoFollowPatternAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         Request request = new Request();
-        request.setLeaderClusterAlias(restRequest.param("leader_cluster"));
+        request.setLeaderCluster(restRequest.param("leader_cluster"));
         return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

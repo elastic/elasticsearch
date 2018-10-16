@@ -84,7 +84,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), HEADERS);
     }
 
-    private final String leaderClusterAlias;
+    private final String leaderCluster;
     private final ShardId followShardId;
     private final ShardId leaderShardId;
     private final int maxBatchOperationCount;
@@ -97,7 +97,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     private final Map<String, String> headers;
 
     ShardFollowTask(
-            final String leaderClusterAlias,
+            final String leaderCluster,
             final ShardId followShardId,
             final ShardId leaderShardId,
             final int maxBatchOperationCount,
@@ -108,7 +108,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
             final TimeValue maxRetryDelay,
             final TimeValue pollTimeout,
             final Map<String, String> headers) {
-        this.leaderClusterAlias = leaderClusterAlias;
+        this.leaderCluster = leaderCluster;
         this.followShardId = followShardId;
         this.leaderShardId = leaderShardId;
         this.maxBatchOperationCount = maxBatchOperationCount;
@@ -122,7 +122,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     }
 
     public ShardFollowTask(StreamInput in) throws IOException {
-        this.leaderClusterAlias = in.readOptionalString();
+        this.leaderCluster = in.readOptionalString();
         this.followShardId = ShardId.readShardId(in);
         this.leaderShardId = ShardId.readShardId(in);
         this.maxBatchOperationCount = in.readVInt();
@@ -135,8 +135,8 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
     }
 
-    public String getLeaderClusterAlias() {
-        return leaderClusterAlias;
+    public String getLeaderCluster() {
+        return leaderCluster;
     }
 
     public ShardId getFollowShardId() {
@@ -190,7 +190,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(leaderClusterAlias);
+        out.writeOptionalString(leaderCluster);
         followShardId.writeTo(out);
         leaderShardId.writeTo(out);
         out.writeVLong(maxBatchOperationCount);
@@ -210,8 +210,8 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (leaderClusterAlias != null) {
-            builder.field(LEADER_CLUSTER_FIELD.getPreferredName(), leaderClusterAlias);
+        if (leaderCluster != null) {
+            builder.field(LEADER_CLUSTER_FIELD.getPreferredName(), leaderCluster);
         }
         builder.field(FOLLOW_SHARD_INDEX_FIELD.getPreferredName(), followShardId.getIndex().getName());
         builder.field(FOLLOW_SHARD_INDEX_UUID_FIELD.getPreferredName(), followShardId.getIndex().getUUID());
@@ -235,7 +235,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ShardFollowTask that = (ShardFollowTask) o;
-        return Objects.equals(leaderClusterAlias, that.leaderClusterAlias) &&
+        return Objects.equals(leaderCluster, that.leaderCluster) &&
                 Objects.equals(followShardId, that.followShardId) &&
                 Objects.equals(leaderShardId, that.leaderShardId) &&
                 maxBatchOperationCount == that.maxBatchOperationCount &&
@@ -251,7 +251,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     @Override
     public int hashCode() {
         return Objects.hash(
-                leaderClusterAlias,
+            leaderCluster,
                 followShardId,
                 leaderShardId,
                 maxBatchOperationCount,

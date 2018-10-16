@@ -28,7 +28,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
 
     public void testInnerPut() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setLeaderClusterAlias("eu_cluster");
+        request.setLeaderCluster("eu_cluster");
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
         ClusterState localState = ClusterState.builder(new ClusterName("us_cluster"))
@@ -51,7 +51,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
 
     public void testInnerPut_existingLeaderIndices() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setLeaderClusterAlias("eu_cluster");
+        request.setLeaderCluster("eu_cluster");
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
         ClusterState localState = ClusterState.builder(new ClusterName("us_cluster"))
@@ -90,7 +90,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
 
     public void testInnerPut_existingLeaderIndicesAndAutoFollowMetadata() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setLeaderClusterAlias("eu_cluster");
+        request.setLeaderCluster("eu_cluster");
         request.setLeaderIndexPatterns(Arrays.asList("logs-*", "transactions-*"));
 
         Map<String, AutoFollowMetadata.AutoFollowPattern> existingAutoFollowPatterns = new HashMap<>();

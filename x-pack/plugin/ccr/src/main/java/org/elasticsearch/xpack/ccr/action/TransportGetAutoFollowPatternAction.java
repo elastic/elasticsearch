@@ -55,7 +55,7 @@ public class TransportGetAutoFollowPatternAction
     protected void masterOperation(GetAutoFollowPatternAction.Request request,
                                    ClusterState state,
                                    ActionListener<GetAutoFollowPatternAction.Response> listener) throws Exception {
-        Map<String, AutoFollowPattern> autoFollowPatterns = getAutoFollowPattern(state.metaData(), request.getLeaderClusterAlias());
+        Map<String, AutoFollowPattern> autoFollowPatterns = getAutoFollowPattern(state.metaData(), request.getLeaderCluster());
         listener.onResponse(new GetAutoFollowPatternAction.Response(autoFollowPatterns));
     }
 

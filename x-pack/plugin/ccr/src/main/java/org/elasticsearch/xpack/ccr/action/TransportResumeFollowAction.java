@@ -98,7 +98,7 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
-        final String clusterAlias = request.getLeaderClusterAlias();
+        final String clusterAlias = request.getLeaderCluster();
         if (clusterAlias == null) {
             followLocalIndex(request, listener);
         } else {

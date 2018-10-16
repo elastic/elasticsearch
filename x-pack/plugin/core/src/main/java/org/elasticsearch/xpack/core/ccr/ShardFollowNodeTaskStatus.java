@@ -144,10 +144,10 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                 FETCH_EXCEPTIONS_ENTRY_EXCEPTION);
     }
 
-    private final String leaderClusterAlias;
+    private final String leaderCluster;
 
-    public String getLeaderClusterAlias() {
-        return leaderClusterAlias;
+    public String getLeaderCluster() {
+        return leaderCluster;
     }
 
     private final String leaderIndex;
@@ -295,7 +295,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     }
 
     public ShardFollowNodeTaskStatus(
-            final String leaderClusterAlias,
+            final String leaderCluster,
             final String leaderIndex,
             final String followerIndex,
             final int shardId,
@@ -320,7 +320,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
             final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> fetchExceptions,
             final long timeSinceLastFetchMillis,
             final ElasticsearchException fatalException) {
-        this.leaderClusterAlias = leaderClusterAlias;
+        this.leaderCluster = leaderCluster;
         this.leaderIndex = leaderIndex;
         this.followerIndex = followerIndex;
         this.shardId = shardId;
@@ -348,7 +348,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     }
 
     public ShardFollowNodeTaskStatus(final StreamInput in) throws IOException {
-        this.leaderClusterAlias = in.readOptionalString();
+        this.leaderCluster = in.readOptionalString();
         this.leaderIndex = in.readString();
         this.followerIndex = in.readString();
         this.shardId = in.readVInt();
@@ -383,7 +383,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        out.writeOptionalString(leaderClusterAlias);
+        out.writeOptionalString(leaderCluster);
         out.writeString(leaderIndex);
         out.writeString(followerIndex);
         out.writeVInt(shardId);
@@ -427,7 +427,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     }
 
     public XContentBuilder toXContentFragment(final XContentBuilder builder, final Params params) throws IOException {
-        builder.field(LEADER_CLUSTER.getPreferredName(), leaderClusterAlias);
+        builder.field(LEADER_CLUSTER.getPreferredName(), leaderCluster);
         builder.field(LEADER_INDEX.getPreferredName(), leaderIndex);
         builder.field(FOLLOWER_INDEX.getPreferredName(), followerIndex);
         builder.field(SHARD_ID.getPreferredName(), shardId);
@@ -502,7 +502,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         final ShardFollowNodeTaskStatus that = (ShardFollowNodeTaskStatus) o;
         String fatalExceptionMessage = fatalException != null ? fatalException.getMessage() : null;
         String otherFatalExceptionMessage = that.fatalException != null ? that.fatalException.getMessage() : null;
-        return leaderClusterAlias.equals(that.leaderClusterAlias) &&
+        return leaderCluster.equals(that.leaderCluster) &&
                 leaderIndex.equals(that.leaderIndex) &&
                 followerIndex.equals(that.followerIndex) &&
                 shardId == that.shardId &&
@@ -538,7 +538,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     public int hashCode() {
         String fatalExceptionMessage = fatalException != null ? fatalException.getMessage() : null;
         return Objects.hash(
-            leaderClusterAlias,
+            leaderCluster,
                 leaderIndex,
                 followerIndex,
                 shardId,

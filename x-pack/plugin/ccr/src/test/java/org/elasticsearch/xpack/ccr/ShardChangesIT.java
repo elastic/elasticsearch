@@ -776,7 +776,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureGreen("index1");
         PutFollowAction.Request followRequest = follow("index1", "index2");
-        followRequest.getFollowRequest().setLeaderClusterAlias("leader_cluster");
+        followRequest.getFollowRequest().setLeaderCluster("leader_cluster");
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> client().execute(PutFollowAction.INSTANCE, followRequest).actionGet());
         assertThat(e.getMessage(), equalTo("unknown cluster alias [leader_cluster]"));
@@ -784,7 +784,7 @@ public class ShardChangesIT extends ESIntegTestCase {
             () -> client().execute(ResumeFollowAction.INSTANCE, followRequest.getFollowRequest()).actionGet());
         assertThat(e.getMessage(), equalTo("unknown cluster alias [leader_cluster]"));
         PutAutoFollowPatternAction.Request putAutoFollowRequest = new PutAutoFollowPatternAction.Request();
-        putAutoFollowRequest.setLeaderClusterAlias("leader_cluster");
+        putAutoFollowRequest.setLeaderCluster("leader_cluster");
         putAutoFollowRequest.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
         e = expectThrows(IllegalArgumentException.class,
             () -> client().execute(PutAutoFollowPatternAction.INSTANCE, putAutoFollowRequest).actionGet());

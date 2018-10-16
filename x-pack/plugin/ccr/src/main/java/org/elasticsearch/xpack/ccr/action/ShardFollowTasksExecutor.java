@@ -67,7 +67,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     @Override
     public void validate(ShardFollowTask params, ClusterState clusterState) {
-        if (params.getLeaderClusterAlias() == null) {
+        if (params.getLeaderCluster() == null) {
             // We can only validate IndexRoutingTable in local cluster,
             // for remote cluster we would need to make a remote call and we cannot do this here.
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(params.getLeaderShardId().getIndex());
@@ -88,8 +88,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                  Map<String, String> headers) {
         ShardFollowTask params = taskInProgress.getParams();
         final Client leaderClient;
-        if (params.getLeaderClusterAlias() != null) {
-            leaderClient = wrapClient(client.getRemoteClusterClient(params.getLeaderClusterAlias()), params.getHeaders());
+        if (params.getLeaderCluster() != null) {
+            leaderClient = wrapClient(client.getRemoteClusterClient(params.getLeaderCluster()), params.getHeaders());
         } else {
             leaderClient = wrapClient(client, params.getHeaders());
         }

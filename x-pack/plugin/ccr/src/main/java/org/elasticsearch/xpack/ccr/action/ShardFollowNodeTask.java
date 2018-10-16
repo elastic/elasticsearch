@@ -435,7 +435,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             timeSinceLastFetchMillis = -1;
         }
         return new ShardFollowNodeTaskStatus(
-                params.getLeaderClusterAlias(),
+                params.getLeaderCluster(),
                 params.getLeaderShardId().getIndexName(),
                 params.getFollowShardId().getIndexName(),
                 getFollowShardId().getId(),

@@ -111,8 +111,8 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
         if (disableBeforeIndexDeletion == false) {
             super.beforeIndexDeletion();
             internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
-            assertSeqNos();
-            assertSameDocIdsOnShards();
+            internalCluster().assertSeqNos();
+            internalCluster().assertSameDocIdsOnShards();
         }
     }
 

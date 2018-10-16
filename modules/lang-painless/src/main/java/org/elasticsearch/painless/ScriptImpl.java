@@ -109,8 +109,4 @@ final class ScriptImpl extends SearchScript {
         return ((Number)run()).doubleValue();
     }
 
-    @Override
-    public long runAsLong() {
-        return ((Number)run()).longValue();
-    }
 }

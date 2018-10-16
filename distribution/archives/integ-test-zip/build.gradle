@@ -18,6 +18,17 @@
  */
 
 integTestRunner {
-  systemProperty 'tests.logfile',
-    "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }.log"
+  /*
+   * There are two unique things going on here:
+   * 1. These tests can be run against an external cluster with
+   *    -Dtests.rest.cluster=whatever and -Dtest.cluster=whatever
+   * 2. *One* of these tests is incompatible with that and should be skipped
+   *    when running against an external cluster.
+   */
+  if (System.getProperty("tests.rest.cluster") == null) {
+    systemProperty 'tests.logfile',
+      "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }.log"
+  } else {
+    systemProperty 'tests.logfile', '--external--'
+  }
 }

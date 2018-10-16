@@ -13,15 +13,18 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class TransportPauseFollowAction extends TransportMasterNodeAction<PauseFollowAction.Request, AcknowledgedResponse> {
 
@@ -55,17 +58,31 @@ public class TransportPauseFollowAction extends TransportMasterNodeAction<PauseF
     protected void masterOperation(PauseFollowAction.Request request,
                                    ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) throws Exception {
-        IndexMetaData followIndexMetadata = state.getMetaData().index(request.getFollowIndex());
-        if (followIndexMetadata == null) {
-            listener.onFailure(new IllegalArgumentException("follow index [" + request.getFollowIndex() + "] does not exist"));
+        PersistentTasksCustomMetaData persistentTasksMetaData = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+        if (persistentTasksMetaData == null) {
+            listener.onFailure(new IllegalArgumentException("no shard follow tasks for [" + request.getFollowIndex() + "]"));
             return;
         }
 
-        final int numShards = followIndexMetadata.getNumberOfShards();
-        final ResponseHandler responseHandler = new ResponseHandler(numShards, listener);
-        for (int shardId = 0; shardId < numShards; shardId++) {
-            String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
-            persistentTasksService.sendRemoveRequest(taskId, responseHandler.getActionListener(shardId));
+        List<String> shardFollowTaskIds = persistentTasksMetaData.tasks().stream()
+            .filter(persistentTask -> ShardFollowTask.NAME.equals(persistentTask.getTaskName()))
+            .filter(persistentTask -> {
+                ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
+                return shardFollowTask.getFollowShardId().getIndexName().equals(request.getFollowIndex());
+            })
+            .map(PersistentTasksCustomMetaData.PersistentTask::getId)
+            .collect(Collectors.toList());
+
+        if (shardFollowTaskIds.isEmpty()) {
+            listener.onFailure(new IllegalArgumentException("no shard follow tasks for [" + request.getFollowIndex() + "]"));
+            return;
+        }
+
+        int i = 0;
+        final ResponseHandler responseHandler = new ResponseHandler(shardFollowTaskIds.size(), listener);
+        for (String taskId : shardFollowTaskIds) {
+            final int taskSlot = i++;
+            persistentTasksService.sendRemoveRequest(taskId, responseHandler.getActionListener(taskSlot));
         }
     }
 

@@ -606,7 +606,7 @@ public class InternalEngine extends Engine {
                                     // in the case of a already pruned translog generation we might get null here - yet very unlikely
                                     TranslogLeafReader reader = new TranslogLeafReader((Translog.Index) operation, engineConfig
                                         .getIndexSettings().getIndexVersionCreated());
-                                    return new GetResult(new Searcher("realtime_get", new IndexSearcher(reader), logger),
+                                    return new GetResult(new Searcher("realtime_get", new IndexSearcher(reader), reader::close),
                                         new VersionsAndSeqNoResolver.DocIdAndVersion(0, ((Translog.Index) operation).version(), reader, 0));
                                 }
                             } catch (IOException e) {
@@ -1086,7 +1086,7 @@ public class InternalEngine extends Engine {
             return new IndexingStrategy(true, false, true, false, seqNoForIndexing, versionForIndexing, null);
         }
 
-        static IndexingStrategy skipDueToVersionConflict(
+        public static IndexingStrategy skipDueToVersionConflict(
                 VersionConflictEngineException e, boolean currentNotFoundOrDeleted, long currentVersion, long term) {
             final IndexResult result = new IndexResult(e, currentVersion, term);
             return new IndexingStrategy(
@@ -1343,7 +1343,7 @@ public class InternalEngine extends Engine {
                 Optional.empty() : Optional.of(earlyResultOnPreflightError);
         }
 
-        static DeletionStrategy skipDueToVersionConflict(
+        public static DeletionStrategy skipDueToVersionConflict(
                 VersionConflictEngineException e, long currentVersion, long term, boolean currentlyDeleted) {
             final long unassignedSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
             final DeleteResult deleteResult = new DeleteResult(e, currentVersion, term, unassignedSeqNo, currentlyDeleted == false);
@@ -2086,7 +2086,7 @@ public class InternalEngine extends Engine {
             if (warmer != null) {
                 try {
                     assert searcher.getIndexReader() instanceof ElasticsearchDirectoryReader : "this class needs an ElasticsearchDirectoryReader but got: " + searcher.getIndexReader().getClass();
-                    warmer.warm(new Searcher("top_reader_warming", searcher, s -> {}, logger));
+                    warmer.warm(new Searcher("top_reader_warming", searcher, () -> {}));
                 } catch (Exception e) {
                     if (isEngineClosed.get() == false) {
                         logger.warn("failed to prepare/warm", e);

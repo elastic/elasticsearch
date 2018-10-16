@@ -292,8 +292,8 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
 
         logger.info("decrease number of replicas to 0");
         clusterState = ClusterState.builder(clusterState)
-            .routingTable(RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(0, "test").build())
-            .metaData(MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(0, "test")).build();
+            .routingTable(RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(0, new String[]{"test"}).build())
+            .metaData(MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(0, new String[]{"test"})).build();
 
         logger.info("add back node 1");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(

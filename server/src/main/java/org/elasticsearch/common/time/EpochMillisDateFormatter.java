@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.time;
 
-import org.elasticsearch.ElasticsearchParseException;
-
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.ZoneId;

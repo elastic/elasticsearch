@@ -31,6 +31,7 @@ import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.TaskState
+import org.gradle.plugins.ide.idea.IdeaPlugin
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -243,10 +244,12 @@ public class RestIntegTestTask extends DefaultTask {
                 }
             }
         }
-        project.idea {
-            module {
-                if (scopes.TEST != null) {
-                    scopes.TEST.plus.add(project.configurations.restSpec)
+        if (project.plugins.hasPlugin(IdeaPlugin)) {
+            project.idea {
+                module {
+                    if (scopes.TEST != null) {
+                        scopes.TEST.plus.add(project.configurations.restSpec)
+                    }
                 }
             }
         }

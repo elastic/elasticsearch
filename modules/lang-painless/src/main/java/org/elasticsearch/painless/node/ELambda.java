@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -38,8 +37,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-
-import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
 /**
  * Lambda expression node.
@@ -118,29 +115,30 @@ public final class ELambda extends AExpression implements ILambda {
                     actualParamTypeStrs.add(type);
                 }
             }
+
         } else {
             // we know the method statically, infer return type and any unknown/def types
-            interfaceMethod = locals.getPainlessLookup().getPainlessStructFromJavaClass(expected).functionalMethod;
+            interfaceMethod = locals.getPainlessLookup().lookupFunctionalInterfacePainlessMethod(expected);
             if (interfaceMethod == null) {
                 throw createError(new IllegalArgumentException("Cannot pass lambda to " +
                         "[" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "], not a functional interface"));
             }
             // check arity before we manipulate parameters
-            if (interfaceMethod.arguments.size() != paramTypeStrs.size())
-                throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.name +
+            if (interfaceMethod.typeParameters.size() != paramTypeStrs.size())
+                throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.javaMethod.getName() +
                         "] in [" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "]");
             // for method invocation, its allowed to ignore the return value
-            if (interfaceMethod.rtn == void.class) {
+            if (interfaceMethod.returnType == void.class) {
                 returnType = def.class;
             } else {
-                returnType = interfaceMethod.rtn;
+                returnType = interfaceMethod.returnType;
             }
             // replace any null types with the actual type
             actualParamTypeStrs = new ArrayList<>(paramTypeStrs.size());
             for (int i = 0; i < paramTypeStrs.size(); i++) {
                 String paramType = paramTypeStrs.get(i);
                 if (paramType == null) {
-                    actualParamTypeStrs.add(PainlessLookupUtility.typeToCanonicalTypeName(interfaceMethod.arguments.get(i)));
+                    actualParamTypeStrs.add(PainlessLookupUtility.typeToCanonicalTypeName(interfaceMethod.typeParameters.get(i)));
                 } else {
                     actualParamTypeStrs.add(paramType);
                 }
@@ -172,7 +170,7 @@ public final class ELambda extends AExpression implements ILambda {
         desugared = new SFunction(reserved, location, PainlessLookupUtility.typeToCanonicalTypeName(returnType), name,
                                   paramTypes, paramNames, statements, true);
         desugared.generateSignature(locals.getPainlessLookup());
-        desugared.analyze(Locals.newLambdaScope(locals.getProgramScope(), returnType,
+        desugared.analyze(Locals.newLambdaScope(locals.getProgramScope(), desugared.name, returnType,
                                                 desugared.parameters, captures.size(), reserved.getMaxLoopCounter()));
 
         // setup method reference to synthetic method
@@ -182,23 +180,8 @@ public final class ELambda extends AExpression implements ILambda {
             defPointer = "Sthis." + name + "," + captures.size();
         } else {
             defPointer = null;
-            try {
-                ref = new FunctionRef(expected, interfaceMethod, desugared.method, captures.size());
-            } catch (IllegalArgumentException e) {
-                throw createError(e);
-            }
-
-            // check casts between the interface method and the delegate method are legal
-            for (int i = 0; i < interfaceMethod.arguments.size(); ++i) {
-                Class<?> from = interfaceMethod.arguments.get(i);
-                Class<?> to = desugared.parameters.get(i + captures.size()).clazz;
-                AnalyzerCaster.getLegalCast(location, from, to, false, true);
-            }
-
-            if (interfaceMethod.rtn != void.class) {
-                AnalyzerCaster.getLegalCast(location, desugared.rtnType, interfaceMethod.rtn, false, true);
-            }
-
+            ref = FunctionRef.create(
+                    locals.getPainlessLookup(), locals.getMethods(), location, expected, "this", desugared.name, captures.size());
             actual = expected;
         }
     }
@@ -214,17 +197,7 @@ public final class ELambda extends AExpression implements ILambda {
                 writer.visitVarInsn(MethodWriter.getType(capture.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
             }
 
-            writer.invokeDynamic(
-                ref.interfaceMethodName,
-                ref.factoryDescriptor,
-                LAMBDA_BOOTSTRAP_HANDLE,
-                ref.interfaceType,
-                ref.delegateClassName,
-                ref.delegateInvokeType,
-                ref.delegateMethodName,
-                ref.delegateType,
-                ref.isDelegateInterface ? 1 : 0
-            );
+            writer.invokeLambdaCall(ref);
         } else {
             // placeholder
             writer.push((String)null);

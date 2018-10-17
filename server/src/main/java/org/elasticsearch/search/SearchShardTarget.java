@@ -19,9 +19,6 @@
 
 package org.elasticsearch.search;
 
-import java.io.IOException;
-
-import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,6 +28,8 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RemoteClusterAware;
+
+import java.io.IOException;
 
 /**
  * The target that the search request was executed on.
@@ -52,11 +51,7 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
         }
         shardId = ShardId.readShardId(in);
         this.originalIndices = null;
-        if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
-            clusterAlias = in.readOptionalString();
-        } else {
-            clusterAlias = null;
-        }
+        clusterAlias = in.readOptionalString();
     }
 
     public SearchShardTarget(String nodeId, ShardId shardId, String clusterAlias, OriginalIndices originalIndices) {
@@ -96,6 +91,13 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
         return clusterAlias;
     }
 
+    /**
+     * Returns the fully qualified index name, including the cluster alias.
+     */
+    public String getFullyQualifiedIndexName() {
+        return RemoteClusterAware.buildRemoteIndexName(getClusterAlias(), getIndex());
+    }
+
     @Override
     public int compareTo(SearchShardTarget o) {
         int i = shardId.getIndexName().compareTo(o.getIndex());
@@ -114,9 +116,7 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
             out.writeText(nodeId);
         }
         shardId.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
-            out.writeOptionalString(clusterAlias);
-        }
+        out.writeOptionalString(clusterAlias);
     }
 
     @Override

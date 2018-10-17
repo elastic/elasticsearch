@@ -351,15 +351,16 @@ public class BigArraysTests extends ESTestCase {
 
     public void testMaxSizeExceededOnResize() throws Exception {
         for (String type : Arrays.asList("Byte", "Int", "Long", "Float", "Double", "Object")) {
-            final long maxSize = randomIntBetween(1 << 10, 1 << 22);
+            final int maxSize = randomIntBetween(1 << 8, 1 << 14);
             HierarchyCircuitBreakerService hcbs = new HierarchyCircuitBreakerService(
                     Settings.builder()
                             .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
+                            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
                             .build(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
             BigArrays bigArrays = new BigArrays(null, hcbs, false).withCircuitBreaking();
             Method create = BigArrays.class.getMethod("new" + type + "Array", long.class);
-            final int size = scaledRandomIntBetween(1, 20);
+            final int size = scaledRandomIntBetween(10, maxSize / 16);
             BigArray array = (BigArray) create.invoke(bigArrays, size);
             Method resize = BigArrays.class.getMethod("resize", array.getClass().getInterfaces()[0], long.class);
             while (true) {
@@ -418,6 +419,7 @@ public class BigArraysTests extends ESTestCase {
         HierarchyCircuitBreakerService hcbs = new HierarchyCircuitBreakerService(
             Settings.builder()
                 .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
+                .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
                 .build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         BigArrays bigArrays = new BigArrays(null, hcbs, false);

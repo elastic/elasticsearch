@@ -6,7 +6,17 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.whitelist;
 
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringNumericProcessor.BinaryStringNumericOperation;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringStringProcessor.BinaryStringStringOperation;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.ConcatFunctionProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.InsertFunctionProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.LocateFunctionProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.ReplaceFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFunctionProcessor;
 
 /**
  * Whitelisted class for SQL scripts.
@@ -19,6 +29,26 @@ public final class InternalSqlScriptUtils {
 
     public static Integer dateTimeChrono(long millis, String tzId, String chronoName) {
         return DateTimeFunction.dateTimeChrono(millis, tzId, chronoName);
+    }
+    
+    public static String dayName(long millis, String tzId) {
+        return NameExtractor.DAY_NAME.extract(millis, tzId);
+    }
+    
+    public static String monthName(long millis, String tzId) {
+        return NameExtractor.MONTH_NAME.extract(millis, tzId);
+    }
+    
+    public static Integer quarter(long millis, String tzId) {
+        return QuarterProcessor.quarter(millis, tzId);
+    }
+    
+    public static Number round(Number v, Number s) {
+        return BinaryMathOperation.ROUND.apply(v, s);
+    }
+    
+    public static Number truncate(Number v, Number s) {
+        return BinaryMathOperation.TRUNCATE.apply(v, s);
     }
     
     public static Integer ascii(String s) {
@@ -37,27 +67,71 @@ public final class InternalSqlScriptUtils {
         return (Integer) StringOperation.CHAR_LENGTH.apply(s);
     }
     
+    public static String concat(String s1, String s2) {
+        return ConcatFunctionProcessor.doProcessInScripts(s1, s2).toString();
+    }
+    
+    public static String insert(String s, int start, int length, String r) {
+        return InsertFunctionProcessor.doProcess(s, start, length, r).toString();
+    }
+    
     public static String lcase(String s) {
         return (String) StringOperation.LCASE.apply(s);
     }
     
-    public static String ucase(String s) {
-        return (String) StringOperation.UCASE.apply(s);
+    public static String left(String s, int count) {
+        return BinaryStringNumericOperation.LEFT.apply(s, count);
     }
     
     public static Integer length(String s) {
         return (Integer) StringOperation.LENGTH.apply(s);
     }
     
-    public static String rtrim(String s) {
-        return (String) StringOperation.RTRIM.apply(s);
+    public static Integer locate(String s1, String s2) {
+        return locate(s1, s2, null);
+    }
+    
+    public static Integer locate(String s1, String s2, Integer pos) {
+        return (Integer) LocateFunctionProcessor.doProcess(s1, s2, pos);
     }
     
     public static String ltrim(String s) {
         return (String) StringOperation.LTRIM.apply(s);
     }
     
+    public static Integer octetLength(String s) {
+        return (Integer) StringOperation.OCTET_LENGTH.apply(s);
+    }
+    
+    public static Integer position(String s1, String s2) {
+        return (Integer) BinaryStringStringOperation.POSITION.apply(s1, s2);
+    }
+    
+    public static String repeat(String s, int count) {
+        return BinaryStringNumericOperation.REPEAT.apply(s, count);
+    }
+    
+    public static String replace(String s1, String s2, String s3) {
+        return ReplaceFunctionProcessor.doProcess(s1, s2, s3).toString();
+    }
+    
+    public static String right(String s, int count) {
+        return BinaryStringNumericOperation.RIGHT.apply(s, count);
+    }
+    
+    public static String rtrim(String s) {
+        return (String) StringOperation.RTRIM.apply(s);
+    }
+    
     public static String space(Number n) {
         return (String) StringOperation.SPACE.apply(n);
+    }
+    
+    public static String substring(String s, int start, int length) {
+        return SubstringFunctionProcessor.doProcess(s, start, length).toString();
+    }
+    
+    public static String ucase(String s) {
+        return (String) StringOperation.UCASE.apply(s);
     }
 }

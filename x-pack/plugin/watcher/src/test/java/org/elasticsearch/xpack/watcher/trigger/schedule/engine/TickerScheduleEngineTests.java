@@ -50,8 +50,12 @@ public class TickerScheduleEngineTests extends ESTestCase {
     }
 
     private TriggerEngine createEngine() {
-        return new TickerScheduleTriggerEngine(Settings.EMPTY,
-                mock(ScheduleRegistry.class), clock);
+        Settings settings = Settings.EMPTY;
+        // having a low value here speeds up the tests tremendously, we still want to run with the defaults every now and then
+        if (usually()) {
+            settings = Settings.builder().put(TickerScheduleTriggerEngine.TICKER_INTERVAL_SETTING.getKey(), "10ms").build();
+        }
+        return new TickerScheduleTriggerEngine(settings, mock(ScheduleRegistry.class), clock);
     }
 
     private void advanceClockIfNeeded(DateTime newCurrentDateTime) {
@@ -251,7 +255,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
     }
 
     private Watch createWatch(String name, Schedule schedule) {
-        return new Watch(name, new ScheduleTrigger(schedule), new ExecutableNoneInput(logger),
+        return new Watch(name, new ScheduleTrigger(schedule), new ExecutableNoneInput(),
                 InternalAlwaysCondition.INSTANCE, null, null,
                 Collections.emptyList(), null, null, Versions.MATCH_ANY);
     }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.security.authz.store;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -21,9 +22,12 @@ import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
-public class ReservedRolesStore {
+public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
 
     public static final RoleDescriptor SUPERUSER_ROLE_DESCRIPTOR = new RoleDescriptor("superuser",
             new String[] { "all" },
@@ -112,6 +116,8 @@ public class ReservedRolesStore {
                     null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put(UsernamesField.BEATS_ROLE, new RoleDescriptor(UsernamesField.BEATS_ROLE,
                         new String[] { "monitor", MonitoringBulkAction.NAME}, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                .put(UsernamesField.APM_ROLE, new RoleDescriptor(UsernamesField.APM_ROLE,
+                        new String[] { "monitor", MonitoringBulkAction.NAME}, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("machine_learning_user", new RoleDescriptor("machine_learning_user", new String[] { "monitor_ml" },
                         new RoleDescriptor.IndicesPrivileges[] { RoleDescriptor.IndicesPrivileges.builder().indices(".ml-anomalies*",
                                 ".ml-notifications").privileges("view_index_metadata", "read").build() },
@@ -162,5 +168,19 @@ public class ReservedRolesStore {
 
     public static Set<String> names() {
         return RESERVED_ROLES.keySet();
+    }
+
+    @Override
+    public void accept(Set<String> roleNames, ActionListener<RoleRetrievalResult> listener) {
+        final Set<RoleDescriptor> descriptors = roleNames.stream()
+            .map(RESERVED_ROLES::get)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        listener.onResponse(RoleRetrievalResult.success(descriptors));
+    }
+
+    @Override
+    public String toString() {
+        return "reserved roles store";
     }
 }

@@ -19,6 +19,7 @@ public class ClientReservedRealm {
             case UsernamesField.KIBANA_NAME:
             case UsernamesField.LOGSTASH_NAME:
             case UsernamesField.BEATS_NAME:
+            case UsernamesField.APM_NAME:
                 return XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
             default:
                 return AnonymousUser.isAnonymousUsername(username, settings);

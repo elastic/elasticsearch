@@ -23,6 +23,7 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Locals.LocalMethod;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -30,8 +31,6 @@ import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.SimpleChecksAdapter;
 import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.node.SFunction.FunctionReserved;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
@@ -70,6 +69,7 @@ import static org.elasticsearch.painless.WriterConstants.EXCEPTION_TYPE;
 import static org.elasticsearch.painless.WriterConstants.GET_NAME_METHOD;
 import static org.elasticsearch.painless.WriterConstants.GET_SOURCE_METHOD;
 import static org.elasticsearch.painless.WriterConstants.GET_STATEMENTS_METHOD;
+import static org.elasticsearch.painless.WriterConstants.MAP_TYPE;
 import static org.elasticsearch.painless.WriterConstants.OUT_OF_MEMORY_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD;
@@ -164,27 +164,31 @@ public final class SSource extends AStatement {
         throw new IllegalStateException("Illegal tree structure.");
     }
 
-    public void analyze(PainlessLookup painlessLookup) {
-        Map<String, PainlessMethod> methods = new HashMap<>();
+    public Map<String, LocalMethod> analyze(PainlessLookup painlessLookup) {
+        Map<String, LocalMethod> methods = new HashMap<>();
 
         for (SFunction function : functions) {
             function.generateSignature(painlessLookup);
 
-            String key = PainlessLookupUtility.buildPainlessMethodKey(function.name, function.parameters.size());
+            String key = Locals.buildLocalMethodKey(function.name, function.parameters.size());
 
-            if (methods.put(key, function.method) != null) {
+            if (methods.put(key,
+                    new LocalMethod(function.name, function.returnType, function.typeParameters, function.methodType)) != null) {
                 throw createError(new IllegalArgumentException("Duplicate functions with name [" + function.name + "]."));
             }
         }
 
-        analyze(Locals.newProgramScope(painlessLookup, methods.values()));
+        Locals locals = Locals.newProgramScope(painlessLookup, methods.values());
+        analyze(locals);
+
+        return locals.getMethods();
     }
 
     @Override
     void analyze(Locals program) {
         for (SFunction function : functions) {
             Locals functionLocals =
-                Locals.newFunctionScope(program, function.rtnType, function.parameters, function.reserved.getMaxLoopCounter());
+                Locals.newFunctionScope(program, function.returnType, function.parameters, function.reserved.getMaxLoopCounter());
             function.analyze(functionLocals);
         }
 
@@ -253,6 +257,7 @@ public final class SSource extends AStatement {
                 globals.getStatements(), settings);
         bootstrapDef.visitCode();
         bootstrapDef.getStatic(CLASS_TYPE, "$DEFINITION", DEFINITION_TYPE);
+        bootstrapDef.getStatic(CLASS_TYPE, "$LOCALS", MAP_TYPE);
         bootstrapDef.loadArgs();
         bootstrapDef.invokeStatic(DEF_BOOTSTRAP_DELEGATE_TYPE, DEF_BOOTSTRAP_DELEGATE_METHOD);
         bootstrapDef.returnValue();
@@ -263,8 +268,9 @@ public final class SSource extends AStatement {
         visitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$SOURCE", STRING_TYPE.getDescriptor(), null, null).visitEnd();
         visitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$STATEMENTS", BITSET_TYPE.getDescriptor(), null, null).visitEnd();
 
-        // Write the static variable used by the method to bootstrap def calls
+        // Write the static variables used by the method to bootstrap def calls
         visitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$DEFINITION", DEFINITION_TYPE.getDescriptor(), null, null).visitEnd();
+        visitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$LOCALS", MAP_TYPE.getDescriptor(), null, null).visitEnd();
 
         org.objectweb.asm.commons.Method init;
 
@@ -353,6 +359,13 @@ public final class SSource extends AStatement {
             clinit.endMethod();
         }
 
+        // Write binding variables
+        for (Map.Entry<String, Class<?>> binding : globals.getBindings().entrySet()) {
+            String name = binding.getKey();
+            String descriptor = Type.getType(binding.getValue()).getDescriptor();
+            visitor.visitField(Opcodes.ACC_PRIVATE, name, descriptor, null, null).visitEnd();
+        }
+
         // Write any needsVarName methods for used variables
         for (org.objectweb.asm.commons.Method needsMethod : scriptClassInfo.getNeedsMethods()) {
             String name = needsMethod.getName();
@@ -404,18 +417,33 @@ public final class SSource extends AStatement {
         for (AStatement statement : statements) {
             statement.write(writer, globals);
         }
-
         if (!methodEscape) {
             switch (scriptClassInfo.getExecuteMethod().getReturnType().getSort()) {
-            case org.objectweb.asm.Type.VOID:    break;
-            case org.objectweb.asm.Type.BOOLEAN: writer.push(false); break;
-            case org.objectweb.asm.Type.BYTE:    writer.push(0); break;
-            case org.objectweb.asm.Type.SHORT:   writer.push(0); break;
-            case org.objectweb.asm.Type.INT:     writer.push(0); break;
-            case org.objectweb.asm.Type.LONG:    writer.push(0L); break;
-            case org.objectweb.asm.Type.FLOAT:   writer.push(0f); break;
-            case org.objectweb.asm.Type.DOUBLE:  writer.push(0d); break;
-            default:                             writer.visitInsn(Opcodes.ACONST_NULL);
+                case org.objectweb.asm.Type.VOID:
+                    break;
+                case org.objectweb.asm.Type.BOOLEAN:
+                    writer.push(false);
+                    break;
+                case org.objectweb.asm.Type.BYTE:
+                    writer.push(0);
+                    break;
+                case org.objectweb.asm.Type.SHORT:
+                    writer.push(0);
+                    break;
+                case org.objectweb.asm.Type.INT:
+                    writer.push(0);
+                    break;
+                case org.objectweb.asm.Type.LONG:
+                    writer.push(0L);
+                    break;
+                case org.objectweb.asm.Type.FLOAT:
+                    writer.push(0f);
+                    break;
+                case org.objectweb.asm.Type.DOUBLE:
+                    writer.push(0d);
+                    break;
+                default:
+                    writer.visitInsn(Opcodes.ACONST_NULL);
             }
             writer.returnValue();
         }

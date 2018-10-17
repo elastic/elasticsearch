@@ -23,35 +23,34 @@ import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Add;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Div;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mod;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mul;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Neg;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Sub;
 import org.elasticsearch.xpack.sql.expression.predicate.And;
-import org.elasticsearch.xpack.sql.expression.predicate.Equals;
-import org.elasticsearch.xpack.sql.expression.predicate.GreaterThan;
-import org.elasticsearch.xpack.sql.expression.predicate.GreaterThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.In;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
-import org.elasticsearch.xpack.sql.expression.predicate.LessThan;
-import org.elasticsearch.xpack.sql.expression.predicate.LessThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.Or;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
-import org.elasticsearch.xpack.sql.expression.regex.Like;
-import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
-import org.elasticsearch.xpack.sql.expression.regex.RLike;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Neg;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticBinaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastExpressionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastTemplateContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ColumnReferenceContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ComparisonContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DateEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DecimalLiteralContext;
@@ -63,9 +62,11 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.FunctionExpressionContex
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.FunctionTemplateContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.GuidEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.IntegerLiteralContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.LikePatternContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.LogicalBinaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.LogicalNotContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.MatchQueryContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.MatchQueryOptionsContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.MultiMatchQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.NullLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.OrderByContext;
@@ -94,10 +95,11 @@ import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.DateTimeFormatterBuilder;
 import org.joda.time.format.ISODateTimeFormat;
 
-import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.StringJoiner;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.type.DataTypeConversion.conversionFor;
@@ -137,11 +139,6 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     public Expression visitStar(StarContext ctx) {
         return new UnresolvedStar(source(ctx), ctx.qualifiedName() != null ?
                 new UnresolvedAttribute(source(ctx.qualifiedName()), visitQualifiedName(ctx.qualifiedName())) : null);
-    }
-
-    @Override
-    public Object visitColumnReference(ColumnReferenceContext ctx) {
-        return new UnresolvedAttribute(source(ctx), visitIdentifier(ctx.identifier()));
     }
 
     @Override
@@ -221,6 +218,11 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
+    public LikePattern visitLikePattern(LikePatternContext ctx) {
+        return ctx == null ? null : visitPattern(ctx.pattern());
+    }
+
+    @Override
     public LikePattern visitPattern(PatternContext ctx) {
         if (ctx == null) {
             return null;
@@ -284,9 +286,12 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             case SqlBaseParser.PLUS:
                 return value;
             case SqlBaseParser.MINUS:
+                if (value instanceof Literal) { // Minus already processed together with literal number
+                    return value;
+                }
                 return new Neg(source(ctx.operator), value);
             default:
-                throw new ParsingException(loc, "Unknown arithemtic {}", ctx.operator.getText());
+                throw new ParsingException(loc, "Unknown arithmetic {}", ctx.operator.getText());
         }
     }
 
@@ -309,7 +314,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             case SqlBaseParser.MINUS:
                 return new Sub(loc, left, right);
             default:
-                throw new ParsingException(loc, "Unknown arithemtic {}", ctx.operator.getText());
+                throw new ParsingException(loc, "Unknown arithmetic {}", ctx.operator.getText());
         }
     }
 
@@ -318,18 +323,27 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     //
     @Override
     public Object visitStringQuery(StringQueryContext ctx) {
-        return new StringQueryPredicate(source(ctx), string(ctx.queryString), string(ctx.options));
+        return new StringQueryPredicate(source(ctx), string(ctx.queryString), getQueryOptions(ctx.matchQueryOptions()));
     }
 
     @Override
     public Object visitMatchQuery(MatchQueryContext ctx) {
         return new MatchQueryPredicate(source(ctx), new UnresolvedAttribute(source(ctx.singleField),
-                visitQualifiedName(ctx.singleField)), string(ctx.queryString), string(ctx.options));
+                visitQualifiedName(ctx.singleField)), string(ctx.queryString), getQueryOptions(ctx.matchQueryOptions()));
     }
 
     @Override
     public Object visitMultiMatchQuery(MultiMatchQueryContext ctx) {
-        return new MultiMatchQueryPredicate(source(ctx), string(ctx.multiFields), string(ctx.queryString), string(ctx.options));
+        return new MultiMatchQueryPredicate(source(ctx), string(ctx.multiFields), string(ctx.queryString),
+            getQueryOptions(ctx.matchQueryOptions()));
+    }
+
+    private String getQueryOptions(MatchQueryOptionsContext optionsCtx) {
+        StringJoiner sj = new StringJoiner(";");
+        for (StringContext sc: optionsCtx.string()) {
+            sj.add(string(sc));
+        }
+        return sj.toString();
     }
 
     @Override
@@ -452,7 +466,13 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitBooleanLiteral(BooleanLiteralContext ctx) {
-        return new Literal(source(ctx), Booleans.parseBoolean(ctx.getText().toLowerCase(Locale.ROOT), false), DataType.BOOLEAN);
+        boolean value;
+        try {
+            value = Booleans.parseBoolean(ctx.getText().toLowerCase(Locale.ROOT), false);
+        } catch(IllegalArgumentException iae) {
+            throw new ParsingException(source(ctx), iae.getMessage());
+        }
+        return new Literal(source(ctx), Boolean.valueOf(value), DataType.BOOLEAN);
     }
 
     @Override
@@ -466,14 +486,42 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Literal visitDecimalLiteral(DecimalLiteralContext ctx) {
-        return new Literal(source(ctx), new BigDecimal(ctx.getText()).doubleValue(), DataType.DOUBLE);
+        String ctxText = (hasMinusFromParent(ctx) ? "-" : "") + ctx.getText();
+        double value;
+        try {
+            value = Double.parseDouble(ctxText);
+        } catch (NumberFormatException nfe) {
+            throw new ParsingException(source(ctx), "Cannot parse number [{}]", ctxText);
+        }
+        if (Double.isInfinite(value)) {
+            throw new ParsingException(source(ctx), "Number [{}] is too large", ctxText);
+        }
+        if (Double.isNaN(value)) {
+            throw new ParsingException(source(ctx), "[{}] cannot be parsed as a number (NaN)", ctxText);
+        }
+        return new Literal(source(ctx), Double.valueOf(value), DataType.DOUBLE);
     }
 
     @Override
     public Literal visitIntegerLiteral(IntegerLiteralContext ctx) {
-        BigDecimal bigD = new BigDecimal(ctx.getText());
+        String ctxText = (hasMinusFromParent(ctx) ? "-" : "") + ctx.getText();
+        long value;
+        try {
+            value = Long.parseLong(ctxText);
+        } catch (NumberFormatException nfe) {
+            try {
+                BigInteger bi = new BigInteger(ctxText);
+                try {
+                    bi.longValueExact();
+                } catch (ArithmeticException ae) {
+                    throw new ParsingException(source(ctx), "Number [{}] is too large", ctxText);
+                }
+            } catch (NumberFormatException ex) {
+                // parsing fails, go through
+            }
+            throw new ParsingException(source(ctx), "Cannot parse number [{}]", ctxText);
+        }
 
-        long value = bigD.longValueExact();
         DataType type = DataType.LONG;
         // try to downsize to int if possible (since that's the most common type)
         if ((int) value == value) {
@@ -637,5 +685,22 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
 
         return new Literal(source(ctx), string, DataType.KEYWORD);
+    }
+
+    private boolean hasMinusFromParent(SqlBaseParser.NumberContext ctx) {
+        ParserRuleContext parentCtx = ctx.getParent();
+        if (parentCtx != null && parentCtx instanceof SqlBaseParser.NumericLiteralContext) {
+            parentCtx = parentCtx.getParent();
+            if (parentCtx != null && parentCtx instanceof SqlBaseParser.ConstantDefaultContext) {
+                parentCtx = parentCtx.getParent();
+                if (parentCtx != null && parentCtx instanceof SqlBaseParser.ValueExpressionDefaultContext) {
+                    parentCtx = parentCtx.getParent();
+                    if (parentCtx != null && parentCtx instanceof SqlBaseParser.ArithmeticUnaryContext) {
+                        return ((ArithmeticUnaryContext) parentCtx).MINUS() != null;
+                    }
+                }
+            }
+        }
+        return false;
     }
 }

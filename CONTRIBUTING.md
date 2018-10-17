@@ -95,10 +95,16 @@ Contributing to the Elasticsearch codebase
 JDK 10 is required to build Elasticsearch. You must have a JDK 10 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
 your JDK 10 installation. By default, tests use the same runtime as `JAVA_HOME`.
-However, since Elasticsearch, supports JDK 8 the build supports compiling with
+However, since Elasticsearch supports JDK 8, the build supports compiling with
 JDK 10 and testing on a JDK 8 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 8 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 8.
+
+> Note: It is also required to have `JAVA7_HOME`, `JAVA8_HOME` and
+`JAVA10_HOME` available so that the tests can pass.
+
+> Warning: do not use `sdkman` for Java installations which do not have proper
+`jrunscript` for jdk distributions.
 
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
 using the wrapper via the `gradlew` script in the root of the repository.
@@ -155,7 +161,7 @@ Please follow these formatting guidelines:
 * Line width is 140 characters
 * The rest is left to Java coding standards
 * Disable “auto-format on save” to prevent unnecessary format changes. This makes reviews much harder as it generates unnecessary formatting changes. If your IDE supports formatting only modified chunks that is fine to do.
-* Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause the build to fail. Please attempt to tame your IDE so it doesn't make them and please send a PR against this document with instructions for your IDE if it doesn't contain them.
+* Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause the build to fail. This can be done automatically by your IDE:
  * Eclipse: `Preferences->Java->Code Style->Organize Imports`. There are two boxes labeled "`Number of (static )? imports needed for .*`". Set their values to 99999 or some other absurdly high value.
  * IntelliJ: `Preferences/Settings->Editor->Code Style->Java->Imports`. There are two configuration options: `Class count to use import with '*'` and `Names count to use static import with '*'`. Set their values to 99999 or some other absurdly high value.
 * Don't worry too much about import order. Try not to change it but don't worry about fighting your IDE to stop it from doing so.
@@ -314,26 +320,24 @@ have to test Elasticsearch.
 #### Configurations
 
 Gradle organizes dependencies and build artifacts into "configurations" and
-allows you to use these configurations arbitrarilly. Here are some of the most
+allows you to use these configurations arbitrarily. Here are some of the most
 common configurations in our build and how we use them:
 
 <dl>
 <dt>`compile`</dt><dd>Code that is on the classpath at both compile and
-runtime. If the [`shadow`][shadow-plugin] plugin is applied to the project then
-this code is bundled into the jar produced by the project.</dd>
+runtime.</dd>
 <dt>`runtime`</dt><dd>Code that is not on the classpath at compile time but is
 on the classpath at runtime. We mostly use this configuration to make sure that
 we do not accidentally compile against dependencies of our dependencies also
 known as "transitive" dependencies".</dd>
-<dt>`compileOnly`</dt><dd>Code that is on the classpath at comile time but that
+<dt>`compileOnly`</dt><dd>Code that is on the classpath at compile time but that
 should not be shipped with the project because it is "provided" by the runtime
 somehow. Elasticsearch plugins use this configuration to include dependencies
 that are bundled with Elasticsearch's server.</dd>
-<dt>`shadow`</dt><dd>Only available in projects with the shadow plugin. Code
-that is on the classpath at both compile and runtime but it *not* bundled into
-the jar produced by the project. If you depend on a project with the `shadow`
-plugin then you need to depend on this configuration because it will bring
-along all of the dependencies you need at runtime.</dd>
+<dt>`bundle`</dt><dd>Only available in projects with the shadow plugin,
+dependencies with this configuration are bundled into the jar produced by the
+build. Since IDEs do not understand this configuration we rig them to treat
+dependencies in this configuration as `compile` dependencies.</dd>
 <dt>`testCompile`</dt><dd>Code that is on the classpath for compiling tests
 that are part of this project but not production code. The canonical example
 of this is `junit`.</dd>

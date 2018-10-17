@@ -21,6 +21,7 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 
 import java.util.concurrent.ExecutorService;
 
@@ -41,18 +42,19 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
      * If the future has completed, the listener will be notified immediately without forking to
      * a different thread.
      */
-    public void addListener(ActionListener<V> listener, ExecutorService executor) {
+    public void addListener(ActionListener<V> listener, ExecutorService executor, ThreadContext threadContext) {
+        ContextPreservingActionListener<V> wrappedListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
         whenCompleteAsync((val, throwable) -> {
             if (throwable == null) {
                 try {
-                    listener.onResponse(val);
+                    wrappedListener.onResponse(val);
                 } catch (Exception e) {
-                    listener.onFailure(e);
+                    wrappedListener.onFailure(e);
                 }
             } else {
                 assert throwable instanceof Exception : "Expected exception but was: " + throwable.getClass();
-                ExceptionsHelper.dieOnError(throwable);
-                listener.onFailure((Exception) throwable);
+                ExceptionsHelper.maybeDieOnAnotherThread(throwable);
+                wrappedListener.onFailure((Exception) throwable);
             }
         }, executor);
     }

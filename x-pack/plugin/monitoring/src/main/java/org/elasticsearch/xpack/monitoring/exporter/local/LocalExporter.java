@@ -11,11 +11,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -39,6 +36,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.xpack.core.XPackClient;
@@ -46,7 +44,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
@@ -385,7 +382,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      * }
      * </code></pre>
      */
-    private void putIngestPipeline(final String pipelineId, final ActionListener<WritePipelineResponse> listener) {
+    private void putIngestPipeline(final String pipelineId, final ActionListener<AcknowledgedResponse> listener) {
         final String pipelineName = pipelineName(pipelineId);
         final BytesReference pipeline = BytesReference.bytes(loadPipeline(pipelineId, XContentType.JSON));
         final PutPipelineRequest request = new PutPipelineRequest(pipelineName, pipeline, XContentType.JSON);
@@ -403,7 +400,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     }
 
     // FIXME this should use the IndexTemplateMetaDataUpgrader
-    private void putTemplate(String template, String source, ActionListener<PutIndexTemplateResponse> listener) {
+    private void putTemplate(String template, String source, ActionListener<AcknowledgedResponse> listener) {
         logger.debug("installing template [{}]", template);
 
         PutIndexTemplateRequest request = new PutIndexTemplateRequest(template).source(source, XContentType.JSON);
@@ -548,9 +545,9 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         logger.trace("deleting {} indices: [{}]", indices.size(), collectionToCommaDelimitedString(indices));
         final DeleteIndexRequest request = new DeleteIndexRequest(indices.toArray(new String[indices.size()]));
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), MONITORING_ORIGIN, request,
-                new ActionListener<DeleteIndexResponse>() {
+                new ActionListener<AcknowledgedResponse>() {
                     @Override
-                    public void onResponse(DeleteIndexResponse response) {
+                    public void onResponse(AcknowledgedResponse response) {
                         if (response.isAcknowledged()) {
                             logger.debug("{} indices deleted", indices.size());
                         } else {

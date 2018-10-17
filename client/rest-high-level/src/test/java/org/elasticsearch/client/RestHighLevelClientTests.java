@@ -650,7 +650,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             "cluster.remote_info",
             "count",
             "create",
-            "delete_by_query",
             "exists_source",
             "get_source",
             "indices.delete_alias",
@@ -660,14 +659,10 @@ public class RestHighLevelClientTests extends ESTestCase {
             "indices.get_upgrade",
             "indices.put_alias",
             "mtermvectors",
-            "put_script",
-            "reindex",
-            "reindex_rethrottle",
             "render_search_template",
             "scripts_painless_execute",
             "tasks.get",
-            "termvectors",
-            "update_by_query"
+            "termvectors"
         };
         //These API are not required for high-level client feature completeness
         String[] notRequiredApi = new String[] {
@@ -686,6 +681,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             "nodes.stats",
             "nodes.hot_threads",
             "nodes.usage",
+            "nodes.reload_secure_settings",
             "search_shards",
         };
         Set<String> deprecatedMethods = new HashSet<>();
@@ -725,10 +721,16 @@ public class RestHighLevelClientTests extends ESTestCase {
                         methods.containsKey(apiName.substring(0, apiName.length() - 6)));
                 assertThat(method.getReturnType(), equalTo(Void.TYPE));
                 assertEquals(0, method.getExceptionTypes().length);
-                assertEquals(3, method.getParameterTypes().length);
-                assertThat(method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
-                assertThat(method.getParameterTypes()[1], equalTo(RequestOptions.class));
-                assertThat(method.getParameterTypes()[2], equalTo(ActionListener.class));
+                if (apiName.equals("security.get_ssl_certificates_async")) {
+                    assertEquals(2, method.getParameterTypes().length);
+                    assertThat(method.getParameterTypes()[0], equalTo(RequestOptions.class));
+                    assertThat(method.getParameterTypes()[1], equalTo(ActionListener.class));
+                } else {
+                    assertEquals(3, method.getParameterTypes().length);
+                    assertThat(method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
+                    assertThat(method.getParameterTypes()[1], equalTo(RequestOptions.class));
+                    assertThat(method.getParameterTypes()[2], equalTo(ActionListener.class));
+                }
             } else {
                 //A few methods return a boolean rather than a response object
                 if (apiName.equals("ping") || apiName.contains("exist")) {
@@ -739,7 +741,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
                 assertEquals(1, method.getExceptionTypes().length);
                 //a few methods don't accept a request object as argument
-                if (apiName.equals("ping") || apiName.equals("info")) {
+                if (apiName.equals("ping") || apiName.equals("info") || apiName.equals("security.get_ssl_certificates")) {
                     assertEquals(1, method.getParameterTypes().length);
                     assertThat(method.getParameterTypes()[0], equalTo(RequestOptions.class));
                 } else {
@@ -755,7 +757,14 @@ public class RestHighLevelClientTests extends ESTestCase {
                             method.isAnnotationPresent(Deprecated.class));
                     } else {
                         //TODO xpack api are currently ignored, we need to load xpack yaml spec too
-                        if (apiName.startsWith("xpack.") == false) {
+                        if (apiName.startsWith("xpack.") == false &&
+                            apiName.startsWith("license.") == false &&
+                            apiName.startsWith("machine_learning.") == false &&
+                            apiName.startsWith("rollup.") == false &&
+                            apiName.startsWith("watcher.") == false &&
+                            apiName.startsWith("graph.") == false &&
+                            apiName.startsWith("migration.") == false &&
+                            apiName.startsWith("security.") == false) {
                             apiNotFound.add(apiName);
                         }
                     }

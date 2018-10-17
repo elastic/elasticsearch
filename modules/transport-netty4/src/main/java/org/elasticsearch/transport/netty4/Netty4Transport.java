@@ -38,7 +38,9 @@ import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.Future;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -54,7 +56,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.TransportRequestOptions;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -96,12 +97,12 @@ public class Netty4Transport extends TcpTransport {
         intSetting("transport.netty.boss_count", 1, 1, Property.NodeScope);
 
 
-    protected final RecvByteBufAllocator recvByteBufAllocator;
-    protected final int workerCount;
-    protected final ByteSizeValue receivePredictorMin;
-    protected final ByteSizeValue receivePredictorMax;
-    protected volatile Bootstrap bootstrap;
-    protected final Map<String, ServerBootstrap> serverBootstraps = newConcurrentMap();
+    private final RecvByteBufAllocator recvByteBufAllocator;
+    private final int workerCount;
+    private final ByteSizeValue receivePredictorMin;
+    private final ByteSizeValue receivePredictorMax;
+    private volatile Bootstrap clientBootstrap;
+    private final Map<String, ServerBootstrap> serverBootstraps = newConcurrentMap();
 
     public Netty4Transport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                            NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
@@ -124,7 +125,7 @@ public class Netty4Transport extends TcpTransport {
     protected void doStart() {
         boolean success = false;
         try {
-            bootstrap = createBootstrap();
+            clientBootstrap = createClientBootstrap();
             if (NetworkService.NETWORK_SERVER.get(settings)) {
                 for (ProfileSettings profileSettings : profileSettings) {
                     createServerBootstrap(profileSettings);
@@ -140,14 +141,11 @@ public class Netty4Transport extends TcpTransport {
         }
     }
 
-    private Bootstrap createBootstrap() {
+    private Bootstrap createClientBootstrap() {
         final Bootstrap bootstrap = new Bootstrap();
         bootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings, TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX)));
         bootstrap.channel(NioSocketChannel.class);
 
-        bootstrap.handler(getClientChannelInitializer());
-
-        bootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, Math.toIntExact(defaultConnectionProfile.getConnectTimeout().millis()));
         bootstrap.option(ChannelOption.TCP_NODELAY, TCP_NO_DELAY.get(settings));
         bootstrap.option(ChannelOption.SO_KEEPALIVE, TCP_KEEP_ALIVE.get(settings));
 
@@ -166,8 +164,6 @@ public class Netty4Transport extends TcpTransport {
         final boolean reuseAddress = TCP_REUSE_ADDRESS.get(settings);
         bootstrap.option(ChannelOption.SO_REUSEADDR, reuseAddress);
 
-        bootstrap.validate();
-
         return bootstrap;
     }
 
@@ -175,14 +171,8 @@ public class Netty4Transport extends TcpTransport {
         String name = profileSettings.profileName;
         if (logger.isDebugEnabled()) {
             logger.debug("using profile[{}], worker_count[{}], port[{}], bind_host[{}], publish_host[{}], compress[{}], "
-                    + "connect_timeout[{}], connections_per_node[{}/{}/{}/{}/{}], receive_predictor[{}->{}]",
+                    + "receive_predictor[{}->{}]",
                 name, workerCount, profileSettings.portOrRange, profileSettings.bindHosts, profileSettings.publishHosts, compress,
-                defaultConnectionProfile.getConnectTimeout(),
-                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY),
-                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK),
-                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.REG),
-                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE),
-                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.PING),
                 receivePredictorMin, receivePredictorMax);
         }
 
@@ -222,7 +212,7 @@ public class Netty4Transport extends TcpTransport {
         return new ServerChannelInitializer(name);
     }
 
-    protected ChannelHandler getClientChannelInitializer() {
+    protected ChannelHandler getClientChannelInitializer(DiscoveryNode node) {
         return new ClientChannelInitializer();
     }
 
@@ -230,11 +220,16 @@ public class Netty4Transport extends TcpTransport {
     static final AttributeKey<Netty4TcpServerChannel> SERVER_CHANNEL_KEY = AttributeKey.newInstance("es-server-channel");
 
     @Override
-    protected Netty4TcpChannel initiateChannel(InetSocketAddress address, ActionListener<Void> listener) throws IOException {
-        ChannelFuture channelFuture = bootstrap.connect(address);
+    protected Netty4TcpChannel initiateChannel(DiscoveryNode node, ActionListener<Void> listener) throws IOException {
+        InetSocketAddress address = node.getAddress().address();
+        Bootstrap bootstrapWithHandler = clientBootstrap.clone();
+        bootstrapWithHandler.handler(getClientChannelInitializer(node));
+        bootstrapWithHandler.remoteAddress(address);
+        ChannelFuture channelFuture = bootstrapWithHandler.connect();
+
         Channel channel = channelFuture.channel();
         if (channel == null) {
-            Netty4Utils.maybeDie(channelFuture.cause());
+            ExceptionsHelper.maybeDieOnAnotherThread(channelFuture.cause());
             throw new IOException(channelFuture.cause());
         }
         addClosedExceptionLogger(channel);
@@ -248,7 +243,7 @@ public class Netty4Transport extends TcpTransport {
             } else {
                 Throwable cause = f.cause();
                 if (cause instanceof Error) {
-                    Netty4Utils.maybeDie(cause);
+                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
                     listener.onFailure(new Exception(cause));
                 } else {
                     listener.onFailure((Exception) cause);
@@ -267,8 +262,12 @@ public class Netty4Transport extends TcpTransport {
         return esChannel;
     }
 
-    ScheduledPing getPing() {
-        return scheduledPing;
+    long successfulPingCount() {
+        return successfulPings.count();
+    }
+
+    long failedPingCount() {
+        return failedPings.count();
     }
 
     @Override
@@ -290,9 +289,9 @@ public class Netty4Transport extends TcpTransport {
             }
             serverBootstraps.clear();
 
-            if (bootstrap != null) {
-                bootstrap.config().group().shutdownGracefully(0, 5, TimeUnit.SECONDS).awaitUninterruptibly();
-                bootstrap = null;
+            if (clientBootstrap != null) {
+                clientBootstrap.config().group().shutdownGracefully(0, 5, TimeUnit.SECONDS).awaitUninterruptibly();
+                clientBootstrap = null;
             }
         });
     }
@@ -309,7 +308,7 @@ public class Netty4Transport extends TcpTransport {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            Netty4Utils.maybeDie(cause);
+            ExceptionsHelper.maybeDieOnAnotherThread(cause);
             super.exceptionCaught(ctx, cause);
         }
     }
@@ -335,7 +334,7 @@ public class Netty4Transport extends TcpTransport {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            Netty4Utils.maybeDie(cause);
+            ExceptionsHelper.maybeDieOnAnotherThread(cause);
             super.exceptionCaught(ctx, cause);
         }
     }
@@ -353,7 +352,7 @@ public class Netty4Transport extends TcpTransport {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-            Netty4Utils.maybeDie(cause);
+            ExceptionsHelper.maybeDieOnAnotherThread(cause);
             Netty4TcpServerChannel serverChannel = ctx.channel().attr(SERVER_CHANNEL_KEY).get();
             if (cause instanceof Error) {
                 onServerException(serverChannel, new Exception(cause));

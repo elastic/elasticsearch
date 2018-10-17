@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
-import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
@@ -46,14 +45,13 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.job.persistence.JobStorageDeletionTask;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ChainTaskExecutor;
@@ -86,7 +84,7 @@ public class JobManager extends AbstractComponent {
             new DeprecationLogger(Loggers.getLogger(JobManager.class));
 
     private final Environment environment;
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final ClusterService clusterService;
     private final Auditor auditor;
     private final Client client;
@@ -97,11 +95,12 @@ public class JobManager extends AbstractComponent {
     /**
      * Create a JobManager
      */
-    public JobManager(Environment environment, Settings settings, JobProvider jobProvider, ClusterService clusterService, Auditor auditor,
+    public JobManager(Environment environment, Settings settings, JobResultsProvider jobResultsProvider,
+                      ClusterService clusterService, Auditor auditor,
                       Client client, UpdateJobProcessNotifier updateJobProcessNotifier) {
         super(settings);
         this.environment = environment;
-        this.jobProvider = Objects.requireNonNull(jobProvider);
+        this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.auditor = Objects.requireNonNull(auditor);
         this.client = Objects.requireNonNull(client);
@@ -165,11 +164,6 @@ public class JobManager extends AbstractComponent {
         }
         logger.debug("Returning jobs matching [" + expression + "]");
         return new QueryPage<>(jobs, jobs.size(), Job.RESULTS_FIELD);
-    }
-
-    public JobState getJobState(String jobId) {
-        PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        return MlTasks.getJobState(jobId, tasks);
     }
 
     /**
@@ -249,12 +243,12 @@ public class JobManager extends AbstractComponent {
 
         ActionListener<Boolean> checkForLeftOverDocs = ActionListener.wrap(
                 response -> {
-                    jobProvider.createJobResultIndex(job, state, putJobListener);
+                    jobResultsProvider.createJobResultIndex(job, state, putJobListener);
                 },
                 actionListener::onFailure
         );
 
-        jobProvider.checkForLeftOverDocuments(job, checkForLeftOverDocs);
+        jobResultsProvider.checkForLeftOverDocuments(job, checkForLeftOverDocs);
     }
 
     public void updateJob(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
@@ -275,14 +269,14 @@ public class JobManager extends AbstractComponent {
     private void validateModelSnapshotIdUpdate(Job job, String modelSnapshotId, ChainTaskExecutor chainTaskExecutor) {
         if (modelSnapshotId != null) {
             chainTaskExecutor.add(listener -> {
-                jobProvider.getModelSnapshot(job.getId(), modelSnapshotId, newModelSnapshot -> {
+                jobResultsProvider.getModelSnapshot(job.getId(), modelSnapshotId, newModelSnapshot -> {
                     if (newModelSnapshot == null) {
                         String message = Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, modelSnapshotId,
                                 job.getId());
                         listener.onFailure(new ResourceNotFoundException(message));
                         return;
                     }
-                    jobProvider.getModelSnapshot(job.getId(), job.getModelSnapshotId(), oldModelSnapshot -> {
+                    jobResultsProvider.getModelSnapshot(job.getId(), job.getModelSnapshotId(), oldModelSnapshot -> {
                         if (oldModelSnapshot != null
                                 && newModelSnapshot.result.getTimestamp().before(oldModelSnapshot.result.getTimestamp())) {
                             String message = "Job [" + job.getId() + "] has a more recent model snapshot [" +
@@ -307,7 +301,7 @@ public class JobManager extends AbstractComponent {
                         + " while the job is open"));
                 return;
             }
-            jobProvider.modelSizeStats(job.getId(), modelSizeStats -> {
+            jobResultsProvider.modelSizeStats(job.getId(), modelSizeStats -> {
                 if (modelSizeStats != null) {
                     ByteSizeValue modelSize = new ByteSizeValue(modelSizeStats.getModelBytes(), ByteSizeUnit.BYTES);
                     if (newModelMemoryLimit < modelSize.getMb()) {
@@ -492,64 +486,6 @@ public class JobManager extends AbstractComponent {
         }
     }
 
-    public void deleteJob(DeleteJobAction.Request request, JobStorageDeletionTask task,
-                          ActionListener<DeleteJobAction.Response> actionListener) {
-
-        String jobId = request.getJobId();
-        logger.debug("Deleting job '" + jobId + "'");
-
-        // Step 4. When the job has been removed from the cluster state, return a response
-        // -------
-        CheckedConsumer<Boolean, Exception> apiResponseHandler = jobDeleted -> {
-            if (jobDeleted) {
-                logger.info("Job [" + jobId + "] deleted");
-                auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DELETED));
-                actionListener.onResponse(new DeleteJobAction.Response(true));
-            } else {
-                actionListener.onResponse(new DeleteJobAction.Response(false));
-            }
-        };
-
-        // Step 3. When the physical storage has been deleted, remove from Cluster State
-        // -------
-        CheckedConsumer<Boolean, Exception> deleteJobStateHandler = response -> clusterService.submitStateUpdateTask("delete-job-" + jobId,
-                new AckedClusterStateUpdateTask<Boolean>(request, ActionListener.wrap(apiResponseHandler, actionListener::onFailure)) {
-
-                    @Override
-                    protected Boolean newResponse(boolean acknowledged) {
-                        return acknowledged && response;
-                    }
-
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        MlMetadata currentMlMetadata = MlMetadata.getMlMetadata(currentState);
-                        if (currentMlMetadata.getJobs().containsKey(jobId) == false) {
-                            // We wouldn't have got here if the job never existed so
-                            // the Job must have been deleted by another action.
-                            // Don't error in this case
-                            return currentState;
-                        }
-
-                        MlMetadata.Builder builder = new MlMetadata.Builder(currentMlMetadata);
-                        builder.deleteJob(jobId, currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE));
-                        return buildNewClusterState(currentState, builder);
-                    }
-            });
-
-
-        // Step 2. Remove the job from any calendars
-        CheckedConsumer<Boolean, Exception> removeFromCalendarsHandler = response -> {
-            jobProvider.removeJobFromCalendars(jobId, ActionListener.<Boolean>wrap(deleteJobStateHandler::accept,
-                    actionListener::onFailure ));
-        };
-
-
-        // Step 1. Delete the physical storage
-
-        // This task manages the physical deletion of the job state and results
-        task.delete(jobId, client, clusterService.state(), removeFromCalendarsHandler, actionListener::onFailure);
-    }
-
     public void revertSnapshot(RevertModelSnapshotAction.Request request, ActionListener<RevertModelSnapshotAction.Response> actionListener,
             ModelSnapshot modelSnapshot) {
 
@@ -607,7 +543,7 @@ public class JobManager extends AbstractComponent {
 
         // Step 0. Find the appropriate established model memory for the reverted job
         // -------
-        jobProvider.getEstablishedMemoryUsage(request.getJobId(), modelSizeStats.getTimestamp(), modelSizeStats, clusterStateHandler,
+        jobResultsProvider.getEstablishedMemoryUsage(request.getJobId(), modelSizeStats.getTimestamp(), modelSizeStats, clusterStateHandler,
                 actionListener::onFailure);
     }
 

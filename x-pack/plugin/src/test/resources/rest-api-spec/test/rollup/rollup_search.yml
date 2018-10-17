@@ -152,6 +152,20 @@ setup:
   - match: { aggregations.histo.buckets.3.key_as_string: "2017-01-01T08:00:00.000Z" }
   - match: { aggregations.histo.buckets.3.doc_count: 20 }
 
+---
+"Empty aggregation":
+
+  - do:
+      xpack.rollup.rollup_search:
+        index: "foo_rollup"
+        body:
+          size: 0
+          aggs: {}
+
+  - length: { hits.hits: 0 }
+  - match: { hits.total: 0 }
+  - is_false: aggregations
+
 
 ---
 "Search with Metric":

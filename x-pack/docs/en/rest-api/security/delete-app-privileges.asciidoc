@@ -1,0 +1,59 @@
+[role="xpack"]
+[[security-api-delete-privilege]]
+=== Delete application privileges API
+
+Removes 
+{stack-ov}/security-privileges.html#application-privileges[application privileges].
+
+==== Request
+
+`DELETE /_xpack/security/privilege/<application>/<privilege>` 
+
+//==== Description
+
+==== Path Parameters
+
+`application` (required)::
+  (string) The name of the application. Application privileges are always
+  associated with exactly one application.
+
+`privilege` (required)::
+  (string) The name of the privilege.
+
+// ==== Request Body
+
+==== Authorization
+
+To use this API, you must have either:
+
+- the `manage_security` cluster privilege (or a greater privilege such as `all`); _or_
+- the _"Manage Application Privileges"_ global privilege for the application being referenced
+  in the request
+
+==== Examples
+
+The following example deletes the `read` application privilege from the 
+`myapp` application:
+
+[source,js]
+--------------------------------------------------
+DELETE /_xpack/security/privilege/myapp/read
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:app0102_privileges] 
+
+If the role is successfully deleted, the request returns `{"found": true}`.
+Otherwise, `found` is set to false.
+
+[source,js]
+--------------------------------------------------
+{
+  "myapp": {
+    "read": {
+      "found" : true
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+

@@ -61,8 +61,6 @@ public class MockFSIndexStore extends IndexStore {
             return Arrays.asList(INDEX_CHECK_INDEX_ON_CLOSE_SETTING,
             MockFSDirectoryService.CRASH_INDEX_SETTING,
             MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_SETTING,
-            MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE_SETTING,
-            MockFSDirectoryService.RANDOM_NO_DELETE_OPEN_FILE_SETTING,
             MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING);
         }
 
@@ -86,6 +84,7 @@ public class MockFSIndexStore extends IndexStore {
         super(indexSettings);
     }
 
+    @Override
     public DirectoryService newDirectoryService(ShardPath path) {
         return new MockFSDirectoryService(indexSettings, this, path);
     }
@@ -101,14 +100,15 @@ public class MockFSIndexStore extends IndexStore {
             if (indexShard != null) {
                 Boolean remove = shardSet.remove(indexShard);
                 if (remove == Boolean.TRUE) {
-                    Logger logger = Loggers.getLogger(getClass(), indexShard.indexSettings().getSettings(), indexShard.shardId());
+                    Logger logger = Loggers.getLogger(getClass(), indexShard.shardId());
                     MockFSDirectoryService.checkIndex(logger, indexShard.store(), indexShard.shardId());
                 }
             }
         }
 
         @Override
-        public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState, IndexShardState currentState, @Nullable String reason) {
+        public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState,
+                IndexShardState currentState, @Nullable String reason) {
             if (currentState == IndexShardState.CLOSED && validCheckIndexStates.contains(previousState)) {
                shardSet.put(indexShard, Boolean.TRUE);
             }

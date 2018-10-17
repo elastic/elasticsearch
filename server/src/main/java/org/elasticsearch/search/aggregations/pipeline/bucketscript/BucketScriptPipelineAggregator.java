@@ -21,10 +21,9 @@ package org.elasticsearch.search.aggregations.pipeline.bucketscript;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.BucketAggregationScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -89,7 +88,8 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
                 (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
 
-        ExecutableScript.Factory factory = reduceContext.scriptService().compile(script, ExecutableScript.AGGS_CONTEXT);
+        BucketAggregationScript.Factory factory =
+            reduceContext.scriptService().compile(script, BucketAggregationScript.CONTEXT);
         List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             Map<String, Object> vars = new HashMap<>();
@@ -110,22 +110,15 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
             if (skipBucket) {
                 newBuckets.add(bucket);
             } else {
-                ExecutableScript executableScript = factory.newInstance(vars);
-                Object returned = executableScript.run();
-                // no need to check for self references since only numbers are valid
+                Double returned = factory.newInstance(vars).execute();
                 if (returned == null) {
                     newBuckets.add(bucket);
                 } else {
-                    if ((returned instanceof Number) == false) {
-                        throw new AggregationExecutionException("series_arithmetic script for reducer [" + name()
-                                + "] must return a Number");
-                    }
                     final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map(
-                            (p) -> (InternalAggregation) p).collect(Collectors.toList());
-                    aggs.add(new InternalSimpleValue(name(), ((Number) returned).doubleValue(), formatter,
-                            new ArrayList<>(), metaData()));
+                        (p) -> (InternalAggregation) p).collect(Collectors.toList());
+                    aggs.add(new InternalSimpleValue(name(), returned, formatter, new ArrayList<>(), metaData()));
                     InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(new InternalAggregations(aggs),
-                            bucket);
+                        bucket);
                     newBuckets.add(newBucket);
                 }
             }

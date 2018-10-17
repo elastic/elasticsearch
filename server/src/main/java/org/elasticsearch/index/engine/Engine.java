@@ -19,9 +19,11 @@
 
 package org.elasticsearch.index.engine;
 
+import com.carrotsearch.hppc.ObjectLongHashMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
@@ -32,7 +34,10 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -40,7 +45,9 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -55,23 +62,28 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.Base64;
@@ -86,6 +98,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -97,6 +110,8 @@ public abstract class Engine implements Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id";
     public static final String HISTORY_UUID_KEY = "history_uuid";
+    public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
+    public static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
 
     protected final ShardId shardId;
     protected final String allocationId;
@@ -124,6 +139,16 @@ public abstract class Engine implements Closeable {
      */
     protected volatile long lastWriteNanos = System.nanoTime();
 
+    /*
+     * This marker tracks the max seq_no of either update operations or delete operations have been processed in this engine.
+     * An index request is considered as an update if it overwrites existing documents with the same docId in the Lucene index.
+     * This marker is started uninitialized (-2), and the optimization using seq_no will be disabled if this marker is uninitialized.
+     * The value of this marker never goes backwards, and is updated/changed differently on primary and replica:
+     * 1. A primary initializes this marker once using the max_seq_no from its history, then advances when processing an update or delete.
+     * 2. A replica never advances this marker by itself but only inherits from its primary (via advanceMaxSeqNoOfUpdatesOrDeletes).
+     */
+    private final AtomicLong maxSeqNoOfUpdatesOrDeletes = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
+
     protected Engine(EngineConfig engineConfig) {
         Objects.requireNonNull(engineConfig.getStore(), "Store must be provided to the engine");
 
@@ -132,7 +157,7 @@ public abstract class Engine implements Closeable {
         this.allocationId = engineConfig.getAllocationId();
         this.store = engineConfig.getStore();
         this.logger = Loggers.getLogger(Engine.class, // we use the engine class directly here to make sure all subclasses have the same logger name
-                engineConfig.getIndexSettings().getSettings(), engineConfig.getShardId());
+                engineConfig.getShardId());
         this.eventListener = engineConfig.getEventListener();
     }
 
@@ -171,6 +196,69 @@ public abstract class Engine implements Closeable {
 
     /** Returns how many bytes we are currently moving from heap to disk */
     public abstract long getWritingBytes();
+
+    /**
+     * Returns the {@link CompletionStats} for this engine
+     */
+    public CompletionStats completionStats(String... fieldNamePatterns) throws IOException {
+        try (Engine.Searcher currentSearcher = acquireSearcher("completion_stats", SearcherScope.INTERNAL)) {
+            long sizeInBytes = 0;
+            ObjectLongHashMap<String> completionFields = null;
+            if (fieldNamePatterns != null && fieldNamePatterns.length > 0) {
+                completionFields = new ObjectLongHashMap<>(fieldNamePatterns.length);
+            }
+            for (LeafReaderContext atomicReaderContext : currentSearcher.reader().leaves()) {
+                LeafReader atomicReader = atomicReaderContext.reader();
+                for (FieldInfo info : atomicReader.getFieldInfos()) {
+                    Terms terms = atomicReader.terms(info.name);
+                    if (terms instanceof CompletionTerms) {
+                        // TODO: currently we load up the suggester for reporting its size
+                        long fstSize = ((CompletionTerms) terms).suggester().ramBytesUsed();
+                        if (Regex.simpleMatch(fieldNamePatterns, info.name)) {
+                            completionFields.addTo(info.name, fstSize);
+                        }
+                        sizeInBytes += fstSize;
+                    }
+                }
+            }
+            return new CompletionStats(sizeInBytes, completionFields == null ? null : new FieldMemoryStats(completionFields));
+        }
+    }
+
+    /**
+     * Returns the {@link DocsStats} for this engine
+     */
+    public DocsStats docStats() {
+        // we calculate the doc stats based on the internal reader that is more up-to-date and not subject
+        // to external refreshes. For instance we don't refresh an external reader if we flush and indices with
+        // index.refresh_interval=-1 won't see any doc stats updates at all. This change will give more accurate statistics
+        // when indexing but not refreshing in general. Yet, if a refresh happens the internal reader is refresh as well so we are
+        // safe here.
+        try (Engine.Searcher searcher = acquireSearcher("docStats", Engine.SearcherScope.INTERNAL)) {
+           return docsStats(searcher.reader());
+        }
+    }
+
+    protected final DocsStats docsStats(IndexReader indexReader) {
+        long numDocs = 0;
+        long numDeletedDocs = 0;
+        long sizeInBytes = 0;
+        // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
+        // the next scheduled refresh to go through and refresh the stats as well
+        for (LeafReaderContext readerContext : indexReader.leaves()) {
+            // we go on the segment level here to get accurate numbers
+            final SegmentReader segmentReader = Lucene.segmentReader(readerContext.reader());
+            SegmentCommitInfo info = segmentReader.getSegmentInfo();
+            numDocs += readerContext.reader().numDocs();
+            numDeletedDocs += readerContext.reader().numDeletedDocs();
+            try {
+                sizeInBytes += info.sizeInBytes();
+            } catch (IOException e) {
+                logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
+            }
+        }
+        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
+    }
 
     /**
      * A throttling class that can be activated, causing the
@@ -304,6 +392,7 @@ public abstract class Engine implements Closeable {
         private final Operation.TYPE operationType;
         private final Result.Type resultType;
         private final long version;
+        private final long term;
         private final long seqNo;
         private final Exception failure;
         private final SetOnce<Boolean> freeze = new SetOnce<>();
@@ -311,19 +400,21 @@ public abstract class Engine implements Closeable {
         private Translog.Location translogLocation;
         private long took;
 
-        protected Result(Operation.TYPE operationType, Exception failure, long version, long seqNo) {
+        protected Result(Operation.TYPE operationType, Exception failure, long version, long term, long seqNo) {
             this.operationType = operationType;
             this.failure = Objects.requireNonNull(failure);
             this.version = version;
+            this.term = term;
             this.seqNo = seqNo;
             this.requiredMappingUpdate = null;
             this.resultType = Type.FAILURE;
         }
 
-        protected Result(Operation.TYPE operationType, long version, long seqNo) {
+        protected Result(Operation.TYPE operationType, long version, long term, long seqNo) {
             this.operationType = operationType;
             this.version = version;
             this.seqNo = seqNo;
+            this.term = term;
             this.failure = null;
             this.requiredMappingUpdate = null;
             this.resultType = Type.SUCCESS;
@@ -333,6 +424,7 @@ public abstract class Engine implements Closeable {
             this.operationType = operationType;
             this.version = Versions.NOT_FOUND;
             this.seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            this.term = 0L;
             this.failure = null;
             this.requiredMappingUpdate = requiredMappingUpdate;
             this.resultType = Type.MAPPING_UPDATE_REQUIRED;
@@ -355,6 +447,10 @@ public abstract class Engine implements Closeable {
          */
         public long getSeqNo() {
             return seqNo;
+        }
+
+        public long getTerm() {
+            return term;
         }
 
         /**
@@ -415,20 +511,20 @@ public abstract class Engine implements Closeable {
 
         private final boolean created;
 
-        public IndexResult(long version, long seqNo, boolean created) {
-            super(Operation.TYPE.INDEX, version, seqNo);
+        public IndexResult(long version, long term, long seqNo, boolean created) {
+            super(Operation.TYPE.INDEX, version, term, seqNo);
             this.created = created;
         }
 
         /**
          * use in case of the index operation failed before getting to internal engine
          **/
-        public IndexResult(Exception failure, long version) {
-            this(failure, version, SequenceNumbers.UNASSIGNED_SEQ_NO);
+        public IndexResult(Exception failure, long version, long term) {
+            this(failure, version, term, SequenceNumbers.UNASSIGNED_SEQ_NO);
         }
 
-        public IndexResult(Exception failure, long version, long seqNo) {
-            super(Operation.TYPE.INDEX, failure, version, seqNo);
+        public IndexResult(Exception failure, long version, long term, long seqNo) {
+            super(Operation.TYPE.INDEX, failure, version, term, seqNo);
             this.created = false;
         }
 
@@ -447,20 +543,20 @@ public abstract class Engine implements Closeable {
 
         private final boolean found;
 
-        public DeleteResult(long version, long seqNo, boolean found) {
-            super(Operation.TYPE.DELETE, version, seqNo);
+        public DeleteResult(long version, long term, long seqNo, boolean found) {
+            super(Operation.TYPE.DELETE, version, term, seqNo);
             this.found = found;
         }
 
         /**
          * use in case of the delete operation failed before getting to internal engine
          **/
-        public DeleteResult(Exception failure, long version) {
-            this(failure, version, SequenceNumbers.UNASSIGNED_SEQ_NO, false);
+        public DeleteResult(Exception failure, long version, long term) {
+            this(failure, version, term, SequenceNumbers.UNASSIGNED_SEQ_NO, false);
         }
 
-        public DeleteResult(Exception failure, long version, long seqNo, boolean found) {
-            super(Operation.TYPE.DELETE, failure, version, seqNo);
+        public DeleteResult(Exception failure, long version, long term, long seqNo, boolean found) {
+            super(Operation.TYPE.DELETE, failure, version, term, seqNo);
             this.found = found;
         }
 
@@ -477,12 +573,12 @@ public abstract class Engine implements Closeable {
 
     public static class NoOpResult extends Result {
 
-        NoOpResult(long seqNo) {
-            super(Operation.TYPE.NO_OP, 0, seqNo);
+        NoOpResult(long term, long seqNo) {
+            super(Operation.TYPE.NO_OP, term, 0, seqNo);
         }
 
-        NoOpResult(long seqNo, Exception failure) {
-            super(Operation.TYPE.NO_OP, failure, 0, seqNo);
+        NoOpResult(long term, long seqNo, Exception failure) {
+            super(Operation.TYPE.NO_OP, failure, term, 0, seqNo);
         }
 
     }
@@ -559,7 +655,48 @@ public abstract class Engine implements Closeable {
      *
      * @see Searcher#close()
      */
-    public abstract Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException;
+    public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
+        /* Acquire order here is store -> manager since we need
+         * to make sure that the store is not closed before
+         * the searcher is acquired. */
+        if (store.tryIncRef() == false) {
+            throw new AlreadyClosedException(shardId + " store is closed", failedEngine.get());
+        }
+        Releasable releasable = store::decRef;
+        try {
+            ReferenceManager<IndexSearcher> referenceManager = getReferenceManager(scope);
+            IndexSearcher acquire = referenceManager.acquire();
+            AtomicBoolean released = new AtomicBoolean(false);
+            Searcher engineSearcher = new Searcher(source, acquire,
+                () -> {
+                if (released.compareAndSet(false, true)) {
+                    try {
+                        referenceManager.release(acquire);
+                    } finally {
+                        store.decRef();
+                    }
+                } else {
+                    /* In general, searchers should never be released twice or this would break reference counting. There is one rare case
+                     * when it might happen though: when the request and the Reaper thread would both try to release it in a very short
+                     * amount of time, this is why we only log a warning instead of throwing an exception. */
+                    logger.warn("Searcher was released twice", new IllegalStateException("Double release"));
+                }
+              });
+            releasable = null; // success - hand over the reference to the engine searcher
+            return engineSearcher;
+        } catch (AlreadyClosedException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            maybeFailEngine("acquire_searcher", ex);
+            ensureOpen(ex); // throw EngineCloseException here if we are already closed
+            logger.error(() -> new ParameterizedMessage("failed to acquire searcher, source {}", source), ex);
+            throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
+        } finally {
+            Releasables.close(releasable);
+        }
+    }
+
+    protected abstract ReferenceManager<IndexSearcher> getReferenceManager(SearcherScope scope);
 
     public enum SearcherScope {
         EXTERNAL, INTERNAL
@@ -577,18 +714,32 @@ public abstract class Engine implements Closeable {
 
     public abstract void syncTranslog() throws IOException;
 
-    public abstract Closeable acquireTranslogRetentionLock();
+    /**
+     * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
+     */
+    public abstract Closeable acquireRetentionLockForPeerRecovery();
 
     /**
-     * Creates a new translog snapshot from this engine for reading translog operations whose seq# at least the provided seq#.
-     * The caller has to close the returned snapshot after finishing the reading.
+     * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive)
      */
-    public abstract Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) throws IOException;
+    public abstract Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
+                                                         long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException;
 
     /**
-     * Returns the estimated number of translog operations in this engine whose seq# at least the provided seq#.
+     * Creates a new history snapshot for reading operations since {@code startingSeqNo} (inclusive).
+     * The returned snapshot can be retrieved from either Lucene index or translog files.
      */
-    public abstract int estimateTranslogOperationsFromMinSeq(long minSeqNo);
+    public abstract Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException;
+
+    /**
+     * Returns the estimated number of history operations whose seq# at least {@code startingSeqNo}(inclusive) in this engine.
+     */
+    public abstract int estimateNumberOfHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException;
+
+    /**
+     * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its history (either Lucene or translog)
+     */
+    public abstract boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException;
 
     public abstract TranslogStats getTranslogStats();
 
@@ -612,7 +763,7 @@ public abstract class Engine implements Closeable {
     }
 
     /** get commits stats for the last commit */
-    public CommitStats commitStats() {
+    public final CommitStats commitStats() {
         return new CommitStats(getLastCommittedSegmentInfos());
     }
 
@@ -628,12 +779,6 @@ public abstract class Engine implements Closeable {
      * @throws InterruptedException if the thread was interrupted while blocking on the condition
      */
     public abstract void waitForOpsToComplete(long seqNo) throws InterruptedException;
-
-    /**
-     * Reset the local checkpoint in the tracker to the given local checkpoint
-     * @param localCheckpoint the new checkpoint to be set
-     */
-    public abstract void resetLocalCheckpoint(long localCheckpoint);
 
     /**
      * @return a {@link SeqNoStats} object, using local state and the supplied global checkpoint
@@ -902,7 +1047,9 @@ public abstract class Engine implements Closeable {
      *
      * @return the commit Id for the resulting commit
      */
-    public abstract CommitId flush() throws EngineException;
+    public final CommitId flush() throws EngineException {
+        return flush(false, false);
+    }
 
 
     /**
@@ -1037,14 +1184,15 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public static class Searcher implements Releasable {
-
+    public static final class Searcher implements Releasable {
         private final String source;
         private final IndexSearcher searcher;
+        private final Closeable onClose;
 
-        public Searcher(String source, IndexSearcher searcher) {
+        public Searcher(String source, IndexSearcher searcher, Closeable onClose) {
             this.source = source;
             this.searcher = searcher;
+            this.onClose = onClose;
         }
 
         /**
@@ -1071,8 +1219,16 @@ public abstract class Engine implements Closeable {
 
         @Override
         public void close() {
-            // Nothing to close here
+            try {
+                onClose.close();
+            } catch (IOException e) {
+                throw new UncheckedIOException("failed to close", e);
+            } catch (AlreadyClosedException e) {
+                // This means there's a bug somewhere: don't suppress it
+                throw new AssertionError(e);
+            }
         }
+
     }
 
     public abstract static class Operation {
@@ -1114,10 +1270,15 @@ public abstract class Engine implements Closeable {
             PRIMARY,
             REPLICA,
             PEER_RECOVERY,
-            LOCAL_TRANSLOG_RECOVERY;
+            LOCAL_TRANSLOG_RECOVERY,
+            LOCAL_RESET;
 
             public boolean isRecovery() {
                 return this == PEER_RECOVERY || this == LOCAL_TRANSLOG_RECOVERY;
+            }
+
+            boolean isFromTranslog() {
+                return this == LOCAL_TRANSLOG_RECOVERY || this == LOCAL_RESET;
             }
         }
 
@@ -1544,7 +1705,7 @@ public abstract class Engine implements Closeable {
         private final CheckedRunnable<IOException> onClose;
         private final IndexCommit indexCommit;
 
-        IndexCommitRef(IndexCommit indexCommit, CheckedRunnable<IOException> onClose) {
+        public IndexCommitRef(IndexCommit indexCommit, CheckedRunnable<IOException> onClose) {
             this.indexCommit = indexCommit;
             this.onClose = onClose;
         }
@@ -1599,12 +1760,12 @@ public abstract class Engine implements Closeable {
     public abstract void deactivateThrottling();
 
     /**
-     * Marks operations in the translog as completed. This is used to restore the state of the local checkpoint tracker on primary
-     * promotion.
+     * This method replays translog to restore the Lucene index which might be reverted previously.
+     * This ensures that all acknowledged writes are restored correctly when this engine is promoted.
      *
-     * @throws IOException if an I/O exception occurred reading the translog
+     * @return the number of translog operations have been recovered
      */
-    public abstract void restoreLocalCheckpointFromTranslog() throws IOException;
+    public abstract int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) throws IOException;
 
     /**
      * Fills up the local checkpoints history with no-ops until the local checkpoint
@@ -1615,10 +1776,13 @@ public abstract class Engine implements Closeable {
     public abstract int fillSeqNoGaps(long primaryTerm) throws IOException;
 
     /**
-     * Performs recovery from the transaction log.
+     * Performs recovery from the transaction log up to {@code recoverUpToSeqNo} (inclusive).
      * This operation will close the engine if the recovery fails.
+     *
+     * @param translogRecoveryRunner the translog recovery runner
+     * @param recoverUpToSeqNo       the upper bound, inclusive, of sequence number to be recovered
      */
-    public abstract Engine recoverFromTranslog() throws IOException;
+    public abstract Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException;
 
     /**
      * Do not replay translog operations, but make the engine be ready.
@@ -1636,4 +1800,78 @@ public abstract class Engine implements Closeable {
      * Tries to prune buffered deletes from the version map.
      */
     public abstract void maybePruneDeletes();
+
+    /**
+     * Returns the maximum auto_id_timestamp of all append-only index requests have been processed by this engine
+     * or the auto_id_timestamp received from its primary shard via {@link #updateMaxUnsafeAutoIdTimestamp(long)}.
+     * Notes this method returns the auto_id_timestamp of all append-only requests, not max_unsafe_auto_id_timestamp.
+     */
+    public long getMaxSeenAutoIdTimestamp() {
+        return IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
+    }
+
+    /**
+     * Forces this engine to advance its max_unsafe_auto_id_timestamp marker to at least the given timestamp.
+     * The engine will disable optimization for all append-only whose timestamp at most {@code newTimestamp}.
+     */
+    public abstract void updateMaxUnsafeAutoIdTimestamp(long newTimestamp);
+
+    @FunctionalInterface
+    public interface TranslogRecoveryRunner {
+        int run(Engine engine, Translog.Snapshot snapshot) throws IOException;
+    }
+
+    /**
+     * Returns the maximum sequence number of either update or delete operations have been processed in this engine
+     * or the sequence number from {@link #advanceMaxSeqNoOfUpdatesOrDeletes(long)}. An index request is considered
+     * as an update operation if it overwrites the existing documents in Lucene index with the same document id.
+     * <p>
+     * A note on the optimization using max_seq_no_of_updates_or_deletes:
+     * For each operation O, the key invariants are:
+     * <ol>
+     *     <li> I1: There is no operation on docID(O) with seqno that is {@literal > MSU(O) and < seqno(O)} </li>
+     *     <li> I2: If {@literal MSU(O) < seqno(O)} then docID(O) did not exist when O was applied; more precisely, if there is any O'
+     *              with {@literal seqno(O') < seqno(O) and docID(O') = docID(O)} then the one with the greatest seqno is a delete.</li>
+     * </ol>
+     * <p>
+     * When a receiving shard (either a replica or a follower) receives an operation O, it must first ensure its own MSU at least MSU(O),
+     * and then compares its MSU to its local checkpoint (LCP). If {@literal LCP < MSU} then there's a gap: there may be some operations
+     * that act on docID(O) about which we do not yet know, so we cannot perform an add. Note this also covers the case where a future
+     * operation O' with {@literal seqNo(O') > seqNo(O) and docId(O') = docID(O)} is processed before O. In that case MSU(O') is at least
+     * seqno(O') and this means {@literal MSU >= seqNo(O') > seqNo(O) > LCP} (because O wasn't processed yet).
+     * <p>
+     * However, if {@literal MSU <= LCP} then there is no gap: we have processed every {@literal operation <= LCP}, and no operation O'
+     * with {@literal seqno(O') > LCP and seqno(O') < seqno(O) also has docID(O') = docID(O)}, because such an operation would have
+     * {@literal seqno(O') > LCP >= MSU >= MSU(O)} which contradicts the first invariant. Furthermore in this case we immediately know
+     * that docID(O) has been deleted (or never existed) without needing to check Lucene for the following reason. If there's no earlier
+     * operation on docID(O) then this is clear, so suppose instead that the preceding operation on docID(O) is O':
+     * 1. The first invariant above tells us that {@literal seqno(O') <= MSU(O) <= LCP} so we have already applied O' to Lucene.
+     * 2. Also {@literal MSU(O) <= MSU <= LCP < seqno(O)} (we discard O if {@literal seqno(O) <= LCP}) so the second invariant applies,
+     *    meaning that the O' was a delete.
+     * <p>
+     * Therefore, if {@literal MSU <= LCP < seqno(O)} we know that O can safely be optimized with and added to lucene with addDocument.
+     * Moreover, operations that are optimized using the MSU optimization must not be processed twice as this will create duplicates
+     * in Lucene. To avoid this we check the local checkpoint tracker to see if an operation was already processed.
+     *
+     * @see #initializeMaxSeqNoOfUpdatesOrDeletes()
+     * @see #advanceMaxSeqNoOfUpdatesOrDeletes(long)
+     */
+    public final long getMaxSeqNoOfUpdatesOrDeletes() {
+        return maxSeqNoOfUpdatesOrDeletes.get();
+    }
+
+    /**
+     * A primary shard calls this method once to initialize the max_seq_no_of_updates marker using the
+     * max_seq_no from Lucene index and translog before replaying the local translog in its local recovery.
+     */
+    public abstract void initializeMaxSeqNoOfUpdatesOrDeletes();
+
+    /**
+     * A replica shard receives a new max_seq_no_of_updates from its primary shard, then calls this method
+     * to advance this marker to at least the given sequence number.
+     */
+    public final void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {
+        maxSeqNoOfUpdatesOrDeletes.updateAndGet(curr -> Math.max(curr, seqNo));
+        assert maxSeqNoOfUpdatesOrDeletes.get() >= seqNo : maxSeqNoOfUpdatesOrDeletes.get() + " < " + seqNo;
+    }
 }

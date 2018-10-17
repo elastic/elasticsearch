@@ -45,6 +45,11 @@ class InfluencerNormalizable extends AbstractLeafNormalizable {
     }
 
     @Override
+    public String getPersonFieldValue() {
+        return influencer.getInfluencerFieldValue();
+    }
+
+    @Override
     public String getFunctionName() {
         return null;
     }

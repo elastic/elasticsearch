@@ -19,6 +19,11 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctionScript;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -26,12 +31,6 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctionScript;
-
 
 /**
  * Manages building {@link ScriptService}.
@@ -42,14 +41,16 @@ public class ScriptModule {
     static {
         CORE_CONTEXTS = Stream.of(
             SearchScript.CONTEXT,
-            SearchScript.AGGS_CONTEXT,
+            AggregationScript.CONTEXT,
             ScoreScript.CONTEXT,
             SearchScript.SCRIPT_SORT_CONTEXT,
-            SearchScript.TERMS_SET_QUERY_CONTEXT,
-            ExecutableScript.CONTEXT,
-            ExecutableScript.AGGS_CONTEXT,
-            ExecutableScript.UPDATE_CONTEXT,
+            TermsSetQueryScript.CONTEXT,
+            UpdateScript.CONTEXT,
+            BucketAggregationScript.CONTEXT,
+            BucketAggregationSelectorScript.CONTEXT,
+            SignificantTermsHeuristicScoreScript.CONTEXT,
             IngestScript.CONTEXT,
+            IngestConditionalScript.CONTEXT,
             FilterScript.CONTEXT,
             SimilarityScript.CONTEXT,
             SimilarityWeightScript.CONTEXT,
@@ -68,8 +69,8 @@ public class ScriptModule {
         Map<String, ScriptEngine> engines = new HashMap<>();
         Map<String, ScriptContext<?>> contexts = new HashMap<>(CORE_CONTEXTS);
         for (ScriptPlugin plugin : scriptPlugins) {
-            for (ScriptContext context : plugin.getContexts()) {
-                ScriptContext oldContext = contexts.put(context.name, context);
+            for (ScriptContext<?> context : plugin.getContexts()) {
+                ScriptContext<?> oldContext = contexts.put(context.name, context);
                 if (oldContext != null) {
                     throw new IllegalArgumentException("Context name [" + context.name + "] defined twice");
                 }

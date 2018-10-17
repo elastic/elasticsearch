@@ -26,9 +26,10 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -37,6 +38,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -365,6 +368,8 @@ public final class IndexGraveyard implements MetaData.Custom {
             TOMBSTONE_PARSER.declareString((b, s) -> {}, new ParseField(DELETE_DATE_KEY));
         }
 
+        static final DateFormatter FORMATTER = DateFormatters.forPattern("strict_date_optional_time").withZone(ZoneOffset.UTC);
+
         static ContextParser<Void, Tombstone> getParser() {
             return (parser, context) -> TOMBSTONE_PARSER.apply(parser, null).build();
         }
@@ -428,7 +433,8 @@ public final class IndexGraveyard implements MetaData.Custom {
 
         @Override
         public String toString() {
-            return "[index=" + index + ", deleteDate=" + Joda.getStrictStandardDateFormatter().printer().print(deleteDateInMillis) + "]";
+            String date = FORMATTER.format(Instant.ofEpochMilli(deleteDateInMillis));
+            return "[index=" + index + ", deleteDate=" + date + "]";
         }
 
         @Override

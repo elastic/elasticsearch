@@ -26,8 +26,8 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -41,7 +41,7 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
 
     @Override
     protected DateHistogramAggregationBuilder createTestAggregatorBuilder() {
-        DateHistogramAggregationBuilder factory = new DateHistogramAggregationBuilder("foo");
+        DateHistogramAggregationBuilder factory = new DateHistogramAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
         factory.field(INT_FIELD_NAME);
         if (randomBoolean()) {
             factory.interval(randomIntBetween(1, 100000));
@@ -137,17 +137,20 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
     }
 
     public void testRewriteTimeZone() throws IOException {
-        FormatDateTimeFormatter format = Joda.forPattern("strict_date_optional_time");
+        DateFormatter format = DateFormatters.forPattern("strict_date_optional_time");
 
         try (Directory dir = newDirectory();
                 IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
 
-            w.addDocument(documentForDate(DATE_FIELD_NAME, format.parser().parseDateTime("2018-03-11T11:55:00").getMillis()));
-            w.addDocument(documentForDate(DATE_FIELD_NAME, format.parser().parseDateTime("2017-10-30T18:13:00").getMillis()));
+            long millis1 = DateFormatters.toZonedDateTime(format.parse("2018-03-11T11:55:00")).toInstant().toEpochMilli();
+            w.addDocument(documentForDate(DATE_FIELD_NAME, millis1));
+            long millis2 = DateFormatters.toZonedDateTime(format.parse("2017-10-30T18:13:00")).toInstant().toEpochMilli();
+            w.addDocument(documentForDate(DATE_FIELD_NAME, millis2));
 
             try (IndexReader readerThatDoesntCross = DirectoryReader.open(w)) {
 
-                w.addDocument(documentForDate(DATE_FIELD_NAME, format.parser().parseDateTime("2018-03-25T02:44:00").getMillis()));
+                long millis3 = DateFormatters.toZonedDateTime(format.parse("2018-03-25T02:44:00")).toInstant().toEpochMilli();
+                w.addDocument(documentForDate(DATE_FIELD_NAME, millis3));
 
                 try (IndexReader readerThatCrosses = DirectoryReader.open(w)) {
 

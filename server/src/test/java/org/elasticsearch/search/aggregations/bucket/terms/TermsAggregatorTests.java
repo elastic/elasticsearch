@@ -50,9 +50,11 @@ import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -65,8 +67,9 @@ import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.tophits.InternalTopHits;
-import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
+import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -83,6 +86,8 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.SeqNoFieldMapper.PRIMARY_TERM_NAME;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.bucketScript;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -153,12 +158,16 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 document.add(new SortedSetDocValuesField("string", new BytesRef("b")));
                 indexWriter.addDocument(document);
                 document = new Document();
+                document.add(new SortedSetDocValuesField("string", new BytesRef("")));
                 document.add(new SortedSetDocValuesField("string", new BytesRef("c")));
                 document.add(new SortedSetDocValuesField("string", new BytesRef("a")));
                 indexWriter.addDocument(document);
                 document = new Document();
                 document.add(new SortedSetDocValuesField("string", new BytesRef("b")));
                 document.add(new SortedSetDocValuesField("string", new BytesRef("d")));
+                indexWriter.addDocument(document);
+                document = new Document();
+                document.add(new SortedSetDocValuesField("string", new BytesRef("")));
                 indexWriter.addDocument(document);
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
@@ -176,15 +185,17 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                         aggregator.postCollection();
                         Terms result = (Terms) aggregator.buildAggregation(0L);
-                        assertEquals(4, result.getBuckets().size());
-                        assertEquals("a", result.getBuckets().get(0).getKeyAsString());
+                        assertEquals(5, result.getBuckets().size());
+                        assertEquals("", result.getBuckets().get(0).getKeyAsString());
                         assertEquals(2L, result.getBuckets().get(0).getDocCount());
-                        assertEquals("b", result.getBuckets().get(1).getKeyAsString());
+                        assertEquals("a", result.getBuckets().get(1).getKeyAsString());
                         assertEquals(2L, result.getBuckets().get(1).getDocCount());
-                        assertEquals("c", result.getBuckets().get(2).getKeyAsString());
-                        assertEquals(1L, result.getBuckets().get(2).getDocCount());
-                        assertEquals("d", result.getBuckets().get(3).getKeyAsString());
+                        assertEquals("b", result.getBuckets().get(2).getKeyAsString());
+                        assertEquals(2L, result.getBuckets().get(2).getDocCount());
+                        assertEquals("c", result.getBuckets().get(3).getKeyAsString());
                         assertEquals(1L, result.getBuckets().get(3).getDocCount());
+                        assertEquals("d", result.getBuckets().get(4).getKeyAsString());
+                        assertEquals(1L, result.getBuckets().get(4).getDocCount());
                     }
                 }
             }
@@ -1055,6 +1066,34 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    public void testOrderByPipelineAggregation() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+
+                    BucketScriptPipelineAggregationBuilder bucketScriptAgg = bucketScript(
+                        "script", new Script("2.718"));
+                    TermsAggregationBuilder termsAgg = terms("terms")
+                        .field("field")
+                        .valueType(ValueType.STRING)
+                        .order(BucketOrder.aggregation("script", true))
+                        .subAggregation(bucketScriptAgg);
+
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
+                    fieldType.setName("field");
+                    fieldType.setHasDocValues(true);
+
+                    AggregationExecutionException e = expectThrows(AggregationExecutionException.class,
+                        () -> createAggregator(termsAgg, indexSearcher, fieldType));
+                    assertEquals("Invalid aggregator order path [script]. The provided aggregation [script] " +
+                        "either does not exist, or is a pipeline aggregation and cannot be used to sort the buckets.",
+                        e.getMessage());
                 }
             }
         }

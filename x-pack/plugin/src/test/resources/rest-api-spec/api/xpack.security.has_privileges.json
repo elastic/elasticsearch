@@ -1,6 +1,6 @@
 {
   "xpack.security.has_privileges": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-privileges.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-has-privileges.html",
     "methods": [ "GET", "POST" ],
     "url": {
       "path": "/_xpack/security/user/_has_privileges",

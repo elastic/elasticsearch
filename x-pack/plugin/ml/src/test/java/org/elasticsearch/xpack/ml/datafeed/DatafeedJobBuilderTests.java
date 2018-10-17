@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.junit.Before;
 
@@ -41,7 +41,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
 
     private Client client;
     private Auditor auditor;
-    private JobProvider jobProvider;
+    private JobResultsProvider jobResultsProvider;
     private Consumer<Exception> taskHandler;
 
     private DatafeedJobBuilder datafeedJobBuilder;
@@ -54,9 +54,9 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.settings()).thenReturn(Settings.EMPTY);
         auditor = mock(Auditor.class);
-        jobProvider = mock(JobProvider.class);
+        jobResultsProvider = mock(JobResultsProvider.class);
         taskHandler = mock(Consumer.class);
-        datafeedJobBuilder = new DatafeedJobBuilder(client, jobProvider, auditor, System::currentTimeMillis);
+        datafeedJobBuilder = new DatafeedJobBuilder(client, jobResultsProvider, auditor, System::currentTimeMillis);
 
         Mockito.doAnswer(invocationOnMock -> {
             String jobId = (String) invocationOnMock.getArguments()[0];
@@ -64,14 +64,14 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             Consumer<DataCounts> handler = (Consumer<DataCounts>) invocationOnMock.getArguments()[1];
             handler.accept(new DataCounts(jobId));
             return null;
-        }).when(jobProvider).dataCounts(any(), any(), any());
+        }).when(jobResultsProvider).dataCounts(any(), any(), any());
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             Consumer<ResourceNotFoundException> consumer = (Consumer<ResourceNotFoundException>) invocationOnMock.getArguments()[3];
             consumer.accept(new ResourceNotFoundException("dummy"));
             return null;
-        }).when(jobProvider).bucketsViaInternalClient(any(), any(), any(), any());
+        }).when(jobResultsProvider).bucketsViaInternalClient(any(), any(), any(), any());
     }
 
     public void testBuild_GivenScrollDatafeedAndNewJob() throws Exception {
@@ -157,7 +157,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             Consumer<Exception> consumer = (Consumer<Exception>) invocationOnMock.getArguments()[3];
             consumer.accept(error);
             return null;
-        }).when(jobProvider).bucketsViaInternalClient(any(), any(), any(), any());
+        }).when(jobResultsProvider).bucketsViaInternalClient(any(), any(), any(), any());
 
         datafeedJobBuilder.build(jobBuilder.build(new Date()), datafeed, ActionListener.wrap(datafeedJob -> fail(), taskHandler));
 
@@ -173,7 +173,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             dataCounts.setLatestRecordTimeStamp(new Date(latestRecordTimestamp));
             handler.accept(dataCounts);
             return null;
-        }).when(jobProvider).dataCounts(any(), any(), any());
+        }).when(jobResultsProvider).dataCounts(any(), any(), any());
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
@@ -183,6 +183,6 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             QueryPage<Bucket> bucketQueryPage = new QueryPage<Bucket>(Collections.singletonList(bucket), 1, Bucket.RESULTS_FIELD);
             consumer.accept(bucketQueryPage);
             return null;
-        }).when(jobProvider).bucketsViaInternalClient(any(), any(), any(), any());
+        }).when(jobResultsProvider).bucketsViaInternalClient(any(), any(), any(), any());
     }
 }

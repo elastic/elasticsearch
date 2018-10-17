@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
@@ -40,7 +41,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Put mapping action.
  */
-public class TransportPutMappingAction extends TransportMasterNodeAction<PutMappingRequest, PutMappingResponse> {
+public class TransportPutMappingAction extends TransportMasterNodeAction<PutMappingRequest, AcknowledgedResponse> {
 
     private final MetaDataMappingService metaDataMappingService;
 
@@ -59,8 +60,8 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
     }
 
     @Override
-    protected PutMappingResponse newResponse() {
-        return new PutMappingResponse();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
@@ -75,7 +76,7 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
     }
 
     @Override
-    protected void masterOperation(final PutMappingRequest request, final ClusterState state, final ActionListener<PutMappingResponse> listener) {
+    protected void masterOperation(final PutMappingRequest request, final ClusterState state, final ActionListener<AcknowledgedResponse> listener) {
         try {
             final Index[] concreteIndices = request.getConcreteIndex() == null ? indexNameExpressionResolver.concreteIndices(state, request) : new Index[] {request.getConcreteIndex()};
             PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest()
@@ -87,7 +88,7 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
 
                 @Override
                 public void onResponse(ClusterStateUpdateResponse response) {
-                    listener.onResponse(new PutMappingResponse(response.isAcknowledged()));
+                    listener.onResponse(new AcknowledgedResponse(response.isAcknowledged()));
                 }
 
                 @Override

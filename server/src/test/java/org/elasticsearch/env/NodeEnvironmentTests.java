@@ -19,6 +19,7 @@
 package org.elasticsearch.env;
 
 import org.apache.lucene.index.SegmentInfos;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -79,8 +80,8 @@ public class NodeEnvironmentTests extends ESTestCase {
         List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
 
         // Reuse the same location and attempt to lock again
-        IllegalStateException ex =
-            expectThrows(IllegalStateException.class, () -> new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings)));
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
+                new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings)));
         assertThat(ex.getMessage(), containsString("failed to obtain node lock"));
 
         // Close the environment that holds the lock and make sure we can get the lock after release
@@ -182,6 +183,27 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
 
         assertThat(actualPaths, equalTo(env.availableIndexFolders()));
+        assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
+        env.close();
+    }
+
+    public void testAvailableIndexFoldersWithExclusions() throws Exception {
+        final NodeEnvironment env = newNodeEnvironment();
+        final int numIndices = randomIntBetween(1, 10);
+        Set<String> excludedPaths = new HashSet<>();
+        Set<String> actualPaths = new HashSet<>();
+        for (int i = 0; i < numIndices; i++) {
+            Index index = new Index("foo" + i, "fooUUID" + i);
+            for (Path path : env.indexPaths(index)) {
+                Files.createDirectories(path.resolve(MetaDataStateFormat.STATE_DIR_NAME));
+                actualPaths.add(path.getFileName().toString());
+            }
+            if (randomBoolean()) {
+                excludedPaths.add(env.indexPaths(index)[0].getFileName().toString());
+            }
+        }
+
+        assertThat(Sets.difference(actualPaths, excludedPaths), equalTo(env.availableIndexFolders(excludedPaths::contains)));
         assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
         env.close();
     }

@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
@@ -165,7 +165,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         writeRestrictions("*.trusted");
         try {
             tryConnect(trustedCert);
-        } catch (SSLHandshakeException | SocketException ex) {
+        } catch (SSLException | SocketException ex) {
             logger.warn(new ParameterizedMessage("unexpected handshake failure with certificate [{}] [{}]",
                     trustedCert.certificate.getSubjectDN(), trustedCert.certificate.getSubjectAlternativeNames()), ex);
             fail("handshake should have been successful, but failed with " + ex);
@@ -177,7 +177,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         try {
             tryConnect(untrustedCert);
             fail("handshake should have failed, but was successful");
-        } catch (SSLHandshakeException | SocketException ex) {
+        } catch (SSLException | SocketException ex) {
             // expected
         }
     }
@@ -187,7 +187,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         assertBusy(() -> {
             try {
                 tryConnect(untrustedCert);
-            } catch (SSLHandshakeException | SocketException ex) {
+            } catch (SSLException | SocketException ex) {
                 fail("handshake should have been successful, but failed with " + ex);
             }
         }, MAX_WAIT_RELOAD.millis(), TimeUnit.MILLISECONDS);
@@ -197,7 +197,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
             try {
                 tryConnect(untrustedCert);
                 fail("handshake should have failed, but was successful");
-            } catch (SSLHandshakeException | SocketException ex) {
+            } catch (SSLException | SocketException ex) {
                 // expected
             }
         }, MAX_WAIT_RELOAD.millis(), TimeUnit.MILLISECONDS);

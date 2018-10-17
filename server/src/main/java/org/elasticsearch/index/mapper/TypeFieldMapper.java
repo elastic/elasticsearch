@@ -19,13 +19,14 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermContext;
+import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -36,7 +37,6 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -92,7 +92,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     static final class TypeFieldType extends StringFieldType {
 
-        private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(ESLoggerFactory.getLogger(TypeFieldType.class));
+        private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(TypeFieldType.class));
 
         TypeFieldType() {
         }
@@ -216,7 +216,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
                 for (BytesRef type : types) {
                     if (uniqueTypes.add(type)) {
                         Term term = new Term(CONTENT_TYPE, type);
-                        TermContext context = TermContext.build(reader.getContext(), term);
+                        TermStates context = TermStates.build(reader.getContext(), term, true);
                         if (context.docFreq() == 0) {
                             // this _type is not present in the reader
                             continue;
@@ -287,9 +287,8 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         // we parse in pre parse
-        return null;
     }
 
     @Override

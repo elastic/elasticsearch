@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -32,32 +31,6 @@ public final class PutPrivilegesRequestBuilder extends ActionRequestBuilder<PutP
 
     public PutPrivilegesRequestBuilder(ElasticsearchClient client, PutPrivilegesAction action) {
         super(client, action, new PutPrivilegesRequest());
-    }
-
-    /**
-     * Populate the put privileges request using the given source, application name and privilege name
-     * The source must contain a single privilege object which matches the application and privilege names.
-     */
-    public PutPrivilegesRequestBuilder source(String applicationName, String expectedName,
-                                              BytesReference source, XContentType xContentType)
-        throws IOException {
-        Objects.requireNonNull(xContentType);
-        // EMPTY is ok here because we never call namedObject
-        try (InputStream stream = source.streamInput();
-             XContentParser parser = xContentType.xContent()
-                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-            XContentParser.Token token = parser.currentToken();
-            if (token == null) {
-                token = parser.nextToken();
-            }
-            if (token == XContentParser.Token.START_OBJECT) {
-                final ApplicationPrivilegeDescriptor privilege = parsePrivilege(parser, applicationName, expectedName);
-                this.request.setPrivileges(Collections.singleton(privilege));
-            } else {
-                throw new ElasticsearchParseException("expected an object but found {} instead", token);
-            }
-        }
-        return this;
     }
 
     ApplicationPrivilegeDescriptor parsePrivilege(XContentParser parser, String applicationName, String privilegeName) throws IOException {

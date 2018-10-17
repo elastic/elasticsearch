@@ -541,7 +541,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
 
-        assertThat(e.getMessage(), equalTo("Invalid detector rule: function lat_long does not support rules with conditions"));
+        assertThat(e.getMessage(), equalTo("Invalid detector rule: function lat_long only supports conditions that apply to time"));
     }
 
     public void testVerify_GivenRulesAndFunctionIsMetric() {
@@ -551,7 +551,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
 
-        assertThat(e.getMessage(), equalTo("Invalid detector rule: function metric does not support rules with conditions"));
+        assertThat(e.getMessage(), equalTo("Invalid detector rule: function metric only supports conditions that apply to time"));
     }
 
     public void testVerify_GivenRulesAndFunctionIsRare() {
@@ -562,7 +562,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
 
-        assertThat(e.getMessage(), equalTo("Invalid detector rule: function rare does not support rules with conditions"));
+        assertThat(e.getMessage(), equalTo("Invalid detector rule: function rare only supports conditions that apply to time"));
     }
 
     public void testVerify_GivenRulesAndFunctionIsFreqRare() {
@@ -574,7 +574,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
 
-        assertThat(e.getMessage(), equalTo("Invalid detector rule: function freq_rare does not support rules with conditions"));
+        assertThat(e.getMessage(), equalTo("Invalid detector rule: function freq_rare only supports conditions that apply to time"));
     }
 
     public void testVerify_GivenTimeConditionRuleAndFunctionIsLatLong() {

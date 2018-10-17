@@ -22,9 +22,8 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
@@ -64,7 +63,6 @@ import java.util.stream.IntStream;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
-import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.containsString;
@@ -171,8 +169,8 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         int additionsCount = randomIntBetween(0, 5);
         int deletionsCount = randomIntBetween(0, 3);
 
-        List<ActionListener<PutIndexTemplateResponse>> putTemplateListeners = new ArrayList<>();
-        List<ActionListener<DeleteIndexTemplateResponse>> deleteTemplateListeners = new ArrayList<>();
+        List<ActionListener<AcknowledgedResponse>> putTemplateListeners = new ArrayList<>();
+        List<ActionListener<AcknowledgedResponse>> deleteTemplateListeners = new ArrayList<>();
 
         Client mockClient = mock(Client.class);
         AdminClient mockAdminClient = mock(AdminClient.class);
@@ -227,7 +225,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             if (randomBoolean()) {
                 putTemplateListeners.get(i).onFailure(new RuntimeException("test - ignore"));
             } else {
-                putTemplateListeners.get(i).onResponse(new PutIndexTemplateResponse(randomBoolean()) {
+                putTemplateListeners.get(i).onResponse(new AcknowledgedResponse(randomBoolean()) {
 
                 });
             }
@@ -240,7 +238,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
                 assertThat(prevUpdatesInProgress - service.upgradesInProgress.get(), equalTo(1));
             } else {
                 int prevUpdatesInProgress = service.upgradesInProgress.get();
-                deleteTemplateListeners.get(i).onResponse(new DeleteIndexTemplateResponse(randomBoolean()) {
+                deleteTemplateListeners.get(i).onResponse(new AcknowledgedResponse(randomBoolean()) {
 
                 });
                 assertThat(prevUpdatesInProgress - service.upgradesInProgress.get(), equalTo(1));
@@ -256,9 +254,9 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testClusterStateUpdate() throws InterruptedException {
 
-        final AtomicReference<ActionListener<PutIndexTemplateResponse>> addedListener = new AtomicReference<>();
-        final AtomicReference<ActionListener<PutIndexTemplateResponse>> changedListener = new AtomicReference<>();
-        final AtomicReference<ActionListener<DeleteIndexTemplateResponse>> removedListener = new AtomicReference<>();
+        final AtomicReference<ActionListener<AcknowledgedResponse>> addedListener = new AtomicReference<>();
+        final AtomicReference<ActionListener<AcknowledgedResponse>> changedListener = new AtomicReference<>();
+        final AtomicReference<ActionListener<AcknowledgedResponse>> removedListener = new AtomicReference<>();
         final Semaphore updateInvocation = new Semaphore(0);
         final Semaphore calculateInvocation = new Semaphore(0);
         final Semaphore changedInvocation = new Semaphore(0);
@@ -299,7 +297,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             return null;
         }).when(mockIndicesAdminClient).deleteTemplate(any(DeleteIndexTemplateRequest.class), any(ActionListener.class));
 
-        final TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, mockClient, clusterService, threadPool,
+        new TemplateUpgradeService(Settings.EMPTY, mockClient, clusterService, threadPool,
             Arrays.asList(
                 templates -> {
                     assertNull(templates.put("added_test_template", IndexTemplateMetaData.builder("added_test_template")
@@ -373,11 +371,11 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         assertThat(updateInvocation.availablePermits(), equalTo(0));
         assertThat(finishInvocation.availablePermits(), equalTo(0));
 
-        addedListener.getAndSet(null).onResponse(new PutIndexTemplateResponse(true) {
+        addedListener.getAndSet(null).onResponse(new AcknowledgedResponse(true) {
         });
-        changedListener.getAndSet(null).onResponse(new PutIndexTemplateResponse(true) {
+        changedListener.getAndSet(null).onResponse(new AcknowledgedResponse(true) {
         });
-        removedListener.getAndSet(null).onResponse(new DeleteIndexTemplateResponse(true) {
+        removedListener.getAndSet(null).onResponse(new AcknowledgedResponse(true) {
         });
 
         // 3 upgrades should be completed, in addition to the final calculate
@@ -414,42 +412,6 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         assertThat(calculateInvocation.availablePermits(), equalTo(0));
         assertThat(updateInvocation.availablePermits(), equalTo(0));
         assertThat(finishInvocation.availablePermits(), equalTo(0));
-    }
-
-    private static final int NODE_TEST_ITERS = 100;
-
-    private DiscoveryNodes randomNodes(int dataAndMasterNodes, int clientNodes) {
-        DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-        String masterNodeId = null;
-        for (int i = 0; i < dataAndMasterNodes; i++) {
-            String id = randomAlphaOfLength(10) + "_" + i;
-            Set<DiscoveryNode.Role> roles;
-            if (i == 0) {
-                masterNodeId = id;
-                // The first node has to be master node
-                if (randomBoolean()) {
-                    roles = EnumSet.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA);
-                } else {
-                    roles = EnumSet.of(DiscoveryNode.Role.MASTER);
-                }
-            } else {
-                if (randomBoolean()) {
-                    roles = EnumSet.of(DiscoveryNode.Role.DATA);
-                } else {
-                    roles = EnumSet.of(DiscoveryNode.Role.MASTER);
-                }
-            }
-            String node = "node_" + i;
-            builder.add(new DiscoveryNode(node, id, buildNewFakeTransportAddress(), emptyMap(), roles, randomVersion(random())));
-        }
-        builder.masterNodeId(masterNodeId);  // Node 0 is always a master node
-
-        for (int i = 0; i < clientNodes; i++) {
-            String node = "client_" + i;
-            builder.add(new DiscoveryNode(node, randomAlphaOfLength(10) + "__" + i, buildNewFakeTransportAddress(), emptyMap(),
-                EnumSet.noneOf(DiscoveryNode.Role.class), randomVersion(random())));
-        }
-        return builder.build();
     }
 
     public static MetaData randomMetaData(IndexTemplateMetaData... templates) {

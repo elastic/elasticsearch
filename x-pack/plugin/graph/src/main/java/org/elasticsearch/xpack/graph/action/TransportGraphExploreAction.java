@@ -24,6 +24,15 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.protocol.xpack.graph.Connection;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreResponse;
+import org.elasticsearch.protocol.xpack.graph.Hop;
+import org.elasticsearch.protocol.xpack.graph.Vertex;
+import org.elasticsearch.protocol.xpack.graph.VertexRequest;
+import org.elasticsearch.protocol.xpack.graph.Connection.ConnectionId;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest.TermBoost;
+import org.elasticsearch.protocol.xpack.graph.Vertex.VertexId;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
@@ -39,16 +48,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.graph.action.Connection;
-import org.elasticsearch.xpack.core.graph.action.Connection.ConnectionId;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
-import org.elasticsearch.xpack.core.graph.action.GraphExploreRequest;
-import org.elasticsearch.xpack.core.graph.action.GraphExploreRequest.TermBoost;
-import org.elasticsearch.xpack.core.graph.action.GraphExploreResponse;
-import org.elasticsearch.xpack.core.graph.action.Hop;
-import org.elasticsearch.xpack.core.graph.action.Vertex;
-import org.elasticsearch.xpack.core.graph.action.Vertex.VertexId;
-import org.elasticsearch.xpack.core.graph.action.VertexRequest;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -193,7 +193,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             // A single sample pool of docs is built at the root of the aggs tree.
             // For quality's sake it might have made more sense to sample top docs
             // for each of the terms from the previous hop (e.g. an initial query for "beatles" 
-            // may have seperate doc-sample pools for significant root terms "john", "paul", "yoko" etc)
+            // may have separate doc-sample pools for significant root terms "john", "paul", "yoko" etc)
             // but I found this dramatically slowed down execution - each pool typically had different docs which
             // each had non-overlapping sets of terms that needed frequencies looking up for significant terms.
             // A common sample pool reduces the specialization that can be given to each root term but

@@ -30,6 +30,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
@@ -66,6 +67,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -77,14 +79,14 @@ public class TransportOpenJobActionTests extends ESTestCase {
         expectThrows(ResourceNotFoundException.class, () -> TransportOpenJobAction.validate("job_id2", mlBuilder.build()));
     }
 
-    public void testValidate_jobMarkedAsDeleted() {
+    public void testValidate_jobMarkedAsDeleting() {
         MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
         Job.Builder jobBuilder = buildJobBuilder("job_id");
-        jobBuilder.setDeleted(true);
+        jobBuilder.setDeleting(true);
         mlBuilder.putJob(jobBuilder.build(), false);
         Exception e = expectThrows(ElasticsearchStatusException.class,
                 () -> TransportOpenJobAction.validate("job_id", mlBuilder.build()));
-        assertEquals("Cannot open job [job_id] because it has been marked as deleted", e.getMessage());
+        assertEquals("Cannot open job [job_id] because it is being deleted", e.getMessage());
     }
 
     public void testValidate_jobWithoutVersion() {
@@ -423,33 +425,6 @@ public class TransportOpenJobActionTests extends ESTestCase {
         assertNull(result.getExecutorNode());
     }
 
-    public void testSelectLeastLoadedMlNode_noNodesPriorTo_V_5_5() {
-        Map<String, String> nodeAttr = new HashMap<>();
-        nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
-        DiscoveryNodes nodes = DiscoveryNodes.builder()
-                .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                        nodeAttr, Collections.emptySet(), Version.V_5_4_0))
-                .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                        nodeAttr, Collections.emptySet(), Version.V_5_4_0))
-                .build();
-
-        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
-        addJobTask("incompatible_type_job", "_node_id1", null, tasksBuilder);
-        PersistentTasksCustomMetaData tasks = tasksBuilder.build();
-
-        ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
-        MetaData.Builder metaData = MetaData.builder();
-        RoutingTable.Builder routingTable = RoutingTable.builder();
-        addJobAndIndices(metaData, routingTable, "incompatible_type_job");
-        cs.nodes(nodes);
-        metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
-        cs.metaData(metaData);
-        cs.routingTable(routingTable.build());
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("incompatible_type_job", cs.build(), 2, 10, 30, logger);
-        assertThat(result.getExplanation(), containsString("because this node does not support jobs of version [" + Version.CURRENT + "]"));
-        assertNull(result.getExecutorNode());
-    }
-
     public void testSelectLeastLoadedMlNode_noNodesMatchingModelSnapshotMinVersion() {
         Map<String, String> nodeAttr = new HashMap<>();
         nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
@@ -559,7 +534,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         } else {
             Index index = new Index(indexToRemove, "_uuid");
             ShardId shardId = new ShardId(index, 0);
-            ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE,
+            ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
             shardRouting = shardRouting.initialize("node_id", null, 0L);
             routingTable.add(IndexRoutingTable.builder(index)
@@ -606,12 +581,6 @@ public class TransportOpenJobActionTests extends ESTestCase {
         assertArrayEquals(indices, TransportOpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
     }
 
-    public void testMappingRequiresUpdateOldMappingVersion() throws IOException {
-        ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("version_54", Version.V_5_4_0.toString()));
-        String[] indices = new String[] { "version_54" };
-        assertArrayEquals(indices, TransportOpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
-    }
-
     public void testMappingRequiresUpdateBogusMappingVersion() throws IOException {
         ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("version_bogus", "0.0"));
         String[] indices = new String[] { "version_bogus" };
@@ -630,21 +599,6 @@ public class TransportOpenJobActionTests extends ESTestCase {
         String[] indices = new String[] { "version_newer_minor" };
         assertArrayEquals(new String[] {},
                 TransportOpenJobAction.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousMinorVersion(), logger));
-    }
-
-    public void testMappingRequiresUpdateSomeVersionMix() throws IOException {
-        Map<String, Object> versionMix = new HashMap<>();
-        versionMix.put("version_54", Version.V_5_4_0);
-        versionMix.put("version_current", Version.CURRENT);
-        versionMix.put("version_null", null);
-        versionMix.put("version_current2", Version.CURRENT);
-        versionMix.put("version_bogus", "0.0.0");
-        versionMix.put("version_current3", Version.CURRENT);
-        versionMix.put("version_bogus2", "0.0.0");
-
-        ClusterState cs = getClusterStateWithMappingsWithMetaData(versionMix);
-        String[] indices = new String[] { "version_54", "version_null", "version_bogus", "version_bogus2" };
-        assertArrayEquals(indices, TransportOpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
     }
 
     public void testNodeNameAndVersion() {
@@ -672,6 +626,24 @@ public class TransportOpenJobActionTests extends ESTestCase {
         attributes.put("node.ml", "true");
         node = new DiscoveryNode("_node_name1", "_node_id1", ta, attributes, Collections.emptySet(), Version.CURRENT);
         assertEquals("{_node_name1}{ml.machine_memory=5}{node.ml=true}", TransportOpenJobAction.nodeNameAndMlAttributes(node));
+    }
+
+    public void testJobTaskMatcherMatch() {
+        Task nonJobTask1 = mock(Task.class);
+        Task nonJobTask2 = mock(Task.class);
+        TransportOpenJobAction.JobTask jobTask1 = new TransportOpenJobAction.JobTask("ml-1",
+                0, "persistent", "", null, null);
+        TransportOpenJobAction.JobTask jobTask2 = new TransportOpenJobAction.JobTask("ml-2",
+                1, "persistent", "", null, null);
+
+        assertThat(OpenJobAction.JobTaskMatcher.match(nonJobTask1, "_all"), is(false));
+        assertThat(OpenJobAction.JobTaskMatcher.match(nonJobTask2, "_all"), is(false));
+        assertThat(OpenJobAction.JobTaskMatcher.match(jobTask1, "_all"), is(true));
+        assertThat(OpenJobAction.JobTaskMatcher.match(jobTask2, "_all"), is(true));
+        assertThat(OpenJobAction.JobTaskMatcher.match(jobTask1, "ml-1"), is(true));
+        assertThat(OpenJobAction.JobTaskMatcher.match(jobTask2, "ml-1"), is(false));
+        assertThat(OpenJobAction.JobTaskMatcher.match(jobTask1, "ml-2"), is(false));
+        assertThat(OpenJobAction.JobTaskMatcher.match(jobTask2, "ml-2"), is(true));
     }
 
     public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetaData.Builder builder) {
@@ -704,7 +676,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
             metaData.put(indexMetaData);
             Index index = new Index(indexName, "_uuid");
             ShardId shardId = new ShardId(index, 0);
-            ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE,
+            ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
             shardRouting = shardRouting.initialize("node_id", null, 0L);
             shardRouting = shardRouting.moveToStarted();

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -27,20 +26,16 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.MutableDateTime;
-import org.joda.time.ReadableDateTime;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.UnaryOperator;
-
 
 /**
  * Script level doc values, the assumption is that any implementation will
@@ -52,6 +47,7 @@ import java.util.function.UnaryOperator;
  * values form multiple documents.
  */
 public abstract class ScriptDocValues<T> extends AbstractList<T> {
+
     /**
      * Set the current doc ID.
      */
@@ -142,17 +138,14 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public static final class Dates extends ScriptDocValues<ReadableDateTime> {
-        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Dates.class));
-
-        private static final ReadableDateTime EPOCH = new DateTime(0, DateTimeZone.UTC);
+    public static final class Dates extends ScriptDocValues<JodaCompatibleZonedDateTime> {
 
         private final SortedNumericDocValues in;
+
         /**
-         * Values wrapped in {@link MutableDateTime}. Null by default an allocated on first usage so we allocate a reasonably size. We keep
-         * this array so we don't have allocate new {@link MutableDateTime}s on every usage. Instead we reuse them for every document.
+         * Values wrapped in {@link java.time.ZonedDateTime} objects.
          */
-        private MutableDateTime[] dates;
+        private JodaCompatibleZonedDateTime[] dates;
         private int count;
 
         /**
@@ -166,7 +159,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          * Fetch the first field value or 0 millis after epoch if there are no
          * in.
          */
-        public ReadableDateTime getValue() {
+        public JodaCompatibleZonedDateTime getValue() {
             if (count == 0) {
                 throw new IllegalStateException("A document doesn't have a value for a field! " +
                     "Use doc[<field>].size()==0 to check if a document is missing a field!");
@@ -175,7 +168,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         @Override
-        public ReadableDateTime get(int index) {
+        public JodaCompatibleZonedDateTime get(int index) {
             if (index >= count) {
                 throw new IndexOutOfBoundsException(
                         "attempted to fetch the [" + index + "] date when there are only ["
@@ -206,29 +199,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             if (count == 0) {
                 return;
             }
-            if (dates == null) {
+            if (dates == null || count > dates.length) {
                 // Happens for the document. We delay allocating dates so we can allocate it with a reasonable size.
-                dates = new MutableDateTime[count];
-                for (int i = 0; i < dates.length; i++) {
-                    dates[i] = new MutableDateTime(in.nextValue(), DateTimeZone.UTC);
-                }
-                return;
+                dates = new JodaCompatibleZonedDateTime[count];
             }
-            if (count > dates.length) {
-                // Happens when we move to a new document and it has more dates than any documents before it.
-                MutableDateTime[] backup = dates;
-                dates = new MutableDateTime[count];
-                System.arraycopy(backup, 0, dates, 0, backup.length);
-                for (int i = 0; i < backup.length; i++) {
-                    dates[i].setMillis(in.nextValue());
-                }
-                for (int i = backup.length; i < dates.length; i++) {
-                    dates[i] = new MutableDateTime(in.nextValue(), DateTimeZone.UTC);
-                }
-                return;
-            }
-            for (int i = 0; i < count; i++) {
-                dates[i] = new MutableDateTime(in.nextValue(), DateTimeZone.UTC);
+            for (int i = 0; i < count; ++i) {
+                dates[i] = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(in.nextValue()), ZoneOffset.UTC);
             }
         }
     }

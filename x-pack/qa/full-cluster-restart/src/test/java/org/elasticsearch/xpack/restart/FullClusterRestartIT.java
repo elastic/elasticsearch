@@ -10,7 +10,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -18,6 +17,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -32,6 +32,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
@@ -41,6 +42,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -52,33 +54,11 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class FullClusterRestartIT extends ESRestTestCase {
-    private final boolean runningAgainstOldCluster = Booleans.parseBoolean(System.getProperty("tests.is_old_cluster"));
-    private final Version oldClusterVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
+public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     @Before
     public void waitForMlTemplates() throws Exception {
         XPackRestTestHelper.waitForMlTemplates(client());
-    }
-
-    @Override
-    protected boolean preserveIndicesUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveSnapshotsUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveReposUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveTemplatesUponCompletion() {
-        return true;
     }
 
     @Override
@@ -101,7 +81,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         String docLocation = "/testsingledoc/doc/1";
         String doc = "{\"test\": \"test\"}";
 
-        if (runningAgainstOldCluster) {
+        if (isRunningAgainstOldCluster()) {
             Request createDoc = new Request("PUT", docLocation);
             createDoc.addParameter("refresh", "true");
             createDoc.setJsonEntity(doc);
@@ -113,7 +93,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSecurityNativeRealm() throws Exception {
-        if (runningAgainstOldCluster) {
+        if (isRunningAgainstOldCluster()) {
             createUser("preupgrade_user");
             createRole("preupgrade_role");
         } else {
@@ -163,15 +143,15 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
         assertUserInfo("preupgrade_user");
         assertRoleInfo("preupgrade_role");
-        if (!runningAgainstOldCluster) {
+        if (isRunningAgainstOldCluster() == false) {
             assertUserInfo("postupgrade_user");
             assertRoleInfo("postupgrade_role");
         }
     }
 
     public void testWatcher() throws Exception {
-        if (runningAgainstOldCluster) {
-            logger.info("Adding a watch on old cluster {}", oldClusterVersion);
+        if (isRunningAgainstOldCluster()) {
+            logger.info("Adding a watch on old cluster {}", getOldClusterVersion());
             Request createBwcWatch = new Request("PUT", "_xpack/watcher/watch/bwc_watch");
             createBwcWatch.setJsonEntity(loadWatch("simple-watch.json"));
             client().performRequest(createBwcWatch);
@@ -192,7 +172,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             waitForHits(".watcher-history*", 2);
             logger.info("Done creating watcher-related indices");
         } else {
-            logger.info("testing against {}", oldClusterVersion);
+            logger.info("testing against {}", getOldClusterVersion());
             waitForYellow(".watches,bwc_watch_index,.watcher-history*");
 
             logger.info("checking if the upgrade procedure on the new cluster is required");
@@ -262,8 +242,8 @@ public class FullClusterRestartIT extends ESRestTestCase {
      * Tests that a RollUp job created on a old cluster is correctly restarted after the upgrade.
      */
     public void testRollupAfterRestart() throws Exception {
-        assumeTrue("Rollup can be tested with 6.3.0 and onwards", oldClusterVersion.onOrAfter(Version.V_6_3_0));
-        if (runningAgainstOldCluster) {
+        assumeTrue("Rollup can be tested with 6.3.0 and onwards", getOldClusterVersion().onOrAfter(Version.V_6_3_0));
+        if (isRunningAgainstOldCluster()) {
             final int numDocs = 59;
             final int year = randomIntBetween(1970, 2018);
 
@@ -313,7 +293,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             final Request clusterHealthRequest = new Request("GET", "/_cluster/health");
             clusterHealthRequest.addParameter("wait_for_status", "yellow");
             clusterHealthRequest.addParameter("wait_for_no_relocating_shards", "true");
-            if (oldClusterVersion.onOrAfter(Version.V_6_2_0)) {
+            if (getOldClusterVersion().onOrAfter(Version.V_6_2_0)) {
                 clusterHealthRequest.addParameter("wait_for_no_initializing_shards", "true");
             }
             Map<String, Object> clusterHealthResponse = entityAsMap(client().performRequest(clusterHealthRequest));
@@ -323,11 +303,122 @@ public class FullClusterRestartIT extends ESRestTestCase {
         }
     }
 
+    public void testRollupIDSchemeAfterRestart() throws Exception {
+        assumeTrue("Rollup can be tested with 6.3.0 and onwards", getOldClusterVersion().onOrAfter(Version.V_6_3_0));
+        assumeTrue("Rollup ID scheme changed in 6.4", getOldClusterVersion().before(Version.V_6_4_0));
+        if (isRunningAgainstOldCluster()) {
+
+            final Request indexRequest = new Request("POST", "/id-test-rollup/_doc/1");
+            indexRequest.setJsonEntity("{\"timestamp\":\"2018-01-01T00:00:01\",\"value\":123}");
+            client().performRequest(indexRequest);
+
+            // create the rollup job
+            final Request createRollupJobRequest = new Request("PUT", "/_xpack/rollup/job/rollup-id-test");
+            createRollupJobRequest.setJsonEntity("{"
+                + "\"index_pattern\":\"id-test-rollup\","
+                + "\"rollup_index\":\"id-test-results-rollup\","
+                + "\"cron\":\"*/1 * * * * ?\","
+                + "\"page_size\":100,"
+                + "\"groups\":{"
+                + "    \"date_histogram\":{"
+                + "        \"field\":\"timestamp\","
+                + "        \"interval\":\"5m\""
+                + "      },"
+                +       "\"histogram\":{"
+                + "        \"fields\": [\"value\"],"
+                + "        \"interval\":1"
+                + "      },"
+                +       "\"terms\":{"
+                + "        \"fields\": [\"value\"]"
+                + "      }"
+                + "},"
+                + "\"metrics\":["
+                + "    {\"field\":\"value\",\"metrics\":[\"min\",\"max\",\"sum\"]}"
+                + "]"
+                + "}");
+
+            Map<String, Object> createRollupJobResponse = entityAsMap(client().performRequest(createRollupJobRequest));
+            assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+            // start the rollup job
+            final Request startRollupJobRequest = new Request("POST", "_xpack/rollup/job/rollup-id-test/_start");
+            Map<String, Object> startRollupJobResponse = entityAsMap(client().performRequest(startRollupJobRequest));
+            assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
+
+            assertRollUpJob("rollup-id-test");
+
+            assertBusy(() -> {
+                client().performRequest(new Request("POST", "id-test-results-rollup/_refresh"));
+                final Request searchRequest = new Request("GET", "id-test-results-rollup/_search");
+                try {
+                    Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
+                    assertNotNull(ObjectPath.eval("hits.total", searchResponse));
+                    assertThat(ObjectPath.eval("hits.total", searchResponse), equalTo(1));
+                    assertThat(ObjectPath.eval("hits.hits.0._id", searchResponse), equalTo("3310683722"));
+                } catch (IOException e) {
+                    fail();
+                }
+            });
+
+            // After we've confirmed the doc, wait until we move back to STARTED so that we know the
+            // state was saved at the end
+            waitForRollUpJob("rollup-id-test", equalTo("started"));
+
+        } else {
+
+            final Request indexRequest = new Request("POST", "/id-test-rollup/_doc/2");
+            indexRequest.setJsonEntity("{\"timestamp\":\"2018-01-02T00:00:01\",\"value\":345}");
+            client().performRequest(indexRequest);
+
+            assertRollUpJob("rollup-id-test");
+
+            // stop the rollup job to force a state save, which will upgrade the ID
+            final Request stopRollupJobRequest = new Request("POST", "_xpack/rollup/job/rollup-id-test/_stop");
+            Map<String, Object> stopRollupJobResponse = entityAsMap(client().performRequest(stopRollupJobRequest));
+            assertThat(stopRollupJobResponse.get("stopped"), equalTo(Boolean.TRUE));
+
+            waitForRollUpJob("rollup-id-test", equalTo("stopped"));
+
+            // start the rollup job again
+            final Request startRollupJobRequest = new Request("POST", "_xpack/rollup/job/rollup-id-test/_start");
+            Map<String, Object> startRollupJobResponse = entityAsMap(client().performRequest(startRollupJobRequest));
+            assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
+
+            waitForRollUpJob("rollup-id-test", anyOf(equalTo("indexing"), equalTo("started")));
+
+            assertBusy(() -> {
+                client().performRequest(new Request("POST", "id-test-results-rollup/_refresh"));
+                final Request searchRequest = new Request("GET", "id-test-results-rollup/_search");
+                try {
+                    Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
+                    assertNotNull(ObjectPath.eval("hits.total", searchResponse));
+                    assertThat(ObjectPath.eval("hits.total", searchResponse), equalTo(2));
+                    List<String> ids = new ArrayList<>(2);
+                    ids.add(ObjectPath.eval("hits.hits.0._id", searchResponse));
+                    ids.add(ObjectPath.eval("hits.hits.1._id", searchResponse));
+
+                    // should have both old and new ID formats
+                    assertThat(ids, containsInAnyOrder("3310683722", "rollup-id-test$ehY4NAyVSy8xxUDZrNXXIA"));
+
+                    List<Double> values = new ArrayList<>(2);
+                    Map<String, Object> doc = ObjectPath.eval("hits.hits.0._source", searchResponse);
+                    values.add((Double)doc.get("value.min.value"));
+                    doc = ObjectPath.eval("hits.hits.1._source", searchResponse);
+                    values.add((Double)doc.get("value.min.value"));
+
+                    assertThat(values, containsInAnyOrder(123.0, 345.0));
+                } catch (IOException e) {
+                    fail();
+                }
+            });
+        }
+    }
+
     public void testSqlFailsOnIndexWithTwoTypes() throws IOException {
         // TODO this isn't going to trigger until we backport to 6.1
         assumeTrue("It is only possible to build an index that sql doesn't like before 6.0.0",
-                oldClusterVersion.before(Version.V_6_0_0_alpha1));
-        if (runningAgainstOldCluster) {
+                getOldClusterVersion().before(Version.V_6_0_0_alpha1));
+        if (isRunningAgainstOldCluster()) {
             Request doc1 = new Request("POST", "/testsqlfailsonindexwithtwotypes/type1");
             doc1.setJsonEntity("{}");
             client().performRequest(doc1);
@@ -437,7 +528,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         request.addParameter("wait_for_status", "yellow");
         request.addParameter("timeout", "30s");
         request.addParameter("wait_for_no_relocating_shards", "true");
-        if (oldClusterVersion.onOrAfter(Version.V_6_2_0)) {
+        if (getOldClusterVersion().onOrAfter(Version.V_6_2_0)) {
             request.addParameter("wait_for_no_initializing_shards", "true");
         }
         Map<String, Object> response = entityAsMap(client().performRequest(request));
@@ -555,7 +646,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
                 // Persistent task state field has been renamed in 6.4.0 from "status" to "state"
                 final String stateFieldName
-                    = (runningAgainstOldCluster && oldClusterVersion.before(Version.V_6_4_0)) ? "status" : "state";
+                    = (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_6_4_0)) ? "status" : "state";
 
                 final String jobStateField = "task.xpack/rollup/job." + stateFieldName + ".job_state";
                 assertThat("Expected field [" + jobStateField + "] to be started or indexing in " + task.get("id"),

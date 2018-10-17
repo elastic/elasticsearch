@@ -126,5 +126,16 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(predicate.test("indices:admin/seq_no/global_checkpoint_sync"), is(true));
         assertThat(predicate.test("indices:admin/seq_no/global_checkpoint_sync[p]"), is(true));
         assertThat(predicate.test("indices:admin/seq_no/global_checkpoint_sync[r]"), is(true));
+        assertThat(predicate.test("indices:admin/settings/update"), is(true));
+        assertThat(predicate.test("indices:admin/settings/foo"), is(false));
     }
+
+    public void testManageCcrPrivilege() {
+        Predicate<String> predicate = ClusterPrivilege.MANAGE_CCR.predicate();
+        assertThat(predicate.test("cluster:admin/xpack/ccr/follow_index"), is(true));
+        assertThat(predicate.test("cluster:admin/xpack/ccr/unfollow_index"), is(true));
+        assertThat(predicate.test("cluster:admin/xpack/ccr/brand_new_api"), is(true));
+        assertThat(predicate.test("cluster:admin/xpack/whatever"), is(false));
+    }
+
 }

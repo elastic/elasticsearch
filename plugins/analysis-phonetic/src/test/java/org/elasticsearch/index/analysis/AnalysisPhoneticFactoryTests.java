@@ -38,4 +38,5 @@ public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
         filters.put("phonetic", PhoneticTokenFilterFactory.class);
         return filters;
     }
+
 }

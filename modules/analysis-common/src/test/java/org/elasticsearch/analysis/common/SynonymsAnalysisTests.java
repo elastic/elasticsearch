@@ -23,8 +23,11 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.analysis.CannedTokenStream;
 import org.apache.lucene.analysis.Token;
+import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
+import org.apache.lucene.analysis.core.LowerCaseFilterFactory;
+import org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter;
 import org.apache.lucene.analysis.synonym.SynonymGraphFilterFactory;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.Version;
@@ -32,23 +35,30 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -197,22 +207,97 @@ public class SynonymsAnalysisTests extends ESTestCase {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
 
         String[] bypassingFactories = new String[]{
-            "common_grams", "dictionary_decompounder",
-            "edge_ngram", "ngram", "word_delimiter", "word_delimiter_graph"
+            "common_grams", "dictionary_decompounder"
         };
 
         CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
         for (String factory : bypassingFactories) {
             TokenFilterFactory tff = plugin.getTokenFilters().get(factory).get(idxSettings, null, factory, settings);
             TokenizerFactory tok = new KeywordTokenizerFactory(idxSettings, null, "keyword", settings);
-            Analyzer analyzer = SynonymTokenFilterFactory.buildSynonymAnalyzer(tok,
-                Collections.emptyList(), Collections.singletonList(tff));
+            SynonymTokenFilterFactory stff = new SynonymTokenFilterFactory(idxSettings, null, "synonym", settings);
+            Analyzer analyzer = stff.buildSynonymAnalyzer(tok, Collections.emptyList(), Collections.singletonList(tff), null);
 
             try (TokenStream ts = analyzer.tokenStream("field", "text")) {
                 assertThat(ts, instanceOf(KeywordTokenizer.class));
             }
         }
 
+    }
+
+    public void testExplicitSynonymAnalysisChain() throws IOException {
+
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("path.home", createTempDir().toString())
+            .putList("filters", "lowercase", "word_delimiter_graph")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
+
+        SynonymTokenFilterFactory stff = new SynonymTokenFilterFactory(idxSettings, null, "synonym", settings);
+        TokenizerFactory tok = new KeywordTokenizerFactory(idxSettings, null, "keyword", settings);
+        Analyzer analyzer = stff.buildSynonymAnalyzer(tok, Collections.emptyList(), Collections.emptyList(),
+            f -> {
+                try {
+                    return plugin.getTokenFilters().get(f).get(null, "name");
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+
+        assertThat(analyzer, instanceOf(CustomAnalyzer.class));
+        CustomAnalyzer a = (CustomAnalyzer) analyzer;
+        assertThat(a.tokenizerFactory(), instanceOf(KeywordTokenizerFactory.class));
+        assertThat(a.charFilters().length, equalTo(0));
+        assertThat(a.tokenFilters()[0], instanceOf(LowerCaseTokenFilterFactory.class));
+        assertThat(a.tokenFilters()[1], instanceOf(WordDelimiterGraphTokenFilterFactory.class));
+    }
+
+    public void testDisallowedTokenFilters() throws IOException {
+
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0_alpha1, Version.CURRENT))
+            .put("path.home", createTempDir().toString())
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
+
+        String[] disallowedFactories = new String[]{
+            "multiplexer", "ngram", "edge_ngram", "word_delimiter", "word_delimiter_graph", "fingerprint"
+        };
+
+        for (String factory : disallowedFactories) {
+            TokenFilterFactory tff = plugin.getTokenFilters().get(factory).get(idxSettings, null, factory, settings);
+            TokenizerFactory tok = new KeywordTokenizerFactory(idxSettings, null, "keyword", settings);
+            SynonymTokenFilterFactory stff = new SynonymTokenFilterFactory(idxSettings, null, "synonym", settings);
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                "Expected IllegalArgumentException for factory " + factory,
+                () -> stff.buildSynonymAnalyzer(tok, Collections.emptyList(), Collections.singletonList(tff), null));
+
+            assertEquals("Token filter [" + factory + "] cannot be used to parse synonyms except as part of an explicit synonym filter parameter",
+                e.getMessage());
+        }
+
+        settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED,
+                VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0_alpha1)))
+            .put("path.home", createTempDir().toString())
+            .build();
+        idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+
+        List<String> expectedWarnings = new ArrayList<>();
+        for (String factory : disallowedFactories) {
+            TokenFilterFactory tff = plugin.getTokenFilters().get(factory).get(idxSettings, null, factory, settings);
+            TokenizerFactory tok = new KeywordTokenizerFactory(idxSettings, null, "keyword", settings);
+            SynonymTokenFilterFactory stff = new SynonymTokenFilterFactory(idxSettings, null, "synonym", settings);
+
+            stff.buildSynonymAnalyzer(tok, Collections.emptyList(), Collections.singletonList(tff), null);
+            expectedWarnings.add("Token filter [" + factory
+                + "] will not be usable to parse synonyms except as part of an explicit synonym filter parameter after v7.0");
+        }
+
+        assertWarnings(expectedWarnings.toArray(new String[0]));
     }
 
     private void match(String analyzerName, String source, String target) throws IOException {

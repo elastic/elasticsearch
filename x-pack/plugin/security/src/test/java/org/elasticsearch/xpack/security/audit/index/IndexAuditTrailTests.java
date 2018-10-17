@@ -178,7 +178,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         logger.info("--> remote indexing enabled. security enabled: [{}], SSL enabled: [{}], nodes: [{}]", useSecurity, useSSL,
                 numNodes);
         SecuritySettingsSource cluster2SettingsSource =
-                new SecuritySettingsSource(numNodes, useSSL, createTempDir(), Scope.SUITE) {
+                new SecuritySettingsSource(useSSL, createTempDir(), Scope.SUITE) {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder builder = Settings.builder()

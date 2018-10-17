@@ -98,9 +98,18 @@ Caused by: org.elasticsearch.common.xcontent.XContentParseException: [-1:####] [
 
 ======================================================
 
+[IMPORTANT]
+.bin/plugin can no longer remove x-pack
+=========================================
+
+`bin/plugin remove x-pack` no longer works. You should remove the {xpack}
+plugin before upgrading to 6.4 or any later versions.
+
+=========================================
+
 [float]
 === Known issues
-See the important section above.
+See the important sections above.
 
 {es} 6.4.0 fails to start when PEM encoded private key files that have been exported from `PKCS#12`
 keystores are in use. These files can be identified by the existence of lines that start with either

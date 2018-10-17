@@ -7,6 +7,16 @@
 This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 6.4.
 
+[IMPORTANT]
+.bin/plugin can no longer remove x-pack
+=========================================
+
+`bin/plugin remove x-pack` no longer works. You should remove the {xpack}
+plugin before upgrading to 6.4 or any later versions. More instructions
+available in <<rolling-upgrades>> and <<restart-upgrade>>.
+
+=========================================
+
 * <<breaking_64_api_changes>>
 * <<breaking_64_scripting_changes>>
 

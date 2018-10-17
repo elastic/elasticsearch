@@ -65,7 +65,7 @@ public final class PutRoleMappingResponse {
             "put_role_mapping_response", true, args -> new PutRoleMappingResponse((boolean) args[0]));
     static {
         ConstructingObjectParser<Boolean, Void> roleMappingParser = new ConstructingObjectParser<>(
-                "put_role_mapping_response.role_mapping", true, args -> (boolean) args[0]);
+                "put_role_mapping_response.role_mapping", true, args -> (Boolean) args[0]);
         roleMappingParser.declareBoolean(constructorArg(), new ParseField("created"));
         PARSER.declareObject(constructorArg(), roleMappingParser::parse, new ParseField("role_mapping"));
     }

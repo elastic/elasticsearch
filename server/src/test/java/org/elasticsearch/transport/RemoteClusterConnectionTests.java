@@ -1429,6 +1429,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.acceptIncomingRequests();
                 Supplier<DiscoveryNode> seedSupplier = () ->
                     RemoteClusterAware.buildSeedNode("some-remote-cluster", "node_0:" + randomIntBetween(1, 10000), true);
+                assertEquals("node_0", seedSupplier.get().getAttributes().get("server_name"));
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
                     Arrays.asList(seedSupplier), service, service.getConnectionManager(), Integer.MAX_VALUE, n -> true, proxyAddress)) {
                     updateSeedNodes(connection, Arrays.asList(seedSupplier), proxyAddress);

@@ -228,8 +228,7 @@ public abstract class RemoteClusterAware extends AbstractComponent {
             TransportAddress transportAddress = new TransportAddress(TransportAddress.META_ADDRESS, 0);
             String hostName = address.substring(0, indexOfPortSeparator(address));
             return new DiscoveryNode("", clusterName + "#" + address, UUIDs.randomBase64UUID(), hostName, address,
-                    transportAddress, Collections
-                    .emptyMap(), EnumSet.allOf(DiscoveryNode.Role.class),
+                    transportAddress, Collections.singletonMap("server_name", hostName), EnumSet.allOf(DiscoveryNode.Role.class),
                     Version.CURRENT.minimumCompatibilityVersion());
         } else {
             TransportAddress transportAddress = new TransportAddress(RemoteClusterAware.parseSeedAddress(address));

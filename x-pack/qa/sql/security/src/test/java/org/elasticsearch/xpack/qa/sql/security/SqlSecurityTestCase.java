@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.qa.sql.security;
 
 import org.apache.lucene.util.SuppressForbidden;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -14,6 +15,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matcher;
@@ -32,17 +34,16 @@ import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Function;
-import java.util.regex.Pattern;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.hasItems;
 
 public abstract class SqlSecurityTestCase extends ESRestTestCase {
@@ -515,21 +516,22 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             default:
                 throw new IllegalArgumentException("Unknown action [" + action + "]");
             }
-            final String eventType = granted ? "access_granted" : "access_denied";
+            final String eventAction = granted ? "access_granted" : "access_denied";
             final String realm = principal.equals("test_admin") ? "default_file" : "default_native";
-            return expect(eventType, action, principal, realm, indicesMatcher, request);
+            return expect(eventAction, action, principal, realm, indicesMatcher, request);
         }
 
-        public AuditLogAsserter expect(String eventType, String action, String principal, String realm,
+        public AuditLogAsserter expect(String eventAction, String action, String principal, String realm,
                     Matcher<? extends Iterable<? extends String>> indicesMatcher, String request) {
-            logCheckers.add(m -> eventType.equals(m.get("event_type"))
+            logCheckers.add(m -> 
+                eventAction.equals(m.get("event.action"))
                 && action.equals(m.get("action"))
-                && principal.equals(m.get("principal"))
-                && realm.equals(m.get("realm"))
-                && Matchers.nullValue(String.class).matches(m.get("run_by_principal"))
-                && Matchers.nullValue(String.class).matches(m.get("run_by_realm"))
+                && principal.equals(m.get("user.name"))
+                && realm.equals(m.get("user.realm"))
+                && Matchers.nullValue(String.class).matches(m.get("user.run_by.name"))
+                && Matchers.nullValue(String.class).matches(m.get("user.run_by.realm"))
                 && indicesMatcher.matches(m.get("indices"))
-                && request.equals(m.get("request"))
+                && request.equals(m.get("request.name"))
             );
             return this;
         }
@@ -554,56 +556,39 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
                     List<Map<String, Object>> logs = new ArrayList<>();
                     String line;
-                    Pattern logPattern = Pattern.compile(
-                            ("PART PART PART PART origin_type=PART, origin_address=PART, principal=PART, realm=PART, "
-                            + "(?:run_as_principal=IGN, )?(?:run_as_realm=IGN, )?(?:run_by_principal=PART, )?(?:run_by_realm=PART, )?"
-                            + "roles=PART, action=\\[(.*?)\\], (?:indices=PART, )?request=PART")
-                                .replace(" ", "\\s+").replace("PART", "\\[([^\\]]*)\\]").replace("IGN", "\\[[^\\]]*\\]"));
-                    // fail(logPattern.toString());
                     while ((line = logReader.readLine()) != null) {
-                        java.util.regex.Matcher m = logPattern.matcher(line);
-                        if (false == m.matches()) {
-                            throw new IllegalArgumentException("Unrecognized log: " + line);
+                        try {
+                            final Map<String, Object> log = XContentHelper.convertToMap(JsonXContent.jsonXContent, line, false);
+                            if (false == ("access_denied".equals(log.get("event.action"))
+                                    || "access_granted".equals(log.get("event.action")))) {
+                                continue;
+                            }
+                            assertThat(log.containsKey("action"), is(true));
+                            if (false == (SQL_ACTION_NAME.equals(log.get("action")) || GetIndexAction.NAME.equals(log.get("action")))) {
+                                // TODO we may want to extend this and the assertions to SearchAction.NAME as well
+                                continue;
+                            }
+                            assertThat(log.containsKey("user.name"), is(true));
+                            List<String> indices = new ArrayList<>();
+                            if (log.containsKey("indices")) {
+                                indices = (ArrayList<String>) log.get("indices");
+                                if ("test_admin".equals(log.get("user.name"))) {
+                                    /*
+                                     * Sometimes we accidentally sneak access to the security tables. This is fine,
+                                     * SQL drops them from the interface. So we might have access to them, but we
+                                     * don't show them.
+                                     */
+                                    indices.remove(".security");
+                                    indices.remove(".security-6");
+                                }
+                            }
+                            // Use a sorted list for indices for consistent error reporting
+                            Collections.sort(indices);
+                            log.put("indices", indices);
+                            logs.add(log);
+                        } catch (final ElasticsearchParseException e) {
+                            throw new IllegalArgumentException("Unrecognized log: " + line, e);
                         }
-                        int i = 1;
-                        Map<String, Object> log = new HashMap<>();
-                        /* We *could* parse the date but leaving it in the original format makes it
-                        * easier to find the lines in the file that this log comes from. */
-                        log.put("time", m.group(i++));
-                        log.put("node", m.group(i++));
-                        log.put("origin", m.group(i++));
-                        String eventType = m.group(i++);
-                        if (false == ("access_denied".equals(eventType) || "access_granted".equals(eventType))) {
-                            continue;
-                        }
-                        log.put("event_type", eventType);
-                        log.put("origin_type", m.group(i++));
-                        log.put("origin_address", m.group(i++));
-                        String principal = m.group(i++);
-                        log.put("principal", principal);
-                        log.put("realm", m.group(i++));
-                        log.put("run_by_principal", m.group(i++));
-                        log.put("run_by_realm", m.group(i++));
-                        log.put("roles", m.group(i++));
-                        String action = m.group(i++);
-                        if (false == (SQL_ACTION_NAME.equals(action) || GetIndexAction.NAME.equals(action))) {
-                            //TODO we may want to extend this and the assertions to SearchAction.NAME as well
-                            continue;
-                        }
-                        log.put("action", action);
-                        // Use a sorted list for indices for consistent error reporting
-                        List<String> indices = new ArrayList<>(Strings.tokenizeByCommaToSet(m.group(i++)));
-                        Collections.sort(indices);
-                        if ("test_admin".equals(principal)) {
-                            /* Sometimes we accidentally sneak access to the security tables. This is fine, SQL
-                            * drops them from the interface. So we might have access to them, but we don't show
-                            * them. */
-                            indices.remove(".security");
-                            indices.remove(".security-6");
-                        }
-                        log.put("indices", indices);
-                        log.put("request", m.group(i));
-                        logs.add(log);
                     }
                     List<Map<String, Object>> allLogs = new ArrayList<>(logs);
                     List<Integer> notMatching = new ArrayList<>();

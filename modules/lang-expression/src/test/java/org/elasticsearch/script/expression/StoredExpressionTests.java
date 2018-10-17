@@ -61,12 +61,13 @@ public class StoredExpressionTests extends ESIntegTestCase {
             fail("update script should have been rejected");
         } catch(Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));
-            assertThat(e.getCause().getMessage(), containsString("scripts of type [stored], operation [update] and lang [expression] are not supported"));
+            assertThat(e.getCause().getMessage(),
+                    containsString("scripts of type [stored], operation [update] and lang [expression] are not supported"));
         }
         try {
             client().prepareSearch()
-                    .setSource(
-                            new SearchSourceBuilder().scriptField("test1", new Script(ScriptType.STORED, null, "script1", Collections.emptyMap())))
+                    .setSource(new SearchSourceBuilder().scriptField("test1",
+                            new Script(ScriptType.STORED, null, "script1", Collections.emptyMap())))
                     .setIndices("test").setTypes("scriptTest").get();
             fail("search script should have been rejected");
         } catch(Exception e) {

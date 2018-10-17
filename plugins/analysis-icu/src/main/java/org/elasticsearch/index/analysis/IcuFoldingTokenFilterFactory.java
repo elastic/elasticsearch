@@ -32,10 +32,12 @@ import org.elasticsearch.index.IndexSettings;
  * Uses the {@link org.apache.lucene.analysis.icu.ICUFoldingFilter}.
  * Applies foldings from UTR#30 Character Foldings.
  * <p>
- * Can be filtered to handle certain characters in a specified way (see http://icu-project.org/apiref/icu4j/com/ibm/icu/text/UnicodeSet.html)
+ * Can be filtered to handle certain characters in a specified way
+ * (see http://icu-project.org/apiref/icu4j/com/ibm/icu/text/UnicodeSet.html)
  * E.g national chars that should be retained (filter : "[^åäöÅÄÖ]").
  *
- * <p>The {@code unicodeSetFilter} attribute can be used to provide the UniCodeSet for filtering.
+ * <p>The {@code unicodeSetFilter} attribute can be used to provide the
+ * UniCodeSet for filtering.
  *
  * @author kimchy (shay.banon)
  */

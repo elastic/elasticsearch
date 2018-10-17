@@ -90,6 +90,11 @@ public class GraphExploreResponseTests extends AbstractXContentTestCase< GraphEx
     }
     
     @Override
+    protected boolean assertToXContentEquivalence() {
+        return false;
+    }        
+    
+    @Override
     protected String[] getShuffleFieldsExceptions() {
         return new String[]{"vertices", "connections"};
     }    

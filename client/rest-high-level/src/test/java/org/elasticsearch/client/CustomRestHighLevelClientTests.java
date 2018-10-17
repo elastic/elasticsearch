@@ -90,10 +90,10 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
         final MainRequest request = new MainRequest();
         String nodeName = randomAlphaOfLengthBetween(1, 10);
 
-        MainResponse response = restHighLevelClient.custom(request, optionsForNodeName(nodeName));
+        MainResponse response = restHighLevelClient.sub().custom(request, optionsForNodeName(nodeName));
         assertEquals(nodeName, response.getNodeName());
 
-        response = restHighLevelClient.customAndParse(request, optionsForNodeName(nodeName));
+        response = restHighLevelClient.sub().customAndParse(request, optionsForNodeName(nodeName));
         assertEquals(nodeName, response.getNodeName());
     }
 
@@ -102,11 +102,11 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
         String nodeName = randomAlphaOfLengthBetween(1, 10);
 
         PlainActionFuture<MainResponse> future = PlainActionFuture.newFuture();
-        restHighLevelClient.customAsync(request, optionsForNodeName(nodeName), future);
+        restHighLevelClient.sub().customAsync(request, optionsForNodeName(nodeName), future);
         assertEquals(nodeName, future.get().getNodeName());
 
         future = PlainActionFuture.newFuture();
-        restHighLevelClient.customAndParseAsync(request, optionsForNodeName(nodeName), future);
+        restHighLevelClient.sub().customAndParseAsync(request, optionsForNodeName(nodeName), future);
         assertEquals(nodeName, future.get().getNodeName());
     }
 
@@ -180,21 +180,33 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
             super(restClient, RestClient::close, Collections.emptyList());
         }
 
+        public CustomSubclient sub() {
+            return buildSubClient(CustomSubclient::new);
+        }
+    }
+
+    static class CustomSubclient {
+
+        private final RestRequestActions requestActions;
+
+        CustomSubclient(RestRequestActions requestActions) {
+            this.requestActions = requestActions;
+        }
         MainResponse custom(MainRequest mainRequest, RequestOptions options) throws IOException {
-            return getRequestActions().performRequest(mainRequest, this::toRequest, options, this::toResponse, emptySet());
+            return requestActions.performRequest(mainRequest, this::toRequest, options, this::toResponse, emptySet());
         }
 
         MainResponse customAndParse(MainRequest mainRequest, RequestOptions options) throws IOException {
-            return getRequestActions().performRequestAndParseEntity(mainRequest, this::toRequest, options, MainResponse::fromXContent,
+            return requestActions.performRequestAndParseEntity(mainRequest, this::toRequest, options, MainResponse::fromXContent,
                 emptySet());
         }
 
         void customAsync(MainRequest mainRequest, RequestOptions options, ActionListener<MainResponse> listener) {
-            getRequestActions().performRequestAsync(mainRequest, this::toRequest, options, this::toResponse, listener, emptySet());
+            requestActions.performRequestAsync(mainRequest, this::toRequest, options, this::toResponse, listener, emptySet());
         }
 
         void customAndParseAsync(MainRequest mainRequest, RequestOptions options, ActionListener<MainResponse> listener) {
-            getRequestActions().performRequestAsyncAndParseEntity(mainRequest, this::toRequest, options, MainResponse::fromXContent,
+            requestActions.performRequestAsyncAndParseEntity(mainRequest, this::toRequest, options, MainResponse::fromXContent,
                 listener, emptySet());
         }
 
@@ -203,7 +215,7 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
         }
 
         MainResponse toResponse(Response response) throws IOException {
-            return getRequestActions().parseEntity(response.getEntity(), MainResponse::fromXContent);
+            return requestActions.parseEntity(response.getEntity(), MainResponse::fromXContent);
         }
     }
 }

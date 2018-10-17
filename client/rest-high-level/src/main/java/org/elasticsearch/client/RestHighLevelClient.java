@@ -70,6 +70,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
@@ -127,19 +128,26 @@ public class RestHighLevelClient implements Closeable {
     protected RestHighLevelClient(RestClient restClient, CheckedConsumer<RestClient, IOException> doClose,
                                   List<NamedXContentRegistry.Entry> namedXContentEntries) {
         requestActions = new RestRequestActions(restClient, doClose, namedXContentEntries);
-        indicesClient = new IndicesClient(requestActions);
-        clusterClient = new ClusterClient(requestActions);
-        ingestClient = new IngestClient(requestActions);
-        snapshotClient = new SnapshotClient(requestActions);
-        tasksClient = new TasksClient(requestActions);
-        xPackClient = new XPackClient(requestActions);
-        watcherClient = new WatcherClient(requestActions);
-        graphClient = new GraphClient(requestActions);
-        licenseClient = new LicenseClient(requestActions);
-        migrationClient = new MigrationClient(requestActions);
-        machineLearningClient = new MachineLearningClient(requestActions);
-        securityClient = new SecurityClient(requestActions);
-        rollupClient = new RollupClient(requestActions);
+        indicesClient = buildSubClient(IndicesClient::new);
+        clusterClient = buildSubClient(ClusterClient::new);
+        ingestClient = buildSubClient(IngestClient::new);
+        snapshotClient = buildSubClient(SnapshotClient::new);
+        tasksClient = buildSubClient(TasksClient::new);
+        xPackClient = buildSubClient(XPackClient::new);
+        watcherClient = buildSubClient(WatcherClient::new);
+        graphClient = buildSubClient(GraphClient::new);
+        licenseClient = buildSubClient(LicenseClient::new);
+        migrationClient = buildSubClient(MigrationClient::new);
+        machineLearningClient = buildSubClient(MachineLearningClient::new);
+        securityClient = buildSubClient(SecurityClient::new);
+        rollupClient = buildSubClient(RollupClient::new);
+    }
+
+    /**
+     * Build an sub client.
+     */
+    public final <T> T buildSubClient(Function<RestRequestActions, T> ctor) {
+        return ctor.apply(requestActions);
     }
 
     /**
@@ -150,9 +158,11 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Returns the wrapper used to communicate with the low-level client that all subclients should be using.
+     * This should not be used by code outside of the tests. If a subclient needs access to the RequestActions,
+     * {@link RestHighLevelClient#buildSubClient(Function)} should be used instead, passing in the one arg constructor that takes in a
+     * {@link RestRequestActions}.
      */
-    public final RestRequestActions getRequestActions() {
+    final RestRequestActions getRequestActions() {
         return this.requestActions;
     }
 

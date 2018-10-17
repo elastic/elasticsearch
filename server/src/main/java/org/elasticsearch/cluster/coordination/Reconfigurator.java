@@ -50,6 +50,8 @@ public class Reconfigurator extends AbstractComponent {
      */
     public static final Setting<Integer> CLUSTER_MASTER_NODES_FAILURE_TOLERANCE =
         Setting.intSetting("cluster.master_nodes_failure_tolerance", 0, 0, Property.NodeScope, Property.Dynamic);
+    // the default is not supposed to be important since we expect to set this setting explicitly at bootstrapping time
+    // TODO contemplate setting the default to something larger than 0 (1? 1<<30?)
 
     private volatile int masterNodesFailureTolerance;
 

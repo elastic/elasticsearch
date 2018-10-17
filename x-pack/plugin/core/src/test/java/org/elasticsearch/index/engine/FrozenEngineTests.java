@@ -32,9 +32,8 @@ public class FrozenEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
-            int numDocs = scaledRandomIntBetween(10, 1000);
             try (InternalEngine engine = createEngine(config)) {
-                addDocuments(globalCheckpoint, numDocs, engine);
+                int numDocs = Math.min(10, addDocuments(globalCheckpoint, engine));
                 engine.flushAndClose();
                 try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig)) {
                     assertFalse(frozenEngine.isReaderOpen());
@@ -42,17 +41,17 @@ public class FrozenEngineTests extends EngineTestCase {
                     assertEquals(config.getShardId(), ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(searcher
                         .getDirectoryReader()).shardId());
                     assertTrue(frozenEngine.isReaderOpen());
-                    TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), 10);
-                    assertEquals(search.scoreDocs.length, 10);
-                    assertEquals(1, frozenEngine.getOpenedReaders());
+                    TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), numDocs);
+                    assertEquals(search.scoreDocs.length, numDocs);
+                    assertEquals(1, frozenEngine.getTotalOpenedReaders());
                     FrozenEngine.unwrapLazyReader(searcher.getDirectoryReader()).release();
                     assertFalse(frozenEngine.isReaderOpen());
-                    assertEquals(1, frozenEngine.getOpenedReaders());
-                    expectThrows(AlreadyClosedException.class, () -> searcher.searcher().search(new MatchAllDocsQuery(), 10));
+                    assertEquals(1, frozenEngine.getTotalOpenedReaders());
+                    expectThrows(AlreadyClosedException.class, () -> searcher.searcher().search(new MatchAllDocsQuery(), numDocs));
                     FrozenEngine.unwrapLazyReader(searcher.getDirectoryReader()).reset();
-                    assertEquals(2, frozenEngine.getOpenedReaders());
-                    search = searcher.searcher().search(new MatchAllDocsQuery(), 10);
-                    assertEquals(search.scoreDocs.length, 10);
+                    assertEquals(2, frozenEngine.getTotalOpenedReaders());
+                    search = searcher.searcher().search(new MatchAllDocsQuery(), numDocs);
+                    assertEquals(search.scoreDocs.length, numDocs);
                     searcher.close();
                 }
             }
@@ -64,28 +63,27 @@ public class FrozenEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
-            int numDocs = scaledRandomIntBetween(10, 1000);
             try (InternalEngine engine = createEngine(config)) {
-                addDocuments(globalCheckpoint, numDocs, engine);
+                int numDocs = Math.min(10, addDocuments(globalCheckpoint, engine));
                 engine.flushAndClose();
                 try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig)) {
                     assertFalse(frozenEngine.isReaderOpen());
                     Engine.Searcher searcher1 = frozenEngine.acquireSearcher("test");
                     assertTrue(frozenEngine.isReaderOpen());
-                    TopDocs search = searcher1.searcher().search(new MatchAllDocsQuery(), 10);
-                    assertEquals(search.scoreDocs.length, 10);
-                    assertEquals(1, frozenEngine.getOpenedReaders());
+                    TopDocs search = searcher1.searcher().search(new MatchAllDocsQuery(), numDocs);
+                    assertEquals(search.scoreDocs.length, numDocs);
+                    assertEquals(1, frozenEngine.getTotalOpenedReaders());
                     FrozenEngine.unwrapLazyReader(searcher1.getDirectoryReader()).release();
                     Engine.Searcher searcher2 = frozenEngine.acquireSearcher("test");
-                    search = searcher2.searcher().search(new MatchAllDocsQuery(), 10);
-                    assertEquals(search.scoreDocs.length, 10);
+                    search = searcher2.searcher().search(new MatchAllDocsQuery(), numDocs);
+                    assertEquals(search.scoreDocs.length, numDocs);
                     assertTrue(frozenEngine.isReaderOpen());
-                    assertEquals(2, frozenEngine.getOpenedReaders());
-                    expectThrows(AlreadyClosedException.class, () -> searcher1.searcher().search(new MatchAllDocsQuery(), 10));
+                    assertEquals(2, frozenEngine.getTotalOpenedReaders());
+                    expectThrows(AlreadyClosedException.class, () -> searcher1.searcher().search(new MatchAllDocsQuery(), numDocs));
                     FrozenEngine.unwrapLazyReader(searcher1.getDirectoryReader()).reset();
-                    assertEquals(2, frozenEngine.getOpenedReaders());
-                    search = searcher1.searcher().search(new MatchAllDocsQuery(), 10);
-                    assertEquals(search.scoreDocs.length, 10);
+                    assertEquals(2, frozenEngine.getTotalOpenedReaders());
+                    search = searcher1.searcher().search(new MatchAllDocsQuery(), numDocs);
+                    assertEquals(search.scoreDocs.length, numDocs);
                     searcher1.close();
                     searcher2.close();
                 }
@@ -98,19 +96,18 @@ public class FrozenEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
-            int numDocs = scaledRandomIntBetween(10, 1000);
             try (InternalEngine engine = createEngine(config)) {
-                addDocuments(globalCheckpoint, numDocs, engine);
+                addDocuments(globalCheckpoint, engine);
                 engine.flushAndClose();
                 try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig)) {
                     Engine.Searcher searcher = frozenEngine.acquireSearcher("test");
                     SegmentsStats segmentsStats = frozenEngine.segmentsStats(randomBoolean());
                     assertEquals(frozenEngine.segments(randomBoolean()).size(), segmentsStats.getCount());
                     FrozenEngine.unwrapLazyReader(searcher.getDirectoryReader()).release();
-                    assertEquals(1, frozenEngine.getOpenedReaders());
+                    assertEquals(1, frozenEngine.getTotalOpenedReaders());
                     segmentsStats = frozenEngine.segmentsStats(randomBoolean());
                     assertEquals(0, segmentsStats.getCount());
-                    assertEquals(1, frozenEngine.getOpenedReaders());
+                    assertEquals(1, frozenEngine.getTotalOpenedReaders());
                     assertFalse(frozenEngine.isReaderOpen());
                     FrozenEngine.unwrapLazyReader(searcher.getDirectoryReader()).reset();
                     segmentsStats = frozenEngine.segmentsStats(randomBoolean());
@@ -128,11 +125,10 @@ public class FrozenEngineTests extends EngineTestCase {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get,
                 new HierarchyCircuitBreakerService(defaultSettings.getSettings(),
                     new ClusterSettings(defaultSettings.getNodeSettings(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
-            int numDocs = scaledRandomIntBetween(10, 1000);
             CircuitBreaker breaker = config.getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING);
             long expectedUse;
             try (InternalEngine engine = createEngine(config)) {
-                addDocuments(globalCheckpoint, numDocs, engine);
+                addDocuments(globalCheckpoint, engine);
                 engine.refresh("test"); // pull the reader
                 expectedUse = breaker.getUsed();
                 engine.flushAndClose();
@@ -143,7 +139,7 @@ public class FrozenEngineTests extends EngineTestCase {
                 Engine.Searcher searcher = frozenEngine.acquireSearcher("test");
                 assertEquals(expectedUse, breaker.getUsed());
                 FrozenEngine.unwrapLazyReader(searcher.getDirectoryReader()).release();
-                assertEquals(1, frozenEngine.getOpenedReaders());
+                assertEquals(1, frozenEngine.getTotalOpenedReaders());
                 assertEquals(0, breaker.getUsed());
                 assertFalse(frozenEngine.isReaderOpen());
                 FrozenEngine.unwrapLazyReader(searcher.getDirectoryReader()).reset();
@@ -154,11 +150,14 @@ public class FrozenEngineTests extends EngineTestCase {
         }
     }
 
-    private void addDocuments(AtomicLong globalCheckpoint, int numDocs, InternalEngine engine) throws IOException {
+    private int addDocuments(AtomicLong globalCheckpoint, InternalEngine engine) throws IOException {
+        int numDocs = scaledRandomIntBetween(10, 1000);
+        int numDocsAdded = 0;
         for (int i = 0; i < numDocs; i++) {
             if (rarely()) {
                 continue; // gap in sequence number
             }
+            numDocsAdded++;
             ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
             engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, Engine.Operation.Origin.REPLICA,
                 System.nanoTime(), -1, false));
@@ -168,6 +167,7 @@ public class FrozenEngineTests extends EngineTestCase {
             globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpoint()));
         }
         engine.syncTranslog();
+        return numDocsAdded;
     }
 
     public void testSearchConcurrently() throws IOException, InterruptedException {
@@ -178,10 +178,9 @@ public class FrozenEngineTests extends EngineTestCase {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get,
                 new HierarchyCircuitBreakerService(defaultSettings.getSettings(),
                     new ClusterSettings(defaultSettings.getNodeSettings(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
-            int numDocs = scaledRandomIntBetween(10, 1000);
             CircuitBreaker breaker = config.getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING);
             try (InternalEngine engine = createEngine(config)) {
-                addDocuments(globalCheckpoint, numDocs, engine);
+                int numDocsAdded = addDocuments(globalCheckpoint, engine);
                 engine.flushAndClose();
                 int numIters = randomIntBetween(100, 1000);
                 try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig)) {
@@ -197,8 +196,8 @@ public class FrozenEngineTests extends EngineTestCase {
                                 for (int j = 0; j < numIters; j++) {
                                     FrozenEngine.unwrapLazyReader(searcher.getDirectoryReader()).reset();
                                     assertTrue(frozenEngine.isReaderOpen());
-                                    TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), 10);
-                                    assertEquals(search.scoreDocs.length, 10);
+                                    TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), Math.min(10, numDocsAdded));
+                                    assertEquals(search.scoreDocs.length, Math.min(10, numDocsAdded));
                                     FrozenEngine.unwrapLazyReader(searcher.getDirectoryReader()).release();
                                 }
                                 if (randomBoolean()) {

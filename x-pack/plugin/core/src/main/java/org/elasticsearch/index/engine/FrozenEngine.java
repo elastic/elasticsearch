@@ -201,7 +201,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
      * This class allows us to use the same high level reader across multiple search phases but replace the underpinnings
      * on/after each search phase. This is really important otherwise we would hold on to multiple readers across phases.
      *
-     * This reader and it's leave reader counterpart overrides FilterDirectory/LeafReader for convenience to be unwrapped but still
+     * This reader and its leave reader counterpart overrides FilterDirectory/LeafReader for convenience to be unwrapped but still
      * overrides all it's delegate methods. We have tests to ensure we never miss an override but we need to in order to make sure
      * the wrapper leaf readers don't register themself as close listeners on the wrapped ones otherwise we fail plugging in new readers
      * on the next search phase.
@@ -465,7 +465,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
     }
 
     // TODO expose this as stats on master
-    long getOpenedReaders() {
+    long getTotalOpenedReaders() {
         return openedReaders.count();
     }
 

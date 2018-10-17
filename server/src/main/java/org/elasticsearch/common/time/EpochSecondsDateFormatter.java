@@ -26,6 +26,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalField;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -60,11 +61,6 @@ public class EpochSecondsDateFormatter implements DateFormatter {
     }
 
     @Override
-    public DateFormatter withZone(ZoneId zoneId) {
-        return this;
-    }
-
-    @Override
     public String format(TemporalAccessor accessor) {
         Instant instant = Instant.from(accessor);
         if (instant.getNano() != 0) {
@@ -75,7 +71,33 @@ public class EpochSecondsDateFormatter implements DateFormatter {
 
     @Override
     public String pattern() {
-        return "epoch_seconds";
+        return "epoch_second";
+    }
+
+    @Override
+    public Locale getLocale() {
+        return Locale.ROOT;
+    }
+
+    @Override
+    public ZoneId getZone() {
+        return ZoneOffset.UTC;
+    }
+
+    @Override
+    public DateFormatter withZone(ZoneId zoneId) {
+        if (zoneId.equals(ZoneOffset.UTC) == false) {
+            throw new IllegalArgumentException(pattern() + " date formatter can only be in zone offset UTC");
+        }
+        return this;
+    }
+
+    @Override
+    public DateFormatter withLocale(Locale locale) {
+        if (Locale.ROOT.equals(locale) == false) {
+            throw new IllegalArgumentException(pattern() + " date formatter can only be in locale ROOT");
+        }
+        return this;
     }
 
     @Override

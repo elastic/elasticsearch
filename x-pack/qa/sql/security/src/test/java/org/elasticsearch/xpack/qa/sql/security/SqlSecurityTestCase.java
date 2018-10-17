@@ -264,7 +264,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         createAuditLogAsserter()
             .expectSqlCompositeAction("test_admin", "test")
             /* Scrolling doesn't have to access the index again, at least not through sql.
-             * If we asserted query and scroll logs then we would see the scoll. */
+             * If we asserted query and scroll logs then we would see the scroll. */
             .expect(true, SQL_ACTION_NAME, "test_admin", empty())
             .expect(true, SQL_ACTION_NAME, "test_admin", empty())
             .expectSqlCompositeAction("only_a", "test")

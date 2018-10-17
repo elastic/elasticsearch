@@ -148,12 +148,12 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 break;
             case UPGRADED:
                 updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null));
-                asyncIndexDocs(index, 60, 50).get();
+                asyncIndexDocs(index, 60, 45).get();
                 ensureGreen(index);
                 client().performRequest(new Request("POST", index + "/_refresh"));
-                assertCount(index, "_only_nodes:" + nodes.get(0), 110);
-                assertCount(index, "_only_nodes:" + nodes.get(1), 110);
-                assertCount(index, "_only_nodes:" + nodes.get(2), 110);
+                assertCount(index, "_only_nodes:" + nodes.get(0), 105);
+                assertCount(index, "_only_nodes:" + nodes.get(1), 105);
+                assertCount(index, "_only_nodes:" + nodes.get(2), 105);
                 break;
             default:
                 throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
@@ -165,7 +165,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         request.addParameter("preference", preference);
         final Response response = client().performRequest(request);
         final int actualCount = Integer.parseInt(ObjectPath.createFromResponse(response).evaluate("count").toString());
-        assertThat(actualCount, equalTo(expectedCount));
+        assertThat("preference [" + preference + "]", actualCount, equalTo(expectedCount));
     }
 
 
@@ -225,7 +225,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                     .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
                     .put("index.routing.allocation.include._id", (String)null)
                 );
-                asyncIndexDocs(index, 60, 50).get();
+                asyncIndexDocs(index, 60, 45).get();
                 ensureGreen(index);
                 client().performRequest(new Request("POST", index + "/_refresh"));
                 Response response = client().performRequest(new Request("GET", "_nodes"));
@@ -233,9 +233,9 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 final Map<String, Object> nodeMap = objectPath.evaluate("nodes");
                 List<String> nodes = new ArrayList<>(nodeMap.keySet());
 
-                assertCount(index, "_only_nodes:" + nodes.get(0), 110);
-                assertCount(index, "_only_nodes:" + nodes.get(1), 110);
-                assertCount(index, "_only_nodes:" + nodes.get(2), 110);
+                assertCount(index, "_only_nodes:" + nodes.get(0), 105);
+                assertCount(index, "_only_nodes:" + nodes.get(1), 105);
+                assertCount(index, "_only_nodes:" + nodes.get(2), 105);
                 break;
             default:
                 throw new IllegalStateException("unknown type " + CLUSTER_TYPE);

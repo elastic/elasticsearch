@@ -22,6 +22,8 @@ import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 import static org.elasticsearch.xpack.core.security.support.Automatons.predicate;
 import static org.elasticsearch.xpack.core.security.support.Automatons.wildcard;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class AutomatonsTests extends ESTestCase {
     public void testPatternsUnionOfMultiplePatterns() throws Exception {
@@ -70,29 +72,29 @@ public class AutomatonsTests extends ESTestCase {
 
     public void testPatternComplexity() {
         List<String> patterns = Arrays.asList("*", "filebeat*de-tst-chatclassification*",
-                "metricbeat*de-tst-chatclassification*",
-                "packetbeat*de-tst-chatclassification*",
-                "heartbeat*de-tst-chatclassification*",
-                "filebeat*documentationdev*",
-                "metricbeat*documentationdev*",
-                "packetbeat*documentationdev*",
-                "heartbeat*documentationdev*",
-                "filebeat*devsupport-website*",
-                "metricbeat*devsupport-website*",
-                "packetbeat*devsupport-website*",
-                "heartbeat*devsupport-website*",
-                ".kibana-tcloud",
-                ".reporting-tcloud",
-                "filebeat-app-ingress-*",
-                "filebeat-app-tcloud-*",
-                "filebeat*documentationprod*",
-                "metricbeat*documentationprod*",
-                "packetbeat*documentationprod*",
-                "heartbeat*documentationprod*",
-                "filebeat*bender-minio-test-1*",
-                "metricbeat*bender-minio-test-1*",
-                "packetbeat*bender-minio-test-1*",
-                "heartbeat*bender-minio-test-1*");
+            "metricbeat*de-tst-chatclassification*",
+            "packetbeat*de-tst-chatclassification*",
+            "heartbeat*de-tst-chatclassification*",
+            "filebeat*documentationdev*",
+            "metricbeat*documentationdev*",
+            "packetbeat*documentationdev*",
+            "heartbeat*documentationdev*",
+            "filebeat*devsupport-website*",
+            "metricbeat*devsupport-website*",
+            "packetbeat*devsupport-website*",
+            "heartbeat*devsupport-website*",
+            ".kibana-tcloud",
+            ".reporting-tcloud",
+            "filebeat-app-ingress-*",
+            "filebeat-app-tcloud-*",
+            "filebeat*documentationprod*",
+            "metricbeat*documentationprod*",
+            "packetbeat*documentationprod*",
+            "heartbeat*documentationprod*",
+            "filebeat*bender-minio-test-1*",
+            "metricbeat*bender-minio-test-1*",
+            "packetbeat*bender-minio-test-1*",
+            "heartbeat*bender-minio-test-1*");
         final Automaton automaton = Automatons.patterns(patterns);
         assertTrue(Operations.isTotal(automaton));
         assertTrue(automaton.isDeterministic());
@@ -137,7 +139,7 @@ public class AutomatonsTests extends ESTestCase {
             assertNotEquals(10000, Automatons.getMaxDeterminizedStates());
             // set to the min value
             Settings settings = Settings.builder().put(Automatons.MAX_DETERMINIZED_STATES_SETTING.getKey(), 10000).build();
-            Automatons.updateMaxDeterminizedStates(settings);
+            Automatons.updateConfiguration(settings);
             assertEquals(10000, Automatons.getMaxDeterminizedStates());
 
             final List<String> names = new ArrayList<>(1024);
@@ -147,8 +149,63 @@ public class AutomatonsTests extends ESTestCase {
             TooComplexToDeterminizeException e = expectThrows(TooComplexToDeterminizeException.class, () -> Automatons.patterns(names));
             assertThat(e.getMaxDeterminizedStates(), equalTo(10000));
         } finally {
-            Automatons.updateMaxDeterminizedStates(Settings.EMPTY);
+            Automatons.updateConfiguration(Settings.EMPTY);
             assertEquals(100000, Automatons.getMaxDeterminizedStates());
         }
+    }
+
+    public void testCachingOfAutomatons() {
+        Automatons.updateConfiguration(Settings.EMPTY);
+
+        String pattern1 = randomAlphaOfLengthBetween(3, 8) + "*";
+        String pattern2 = "/" + randomAlphaOfLengthBetween(1, 2) + "*" + randomAlphaOfLengthBetween(2, 4) + "/";
+
+        final Automaton a1 = Automatons.pattern(pattern1);
+        final Automaton a2 = Automatons.pattern(pattern2);
+
+        assertThat(Automatons.pattern(pattern1), sameInstance(a1));
+        assertThat(Automatons.pattern(pattern2), sameInstance(a2));
+
+        final Automaton a3 = Automatons.patterns(pattern1, pattern2);
+        final Automaton a4 = Automatons.patterns(pattern2, pattern1);
+        assertThat(a3, sameInstance(a4));
+    }
+
+    public void testConfigurationOfCacheSize() {
+        final Settings settings = Settings.builder()
+            .put(Automatons.CACHE_SIZE.getKey(), 2)
+            .build();
+        Automatons.updateConfiguration(settings);
+
+        String pattern1 = "a";
+        String pattern2 = "b";
+        String pattern3 = "c";
+
+        final Automaton a1 = Automatons.pattern(pattern1);
+        final Automaton a2 = Automatons.pattern(pattern2);
+
+        assertThat(Automatons.pattern(pattern1), sameInstance(a1));
+        assertThat(Automatons.pattern(pattern2), sameInstance(a2));
+
+        final Automaton a3 = Automatons.pattern(pattern3);
+        assertThat(Automatons.pattern(pattern3), sameInstance(a3));
+
+        // either pattern 1 or 2 should be evicted (in theory it should be 1, but we don't care about that level of precision)
+        final Automaton a1b = Automatons.pattern(pattern1);
+        final Automaton a2b = Automatons.pattern(pattern2);
+        if (a1b == a1 && a2b == a2) {
+            fail("Expected one of the existing automatons to be evicted, but both were still cached");
+        }
+    }
+
+    public void testDisableCache() {
+        final Settings settings = Settings.builder()
+            .put(Automatons.CACHE_ENABLED.getKey(), false)
+            .build();
+        Automatons.updateConfiguration(settings);
+
+        final String pattern = randomAlphaOfLengthBetween(5, 10);
+        final Automaton automaton = Automatons.pattern(pattern);
+        assertThat(Automatons.pattern(pattern), not(sameInstance(automaton)));
     }
 }

@@ -22,7 +22,7 @@ import java.util.Collection;
 
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
-import static org.elasticsearch.xpack.monitoring.collector.ccr.CcrStatsMonitoringDoc.TYPE;
+import static org.elasticsearch.xpack.monitoring.collector.ccr.FollowStatsMonitoringDoc.TYPE;
 
 public abstract class AbstractCcrCollector extends Collector {
 

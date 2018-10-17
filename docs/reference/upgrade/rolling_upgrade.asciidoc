@@ -44,6 +44,10 @@ include::shut-down-node.asciidoc[]
 . *Upgrade the node you shut down.*
 +
 --
+include::remove-xpack.asciidoc[]
+--
++
+--
 include::upgrade-node.asciidoc[]
 include::set-paths-tip.asciidoc[]
 --
@@ -53,8 +57,6 @@ include::set-paths-tip.asciidoc[]
 Use the `elasticsearch-plugin` script to install the upgraded version of each
 installed Elasticsearch plugin. All plugins must be upgraded when you upgrade
 a node.
-+
-include::remove-xpack.asciidoc[]
 
 . *Start the upgraded node.*
 +

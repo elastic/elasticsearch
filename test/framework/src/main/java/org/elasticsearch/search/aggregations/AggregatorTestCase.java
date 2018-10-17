@@ -240,7 +240,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     protected SearchContext createSearchContext(IndexSearcher indexSearcher, IndexSettings indexSettings) {
-        Engine.Searcher searcher = new Engine.Searcher("aggregator_test", indexSearcher, logger);
+        Engine.Searcher searcher = new Engine.Searcher("aggregator_test", indexSearcher, () -> indexSearcher.getIndexReader().close());
         QueryCache queryCache = new DisabledQueryCache(indexSettings);
         QueryCachingPolicy queryCachingPolicy = new QueryCachingPolicy() {
             @Override
@@ -248,7 +248,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
 
             @Override
-            public boolean shouldCache(Query query) throws IOException {
+            public boolean shouldCache(Query query) {
                 // never cache a query
                 return false;
             }

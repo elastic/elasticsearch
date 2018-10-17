@@ -797,7 +797,7 @@
                     }
                   }
                 },
-                "maanagement": {
+                "management": {
                   "properties": {
                     "threads": {
                       "type": "integer"
@@ -828,6 +828,16 @@
                     "threads": {
                       "type": "integer"
                     },
+                    "queue": {
+                      "type": "integer"
+                    },
+                    "rejected": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "write": {
+                  "properties": {
                     "queue": {
                       "type": "integer"
                     },

@@ -68,8 +68,9 @@ public class JsonFileStructureFinderFactory implements FileStructureFinderFactor
 
     @Override
     public FileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker,
-                                                FileStructureOverrides overrides) throws IOException {
-        return JsonFileStructureFinder.makeJsonFileStructureFinder(explanation, sample, charsetName, hasByteOrderMarker, overrides);
+                                                FileStructureOverrides overrides, TimeoutChecker timeoutChecker) throws IOException {
+        return JsonFileStructureFinder.makeJsonFileStructureFinder(explanation, sample, charsetName, hasByteOrderMarker, overrides,
+            timeoutChecker);
     }
 
     private static class ContextPrintingStringReader extends StringReader {

@@ -168,7 +168,7 @@ public class CompositeAggregationCursor implements Cursor {
         Map<String, Object> afterKey = composite.afterKey();
         // a null after-key means done
         if (afterKey != null) {
-            AggregationBuilder aggBuilder = next.aggregations().getAggregatorFactories().get(0);
+            AggregationBuilder aggBuilder = next.aggregations().getAggregatorFactories().iterator().next();
             // update after-key with the new value
             if (aggBuilder instanceof CompositeAggregationBuilder) {
                 CompositeAggregationBuilder comp = (CompositeAggregationBuilder) aggBuilder;

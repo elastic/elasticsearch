@@ -364,6 +364,11 @@ A record object has the following properties:
 //In scientific notation, a value of 3.24E-300 is highly unlikely and therefore
 //highly anomalous.
 
+`multi_bucket_impact`::
+  (number) an indication of how strongly an anomaly is multi bucket or single bucket.
+  The value is on a scale of -5 to +5 where -5 means the anomaly is purely single 
+  bucket and +5 means the anomaly is purely multi bucket.
+
 `record_score`::
   (number) A normalized score between 0-100, which is based on the probability
   of the anomalousness of this record. Unlike `initial_record_score`, this

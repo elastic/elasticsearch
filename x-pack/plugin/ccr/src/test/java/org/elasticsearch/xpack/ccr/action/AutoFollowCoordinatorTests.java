@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
-import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -92,7 +92,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
             @Override
             void createAndFollow(Map<String, String> headers,
-                                 FollowIndexAction.Request followRequest,
+                                 ResumeFollowAction.Request followRequest,
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
                 assertThat(headers, equalTo(autoFollowHeaders.get("remote")));
@@ -150,7 +150,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
             @Override
             void createAndFollow(Map<String, String> headers,
-                                 FollowIndexAction.Request followRequest,
+                                 ResumeFollowAction.Request followRequest,
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
                 fail("should not get here");
@@ -211,7 +211,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
             @Override
             void createAndFollow(Map<String, String> headers,
-                                 FollowIndexAction.Request followRequest,
+                                 ResumeFollowAction.Request followRequest,
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
                 assertThat(followRequest.getLeaderIndex(), equalTo("remote:logs-20190101"));
@@ -273,7 +273,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
             @Override
             void createAndFollow(Map<String, String> headers,
-                                 FollowIndexAction.Request followRequest,
+                                 ResumeFollowAction.Request followRequest,
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
                 assertThat(followRequest.getLeaderIndex(), equalTo("remote:logs-20190101"));
@@ -387,7 +387,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             null,
             null,
             mock(ClusterService.class),
-            new CcrLicenseChecker(() -> true)
+            new CcrLicenseChecker(() -> true, () -> false)
         );
 
         autoFollowCoordinator.updateStats(Collections.singletonList(

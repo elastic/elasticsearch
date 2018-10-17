@@ -19,11 +19,17 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
+import org.elasticsearch.client.security.ChangePasswordRequest;
+import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
+import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
+import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
+import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -65,6 +71,34 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertToXContentBody(putUserRequest, request.getEntity());
     }
 
+    public void testPutRoleMapping() throws IOException {
+        final String username = randomAlphaOfLengthBetween(4, 7);
+        final String rolename = randomAlphaOfLengthBetween(4, 7);
+        final String roleMappingName = randomAlphaOfLengthBetween(4, 7);
+        final String groupname = "cn="+randomAlphaOfLengthBetween(4, 7)+",dc=example,dc=com";
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, String> expectedParams;
+        if (refreshPolicy != RefreshPolicy.NONE) {
+            expectedParams = Collections.singletonMap("refresh", refreshPolicy.getValue());
+        } else {
+            expectedParams = Collections.emptyMap();
+        }
+
+        final RoleMapperExpression rules = AnyRoleMapperExpression.builder()
+                .addExpression(FieldRoleMapperExpression.ofUsername(username))
+                .addExpression(FieldRoleMapperExpression.ofGroups(groupname))
+                .build();
+        final PutRoleMappingRequest putRoleMappingRequest = new PutRoleMappingRequest(roleMappingName, true, Collections.singletonList(
+                rolename), rules, null, refreshPolicy);
+
+        final Request request = SecurityRequestConverters.putRoleMapping(putRoleMappingRequest);
+
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/role_mapping/" + roleMappingName, request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(putRoleMappingRequest, request.getEntity());
+    }
+
     public void testEnableUser() {
         final String username = randomAlphaOfLengthBetween(1, 12);
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
@@ -91,9 +125,34 @@ public class SecurityRequestConvertersTests extends ESTestCase {
 
     private static Map<String, String> getExpectedParamsFromRefreshPolicy(RefreshPolicy refreshPolicy) {
         if (refreshPolicy != RefreshPolicy.NONE) {
-             return Collections.singletonMap("refresh", refreshPolicy.getValue());
+            return Collections.singletonMap("refresh", refreshPolicy.getValue());
         } else {
             return Collections.emptyMap();
         }
+    }
+
+    public void testChangePassword() throws IOException {
+        final String username = randomAlphaOfLengthBetween(4, 12);
+        final char[] password = randomAlphaOfLengthBetween(8, 12).toCharArray();
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, String> expectedParams = getExpectedParamsFromRefreshPolicy(refreshPolicy);
+        ChangePasswordRequest changePasswordRequest = new ChangePasswordRequest(username, password, refreshPolicy);
+        Request request = SecurityRequestConverters.changePassword(changePasswordRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/user/" + changePasswordRequest.getUsername() + "/_password", request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(changePasswordRequest, request.getEntity());
+    }
+
+    public void testSelfChangePassword() throws IOException {
+        final char[] password = randomAlphaOfLengthBetween(8, 12).toCharArray();
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, String> expectedParams = getExpectedParamsFromRefreshPolicy(refreshPolicy);
+        ChangePasswordRequest changePasswordRequest = new ChangePasswordRequest(null, password, refreshPolicy);
+        Request request = SecurityRequestConverters.changePassword(changePasswordRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/user/_password", request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(changePasswordRequest, request.getEntity());
     }
 }

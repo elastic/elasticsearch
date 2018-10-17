@@ -21,6 +21,7 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 
 import java.util.Objects;
 
@@ -31,8 +32,18 @@ public final class DeleteRoleMappingRequest implements Validatable {
     private final String name;
     private final RefreshPolicy refreshPolicy;
 
+    /**
+     * Constructor for DeleteRoleMappingRequest
+     *
+     * @param name role mapping name to be deleted
+     * @param refreshPolicy refresh policy {@link RefreshPolicy} for the
+     * request, defaults to {@link RefreshPolicy#getDefault()}
+     */
     public DeleteRoleMappingRequest(final String name, @Nullable final RefreshPolicy refreshPolicy) {
-        this.name = Objects.requireNonNull(name, "role-mapping name is missing");
+        if (Strings.hasText(name) == false) {
+            throw new IllegalArgumentException("role-mapping name is required");
+        }
+        this.name = name;
         this.refreshPolicy = (refreshPolicy == null) ? RefreshPolicy.getDefault() : refreshPolicy;
     }
 

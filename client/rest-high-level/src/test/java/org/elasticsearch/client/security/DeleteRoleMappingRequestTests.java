@@ -40,8 +40,8 @@ public class DeleteRoleMappingRequestTests extends ESTestCase {
 
     public void testDeleteRoleMappingRequestThrowsExceptionForNullOrEmptyName() {
         final String name = randomBoolean() ? null : "";
-        final NullPointerException npe = expectThrows(NullPointerException.class, () -> new DeleteRoleMappingRequest(name, null));
-        assertThat(npe.getMessage(), equalTo("role-mapping name is missing"));
+        final IllegalArgumentException ile = expectThrows(IllegalArgumentException.class, () -> new DeleteRoleMappingRequest(name, null));
+        assertThat(ile.getMessage(), equalTo("role-mapping name is required"));
     }
 
     public void testEqualsHashCode() {

@@ -228,7 +228,7 @@ public final class SecurityClient {
      * Delete a role mapping.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-role-mapping.html">
      * the docs</a> for more.
-     * @param request the request with the role mapping information to be deleted.
+     * @param request the request with the role mapping name to be deleted.
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response from the delete role mapping call
      * @throws IOException in case there is a problem sending the request or parsing back the response
@@ -242,7 +242,7 @@ public final class SecurityClient {
      * Asynchronously delete a role mapping.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-role-mapping.html">
      * the docs</a> for more.
-     * @param request the request with the role mapping information to be deleted.
+     * @param request the request with the role mapping name to be deleted.
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */

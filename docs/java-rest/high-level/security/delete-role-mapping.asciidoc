@@ -14,7 +14,7 @@ include-tagged::{doc-tests}/SecurityDocumentationIT.java[delete-role-mapping-exe
 [[java-rest-high-security-delete-role-mapping-response]]
 ==== Response
 The returned `DeleteRoleMappingResponse` contains a single field, `found`. If the mapping
-is successfully found and deleted, the request returns true. Otherwise, found is set to false.
+is successfully found and deleted, the found is set to true. Otherwise, found is set to false.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -32,7 +32,7 @@ method:
 --------------------------------------------------
 include-tagged::{doc-tests}/SecurityDocumentationIT.java[delete-role-mapping-execute-async]
 --------------------------------------------------
-<1> The `DeleteRoleMappingResponse` to execute and the `ActionListener` to use when
+<1> The `DeleteRoleMappingRequest` to execute and the `ActionListener` to use when
 the execution completes
 
 The asynchronous method does not block and returns immediately. Once the request

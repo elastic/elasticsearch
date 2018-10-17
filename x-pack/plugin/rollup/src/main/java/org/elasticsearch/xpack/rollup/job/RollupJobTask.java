@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -349,7 +350,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
      * shut down from the inside.
      */
     @Override
-    protected synchronized void onCancelled() {
+    public synchronized void onCancelled() {
         logger.info("Received cancellation request for Rollup job [" + job.getConfig().getId() + "], state: [" + indexer.getState() + "]");
         if (indexer.abort()) {
             // there is no background job running, we can shutdown safely

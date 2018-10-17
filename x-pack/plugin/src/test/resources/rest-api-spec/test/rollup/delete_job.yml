@@ -180,7 +180,7 @@ setup:
 "Test delete non-existent job":
 
   - do:
-      catch: /the task with id does_not_exist doesn't exist/
+      catch: /the task with id \[does_not_exist\] doesn't exist/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       xpack.rollup.delete_job:

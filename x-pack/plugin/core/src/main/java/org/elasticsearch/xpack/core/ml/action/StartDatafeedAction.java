@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -149,6 +150,8 @@ public class StartDatafeedAction
 
     public static class DatafeedParams implements XPackPlugin.XPackPersistentTaskParams {
 
+        public static final ParseField INDICES = new ParseField("indices");
+
         public static ObjectParser<DatafeedParams, Void> PARSER = new ObjectParser<>(MlTasks.DATAFEED_TASK_NAME, true, DatafeedParams::new);
         static {
             PARSER.declareString((params, datafeedId) -> params.datafeedId = datafeedId, DatafeedConfig.ID);
@@ -157,6 +160,8 @@ public class StartDatafeedAction
             PARSER.declareString(DatafeedParams::setEndTime, END_TIME);
             PARSER.declareString((params, val) ->
                     params.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
+            PARSER.declareString(DatafeedParams::setJobId, Job.ID);
+            PARSER.declareStringArray(DatafeedParams::setDatafeedIndices, INDICES);
         }
 
         static long parseDateOrThrow(String date, ParseField paramName, LongSupplier now) {
@@ -288,6 +293,12 @@ public class StartDatafeedAction
                 builder.field(END_TIME.getPreferredName(), String.valueOf(endTime));
             }
             builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
+            if (jobId != null) {
+                builder.field(Job.ID.getPreferredName(), jobId);
+            }
+            if (datafeedIndices.isEmpty() == false) {
+                builder.field(INDICES.getPreferredName(), datafeedIndices);
+            }
             builder.endObject();
             return builder;
         }

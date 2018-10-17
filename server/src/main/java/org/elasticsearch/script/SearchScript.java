@@ -139,7 +139,4 @@ public abstract class SearchScript implements ScorerAware {
 
     /** The context used to compile {@link SearchScript} factories. */
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("search", Factory.class);
-    // TODO: remove these contexts when it has its own interface
-    // Can return a double. (For ScriptSortType#NUMBER only, for ScriptSortType#STRING normal CONTEXT should be used)
-    public static final ScriptContext<Factory> SCRIPT_SORT_CONTEXT = new ScriptContext<>("sort", Factory.class);
 }

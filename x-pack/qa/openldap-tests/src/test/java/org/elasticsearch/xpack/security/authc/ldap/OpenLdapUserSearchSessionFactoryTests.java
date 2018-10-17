@@ -123,12 +123,6 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
         }
     }
 
-    private MockSecureSettings newSecureSettings(String key, String value) {
-        MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(key, value);
-        return secureSettings;
-    }
-
     private LdapSession session(SessionFactory factory, String username, SecureString password) {
         PlainActionFuture<LdapSession> future = new PlainActionFuture<>();
         factory.session(username, password, future);

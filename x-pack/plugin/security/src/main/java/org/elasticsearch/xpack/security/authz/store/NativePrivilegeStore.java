@@ -88,8 +88,11 @@ public class NativePrivilegeStore extends AbstractComponent {
 
     public void getPrivileges(Collection<String> applications, Collection<String> names,
                               ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
-        if (securityIndexManager.isAvailable() == false) {
+        final SecurityIndexManager frozenSecurityIndex = securityIndexManager.freeze();
+        if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
+        } else if (securityIndexManager.isAvailable() == false) {
+            listener.onFailure(securityIndexManager.getUnavailableReason());
         } else if (applications != null && applications.size() == 1 && names != null && names.size() == 1) {
             getPrivilege(Objects.requireNonNull(Iterables.get(applications, 0)), Objects.requireNonNull(Iterables.get(names, 0)),
                 ActionListener.wrap(privilege ->

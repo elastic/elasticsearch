@@ -109,17 +109,16 @@ public class NativeUsersStore extends AbstractComponent {
      */
     public void getUsers(String[] userNames, final ActionListener<Collection<User>> listener) {
         final Consumer<Exception> handleException = (t) -> {
-            if (t instanceof IndexNotFoundException) {
-                logger.trace("could not retrieve users because security index does not exist");
+            if (TransportActions.isShardNotAvailableException(t)) {
+                logger.trace("could not retrieve users because of a shard not available exception", t);
                 // We don't invoke the onFailure listener here, instead just pass an empty list
-                listener.onResponse(Collections.emptyList());
-            } else {
-                listener.onFailure(t);
             }
+            listener.onFailure(t);
         };
 
-        if (securityIndex.isAvailable() == false) {
-            listener.onResponse(Collections.emptyList());
+        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
+        if (frozenSecurityIndex.isAvailable() == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else if (userNames.length == 1) { // optimization for single user lookup
             final String username = userNames[0];
             getUserAndPassword(username, ActionListener.wrap(
@@ -131,8 +130,7 @@ public class NativeUsersStore extends AbstractComponent {
                 if (userNames == null || userNames.length == 0) {
                     query = QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), USER_DOC_TYPE);
                 } else {
-                    final String[] users = Arrays.asList(userNames).stream()
-                            .map(s -> getIdForUser(USER_DOC_TYPE, s)).toArray(String[]::new);
+                    final String[] users = Arrays.stream(userNames).map(s -> getIdForUser(USER_DOC_TYPE, s)).toArray(String[]::new);
                     query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery(INDEX_TYPE).addIds(users));
                 }
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
@@ -154,8 +152,9 @@ public class NativeUsersStore extends AbstractComponent {
     }
 
     void getUserCount(final ActionListener<Long> listener) {
-        if (securityIndex.isAvailable() == false) {
-            listener.onResponse(0L);
+        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
+        if (frozenSecurityIndex.isAvailable() == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
@@ -181,7 +180,13 @@ public class NativeUsersStore extends AbstractComponent {
      * Async method to retrieve a user and their password
      */
     private void getUserAndPassword(final String user, final ActionListener<UserAndPassword> listener) {
-        if (securityIndex.isAvailable() == false) {
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        if (frozenSecurityIndex.isAvailable() == false) {
+            if (frozenSecurityIndex.indexExists()) {
+                logger.trace("could not retrieve user [{}] because security index does not exist", user);
+            } else {
+                logger.error("security index is unavailable. short circuiting retrieval of user [{}]", user);
+            }
             listener.onResponse(null);
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
@@ -457,8 +462,9 @@ public class NativeUsersStore extends AbstractComponent {
     }
 
     public void deleteUser(final DeleteUserRequest deleteUserRequest, final ActionListener<Boolean> listener) {
-        if (securityIndex.isAvailable() == false) {
-            listener.onResponse(false);
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        if (frozenSecurityIndex.isAvailable() == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 DeleteRequest request = client.prepareDelete(SECURITY_INDEX_NAME,
@@ -500,8 +506,11 @@ public class NativeUsersStore extends AbstractComponent {
     }
 
     void getReservedUserInfo(String username, ActionListener<ReservedUserInfo> listener) {
-        if (securityIndex.isAvailable() == false) {
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(null);
+        } else if (frozenSecurityIndex.isAvailable() == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
@@ -542,8 +551,11 @@ public class NativeUsersStore extends AbstractComponent {
     }
 
     void getAllReservedUserInfo(ActionListener<Map<String, ReservedUserInfo>> listener) {
-        if (securityIndex.isAvailable() == false) {
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyMap());
+        } else if (frozenSecurityIndex.isAvailable() == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,

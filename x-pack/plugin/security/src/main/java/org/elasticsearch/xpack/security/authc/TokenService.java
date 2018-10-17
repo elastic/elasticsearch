@@ -696,7 +696,11 @@ public final class TokenService extends AbstractComponent {
                     .setVersion(true)
                     .request();
 
-            if (securityIndex.isAvailable() == false) {
+            final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+            if (frozenSecurityIndex.indexExists() == false) {
+                logger.warn("security index does not exist therefore refresh token [{}] cannot be validated", refreshToken);
+                listener.onFailure(invalidGrantException("could not refresh the requested token"));
+            } else if (frozenSecurityIndex.isAvailable() == false) {
                 logger.debug("security index is not available to find token from refresh token, retrying");
                 attemptCount.incrementAndGet();
                 findTokenFromRefreshToken(refreshToken, listener, attemptCount);
@@ -861,10 +865,13 @@ public final class TokenService extends AbstractComponent {
     public void findActiveTokensForRealm(String realmName, ActionListener<Collection<Tuple<UserToken, String>>> listener) {
         ensureEnabled();
 
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
         if (Strings.isNullOrEmpty(realmName)) {
             listener.onFailure(new IllegalArgumentException("Realm name is required"));
-        } else if (securityIndex.isAvailable() == false) {
+        } else if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
+        } else if (frozenSecurityIndex.isAvailable() == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             final Instant now = clock.instant();
             final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()

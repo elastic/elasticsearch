@@ -56,6 +56,7 @@ import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.StartILMRequest;
 import org.elasticsearch.client.indexlifecycle.StopILMRequest;
@@ -654,6 +655,20 @@ final class RequestConverters {
         return request;
     }
 
+    static Request removeIndexLifecyclePolicy(RemoveIndexLifecyclePolicyRequest removePolicyRequest) {
+        String[] indices = removePolicyRequest.indices() == null ?
+                Strings.EMPTY_ARRAY : removePolicyRequest.indices().toArray(new String[] {});
+        Request request = new Request(HttpDelete.METHOD_NAME,
+                new EndpointBuilder()
+                        .addCommaSeparatedPathParts(indices)
+                        .addPathPartAsIs("_ilm")
+                        .build());
+        Params params = new Params(request);
+        params.withIndicesOptions(removePolicyRequest.indicesOptions());
+        params.withMasterTimeout(removePolicyRequest.masterNodeTimeout());
+        return request;
+    }
+
     static Request startILM(StartILMRequest startILMRequest) {
         Request request = new Request(HttpPost.METHOD_NAME,
             new EndpointBuilder()
@@ -1102,6 +1117,7 @@ final class RequestConverters {
             return this;
         }
 
+<<<<<<< HEAD
         EndpointBuilder addCommaSeparatedPathParts(List<String> parts) {
             addPathPart(String.join(",", parts));
             return this;
@@ -1110,6 +1126,13 @@ final class RequestConverters {
         EndpointBuilder addPathPartAsIs(String part) {
             if (Strings.hasLength(part)) {
                 joiner.add(part);
+=======
+        EndpointBuilder addPathPartAsIs(String ... parts) {
+            for (String part : parts) {
+                if (Strings.hasLength(part)) {
+                    joiner.add(part);
+                }
+>>>>>>> elastic/index-lifecycle
             }
             return this;
         }

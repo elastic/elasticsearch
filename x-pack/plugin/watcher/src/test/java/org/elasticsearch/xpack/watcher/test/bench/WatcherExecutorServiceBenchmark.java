@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.test.bench;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.node.MockNode;
@@ -207,7 +207,7 @@ public class WatcherExecutorServiceBenchmark {
 
         public BenchmarkWatcher(Settings settings) {
             super(settings);
-            Loggers.getLogger(BenchmarkWatcher.class, settings).info("using watcher benchmark plugin");
+            LogManager.getLogger(BenchmarkWatcher.class).info("using watcher benchmark plugin");
         }
 
         @Override

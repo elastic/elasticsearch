@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.RemovePolicyForIndexAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.RemoveIndexLifecyclePolicyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.RetryAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.SetIndexLifecyclePolicyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.StartILMAction;
@@ -125,16 +125,17 @@ public class ILMClient {
     /**
      * Removes index lifecycle management from an index
      */
-    public void removePolicyForIndex(RemovePolicyForIndexAction.Request request,
-            ActionListener<RemovePolicyForIndexAction.Response> listener) {
-        client.execute(RemovePolicyForIndexAction.INSTANCE, request, listener);
+    public void removeIndexLifecyclePolicy(RemoveIndexLifecyclePolicyAction.Request request,
+            ActionListener<RemoveIndexLifecyclePolicyAction.Response> listener) {
+        client.execute(RemoveIndexLifecyclePolicyAction.INSTANCE, request, listener);
     }
 
     /**
      * Removes index lifecycle management from an index
      */
-    public ActionFuture<RemovePolicyForIndexAction.Response> removePolicyForIndex(RemovePolicyForIndexAction.Request request) {
-        return client.execute(RemovePolicyForIndexAction.INSTANCE, request);
+    public ActionFuture<RemoveIndexLifecyclePolicyAction.Response> removeIndexLifecyclePolicy(
+            RemoveIndexLifecyclePolicyAction.Request request) {
+        return client.execute(RemoveIndexLifecyclePolicyAction.INSTANCE, request);
     }
 
     /**

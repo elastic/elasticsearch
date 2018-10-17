@@ -101,6 +101,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      */
     protected abstract QB doCreateTestQueryBuilder();
 
+    public void testNegativeBoosts() {
+        QB testQuery = createTestQueryBuilder();
+        IllegalArgumentException exc =
+            expectThrows(IllegalArgumentException.class, () -> testQuery.boost(-0.5f));
+        assertThat(exc.getMessage(), containsString("negative [boost]"));
+    }
+
     /**
      * Generic test that creates new query from the test query and checks both for equality
      * and asserts equality on the two queries.
@@ -406,6 +413,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * Test creates the {@link Query} from the {@link QueryBuilder} under test and delegates the
      * assertions being made on the result to the implementing subclass.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34188")
     public void testToQuery() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
             QueryShardContext context = createShardContext();

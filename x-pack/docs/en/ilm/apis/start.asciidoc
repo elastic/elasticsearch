@@ -1,0 +1,90 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-start]]
+=== Start ILM API
+++++
+<titleabbrev>Start ILM</titleabbrev>
+++++
+
+Start the ILM plugin
+
+==== Request
+
+`POST /_ilm/start`
+
+==== Description
+
+This API will start the ILM plugin if it is currently stopped. ILM is started
+by default when the cluster is formed so this API is only needed if ILM has
+been stopped using the <<ilm-stop, Stop ILM API>>.
+
+==== Request Parameters
+
+`timeout`::
+  (time units) Specifies the period of time to wait for the completion of the 
+  start operation. When this period of time elapses, the API fails and returns
+  an error. The default value is `30s`. For more information about time units, 
+  see <<time-units>>.
+
+`master_timeout`::
+  (time units) Specifies the period of time to wait for the connection with master.
+  When this period of time elapses, the API fails and returns an error.
+  The default value is `30s`. For more information about time units, see <<time-units>>.
+
+
+==== Examples
+
+The following example starts the ILM plugin.
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT _ilm/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "minimum_age": "10d",
+        "actions": {
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "delete": {
+        "minimum_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+
+PUT my_index
+
+POST _ilm/stop
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+POST _ilm/start
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+If the request does not encounter errors, you receive the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------
+// CONSOLE
+// TESTRESPONSE

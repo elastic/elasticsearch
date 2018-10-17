@@ -513,7 +513,9 @@ public class IndexLifecycleRunner {
 
         Settings.Builder newSettings = Settings.builder().put(indexMetadata.getSettings());
         newSettings.put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), newPolicyName);
-        return IndexMetaData.builder(indexMetadata).settings(newSettings).putCustom(ILM_CUSTOM_METADATA_KEY, newState.asMap());
+        return IndexMetaData.builder(indexMetadata)
+            .settings(newSettings).putCustom(ILM_CUSTOM_METADATA_KEY, newState.asMap())
+            .settingsVersion(1 + indexMetadata.getSettingsVersion());
     }
 
     public static ClusterState removePolicyForIndexes(final Index[] indices, ClusterState currentState, List<String> failedIndexes) {
@@ -544,14 +546,16 @@ public class IndexLifecycleRunner {
     private static IndexMetaData.Builder removePolicyForIndex(IndexMetaData indexMetadata) {
         Settings idxSettings = indexMetadata.getSettings();
         Settings.Builder newSettings = Settings.builder().put(idxSettings);
+        boolean notChanged = true;
 
-        newSettings.remove(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey());
-        newSettings.remove(LifecycleSettings.LIFECYCLE_SKIP_SETTING.getKey());
-        newSettings.remove(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.getKey());
+        notChanged &= Strings.isNullOrEmpty(newSettings.remove(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
+        notChanged &= Strings.isNullOrEmpty(newSettings.remove(LifecycleSettings.LIFECYCLE_SKIP_SETTING.getKey()));
+        notChanged &= Strings.isNullOrEmpty(newSettings.remove(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.getKey()));
+        long newSettingsVersion = notChanged ? indexMetadata.getSettingsVersion() : 1 + indexMetadata.getSettingsVersion();
 
         IndexMetaData.Builder builder = IndexMetaData.builder(indexMetadata);
         builder.removeCustom(ILM_CUSTOM_METADATA_KEY);
-        return builder.settings(newSettings);
+        return builder.settings(newSettings).settingsVersion(newSettingsVersion);
     }
 
     private void markPolicyDoesNotExist(String policyName, Index index, LifecycleExecutionState executionState) {

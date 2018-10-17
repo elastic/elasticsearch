@@ -1,0 +1,90 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-stop]]
+=== Stop ILM API
+++++
+<titleabbrev>Stop ILM</titleabbrev>
+++++
+
+Stop the ILM plugin.
+
+==== Request
+
+`POST /_ilm/stop`
+
+==== Description
+
+This API will stop the ILM plugin. This can be used for period where 
+maintenance is required and ILM should not perform any actions on any indices.
+The API will return as soon as the stop request has been acknowledged but the 
+plugin may not immediately stop but rather need to wait for some operations
+to finish before it's stopped. Progress can be seen using the 
+<<ilm-get-status, Get ILM Status>> API.
+
+==== Request Parameters
+
+`timeout`::
+  (time units) Specifies the period of time to wait for the response. When this 
+  period of time elapses, the API fails and returns an error. The default value
+  is `30s`. For more information about time units, see <<time-units>>.
+
+`master_timeout`::
+  (time units) Specifies the period of time to wait for the connection with master.
+  When this period of time elapses, the API fails and returns an error.
+  The default value is `30s`. For more information about time units, see <<time-units>>.
+
+
+==== Examples
+
+The following example stops the ILM plugin.
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT _ilm/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "minimum_age": "10d",
+        "actions": {
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "delete": {
+        "minimum_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+
+PUT my_index
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+POST _ilm/stop
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+If the request does not encounter errors, you receive the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------
+// CONSOLE
+// TESTRESPONSE

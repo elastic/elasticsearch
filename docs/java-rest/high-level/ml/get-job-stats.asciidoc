@@ -1,12 +1,17 @@
-[[java-rest-high-x-pack-ml-get-job-stats]]
+--
+:api: get-job-stats
+:request: GetJobStatsRequest
+:response: GetJobStatsResponse
+--
+[id="{upid}-{api}"]
 === Get Job Stats API
 
 The Get Job Stats API provides the ability to get any number of
  {ml} job's statistics in the cluster.
-It accepts a `GetJobStatsRequest` object and responds
-with a `GetJobStatsResponse` object.
+It accepts a +{request}+ object and responds
+with a +{response}+ object.
 
-[[java-rest-high-x-pack-ml-get-job-stats-request]]
+[id="{upid}-{api}-request"]
 ==== Get Job Stats Request
 
 A `GetJobsStatsRequest` object can have any number of `jobId`
@@ -15,53 +20,21 @@ requesting statistics for all jobs.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-job-stats-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Constructing a new request referencing existing `jobIds`, can contain wildcards
 <2> Whether to ignore if a wildcard expression matches no jobs.
  (This includes `_all` string or when no jobs have been specified)
 
-[[java-rest-high-x-pack-ml-get-job-stats-execution]]
-==== Execution
+include::../execution.asciidoc[]
 
-The request can be executed through the `MachineLearningClient` contained
-in the `RestHighLevelClient` object, accessed via the `machineLearningClient()` method.
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-job-stats-execute]
---------------------------------------------------
-
-[[java-rest-high-x-pack-ml-get-job-stats-execution-async]]
-==== Asynchronous Execution
-
-The request can also be executed asynchronously:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-job-stats-execute-async]
---------------------------------------------------
-<1> The `GetJobsStatsRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The method does not block and returns immediately. The passed `ActionListener` is used
-to notify the caller of completion. A typical `ActionListener` for `GetJobsStatsResponse` may
-look like
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-job-stats-listener]
---------------------------------------------------
-<1> `onResponse` is called back when the action is completed successfully
-<2> `onFailure` is called back when some unexpected error occurs
-
-[[java-rest-high-x-pack-ml-get-job-stats-response]]
+[id="{upid}-{api}-response"]
 ==== Get Job Stats Response
-The returned `GetJobStatsResponse` contains the requested job statistics:
+The returned +{response}+ contains the requested job statistics:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-job-stats-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> `getCount()` indicates the number of jobs statistics found
 <2> `getJobStats()` is the collection of {ml} `JobStats` objects found

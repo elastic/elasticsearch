@@ -650,8 +650,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
             .startObject("nested1").field("type", "nested").endObject()
             .endObject().endObject().endObject());
 
-        Version bwcVersion = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
-            Version.V_6_5_0);
+        Version bwcVersion = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_4_0);
         for (Version version : new Version[] {Version.V_6_5_0, bwcVersion}) {
             DocumentMapper docMapper = createIndex("test-" + version,
                 Settings.builder().put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), version).build())

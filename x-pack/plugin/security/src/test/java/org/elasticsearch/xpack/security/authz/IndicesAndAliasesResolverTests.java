@@ -119,8 +119,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final boolean withAlias = randomBoolean();
         final String securityIndexName = SECURITY_INDEX_NAME + (withAlias ? "-" + randomAlphaOfLength(5) : "");
         MetaData metaData = MetaData.builder()
-                .put(indexBuilder("foo").putAlias(AliasMetaData.builder("foofoobar")).settings(settings))
-                .put(indexBuilder("foobar").putAlias(AliasMetaData.builder("foofoobar")).settings(settings))
+                .put(indexBuilder("foo").putAlias(AliasMetaData.builder("foofoobar"))
+                        .putAlias(AliasMetaData.builder("foounauthorized")).settings(settings))
+                .put(indexBuilder("foobar").putAlias(AliasMetaData.builder("foofoobar"))
+                        .putAlias(AliasMetaData.builder("foobarfoo")).settings(settings))
                 .put(indexBuilder("closed").state(IndexMetaData.State.CLOSE)
                         .putAlias(AliasMetaData.builder("foofoobar")).settings(settings))
                 .put(indexBuilder("foofoo-closed").state(IndexMetaData.State.CLOSE).settings(settings))
@@ -145,7 +147,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         userDashIndices = new User("dash", "dash");
         userNoIndices = new User("test", "test");
         rolesStore = mock(CompositeRolesStore.class);
-        String[] authorizedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foofoo", "missing", "foofoo-closed"};
+        String[] authorizedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "missing", "foofoo-closed"};
         String[] dashIndices = new String[]{"-index10", "-index11", "-index20", "-index21"};
         roleMap = new HashMap<>();
         roleMap.put("role", new RoleDescriptor("role", null,
@@ -313,7 +315,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         SearchRequest request = new SearchRequest();
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
-        String[] replacedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foofoo", "foofoo-closed"};
+        String[] replacedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
         assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
@@ -324,10 +326,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         SearchRequest request = new SearchRequest();
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
-        String[] replacedIndices = new String[]{"bar", "foofoobar", "foofoo"};
-        assertThat(indices.size(), equalTo(replacedIndices.length));
-        assertThat(request.indices().length, equalTo(replacedIndices.length));
-        assertThat(indices, hasItems(replacedIndices));
+        String[] replacedIndices = new String[]{"bar", "foofoobar", "foobarfoo", "foofoo"};
+        assertSameValues(indices, replacedIndices);
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
@@ -335,7 +335,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         SearchRequest request = new SearchRequest("_all");
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
-        String[] replacedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foofoo", "foofoo-closed"};
+        String[] replacedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
         assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
@@ -346,7 +346,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         SearchRequest request = new SearchRequest("_all");
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
-        String[] replacedIndices = new String[]{"bar", "foofoobar", "foofoo"};
+        String[] replacedIndices = new String[]{"bar", "foofoobar", "foobarfoo", "foofoo"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
         assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
@@ -401,7 +401,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         SearchRequest request = new SearchRequest("*", "-foofoo*");
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
-        String[] replacedIndices = new String[]{"bar"};
+        String[] replacedIndices = new String[]{"bar", "foobarfoo"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
         assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
@@ -412,7 +412,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         SearchRequest request = new SearchRequest("*", "-foofoo*");
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
-        String[] replacedIndices = new String[]{"bar", "bar-closed"};
+        String[] replacedIndices = new String[]{"bar", "foobarfoo", "bar-closed"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
         assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
@@ -423,18 +423,16 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         SearchRequest request = new SearchRequest("*", "-foofoo*", "barbaz", "foob*");
         request.indicesOptions(IndicesOptions.fromOptions(false, true, true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
-        String[] replacedIndices = new String[]{"bar", "barbaz"};
-        assertThat(indices.size(), equalTo(replacedIndices.length));
-        assertThat(request.indices().length, equalTo(replacedIndices.length));
-        assertThat(indices, hasItems(replacedIndices));
-        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
+        String[] replacedIndices = new String[]{"bar", "foobarfoo", "barbaz"};
+        assertSameValues(indices, replacedIndices);
+        assertThat(request.indices(), arrayContainingInAnyOrder("bar", "foobarfoo", "barbaz", "foobarfoo"));
     }
 
     public void testResolveWildcardsPlusAndMinusExpandWilcardsOpenIgnoreUnavailable() {
         SearchRequest request = new SearchRequest("*", "-foofoo*", "+barbaz", "+foob*");
         request.indicesOptions(IndicesOptions.fromOptions(true, true, true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
-        String[] replacedIndices = new String[]{"bar"};
+        String[] replacedIndices = new String[]{"bar", "foobarfoo"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
         assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
@@ -445,10 +443,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         SearchRequest request = new SearchRequest("*", "-foofoo*", "barbaz");
         request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
-        String[] replacedIndices = new String[]{"bar", "bar-closed", "barbaz"};
-        assertThat(indices.size(), equalTo(replacedIndices.length));
-        assertThat(request.indices().length, equalTo(replacedIndices.length));
-        assertThat(indices, hasItems(replacedIndices));
+        String[] replacedIndices = new String[]{"bar", "bar-closed", "barbaz", "foobarfoo"};
+        assertSameValues(indices, replacedIndices);
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
@@ -456,9 +452,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         SearchRequest request = new SearchRequest("*", "-foofoo*", "barbaz");
         request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
-        String[] replacedIndices = new String[]{"bar", "bar-closed"};
+        String[] replacedIndices = new String[]{"bar", "bar-closed", "foobarfoo"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
-        assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
@@ -753,13 +748,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         //union of all resolved indices and aliases gets returned, based on what user is authorized for
         //note that the index side will end up containing matching aliases too, which is fine, as es core would do
         //the same and resolve those aliases to their corresponding concrete indices (which we let core do)
-        String[] expectedIndices = new String[]{"bar", "foofoobar", "foofoo"};
+        String[] expectedIndices = new String[]{"bar", "foofoobar", "foobarfoo", "foofoo"};
         assertSameValues(indices, expectedIndices);
         //alias foofoobar on both sides, that's fine, es core would do the same, same as above
         assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("bar", "foofoo"));
-        assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("foofoobar"));
+        assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("foofoobar", "foobarfoo"));
         assertThat(request.getAliasActions().get(1).indices(), arrayContainingInAnyOrder("bar"));
-        assertThat(request.getAliasActions().get(1).aliases(), arrayContainingInAnyOrder("foofoobar"));
+        assertThat(request.getAliasActions().get(1).aliases(), arrayContainingInAnyOrder("foofoobar", "foobarfoo"));
     }
 
     public void testResolveAllAliasesWildcardsIndicesAliasesRequestDeleteActions() {
@@ -771,13 +766,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         //union of all resolved indices and aliases gets returned, based on what user is authorized for
         //note that the index side will end up containing matching aliases too, which is fine, as es core would do
         //the same and resolve those aliases to their corresponding concrete indices (which we let core do)
-        String[] expectedIndices = new String[]{"bar", "foofoobar", "foofoo", "explicit"};
+        String[] expectedIndices = new String[]{"bar", "foofoobar", "foobarfoo", "foofoo", "explicit"};
         assertSameValues(indices, expectedIndices);
         //alias foofoobar on both sides, that's fine, es core would do the same, same as above
         assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("bar", "foofoo"));
-        assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("foofoobar"));
+        assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("foofoobar", "foobarfoo"));
         assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("bar", "foofoo"));
-        assertThat(request.getAliasActions().get(1).aliases(), arrayContainingInAnyOrder("foofoobar", "explicit"));
+        assertThat(request.getAliasActions().get(1).aliases(), arrayContainingInAnyOrder("foofoobar", "foobarfoo", "explicit"));
     }
 
     public void testResolveAliasesWildcardsIndicesAliasesRequestDeleteActionsNoAuthorizedIndices() {
@@ -786,7 +781,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         //no authorized aliases match bar*, hence aliases are replaced with empty string for that action
         request.addAliasAction(AliasActions.remove().index("*bar").alias("bar*"));
         resolveIndices(request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME));
-        assertThat(request.getAliasActions().get(0).aliases().length, equalTo(1));
+        assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("foofoobar", "foobarfoo"));
         assertThat(request.getAliasActions().get(1).aliases().length, equalTo(0));
     }
 
@@ -886,11 +881,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         //the union of all resolved indices and aliases gets returned, based on indices and aliases that user is authorized for
-        String[] expectedIndices = new String[]{"alias1", "foofoo", "foofoo-closed", "foofoobar"};
+        String[] expectedIndices = new String[]{"alias1", "foofoo", "foofoo-closed", "foofoobar", "foobarfoo"};
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         //wildcards get replaced on each single action
-        assertThat(request.indices(), arrayContainingInAnyOrder("foofoobar", "foofoo", "foofoo-closed"));
+        assertThat(request.indices(), arrayContainingInAnyOrder("foofoobar", "foobarfoo", "foofoo", "foofoo-closed"));
         assertThat(request.aliases(), arrayContainingInAnyOrder("alias1"));
     }
 
@@ -902,11 +897,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         //the union of all resolved indices and aliases gets returned, based on indices and aliases that user is authorized for
-        String[] expectedIndices = new String[]{"alias1", "foofoo", "foofoobar"};
+        String[] expectedIndices = new String[]{"alias1", "foofoo", "foofoobar", "foobarfoo"};
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         //wildcards get replaced on each single action
-        assertThat(request.indices(), arrayContainingInAnyOrder("foofoobar", "foofoo"));
+        assertThat(request.indices(), arrayContainingInAnyOrder("foofoobar", "foobarfoo", "foofoo"));
         assertThat(request.aliases(), arrayContainingInAnyOrder("alias1"));
     }
 
@@ -918,11 +913,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         //the union of all resolved indices and aliases gets returned, based on indices and aliases that user is authorized for
-        String[] expectedIndices = new String[]{"alias1", "foofoo", "foofoobar", "bar"};
+        String[] expectedIndices = new String[]{"alias1", "foofoo", "foofoobar", "foobarfoo", "bar"};
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         //wildcards get replaced on each single action
-        assertThat(request.indices(), arrayContainingInAnyOrder("foofoobar", "foofoo", "bar"));
+        assertThat(request.indices(), arrayContainingInAnyOrder("foofoobar", "foobarfoo", "foofoo", "bar"));
         assertThat(request.aliases(), arrayContainingInAnyOrder("alias1"));
     }
 
@@ -954,10 +949,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         //the union of all resolved indices and aliases gets returned
-        String[] expectedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foofoo", "foofoo-closed", "alias1"};
+        String[] expectedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed", "alias1"};
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
-        String[] replacedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foofoo", "foofoo-closed"};
+        String[] replacedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed"};
         //_all gets replaced with all indices that user is authorized for
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
         assertThat(request.aliases(), arrayContainingInAnyOrder("alias1"));
@@ -975,10 +970,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         //the union of all resolved indices and aliases gets returned
-        String[] expectedIndices = new String[]{"bar", "foofoobar", "foofoo", "alias1"};
+        String[] expectedIndices = new String[]{"bar", "foofoobar", "foobarfoo", "foofoo", "alias1"};
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
-        String[] replacedIndices = new String[]{"bar", "foofoobar", "foofoo"};
+        String[] replacedIndices = new String[]{"bar", "foofoobar", "foobarfoo", "foofoo"};
         //_all gets replaced with all indices that user is authorized for
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
         assertThat(request.aliases(), arrayContainingInAnyOrder("alias1"));
@@ -1034,11 +1029,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         //the union of all resolved indices and aliases gets returned
-        String[] expectedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foofoo", "foofoo-closed"};
+        String[] expectedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed"};
         assertSameValues(indices, expectedIndices);
         //_all gets replaced with all indices that user is authorized for
         assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
-        assertThat(request.aliases(), arrayContainingInAnyOrder("foofoobar"));
+        assertThat(request.aliases(), arrayContainingInAnyOrder("foofoobar", "foobarfoo"));
     }
 
     public void testResolveAllAndExplicitAliasesGetAliasesRequest() {
@@ -1049,11 +1044,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         //the union of all resolved indices and aliases gets returned
-        String[] expectedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foofoo", "foofoo-closed", "explicit"};
+        String[] expectedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed", "explicit"};
         assertSameValues(indices, expectedIndices);
         //_all gets replaced with all indices that user is authorized for
-        assertThat(request.indices(), arrayContainingInAnyOrder("bar", "bar-closed", "foofoobar", "foofoo", "foofoo-closed"));
-        assertThat(request.aliases(), arrayContainingInAnyOrder("foofoobar", "explicit"));
+        assertThat(request.indices(), arrayContainingInAnyOrder("bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed"));
+        assertThat(request.aliases(), arrayContainingInAnyOrder("foofoobar", "foobarfoo", "explicit"));
     }
 
     public void testResolveAllAndWildcardsAliasesGetAliasesRequest() {
@@ -1064,11 +1059,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         //the union of all resolved indices and aliases gets returned
-        String[] expectedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foofoo", "foofoo-closed"};
+        String[] expectedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed"};
         assertSameValues(indices, expectedIndices);
         //_all gets replaced with all indices that user is authorized for
         assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
-        assertThat(request.aliases(), arrayContainingInAnyOrder("foofoobar", "foofoobar"));
+        assertThat(request.aliases(), arrayContainingInAnyOrder("foofoobar", "foofoobar", "foobarfoo", "foobarfoo"));
     }
 
     public void testResolveAliasesWildcardsGetAliasesRequest() {
@@ -1080,11 +1075,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         //union of all resolved indices and aliases gets returned, based on what user is authorized for
         //note that the index side will end up containing matching aliases too, which is fine, as es core would do
         //the same and resolve those aliases to their corresponding concrete indices (which we let core do)
-        String[] expectedIndices = new String[]{"bar", "foofoobar"};
+        String[] expectedIndices = new String[]{"bar", "foobarfoo", "foofoobar"};
         assertSameValues(indices, expectedIndices);
         //alias foofoobar on both sides, that's fine, es core would do the same, same as above
         assertThat(request.indices(), arrayContainingInAnyOrder("bar", "foofoobar"));
-        assertThat(request.aliases(), arrayContainingInAnyOrder("foofoobar"));
+        assertThat(request.aliases(), arrayContainingInAnyOrder("foofoobar", "foobarfoo"));
     }
 
     public void testResolveAliasesWildcardsGetAliasesRequestNoAuthorizedIndices() {
@@ -1094,6 +1089,21 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indices("*bar");
         resolveIndices(request, buildAuthorizedIndices(user, GetAliasesAction.NAME));
         assertThat(request.aliases().length, equalTo(0));
+    }
+
+    public void testResolveAliasesExclusionWildcardsGetAliasesRequest() {
+        GetAliasesRequest request = new GetAliasesRequest();
+        request.aliases("foo*","-foobar*");
+        final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
+        List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
+        //union of all resolved indices and aliases gets returned, based on what user is authorized for
+        //note that the index side will end up containing matching aliases too, which is fine, as es core would do
+        //the same and resolve those aliases to their corresponding concrete indices (which we let core do)
+        String[] expectedIndices = new String[]{"bar", "bar-closed", "foobarfoo", "foofoo", "foofoo-closed", "foofoobar"};
+        assertSameValues(indices, expectedIndices);
+        //alias foofoobar on both sides, that's fine, es core would do the same, same as above
+        assertThat(request.indices(), arrayContainingInAnyOrder("bar", "bar-closed", "foobarfoo", "foofoo", "foofoo-closed", "foofoobar"));
+        assertThat(request.aliases(), arrayContainingInAnyOrder("foofoobar"));
     }
 
     public void testResolveAliasesAllGetAliasesRequestNoAuthorizedIndices() {
@@ -1164,7 +1174,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         {
             RefreshRequest request = new RefreshRequest("*");
             List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
-            String[] expectedIndices = new String[]{"bar", "foofoobar", "foofoo"};
+            String[] expectedIndices = new String[]{"bar", "foofoobar", "foobarfoo", "foofoo"};
             assertThat(indices.size(), equalTo(expectedIndices.length));
             assertThat(indices, hasItems(expectedIndices));
             assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));

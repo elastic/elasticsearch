@@ -1,2 +1,0 @@
-[[xpack-index-lifecycle]]
-= Automating Index Properties Over Time

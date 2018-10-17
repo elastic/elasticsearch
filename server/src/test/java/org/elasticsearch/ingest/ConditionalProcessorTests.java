@@ -27,14 +27,15 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 
-import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -65,8 +66,8 @@ public class ConditionalProcessorTests extends ESTestCase {
             new HashMap<>(ScriptModule.CORE_CONTEXTS)
         );
         Map<String, Object> document = new HashMap<>();
-        Clock clock = mock(Clock.class);
-        when(clock.millis()).thenReturn(0L, 1L, 0L, 2L);
+        LongSupplier relativeTimeProvider = mock(LongSupplier.class);
+        when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(1), 0L, TimeUnit.MILLISECONDS.toNanos(2));
         ConditionalProcessor processor = new ConditionalProcessor(
             randomAlphaOfLength(10),
             new Script(
@@ -91,7 +92,7 @@ public class ConditionalProcessorTests extends ESTestCase {
                 public String getTag() {
                     return null;
                 }
-            }, clock);
+            }, relativeTimeProvider);
 
         //false, never call processor never increments metrics
         String falseValue = "falsy";

@@ -112,6 +112,16 @@ setup:
   - match:  { hits.hits.0._source.bigint: 72057594037927936 }
   - is_false:  hits.hits.0._source.include.field2
 
+
+---
+"_source filtering on bigint":
+- do:
+    search:
+      body:
+        _source: ["bigint"]
+        query: { match_all: {} }
+- match:  { hits.hits.0._source.bigint: 72057594037927936 }
+
 ---
 "fields in body":
   - do:

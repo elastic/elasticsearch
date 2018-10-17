@@ -47,7 +47,7 @@ salary               | INTEGER
 ;
 
 describePattern
-DESCRIBE test_*;
+DESCRIBE "test_*";
 
 column:s             | type:s
 
@@ -99,7 +99,7 @@ F               | 10099.28
 ;
 
 testGroupByOnPattern
-SELECT gender, PERCENTILE(emp_no, 97) p1 FROM test_* WHERE gender is NOT NULL GROUP BY gender;
+SELECT gender, PERCENTILE(emp_no, 97) p1 FROM "test_*" WHERE gender is NOT NULL GROUP BY gender;
 
 gender:s             | p1:d
 

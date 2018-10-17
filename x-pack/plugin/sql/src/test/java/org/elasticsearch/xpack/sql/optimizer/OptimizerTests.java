@@ -18,11 +18,6 @@ import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Add;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Div;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mod;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mul;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Sub;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthOfYear;
@@ -35,18 +30,24 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.E;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.sql.expression.predicate.And;
-import org.elasticsearch.xpack.sql.expression.predicate.Equals;
-import org.elasticsearch.xpack.sql.expression.predicate.GreaterThan;
-import org.elasticsearch.xpack.sql.expression.predicate.GreaterThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
-import org.elasticsearch.xpack.sql.expression.predicate.LessThan;
-import org.elasticsearch.xpack.sql.expression.predicate.LessThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.Or;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
-import org.elasticsearch.xpack.sql.expression.regex.Like;
-import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
-import org.elasticsearch.xpack.sql.expression.regex.RLike;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.BooleanSimplification;
@@ -237,12 +238,8 @@ public class OptimizerTests extends ESTestCase {
         Expression exp = new Add(EMPTY, TWO, THREE);
 
         assertTrue(exp.foldable());
-        assertTrue(exp instanceof NamedExpression);
-        String n = Expressions.name(exp);
-
         Expression result = new ConstantFolding().rule(exp);
         assertTrue(result instanceof Literal);
-        assertEquals(n, Expressions.name(result));
         assertEquals(5, ((Literal) result).value());
 
         // check now with an alias
@@ -252,21 +249,23 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testConstantFoldingBinaryComparison() {
-        assertEquals(Literal.FALSE, new ConstantFolding().rule(new GreaterThan(EMPTY, TWO, THREE)));
-        assertEquals(Literal.FALSE, new ConstantFolding().rule(new GreaterThanOrEqual(EMPTY, TWO, THREE)));
-        assertEquals(Literal.FALSE, new ConstantFolding().rule(new Equals(EMPTY, TWO, THREE)));
-        assertEquals(Literal.TRUE, new ConstantFolding().rule(new LessThanOrEqual(EMPTY, TWO, THREE)));
-        assertEquals(Literal.TRUE, new ConstantFolding().rule(new LessThan(EMPTY, TWO, THREE)));
+        assertEquals(Literal.FALSE, new ConstantFolding().rule(new GreaterThan(EMPTY, TWO, THREE)).canonical());
+        assertEquals(Literal.FALSE, new ConstantFolding().rule(new GreaterThanOrEqual(EMPTY, TWO, THREE)).canonical());
+        assertEquals(Literal.FALSE, new ConstantFolding().rule(new Equals(EMPTY, TWO, THREE)).canonical());
+        assertEquals(Literal.TRUE, new ConstantFolding().rule(new LessThanOrEqual(EMPTY, TWO, THREE)).canonical());
+        assertEquals(Literal.TRUE, new ConstantFolding().rule(new LessThan(EMPTY, TWO, THREE)).canonical());
     }
 
     public void testConstantFoldingBinaryLogic() {
-        assertEquals(Literal.FALSE, new ConstantFolding().rule(new And(EMPTY, new GreaterThan(EMPTY, TWO, THREE), Literal.TRUE)));
-        assertEquals(Literal.TRUE, new ConstantFolding().rule(new Or(EMPTY, new GreaterThanOrEqual(EMPTY, TWO, THREE), Literal.TRUE)));
+        assertEquals(Literal.FALSE,
+                new ConstantFolding().rule(new And(EMPTY, new GreaterThan(EMPTY, TWO, THREE), Literal.TRUE)).canonical());
+        assertEquals(Literal.TRUE,
+                new ConstantFolding().rule(new Or(EMPTY, new GreaterThanOrEqual(EMPTY, TWO, THREE), Literal.TRUE)).canonical());
     }
 
     public void testConstantFoldingRange() {
-        assertEquals(Literal.TRUE, new ConstantFolding().rule(new Range(EMPTY, FIVE, FIVE, true, L(10), false)));
-        assertEquals(Literal.FALSE, new ConstantFolding().rule(new Range(EMPTY, FIVE, FIVE, false, L(10), false)));
+        assertEquals(true, new ConstantFolding().rule(new Range(EMPTY, FIVE, FIVE, true, L(10), false)).fold());
+        assertEquals(false, new ConstantFolding().rule(new Range(EMPTY, FIVE, FIVE, false, L(10), false)).fold());
     }
 
     public void testConstantIsNotNull() {
@@ -281,9 +280,10 @@ public class OptimizerTests extends ESTestCase {
 
     public void testConstantFoldingLikes() {
         assertEquals(Literal.TRUE,
-                new ConstantFolding().rule(new Like(EMPTY, Literal.of(EMPTY, "test_emp"), new LikePattern(EMPTY, "test%", (char) 0))));
+                new ConstantFolding().rule(new Like(EMPTY, Literal.of(EMPTY, "test_emp"), new LikePattern(EMPTY, "test%", (char) 0)))
+                        .canonical());
         assertEquals(Literal.TRUE,
-                new ConstantFolding().rule(new RLike(EMPTY, Literal.of(EMPTY, "test_emp"), Literal.of(EMPTY, "test.emp"))));
+                new ConstantFolding().rule(new RLike(EMPTY, Literal.of(EMPTY, "test_emp"), Literal.of(EMPTY, "test.emp"))).canonical());
     }
 
     public void testConstantFoldingDatetime() {
@@ -299,11 +299,11 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testArithmeticFolding() {
-        assertEquals(10, foldFunction(new Add(EMPTY, L(7), THREE)));
-        assertEquals(4, foldFunction(new Sub(EMPTY, L(7), THREE)));
-        assertEquals(21, foldFunction(new Mul(EMPTY, L(7), THREE)));
-        assertEquals(2, foldFunction(new Div(EMPTY, L(7), THREE)));
-        assertEquals(1, foldFunction(new Mod(EMPTY, L(7), THREE)));
+        assertEquals(10, foldOperator(new Add(EMPTY, L(7), THREE)));
+        assertEquals(4, foldOperator(new Sub(EMPTY, L(7), THREE)));
+        assertEquals(21, foldOperator(new Mul(EMPTY, L(7), THREE)));
+        assertEquals(2, foldOperator(new Div(EMPTY, L(7), THREE)));
+        assertEquals(1, foldOperator(new Mod(EMPTY, L(7), THREE)));
     }
 
     public void testMathFolding() {
@@ -317,6 +317,10 @@ public class OptimizerTests extends ESTestCase {
 
     private static Object foldFunction(Function f) {
         return ((Literal) new ConstantFolding().rule(f)).value();
+    }
+
+    private static Object foldOperator(BinaryOperator b) {
+        return ((Literal) new ConstantFolding().rule(b)).value();
     }
 
     //

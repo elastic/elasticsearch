@@ -206,7 +206,7 @@ public final class SimilarityService extends AbstractIndexComponent {
         CollectionStatistics collectionStats = new CollectionStatistics("some_field", 1200, 1100, 3000, 2000);
         TermStatistics termStats = new TermStatistics(new BytesRef("some_value"), 100, 130);
         SimScorer scorer = similarity.scorer(2f, collectionStats, termStats);
-        FieldInvertState state = new FieldInvertState(indexCreatedVersion.major, "some_field",
+        FieldInvertState state = new FieldInvertState(indexCreatedVersion.luceneVersion.major, "some_field",
                 IndexOptions.DOCS_AND_FREQS, 20, 20, 0, 50, 10, 3); // length = 20, no overlap
         final long norm = similarity.computeNorm(state);
         for (int freq = 1; freq <= 10; ++freq) {
@@ -214,6 +214,7 @@ public final class SimilarityService extends AbstractIndexComponent {
             if (score < 0) {
                 fail(indexCreatedVersion, "Similarities should not return negative scores:\n" +
                         scorer.explain(Explanation.match(freq, "term freq"), norm));
+                break;
             }
         }
     }
@@ -222,7 +223,7 @@ public final class SimilarityService extends AbstractIndexComponent {
         CollectionStatistics collectionStats = new CollectionStatistics("some_field", 1200, 1100, 3000, 2000);
         TermStatistics termStats = new TermStatistics(new BytesRef("some_value"), 100, 130);
         SimScorer scorer = similarity.scorer(2f, collectionStats, termStats);
-        FieldInvertState state = new FieldInvertState(indexCreatedVersion.major, "some_field",
+        FieldInvertState state = new FieldInvertState(indexCreatedVersion.luceneVersion.major, "some_field",
                 IndexOptions.DOCS_AND_FREQS, 20, 20, 0, 50, 10, 3); // length = 20, no overlap
         final long norm = similarity.computeNorm(state);
         float previousScore = 0;
@@ -232,6 +233,7 @@ public final class SimilarityService extends AbstractIndexComponent {
                 fail(indexCreatedVersion, "Similarity scores should not decrease when term frequency increases:\n" +
                         scorer.explain(Explanation.match(freq - 1, "term freq"), norm) + "\n" +
                         scorer.explain(Explanation.match(freq, "term freq"), norm));
+                break;
             }
             previousScore = score;
         }
@@ -245,7 +247,7 @@ public final class SimilarityService extends AbstractIndexComponent {
         long previousNorm = 0;
         float previousScore = Float.MAX_VALUE;
         for (int length = 1; length <= 10; ++length) {
-            FieldInvertState state = new FieldInvertState(indexCreatedVersion.major, "some_field",
+            FieldInvertState state = new FieldInvertState(indexCreatedVersion.luceneVersion.major, "some_field",
                     IndexOptions.DOCS_AND_FREQS, length, length, 0, 50, 10, 3); // length = 20, no overlap
             final long norm = similarity.computeNorm(state);
             if (Long.compareUnsigned(previousNorm, norm) > 0) {
@@ -257,6 +259,7 @@ public final class SimilarityService extends AbstractIndexComponent {
                 fail(indexCreatedVersion, "Similarity scores should not increase when norm increases:\n" +
                         scorer.explain(Explanation.match(1, "term freq"), norm - 1) + "\n" +
                         scorer.explain(Explanation.match(1, "term freq"), norm));
+                break;
             }
             previousScore = score;
             previousNorm = norm;

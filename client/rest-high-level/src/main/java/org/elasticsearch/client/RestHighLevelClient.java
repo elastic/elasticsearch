@@ -151,7 +151,6 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Returns the wrapper used to communicate with the low-level client that all subclients should be using.
-     * @return
      */
     public final RestRequestActions getRequestActions() {
         return this.requestActions;
@@ -379,9 +378,9 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      */
     public final void updateByQueryAsync(UpdateByQueryRequest updateByQueryRequest, RequestOptions options,
-                                   ActionListener<BulkByScrollResponse> listener) {
+                                         ActionListener<BulkByScrollResponse> listener) {
         requestActions.performRequestAsyncAndParseEntity(
-                updateByQueryRequest, RequestConverters::updateByQuery, options, BulkByScrollResponse::fromXContent, listener, emptySet()
+            updateByQueryRequest, RequestConverters::updateByQuery, options, BulkByScrollResponse::fromXContent, listener, emptySet()
         );
     }
 
@@ -411,36 +410,94 @@ public class RestHighLevelClient implements Closeable {
     public final void deleteByQueryAsync(DeleteByQueryRequest deleteByQueryRequest, RequestOptions options,
                                          ActionListener<BulkByScrollResponse> listener) {
         requestActions.performRequestAsyncAndParseEntity(
-                deleteByQueryRequest, RequestConverters::deleteByQuery, options, BulkByScrollResponse::fromXContent, listener, emptySet()
+            deleteByQueryRequest, RequestConverters::deleteByQuery, options, BulkByScrollResponse::fromXContent, listener, emptySet()
         );
     }
 
     /**
-     * Executes a reindex rethrottling request.
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html#docs-reindex-rethrottle">
-     *     Reindex rethrottling API on elastic.co</a>
+     * Executes a delete by query rethrottle request.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html">
+     *     Delete By Query API on elastic.co</a>
      * @param rethrottleRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
+    public final ListTasksResponse deleteByQueryRethrottle(RethrottleRequest rethrottleRequest, RequestOptions options) throws IOException {
+        return requestActions.performRequestAndParseEntity(rethrottleRequest, RequestConverters::rethrottleDeleteByQuery, options,
+                ListTasksResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously execute an delete by query rethrottle request.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html">
+     *     Delete By Query API on elastic.co</a>
+     * @param rethrottleRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void deleteByQueryRethrottleAsync(RethrottleRequest rethrottleRequest, RequestOptions options,
+            ActionListener<ListTasksResponse> listener) {
+        requestActions.performRequestAsyncAndParseEntity(rethrottleRequest, RequestConverters::rethrottleDeleteByQuery, options,
+                ListTasksResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Executes a update by query rethrottle request.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html">
+     *     Update By Query API on elastic.co</a>
+     * @param rethrottleRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final ListTasksResponse updateByQueryRethrottle(RethrottleRequest rethrottleRequest, RequestOptions options) throws IOException {
+        return requestActions.performRequestAndParseEntity(rethrottleRequest, RequestConverters::rethrottleUpdateByQuery, options,
+                ListTasksResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously execute an update by query rethrottle request.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html">
+     *     Update By Query API on elastic.co</a>
+     * @param rethrottleRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void updateByQueryRethrottleAsync(RethrottleRequest rethrottleRequest, RequestOptions options,
+            ActionListener<ListTasksResponse> listener) {
+        requestActions.performRequestAsyncAndParseEntity(rethrottleRequest, RequestConverters::rethrottleUpdateByQuery, options,
+                ListTasksResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Executes a reindex rethrottling request.
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html#docs-reindex-rethrottle">
+     * Reindex rethrottling API on elastic.co</a>
+     *
+     * @param rethrottleRequest the request
+     * @param options           the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
     public final ListTasksResponse reindexRethrottle(RethrottleRequest rethrottleRequest, RequestOptions options) throws IOException {
-        return requestActions.performRequestAndParseEntity(rethrottleRequest, RequestConverters::rethrottle, options,
+        return requestActions.performRequestAndParseEntity(rethrottleRequest, RequestConverters::rethrottleReindex, options,
                 ListTasksResponse::fromXContent, emptySet());
     }
 
     /**
      * Executes a reindex rethrottling request.
      * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html#docs-reindex-rethrottle">
-     *     Reindex rethrottling API on elastic.co</a>
+     * Reindex rethrottling API on elastic.co</a>
+     *
      * @param rethrottleRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
+     * @param options           the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener          the listener to be notified upon request completion
      */
     public final void reindexRethrottleAsync(RethrottleRequest rethrottleRequest, RequestOptions options,
             ActionListener<ListTasksResponse> listener) {
-        requestActions.performRequestAsyncAndParseEntity(rethrottleRequest, RequestConverters::rethrottle, options,
-            ListTasksResponse::fromXContent, listener, emptySet());
+        requestActions.performRequestAsyncAndParseEntity(rethrottleRequest, RequestConverters::rethrottleReindex, options,
+                ListTasksResponse::fromXContent, listener, emptySet());
     }
 
     /**

@@ -6,25 +6,28 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Locale;
 import java.util.Objects;
-import java.util.function.BiFunction;
 
 import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
+import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 public abstract class BinaryNumericFunction extends BinaryScalarFunction {
 
-    protected BinaryNumericFunction(Location location, Expression left, Expression right) {
-        super(location, left, right);
-    }
+    private final BinaryMathOperation operation;
 
-    protected abstract BiFunction<Number, Number, Number> operation();
+    protected BinaryNumericFunction(Location location, Expression left, Expression right, BinaryMathOperation operation) {
+        super(location, left, right);
+        this.operation = operation;
+    }
 
     @Override
     public DataType dataType() {
@@ -46,14 +49,19 @@ public abstract class BinaryNumericFunction extends BinaryScalarFunction {
     }
 
     protected TypeResolution resolveInputType(DataType inputType) {
-        return inputType.isNumeric() ? 
-                TypeResolution.TYPE_RESOLVED : 
+        return inputType.isNumeric() ?
+                TypeResolution.TYPE_RESOLVED :
                 new TypeResolution("'%s' requires a numeric type, received %s", mathFunction(), inputType.esType);
     }
 
     @Override
     public Object fold() {
-        return operation().apply((Number) left().fold(), (Number) right().fold());
+        return operation.apply((Number) left().fold(), (Number) right().fold());
+    }
+
+    @Override
+    protected Pipe makePipe() {
+        return new BinaryMathPipe(location(), this, Expressions.pipe(left()), Expressions.pipe(right()), operation);
     }
 
     @Override
@@ -70,7 +78,7 @@ public abstract class BinaryNumericFunction extends BinaryScalarFunction {
 
     @Override
     public int hashCode() {
-        return Objects.hash(left(), right(), operation());
+        return Objects.hash(left(), right(), operation);
     }
 
     @Override
@@ -81,6 +89,6 @@ public abstract class BinaryNumericFunction extends BinaryScalarFunction {
         BinaryNumericFunction other = (BinaryNumericFunction) obj;
         return Objects.equals(other.left(), left())
             && Objects.equals(other.right(), right())
-            && Objects.equals(other.operation(), operation());
+                && Objects.equals(other.operation, operation);
     }
 }

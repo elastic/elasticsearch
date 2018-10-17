@@ -363,8 +363,8 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
      */
     public void testSearchWithRelocationAndSlowClusterStateProcessing() throws Exception {
         // don't use DEFAULT settings (which can cause node disconnects on a slow CI machine)
-        configureCluster(Settings.EMPTY, 3, null, 1);
-        final String masterNode = internalCluster().startMasterOnlyNode();
+        configureCluster(Settings.EMPTY, 3, 1);
+        internalCluster().startMasterOnlyNode();
         final String node_1 = internalCluster().startDataOnlyNode();
 
         logger.info("--> creating index [test] with one shard and on replica");
@@ -390,7 +390,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
     public void testIndexImportedFromDataOnlyNodesIfMasterLostDataFolder() throws Exception {
         // test for https://github.com/elastic/elasticsearch/issues/8823
-        configureCluster(2, null, 1);
+        configureCluster(2, 1);
         String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNode(Settings.EMPTY);
 
@@ -421,7 +421,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
             .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s") // wait till cluster state is committed
             .build();
         final String idxName = "test";
-        configureCluster(settings, 3, null, 2);
+        configureCluster(settings, 3, 2);
         final List<String> allMasterEligibleNodes = internalCluster().startMasterOnlyNodes(2);
         final String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(3);

@@ -10,7 +10,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Arithmetics;
 
 import java.io.IOException;
 import java.util.function.BiFunction;
@@ -23,6 +24,7 @@ public class BinaryMathProcessor extends BinaryNumericProcessor<BinaryMathOperat
     public enum BinaryMathOperation implements BiFunction<Number, Number, Number> {
 
         ATAN2((l, r) -> Math.atan2(l.doubleValue(), r.doubleValue())),
+        MOD(Arithmetics::mod),
         POWER((l, r) -> Math.pow(l.doubleValue(), r.doubleValue())),
         ROUND((l, r) -> {
             if (l == null) {

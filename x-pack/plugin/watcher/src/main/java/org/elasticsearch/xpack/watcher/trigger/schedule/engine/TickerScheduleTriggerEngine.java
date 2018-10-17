@@ -22,6 +22,7 @@ import org.joda.time.DateTime;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -49,14 +50,23 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     @Override
     public synchronized void start(Collection<Watch> jobs) {
         long startTime = clock.millis();
-        Map<String, ActiveSchedule> schedules = new ConcurrentHashMap<>();
+        Map<String, ActiveSchedule> schedules = new HashMap<>(jobs.size());
         for (Watch job : jobs) {
             if (job.trigger() instanceof ScheduleTrigger) {
                 ScheduleTrigger trigger = (ScheduleTrigger) job.trigger();
                 schedules.put(job.id(), new ActiveSchedule(job.id(), trigger.getSchedule(), startTime));
             }
         }
-        this.schedules = schedules;
+        // why are we calling putAll() here instead of assigning a brand
+        // new concurrent hash map you may ask yourself over here
+        // This requires some explanation how TriggerEngine.start() is
+        // invoked, when a reload due to the cluster state listener is done
+        // If the watches index does not exist, and new document is stored,
+        // then the creation of that index will trigger a reload which calls
+        // this method. The index operation however will run at the same time
+        // as the reload, so if we clean out the old data structure here,
+        // that can lead to that one watch not being triggered
+        this.schedules.putAll(schedules);
     }
 
     @Override

@@ -16,7 +16,6 @@ import java.util.TimeZone;
  * Extract the month from a datetime in text format (January, February etc.)
  */
 public class MonthName extends NamedDateTimeFunction {
-    protected static final String MONTH_NAME_FORMAT = "MMMM";
     
     public MonthName(Location location, Expression field, TimeZone timeZone) {
         super(location, field, timeZone);
@@ -30,16 +29,6 @@ public class MonthName extends NamedDateTimeFunction {
     @Override
     protected MonthName replaceChild(Expression newChild) {
         return new MonthName(location(), newChild, timeZone());
-    }
-
-    @Override
-    protected String dateTimeFormat() {
-        return MONTH_NAME_FORMAT;
-    }
-
-    @Override
-    public String extractName(long millis, String tzId) {
-        return nameExtractor().extract(millis, tzId);
     }
 
     @Override

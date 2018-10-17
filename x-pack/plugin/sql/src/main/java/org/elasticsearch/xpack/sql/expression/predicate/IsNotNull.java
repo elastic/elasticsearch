@@ -5,8 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate;
 
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.UnaryExpression;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -28,8 +31,19 @@ public class IsNotNull extends UnaryExpression {
         return new IsNotNull(location(), newChild);
     }
 
+    @Override
     public Object fold() {
         return child().fold() != null && !DataTypes.isNull(child().dataType());
+    }
+
+    @Override
+    protected Pipe makePipe() {
+        throw new SqlIllegalArgumentException("Not supported yet");
+    }
+
+    @Override
+    public ScriptTemplate asScript() {
+        throw new SqlIllegalArgumentException("Not supported yet");
     }
 
     @Override

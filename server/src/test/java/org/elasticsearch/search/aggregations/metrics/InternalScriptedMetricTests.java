@@ -30,8 +30,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalScriptedMetric;
-import org.elasticsearch.search.aggregations.metrics.ParsedScriptedMetric;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
@@ -115,10 +113,11 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
      */
     @Override
     protected ScriptService mockScriptService() {
-        // mock script always retuns the size of the input aggs list as result
+        // mock script always returns the size of the input aggs list as result
         @SuppressWarnings("unchecked")
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
-                Collections.singletonMap(REDUCE_SCRIPT_NAME, script -> ((List<Object>) script.get("states")).size()));
+                Collections.singletonMap(REDUCE_SCRIPT_NAME, script -> ((List<Object>) script.get("states")).size()),
+                Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
         return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
     }

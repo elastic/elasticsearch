@@ -58,7 +58,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
     }
 
     public void testResolveMultipleConfigs() throws Exception {
-        final Level level = ESLoggerFactory.getLogger("test").getLevel();
+        final Level level = LogManager.getLogger("test").getLevel();
         try {
             final Path configDir = getDataPath("config");
             final Settings settings = Settings.builder()
@@ -106,7 +106,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
         LogConfigurator.configure(environment);
 
         final String loggerName = "test";
-        final Logger logger = ESLoggerFactory.getLogger(loggerName);
+        final Logger logger = LogManager.getLogger(loggerName);
         assertThat(logger.getLevel().toString(), equalTo(level));
     }
 
@@ -122,7 +122,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
 
         // args should overwrite whatever is in the config
         final String loggerName = "test_resolve_order";
-        final Logger logger = ESLoggerFactory.getLogger(loggerName);
+        final Logger logger = LogManager.getLogger(loggerName);
         assertTrue(logger.isTraceEnabled());
     }
 
@@ -134,14 +134,14 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
         final Environment environment = new Environment(settings, configDir);
         LogConfigurator.configure(environment);
 
-        assertThat(ESLoggerFactory.getLogger("x").getLevel(), equalTo(Level.TRACE));
-        assertThat(ESLoggerFactory.getLogger("x.y").getLevel(), equalTo(Level.DEBUG));
+        assertThat(LogManager.getLogger("x").getLevel(), equalTo(Level.TRACE));
+        assertThat(LogManager.getLogger("x.y").getLevel(), equalTo(Level.DEBUG));
 
         final Level level = randomFrom(Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR);
-        Loggers.setLevel(ESLoggerFactory.getLogger("x"), level);
+        Loggers.setLevel(LogManager.getLogger("x"), level);
 
-        assertThat(ESLoggerFactory.getLogger("x").getLevel(), equalTo(level));
-        assertThat(ESLoggerFactory.getLogger("x.y").getLevel(), equalTo(level));
+        assertThat(LogManager.getLogger("x").getLevel(), equalTo(level));
+        assertThat(LogManager.getLogger("x.y").getLevel(), equalTo(level));
     }
 
     public void testMissingConfigFile() {

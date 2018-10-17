@@ -39,7 +39,7 @@ public class ExecutableHipChatAction extends ExecutableAction<HipChatAction> {
         // watch/action were created.
         account.validateParsedTemplate(ctx.id().watchId(), actionId, action.message);
 
-        Map<String, Object> model = Variables.createCtxModel(ctx, payload);
+        Map<String, Object> model = Variables.createCtxParamsMap(ctx, payload);
         HipChatMessage message = account.render(ctx.id().watchId(), actionId, templateEngine, action.message, model);
 
         if (ctx.simulateAction(actionId)) {

@@ -44,7 +44,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
-import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -127,6 +126,7 @@ public class RefreshListenersTests extends ESTestCase {
             new NoneCircuitBreakerService(), () -> SequenceNumbers.NO_OPS_PERFORMED, () -> primaryTerm,
             EngineTestCase.tombstoneDocSupplier());
         engine = new InternalEngine(config);
+        engine.initializeMaxSeqNoOfUpdatesOrDeletes();
         engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);
         listeners.setCurrentRefreshLocationSupplier(engine::getTranslogLastWriteLocation);
     }
@@ -323,9 +323,9 @@ public class RefreshListenersTests extends ESTestCase {
                         try (Engine.GetResult getResult = engine.get(get, engine::acquireSearcher)) {
                             assertTrue("document not found", getResult.exists());
                             assertEquals(iteration, getResult.version());
-                            SingleFieldsVisitor visitor = new SingleFieldsVisitor("test");
-                            getResult.docIdAndVersion().reader.document(getResult.docIdAndVersion().docId, visitor);
-                            assertEquals(Arrays.asList(testFieldValue), visitor.fields().get("test"));
+                            org.apache.lucene.document.Document document =
+                                    getResult.docIdAndVersion().reader.document(getResult.docIdAndVersion().docId);
+                            assertEquals(new String[] {testFieldValue}, document.getValues("test"));
                         }
                     } catch (Exception t) {
                         throw new RuntimeException("failure on the [" + iteration + "] iteration of thread [" + threadId + "]", t);

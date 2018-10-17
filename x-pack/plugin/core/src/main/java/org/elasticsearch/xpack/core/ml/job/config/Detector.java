@@ -385,7 +385,7 @@ public class Detector implements ToXContentObject, Writeable {
     }
 
     /**
-     * Excludes frequently-occuring metrics from the analysis;
+     * Excludes frequently-occurring metrics from the analysis;
      * can apply to 'by' field, 'over' field, or both
      *
      * @return the value that the user set

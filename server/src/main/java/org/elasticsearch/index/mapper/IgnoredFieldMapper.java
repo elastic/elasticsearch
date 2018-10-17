@@ -85,7 +85,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final class IgnoredFieldType extends TermBasedFieldType {
+    public static final class IgnoredFieldType extends StringFieldType {
 
         public IgnoredFieldType() {
         }

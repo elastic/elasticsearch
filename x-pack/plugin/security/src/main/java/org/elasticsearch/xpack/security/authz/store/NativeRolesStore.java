@@ -19,7 +19,6 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -43,6 +42,7 @@ import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -52,13 +52,17 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
+import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
@@ -74,7 +78,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
  *
  * No caching is done by this class, it is handled at a higher level
  */
-public class NativeRolesStore extends AbstractComponent {
+public class NativeRolesStore extends AbstractComponent implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
 
     // these are no longer used, but leave them around for users upgrading
     private static final Setting<Integer> CACHE_SIZE_SETTING =
@@ -97,36 +101,42 @@ public class NativeRolesStore extends AbstractComponent {
         this.securityIndex = securityIndex;
     }
 
+    @Override
+    public void accept(Set<String> names, ActionListener<RoleRetrievalResult> listener) {
+        getRoleDescriptors(names, listener);
+    }
+
     /**
      * Retrieve a list of roles, if rolesToGet is null or empty, fetch all roles
      */
-    public void getRoleDescriptors(String[] names, final ActionListener<Collection<RoleDescriptor>> listener) {
+    public void getRoleDescriptors(Set<String> names, final ActionListener<RoleRetrievalResult> listener) {
         if (securityIndex.indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
-            listener.onResponse(Collections.emptyList());
-        } else if (names != null && names.length == 1) {
-            getRoleDescriptor(Objects.requireNonNull(names[0]), ActionListener.wrap(roleDescriptor ->
-                    listener.onResponse(roleDescriptor == null ? Collections.emptyList() : Collections.singletonList(roleDescriptor)),
-                    listener::onFailure));
+            listener.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
+        } else if (names != null && names.size() == 1) {
+            getRoleDescriptor(Objects.requireNonNull(names.iterator().next()), listener);
         } else {
             securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
                 QueryBuilder query;
-                if (names == null || names.length == 0) {
+                if (names == null || names.isEmpty()) {
                     query = QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE);
                 } else {
-                    final String[] roleNames = Arrays.stream(names).map(s -> getIdForUser(s)).toArray(String[]::new);
+                    final String[] roleNames = names.stream().map(NativeRolesStore::getIdForUser).toArray(String[]::new);
                     query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery(ROLE_DOC_TYPE).addIds(roleNames));
                 }
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN)) {
                     SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
-                            .setScroll(TimeValue.timeValueSeconds(10L))
+                            .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                             .setQuery(query)
                             .setSize(1000)
                             .setFetchSource(true)
                             .request();
                     request.indicesOptions().ignoreUnavailable();
-                    ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener),
+                    final ActionListener<Collection<RoleDescriptor>> descriptorsListener = ActionListener.wrap(
+                        roleDescriptors -> listener.onResponse(RoleRetrievalResult.success(new HashSet<>(roleDescriptors))),
+                        e -> listener.onResponse(RoleRetrievalResult.failure(e)));
+                    ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, descriptorsListener),
                             (hit) -> transformRole(hit.getId(), hit.getSourceRef(), logger, licenseState));
                 }
             });
@@ -260,30 +270,28 @@ public class NativeRolesStore extends AbstractComponent {
         }
     }
 
-    private void getRoleDescriptor(final String roleId, ActionListener<RoleDescriptor> roleActionListener) {
+    @Override
+    public String toString() {
+        return "native roles store";
+    }
+
+    private void getRoleDescriptor(final String roleId, ActionListener<RoleRetrievalResult> resultListener) {
         if (securityIndex.indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
-            roleActionListener.onResponse(null);
+            resultListener.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
         } else {
-            securityIndex.prepareIndexIfNeededThenExecute(roleActionListener::onFailure, () ->
+            securityIndex.prepareIndexIfNeededThenExecute(e -> resultListener.onResponse(RoleRetrievalResult.failure(e)), () ->
                     executeGetRoleRequest(roleId, new ActionListener<GetResponse>() {
                         @Override
                         public void onResponse(GetResponse response) {
                             final RoleDescriptor descriptor = transformRole(response);
-                            roleActionListener.onResponse(descriptor);
+                            resultListener.onResponse(RoleRetrievalResult.success(
+                                descriptor == null ? Collections.emptySet() : Collections.singleton(descriptor)));
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            // if the index or the shard is not there / available we just claim the role is not there
-                            if (TransportActions.isShardNotAvailableException(e)) {
-                                logger.warn((org.apache.logging.log4j.util.Supplier<?>) () ->
-                                        new ParameterizedMessage("failed to load role [{}] index not available", roleId), e);
-                                roleActionListener.onResponse(null);
-                            } else {
-                                logger.error(new ParameterizedMessage("failed to load role [{}]", roleId), e);
-                                roleActionListener.onFailure(e);
-                            }
+                            resultListener.onResponse(RoleRetrievalResult.failure(e));
                         }
                     }));
         }

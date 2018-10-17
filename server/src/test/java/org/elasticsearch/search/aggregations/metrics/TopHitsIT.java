@@ -826,16 +826,16 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(topReviewers.getHits().getAt(2).getId(), equalTo("1"));
         assertThat(extractValue("name", topReviewers.getHits().getAt(2).getSourceAsMap()), equalTo("user c"));
         assertThat(topReviewers.getHits().getAt(2).getNestedIdentity().getField().string(), equalTo("comments"));
-        assertThat(topReviewers.getHits().getAt(2).getNestedIdentity().getOffset(), equalTo(0));
+        assertThat(topReviewers.getHits().getAt(2).getNestedIdentity().getOffset(), equalTo(1));
         assertThat(topReviewers.getHits().getAt(2).getNestedIdentity().getChild().getField().string(), equalTo("reviewers"));
-        assertThat(topReviewers.getHits().getAt(2).getNestedIdentity().getChild().getOffset(), equalTo(2));
+        assertThat(topReviewers.getHits().getAt(2).getNestedIdentity().getChild().getOffset(), equalTo(0));
 
         assertThat(topReviewers.getHits().getAt(3).getId(), equalTo("1"));
         assertThat(extractValue("name", topReviewers.getHits().getAt(3).getSourceAsMap()), equalTo("user c"));
         assertThat(topReviewers.getHits().getAt(3).getNestedIdentity().getField().string(), equalTo("comments"));
-        assertThat(topReviewers.getHits().getAt(3).getNestedIdentity().getOffset(), equalTo(1));
+        assertThat(topReviewers.getHits().getAt(3).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(topReviewers.getHits().getAt(3).getNestedIdentity().getChild().getField().string(), equalTo("reviewers"));
-        assertThat(topReviewers.getHits().getAt(3).getNestedIdentity().getChild().getOffset(), equalTo(0));
+        assertThat(topReviewers.getHits().getAt(3).getNestedIdentity().getChild().getOffset(), equalTo(2));
 
         assertThat(topReviewers.getHits().getAt(4).getId(), equalTo("1"));
         assertThat(extractValue("name", topReviewers.getHits().getAt(4).getSourceAsMap()), equalTo("user d"));

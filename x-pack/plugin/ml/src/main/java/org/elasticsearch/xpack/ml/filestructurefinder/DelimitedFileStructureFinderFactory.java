@@ -62,8 +62,8 @@ public class DelimitedFileStructureFinderFactory implements FileStructureFinderF
 
     @Override
     public FileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker,
-                                                FileStructureOverrides overrides) throws IOException {
+                                                FileStructureOverrides overrides, TimeoutChecker timeoutChecker) throws IOException {
         return DelimitedFileStructureFinder.makeDelimitedFileStructureFinder(explanation, sample, charsetName, hasByteOrderMarker,
-            csvPreference, trimFields, overrides);
+            csvPreference, trimFields, overrides, timeoutChecker);
     }
 }

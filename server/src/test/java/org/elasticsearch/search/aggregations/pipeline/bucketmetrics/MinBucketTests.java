@@ -26,9 +26,9 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 public class MinBucketTests extends AbstractBucketMetricsTestCase<MinBucketPipelineAggregationBuilder> {
 
@@ -40,20 +40,20 @@ public class MinBucketTests extends AbstractBucketMetricsTestCase<MinBucketPipel
     public void testValidate() {
         AggregationBuilder singleBucketAgg = new GlobalAggregationBuilder("global");
         AggregationBuilder multiBucketAgg = new TermsAggregationBuilder("terms", ValueType.STRING);
-        final List<AggregationBuilder> aggBuilders = new ArrayList<>();
+        final Set<AggregationBuilder> aggBuilders = new HashSet<>();
         aggBuilders.add(singleBucketAgg);
         aggBuilders.add(multiBucketAgg);
 
         // First try to point to a non-existent agg
         final MinBucketPipelineAggregationBuilder builder = new MinBucketPipelineAggregationBuilder("name", "invalid_agg>metric");
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-                () -> builder.validate(null, aggBuilders, Collections.emptyList()));
+                () -> builder.validate(null, aggBuilders, Collections.emptySet()));
         assertEquals(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                 + " aggregation does not exist for aggregation [name]: invalid_agg>metric", ex.getMessage());
 
         // Now try to point to a single bucket agg
         MinBucketPipelineAggregationBuilder builder2 = new MinBucketPipelineAggregationBuilder("name", "global>metric");
-        ex = expectThrows(IllegalArgumentException.class, () -> builder2.validate(null, aggBuilders, Collections.emptyList()));
+        ex = expectThrows(IllegalArgumentException.class, () -> builder2.validate(null, aggBuilders, Collections.emptySet()));
         assertEquals("The first aggregation in " + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                 + " must be a multi-bucket aggregation for aggregation [name] found :" + GlobalAggregationBuilder.class.getName()
                 + " for buckets path: global>metric", ex.getMessage());
@@ -61,7 +61,7 @@ public class MinBucketTests extends AbstractBucketMetricsTestCase<MinBucketPipel
         // Now try to point to a valid multi-bucket agg (no exception should be
         // thrown)
         MinBucketPipelineAggregationBuilder builder3 = new MinBucketPipelineAggregationBuilder("name", "terms>metric");
-        builder3.validate(null, aggBuilders, Collections.emptyList());
+        builder3.validate(null, aggBuilders, Collections.emptySet());
     }
 
 }

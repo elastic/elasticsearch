@@ -15,6 +15,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -161,6 +162,7 @@ public class AuditTrailTests extends SecurityIntegTestCase {
         client.admin().indices().refresh(Requests.refreshRequest(indexName)).get();
 
         final SearchRequest request = client.prepareSearch(indexName)
+                .setScroll(TimeValue.timeValueMinutes(10L))
                 .setTypes(IndexAuditTrail.DOC_TYPE)
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setSize(1000)

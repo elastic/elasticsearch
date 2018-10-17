@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -99,9 +100,11 @@ public class FileStructure implements ToXContentObject, Writeable {
     public static final ParseField SHOULD_TRIM_FIELDS = new ParseField("should_trim_fields");
     public static final ParseField GROK_PATTERN = new ParseField("grok_pattern");
     public static final ParseField TIMESTAMP_FIELD = new ParseField("timestamp_field");
-    public static final ParseField TIMESTAMP_FORMATS = new ParseField("timestamp_formats");
+    public static final ParseField JODA_TIMESTAMP_FORMATS = new ParseField("joda_timestamp_formats");
+    public static final ParseField JAVA_TIMESTAMP_FORMATS = new ParseField("java_timestamp_formats");
     public static final ParseField NEED_CLIENT_TIMEZONE = new ParseField("need_client_timezone");
     public static final ParseField MAPPINGS = new ParseField("mappings");
+    public static final ParseField INGEST_PIPELINE = new ParseField("ingest_pipeline");
     public static final ParseField FIELD_STATS = new ParseField("field_stats");
     public static final ParseField EXPLANATION = new ParseField("explanation");
 
@@ -123,9 +126,11 @@ public class FileStructure implements ToXContentObject, Writeable {
         PARSER.declareBoolean(Builder::setShouldTrimFields, SHOULD_TRIM_FIELDS);
         PARSER.declareString(Builder::setGrokPattern, GROK_PATTERN);
         PARSER.declareString(Builder::setTimestampField, TIMESTAMP_FIELD);
-        PARSER.declareStringArray(Builder::setTimestampFormats, TIMESTAMP_FORMATS);
+        PARSER.declareStringArray(Builder::setJodaTimestampFormats, JODA_TIMESTAMP_FORMATS);
+        PARSER.declareStringArray(Builder::setJavaTimestampFormats, JAVA_TIMESTAMP_FORMATS);
         PARSER.declareBoolean(Builder::setNeedClientTimezone, NEED_CLIENT_TIMEZONE);
         PARSER.declareObject(Builder::setMappings, (p, c) -> new TreeMap<>(p.map()), MAPPINGS);
+        PARSER.declareObject(Builder::setIngestPipeline, (p, c) -> p.mapOrdered(), INGEST_PIPELINE);
         PARSER.declareObject(Builder::setFieldStats, (p, c) -> {
             Map<String, FieldStats> fieldStats = new TreeMap<>();
             while (p.nextToken() == XContentParser.Token.FIELD_NAME) {
@@ -150,17 +155,20 @@ public class FileStructure implements ToXContentObject, Writeable {
     private final Character quote;
     private final Boolean shouldTrimFields;
     private final String grokPattern;
-    private final List<String> timestampFormats;
+    private final List<String> jodaTimestampFormats;
+    private final List<String> javaTimestampFormats;
     private final String timestampField;
     private final boolean needClientTimezone;
     private final SortedMap<String, Object> mappings;
+    private final Map<String, Object> ingestPipeline;
     private final SortedMap<String, FieldStats> fieldStats;
     private final List<String> explanation;
 
     public FileStructure(int numLinesAnalyzed, int numMessagesAnalyzed, String sampleStart, String charset, Boolean hasByteOrderMarker,
                          Format format, String multilineStartPattern, String excludeLinesPattern, List<String> columnNames,
                          Boolean hasHeaderRow, Character delimiter, Character quote, Boolean shouldTrimFields, String grokPattern,
-                         String timestampField, List<String> timestampFormats, boolean needClientTimezone, Map<String, Object> mappings,
+                         String timestampField, List<String> jodaTimestampFormats, List<String> javaTimestampFormats,
+                         boolean needClientTimezone, Map<String, Object> mappings, Map<String, Object> ingestPipeline,
                          Map<String, FieldStats> fieldStats, List<String> explanation) {
 
         this.numLinesAnalyzed = numLinesAnalyzed;
@@ -178,9 +186,13 @@ public class FileStructure implements ToXContentObject, Writeable {
         this.shouldTrimFields = shouldTrimFields;
         this.grokPattern = grokPattern;
         this.timestampField = timestampField;
-        this.timestampFormats = (timestampFormats == null) ? null : Collections.unmodifiableList(new ArrayList<>(timestampFormats));
+        this.jodaTimestampFormats =
+            (jodaTimestampFormats == null) ? null : Collections.unmodifiableList(new ArrayList<>(jodaTimestampFormats));
+        this.javaTimestampFormats =
+            (javaTimestampFormats == null) ? null : Collections.unmodifiableList(new ArrayList<>(javaTimestampFormats));
         this.needClientTimezone = needClientTimezone;
         this.mappings = Collections.unmodifiableSortedMap(new TreeMap<>(mappings));
+        this.ingestPipeline = (ingestPipeline == null) ? null : Collections.unmodifiableMap(new LinkedHashMap<>(ingestPipeline));
         this.fieldStats = Collections.unmodifiableSortedMap(new TreeMap<>(fieldStats));
         this.explanation = Collections.unmodifiableList(new ArrayList<>(explanation));
     }
@@ -200,10 +212,12 @@ public class FileStructure implements ToXContentObject, Writeable {
         quote = in.readBoolean() ? (char) in.readVInt() : null;
         shouldTrimFields = in.readOptionalBoolean();
         grokPattern = in.readOptionalString();
-        timestampFormats = in.readBoolean() ? Collections.unmodifiableList(in.readList(StreamInput::readString)) : null;
+        jodaTimestampFormats = in.readBoolean() ? Collections.unmodifiableList(in.readList(StreamInput::readString)) : null;
+        javaTimestampFormats = in.readBoolean() ? Collections.unmodifiableList(in.readList(StreamInput::readString)) : null;
         timestampField = in.readOptionalString();
         needClientTimezone = in.readBoolean();
         mappings = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap()));
+        ingestPipeline = in.readBoolean() ? Collections.unmodifiableMap(in.readMap()) : null;
         fieldStats = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap(StreamInput::readString, FieldStats::new)));
         explanation = Collections.unmodifiableList(in.readList(StreamInput::readString));
     }
@@ -239,15 +253,27 @@ public class FileStructure implements ToXContentObject, Writeable {
         }
         out.writeOptionalBoolean(shouldTrimFields);
         out.writeOptionalString(grokPattern);
-        if (timestampFormats == null) {
+        if (jodaTimestampFormats == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeCollection(timestampFormats, StreamOutput::writeString);
+            out.writeCollection(jodaTimestampFormats, StreamOutput::writeString);
+        }
+        if (javaTimestampFormats == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeCollection(javaTimestampFormats, StreamOutput::writeString);
         }
         out.writeOptionalString(timestampField);
         out.writeBoolean(needClientTimezone);
         out.writeMap(mappings);
+        if (ingestPipeline == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeMap(ingestPipeline);
+        }
         out.writeMap(fieldStats, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
         out.writeCollection(explanation, StreamOutput::writeString);
     }
@@ -312,8 +338,12 @@ public class FileStructure implements ToXContentObject, Writeable {
         return timestampField;
     }
 
-    public List<String> getTimestampFormats() {
-        return timestampFormats;
+    public List<String> getJodaTimestampFormats() {
+        return jodaTimestampFormats;
+    }
+
+    public List<String> getJavaTimestampFormats() {
+        return javaTimestampFormats;
     }
 
     public boolean needClientTimezone() {
@@ -322,6 +352,10 @@ public class FileStructure implements ToXContentObject, Writeable {
 
     public SortedMap<String, Object> getMappings() {
         return mappings;
+    }
+
+    public Map<String, Object> getIngestPipeline() {
+        return ingestPipeline;
     }
 
     public SortedMap<String, FieldStats> getFieldStats() {
@@ -371,11 +405,17 @@ public class FileStructure implements ToXContentObject, Writeable {
         if (timestampField != null && timestampField.isEmpty() == false) {
             builder.field(TIMESTAMP_FIELD.getPreferredName(), timestampField);
         }
-        if (timestampFormats != null && timestampFormats.isEmpty() == false) {
-            builder.field(TIMESTAMP_FORMATS.getPreferredName(), timestampFormats);
+        if (jodaTimestampFormats != null && jodaTimestampFormats.isEmpty() == false) {
+            builder.field(JODA_TIMESTAMP_FORMATS.getPreferredName(), jodaTimestampFormats);
+        }
+        if (javaTimestampFormats != null && javaTimestampFormats.isEmpty() == false) {
+            builder.field(JAVA_TIMESTAMP_FORMATS.getPreferredName(), javaTimestampFormats);
         }
         builder.field(NEED_CLIENT_TIMEZONE.getPreferredName(), needClientTimezone);
         builder.field(MAPPINGS.getPreferredName(), mappings);
+        if (ingestPipeline != null) {
+            builder.field(INGEST_PIPELINE.getPreferredName(), ingestPipeline);
+        }
         if (fieldStats.isEmpty() == false) {
             builder.startObject(FIELD_STATS.getPreferredName());
             for (Map.Entry<String, FieldStats> entry : fieldStats.entrySet()) {
@@ -396,7 +436,7 @@ public class FileStructure implements ToXContentObject, Writeable {
 
         return Objects.hash(numLinesAnalyzed, numMessagesAnalyzed, sampleStart, charset, hasByteOrderMarker, format,
             multilineStartPattern, excludeLinesPattern, columnNames, hasHeaderRow, delimiter, quote, shouldTrimFields, grokPattern,
-            timestampField, timestampFormats, needClientTimezone, mappings, fieldStats, explanation);
+            timestampField, jodaTimestampFormats, javaTimestampFormats, needClientTimezone, mappings, fieldStats, explanation);
     }
 
     @Override
@@ -413,7 +453,6 @@ public class FileStructure implements ToXContentObject, Writeable {
         FileStructure that = (FileStructure) other;
         return this.numLinesAnalyzed == that.numLinesAnalyzed &&
             this.numMessagesAnalyzed == that.numMessagesAnalyzed &&
-            this.needClientTimezone == that.needClientTimezone &&
             Objects.equals(this.sampleStart, that.sampleStart) &&
             Objects.equals(this.charset, that.charset) &&
             Objects.equals(this.hasByteOrderMarker, that.hasByteOrderMarker) &&
@@ -427,7 +466,9 @@ public class FileStructure implements ToXContentObject, Writeable {
             Objects.equals(this.shouldTrimFields, that.shouldTrimFields) &&
             Objects.equals(this.grokPattern, that.grokPattern) &&
             Objects.equals(this.timestampField, that.timestampField) &&
-            Objects.equals(this.timestampFormats, that.timestampFormats) &&
+            Objects.equals(this.jodaTimestampFormats, that.jodaTimestampFormats) &&
+            Objects.equals(this.javaTimestampFormats, that.javaTimestampFormats) &&
+            this.needClientTimezone == that.needClientTimezone &&
             Objects.equals(this.mappings, that.mappings) &&
             Objects.equals(this.fieldStats, that.fieldStats) &&
             Objects.equals(this.explanation, that.explanation);
@@ -450,9 +491,11 @@ public class FileStructure implements ToXContentObject, Writeable {
         private Boolean shouldTrimFields;
         private String grokPattern;
         private String timestampField;
-        private List<String> timestampFormats;
+        private List<String> jodaTimestampFormats;
+        private List<String> javaTimestampFormats;
         private boolean needClientTimezone;
         private Map<String, Object> mappings;
+        private Map<String, Object> ingestPipeline;
         private Map<String, FieldStats> fieldStats = Collections.emptyMap();
         private List<String> explanation;
 
@@ -539,8 +582,13 @@ public class FileStructure implements ToXContentObject, Writeable {
             return this;
         }
 
-        public Builder setTimestampFormats(List<String> timestampFormats) {
-            this.timestampFormats = timestampFormats;
+        public Builder setJodaTimestampFormats(List<String> jodaTimestampFormats) {
+            this.jodaTimestampFormats = jodaTimestampFormats;
+            return this;
+        }
+
+        public Builder setJavaTimestampFormats(List<String> javaTimestampFormats) {
+            this.javaTimestampFormats = javaTimestampFormats;
             return this;
         }
 
@@ -551,6 +599,11 @@ public class FileStructure implements ToXContentObject, Writeable {
 
         public Builder setMappings(Map<String, Object> mappings) {
             this.mappings = Objects.requireNonNull(mappings);
+            return this;
+        }
+
+        public Builder setIngestPipeline(Map<String, Object> ingestPipeline) {
+            this.ingestPipeline = ingestPipeline;
             return this;
         }
 
@@ -652,11 +705,21 @@ public class FileStructure implements ToXContentObject, Writeable {
                     throw new IllegalStateException("enum value [" + format + "] missing from switch.");
             }
 
-            if ((timestampField == null) != (timestampFormats == null || timestampFormats.isEmpty())) {
-                throw new IllegalArgumentException("Timestamp field and timestamp formats must both be specified or neither be specified.");
+            boolean isTimestampFieldSpecified = (timestampField != null);
+            boolean isJodaTimestampFormatsSpecified = (jodaTimestampFormats != null && jodaTimestampFormats.isEmpty() == false);
+            boolean isJavaTimestampFormatsSpecified = (javaTimestampFormats != null && javaTimestampFormats.isEmpty() == false);
+
+            if (isTimestampFieldSpecified != isJodaTimestampFormatsSpecified) {
+                throw new IllegalArgumentException(
+                    "Timestamp field and Joda timestamp formats must both be specified or neither be specified.");
             }
 
-            if (needClientTimezone && timestampField == null) {
+            if (isTimestampFieldSpecified != isJavaTimestampFormatsSpecified) {
+                throw new IllegalArgumentException(
+                    "Timestamp field and Java timestamp formats must both be specified or neither be specified.");
+            }
+
+            if (needClientTimezone && isTimestampFieldSpecified == false) {
                 throw new IllegalArgumentException("Client timezone cannot be needed if there is no timestamp field.");
             }
 
@@ -670,7 +733,8 @@ public class FileStructure implements ToXContentObject, Writeable {
 
             return new FileStructure(numLinesAnalyzed, numMessagesAnalyzed, sampleStart, charset, hasByteOrderMarker, format,
                 multilineStartPattern, excludeLinesPattern, columnNames, hasHeaderRow, delimiter, quote, shouldTrimFields, grokPattern,
-                timestampField, timestampFormats, needClientTimezone, mappings, fieldStats, explanation);
+                timestampField, jodaTimestampFormats, javaTimestampFormats, needClientTimezone, mappings, ingestPipeline, fieldStats,
+                explanation);
         }
     }
 }

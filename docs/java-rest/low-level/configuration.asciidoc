@@ -1,3 +1,4 @@
+[[java-rest-low-config]]
 == Common configuration
 
 As explained in <<java-rest-low-usage-initialization>>, the `RestClientBuilder`
@@ -54,7 +55,7 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-basi
 --------------------------------------------------
 
 Preemptive Authentication can be disabled, which means that every request will be sent without
-authorization headers to see if it is accepted and, upon receiving a HTTP 401 response, it will
+authorization headers to see if it is accepted and, upon receiving an HTTP 401 response, it will
 resend the exact same request with the basic authentication header. If you wish to do this, then
 you can do so by disabling it via the `HttpAsyncClientBuilder`:
 

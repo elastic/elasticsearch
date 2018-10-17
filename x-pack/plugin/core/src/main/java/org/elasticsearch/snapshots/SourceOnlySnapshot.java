@@ -81,12 +81,12 @@ public class SourceOnlySnapshot {
         String segmentFileName;
         try (Lock writeLock = targetDirectory.obtainLock(IndexWriter.WRITE_LOCK_NAME);
              StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(commit)) {
-            SegmentInfos segmentInfos = reader.getSegmentInfos();
-            DirectoryReader wrapper = wrapReader(reader);
+            SegmentInfos segmentInfos = reader.getSegmentInfos().clone();
+            DirectoryReader wrappedReader = wrapReader(reader);
             List<SegmentCommitInfo> newInfos = new ArrayList<>();
-            for (LeafReaderContext ctx : wrapper.leaves()) {
-                SegmentCommitInfo info = segmentInfos.info(ctx.ord);
+            for (LeafReaderContext ctx : wrappedReader.leaves()) {
                 LeafReader leafReader = ctx.reader();
+                SegmentCommitInfo info = Lucene.segmentReader(leafReader).getSegmentInfo();
                 LiveDocs liveDocs = getLiveDocs(leafReader);
                 if (leafReader.numDocs() != 0) { // fully deleted segments don't need to be processed
                     SegmentCommitInfo newInfo = syncSegment(info, liveDocs, leafReader.getFieldInfos(), existingSegments, createdFiles);
@@ -95,7 +95,7 @@ public class SourceOnlySnapshot {
             }
             segmentInfos.clear();
             segmentInfos.addAll(newInfos);
-            segmentInfos.setNextWriteGeneration(Math.max(segmentInfos.getGeneration(), generation)+1);
+            segmentInfos.setNextWriteGeneration(Math.max(segmentInfos.getGeneration(), generation) + 1);
             String pendingSegmentFileName = IndexFileNames.fileNameFromGeneration(IndexFileNames.PENDING_SEGMENTS,
                 "", segmentInfos.getGeneration());
             try (IndexOutput segnOutput = targetDirectory.createOutput(pendingSegmentFileName, IOContext.DEFAULT)) {
@@ -197,9 +197,9 @@ public class SourceOnlySnapshot {
             newInfo = new SegmentCommitInfo(newSegmentInfo, 0, 0, -1, -1, -1);
             List<FieldInfo> fieldInfoCopy = new ArrayList<>(fieldInfos.size());
             for (FieldInfo fieldInfo : fieldInfos) {
-                    fieldInfoCopy.add(new FieldInfo(fieldInfo.name, fieldInfo.number,
-                        false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, fieldInfo.attributes(), 0, 0,
-                        fieldInfo.isSoftDeletesField()));
+                fieldInfoCopy.add(new FieldInfo(fieldInfo.name, fieldInfo.number,
+                    false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, fieldInfo.attributes(), 0, 0,
+                    fieldInfo.isSoftDeletesField()));
             }
             FieldInfos newFieldInfos = new FieldInfos(fieldInfoCopy.toArray(new FieldInfo[0]));
             codec.fieldInfosFormat().write(trackingDir, newSegmentInfo, segmentSuffix, newFieldInfos, IOContext.DEFAULT);
@@ -240,7 +240,7 @@ public class SourceOnlySnapshot {
 
     private boolean assertLiveDocs(Bits liveDocs, int deletes) {
         int actualDeletes = 0;
-        for (int i = 0; i < liveDocs.length(); i++ ) {
+        for (int i = 0; i < liveDocs.length(); i++) {
             if (liveDocs.get(i) == false) {
                 actualDeletes++;
             }

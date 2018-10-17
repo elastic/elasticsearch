@@ -20,9 +20,9 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Locale;
@@ -41,8 +41,7 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
     // This is a random starting point alpha. TODO: revisit this with actual testing and/or make it configurable
     public static double EWMA_ALPHA = 0.3;
 
-    private static final Logger logger =
-            ESLoggerFactory.getLogger(QueueResizingEsThreadPoolExecutor.class);
+    private static final Logger logger = LogManager.getLogger(QueueResizingEsThreadPoolExecutor.class);
     // The amount the queue size is adjusted by for each calcuation
     private static final int QUEUE_ADJUSTMENT_AMOUNT = 50;
 

@@ -57,7 +57,6 @@ public class Job implements ToXContentObject {
     public static final ParseField DATA_DESCRIPTION = new ParseField("data_description");
     public static final ParseField DESCRIPTION = new ParseField("description");
     public static final ParseField FINISHED_TIME = new ParseField("finished_time");
-    public static final ParseField LAST_DATA_TIME = new ParseField("last_data_time");
     public static final ParseField ESTABLISHED_MODEL_MEMORY = new ParseField("established_model_memory");
     public static final ParseField MODEL_PLOT_CONFIG = new ParseField("model_plot_config");
     public static final ParseField RENORMALIZATION_WINDOW_DAYS = new ParseField("renormalization_window_days");
@@ -66,7 +65,7 @@ public class Job implements ToXContentObject {
     public static final ParseField RESULTS_RETENTION_DAYS = new ParseField("results_retention_days");
     public static final ParseField MODEL_SNAPSHOT_ID = new ParseField("model_snapshot_id");
     public static final ParseField RESULTS_INDEX_NAME = new ParseField("results_index_name");
-    public static final ParseField DELETED = new ParseField("deleted");
+    public static final ParseField DELETING = new ParseField("deleting");
 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("job_details", true, Builder::new);
 
@@ -83,10 +82,6 @@ public class Job implements ToXContentObject {
             (p) -> TimeUtil.parseTimeField(p, FINISHED_TIME.getPreferredName()),
             FINISHED_TIME,
             ValueType.VALUE);
-        PARSER.declareField(Builder::setLastDataTime,
-            (p) -> TimeUtil.parseTimeField(p, LAST_DATA_TIME.getPreferredName()),
-            LAST_DATA_TIME,
-            ValueType.VALUE);
         PARSER.declareLong(Builder::setEstablishedModelMemory, ESTABLISHED_MODEL_MEMORY);
         PARSER.declareObject(Builder::setAnalysisConfig, AnalysisConfig.PARSER, ANALYSIS_CONFIG);
         PARSER.declareObject(Builder::setAnalysisLimits, AnalysisLimits.PARSER, ANALYSIS_LIMITS);
@@ -100,7 +95,7 @@ public class Job implements ToXContentObject {
         PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.map(), CUSTOM_SETTINGS, ValueType.OBJECT);
         PARSER.declareStringOrNull(Builder::setModelSnapshotId, MODEL_SNAPSHOT_ID);
         PARSER.declareString(Builder::setResultsIndexName, RESULTS_INDEX_NAME);
-        PARSER.declareBoolean(Builder::setDeleted, DELETED);
+        PARSER.declareBoolean(Builder::setDeleting, DELETING);
     }
 
     private final String jobId;
@@ -110,7 +105,6 @@ public class Job implements ToXContentObject {
     private final String description;
     private final Date createTime;
     private final Date finishedTime;
-    private final Date lastDataTime;
     private final Long establishedModelMemory;
     private final AnalysisConfig analysisConfig;
     private final AnalysisLimits analysisLimits;
@@ -123,14 +117,14 @@ public class Job implements ToXContentObject {
     private final Map<String, Object> customSettings;
     private final String modelSnapshotId;
     private final String resultsIndexName;
-    private final boolean deleted;
+    private final Boolean deleting;
 
-    private Job(String jobId, String jobType, List<String> groups, String description, Date createTime,
-                Date finishedTime, Date lastDataTime, Long establishedModelMemory,
+    private Job(String jobId, String jobType, List<String> groups, String description,
+                Date createTime, Date finishedTime, Long establishedModelMemory,
                 AnalysisConfig analysisConfig, AnalysisLimits analysisLimits, DataDescription dataDescription,
                 ModelPlotConfig modelPlotConfig, Long renormalizationWindowDays, TimeValue backgroundPersistInterval,
                 Long modelSnapshotRetentionDays, Long resultsRetentionDays, Map<String, Object> customSettings,
-                String modelSnapshotId, String resultsIndexName, boolean deleted) {
+                String modelSnapshotId, String resultsIndexName, Boolean deleting) {
 
         this.jobId = jobId;
         this.jobType = jobType;
@@ -138,7 +132,6 @@ public class Job implements ToXContentObject {
         this.description = description;
         this.createTime = createTime;
         this.finishedTime = finishedTime;
-        this.lastDataTime = lastDataTime;
         this.establishedModelMemory = establishedModelMemory;
         this.analysisConfig = analysisConfig;
         this.analysisLimits = analysisLimits;
@@ -151,7 +144,7 @@ public class Job implements ToXContentObject {
         this.customSettings = customSettings == null ? null : Collections.unmodifiableMap(customSettings);
         this.modelSnapshotId = modelSnapshotId;
         this.resultsIndexName = resultsIndexName;
-        this.deleted = deleted;
+        this.deleting = deleting;
     }
 
     /**
@@ -207,16 +200,6 @@ public class Job implements ToXContentObject {
      */
     public Date getFinishedTime() {
         return finishedTime;
-    }
-
-    /**
-     * The last time data was uploaded to the job or <code>null</code> if no
-     * data has been seen.
-     *
-     * @return The date at which the last data was processed
-     */
-    public Date getLastDataTime() {
-        return lastDataTime;
     }
 
     /**
@@ -296,8 +279,8 @@ public class Job implements ToXContentObject {
         return modelSnapshotId;
     }
 
-    public boolean isDeleted() {
-        return deleted;
+    public Boolean getDeleting() {
+        return deleting;
     }
 
     @Override
@@ -320,10 +303,6 @@ public class Job implements ToXContentObject {
         if (finishedTime != null) {
             builder.timeField(FINISHED_TIME.getPreferredName(), FINISHED_TIME.getPreferredName() + humanReadableSuffix,
                 finishedTime.getTime());
-        }
-        if (lastDataTime != null) {
-            builder.timeField(LAST_DATA_TIME.getPreferredName(), LAST_DATA_TIME.getPreferredName() + humanReadableSuffix,
-                lastDataTime.getTime());
         }
         if (establishedModelMemory != null) {
             builder.field(ESTABLISHED_MODEL_MEMORY.getPreferredName(), establishedModelMemory);
@@ -359,8 +338,8 @@ public class Job implements ToXContentObject {
         if (resultsIndexName != null) {
             builder.field(RESULTS_INDEX_NAME.getPreferredName(), resultsIndexName);
         }
-        if (params.paramAsBoolean("all", false)) {
-            builder.field(DELETED.getPreferredName(), deleted);
+        if (deleting != null) {
+            builder.field(DELETING.getPreferredName(), deleting);
         }
         builder.endObject();
         return builder;
@@ -383,7 +362,6 @@ public class Job implements ToXContentObject {
             && Objects.equals(this.description, that.description)
             && Objects.equals(this.createTime, that.createTime)
             && Objects.equals(this.finishedTime, that.finishedTime)
-            && Objects.equals(this.lastDataTime, that.lastDataTime)
             && Objects.equals(this.establishedModelMemory, that.establishedModelMemory)
             && Objects.equals(this.analysisConfig, that.analysisConfig)
             && Objects.equals(this.analysisLimits, that.analysisLimits)
@@ -396,15 +374,15 @@ public class Job implements ToXContentObject {
             && Objects.equals(this.customSettings, that.customSettings)
             && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
             && Objects.equals(this.resultsIndexName, that.resultsIndexName)
-            && Objects.equals(this.deleted, that.deleted);
+            && Objects.equals(this.deleting, that.deleting);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, jobType, groups, description, createTime, finishedTime, lastDataTime, establishedModelMemory,
+        return Objects.hash(jobId, jobType, groups, description, createTime, finishedTime, establishedModelMemory,
             analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
             backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
-            modelSnapshotId, resultsIndexName, deleted);
+            modelSnapshotId, resultsIndexName, deleting);
     }
 
     @Override
@@ -427,7 +405,6 @@ public class Job implements ToXContentObject {
         private DataDescription dataDescription;
         private Date createTime;
         private Date finishedTime;
-        private Date lastDataTime;
         private Long establishedModelMemory;
         private ModelPlotConfig modelPlotConfig;
         private Long renormalizationWindowDays;
@@ -437,7 +414,7 @@ public class Job implements ToXContentObject {
         private Map<String, Object> customSettings;
         private String modelSnapshotId;
         private String resultsIndexName;
-        private boolean deleted;
+        private Boolean deleting;
 
         private Builder() {
         }
@@ -456,7 +433,6 @@ public class Job implements ToXContentObject {
             this.dataDescription = job.getDataDescription();
             this.createTime = job.getCreateTime();
             this.finishedTime = job.getFinishedTime();
-            this.lastDataTime = job.getLastDataTime();
             this.establishedModelMemory = job.getEstablishedModelMemory();
             this.modelPlotConfig = job.getModelPlotConfig();
             this.renormalizationWindowDays = job.getRenormalizationWindowDays();
@@ -466,7 +442,7 @@ public class Job implements ToXContentObject {
             this.customSettings = job.getCustomSettings();
             this.modelSnapshotId = job.getModelSnapshotId();
             this.resultsIndexName = job.getResultsIndexNameNoPrefix();
-            this.deleted = job.isDeleted();
+            this.deleting = job.getDeleting();
         }
 
         public Builder setId(String id) {
@@ -518,16 +494,6 @@ public class Job implements ToXContentObject {
             return this;
         }
 
-        /**
-         * Set the wall clock time of the last data upload
-         *
-         * @param lastDataTime Wall clock time
-         */
-        public Builder setLastDataTime(Date lastDataTime) {
-            this.lastDataTime = lastDataTime;
-            return this;
-        }
-
         public Builder setEstablishedModelMemory(Long establishedModelMemory) {
             this.establishedModelMemory = establishedModelMemory;
             return this;
@@ -573,8 +539,8 @@ public class Job implements ToXContentObject {
             return this;
         }
 
-        public Builder setDeleted(boolean deleted) {
-            this.deleted = deleted;
+        Builder setDeleting(Boolean deleting) {
+            this.deleting = deleting;
             return this;
         }
 
@@ -587,10 +553,10 @@ public class Job implements ToXContentObject {
             Objects.requireNonNull(id,  "[" + ID.getPreferredName() + "] must not be null");
             Objects.requireNonNull(jobType,  "[" + JOB_TYPE.getPreferredName() + "] must not be null");
             return new Job(
-                id, jobType, groups, description, createTime, finishedTime, lastDataTime, establishedModelMemory,
+                id, jobType, groups, description, createTime, finishedTime, establishedModelMemory,
                 analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
-                modelSnapshotId, resultsIndexName, deleted);
+                modelSnapshotId, resultsIndexName, deleting);
         }
     }
 }

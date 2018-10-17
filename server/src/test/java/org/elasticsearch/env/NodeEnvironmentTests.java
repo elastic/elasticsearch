@@ -19,6 +19,7 @@
 package org.elasticsearch.env;
 
 import org.apache.lucene.index.SegmentInfos;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -80,12 +81,12 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         // Reuse the same location and attempt to lock again
         IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
-                new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings), nodeId -> {}));
+                new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings)));
         assertThat(ex.getMessage(), containsString("failed to obtain node lock"));
 
         // Close the environment that holds the lock and make sure we can get the lock after release
         env.close();
-        env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings), nodeId -> {});
+        env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
         assertThat(env.nodeDataPaths(), arrayWithSize(dataPaths.size()));
 
         for (int i = 0; i < dataPaths.size(); i++) {
@@ -120,7 +121,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         final Settings settings = buildEnvSettings(Settings.builder().put("node.max_local_storage_nodes", 2).build());
         final NodeEnvironment first = newNodeEnvironment(settings);
         List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
-        NodeEnvironment second = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings), nodeId -> {});
+        NodeEnvironment second = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
         assertEquals(first.nodeDataPaths().length, dataPaths.size());
         assertEquals(second.nodeDataPaths().length, dataPaths.size());
         for (int i = 0; i < dataPaths.size(); i++) {
@@ -182,6 +183,27 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
 
         assertThat(actualPaths, equalTo(env.availableIndexFolders()));
+        assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
+        env.close();
+    }
+
+    public void testAvailableIndexFoldersWithExclusions() throws Exception {
+        final NodeEnvironment env = newNodeEnvironment();
+        final int numIndices = randomIntBetween(1, 10);
+        Set<String> excludedPaths = new HashSet<>();
+        Set<String> actualPaths = new HashSet<>();
+        for (int i = 0; i < numIndices; i++) {
+            Index index = new Index("foo" + i, "fooUUID" + i);
+            for (Path path : env.indexPaths(index)) {
+                Files.createDirectories(path.resolve(MetaDataStateFormat.STATE_DIR_NAME));
+                actualPaths.add(path.getFileName().toString());
+            }
+            if (randomBoolean()) {
+                excludedPaths.add(env.indexPaths(index)[0].getFileName().toString());
+            }
+        }
+
+        assertThat(Sets.difference(actualPaths, excludedPaths), equalTo(env.availableIndexFolders(excludedPaths::contains)));
         assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
         env.close();
     }
@@ -477,7 +499,7 @@ public class NodeEnvironmentTests extends ESTestCase {
     @Override
     public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
         Settings build = buildEnvSettings(settings);
-        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build), nodeId -> {});
+        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 
     public Settings buildEnvSettings(Settings settings) {
@@ -492,7 +514,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                 .put(settings)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
                 .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
-        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build), nodeId -> {});
+        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 
     public NodeEnvironment newNodeEnvironment(String[] dataPaths, String sharedDataPath, Settings settings) throws IOException {
@@ -501,6 +523,6 @@ public class NodeEnvironmentTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
                 .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataPath)
                 .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
-        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build), nodeId -> {});
+        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 }

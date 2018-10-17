@@ -15,7 +15,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
-import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
 import java.nio.charset.StandardCharsets;
@@ -52,7 +51,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
     }
 
     private void startAndAssertAndStopTask(ShardFollowNodeTask task, TestRun testRun) throws Exception {
-        task.start(testRun.startSeqNo - 1, testRun.startSeqNo - 1, testRun.startSeqNo - 1, testRun.startSeqNo - 1);
+        task.start("uuid", testRun.startSeqNo - 1, testRun.startSeqNo - 1, testRun.startSeqNo - 1, testRun.startSeqNo - 1);
         assertBusy(() -> {
             ShardFollowNodeTaskStatus status = task.getStatus();
             assertThat(status.leaderGlobalCheckpoint(), equalTo(testRun.finalExpectedGlobalCheckpoint));
@@ -81,12 +80,11 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             new ShardId("leader_index", "", 0),
             testRun.maxOperationCount,
             concurrency,
-            FollowIndexAction.DEFAULT_MAX_BATCH_SIZE_IN_BYTES,
+            TransportResumeFollowAction.DEFAULT_MAX_BATCH_SIZE,
             concurrency,
             10240,
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueMillis(10),
-            "uuid",
             Collections.emptyMap()
         );
 
@@ -112,9 +110,10 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
 
             @Override
             protected void innerSendBulkShardOperationsRequest(
-                    List<Translog.Operation> operations,
-                    Consumer<BulkShardOperationsResponse> handler,
-                    Consumer<Exception> errorHandler) {
+                String followerHistoryUUID, List<Translog.Operation> operations,
+                long maxSeqNoOfUpdates,
+                Consumer<BulkShardOperationsResponse> handler,
+                Consumer<Exception> errorHandler) {
                 for(Translog.Operation op : operations) {
                     tracker.markSeqNoAsCompleted(op.seqNo());
                 }
@@ -158,7 +157,8 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         assert from >= testRun.finalExpectedGlobalCheckpoint;
                         final long globalCheckpoint = tracker.getCheckpoint();
                         final long maxSeqNo = tracker.getMaxSeqNo();
-                        handler.accept(new ShardChangesAction.Response(0L,globalCheckpoint, maxSeqNo, new Translog.Operation[0]));
+                        handler.accept(new ShardChangesAction.Response(
+                            0L, globalCheckpoint, maxSeqNo, randomNonNegativeLong(), new Translog.Operation[0]));
                     }
                 };
                 threadPool.generic().execute(task);
@@ -232,6 +232,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         mappingVersion,
                         nextGlobalCheckPoint,
                         nextGlobalCheckPoint,
+                        randomNonNegativeLong(),
                         ops.toArray(EMPTY))
                     )
                 );
@@ -254,6 +255,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                             mappingVersion,
                             prevGlobalCheckpoint,
                             prevGlobalCheckpoint,
+                            randomNonNegativeLong(),
                             EMPTY
                         );
                         item.add(new TestResponse(null, mappingVersion, response));
@@ -270,6 +272,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         mappingVersion,
                         localLeaderGCP,
                         localLeaderGCP,
+                        randomNonNegativeLong(),
                         ops.toArray(EMPTY)
                     );
                     item.add(new TestResponse(null, mappingVersion, response));

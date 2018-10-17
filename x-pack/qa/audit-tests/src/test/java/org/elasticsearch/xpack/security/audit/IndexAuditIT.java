@@ -115,11 +115,9 @@ public class IndexAuditIT extends ESIntegTestCase {
         options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                 UsernamePasswordToken.basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray())));
         request.setOptions(options);
-        Response response = getRestClient().performRequest(request);
+        getRestClient().performRequest(request);
         final AtomicReference<ClusterState> lastClusterState = new AtomicReference<>();
-        final boolean found = awaitSecurityAuditIndex(lastClusterState, QueryBuilders.matchQuery("principal", USER));
-
-        assertTrue("Did not find security audit index. Current cluster state:\n" + lastClusterState.get().toString(), found);
+        awaitSecurityAuditIndex(lastClusterState, QueryBuilders.matchQuery("principal", USER));
 
         SearchResponse searchResponse = client().prepareSearch(".security_audit_log*").setQuery(
                 QueryBuilders.matchQuery("principal", USER)).get();
@@ -149,9 +147,7 @@ public class IndexAuditIT extends ESIntegTestCase {
         Response response = getRestClient().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         final AtomicReference<ClusterState> lastClusterState = new AtomicReference<>();
-        final boolean found = awaitSecurityAuditIndex(lastClusterState, QueryBuilders.matchQuery("opaque_id", "foo"));
-
-        assertTrue("Did not find security audit index. Current cluster state:\n" + lastClusterState.get().toString(), found);
+        awaitSecurityAuditIndex(lastClusterState, QueryBuilders.matchQuery("opaque_id", "foo"));
 
         SearchResponse searchResponse = client().prepareSearch(".security_audit_log*").setQuery(
             QueryBuilders.matchQuery("opaque_id", "foo")).get();
@@ -160,8 +156,8 @@ public class IndexAuditIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getSourceAsMap().get("opaque_id"), is("foo"));
     }
 
-    private boolean awaitSecurityAuditIndex(AtomicReference<ClusterState> lastClusterState,
-                                            QueryBuilder query) throws InterruptedException {
+    private void awaitSecurityAuditIndex(AtomicReference<ClusterState> lastClusterState,
+                                            QueryBuilder query) throws Exception {
         final AtomicBoolean indexExists = new AtomicBoolean(false);
         assertBusy(() -> {
             if (indexExists.get() == false) {
@@ -188,8 +184,8 @@ public class IndexAuditIT extends ESIntegTestCase {
             logger.info("refreshing audit indices");
             client().admin().indices().prepareRefresh(".security_audit_log*").get();
             logger.info("refreshed audit indices");
-            return client().prepareSearch(".security_audit_log*").setQuery(query)
-                    .get().getHits().getTotalHits() > 0;
+            assertTrue(client().prepareSearch(".security_audit_log*").setQuery(QueryBuilders.matchQuery("principal", USER))
+                    .get().getHits().getTotalHits() > 0);
             }, 60L, TimeUnit.SECONDS);
         
 
@@ -198,18 +194,6 @@ public class IndexAuditIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
         assertThat(searchResponse.getHits().getAt(0).getSourceAsMap().get("principal"), is(USER));
     }
-
-//    public void testAuditTrailTemplateIsRecreatedAfterDelete() throws Exception {
-//        // this is already "tested" by the test framework since we wipe the templates before and after,
-//        // but lets be explicit about the behavior
-//        awaitIndexTemplateCreation();
-//
-//        // delete the template
-//        DeleteIndexTemplateResponse deleteResponse = client().admin().indices()
-//                .prepareDeleteTemplate(IndexAuditTrail.INDEX_TEMPLATE_NAME).execute().actionGet();
-//        assertThat(deleteResponse.isAcknowledged(), is(true));
-//        awaitIndexTemplateCreation();
-//    }
 
     private void awaitIndexTemplateCreation() throws Exception {
         assertBusy(() -> {

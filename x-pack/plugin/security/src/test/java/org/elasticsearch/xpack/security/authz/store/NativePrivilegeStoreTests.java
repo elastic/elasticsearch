@@ -234,7 +234,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             ));
         }
 
-        awaitBusy(() -> requests.size() > 0, 1, TimeUnit.SECONDS);
+        assertBusy(() -> assertTrue(requests.size() > 0), 1, TimeUnit.SECONDS);
 
         assertThat(requests, iterableWithSize(1));
         assertThat(requests.get(0), instanceOf(ClearRolesCacheRequest.class));
@@ -275,7 +275,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             ));
         }
 
-        awaitBusy(() -> requests.size() > 0, 1, TimeUnit.SECONDS);
+        assertBusy(() -> assertTrue(requests.size() > 0), 1, TimeUnit.SECONDS);
 
         assertThat(requests, iterableWithSize(1));
         assertThat(requests.get(0), instanceOf(ClearRolesCacheRequest.class));

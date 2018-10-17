@@ -539,7 +539,7 @@ public class RollupJobTaskTests extends ESTestCase {
                 fail("Should not have entered onFailure");
             }
         });
-        ESTestCase.awaitBusy(started::get);
+        ESTestCase.assertBusy(() -> assertTrue(started.get()));
 
         task.triggered(new SchedulerEngine.Event(RollupJobTask.SCHEDULE_NAME + "_" + job.getConfig().getId(), 123, 123));
         assertThat(((RollupJobStatus)task.getStatus()).getIndexerState(), equalTo(IndexerState.INDEXING));
@@ -548,11 +548,11 @@ public class RollupJobTaskTests extends ESTestCase {
         latch.countDown();
 
         // Wait for the final persistent status to finish
-        ESTestCase.awaitBusy(finished::get);
+        ESTestCase.assertBusy(() -> assertTrue(finished.get()));
     }
 
     @SuppressWarnings("unchecked")
-    public void testSaveStateChangesIDScheme() throws InterruptedException {
+    public void testSaveStateChangesIDScheme() throws Exception {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         Map<String, String> headers = new HashMap<>(1);
         headers.put("es-security-runas-user", "foo");

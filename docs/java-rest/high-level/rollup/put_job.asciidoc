@@ -119,10 +119,9 @@ include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-put-rollup-
 <2> Adds the metrics to compute on the `temperature` field
 <3> Adds the metrics to compute on the `voltage` field
 
-`RollupJobConfig` also sets default metrics for `DateHistogram` and `Histogram` groupings.
-If the user does not provide a `MetricConfig` referencing the field in a `DateHistogram` or
-`Histogram` in the `GroupConfig`, the default metrics of `min`, `max`, and `value_count` are
-added to the configuration.
+By default, metrics `min`/`max`/`value_count` for the fields in `DateHistogramGroupConfig` and
+`HistogramGroupConfig` are added to the configuration unless the user already provided
+metrics for those fields.
 
 So, for the following configuration:
 
@@ -157,7 +156,8 @@ So, for the following configuration:
 // NOTCONSOLE
 
 The following will be the metrics in the configuration after
-the defaults are added server side.
+the defaults are added server side. Note the default metrics
+provided for the fields `timestamp` and `net_out`
 
 [source,js]
 --------------------------------------------------

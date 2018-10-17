@@ -242,10 +242,10 @@ public class RollupJobConfigTests extends AbstractSerializingTestCase<RollupJobC
         List<String> histoFields = Arrays.asList(histogramGroupConfig1.getFields());
         rollupJobConfig.getMetricsConfig().forEach(metricConfig -> {
             if (histoFields.contains(metricConfig.getField())) {
-                // Since it is explicitly included, the defaults should not be added
                 assertThat(metricConfig.getMetrics(), containsInAnyOrder("max", "min", "value_count"));
             }
             if (metricConfig.getField().equals(dateHistogramGroupConfig.getField())) {
+                // Since it is explicitly included, the defaults should not be added
                 assertThat(metricConfig.getMetrics(), containsInAnyOrder("max"));
             }
         });

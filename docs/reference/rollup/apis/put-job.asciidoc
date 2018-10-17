@@ -99,3 +99,80 @@ When the job is created, you receive the following results:
 }
 ----
 // TESTRESPONSE
+
+By default the metrics `min`/`max`/`value_count` are added
+for the fields in the `date_histogram` and `histogram` configurations
+unless metrics for those fields are provided in the payload.
+
+If the following is provided
+
+[source,js]
+--------------------------------------------------
+PUT _xpack/rollup/job/sensor
+{
+    "index_pattern": "sensor-*",
+    "rollup_index": "sensor_rollup",
+    "cron": "*/30 * * * * ?",
+    "page_size" :1000,
+    "groups" : {
+      "date_histogram": {
+        "field": "timestamp",
+        "interval": "1h",
+        "delay": "7d"
+      },
+      "histogram": {
+        "fields": ["voltage", "temperature"],
+        "interval": 5
+      }
+    },
+    "metrics": [
+        {
+            "field": "temperature",
+            "metrics": ["min", "max", "sum"]
+        }
+    ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The actual config when created in the cluster will look as follows.
+Notice the new default metrics gathered for `voltage` and `timestamp`.
+Since these fields were referenced in `groups.histogram` and `groups.date_histogram` configurations
+respectively and no metrics were requested for them,
+they both got the default metrics of `["min", "max", "value_count"]`.
+
+[source,js]
+--------------------------------------------------
+{
+   "index_pattern": "sensor-*",
+   "rollup_index": "sensor_rollup",
+   "cron": "*/30 * * * * ?",
+   "page_size" :1000,
+   "groups" : {
+      "date_histogram": {
+         "field": "timestamp",
+         "interval": "1h",
+         "delay": "7d"
+      },
+      "histogram": {
+         "fields": ["voltage", "temperature"],
+         "interval": 5
+      }
+   },
+   "metrics": [
+       {
+           "field": "temperature",
+           "metrics": ["min", "max", "sum"]
+       },
+       {
+           "field": "voltage",
+           "metrics": ["min", "max", "value_count"]
+       },
+       {
+           "field": "timestamp",
+           "metrics": ["min", "max", "value_count"]
+       }
+   ]
+}
+--------------------------------------------------
+// NOTCONSOLE

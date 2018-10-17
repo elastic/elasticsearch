@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -49,7 +49,7 @@ import java.util.Objects;
 public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(
-            ESLoggerFactory.getLogger(FieldNamesFieldMapper.class));
+            LogManager.getLogger(FieldNamesFieldMapper.class));
 
     public static final String NAME = "_field_names";
 

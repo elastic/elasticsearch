@@ -41,6 +41,7 @@ import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.BucketAggregationScript;
 import org.elasticsearch.script.BucketAggregationSelectorScript;
 import org.elasticsearch.script.ClassPermission;
+import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.NumberSortScript;
 import org.elasticsearch.script.ScoreScript;
@@ -138,6 +139,9 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(NumberSortScript.class)) {
             NumberSortScript.Factory factory = (p, lookup) -> newSortScript(expr, lookup, p);
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(FieldScript.class)) {
+            FieldScript.Factory factory = (p, lookup) -> newFieldScript(expr, lookup, p);
             return context.factoryClazz.cast(factory);
         }
         throw new IllegalArgumentException("expression engine does not know how to handle script context [" + context.name + "]");
@@ -287,6 +291,23 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
             }
         }
         return new ExpressionAggregationScript(expr, bindings, specialValue);
+    }
+
+    private FieldScript.LeafFactory newFieldScript(Expression expr, SearchLookup lookup, @Nullable Map<String, Object> vars) {
+        SimpleBindings bindings = new SimpleBindings();
+        for (String variable : expr.variables) {
+            try {
+                if (vars != null && vars.containsKey(variable)) {
+                    bindFromParams(vars, bindings, variable);
+                } else {
+                    final ValueSource valueSource = getDocValueSource(variable, lookup);
+                    bindings.add(variable, valueSource.asDoubleValuesSource());
+                }
+            } catch (Exception e) {
+                throw convertToScriptException("link error", expr.sourceText, variable, e);
+            }
+        }
+        return new ExpressionFieldScript(expr, bindings);
     }
 
     /**

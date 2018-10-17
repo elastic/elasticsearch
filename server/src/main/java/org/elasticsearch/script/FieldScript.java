@@ -66,6 +66,12 @@ public abstract class FieldScript {
         this.params = new ParameterMap(params, DEPRECATIONS);
     }
 
+    // for expression engine
+    protected FieldScript() {
+        params = null;
+        leafLookup = null;
+    }
+
     public abstract Object execute();
 
     /** The leaf lookup for the Lucene segment this script was created for. */

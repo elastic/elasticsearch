@@ -18,7 +18,6 @@ public class RemoteMonitoringUser extends User {
     public static final String INDEXING_ROLE_NAME = UsernamesField.REMOTE_MONITORING_INDEXING_ROLE;
 
     public static final Version DEFINED_SINCE = Version.V_6_5_0;
-    public static final BuiltinUserInfo USER_INFO = new BuiltinUserInfo(NAME, COLLECTION_ROLE_NAME+","+INDEXING_ROLE_NAME, DEFINED_SINCE);
 
     public RemoteMonitoringUser(boolean enabled) {
         super(NAME, new String[]{ COLLECTION_ROLE_NAME, INDEXING_ROLE_NAME }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, enabled);

@@ -18,11 +18,15 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 
@@ -34,23 +38,39 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class ParentIdAggIT extends ESIntegTestCase {
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        // this is needed to force the index version since _parent field is disabled on this version
+        return false;
+    }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/33752")
     public void testParentIdAggregation() throws IOException {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_4_0);
         XContentBuilder mapping = jsonBuilder().startObject()
                 .startObject("childtype")
-                .startObject("_parent")
-                .field("type", "parenttype")
-                .endObject()
+                    .startObject("_parent")
+                        .field("type", "parenttype")
+                    .endObject()
                 .endObject()
                 .endObject();
-        assertAcked(prepareCreate("testidx").addMapping("childtype", mapping));
-        client().prepareIndex("testidx", "childtype").setSource(jsonBuilder().startObject().field("num", 1).endObject()).setParent("p1").get();
-        client().prepareIndex("testidx", "childtype").setSource(jsonBuilder().startObject().field("num", 2).endObject()).setParent("p1").get();
+        assertAcked(prepareCreate("testidx")
+            .addMapping("childtype", mapping)
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build()));
+        client().prepareIndex("testidx", "childtype")
+            .setSource(jsonBuilder().startObject().field("num", 1).endObject())
+            .setParent("p1")
+            .get();
+        client().prepareIndex("testidx", "childtype")
+            .setSource(jsonBuilder().startObject().field("num", 2).endObject())
+            .setParent("p1")
+            .get();
 
         refresh();
         ensureGreen("testidx");
-        SearchResponse searchResponse = client().prepareSearch("testidx").setTypes("childtype").setQuery(matchAllQuery()).addAggregation(AggregationBuilders.terms("children").field("_parent#parenttype")).get();
+        SearchResponse searchResponse = client().prepareSearch("testidx")
+            .setTypes("childtype")
+            .setQuery(matchAllQuery())
+            .addAggregation(AggregationBuilders.terms("children").field("_parent#parenttype")).get();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         assertSearchResponse(searchResponse);
         assertThat(searchResponse.getAggregations().getAsMap().get("children"), instanceOf(Terms.class));

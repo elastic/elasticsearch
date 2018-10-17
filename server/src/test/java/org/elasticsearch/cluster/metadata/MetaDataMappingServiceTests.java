@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.util.Collections;
 
@@ -37,10 +39,17 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        // to force the index version in the _parent test
+        return false;
+    }
 
     // Tests _parent meta field logic, because part of the validation is in MetaDataMappingService
     public void testAddChildTypePointingToAlreadyExistingType() throws Exception {
-        createIndex("test", Settings.EMPTY, "type", "field", "type=keyword");
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_4_0);
+        createIndex("test", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build(),
+            "type", "field", "type=keyword");
 
         // Shouldn't be able the add the _parent field pointing to an already existing type, which isn't a parent type
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin()
@@ -54,8 +63,10 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testParentIsAString() throws Exception {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_4_0);
         // Shouldn't be able the add the _parent field pointing to an already existing type, which isn't a parent type
         Exception e = expectThrows(MapperParsingException.class, () -> client().admin().indices().prepareCreate("test")
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version))
                 .addMapping("parent", "{\"properties\":{}}", XContentType.JSON)
                 .addMapping("child", "{\"_parent\": \"parent\",\"properties\":{}}", XContentType.JSON)
                 .get());

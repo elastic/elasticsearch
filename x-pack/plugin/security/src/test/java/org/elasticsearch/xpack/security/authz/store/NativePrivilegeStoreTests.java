@@ -99,6 +99,12 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             ((Runnable) invocationOnMock.getArguments()[1]).run();
             return null;
         }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        Mockito.doAnswer(invocationOnMock -> {
+            assertThat(invocationOnMock.getArguments().length, equalTo(2));
+            assertThat(invocationOnMock.getArguments()[1], instanceOf(Runnable.class));
+            ((Runnable) invocationOnMock.getArguments()[1]).run();
+            return null;
+        }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
         store = new NativePrivilegeStore(Settings.EMPTY, client, securityIndex);
     }
 

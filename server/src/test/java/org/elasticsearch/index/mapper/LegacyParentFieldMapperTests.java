@@ -20,19 +20,25 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 
 import static org.elasticsearch.index.mapper.ParentFieldMapperTests.getNumberOfFieldWithParentPrefix;
+import static org.hamcrest.Matchers.equalTo;
 
 public class LegacyParentFieldMapperTests extends ESSingleNodeTestCase {
 
@@ -86,4 +92,70 @@ public class LegacyParentFieldMapperTests extends ESSingleNodeTestCase {
         assertFalse(indexService.mapperService().documentMapper("child_type").parentFieldMapper().fieldType().eagerGlobalOrdinals());
     }
 
+    public void testIndexAndGet() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("child_type")
+                .startObject("_parent")
+                    .field("type", "parent_type")
+                .endObject()
+            .endObject().endObject();
+        createIndex("test", Settings.builder().put("index.version.created", Version.V_5_6_0).build(), "child_type", mapping);
+
+        expectThrows(RoutingMissingException.class,
+            () -> client().prepareIndex("test", "child_type", "1").setSource("foo", "bar").get());
+        client().prepareIndex("test", "child_type", "1")
+            .setParent("0")
+            .setSource("foo", "bar")
+            .get();
+
+        expectThrows(RoutingMissingException.class,
+            () -> client().prepareGet("test", "child_type", "1").get());
+
+        GetResponse resp = client().prepareGet("test", "child_type", "1")
+            .setParent("0")
+            .get();
+        assertTrue(resp.isExists());
+        assertThat(resp.getId(), equalTo("1"));
+        assertThat(resp.getField("_routing").getValue(), equalTo("0"));
+        assertThat(resp.getField("_parent").getValue(), equalTo("0"));
+
+        expectThrows(RoutingMissingException.class,
+            () -> client().prepareDelete("test", "child_type", "1").get());
+        DeleteResponse deleteResp = client().prepareDelete("test", "child_type", "1").setParent("0").get();
+        assertThat(deleteResp.status(), equalTo(RestStatus.OK));
+    }
+
+    public void testUpdateAndGet() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("child_type")
+            .startObject("_parent")
+            .field("type", "parent_type")
+            .endObject()
+            .endObject().endObject();
+        createIndex("test", Settings.builder().put("index.version.created", Version.V_5_6_0).build(), "child_type", mapping);
+
+        expectThrows(RoutingMissingException.class,
+            () -> client().prepareUpdate("test", "child_type", "1").setDoc("foo", "bar").setUpsert("foo", "bar").get());
+        client().prepareUpdate("test", "child_type", "1")
+            .setParent("0")
+            .setDoc("foo", "bar")
+            .setUpsert("foo", "bar")
+            .get();
+
+        expectThrows(RoutingMissingException.class,
+            () -> client().prepareGet("test", "child_type", "1").get());
+
+        GetResponse resp = client().prepareGet("test", "child_type", "1")
+            .setParent("0")
+            .get();
+        assertTrue(resp.isExists());
+        assertThat(resp.getId(), equalTo("1"));
+        assertThat(resp.getField("_routing").getValue(), equalTo("0"));
+        assertThat(resp.getField("_parent").getValue(), equalTo("0"));
+
+        expectThrows(RoutingMissingException.class,
+            () -> client().prepareDelete("test", "child_type", "1").get());
+        DeleteResponse deleteResp = client().prepareDelete("test", "child_type", "1").setParent("0").get();
+        assertThat(deleteResp.status(), equalTo(RestStatus.OK));
+    }
 }

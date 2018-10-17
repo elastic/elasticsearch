@@ -20,6 +20,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -46,6 +48,11 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
 public class MapperServiceTests extends ESSingleNodeTestCase {
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        // this is needed to force the index version in the _parent tests
+        return false;
+    }
 
     public void testTypeNameStartsWithIllegalDot() {
         String index = "test-index";
@@ -240,6 +247,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                     .addMapping("child", "{\"child\": {\"_routing\":{\"required\":true}, \"_parent\": {\"type\": \"parent\"}}}",
                         XContentType.JSON)
                     .setSettings(Settings.builder()
+                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_4_0)
                         .put("index.number_of_shards", 4)
                         .put("index.routing_partition_size", 2))
                     .execute().actionGet();

@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 public class ParentFieldSubFetchPhaseTests extends ESTestCase {
 
@@ -70,8 +71,9 @@ public class ParentFieldSubFetchPhaseTests extends ESTestCase {
     }
 
     private ParentFieldMapper createParentFieldMapper() {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_4_0);
         Settings settings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, version)
                 .build();
         return new ParentFieldMapper.Builder("type")
                 .type("parent_type")

@@ -250,6 +250,11 @@ public class NativeUsersStoreTests extends ESTestCase {
             action.run();
             return null;
         }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        doAnswer((i) -> {
+            Runnable action = (Runnable) i.getArguments()[1];
+            action.run();
+            return null;
+        }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
         return new NativeUsersStore(Settings.EMPTY, client, securityIndex);
     }
 

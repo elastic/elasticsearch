@@ -49,6 +49,7 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -246,7 +247,7 @@ public abstract class MetaDataStateFormat<T> {
      * @param prefix    - filename prefix
      * @param locations - paths to directories with state folder
      * @return maximum id of state file or -1 if no such files are found
-     * @throws IOException
+     * @throws IOException if IOException occurs
      */
     private long findMaxStateId(final String prefix, Path... locations) throws IOException {
         long maxId = -1;
@@ -301,7 +302,8 @@ public abstract class MetaDataStateFormat<T> {
         if (maxStateId > -1 && stateFiles.isEmpty()) {
             throw new IllegalStateException("unable to find state files with state id " + maxStateId +
                     " returned by findMaxStateId function, in data folders [" +
-                    stateFiles.stream().map(Path::toAbsolutePath).map(Object::toString).collect(Collectors.joining(", ")) +
+                    Arrays.stream(dataLocations).map(Path::toAbsolutePath).
+                            map(Object::toString).collect(Collectors.joining(", ")) +
                     "], concurrent writes?");
         }
 

@@ -1191,7 +1191,7 @@ final class RequestConverters {
             return this;
         }
 
-        EndpointBuilder addPathPartAsIs(String ... parts) {
+        EndpointBuilder addPathPartAsIs(String... parts) {
             for (String part : parts) {
                 if (Strings.hasLength(part)) {
                     joiner.add(part);

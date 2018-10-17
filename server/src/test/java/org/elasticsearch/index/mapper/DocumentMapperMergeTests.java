@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -40,6 +42,11 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DocumentMapperMergeTests extends ESSingleNodeTestCase {
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        // this is needed to force the index version in the _parent tests
+        return false;
+    }
 
     public void test1Merge() throws Exception {
 
@@ -244,7 +251,9 @@ public class DocumentMapperMergeTests extends ESSingleNodeTestCase {
     }
 
     public void testMergeChildType() throws IOException {
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapperParser parser =
+            createIndex("test", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_4_0).build())
+                .mapperService().documentMapperParser();
 
         String initMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("child")
             .startObject("_parent").field("type", "parent").endObject()
@@ -284,7 +293,9 @@ public class DocumentMapperMergeTests extends ESSingleNodeTestCase {
     }
 
     public void testMergeAddingParent() throws IOException {
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapperParser parser =
+            createIndex("test", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_4_0).build())
+                .mapperService().documentMapperParser();
 
         String initMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("cowboy")
             .startObject("properties")

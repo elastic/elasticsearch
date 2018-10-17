@@ -44,13 +44,20 @@ import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 
 public class ParentFieldMapperTests extends ESSingleNodeTestCase {
+    public void testParentIsDisabledInCurrentVersion() {
+        MapperParsingException exc = expectThrows(MapperParsingException.class,
+            () -> createIndex("test", Settings.EMPTY, "child", "_parent", "type=parent"));
+        assertThat(exc.getMessage(), containsString("[_parent] field is disabled"));
+    }
 
     public void testParentSetInDocNotAllowed() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject());
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test")
+            .mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         try {
             docMapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
@@ -64,7 +71,8 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
     public void testJoinFieldNotSet() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject());
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test")
+            .mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
@@ -103,5 +111,4 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
         }
         return numFieldWithParentPrefix;
     }
-
 }

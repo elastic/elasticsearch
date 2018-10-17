@@ -246,16 +246,6 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         }
     }
 
-    /**
-     * Returns the configuration settings given the location of a certificate and its password
-     *
-     * @param resourcePathToStore the location of the keystore or truststore
-     * @param password the password
-     */
-    public static void addSSLSettingsForStore(Settings.Builder builder, String resourcePathToStore, String password) {
-        addSSLSettingsForStore(builder, "", resourcePathToStore, password, true, true, true);
-    }
-
     private static void addSSLSettingsForStore(Settings.Builder builder, String prefix, String resourcePathToStore, String password,
                                                boolean sslEnabled, boolean hostnameVerificationEnabled,
                                                boolean transportClient) {

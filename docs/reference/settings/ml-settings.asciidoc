@@ -81,3 +81,10 @@ sufficient:
 The maximum number of records that are output per bucket. The default value is 
 `500`.
 
+`xpack.ml.max_lazy_ml_nodes`:: (<<cluster-update-settings,Dynamic>>)
+The number of lazily spun up Machine Learning nodes. Useful in situations
+where ML nodes are not desired until the first Machine Learning Job
+is created. It defaults to `0` and has a maximum acceptable value of `3`.
+When a job is opened with this setting set at `>0`, it will stay in
+the `OPENING` state until a new ML node is added to the cluster and
+the job is assigned to run on that node.

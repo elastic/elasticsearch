@@ -38,12 +38,27 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
     public static final ClusterSearchShardsResponse EMPTY = new ClusterSearchShardsResponse(new ClusterSearchShardsGroup[0],
             new DiscoveryNode[0], Collections.emptyMap());
 
-    private ClusterSearchShardsGroup[] groups;
-    private DiscoveryNode[] nodes;
-    private Map<String, AliasFilter> indicesAndFilters;
+    private final ClusterSearchShardsGroup[] groups;
+    private final DiscoveryNode[] nodes;
+    private final Map<String, AliasFilter> indicesAndFilters;
 
-    public ClusterSearchShardsResponse() {
-
+    public ClusterSearchShardsResponse(StreamInput in) throws IOException {
+        super(in);
+        groups = new ClusterSearchShardsGroup[in.readVInt()];
+        for (int i = 0; i < groups.length; i++) {
+            groups[i] = ClusterSearchShardsGroup.readSearchShardsGroupResponse(in);
+        }
+        nodes = new DiscoveryNode[in.readVInt()];
+        for (int i = 0; i < nodes.length; i++) {
+            nodes[i] = new DiscoveryNode(in);
+        }
+        int size = in.readVInt();
+        indicesAndFilters = new HashMap<>();
+        for (int i = 0; i < size; i++) {
+            String index = in.readString();
+            AliasFilter aliasFilter = new AliasFilter(in);
+            indicesAndFilters.put(index, aliasFilter);
+        }
     }
 
     public ClusterSearchShardsResponse(ClusterSearchShardsGroup[] groups, DiscoveryNode[] nodes,
@@ -67,22 +82,7 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        groups = new ClusterSearchShardsGroup[in.readVInt()];
-        for (int i = 0; i < groups.length; i++) {
-            groups[i] = ClusterSearchShardsGroup.readSearchShardsGroupResponse(in);
-        }
-        nodes = new DiscoveryNode[in.readVInt()];
-        for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = new DiscoveryNode(in);
-        }
-        int size = in.readVInt();
-        indicesAndFilters = new HashMap<>();
-        for (int i = 0; i < size; i++) {
-            String index = in.readString();
-            AliasFilter aliasFilter = new AliasFilter(in);
-            indicesAndFilters.put(index, aliasFilter);
-        }
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

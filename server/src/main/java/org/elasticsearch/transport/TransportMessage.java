@@ -39,6 +39,12 @@ public abstract class TransportMessage implements Streamable, Writeable {
         return remoteAddress;
     }
 
+    public TransportMessage() {
+    }
+
+    public TransportMessage(StreamInput in) throws IOException {
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
 

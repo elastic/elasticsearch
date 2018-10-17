@@ -1101,6 +1101,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         public CanMatchResponse() {
         }
 
+        public CanMatchResponse(StreamInput in) throws IOException {
+            this.canMatch = in.readBoolean();
+        }
+
         public CanMatchResponse(boolean canMatch) {
             this.canMatch = canMatch;
         }

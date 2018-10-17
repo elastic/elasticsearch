@@ -225,8 +225,8 @@ public class MasterFaultDetection extends FaultDetection {
             transportService.sendRequest(masterToPing, MASTER_PING_ACTION_NAME, request, options,
                 new TransportResponseHandler<MasterPingResponseResponse>() {
                         @Override
-                        public MasterPingResponseResponse newInstance() {
-                            return new MasterPingResponseResponse();
+                        public MasterPingResponseResponse read(StreamInput in) {
+                            return new MasterPingResponseResponse(in);
                         }
 
                         @Override
@@ -433,14 +433,7 @@ public class MasterFaultDetection extends FaultDetection {
         private MasterPingResponseResponse() {
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
+        private MasterPingResponseResponse(StreamInput in) {
         }
     }
 }

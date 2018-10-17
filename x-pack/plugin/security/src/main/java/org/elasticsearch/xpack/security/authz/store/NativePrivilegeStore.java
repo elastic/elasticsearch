@@ -88,13 +88,15 @@ public class NativePrivilegeStore extends AbstractComponent {
 
     public void getPrivileges(Collection<String> applications, Collection<String> names,
                               ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
-        if (applications != null && applications.size() == 1 && names != null && names.size() == 1) {
+        if (securityIndexManager.isAvailable() == false) {
+            listener.onResponse(Collections.emptyList());
+        } else if (applications != null && applications.size() == 1 && names != null && names.size() == 1) {
             getPrivilege(Objects.requireNonNull(Iterables.get(applications, 0)), Objects.requireNonNull(Iterables.get(names, 0)),
                 ActionListener.wrap(privilege ->
                         listener.onResponse(privilege == null ? Collections.emptyList() : Collections.singletonList(privilege)),
                     listener::onFailure));
         } else {
-            securityIndexManager.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+            securityIndexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 final QueryBuilder query;
                 final TermQueryBuilder typeQuery = QueryBuilders
                     .termQuery(ApplicationPrivilegeDescriptor.Fields.TYPE.getPreferredName(), DOC_TYPE_VALUE);
@@ -134,33 +136,37 @@ public class NativePrivilegeStore extends AbstractComponent {
         return collection == null || collection.isEmpty();
     }
 
-    public void getPrivilege(String application, String name, ActionListener<ApplicationPrivilegeDescriptor> listener) {
-        securityIndexManager.prepareIndexIfNeededThenExecute(listener::onFailure,
-            () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                client.prepareGet(SECURITY_INDEX_NAME, "doc", toDocId(application, name)).request(),
-                new ActionListener<GetResponse>() {
-                    @Override
-                    public void onResponse(GetResponse response) {
-                        if (response.isExists()) {
-                            listener.onResponse(buildPrivilege(response.getId(), response.getSourceAsBytesRef()));
-                        } else {
-                            listener.onResponse(null);
+    void getPrivilege(String application, String name, ActionListener<ApplicationPrivilegeDescriptor> listener) {
+        if (securityIndexManager.isAvailable() == false) {
+            listener.onResponse(null);
+        } else {
+            securityIndexManager.checkIndexVersionThenExecute(listener::onFailure,
+                () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                    client.prepareGet(SECURITY_INDEX_NAME, "doc", toDocId(application, name)).request(),
+                    new ActionListener<GetResponse>() {
+                        @Override
+                        public void onResponse(GetResponse response) {
+                            if (response.isExists()) {
+                                listener.onResponse(buildPrivilege(response.getId(), response.getSourceAsBytesRef()));
+                            } else {
+                                listener.onResponse(null);
+                            }
                         }
-                    }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        // if the index or the shard is not there / available we just claim the privilege is not there
-                        if (TransportActions.isShardNotAvailableException(e)) {
-                            logger.warn(new ParameterizedMessage("failed to load privilege [{}] index not available", name), e);
-                            listener.onResponse(null);
-                        } else {
-                            logger.error(new ParameterizedMessage("failed to load privilege [{}]", name), e);
-                            listener.onFailure(e);
+                        @Override
+                        public void onFailure(Exception e) {
+                            // if the index or the shard is not there / available we just claim the privilege is not there
+                            if (TransportActions.isShardNotAvailableException(e)) {
+                                logger.warn(new ParameterizedMessage("failed to load privilege [{}] index not available", name), e);
+                                listener.onResponse(null);
+                            } else {
+                                logger.error(new ParameterizedMessage("failed to load privilege [{}]", name), e);
+                                listener.onFailure(e);
+                            }
                         }
-                    }
-                },
-                client::get));
+                    },
+                    client::get));
+        }
     }
 
     public void putPrivileges(Collection<ApplicationPrivilegeDescriptor> privileges, WriteRequest.RefreshPolicy refreshPolicy,
@@ -200,23 +206,27 @@ public class NativePrivilegeStore extends AbstractComponent {
 
     public void deletePrivileges(String application, Collection<String> names, WriteRequest.RefreshPolicy refreshPolicy,
                                  ActionListener<Map<String, List<String>>> listener) {
-        securityIndexManager.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-            ActionListener<DeleteResponse> groupListener = new GroupedActionListener<>(
-                ActionListener.wrap(responses -> {
-                    final Map<String, List<String>> deletedNames = responses.stream()
-                        .filter(r -> r.getResult() == DocWriteResponse.Result.DELETED)
-                        .map(r -> r.getId())
-                        .map(NativePrivilegeStore::nameFromDocId)
-                        .collect(TUPLES_TO_MAP);
-                    clearRolesCache(listener, deletedNames);
-                }, listener::onFailure), names.size(), Collections.emptyList());
-            for (String name : names) {
-                ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareDelete(SECURITY_INDEX_NAME, "doc", toDocId(application, name))
-                        .setRefreshPolicy(refreshPolicy)
-                        .request(), groupListener, client::delete);
-            }
-        });
+        if (securityIndexManager.isAvailable() == false) {
+            listener.onResponse(Collections.emptyMap());
+        } else {
+            securityIndexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {
+                ActionListener<DeleteResponse> groupListener = new GroupedActionListener<>(
+                    ActionListener.wrap(responses -> {
+                        final Map<String, List<String>> deletedNames = responses.stream()
+                            .filter(r -> r.getResult() == DocWriteResponse.Result.DELETED)
+                            .map(r -> r.getId())
+                            .map(NativePrivilegeStore::nameFromDocId)
+                            .collect(TUPLES_TO_MAP);
+                        clearRolesCache(listener, deletedNames);
+                    }, listener::onFailure), names.size(), Collections.emptyList());
+                for (String name : names) {
+                    ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                        client.prepareDelete(SECURITY_INDEX_NAME, "doc", toDocId(application, name))
+                            .setRefreshPolicy(refreshPolicy)
+                            .request(), groupListener, client::delete);
+                }
+            });
+        }
     }
 
     private <T> void clearRolesCache(ActionListener<T> listener, T value) {

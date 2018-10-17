@@ -19,28 +19,92 @@
 
 package org.elasticsearch.client.core;
 
-import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.io.IOException;
-import java.util.function.Predicate;
+
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
 
-public class TermVectorsResponseTests extends AbstractXContentTestCase<TermVectorsResponse> {
+public class TermVectorsResponseTests extends ESTestCase {
 
-    @Override
-    protected TermVectorsResponse doParseInstance(XContentParser parser) throws IOException {
-        return TermVectorsResponse.fromXContent(parser);
+    public void testFromXContent() throws IOException {
+        xContentTester(
+            this::createParser,
+            this::createTestInstance,
+            this::toXContent,
+            TermVectorsResponse::fromXContent)
+            .supportsUnknownFields(true)
+            .randomFieldsExcludeFilter(field ->
+                field.endsWith("term_vectors") || field.endsWith("terms") || field.endsWith("tokens"))
+            .test();
     }
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return true;
+    private void toXContent(TermVectorsResponse response, XContentBuilder builder) throws IOException {
+       builder.startObject();
+        builder.field("_index", response.getIndex());
+        builder.field("_type", response.getType());
+        if (response.getId() != null) {
+            builder.field("_id", response.getId());
+        }
+        builder.field("_version", response.getDocVersion());
+        builder.field("found", response.getFound());
+        builder.field("took", response.getTookInMillis());
+        if (response.getTermVectorsList() != null) {
+            builder.startObject("term_vectors");
+            for (TermVectorsResponse.TermVector tv : response.getTermVectorsList()) {
+                toXContent(tv, builder);
+            }
+            builder.endObject();
+        }
+        builder.endObject();
     }
 
-    @Override
+    private void toXContent(TermVectorsResponse.TermVector tv, XContentBuilder builder) throws IOException {
+        builder.startObject(tv.getFieldName());
+        // build fields_statistics
+        if (tv.getFieldStatistics() != null) {
+            builder.startObject("field_statistics");
+            builder.field("sum_doc_freq", tv.getFieldStatistics().getSumDocFreq());
+            builder.field("doc_count", tv.getFieldStatistics().getDocCount());
+            builder.field("sum_ttf", tv.getFieldStatistics().getSumTotalTermFreq());
+            builder.endObject();
+        }
+        // build terms
+        if (tv.getTerms() != null) {
+            builder.startObject("terms");
+            for (TermVectorsResponse.TermVector.Term term : tv.getTerms()) {
+                builder.startObject(term.getTerm());
+                // build term_statistics
+                if (term.getDocFreq() != null) builder.field("doc_freq", term.getDocFreq());
+                if (term.getTotalTermFreq() != null) builder.field("ttf", term.getTotalTermFreq());
+
+                builder.field("term_freq", term.getTermFreq());
+                // build tokens
+                if (term.getTokens() != null) {
+                    builder.startArray("tokens");
+                    for (TermVectorsResponse.TermVector.Token token : term.getTokens()) {
+                        builder.startObject();
+                        if (token.getPosition() != null) builder.field("position", token.getPosition());
+                        if (token.getStartOffset()!= null) builder.field("start_offset", token.getStartOffset());
+                        if (token.getEndOffset() != null) builder.field("end_offset", token.getEndOffset());
+                        if (token.getPayload() != null) builder.field("payload", token.getPayload());
+                        builder.endObject();
+                    }
+                    builder.endArray();
+                }
+                if (term.getScore() != null) builder.field("score", term.getScore());
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+    }
+
+
     protected TermVectorsResponse createTestInstance() {
         String index = randomAlphaOfLength(5);
         String type = randomAlphaOfLength(5);
@@ -64,11 +128,6 @@ public class TermVectorsResponseTests extends AbstractXContentTestCase<TermVecto
         }
         TermVectorsResponse tvresponse = new TermVectorsResponse(index, type, id, version, found, tookInMillis, tvList);
         return tvresponse;
-    }
-
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> field.endsWith("term_vectors") || field.endsWith("terms") || field.endsWith("tokens");
     }
 
     private TermVectorsResponse.TermVector randomTermVector(boolean hasFieldStatistics, boolean hasTermStatistics, boolean hasScores,

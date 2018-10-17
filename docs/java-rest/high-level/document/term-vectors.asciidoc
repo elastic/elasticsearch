@@ -1,4 +1,10 @@
-[[java-rest-high-termvectors]]
+--
+:api: term-vectors
+:request: TermVectorsRequest
+:response: TermVectorsResponse
+--
+
+[id="{upid}-{api}"]
 === Term Vectors API
 
 Term Vectors API returns information and statistics on terms in the fields
@@ -6,15 +12,15 @@ of a particular document. The document could be stored in the index or
 artificially provided by the user.
 
 
-[[java-rest-high-termvectors-request]]
+[id="{upid}-{api}-request"]
 ==== Term Vectors Request
 
-A `TermVectorsRequest` expects an `index`, a `type` and an `id` to specify
+A +{request}+ expects an `index`, a `type` and an `id` to specify
 a certain document, and fields for which the information is retrieved.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[term-vectors-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 
 Term vectors can also be generated for artificial documents, that is for
@@ -22,7 +28,7 @@ documents not present in the index:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[term-vectors-request-artificial]
+include-tagged::{doc-tests-file}[{api}-request-artificial]
 --------------------------------------------------
 <1> An artificial document is provided as an `XContentBuilder` object,
 the Elasticsearch built-in helper to generate JSON content.
@@ -31,7 +37,7 @@ the Elasticsearch built-in helper to generate JSON content.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[term-vectors-request-optional-arguments]
+include-tagged::{doc-tests-file}[{api}-request-optional-arguments]
 --------------------------------------------------
 <1> Set `fieldStatistics` to `false` (default is `true`) to omit document count,
 sum of document frequencies, sum of total term frequencies.
@@ -52,50 +58,17 @@ near realtime.
 <9> Set a routing parameter
 
 
-[[java-rest-high-term-vectors-sync]]
-==== Synchronous Execution
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[term-vectors-execute]
---------------------------------------------------
-
-[[java-rest-high-term-vectors-async]]
-==== Asynchronous Execution
-
-The `termVectorsAsync` method executes the request asynchronously,
-calling the provided `ActionListener` when the response is ready:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[term-vectors-execute-async]
---------------------------------------------------
-<1> The `TermVectorsRequest` to execute and the `ActionListener` to use when
-the execution completes.
-
-The asynchronous method does not block and returns immediately. Once the request
-completes, the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for `TermVectorsResponse` is constructed as follows:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[term-vectors-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed.
-<2> Called when the whole `TermVectorsRequest` fails.
+include::../execution.asciidoc[]
 
 
-[[java-rest-high-term-vectors-response]]
+[id="{upid}-{api}-response"]
 ==== TermVectorsResponse
 
 The `TermVectorsResponse` contains the following information:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[term-vectors-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> The index name of the document.
 <2> The type name of the document.

@@ -83,7 +83,6 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
 
     /**
      * Sets the fields for which term vectors information should be retrieved
-     * @param fields
      */
     public void setFields(String... fields) {
         this.fields = fields;
@@ -95,7 +94,6 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
 
     /**
      * Sets whether to request term positions
-     * @param requestPositions
      */
     public void setPositions(boolean requestPositions) {
         this.requestPositions = requestPositions;
@@ -103,7 +101,6 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
 
     /**
      * Sets whether to request term payloads
-     * @param requestPayloads
      */
     public void setPayloads(boolean requestPayloads) {
         this.requestPayloads = requestPayloads;
@@ -111,7 +108,6 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
 
     /**
      * Sets whether to request term offsets
-     * @param requestOffsets
      */
     public void setOffsets(boolean requestOffsets) {
         this.requestOffsets = requestOffsets;
@@ -119,7 +115,6 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
 
     /**
      * Sets whether to request field statistics
-     * @param requestFieldStatistics
      */
     public void setFieldStatistics(boolean requestFieldStatistics) {
         this.requestFieldStatistics = requestFieldStatistics;
@@ -127,7 +122,6 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
 
     /**
      * Sets whether to request term statistics
-     * @param requestTermStatistics
      */
     public void setTermStatistics(boolean requestTermStatistics) {
         this.requestTermStatistics = requestTermStatistics;
@@ -135,7 +129,6 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
 
     /**
      * Sets different analyzers than the one at the fields
-     * @param perFieldAnalyzer
      */
     public void setPerFieldAnalyzer(Map<String, String> perFieldAnalyzer) {
         this.perFieldAnalyzer = perFieldAnalyzer;
@@ -143,7 +136,6 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
 
     /**
      * Sets an artifical document on what to request _termvectors
-     * @param docBuilder
      */
     public void setDoc(XContentBuilder docBuilder) {
         this.docBuilder = docBuilder;
@@ -151,7 +143,6 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
 
     /**
      * Sets conditions for terms filtering
-     * @param filterSettings
      */
     public void setFilterSettings(Map<String, Integer> filterSettings) {
         this.filterSettings = filterSettings;
@@ -159,7 +150,6 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
 
     /**
      * Sets a routing to route a request to a particular shard
-     * @param routing
      */
     public void setRouting(String routing) {
         this.routing = routing;
@@ -171,7 +161,6 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
 
     /**
      * Set a preference of which shard copies to execute the request
-     * @param preference
      */
     public void setPreference(String preference) {
         this.preference = preference;
@@ -183,7 +172,6 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
 
     /**
      * Sets if the request should be realtime or near-realtime
-     * @param realtime
      */
     public void setRealtime(boolean realtime) {
         this.realtime = realtime;

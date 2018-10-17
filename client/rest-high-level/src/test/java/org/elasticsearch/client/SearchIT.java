@@ -35,8 +35,6 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.client.core.TermVectorsRequest;
-import org.elasticsearch.client.core.TermVectorsResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
@@ -1226,56 +1224,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             () -> execute(request, highLevelClient()::fieldCaps, highLevelClient()::fieldCapsAsync));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
     }
-
-    public void testTermvectors() throws IOException {
-        TermVectorsRequest tvRequest = new TermVectorsRequest("index1", "doc", "1");
-        tvRequest.setFields("field");
-        TermVectorsResponse tvResponse = execute(tvRequest, highLevelClient()::termvectors, highLevelClient()::termvectorsAsync);
-
-        TermVectorsResponse.TermVector.Token expectedToken = new TermVectorsResponse.TermVector.Token(0, 6, 0, null);
-        TermVectorsResponse.TermVector.Term expectedTerm = new TermVectorsResponse.TermVector.Term(
-            "value1", 1, null, null, null, Collections.singletonList(expectedToken));
-
-        TermVectorsResponse.TermVector.FieldStatistics expectedFieldStats = new TermVectorsResponse.TermVector.FieldStatistics(2, 2, 2);
-        TermVectorsResponse.TermVector expectedTV = new TermVectorsResponse.TermVector("field", expectedFieldStats, Collections.singletonList(expectedTerm));
-        List<TermVectorsResponse.TermVector> expectedTVlist = Collections.singletonList(expectedTV);
-
-        assertThat(tvResponse.getIndex(), equalTo("index1"));
-        assertThat(tvResponse.getType(), equalTo("doc"));
-        assertThat(Integer.valueOf(tvResponse.getId()), equalTo(1));
-        assertTrue(tvResponse.getFound());
-        assertEquals(expectedTVlist, tvResponse.getTermVectorsList());
-    }
-
-    public void testTermvectorsWithArtificialDoc() throws IOException {
-        TermVectorsRequest tvRequest = new TermVectorsRequest("index1", "doc");
-        XContentBuilder docBuilder = XContentFactory.jsonBuilder();
-        docBuilder.startObject().field("field", "valuex").endObject();
-        tvRequest.setDoc(docBuilder);
-        TermVectorsResponse tvResponse = execute(tvRequest, highLevelClient()::termvectors, highLevelClient()::termvectorsAsync);
-        TermVectorsResponse.TermVector.Token expectedToken = new TermVectorsResponse.TermVector.Token(0, 6, 0, null);
-
-        TermVectorsResponse.TermVector.Term expectedTerm = new TermVectorsResponse.TermVector.Term(
-            "valuex", 1, null, null, null, Collections.singletonList(expectedToken));
-
-        TermVectorsResponse.TermVector.FieldStatistics expectedFieldStats = new TermVectorsResponse.TermVector.FieldStatistics(2, 2, 2);
-        TermVectorsResponse.TermVector expectedTV = new TermVectorsResponse.TermVector("field", expectedFieldStats, Collections.singletonList(expectedTerm));
-        List<TermVectorsResponse.TermVector> expectedTVlist = Collections.singletonList(expectedTV);
-
-        assertThat(tvResponse.getIndex(), equalTo("index1"));
-        assertThat(tvResponse.getType(), equalTo("doc"));
-        assertTrue(tvResponse.getFound());
-        assertEquals(expectedTVlist, tvResponse.getTermVectorsList());
-    }
-
-    public void testTermvectorsWithNonExistentIndex() {
-        TermVectorsRequest request = new TermVectorsRequest("non-existent", "non-existent", "non-existent");
-
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-            () -> execute(request, highLevelClient()::termvectors, highLevelClient()::termvectorsAsync));
-        assertEquals(RestStatus.NOT_FOUND, exception.status());
-    }
-
 
     private static void assertSearchHeader(SearchResponse searchResponse) {
         assertThat(searchResponse.getTook().nanos(), greaterThanOrEqualTo(0L));

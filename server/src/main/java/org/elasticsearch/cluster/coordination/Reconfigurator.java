@@ -89,6 +89,11 @@ public class Reconfigurator extends AbstractComponent {
                                                         ClusterState.VotingConfiguration currentConfig) {
         logger.trace("{} reconfiguring {} based on liveNodes={}, retiredNodeIds={}", this, currentConfig, liveNodes, retiredNodeIds);
 
+        final int safeConfigurationSize = 2 * masterNodesFailureTolerance + 1;
+        if (currentConfig.getNodeIds().size() < safeConfigurationSize) {
+            throw new AssertionError(currentConfig + " does not satisfy masterNodesFailureTolerance of " + masterNodesFailureTolerance);
+        }
+
         /*
          *  There are three true/false properties of each node in play: live/non-live, retired/non-retired and in-config/not-in-config.
          *  Firstly we divide the nodes into disjoint sets based on these properties:
@@ -134,10 +139,8 @@ public class Reconfigurator extends AbstractComponent {
         // ... except one, if even, because odd configurations are slightly more resilient ...
         final int votingNodeCount = roundDownToOdd(nonRetiredLiveNodeCount);
 
-        // ... except that if the current configuration satisfies CLUSTER_MASTER_NODES_FAILURE_TOLERANCE then the new one must too:
-        final int safeConfigurationSize = 2 * masterNodesFailureTolerance + 1;
-        final int targetSize = currentConfig.getNodeIds().size() >= safeConfigurationSize && votingNodeCount < safeConfigurationSize
-            ? safeConfigurationSize : votingNodeCount;
+        // ... except that the new configuration must satisfy CLUSTER_MASTER_NODES_FAILURE_TOLERANCE too:
+        final int targetSize = Math.max(votingNodeCount, safeConfigurationSize);
 
         /*
          * The new configuration is formed by taking this many nodes in the following preference order:

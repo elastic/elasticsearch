@@ -37,6 +37,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_MASTER_NODES_FAILURE_TOLERANCE;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -104,24 +105,23 @@ public class ReconfiguratorTests extends ESTestCase {
 
         if (initialConfig.getNodeIds().size() >= masterNodesFailureTolerance * 2 + 1) {
             // actual size of a quorum: half the configured nodes, which is all the live nodes plus maybe some dead ones to make up numbers
-            final int quorumSize = Math.max(liveNodes.length / 2 + 1, masterNodesFailureTolerance);
+            final int quorumSize = Math.max(liveNodes.length / 2 + 1, masterNodesFailureTolerance + 1);
 
             final ClusterState.VotingConfiguration finalConfig = reconfigurator.reconfigure(liveNodesSet, emptySet(), initialConfig);
 
-            final String description = "reconfigure " + liveNodesSet + " from " + initialConfig + " with safety factor of "
+            final String description = "reconfigure " + liveNodesSet + " from " + initialConfig + " with failure tolerance of "
                 + masterNodesFailureTolerance + " yielded " + finalConfig;
 
             if (quorumSize > liveNodes.length) {
                 assertFalse(description + " without a live quorum", finalConfig.hasQuorum(Arrays.asList(liveNodes)));
             } else {
                 final List<String> expectedQuorum = randomSubsetOf(quorumSize, liveNodes);
-                assertTrue(description + " with quorum of " + expectedQuorum, finalConfig.hasQuorum(expectedQuorum));
+                assertTrue(description + " with quorum[" + quorumSize + "] of " + expectedQuorum, finalConfig.hasQuorum(expectedQuorum));
             }
         } else {
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> reconfigurator.reconfigure(liveNodesSet, emptySet(), initialConfig));
-
-            assertThat(exception.getMessage(), equalTo("foo"));
+            assertThat(expectThrows(AssertionError.class,
+                () -> reconfigurator.reconfigure(liveNodesSet, emptySet(), initialConfig)).getMessage(),
+                containsString("does not satisfy masterNodesFailureTolerance"));
         }
     }
 
@@ -152,10 +152,15 @@ public class ReconfiguratorTests extends ESTestCase {
             .put(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.getKey(), masterNodesFailureTolerance)
             .build());
 
-        final ClusterState.VotingConfiguration adaptedConfig = reconfigurator.reconfigure(liveNodes, retired, config);
-        assertEquals(new ParameterizedMessage("[liveNodes={}, retired={}, config={}, masterNodesFailureTolerance={}]",
-                liveNodes, retired, config, masterNodesFailureTolerance).getFormattedMessage(),
-            expectedConfig, adaptedConfig);
+        if (config.getNodeIds().size() < 2 * masterNodesFailureTolerance + 1) {
+            assertThat(expectThrows(AssertionError.class, () -> reconfigurator.reconfigure(liveNodes, retired, config)).getMessage(),
+                containsString("does not satisfy masterNodesFailureTolerance"));
+        } else {
+            final ClusterState.VotingConfiguration adaptedConfig = reconfigurator.reconfigure(liveNodes, retired, config);
+            assertEquals(new ParameterizedMessage("[liveNodes={}, retired={}, config={}, masterNodesFailureTolerance={}]",
+                    liveNodes, retired, config, masterNodesFailureTolerance).getFormattedMessage(),
+                expectedConfig, adaptedConfig);
+        }
     }
 
     private Reconfigurator makeReconfigurator(Settings settings) {

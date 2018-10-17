@@ -64,7 +64,12 @@ public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Ma
     }
 
     /*
-     * Parses the result and creates indexable documents
+     * Parses the result and creates a stream of indexable documents
+     *
+     * Implementation decisions:
+     *
+     * Extraction uses generic maps as intermediate exchange format in order to hook in ingest pipelines/processors
+     * in later versions, see {@link IngestDocument).
      */
     private Stream<IndexRequest> processBucketsToIndexRequests(CompositeAggregation agg) {
         String indexName = job.getConfig().getDestinationIndex();

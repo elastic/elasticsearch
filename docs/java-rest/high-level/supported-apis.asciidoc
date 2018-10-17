@@ -214,10 +214,12 @@ The Java High Level REST Client supports the following Licensing APIs:
 * <<java-rest-high-put-license>>
 * <<java-rest-high-get-license>>
 * <<java-rest-high-delete-license>>
+* <<java-rest-high-start-basic>>
 
 include::licensing/put-license.asciidoc[]
 include::licensing/get-license.asciidoc[]
 include::licensing/delete-license.asciidoc[]
+include::licensing/start-basic.asciidoc[]
 
 == Machine Learning APIs
 :upid: {mainid}-x-pack-ml
@@ -289,12 +291,17 @@ include::migration/get-assistance.asciidoc[]
 
 == Rollup APIs
 
+:upid: {mainid}-rollup
+:doc-tests-file: {doc-tests}/RollupDocumentationIT.java
+
 The Java High Level REST Client supports the following Rollup APIs:
 
 * <<java-rest-high-x-pack-rollup-put-job>>
+* <<{upid}-rollup-delete-job>>
 * <<java-rest-high-x-pack-rollup-get-job>>
 
 include::rollup/put_job.asciidoc[]
+include::rollup/delete_job.asciidoc[]
 include::rollup/get_job.asciidoc[]
 
 == Security APIs
@@ -305,11 +312,15 @@ The Java High Level REST Client supports the following Security APIs:
 * <<java-rest-high-security-enable-user>>
 * <<java-rest-high-security-disable-user>>
 * <<java-rest-high-security-change-password>>
+* <<java-rest-high-security-get-certificates>>
+* <<java-rest-high-security-put-role-mapping>>
 
 include::security/put-user.asciidoc[]
 include::security/enable-user.asciidoc[]
 include::security/disable-user.asciidoc[]
 include::security/change-password.asciidoc[]
+include::security/get-certificates.asciidoc[]
+include::security/put-role-mapping.asciidoc[]
 
 == Watcher APIs
 

@@ -291,7 +291,8 @@ public class FunctionScoreQuery extends Query {
                 List<Explanation> functionsExplanations = new ArrayList<>();
                 for (int i = 0; i < functions.length; ++i) {
                     if (filterWeights[i] != null) {
-                        final Bits docSet = Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterWeights[i].scorerSupplier(context));
+                        final Bits docSet = Lucene.asSequentialAccessBits(
+                                context.reader().maxDoc(), filterWeights[i].scorerSupplier(context));
                         if (docSet.get(doc) == false) {
                             continue;
                         }
@@ -350,7 +351,8 @@ public class FunctionScoreQuery extends Query {
         private final boolean needsScores;
 
         private FunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreMode scoreMode, ScoreFunction[] functions,
-                                     float maxBoost, LeafScoreFunction[] leafFunctions, Bits[] docSets, CombineFunction scoreCombiner, boolean needsScores) throws IOException {
+                                     float maxBoost, LeafScoreFunction[] leafFunctions, Bits[] docSets,
+                                     CombineFunction scoreCombiner, boolean needsScores) throws IOException {
             super(scorer, w);
             this.scoreMode = scoreMode;
             this.functions = functions;

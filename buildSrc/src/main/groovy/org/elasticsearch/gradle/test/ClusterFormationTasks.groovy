@@ -123,7 +123,7 @@ class ClusterFormationTasks {
             NodeInfo node = new NodeInfo(config, i, project, prefix, elasticsearchVersion, sharedDir)
             nodes.add(node)
             Object dependsOn = startTasks.empty ? startDependencies : startTasks.get(0)
-            startTasks.add(configureNode(project, prefix, runner, dependsOn, node, config, distro, nodes.get(0)))
+            startTasks.add(configureNode(project, prefix, runner, dependsOn, node, config, distro))
         }
 
         Task wait = configureWaitTask("${prefix}#wait", project, nodes, startTasks, config.nodeStartupWaitSeconds)
@@ -182,7 +182,7 @@ class ClusterFormationTasks {
      * @return a task which starts the node.
      */
     static Task configureNode(Project project, String prefix, Task runner, Object dependsOn, NodeInfo node, ClusterConfiguration config,
-                              Configuration distribution, NodeInfo seedNode) {
+                              Configuration distribution) {
 
         // tasks are chained so their execution order is maintained
         Task setup = project.tasks.create(name: taskName(prefix, node, 'clean'), type: Delete, dependsOn: dependsOn) {
@@ -198,7 +198,7 @@ class ClusterFormationTasks {
         setup = configureCheckPreviousTask(taskName(prefix, node, 'checkPrevious'), project, setup, node)
         setup = configureStopTask(taskName(prefix, node, 'stopPrevious'), project, setup, node)
         setup = configureExtractTask(taskName(prefix, node, 'extract'), project, setup, node, distribution)
-        setup = configureWriteConfigTask(taskName(prefix, node, 'configure'), project, setup, node, seedNode)
+        setup = configureWriteConfigTask(taskName(prefix, node, 'configure'), project, setup, node)
         setup = configureCreateKeystoreTask(taskName(prefix, node, 'createKeystore'), project, setup, node)
         setup = configureAddKeystoreSettingTasks(prefix, project, setup, node)
         setup = configureAddKeystoreFileTasks(prefix, project, setup, node)
@@ -301,7 +301,7 @@ class ClusterFormationTasks {
     }
 
     /** Adds a task to write elasticsearch.yml for the given node configuration */
-    static Task configureWriteConfigTask(String name, Project project, Task setup, NodeInfo node, NodeInfo seedNode) {
+    static Task configureWriteConfigTask(String name, Project project, Task setup, NodeInfo node) {
         Map esConfig = [
                 'cluster.name'                 : node.clusterName,
                 'node.name'                    : "node-" + node.nodeNum,
@@ -347,14 +347,7 @@ class ClusterFormationTasks {
 
         Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
         writeConfig.doFirst {
-            if (node.nodeVersion.onOrAfter("7.0.0-SNAPSHOT")) {
-                esConfig['discovery.zen.hosts_provider'] = 'file'
-            } else {
-                String unicastTransportUri = node.config.unicastTransportUri(seedNode, node, project.ant)
-                if (unicastTransportUri != null) {
-                    esConfig['discovery.zen.ping.unicast.hosts'] = "\"${unicastTransportUri}\""
-                }
-            }
+            esConfig['discovery.zen.hosts_provider'] = 'file'
             File configFile = new File(node.pathConf, 'elasticsearch.yml')
             logger.info("Configuring ${configFile}")
             configFile.setText(esConfig.collect { key, value -> "${key}: ${value}" }.join('\n'), 'UTF-8')
@@ -708,19 +701,17 @@ class ClusterFormationTasks {
                 }
             }
 
-            nodes.forEach {node ->
-                if (node.nodeVersion.onOrAfter("7.0.0-SNAPSHOT")) {
-                    Collection<String> unicastHosts = new HashSet<>()
-                    nodes.forEach { otherNode ->
-                        String unicastHost = node.config.unicastTransportUri(otherNode, node, project.ant)
-                        if (unicastHost != null) {
-                            unicastHosts.add(unicastHost)
-                        }
+            nodes.forEach { node ->
+                Collection<String> unicastHosts = new HashSet<>()
+                nodes.forEach { otherNode ->
+                    String unicastHost = node.config.unicastTransportUri(otherNode, node, project.ant)
+                    if (unicastHost != null) {
+                        unicastHosts.add(unicastHost)
                     }
-                    node.pathConf.toPath().resolve("unicast_hosts.txt").setText(
-                      String.join("\n", unicastHosts)
-                    )
                 }
+                node.pathConf.toPath().resolve("unicast_hosts.txt").setText(
+                  String.join("\n", unicastHosts)
+                )
             }
 
             if (ant.properties.containsKey("failed${name}".toString())) {

@@ -704,6 +704,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         Set<String> topLevelMethodsExclusions = new HashSet<>();
         topLevelMethodsExclusions.add("getLowLevelClient");
         topLevelMethodsExclusions.add("getRequestActions");
+        topLevelMethodsExclusions.add("buildSubClient");
         topLevelMethodsExclusions.add("close");
 
         Map<String, Method> methods = Arrays.stream(RestHighLevelClient.class.getMethods())

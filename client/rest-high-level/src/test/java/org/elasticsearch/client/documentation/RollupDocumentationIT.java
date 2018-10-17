@@ -33,6 +33,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.rollup.DeleteRollupJobRequest;
+import org.elasticsearch.client.rollup.DeleteRollupJobResponse;
 import org.elasticsearch.client.rollup.GetRollupCapsRequest;
 import org.elasticsearch.client.rollup.GetRollupCapsResponse;
 import org.elasticsearch.client.rollup.GetRollupJobRequest;
@@ -40,8 +42,6 @@ import org.elasticsearch.client.rollup.GetRollupJobResponse;
 import org.elasticsearch.client.rollup.GetRollupJobResponse.JobWrapper;
 import org.elasticsearch.client.rollup.GetRollupJobResponse.RollupIndexerJobStats;
 import org.elasticsearch.client.rollup.GetRollupJobResponse.RollupJobStatus;
-import org.elasticsearch.client.rollup.DeleteRollupJobRequest;
-import org.elasticsearch.client.rollup.DeleteRollupJobResponse;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobResponse;
 import org.elasticsearch.client.rollup.RollableIndexCaps;
@@ -426,8 +426,6 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
             // Swallow any exception, this test does not test actually cancelling.
         }
 
-
-
         // tag::rollup-delete-job-execute-listener
         ActionListener<DeleteRollupJobResponse> listener = new ActionListener<DeleteRollupJobResponse>() {
             @Override
@@ -451,7 +449,5 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::rollup-delete-job-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
-
     }
-
 }

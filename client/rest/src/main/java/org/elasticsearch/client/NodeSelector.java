@@ -24,7 +24,7 @@ import java.util.Iterator;
 /**
  * Selects nodes that can receive requests. Used to keep requests away
  * from master nodes or to send them to nodes with a particular attribute.
- * Use with {@link RequestOptions.Builder#setNodeSelector(NodeSelector)}.
+ * Use with {@link RestClientBuilder#setNodeSelector(NodeSelector)}.
  */
 public interface NodeSelector {
     /**
@@ -68,7 +68,7 @@ public interface NodeSelector {
      * have the {@code master} role OR it has the data {@code data}
      * role.
      */
-    NodeSelector NOT_MASTER_ONLY = new NodeSelector() {
+    NodeSelector SKIP_DEDICATED_MASTERS = new NodeSelector() {
         @Override
         public void select(Iterable<Node> nodes) {
             for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
@@ -84,7 +84,7 @@ public interface NodeSelector {
 
         @Override
         public String toString() {
-            return "NOT_MASTER_ONLY";
+            return "SKIP_DEDICATED_MASTERS";
         }
     };
 }

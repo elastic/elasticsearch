@@ -184,6 +184,7 @@ that triggers every day at noon:
   ...
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 ===== Configuring a Multiple Times Cron Schedule
 
@@ -207,6 +208,7 @@ minute during the weekend:
   ...
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 [[croneval]]
 ===== Verifying Cron Expressions

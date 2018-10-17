@@ -21,8 +21,11 @@ package org.elasticsearch.common.xcontent;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.Instant;
@@ -33,6 +36,19 @@ import org.joda.time.format.ISODateTimeFormat;
 import org.joda.time.tz.CachedDateTimeZone;
 import org.joda.time.tz.FixedDateTimeZone;
 
+import java.time.DayOfWeek;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.Month;
+import java.time.MonthDay;
+import java.time.OffsetDateTime;
+import java.time.OffsetTime;
+import java.time.Period;
+import java.time.Year;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
@@ -49,6 +65,9 @@ import java.util.function.Function;
 public class XContentElasticsearchExtension implements XContentBuilderExtension {
 
     public static final DateTimeFormatter DEFAULT_DATE_PRINTER = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
+    public static final DateFormatter DEFAULT_FORMATTER = DateFormatters.forPattern("strict_date_optional_time_nanos");
+    public static final DateFormatter LOCAL_TIME_FORMATTER = DateFormatters.forPattern("HH:mm:ss.SSS");
+    public static final DateFormatter OFFSET_TIME_FORMATTER = DateFormatters.forPattern("HH:mm:ss.SSSZZZZZ");
 
     @Override
     public Map<Class<?>, XContentBuilder.Writer> getXContentWriters() {
@@ -62,6 +81,20 @@ public class XContentElasticsearchExtension implements XContentBuilderExtension 
         writers.put(MutableDateTime.class, XContentBuilder::timeValue);
         writers.put(DateTime.class, XContentBuilder::timeValue);
         writers.put(TimeValue.class, (b, v) -> b.value(v.toString()));
+        writers.put(ZonedDateTime.class, XContentBuilder::timeValue);
+        writers.put(OffsetDateTime.class, XContentBuilder::timeValue);
+        writers.put(OffsetTime.class, XContentBuilder::timeValue);
+        writers.put(java.time.Instant.class, XContentBuilder::timeValue);
+        writers.put(LocalDateTime.class, XContentBuilder::timeValue);
+        writers.put(LocalDate.class, XContentBuilder::timeValue);
+        writers.put(LocalTime.class, XContentBuilder::timeValue);
+        writers.put(DayOfWeek.class, (b, v) -> b.value(v.toString()));
+        writers.put(Month.class, (b, v) -> b.value(v.toString()));
+        writers.put(MonthDay.class, (b, v) -> b.value(v.toString()));
+        writers.put(Year.class, (b, v) -> b.value(v.toString()));
+        writers.put(Duration.class, (b, v) -> b.value(v.toString()));
+        writers.put(Period.class, (b, v) -> b.value(v.toString()));
+        writers.put(JodaCompatibleZonedDateTime.class, XContentBuilder::timeValue);
 
         writers.put(BytesReference.class, (b, v) -> {
             if (v == null) {
@@ -102,6 +135,16 @@ public class XContentElasticsearchExtension implements XContentBuilderExtension 
         transformers.put(Calendar.class, d -> DEFAULT_DATE_PRINTER.print(((Calendar) d).getTimeInMillis()));
         transformers.put(GregorianCalendar.class, d -> DEFAULT_DATE_PRINTER.print(((Calendar) d).getTimeInMillis()));
         transformers.put(Instant.class, d -> DEFAULT_DATE_PRINTER.print((Instant) d));
+        transformers.put(ZonedDateTime.class, d -> DEFAULT_FORMATTER.format((ZonedDateTime) d));
+        transformers.put(OffsetDateTime.class, d -> DEFAULT_FORMATTER.format((OffsetDateTime) d));
+        transformers.put(OffsetTime.class, d -> OFFSET_TIME_FORMATTER.format((OffsetTime) d));
+        transformers.put(LocalDateTime.class, d -> DEFAULT_FORMATTER.format((LocalDateTime) d));
+        transformers.put(java.time.Instant.class,
+            d -> DEFAULT_FORMATTER.format(ZonedDateTime.ofInstant((java.time.Instant) d, ZoneOffset.UTC)));
+        transformers.put(LocalDate.class, d -> ((LocalDate) d).toString());
+        transformers.put(LocalTime.class, d -> LOCAL_TIME_FORMATTER.format((LocalTime) d));
+        transformers.put(JodaCompatibleZonedDateTime.class,
+            d -> DEFAULT_FORMATTER.format(((JodaCompatibleZonedDateTime) d).getZonedDateTime()));
         return transformers;
     }
 }

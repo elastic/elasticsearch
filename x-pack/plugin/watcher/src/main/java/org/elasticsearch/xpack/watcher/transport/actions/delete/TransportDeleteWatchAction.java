@@ -15,10 +15,11 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchAction;
-import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchRequest;
-import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchResponse;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 
 import java.util.function.Supplier;
@@ -42,7 +43,7 @@ public class TransportDeleteWatchAction extends HandledTransportAction<DeleteWat
     }
 
     @Override
-    protected void doExecute(DeleteWatchRequest request, ActionListener<DeleteWatchResponse> listener) {
+    protected void doExecute(Task task, DeleteWatchRequest request, ActionListener<DeleteWatchResponse> listener) {
         DeleteRequest deleteRequest = new DeleteRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId());
         deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, deleteRequest,

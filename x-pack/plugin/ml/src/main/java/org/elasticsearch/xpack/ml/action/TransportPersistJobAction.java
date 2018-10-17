@@ -19,7 +19,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
@@ -61,7 +61,7 @@ public class TransportPersistJobAction extends TransportJobTaskAction<PersistJob
         // TODO Remove this overridden method in 7.0.0
         DiscoveryNodes nodes = clusterService.state().nodes();
         PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlMetadata.getJobTask(request.getJobId(), tasks);
+        PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlTasks.getJobTask(request.getJobId(), tasks);
         if (jobTask == null || jobTask.getExecutorNode() == null) {
             logger.debug("[{}] Cannot persist the job because the job is not open", request.getJobId());
             listener.onResponse(new PersistJobAction.Response(false));

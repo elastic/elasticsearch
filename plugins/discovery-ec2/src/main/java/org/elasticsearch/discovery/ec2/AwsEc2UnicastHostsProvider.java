@@ -92,7 +92,7 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
     }
 
     @Override
-    public List<TransportAddress> buildDynamicHosts() {
+    public List<TransportAddress> buildDynamicHosts(HostsResolver hostsResolver) {
         return dynamicHosts.getOrRefresh();
     }
 

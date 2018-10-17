@@ -33,9 +33,10 @@ public class CborXContentParserTests extends ESTestCase {
         for (int i = 0; i < 2; i++) {
             // Running this part twice triggers the issue.
             // See https://github.com/elastic/elasticsearch/issues/8629
-            XContentParser parser = createParser(CborXContent.cborXContent, ref);
-            while (parser.nextToken() != null) {
-                parser.charBuffer();
+            try (XContentParser parser = createParser(CborXContent.cborXContent, ref)) {
+                while (parser.nextToken() != null) {
+                    parser.charBuffer();
+                }
             }
         }
     }

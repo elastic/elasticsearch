@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -52,7 +53,7 @@ public final class TransportActionProxy {
         }
 
         @Override
-        public void messageReceived(T request, TransportChannel channel) throws Exception {
+        public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
             DiscoveryNode targetNode = request.targetNode;
             TransportRequest wrappedRequest = request.wrapped;
             service.sendRequest(targetNode, action, wrappedRequest,

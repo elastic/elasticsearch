@@ -19,28 +19,29 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.metrics.max.Max;
-import org.elasticsearch.search.aggregations.metrics.min.Min;
+import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.OverallBucket;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
-import org.elasticsearch.xpack.core.ml.utils.MlIndicesUtils;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.JobManager;
+import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.overallbuckets.OverallBucketsAggregator;
 import org.elasticsearch.xpack.ml.job.persistence.overallbuckets.OverallBucketsCollector;
 import org.elasticsearch.xpack.ml.job.persistence.overallbuckets.OverallBucketsProcessor;
 import org.elasticsearch.xpack.ml.job.persistence.overallbuckets.OverallBucketsProvider;
+import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.util.HashSet;
 import java.util.List;
@@ -74,7 +75,8 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
     }
 
     @Override
-    protected void doExecute(GetOverallBucketsAction.Request request, ActionListener<GetOverallBucketsAction.Response> listener) {
+    protected void doExecute(Task task, GetOverallBucketsAction.Request request,
+                             ActionListener<GetOverallBucketsAction.Response> listener) {
         QueryPage<Job> jobsPage = jobManager.expandJobs(request.getJobId(), request.allowNoJobs(), clusterService.state());
         if (jobsPage.count() == 0) {
             listener.onResponse(new GetOverallBucketsAction.Response());

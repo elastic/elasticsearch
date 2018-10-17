@@ -29,14 +29,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -51,15 +47,15 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-
 public class GeoDistanceIT extends ESIntegTestCase {
+
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class);
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
     }
 
     public void testDistanceSortingMVFields() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
                 Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
@@ -189,7 +185,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
     // Regression bug:
     // https://github.com/elastic/elasticsearch/issues/2851
     public void testDistanceSortingWithMissingGeoPoint() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
                 Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
@@ -234,7 +230,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     public void testDistanceSortingNestedFields() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
                 Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("company").startObject("properties")
@@ -383,7 +379,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
      * Issue 3073
      */
     public void testGeoDistanceFilter() throws IOException {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
                 Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         double lat = 40.720611;

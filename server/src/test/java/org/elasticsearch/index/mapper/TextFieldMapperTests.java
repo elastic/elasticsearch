@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.FieldType;
@@ -55,6 +56,7 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -82,10 +84,6 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
     @Before
     public void setup() {
         Settings settings = Settings.builder()
-            .put("index.analysis.filter.mySynonyms.type", "synonym")
-            .putList("index.analysis.filter.mySynonyms.synonyms", Collections.singletonList("car, auto"))
-            .put("index.analysis.analyzer.synonym.tokenizer", "standard")
-            .put("index.analysis.analyzer.synonym.filter", "mySynonyms")
             // Stop filter remains in server as it is part of lucene-core
             .put("index.analysis.analyzer.my_stop_analyzer.tokenizer", "standard")
             .put("index.analysis.analyzer.my_stop_analyzer.filter", "stop")
@@ -490,9 +488,10 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
         assertEquals(mapping, mapper.mappingSource().toString());
-        assertTrue(mapper.mappers().getMapper("field").fieldType().eagerGlobalOrdinals());
+
+        FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
+        assertTrue(fieldMapper.fieldType().eagerGlobalOrdinals());
     }
 
     public void testFielddata() throws IOException {
@@ -504,8 +503,10 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper disabledMapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, disabledMapper.mappingSource().toString());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> disabledMapper.mappers().getMapper("field").fieldType().fielddataBuilder("test"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            FieldMapper fieldMapper = (FieldMapper) disabledMapper.mappers().getMapper("field");
+            fieldMapper.fieldType().fielddataBuilder("test");
+        });
         assertThat(e.getMessage(), containsString("Fielddata is disabled"));
 
         mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -518,7 +519,9 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper enabledMapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, enabledMapper.mappingSource().toString());
-        enabledMapper.mappers().getMapper("field").fieldType().fielddataBuilder("test"); // no exception this time
+
+        FieldMapper enabledFieldMapper = (FieldMapper) enabledMapper.mappers().getMapper("field");
+        enabledFieldMapper.fieldType().fielddataBuilder("test"); // no exception this time
 
         String illegalMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
@@ -547,7 +550,9 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
-        TextFieldType fieldType = (TextFieldType) mapper.mappers().getMapper("field").fieldType();
+        TextFieldMapper fieldMapper = (TextFieldMapper) mapper.mappers().getMapper("field");
+        TextFieldType fieldType = fieldMapper.fieldType();
+
         assertThat(fieldType.fielddataMinFrequency(), equalTo(2d));
         assertThat(fieldType.fielddataMaxFrequency(), equalTo((double) Integer.MAX_VALUE));
         assertThat(fieldType.fielddataMinSegmentSize(), equalTo(1000));
@@ -614,11 +619,6 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexPrefixIndexTypes() throws IOException {
-        QueryShardContext queryShardContext = indexService.newQueryShardContext(
-            randomInt(20), null, () -> {
-                throw new UnsupportedOperationException();
-            }, null);
-
         {
             String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
@@ -630,7 +630,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
-            FieldMapper prefix = mapper.mappers().getMapper("field._index_prefix");
+            FieldMapper prefix = (FieldMapper) mapper.mappers().getMapper("field._index_prefix");
             FieldType ft = prefix.fieldType;
             assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS, ft.indexOptions());
         }
@@ -646,7 +646,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
-            FieldMapper prefix = mapper.mappers().getMapper("field._index_prefix");
+            FieldMapper prefix = (FieldMapper) mapper.mappers().getMapper("field._index_prefix");
             FieldType ft = prefix.fieldType;
             assertEquals(IndexOptions.DOCS, ft.indexOptions());
             assertFalse(ft.storeTermVectors());
@@ -663,7 +663,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
-            FieldMapper prefix = mapper.mappers().getMapper("field._index_prefix");
+            FieldMapper prefix = (FieldMapper) mapper.mappers().getMapper("field._index_prefix");
             FieldType ft = prefix.fieldType;
             if (indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_4_0)) {
                 assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
@@ -684,7 +684,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
-            FieldMapper prefix = mapper.mappers().getMapper("field._index_prefix");
+            FieldMapper prefix = (FieldMapper) mapper.mappers().getMapper("field._index_prefix");
             FieldType ft = prefix.fieldType;
             if (indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_4_0)) {
                 assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
@@ -705,7 +705,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
-            FieldMapper prefix = mapper.mappers().getMapper("field._index_prefix");
+            FieldMapper prefix = (FieldMapper) mapper.mappers().getMapper("field._index_prefix");
             FieldType ft = prefix.fieldType;
             if (indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_4_0)) {
                 assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
@@ -732,7 +732,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
             .startObject("synfield")
             .field("type", "text")
-            .field("analyzer", "synonym")
+            .field("analyzer", "standard")  // will be replaced with MockSynonymAnalyzer
             .field("index_phrases", true)
             .endObject()
             .endObject()
@@ -759,11 +759,13 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(q5,
             is(new PhraseQuery.Builder().add(new Term("field", "sparkle")).add(new Term("field", "stopword"), 2).build()));
 
-        Query q6 = new MatchPhraseQueryBuilder("synfield", "motor car").toQuery(queryShardContext);
+        MatchQuery matchQuery = new MatchQuery(queryShardContext);
+        matchQuery.setAnalyzer(new MockSynonymAnalyzer());
+        Query q6 = matchQuery.parse(MatchQuery.Type.PHRASE, "synfield", "motor dogs");
         assertThat(q6, is(new MultiPhraseQuery.Builder()
             .add(new Term[]{
-                new Term("synfield._index_phrase", "motor car"),
-                new Term("synfield._index_phrase", "motor auto")})
+                new Term("synfield._index_phrase", "motor dogs"),
+                new Term("synfield._index_phrase", "motor dog")})
             .build()));
 
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
@@ -836,10 +838,13 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
             assertThat(mapper.mappers().getMapper("field._index_prefix").toString(), containsString("prefixChars=1:10"));
 
-            Query q = mapper.mappers().getMapper("field").fieldType().prefixQuery("goin", CONSTANT_SCORE_REWRITE, queryShardContext);
+            FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
+            MappedFieldType fieldType = fieldMapper.fieldType;
+
+            Query q = fieldType.prefixQuery("goin", CONSTANT_SCORE_REWRITE, queryShardContext);
+
             assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field._index_prefix", "goin"))), q);
-            q = mapper.mappers().getMapper("field").fieldType().prefixQuery("internationalisatio",
-                CONSTANT_SCORE_REWRITE, queryShardContext);
+            q = fieldType.prefixQuery("internationalisatio", CONSTANT_SCORE_REWRITE, queryShardContext);
             assertEquals(new PrefixQuery(new Term("field", "internationalisatio")), q);
 
             ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
@@ -864,17 +869,16 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             CompressedXContent json = new CompressedXContent(mapping);
             DocumentMapper mapper = parser.parse("type", json);
 
-            Query q1 = mapper.mappers().getMapper("field").fieldType().prefixQuery("g",
-                CONSTANT_SCORE_REWRITE, queryShardContext);
+            FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
+            MappedFieldType fieldType = fieldMapper.fieldType;
+
+            Query q1 = fieldType.prefixQuery("g", CONSTANT_SCORE_REWRITE, queryShardContext);
             assertThat(q1, instanceOf(PrefixQuery.class));
-            Query q2 = mapper.mappers().getMapper("field").fieldType().prefixQuery("go",
-                CONSTANT_SCORE_REWRITE, queryShardContext);
+            Query q2 = fieldType.prefixQuery("go", CONSTANT_SCORE_REWRITE, queryShardContext);
             assertThat(q2, instanceOf(ConstantScoreQuery.class));
-            Query q5 = mapper.mappers().getMapper("field").fieldType().prefixQuery("going",
-                CONSTANT_SCORE_REWRITE, queryShardContext);
+            Query q5 = fieldType.prefixQuery("going", CONSTANT_SCORE_REWRITE, queryShardContext);
             assertThat(q5, instanceOf(ConstantScoreQuery.class));
-            Query q6 = mapper.mappers().getMapper("field").fieldType().prefixQuery("goings",
-                CONSTANT_SCORE_REWRITE, queryShardContext);
+            Query q6 = fieldType.prefixQuery("goings", CONSTANT_SCORE_REWRITE, queryShardContext);
             assertThat(q6, instanceOf(PrefixQuery.class));
         }
 

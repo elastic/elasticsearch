@@ -19,8 +19,7 @@ import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.LiteralAttribute;
 import org.elasticsearch.xpack.sql.expression.function.ScoreAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ScoreProcessorDefinition;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByKey;
 import org.elasticsearch.xpack.sql.querydsl.agg.LeafAgg;
@@ -64,7 +63,7 @@ public class QueryContainer {
 
     // scalar function processors - recorded as functions get folded;
     // at scrolling, their inputs (leaves) get updated
-    private final Map<Attribute, ProcessorDefinition> scalarFunctions;
+    private final Map<Attribute, Pipe> scalarFunctions;
 
     private final Set<Sort> sort;
     private final int limit;
@@ -78,7 +77,7 @@ public class QueryContainer {
 
     public QueryContainer(Query query, Aggs aggs, List<FieldExtraction> refs, Map<Attribute, Attribute> aliases,
             Map<String, GroupByKey> pseudoFunctions,
-            Map<Attribute, ProcessorDefinition> scalarFunctions,
+            Map<Attribute, Pipe> scalarFunctions,
             Set<Sort> sort, int limit) {
         this.query = query;
         this.aggs = aggs == null ? new Aggs() : aggs;
@@ -155,7 +154,7 @@ public class QueryContainer {
         return l == limit ? this : new QueryContainer(query, aggs, columns, aliases, pseudoFunctions, scalarFunctions, sort, l);
     }
 
-    public QueryContainer withScalarProcessors(Map<Attribute, ProcessorDefinition> procs) {
+    public QueryContainer withScalarProcessors(Map<Attribute, Pipe> procs) {
         return new QueryContainer(query, aggs, columns, aliases, pseudoFunctions, procs, sort, limit);
     }
 
@@ -215,22 +214,22 @@ public class QueryContainer {
         return new BoolQuery(location, true, query, nested);
     }
 
-    // replace function's input with references
-    private Tuple<QueryContainer, FieldExtraction> computingRef(ScalarFunctionAttribute sfa) {
-        Attribute name = aliases.getOrDefault(sfa, sfa);
-        ProcessorDefinition proc = scalarFunctions.get(name);
+    // replace function/operators's input with references
+    private Tuple<QueryContainer, FieldExtraction> resolvedTreeComputingRef(ScalarFunctionAttribute ta) {
+        Attribute attribute = aliases.getOrDefault(ta, ta);
+        Pipe proc = scalarFunctions.get(attribute);
 
         // check the attribute itself
         if (proc == null) {
-            if (name instanceof ScalarFunctionAttribute) {
-                sfa = (ScalarFunctionAttribute) name;
+            if (attribute instanceof ScalarFunctionAttribute) {
+                ta = (ScalarFunctionAttribute) attribute;
             }
-            proc = sfa.processorDef();
+            proc = ta.asPipe();
         }
 
         // find the processor inputs (Attributes) and convert them into references
         // no need to promote them to the top since the container doesn't have to be aware
-        class QueryAttributeResolver implements ProcessorDefinition.AttributeResolver {
+        class QueryAttributeResolver implements Pipe.AttributeResolver {
             private QueryContainer container;
 
             private QueryAttributeResolver(QueryContainer container) {
@@ -250,8 +249,8 @@ public class QueryContainer {
         QueryContainer qContainer = resolver.container;
 
         // update proc
-        Map<Attribute, ProcessorDefinition> procs = new LinkedHashMap<>(qContainer.scalarFunctions());
-        procs.put(name, proc);
+        Map<Attribute, Pipe> procs = new LinkedHashMap<>(qContainer.scalarFunctions());
+        procs.put(attribute, proc);
         qContainer = qContainer.withScalarProcessors(procs);
         return new Tuple<>(qContainer, new ComputedRef(proc));
     }
@@ -271,13 +270,13 @@ public class QueryContainer {
             }
         }
         if (attr instanceof ScalarFunctionAttribute) {
-            return computingRef((ScalarFunctionAttribute) attr);
+            return resolvedTreeComputingRef((ScalarFunctionAttribute) attr);
         }
         if (attr instanceof LiteralAttribute) {
-            return new Tuple<>(this, new ComputedRef(((LiteralAttribute) attr).asProcessorDefinition()));
+            return new Tuple<>(this, new ComputedRef(((LiteralAttribute) attr).asPipe()));
         }
         if (attr instanceof ScoreAttribute) {
-            return new Tuple<>(this, new ComputedRef(new ScoreProcessorDefinition(attr.location(), attr)));
+            return new Tuple<>(this, new ComputedRef(((ScoreAttribute) attr).asPipe()));
         }
 
         throw new SqlIllegalArgumentException("Unknown output attribute {}", attr);
@@ -287,7 +286,7 @@ public class QueryContainer {
         return with(combine(columns, ref));
     }
 
-    public Map<Attribute, ProcessorDefinition> scalarFunctions() {
+    public Map<Attribute, Pipe> scalarFunctions() {
         return scalarFunctions;
     }
 

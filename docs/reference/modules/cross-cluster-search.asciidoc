@@ -38,7 +38,7 @@ remote clusters that should be connected to, for instance:
 
 [source,yaml]
 --------------------------------
-search:
+cluster:
     remote:
         cluster_one: <1>
             seeds: 127.0.0.1:9300
@@ -58,7 +58,7 @@ following:
 PUT _cluster/settings
 {
   "persistent": {
-    "search": {
+    "cluster": {
       "remote": {
         "cluster_one": {
           "seeds": [
@@ -94,7 +94,7 @@ because we'll use them later.
 {
     "acknowledged" : true,
     "persistent": {
-        "search": {
+        "cluster": {
           "remote": {
             "cluster_one": {
               "seeds": [
@@ -129,7 +129,7 @@ A remote cluster can be deleted from the cluster settings by setting its seeds t
 PUT _cluster/settings
 {
   "persistent": {
-    "search": {
+    "cluster": {
       "remote": {
         "cluster_three": {
           "seeds": null <1>
@@ -309,7 +309,7 @@ boolean `skip_unavailable` setting, set to `false` by default.
 PUT _cluster/settings
 {
   "persistent": {
-    "search.remote.cluster_two.skip_unavailable": true <1>
+    "cluster.remote.cluster_two.skip_unavailable": true <1>
   }
 }
 --------------------------------
@@ -391,30 +391,30 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
 [[cross-cluster-search-settings]]
 === Cross cluster search settings
 
-`search.remote.connections_per_cluster`::
+`cluster.remote.connections_per_cluster`::
 
   The number of nodes to connect to per remote cluster. The default is `3`.
 
-`search.remote.initial_connect_timeout`::
+`cluster.remote.initial_connect_timeout`::
 
   The time to wait for remote connections to be established when the node starts. The default is `30s`.
 
-`search.remote.node.attr`::
+`cluster.remote.node.attr`::
 
   A node attribute to filter out nodes that are eligible as a gateway node in
   the remote cluster. For instance a node can have a node attribute
   `node.attr.gateway: true` such that only nodes with this attribute will be
-  connected to if `search.remote.node.attr` is set to `gateway`.
+  connected to if `cluster.remote.node.attr` is set to `gateway`.
 
-`search.remote.connect`::
+`cluster.remote.connect`::
 
   By default, any node in the cluster can act as a cross-cluster client and
-  connect to remote clusters. The `search.remote.connect` setting can be set
+  connect to remote clusters. The `cluster.remote.connect` setting can be set
   to `false` (defaults to `true`) to prevent certain nodes from connecting to
   remote clusters. Cross-cluster search requests must be sent to a node that
   is allowed to act as a cross-cluster client.
 
-`search.remote.${cluster_alias}.skip_unavailable`::
+`cluster.remote.${cluster_alias}.skip_unavailable`::
 
   Per cluster boolean setting that allows to skip specific clusters when no
   nodes belonging to them are available and they are searched as part of a

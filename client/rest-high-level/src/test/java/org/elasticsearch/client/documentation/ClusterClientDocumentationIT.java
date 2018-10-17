@@ -23,6 +23,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -49,25 +51,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * This class is used to generate the Java Cluster API documentation.
- * You need to wrap your code between two tags like:
- * // tag::example
- * // end::example
- *
- * Where example is your tag name.
- *
- * Then in the documentation, you can extract what is between tag and end tags with
- * ["source","java",subs="attributes,callouts,macros"]
- * --------------------------------------------------
- * include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[example]
- * --------------------------------------------------
- *
- * The column width of the code block is 84. If the code contains a line longer
- * than 84, the line will be cut and a horizontal scroll bar will be displayed.
- * (the code indentation of the tag is not included in the width)
+ * Documentation for Cluster APIs in the high level java client.
+ * Code wrapped in {@code tag} and {@code end} tags is included in the docs.
  */
 public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
@@ -189,6 +178,73 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
+    @SuppressWarnings("unused")
+    public void testClusterGetSettings() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        // tag::get-settings-request
+        ClusterGetSettingsRequest request = new ClusterGetSettingsRequest();
+        // end::get-settings-request
+
+        // tag::get-settings-request-includeDefaults
+        request.includeDefaults(true); // <1>
+        // end::get-settings-request-includeDefaults
+
+        // tag::get-settings-request-local
+        request.local(true); // <1>
+        // end::get-settings-request-local
+
+        // tag::get-settings-request-masterTimeout
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.masterNodeTimeout("1m"); // <2>
+        // end::get-settings-request-masterTimeout
+
+        // tag::get-settings-execute
+        ClusterGetSettingsResponse response = client.cluster().getSettings(request, RequestOptions.DEFAULT); // <1>
+        // end::get-settings-execute
+
+        // tag::get-settings-response
+        Settings persistentSettings = response.getPersistentSettings(); // <1>
+        Settings transientSettings = response.getTransientSettings(); // <2>
+        Settings defaultSettings = response.getDefaultSettings(); // <3>
+        String settingValue = response.getSetting("cluster.routing.allocation.enable"); // <4>
+        // end::get-settings-response
+
+        assertThat(defaultSettings.size(), greaterThan(0));
+    }
+
+    public void testClusterGetSettingsAsync() throws InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        ClusterGetSettingsRequest request = new ClusterGetSettingsRequest();
+
+        // tag::get-settings-execute-listener
+        ActionListener<ClusterGetSettingsResponse> listener =
+            new ActionListener<ClusterGetSettingsResponse>() {
+                @Override
+                public void onResponse(ClusterGetSettingsResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::get-settings-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::get-settings-execute-async
+        client.cluster().getSettingsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::get-settings-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    @SuppressWarnings("unused")
     public void testClusterHealth() throws IOException {
         RestHighLevelClient client = highLevelClient();
         client.indices().create(new CreateIndexRequest("index"), RequestOptions.DEFAULT);

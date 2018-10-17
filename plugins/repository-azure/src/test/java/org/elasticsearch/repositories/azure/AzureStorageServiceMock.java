@@ -22,12 +22,10 @@ package org.elasticsearch.repositories.azure;
 import com.microsoft.azure.storage.OperationContext;
 import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
-
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.Streams;
 
@@ -50,7 +48,7 @@ import static java.util.Collections.emptyMap;
 /**
  * In memory storage for unit tests
  */
-public class AzureStorageServiceMock extends AbstractComponent implements AzureStorageService {
+public class AzureStorageServiceMock extends AzureStorageService {
 
     protected final Map<String, ByteArrayOutputStream> blobs = new ConcurrentHashMap<>();
 
@@ -64,17 +62,11 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
     }
 
     @Override
-    public void removeContainer(String account, String container) {
-    }
-
-    @Override
-    public void createContainer(String account, String container) {
-    }
-
-    @Override
-    public void deleteFiles(String account, String container, String path) {
+    public void deleteFiles(String account, String container, String path) throws URISyntaxException, StorageException {
         final Map<String, BlobMetaData> blobs = listBlobsByPrefix(account, container, path, null);
-        blobs.keySet().forEach(key -> deleteBlob(account, container, key));
+        for (String key : blobs.keySet()) {
+            deleteBlob(account, container, key);
+        }
     }
 
     @Override
@@ -83,8 +75,10 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
     }
 
     @Override
-    public void deleteBlob(String account, String container, String blob) {
-        blobs.remove(blob);
+    public void deleteBlob(String account, String container, String blob) throws URISyntaxException, StorageException {
+        if (blobs.remove(blob) == null) {
+            throw new StorageException("BlobNotFound", "[" + blob + "] does not exist.", 404, null, null);
+        }
     }
 
     @Override
@@ -114,9 +108,10 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
     }
 
     @Override
-    public void writeBlob(String account, String container, String blobName, InputStream inputStream, long blobSize)
+    public void writeBlob(String account, String container, String blobName, InputStream inputStream, long blobSize,
+                          boolean failIfAlreadyExists)
         throws URISyntaxException, StorageException, FileAlreadyExistsException {
-        if (blobs.containsKey(blobName)) {
+        if (failIfAlreadyExists && blobs.containsKey(blobName)) {
             throw new FileAlreadyExistsException(blobName);
         }
         try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {

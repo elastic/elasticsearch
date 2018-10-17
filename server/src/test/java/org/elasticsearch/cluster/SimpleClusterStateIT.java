@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -38,14 +39,20 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.CollectionAssertions;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -53,9 +60,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Supplier;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
 import static org.hamcrest.Matchers.equalTo;
@@ -279,13 +286,11 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         }
     }
 
-    public void testPrivateCustomsAreExcluded() {
+    public void testPrivateCustomsAreExcluded() throws Exception {
+        // ensure that the custom is injected into the cluster state
+        assertBusy(() -> assertTrue(clusterService().state().customs().containsKey("test")));
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().setCustoms(true).get();
         assertFalse(clusterStateResponse.getState().customs().containsKey("test"));
-        // just to make sure there is something
-        assertTrue(clusterStateResponse.getState().customs().containsKey(SnapshotDeletionsInProgress.TYPE));
-        ClusterState state = internalCluster().getInstance(ClusterService.class).state();
-        assertTrue(state.customs().containsKey("test"));
     }
 
     private static class TestCustom extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
@@ -334,16 +339,60 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         public PrivateCustomPlugin() {}
 
         @Override
-        public Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() {
-            return Collections.singletonMap("test", () -> new TestCustom(1));
-        }
-
-        @Override
         public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
             entries.add(new NamedWriteableRegistry.Entry(ClusterState.Custom.class, "test", TestCustom::new));
             entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, "test", TestCustom::readDiffFrom));
             return entries;
+        }
+
+        private final AtomicBoolean installed = new AtomicBoolean();
+
+        @Override
+        public Collection<Object> createComponents(
+            final Client client,
+            final ClusterService clusterService,
+            final ThreadPool threadPool,
+            final ResourceWatcherService resourceWatcherService,
+            final ScriptService scriptService,
+            final NamedXContentRegistry xContentRegistry,
+            final Environment environment,
+            final NodeEnvironment nodeEnvironment,
+            final NamedWriteableRegistry namedWriteableRegistry) {
+            clusterService.addListener(event -> {
+                final ClusterState state = event.state();
+                if (state.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
+                    return;
+                }
+
+                if (state.nodes().isLocalNodeElectedMaster()) {
+                    if (state.custom("test") == null) {
+                        if (installed.compareAndSet(false, true)) {
+                            clusterService.submitStateUpdateTask("install-metadata-custom", new ClusterStateUpdateTask(Priority.URGENT) {
+
+                                @Override
+                                public ClusterState execute(ClusterState currentState) {
+                                    if (currentState.custom("test") == null) {
+                                        final ClusterState.Builder builder = ClusterState.builder(currentState);
+                                        builder.putCustom("test", new TestCustom(42));
+                                        return builder.build();
+                                    } else {
+                                        return currentState;
+                                    }
+                                }
+
+                                @Override
+                                public void onFailure(String source, Exception e) {
+                                    throw new AssertionError(e);
+                                }
+
+                            });
+                        }
+                    }
+                }
+
+            });
+            return Collections.emptyList();
         }
     }
 }

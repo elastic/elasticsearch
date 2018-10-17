@@ -53,6 +53,10 @@ public class TableIdentifier {
         return location;
     }
 
+    public String qualifiedIndex() {
+        return cluster != null ? cluster + ":" + index : index;
+    }
+
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();

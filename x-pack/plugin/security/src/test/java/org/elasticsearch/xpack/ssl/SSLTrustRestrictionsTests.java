@@ -19,11 +19,12 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.core.ssl.RestrictedTrustManager;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
@@ -71,6 +72,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
     @BeforeClass
     public static void setupCertificates() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, custom TrustManager implementations cannot be used.", inFipsJvm());
         configPath = createTempDir();
         Path caCertPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
                 ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt").toURI());
@@ -163,7 +165,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         writeRestrictions("*.trusted");
         try {
             tryConnect(trustedCert);
-        } catch (SSLHandshakeException | SocketException ex) {
+        } catch (SSLException | SocketException ex) {
             logger.warn(new ParameterizedMessage("unexpected handshake failure with certificate [{}] [{}]",
                     trustedCert.certificate.getSubjectDN(), trustedCert.certificate.getSubjectAlternativeNames()), ex);
             fail("handshake should have been successful, but failed with " + ex);
@@ -175,7 +177,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         try {
             tryConnect(untrustedCert);
             fail("handshake should have failed, but was successful");
-        } catch (SSLHandshakeException | SocketException ex) {
+        } catch (SSLException | SocketException ex) {
             // expected
         }
     }
@@ -185,7 +187,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         assertBusy(() -> {
             try {
                 tryConnect(untrustedCert);
-            } catch (SSLHandshakeException | SocketException ex) {
+            } catch (SSLException | SocketException ex) {
                 fail("handshake should have been successful, but failed with " + ex);
             }
         }, MAX_WAIT_RELOAD.millis(), TimeUnit.MILLISECONDS);
@@ -195,7 +197,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
             try {
                 tryConnect(untrustedCert);
                 fail("handshake should have failed, but was successful");
-            } catch (SSLHandshakeException | SocketException ex) {
+            } catch (SSLException | SocketException ex) {
                 // expected
             }
         }, MAX_WAIT_RELOAD.millis(), TimeUnit.MILLISECONDS);
@@ -212,7 +214,8 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
         String node = randomFrom(internalCluster().getNodeNames());
         SSLService sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
-        SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(settings);
+        SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.ssl");
+        SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(sslConfiguration);
         TransportAddress address = internalCluster().getInstance(Transport.class, node).boundAddress().publishAddress();
         try (SSLSocket socket = (SSLSocket) sslSocketFactory.createSocket(address.getAddress(), address.getPort())) {
             assertThat(socket.isConnected(), is(true));

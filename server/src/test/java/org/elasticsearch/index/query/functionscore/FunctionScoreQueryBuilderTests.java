@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -256,17 +257,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         assertThat(query, either(instanceOf(FunctionScoreQuery.class)).or(instanceOf(FunctionScoreQuery.class)));
     }
 
-    /**
-     * Overridden here to ensure the test is only run if at least one type is
-     * present in the mappings. Functions require the field to be
-     * explicitly mapped
-     */
-    @Override
-    public void testToQuery() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        super.testToQuery();
-    }
-
     public void testIllegalArguments() {
         expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder((QueryBuilder) null));
         expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder((ScoreFunctionBuilder<?>) null));
@@ -283,6 +273,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         FunctionScoreQueryBuilder builder = new FunctionScoreQueryBuilder(matchAllQuery());
         expectThrows(IllegalArgumentException.class, () -> builder.scoreMode(null));
         expectThrows(IllegalArgumentException.class, () -> builder.boostMode(null));
+        expectThrows(IllegalArgumentException.class,
+                () -> new FunctionScoreQueryBuilder.FilterFunctionBuilder(new WeightBuilder().setWeight(-1 * randomFloat())));
     }
 
     public void testParseFunctionsArray() throws IOException {
@@ -487,7 +479,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testWeight1fStillProducesWeightFunction() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String queryString = Strings.toString(jsonBuilder().startObject()
             .startObject("function_score")
             .startArray("functions")
@@ -648,12 +639,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         assertEquals(json, 42, parsed.boost(), 0.0001);
         assertEquals(json, 100, parsed.maxBoost(), 0.00001);
         assertEquals(json, 1, parsed.getMinScore(), 0.0001);
-    }
-
-    @Override
-    public void testMustRewrite() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        super.testMustRewrite();
     }
 
     public void testRewrite() throws IOException {

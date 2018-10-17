@@ -18,17 +18,20 @@ the API, and other roles that are mapped through files.
 
 When you use role-mappings, you assign existing roles to users.
 The available roles should either be added using the
-{ref}/security-api-roles.html[Role Management APIs] or defined in the
+{ref}/security-api.html#security-role-apis[role management APIs] or defined in the
 <<roles-management-file, roles file>>. Either role-mapping method can use
 either role management method. For example, when you use the role mapping API,
 you are able to map users to both API-managed roles and file-managed roles
 (and likewise for file-based role-mappings).
 
+NOTE: The PKI, LDAP, Kerberos and SAML realms support using
+<<authorization_realms, authorization realms>> as an alternative to role mapping.
+
 [[mapping-roles-api]]
 ==== Using the role mapping API
 
 You can define role-mappings through the
-{ref}/security-api-role-mapping.html[role mapping API].
+{ref}/security-api-put-role-mapping.html[add role mapping API].
 
 [[mapping-roles-file]]
 ==== Using role mapping files

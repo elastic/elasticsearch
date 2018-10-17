@@ -20,27 +20,52 @@
 package org.elasticsearch.script.expression;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.text.ParseException;
 import java.util.Collections;
 
-public class ExpressionTests extends ESSingleNodeTestCase {
-    ExpressionScriptEngine service;
-    SearchLookup lookup;
+import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.anyObject;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+public class ExpressionTests extends ESTestCase {
+    private ExpressionScriptEngine service;
+    private SearchLookup lookup;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        IndexService index = createIndex("test", Settings.EMPTY, "type", "d", "type=double");
+
+        NumberFieldType fieldType = new NumberFieldType(NumberType.DOUBLE);
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.fullName("field")).thenReturn(fieldType);
+        when(mapperService.fullName("alias")).thenReturn(fieldType);
+
+        SortedNumericDoubleValues doubleValues = mock(SortedNumericDoubleValues.class);
+        when(doubleValues.advanceExact(anyInt())).thenReturn(true);
+        when(doubleValues.nextValue()).thenReturn(2.718);
+
+        AtomicNumericFieldData atomicFieldData = mock(AtomicNumericFieldData.class);
+        when(atomicFieldData.getDoubleValues()).thenReturn(doubleValues);
+
+        IndexNumericFieldData fieldData = mock(IndexNumericFieldData.class);
+        when(fieldData.getFieldName()).thenReturn("field");
+        when(fieldData.load(anyObject())).thenReturn(atomicFieldData);
+
         service = new ExpressionScriptEngine(Settings.EMPTY);
-        QueryShardContext shardContext = index.newQueryShardContext(0, null, () -> 0, null);
-        lookup = new SearchLookup(index.mapperService(), shardContext::getForField, null);
+        lookup = new SearchLookup(mapperService, ignored -> fieldData, null);
     }
 
     private SearchScript.LeafFactory compile(String expression) {
@@ -50,22 +75,38 @@ public class ExpressionTests extends ESSingleNodeTestCase {
 
     public void testNeedsScores() {
         assertFalse(compile("1.2").needs_score());
-        assertFalse(compile("doc['d'].value").needs_score());
+        assertFalse(compile("doc['field'].value").needs_score());
         assertTrue(compile("1/_score").needs_score());
-        assertTrue(compile("doc['d'].value * _score").needs_score());
+        assertTrue(compile("doc['field'].value * _score").needs_score());
     }
 
     public void testCompileError() {
         ScriptException e = expectThrows(ScriptException.class, () -> {
-            compile("doc['d'].value * *@#)(@$*@#$ + 4");
+            compile("doc['field'].value * *@#)(@$*@#$ + 4");
         });
         assertTrue(e.getCause() instanceof ParseException);
     }
 
     public void testLinkError() {
         ScriptException e = expectThrows(ScriptException.class, () -> {
-            compile("doc['e'].value * 5");
+            compile("doc['nonexistent'].value * 5");
         });
         assertTrue(e.getCause() instanceof ParseException);
+    }
+
+    public void testFieldAccess() throws IOException {
+        SearchScript script = compile("doc['field'].value").newInstance(null);
+        script.setDocument(1);
+
+        double result = script.runAsDouble();
+        assertEquals(2.718, result, 0.0);
+    }
+
+    public void testFieldAccessWithFieldAlias() throws IOException {
+        SearchScript script = compile("doc['alias'].value").newInstance(null);
+        script.setDocument(1);
+
+        double result = script.runAsDouble();
+        assertEquals(2.718, result, 0.0);
     }
 }

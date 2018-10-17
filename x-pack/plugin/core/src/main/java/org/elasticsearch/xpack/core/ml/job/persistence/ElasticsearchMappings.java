@@ -227,23 +227,6 @@ public class ElasticsearchMappings {
             .startObject(Bucket.SCHEDULED_EVENTS.getPreferredName())
                 .field(TYPE, KEYWORD)
             .endObject()
-            .startObject(Bucket.PARTITION_SCORES.getPreferredName())
-                .field(TYPE, NESTED)
-                .startObject(PROPERTIES)
-                    .startObject(AnomalyRecord.PARTITION_FIELD_NAME.getPreferredName())
-                        .field(TYPE, KEYWORD)
-                    .endObject()
-                    .startObject(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName())
-                        .field(TYPE, KEYWORD)
-                    .endObject()
-                    .startObject(Bucket.INITIAL_ANOMALY_SCORE.getPreferredName())
-                        .field(TYPE, DOUBLE)
-                    .endObject()
-                    .startObject(AnomalyRecord.PROBABILITY.getPreferredName())
-                        .field(TYPE, DOUBLE)
-                    .endObject()
-                .endObject()
-            .endObject()
 
             .startObject(Bucket.BUCKET_INFLUENCERS.getPreferredName())
                 .field(TYPE, NESTED)
@@ -328,7 +311,7 @@ public class ElasticsearchMappings {
     }
 
     private static void addForecastFieldsToMapping(XContentBuilder builder) throws IOException {
-        
+
         // Forecast Output
         builder.startObject(Forecast.FORECAST_LOWER.getPreferredName())
             .field(TYPE, DOUBLE)
@@ -370,7 +353,7 @@ public class ElasticsearchMappings {
             .field(TYPE, LONG)
         .endObject();
     }
-    
+
     /**
      * AnomalyRecord fields to be added under the 'properties' section of the mapping
      * @param builder Add properties to this builder
@@ -387,6 +370,9 @@ public class ElasticsearchMappings {
             .field(TYPE, DOUBLE)
         .endObject()
         .startObject(AnomalyRecord.PROBABILITY.getPreferredName())
+            .field(TYPE, DOUBLE)
+        .endObject()
+        .startObject(AnomalyRecord.MULTI_BUCKET_IMPACT.getPreferredName())
             .field(TYPE, DOUBLE)
         .endObject()
         .startObject(AnomalyRecord.FUNCTION.getPreferredName())

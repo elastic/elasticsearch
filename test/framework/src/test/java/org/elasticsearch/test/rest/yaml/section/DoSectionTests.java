@@ -482,7 +482,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 "        type: test_type\n" +
                 "warnings:\n" +
                 "    - some test warning they are typically pretty long\n" +
-                "    - some other test warning somtimes they have [in] them"
+                "    - some other test warning sometimes they have [in] them"
         );
 
         DoSection doSection = DoSection.parse(parser);
@@ -496,7 +496,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(doSection.getApiCallSection().getBodies().size(), equalTo(0));
         assertThat(doSection.getExpectedWarningHeaders(), equalTo(Arrays.asList(
                 "some test warning they are typically pretty long",
-                "some other test warning somtimes they have [in] them")));
+                "some other test warning sometimes they have [in] them")));
 
         parser = createParser(YamlXContent.yamlXContent,
                 "indices.get_field_mapping:\n" +
@@ -540,6 +540,15 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         doSection.execute(context);
         verify(context).callApi("indices.get_field_mapping", singletonMap("index", "test_index"),
                 emptyList(), emptyMap(), doSection.getApiCallSection().getNodeSelector());
+
+        {
+            List<Node> badNodes = new ArrayList<>();
+            badNodes.add(new Node(new HttpHost("dummy")));
+            Exception e = expectThrows(IllegalStateException.class, () ->
+                    doSection.getApiCallSection().getNodeSelector().select(badNodes));
+            assertEquals("expected [version] metadata to be set but got [host=http://dummy]",
+                    e.getMessage());
+        }
     }
 
     private static Node nodeWithVersion(String version) {
@@ -567,6 +576,14 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             nodes.add(notHasAttr);
             doSection.getApiCallSection().getNodeSelector().select(nodes);
             assertEquals(Arrays.asList(hasAttr), nodes);
+        }
+        {
+            List<Node> badNodes = new ArrayList<>();
+            badNodes.add(new Node(new HttpHost("dummy")));
+            Exception e = expectThrows(IllegalStateException.class, () ->
+                    doSection.getApiCallSection().getNodeSelector().select(badNodes));
+            assertEquals("expected [attributes] metadata to be set but got [host=http://dummy]",
+                    e.getMessage());
         }
 
         parser = createParser(YamlXContent.yamlXContent,

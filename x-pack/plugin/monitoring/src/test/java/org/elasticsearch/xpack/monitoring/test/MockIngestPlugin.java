@@ -74,8 +74,9 @@ public class MockIngestPlugin extends Plugin implements IngestPlugin {
         }
 
         @Override
-        public void execute(IngestDocument ingestDocument) throws Exception {
+        public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
             // mock processor does nothing
+            return ingestDocument;
         }
 
         @Override

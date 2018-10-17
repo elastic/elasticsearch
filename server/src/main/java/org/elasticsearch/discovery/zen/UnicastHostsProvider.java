@@ -31,5 +31,15 @@ public interface UnicastHostsProvider {
     /**
      * Builds the dynamic list of unicast hosts to be used for unicast discovery.
      */
-    List<TransportAddress> buildDynamicHosts();
+    List<TransportAddress> buildDynamicHosts(HostsResolver hostsResolver);
+
+    /**
+     * Helper object that allows to resolve a list of hosts to a list of transport addresses.
+     * Each host is resolved into a transport address (or a collection of addresses if the
+     * number of ports is greater than one)
+     */
+    interface HostsResolver {
+        List<TransportAddress> resolveHosts(List<String> hosts, int limitPortCounts);
+    }
+
 }

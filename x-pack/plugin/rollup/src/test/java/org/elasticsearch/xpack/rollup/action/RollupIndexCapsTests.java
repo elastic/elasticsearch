@@ -30,8 +30,8 @@ public class RollupIndexCapsTests extends ESTestCase {
 
     public void testGetAllJobs() {
         List<RollupJobConfig> jobs = new ArrayList<>(2);
-        jobs.add(ConfigTestHelpers.getRollupJob("foo").build());
-        jobs.add(ConfigTestHelpers.getRollupJob("bar").build());
+        jobs.add(ConfigTestHelpers.randomRollupJobConfig(random(), "foo"));
+        jobs.add(ConfigTestHelpers.randomRollupJobConfig(random(), "bar"));
         RollupIndexCaps caps = new RollupIndexCaps(ESTestCase.randomAlphaOfLength(10), jobs);
         assertTrue(caps.hasCaps());
 
@@ -45,8 +45,8 @@ public class RollupIndexCapsTests extends ESTestCase {
 
     public void testFilterGetJobs() {
         List<RollupJobConfig> jobs = new ArrayList<>(2);
-        jobs.add(ConfigTestHelpers.getRollupJob("foo").setIndexPattern("foo_index_pattern").build());
-        jobs.add(ConfigTestHelpers.getRollupJob("bar").build());
+        jobs.add(ConfigTestHelpers.randomRollupJobConfig(random(), "foo", "foo_index_pattern"));
+        jobs.add(ConfigTestHelpers.randomRollupJobConfig(random(), "bar"));
         RollupIndexCaps caps = new RollupIndexCaps(ESTestCase.randomAlphaOfLength(10), jobs);
         assertTrue(caps.hasCaps());
 

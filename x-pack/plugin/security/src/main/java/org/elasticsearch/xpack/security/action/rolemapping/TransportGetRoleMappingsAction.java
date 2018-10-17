@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequest;
@@ -35,8 +36,7 @@ public class TransportGetRoleMappingsAction
     }
 
     @Override
-    protected void doExecute(final GetRoleMappingsRequest request,
-                             final ActionListener<GetRoleMappingsResponse> listener) {
+    protected void doExecute(Task task, final GetRoleMappingsRequest request, final ActionListener<GetRoleMappingsResponse> listener) {
         final Set<String> names;
         if (request.getNames() == null || request.getNames().length == 0) {
             names = null;

@@ -27,6 +27,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -35,7 +36,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.AbstractHttpServerTransport;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpServerChannel;
-import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.nio.cors.NioCorsConfig;
 import org.elasticsearch.http.nio.cors.NioCorsConfigBuilder;
 import org.elasticsearch.nio.BytesChannelContext;
@@ -58,6 +58,7 @@ import java.nio.channels.SocketChannel;
 import java.util.Arrays;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
@@ -87,21 +88,21 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
             (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
             (s) -> Setting.parseInt(s, 1, "http.nio.worker_count"), Setting.Property.NodeScope);
 
-    private final PageCacheRecycler pageCacheRecycler;
+    protected final PageCacheRecycler pageCacheRecycler;
+    protected final NioCorsConfig corsConfig;
 
-    private final boolean tcpNoDelay;
-    private final boolean tcpKeepAlive;
-    private final boolean reuseAddress;
-    private final int tcpSendBufferSize;
-    private final int tcpReceiveBufferSize;
+    protected final boolean tcpNoDelay;
+    protected final boolean tcpKeepAlive;
+    protected final boolean reuseAddress;
+    protected final int tcpSendBufferSize;
+    protected final int tcpReceiveBufferSize;
 
     private NioGroup nioGroup;
-    private HttpChannelFactory channelFactory;
-    private final NioCorsConfig corsConfig;
+    private ChannelFactory<NioHttpServerChannel, NioHttpChannel> channelFactory;
 
     public NioHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
                                   PageCacheRecycler pageCacheRecycler, ThreadPool threadPool, NamedXContentRegistry xContentRegistry,
-                                  HttpServerTransport.Dispatcher dispatcher) {
+                                  Dispatcher dispatcher) {
         super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher);
         this.pageCacheRecycler = pageCacheRecycler;
 
@@ -136,7 +137,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
             nioGroup = new NioGroup(daemonThreadFactory(this.settings, HTTP_SERVER_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
                 daemonThreadFactory(this.settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX), workerCount,
                 (s) -> new EventHandler(this::onNonChannelException, s));
-            channelFactory = new HttpChannelFactory();
+            channelFactory = channelFactory();
             bindServer();
             success = true;
         } catch (IOException e) {
@@ -162,6 +163,10 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         return nioGroup.bindServerChannel(socketAddress, channelFactory);
     }
 
+    protected ChannelFactory<NioHttpServerChannel, NioHttpChannel> channelFactory() {
+        return new HttpChannelFactory();
+    }
+
     static NioCorsConfig buildCorsConfig(Settings settings) {
         if (SETTING_CORS_ENABLED.get(settings) == false) {
             return NioCorsConfigBuilder.forOrigins().disable().build();
@@ -173,11 +178,15 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         } else if (origin.equals(ANY_ORIGIN)) {
             builder = NioCorsConfigBuilder.forAnyOrigin();
         } else {
-            Pattern p = RestUtils.checkCorsSettingForRegex(origin);
-            if (p == null) {
-                builder = NioCorsConfigBuilder.forOrigins(RestUtils.corsSettingAsArray(origin));
-            } else {
-                builder = NioCorsConfigBuilder.forPattern(p);
+            try {
+                Pattern p = RestUtils.checkCorsSettingForRegex(origin);
+                if (p == null) {
+                    builder = NioCorsConfigBuilder.forOrigins(RestUtils.corsSettingAsArray(origin));
+                } else {
+                    builder = NioCorsConfigBuilder.forPattern(p);
+                }
+            } catch (PatternSyntaxException e) {
+                throw new SettingsException("Bad regex in [" + SETTING_CORS_ALLOW_ORIGIN.getKey() + "]: [" + origin + "]", e);
             }
         }
         if (SETTING_CORS_ALLOW_CREDENTIALS.get(settings)) {
@@ -194,7 +203,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
             .build();
     }
 
-    private void acceptChannel(NioSocketChannel socketChannel) {
+    protected void acceptChannel(NioSocketChannel socketChannel) {
         super.serverAcceptedChannel((HttpChannel) socketChannel);
     }
 

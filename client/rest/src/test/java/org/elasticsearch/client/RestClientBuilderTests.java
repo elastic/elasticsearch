@@ -180,7 +180,6 @@ public class RestClientBuilderTests extends RestClientTestCase {
     }
 
     public void testSetPathPrefixEmpty() {
-        assertSetPathPrefixThrows("/");
         assertSetPathPrefixThrows("");
     }
 

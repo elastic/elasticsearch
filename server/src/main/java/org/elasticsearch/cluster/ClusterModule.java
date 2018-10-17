@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
@@ -51,10 +50,10 @@ import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocatio
 import org.elasticsearch.cluster.routing.allocation.decider.RebalanceOnlyWhenActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ResizeAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.RestoreInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.RestoreInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -114,23 +113,6 @@ public class ClusterModule extends AbstractModule {
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
         this.allocationService = new AllocationService(settings, allocationDeciders, shardsAllocator, clusterInfoService);
-    }
-
-    public static Map<String, Supplier<ClusterState.Custom>> getClusterStateCustomSuppliers(List<ClusterPlugin> clusterPlugins) {
-        final Map<String, Supplier<ClusterState.Custom>> customSupplier = new HashMap<>();
-        customSupplier.put(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress::new);
-        customSupplier.put(RestoreInProgress.TYPE, RestoreInProgress::new);
-        customSupplier.put(SnapshotsInProgress.TYPE, SnapshotsInProgress::new);
-        for (ClusterPlugin plugin : clusterPlugins) {
-            Map<String, Supplier<ClusterState.Custom>> initialCustomSupplier = plugin.getInitialClusterStateCustomSupplier();
-            for (String key : initialCustomSupplier.keySet()) {
-                if (customSupplier.containsKey(key)) {
-                    throw new IllegalStateException("custom supplier key [" + key + "] is registered more than once");
-                }
-            }
-            customSupplier.putAll(initialCustomSupplier);
-        }
-        return Collections.unmodifiableMap(customSupplier);
     }
 
     public static List<Entry> getNamedWriteables() {
@@ -285,7 +267,6 @@ public class ClusterModule extends AbstractModule {
         bind(AllocationService.class).toInstance(allocationService);
         bind(ClusterService.class).toInstance(clusterService);
         bind(NodeConnectionsService.class).asEagerSingleton();
-        bind(MetaDataCreateIndexService.class).asEagerSingleton();
         bind(MetaDataDeleteIndexService.class).asEagerSingleton();
         bind(MetaDataIndexStateService.class).asEagerSingleton();
         bind(MetaDataMappingService.class).asEagerSingleton();

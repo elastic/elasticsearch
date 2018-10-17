@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutRequest;
@@ -48,8 +49,7 @@ public final class TransportSamlLogoutAction
     }
 
     @Override
-    protected void doExecute(SamlLogoutRequest request,
-                             ActionListener<SamlLogoutResponse> listener) {
+    protected void doExecute(Task task, SamlLogoutRequest request, ActionListener<SamlLogoutResponse> listener) {
         invalidateRefreshToken(request.getRefreshToken(), ActionListener.wrap(ignore -> {
             try {
                 final String token = request.getToken();

@@ -21,9 +21,10 @@ package org.elasticsearch.join.aggregations;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
@@ -78,8 +79,8 @@ public class ParentToChildrenAggregator extends BucketsAggregator implements Sin
             throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
         // these two filters are cached in the parser
-        this.childFilter = context.searcher().createNormalizedWeight(childFilter, false);
-        this.parentFilter = context.searcher().createNormalizedWeight(parentFilter, false);
+        this.childFilter = context.searcher().createWeight(context.searcher().rewrite(childFilter), ScoreMode.COMPLETE_NO_SCORES, 1f);
+        this.parentFilter = context.searcher().createWeight(context.searcher().rewrite(parentFilter), ScoreMode.COMPLETE_NO_SCORES, 1f);
         this.parentOrdToBuckets = context.bigArrays().newLongArray(maxOrd, false);
         this.parentOrdToBuckets.fill(0, maxOrd, -1);
         this.parentOrdToOtherBuckets = new LongObjectPagedHashMap<>(context.bigArrays());
@@ -147,7 +148,17 @@ public class ParentToChildrenAggregator extends BucketsAggregator implements Sin
 
             final SortedSetDocValues globalOrdinals = valuesSource.globalOrdinalsValues(ctx);
             // Set the scorer, since we now replay only the child docIds
-            sub.setScorer(new ConstantScoreScorer(null, 1f, childDocsIter));
+            sub.setScorer(new Scorable() {
+                @Override
+                public float score() {
+                    return 1f;
+                }
+
+                @Override
+                public int docID() {
+                    return childDocsIter.docID();
+                }
+            });
 
             final Bits liveDocs = ctx.reader().getLiveDocs();
             for (int docId = childDocsIter

@@ -31,7 +31,7 @@ import java.io.IOException;
 import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.equalTo;;
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public class ClusterUpdateSettingsRequestTests extends ESTestCase {
 
@@ -58,12 +58,13 @@ public class ClusterUpdateSettingsRequestTests extends ESTestCase {
             assertThat(iae.getMessage(),
                     containsString("[cluster_update_settings_request] unknown field [" + unsupportedField + "], parser not found"));
         } else {
-            XContentParser parser = createParser(xContentType.xContent(), originalBytes);
-            ClusterUpdateSettingsRequest parsedRequest = ClusterUpdateSettingsRequest.fromXContent(parser);
+            try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+                ClusterUpdateSettingsRequest parsedRequest = ClusterUpdateSettingsRequest.fromXContent(parser);
 
-            assertNull(parser.nextToken());
-            assertThat(parsedRequest.transientSettings(), equalTo(request.transientSettings()));
-            assertThat(parsedRequest.persistentSettings(), equalTo(request.persistentSettings()));
+                assertNull(parser.nextToken());
+                assertThat(parsedRequest.transientSettings(), equalTo(request.transientSettings()));
+                assertThat(parsedRequest.persistentSettings(), equalTo(request.persistentSettings()));
+            }
         }
     }
 

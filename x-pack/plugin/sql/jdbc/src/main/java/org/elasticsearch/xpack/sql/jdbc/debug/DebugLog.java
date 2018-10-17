@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.debug;
 
-import org.elasticsearch.xpack.sql.client.shared.StringUtils;
+import org.elasticsearch.xpack.sql.client.StringUtils;
 
 import java.io.PrintWriter;
 import java.lang.reflect.Array;
@@ -56,16 +56,16 @@ final class DebugLog {
         t.printStackTrace(print);
         print.flush();
     }
-    
+
 
     private static String array(Object[] a) {
         if (a == null || a.length == 0) {
-            return StringUtils.EMPTY; 
+            return StringUtils.EMPTY;
         }
         if (a.length == 1) {
             return handleArray(a[0]);
         }
-        
+
         StringBuilder b = new StringBuilder();
         int iMax = a.length - 1;
         for (int i = 0; ; i++) {

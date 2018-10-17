@@ -29,6 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
@@ -65,7 +66,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
     private class NodeMappingRefreshTransportHandler implements TransportRequestHandler<NodeMappingRefreshRequest> {
 
         @Override
-        public void messageReceived(NodeMappingRefreshRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(NodeMappingRefreshRequest request, TransportChannel channel, Task task) throws Exception {
             metaDataMappingService.refreshMapping(request.index(), request.indexUUID());
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }

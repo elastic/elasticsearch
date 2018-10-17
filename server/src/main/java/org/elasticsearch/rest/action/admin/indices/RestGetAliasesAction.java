@@ -77,6 +77,10 @@ public class RestGetAliasesAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        // The TransportGetAliasesAction was improved do the same post processing as is happening here.
+        // We can't remove this logic yet to support mixed clusters. We should be able to remove this logic here
+        // in when 8.0 becomes the new version in the master branch.
+
         final boolean namesProvided = request.hasParam("name");
         final String[] aliases = request.paramAsStringArrayOrEmptyIfAll("name");
         final GetAliasesRequest getAliasesRequest = new GetAliasesRequest(aliases);

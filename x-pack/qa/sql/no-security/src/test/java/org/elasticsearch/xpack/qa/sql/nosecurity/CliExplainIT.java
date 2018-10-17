@@ -65,7 +65,7 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(readLine(), startsWith("----------"));
         assertThat(readLine(), startsWith("With[{}]"));
         assertThat(readLine(), startsWith("\\_Project[[?*]]"));
-        assertThat(readLine(), startsWith("  \\_Filter[?i = 2]"));
+        assertThat(readLine(), startsWith("  \\_Filter[?i == 2]"));
         assertThat(readLine(), startsWith("    \\_UnresolvedRelation[[][index=test],null,Unknown index [test]]"));
         assertEquals("", readLine());
 

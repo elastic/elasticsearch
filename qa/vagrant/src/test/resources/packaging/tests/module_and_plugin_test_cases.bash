@@ -92,11 +92,14 @@ fi
 
 @test "[$GROUP] install a sample plugin with a symlinked plugins path" {
     # Clean up after the last time this test was run
-    rm -rf /tmp/plugins.*
-    rm -rf /tmp/old_plugins.*
+    rm -rf /var/plugins.*
+    rm -rf /var/old_plugins.*
 
     rm -rf "$ESPLUGINS"
-    local es_plugins=$(mktemp -d -t 'plugins.XXXX')
+    # The custom plugins directory is not under /tmp or /var/tmp because
+    # systemd's private temp directory functionally means different
+    # processes can have different views of what's in these directories
+    local es_plugins=$(mktemp -p /var -d -t 'plugins.XXXX')
     chown -R elasticsearch:elasticsearch "$es_plugins"
     ln -s "$es_plugins" "$ESPLUGINS"
 
@@ -221,15 +224,11 @@ fi
     install_and_check_plugin discovery ec2 aws-java-sdk-core-*.jar
 }
 
-@test "[$GROUP] install discovery-file plugin" {
-    install_and_check_plugin discovery file
-}
-
 @test "[$GROUP] install ingest-attachment plugin" {
-    # we specify the version on the poi-3.17.jar so that the test does
+    # we specify the version on the poi-4.0.0.jar so that the test does
     # not spuriously pass if the jar is missing but the other poi jars
     # are present
-    install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-3.17.jar poi-ooxml-3.17.jar poi-ooxml-schemas-*.jar poi-scratchpad-*.jar
+    install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-4.0.0.jar poi-ooxml-4.0.0.jar poi-ooxml-schemas-*.jar poi-scratchpad-*.jar
 }
 
 @test "[$GROUP] install ingest-geoip plugin" {
@@ -261,6 +260,10 @@ fi
 
 @test "[$GROUP] install murmur3 mapper plugin" {
     install_and_check_plugin mapper murmur3
+}
+
+@test "[$GROUP] install annotated-text mapper plugin" {
+    install_and_check_plugin mapper annotated-text
 }
 
 @test "[$GROUP] check reindex module" {
@@ -357,10 +360,6 @@ fi
     remove_plugin discovery-ec2
 }
 
-@test "[$GROUP] remove discovery-file plugin" {
-    remove_plugin discovery-file
-}
-
 @test "[$GROUP] remove ingest-attachment plugin" {
     remove_plugin ingest-attachment
 }
@@ -375,6 +374,10 @@ fi
 
 @test "[$GROUP] remove murmur3 mapper plugin" {
     remove_plugin mapper-murmur3
+}
+
+@test "[$GROUP] remove annotated-text mapper plugin" {
+    remove_plugin mapper-annotated-text
 }
 
 @test "[$GROUP] remove size mapper plugin" {

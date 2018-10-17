@@ -40,14 +40,14 @@ public class ActionWrapper implements ToXContentObject {
     @Nullable
     private final ExecutableCondition condition;
     @Nullable
-    private final ExecutableTransform transform;
+    private final ExecutableTransform<Transform, Transform.Result> transform;
     private final ActionThrottler throttler;
-    private final ExecutableAction action;
+    private final ExecutableAction<? extends Action> action;
 
     public ActionWrapper(String id, ActionThrottler throttler,
                          @Nullable ExecutableCondition condition,
-                         @Nullable ExecutableTransform transform,
-                         ExecutableAction action) {
+                         @Nullable ExecutableTransform<Transform, Transform.Result> transform,
+                         ExecutableAction<? extends Action> action) {
         this.id = id;
         this.condition = condition;
         this.throttler = throttler;
@@ -63,7 +63,7 @@ public class ActionWrapper implements ToXContentObject {
         return condition;
     }
 
-    public ExecutableTransform transform() {
+    public ExecutableTransform<Transform, Transform.Result> transform() {
         return transform;
     }
 
@@ -71,7 +71,7 @@ public class ActionWrapper implements ToXContentObject {
         return throttler;
     }
 
-    public ExecutableAction action() {
+    public ExecutableAction<? extends Action> action() {
         return action;
     }
 
@@ -196,9 +196,9 @@ public class ActionWrapper implements ToXContentObject {
         assert parser.currentToken() == XContentParser.Token.START_OBJECT;
 
         ExecutableCondition condition = null;
-        ExecutableTransform transform = null;
+        ExecutableTransform<Transform, Transform.Result> transform = null;
         TimeValue throttlePeriod = null;
-        ExecutableAction action = null;
+        ExecutableAction<? extends Action> action = null;
 
         String currentFieldName = null;
         XContentParser.Token token;

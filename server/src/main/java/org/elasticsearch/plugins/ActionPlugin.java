@@ -19,9 +19,9 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
@@ -68,7 +68,7 @@ public interface ActionPlugin {
      * Client actions added by this plugin. This defaults to all of the {@linkplain Action} in
      * {@linkplain ActionPlugin#getActions()}.
      */
-    default List<Action> getClientActions() {
+    default List<Action<? extends ActionResponse>> getClientActions() {
         return getActions().stream().map(a -> a.action).collect(Collectors.toList());
     }
 
@@ -103,6 +103,22 @@ public interface ActionPlugin {
 
     /**
      * Returns a function used to wrap each rest request before handling the request.
+     * The returned {@link UnaryOperator} is called for every incoming rest request and receives
+     * the original rest handler as it's input. This allows adding arbitrary functionality around
+     * rest request handlers to do for instance logging or authentication.
+     * A simple example of how to only allow GET request is here:
+     * <pre>
+     * {@code
+     *    UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
+     *      return originalHandler -> (RestHandler) (request, channel, client) -> {
+     *        if (request.method() != Method.GET) {
+     *          throw new IllegalStateException("only GET requests are allowed");
+     *        }
+     *        originalHandler.handleRequest(request, channel, client);
+     *      };
+     *    }
+     * }
+     * </pre>
      *
      * Note: Only one installed plugin may implement a rest wrapper.
      */

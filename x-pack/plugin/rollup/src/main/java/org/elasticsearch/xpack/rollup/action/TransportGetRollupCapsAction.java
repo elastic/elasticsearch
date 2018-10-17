@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
@@ -42,8 +43,7 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
     }
 
     @Override
-    protected void doExecute(GetRollupCapsAction.Request request, ActionListener<GetRollupCapsAction.Response> listener) {
-
+    protected void doExecute(Task task, GetRollupCapsAction.Request request, ActionListener<GetRollupCapsAction.Response> listener) {
         Map<String, RollableIndexCaps> allCaps = getCaps(request.getIndexPattern(), clusterService.state().getMetaData().indices());
         listener.onResponse(new GetRollupCapsAction.Response(allCaps));
     }
@@ -66,7 +66,7 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
 
                 jobCaps.forEach(jobCap -> {
                     String pattern = indexPattern.equals(MetaData.ALL)
-                            ? jobCap.getIndexPattern() : indexPattern;
+                        ? jobCap.getIndexPattern() : indexPattern;
 
                     // Do we already have an entry for this index pattern?
                     RollableIndexCaps indexCaps = allCaps.get(pattern);
@@ -97,7 +97,7 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
         }
 
         RollupIndexCaps caps = RollupIndexCaps.parseMetadataXContent(
-                new BytesArray(rollupMapping.source().uncompressed()), indexName);
+            new BytesArray(rollupMapping.source().uncompressed()), indexName);
 
         if (caps.hasCaps()) {
             return Optional.of(caps);

@@ -222,11 +222,6 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
     protected abstract ClusterBlockException checkRequestBlock(ClusterState state, Request request, String[] concreteIndices);
 
     @Override
-    protected final void doExecute(Request request, ActionListener<Response> listener) {
-        throw new UnsupportedOperationException("the task parameter is required for this operation");
-    }
-
-    @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         new AsyncAction(task, request, listener).start();
     }
@@ -393,7 +388,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
     class BroadcastByNodeTransportRequestHandler implements TransportRequestHandler<NodeRequest> {
         @Override
-        public void messageReceived(final NodeRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(final NodeRequest request, TransportChannel channel, Task task) throws Exception {
             List<ShardRouting> shards = request.getShards();
             final int totalShards = shards.size();
             if (logger.isTraceEnabled()) {

@@ -159,7 +159,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     }
 
     /**
-     * Test that missing values get transfered correctly to the SortField
+     * Test that missing values get transferred correctly to the SortField
      */
     public void testBuildSortFieldMissingValue() throws IOException {
         QueryShardContext shardContextMock = createMockShardContext();
@@ -190,7 +190,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     }
 
     /**
-     * Test that the sort builder order gets transfered correctly to the SortField
+     * Test that the sort builder order gets transferred correctly to the SortField
      */
     public void testBuildSortFieldOrder() throws IOException {
         QueryShardContext shardContextMock = createMockShardContext();
@@ -214,7 +214,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     }
 
     /**
-     * Test that the sort builder mode gets transfered correctly to the SortField
+     * Test that the sort builder mode gets transferred correctly to the SortField
      */
     public void testMultiValueMode() throws IOException {
         QueryShardContext shardContextMock = createMockShardContext();
@@ -249,7 +249,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         assertEquals(MultiValueMode.MEDIAN, comparatorSource.sortMode());
 
-        // sort mode should also be set by build() implicitely to MIN or MAX if not set explicitely on builder
+        // sort mode should also be set by build() implicitly to MIN or MAX if not set explicitly on builder
         sortBuilder = new FieldSortBuilder("value");
         sortField = sortBuilder.build(shardContextMock).field;
         assertThat(sortField, instanceOf(SortedNumericSortField.class));
@@ -304,14 +304,15 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     public void testUnknownOptionFails() throws IOException {
         String json = "{ \"post_date\" : {\"reverse\" : true} },\n";
 
-        XContentParser parser = createParser(JsonXContent.jsonXContent, json);
-        // need to skip until parser is located on second START_OBJECT
-        parser.nextToken();
-        parser.nextToken();
-        parser.nextToken();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            // need to skip until parser is located on second START_OBJECT
+            parser.nextToken();
+            parser.nextToken();
+            parser.nextToken();
 
-        XContentParseException e = expectThrows(XContentParseException.class, () -> FieldSortBuilder.fromXContent(parser, ""));
-        assertEquals("[1:18] [field_sort] unknown field [reverse], parser not found", e.getMessage());
+            XContentParseException e = expectThrows(XContentParseException.class, () -> FieldSortBuilder.fromXContent(parser, ""));
+            assertEquals("[1:18] [field_sort] unknown field [reverse], parser not found", e.getMessage());
+        }
     }
 
     @Override

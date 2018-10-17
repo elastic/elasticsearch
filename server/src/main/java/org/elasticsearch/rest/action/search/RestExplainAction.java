@@ -19,30 +19,22 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.explain.ExplainRequest;
-import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  * Rest action for computing a score explanation for specific documents.
@@ -89,57 +81,6 @@ public class RestExplainAction extends BaseRestHandler {
 
         explainRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
 
-        return channel -> client.explain(explainRequest, new RestBuilderListener<ExplainResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(ExplainResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                builder.field(Fields._INDEX, response.getIndex())
-                        .field(Fields._TYPE, response.getType())
-                        .field(Fields._ID, response.getId())
-                        .field(Fields.MATCHED, response.isMatch());
-
-                if (response.hasExplanation()) {
-                    builder.startObject(Fields.EXPLANATION);
-                    buildExplanation(builder, response.getExplanation());
-                    builder.endObject();
-                }
-                GetResult getResult = response.getGetResult();
-                if (getResult != null) {
-                    builder.startObject(Fields.GET);
-                    response.getGetResult().toXContentEmbedded(builder, request);
-                    builder.endObject();
-                }
-                builder.endObject();
-                return new BytesRestResponse(response.isExists() ? OK : NOT_FOUND, builder);
-            }
-
-            private void buildExplanation(XContentBuilder builder, Explanation explanation) throws IOException {
-                builder.field(Fields.VALUE, explanation.getValue());
-                builder.field(Fields.DESCRIPTION, explanation.getDescription());
-                Explanation[] innerExps = explanation.getDetails();
-                if (innerExps != null) {
-                    builder.startArray(Fields.DETAILS);
-                    for (Explanation exp : innerExps) {
-                        builder.startObject();
-                        buildExplanation(builder, exp);
-                        builder.endObject();
-                    }
-                    builder.endArray();
-                }
-            }
-        });
-    }
-
-    static class Fields {
-        static final String _INDEX = "_index";
-        static final String _TYPE = "_type";
-        static final String _ID = "_id";
-        static final String MATCHED = "matched";
-        static final String EXPLANATION = "explanation";
-        static final String VALUE = "value";
-        static final String DESCRIPTION = "description";
-        static final String DETAILS = "details";
-        static final String GET = "get";
-
+        return channel -> client.explain(explainRequest, new RestStatusToXContentListener<>(channel));
     }
 }

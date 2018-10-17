@@ -33,7 +33,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -119,22 +119,24 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
 
 
     @Override
-    public Optional<Integer> forcedSearchSize() {
-        return Optional.of(k);
+    public OptionalInt forcedSearchSize() {
+        return OptionalInt.of(k);
     }
 
     @Override
     public EvalQueryQuality evaluate(String taskId, SearchHit[] hits,
             List<RatedDocument> ratedDocs) {
-        List<Integer> allRatings = ratedDocs.stream().mapToInt(RatedDocument::getRating).boxed()
-                .collect(Collectors.toList());
         List<RatedSearchHit> ratedHits = joinHitsWithRatings(hits, ratedDocs);
         List<Integer> ratingsInSearchHits = new ArrayList<>(ratedHits.size());
         int unratedResults = 0;
         for (RatedSearchHit hit : ratedHits) {
-            // unknownDocRating might be null, in which case unrated docs will be ignored in the dcg calculation.
-            // we still need to add them as a placeholder so the rank of the subsequent ratings is correct
-            ratingsInSearchHits.add(hit.getRating().orElse(unknownDocRating));
+            if (hit.getRating().isPresent()) {
+                ratingsInSearchHits.add(hit.getRating().getAsInt());
+            } else {
+                // unknownDocRating might be null, in which case unrated docs will be ignored in the dcg calculation.
+                // we still need to add them as a placeholder so the rank of the subsequent ratings is correct
+                ratingsInSearchHits.add(unknownDocRating);
+            }
             if (hit.getRating().isPresent() == false) {
                 unratedResults++;
             }
@@ -144,6 +146,8 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
         double idcg = 0;
 
         if (normalize) {
+            List<Integer> allRatings = ratedDocs.stream().mapToInt(RatedDocument::getRating).boxed()
+                    .collect(Collectors.toList());
             Collections.sort(allRatings, Comparator.nullsLast(Collections.reverseOrder()));
             idcg = computeDCG(allRatings.subList(0, Math.min(ratingsInSearchHits.size(), allRatings.size())));
             if (idcg != 0) {
@@ -326,9 +330,9 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
                 return false;
             }
             DiscountedCumulativeGain.Detail other = (DiscountedCumulativeGain.Detail) obj;
-            return (this.dcg == other.dcg &&
-                    this.idcg == other.idcg &&
-                    this.unratedDocs == other.unratedDocs);
+            return Double.compare(this.dcg, other.dcg) == 0 &&
+                   Double.compare(this.idcg, other.idcg) == 0 &&
+                   this.unratedDocs == other.unratedDocs;
         }
 
         @Override

@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
@@ -44,7 +45,7 @@ public class TransportNoopSearchAction extends HandledTransportAction<SearchRequ
     }
 
     @Override
-    protected void doExecute(SearchRequest request, ActionListener<SearchResponse> listener) {
+    protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
         listener.onResponse(new SearchResponse(new InternalSearchResponse(
             new SearchHits(
                 new SearchHit[0], 0L, 0.0f),

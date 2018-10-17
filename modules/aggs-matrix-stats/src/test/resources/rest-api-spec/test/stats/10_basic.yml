@@ -10,4 +10,4 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.modules.0.name: aggs-matrix-stats }
+    - contains:  { nodes.$master.modules: { name: aggs-matrix-stats } }

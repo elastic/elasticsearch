@@ -5,10 +5,11 @@
  */
 package org.elasticsearch.integration;
 
-import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -19,7 +20,6 @@ import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -42,7 +42,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ClearRealmsCacheTests extends SecurityIntegTestCase {
-    private static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecureString("passwd".toCharArray())));
 
     private static String[] usernames;
 
@@ -162,10 +161,15 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
         }
 
         static void executeHttpRequest(String path, Map<String, String> params) throws Exception {
-            Response response = getRestClient().performRequest("POST", path, params,
-                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
-                                    new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))));
+            Request request = new Request("POST", path);
+            for (Map.Entry<String, String> param : params.entrySet()) {
+                request.addParameter(param.getKey(), param.getValue());
+            }
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                    new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+            request.setOptions(options);
+            Response response = getRestClient().performRequest(request);
             assertNotNull(response.getEntity());
             assertTrue(EntityUtils.toString(response.getEntity()).contains("cluster_name"));
         }
@@ -186,8 +190,10 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
     @Override
     protected String configUsers() {
         StringBuilder builder = new StringBuilder(SecuritySettingsSource.CONFIG_STANDARD_USER);
+        final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(new SecureString
+            ("passwd".toCharArray())));
         for (String username : usernames) {
-            builder.append(username).append(":").append(USERS_PASSWD_HASHED).append("\n");
+            builder.append(username).append(":").append(usersPasswdHashed).append("\n");
         }
         return builder.toString();
     }

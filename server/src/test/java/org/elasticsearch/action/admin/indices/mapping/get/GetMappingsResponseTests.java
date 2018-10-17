@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -80,8 +81,7 @@ public class GetMappingsResponseTests extends AbstractStreamableXContentTestCase
         return mutate(instance);
     }
 
-    @Override
-    protected GetMappingsResponse createTestInstance() {
+    public static ImmutableOpenMap<String, MappingMetaData> createMappingsForIndex() {
         // rarely have no types
         int typeCount = rarely() ? 0 : scaledRandomIntBetween(1, 3);
         List<MappingMetaData> typeMappings = new ArrayList<>(typeCount);
@@ -104,8 +104,13 @@ public class GetMappingsResponseTests extends AbstractStreamableXContentTestCase
         }
         ImmutableOpenMap.Builder<String, MappingMetaData> typeBuilder = ImmutableOpenMap.builder();
         typeMappings.forEach(mmd -> typeBuilder.put(mmd.type(), mmd));
+        return typeBuilder.build();
+    }
+
+    @Override
+    protected GetMappingsResponse createTestInstance() {
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> indexBuilder = ImmutableOpenMap.builder();
-        indexBuilder.put("index-" + randomAlphaOfLength(5), typeBuilder.build());
+        indexBuilder.put("index-" + randomAlphaOfLength(5), createMappingsForIndex());
         GetMappingsResponse resp = new GetMappingsResponse(indexBuilder.build());
         logger.debug("--> created: {}", resp);
         return resp;
@@ -115,20 +120,15 @@ public class GetMappingsResponseTests extends AbstractStreamableXContentTestCase
     private static Map<String, Object> randomFieldMapping() {
         Map<String, Object> mappings = new HashMap<>();
         if (randomBoolean()) {
-            Map<String, Object> regularMapping = new HashMap<>();
-            regularMapping.put("type", randomBoolean() ? "text" : "keyword");
-            regularMapping.put("index", "analyzed");
-            regularMapping.put("analyzer", "english");
-            return regularMapping;
+            mappings.put("type", randomBoolean() ? "text" : "keyword");
+            mappings.put("index", "analyzed");
+            mappings.put("analyzer", "english");
         } else if (randomBoolean()) {
-            Map<String, Object> numberMapping = new HashMap<>();
-            numberMapping.put("type", randomFrom("integer", "float", "long", "double"));
-            numberMapping.put("index", Objects.toString(randomBoolean()));
-            return numberMapping;
+            mappings.put("type", randomFrom("integer", "float", "long", "double"));
+            mappings.put("index", Objects.toString(randomBoolean()));
         } else if (randomBoolean()) {
-            Map<String, Object> objMapping = new HashMap<>();
-            objMapping.put("type", "object");
-            objMapping.put("dynamic", "strict");
+            mappings.put("type", "object");
+            mappings.put("dynamic", "strict");
             Map<String, Object> properties = new HashMap<>();
             Map<String, Object> props1 = new HashMap<>();
             props1.put("type", randomFrom("text", "keyword"));
@@ -142,12 +142,10 @@ public class GetMappingsResponseTests extends AbstractStreamableXContentTestCase
             props3.put("index", "false");
             prop2properties.put("subsubfield", props3);
             props2.put("properties", prop2properties);
-            objMapping.put("properties", properties);
-            return objMapping;
+            mappings.put("properties", properties);
         } else {
-            Map<String, Object> plainMapping = new HashMap<>();
-            plainMapping.put("type", "keyword");
-            return plainMapping;
+            mappings.put("type", "keyword");
         }
+        return mappings;
     }
 }

@@ -52,6 +52,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
@@ -237,7 +238,7 @@ public class ShardStateAction extends AbstractComponent {
         }
 
         @Override
-        public void messageReceived(FailedShardEntry request, TransportChannel channel) throws Exception {
+        public void messageReceived(FailedShardEntry request, TransportChannel channel, Task task) throws Exception {
             logger.debug(() -> new ParameterizedMessage("{} received shard failed for {}", request.shardId, request), request.failure);
             clusterService.submitStateUpdateTask(
                 "shard-failed",
@@ -487,7 +488,7 @@ public class ShardStateAction extends AbstractComponent {
         }
 
         @Override
-        public void messageReceived(StartedShardEntry request, TransportChannel channel) throws Exception {
+        public void messageReceived(StartedShardEntry request, TransportChannel channel, Task task) throws Exception {
             logger.debug("{} received shard started for [{}]", request.shardId, request);
             clusterService.submitStateUpdateTask(
                 "shard-started " + request,

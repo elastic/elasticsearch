@@ -81,9 +81,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
                         if (mappingsByIndex.isEmpty() && fields.length > 0) {
                             status = NOT_FOUND;
                         }
-                        builder.startObject();
                         response.toXContent(builder, request);
-                        builder.endObject();
                         return new BytesRestResponse(status, builder);
                     }
                 });

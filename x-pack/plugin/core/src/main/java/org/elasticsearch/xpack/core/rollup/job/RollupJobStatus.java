@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.rollup.job;
 
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -39,12 +41,19 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
     @Nullable
     private final TreeMap<String, Object> currentPosition;
 
+    // Flag holds the state of the ID scheme, e.g. if it has been upgraded to the
+    // concatenation scheme.  See #32372 for more details
+    private boolean upgradedDocumentID;
+
     private static final ParseField STATE = new ParseField("job_state");
     private static final ParseField CURRENT_POSITION = new ParseField("current_position");
+    private static final ParseField UPGRADED_DOC_ID = new ParseField("upgraded_doc_id");
 
     public static final ConstructingObjectParser<RollupJobStatus, Void> PARSER =
             new ConstructingObjectParser<>(NAME,
-                    args -> new RollupJobStatus((IndexerState) args[0], (HashMap<String, Object>) args[1]));
+                    args -> new RollupJobStatus((IndexerState) args[0],
+                        (HashMap<String, Object>) args[1],
+                        (Boolean)args[2]));
 
     static {
         PARSER.declareField(constructorArg(), p -> {
@@ -62,16 +71,28 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, CURRENT_POSITION, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
+
+        // Optional to accommodate old versions of state
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), UPGRADED_DOC_ID);
     }
 
-    public RollupJobStatus(IndexerState state, @Nullable Map<String, Object> position) {
+    public RollupJobStatus(IndexerState state, @Nullable Map<String, Object> position,
+                           @Nullable Boolean upgradedDocumentID) {
         this.state = state;
         this.currentPosition = position == null ? null : new TreeMap<>(position);
+        this.upgradedDocumentID = upgradedDocumentID != null ? upgradedDocumentID : false;  //default to false if missing
     }
 
     public RollupJobStatus(StreamInput in) throws IOException {
         state = IndexerState.fromStream(in);
         currentPosition = in.readBoolean() ? new TreeMap<>(in.readMap()) : null;
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            upgradedDocumentID = in.readBoolean();
+        } else {
+            // If we're getting this job from a pre-6.4.0 node,
+            // it is using the old ID scheme
+            upgradedDocumentID = false;
+        }
     }
 
     public IndexerState getIndexerState() {
@@ -80,6 +101,10 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
 
     public Map<String, Object> getPosition() {
         return currentPosition;
+    }
+
+    public boolean isUpgradedDocumentID() {
+        return upgradedDocumentID;
     }
 
     public static RollupJobStatus fromXContent(XContentParser parser) {
@@ -97,6 +122,7 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
         if (currentPosition != null) {
             builder.field(CURRENT_POSITION.getPreferredName(), currentPosition);
         }
+        builder.field(UPGRADED_DOC_ID.getPreferredName(), upgradedDocumentID);
         builder.endObject();
         return builder;
     }
@@ -113,6 +139,9 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
         if (currentPosition != null) {
             out.writeMap(currentPosition);
         }
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+            out.writeBoolean(upgradedDocumentID);
+        }
     }
 
     @Override
@@ -128,11 +157,12 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
         RollupJobStatus that = (RollupJobStatus) other;
 
         return Objects.equals(this.state, that.state)
-                && Objects.equals(this.currentPosition, that.currentPosition);
+            && Objects.equals(this.currentPosition, that.currentPosition)
+            && Objects.equals(this.upgradedDocumentID, that.upgradedDocumentID);
     }
 
     @Override
     public int hashCode() {
-    return Objects.hash(state, currentPosition);
+        return Objects.hash(state, currentPosition, upgradedDocumentID);
     }
 }

@@ -21,7 +21,7 @@ package org.elasticsearch.search.suggest.phrase;
 
 import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.search.spell.JaroWinklerDistance;
-import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
 import org.apache.lucene.search.spell.NGramDistance;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -76,7 +76,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
     public void testFromString() {
         assertThat(DirectCandidateGeneratorBuilder.resolveDistance("internal"), equalTo(DirectSpellChecker.INTERNAL_LEVENSHTEIN));
         assertThat(DirectCandidateGeneratorBuilder.resolveDistance("damerau_levenshtein"), instanceOf(LuceneLevenshteinDistance.class));
-        assertThat(DirectCandidateGeneratorBuilder.resolveDistance("levenshtein"), instanceOf(LevensteinDistance.class));
+        assertThat(DirectCandidateGeneratorBuilder.resolveDistance("levenshtein"), instanceOf(LevenshteinDistance.class));
         assertThat(DirectCandidateGeneratorBuilder.resolveDistance("jaro_winkler"), instanceOf(JaroWinklerDistance.class));
         assertThat(DirectCandidateGeneratorBuilder.resolveDistance("ngram"), instanceOf(NGramDistance.class));
 
@@ -124,12 +124,13 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
                 builder.prettyPrint();
             }
             generator.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            XContentParser parser = createParser(shuffleXContent(builder));
-            parser.nextToken();
-            DirectCandidateGeneratorBuilder secondGenerator = DirectCandidateGeneratorBuilder.PARSER.apply(parser, null);
-            assertNotSame(generator, secondGenerator);
-            assertEquals(generator, secondGenerator);
-            assertEquals(generator.hashCode(), secondGenerator.hashCode());
+            try (XContentParser parser = createParser(shuffleXContent(builder))) {
+                parser.nextToken();
+                DirectCandidateGeneratorBuilder secondGenerator = DirectCandidateGeneratorBuilder.PARSER.apply(parser, null);
+                assertNotSame(generator, secondGenerator);
+                assertEquals(generator, secondGenerator);
+                assertEquals(generator.hashCode(), secondGenerator.hashCode());
+            }
         }
     }
 
@@ -187,9 +188,10 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
 
     private void assertIllegalXContent(String directGenerator, Class<? extends Exception> exceptionClass, String exceptionMsg)
             throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, directGenerator);
-        Exception e = expectThrows(exceptionClass, () -> DirectCandidateGeneratorBuilder.PARSER.apply(parser, null));
-        assertThat(e.getMessage(), containsString(exceptionMsg));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, directGenerator)) {
+            Exception e = expectThrows(exceptionClass, () -> DirectCandidateGeneratorBuilder.PARSER.apply(parser, null));
+            assertThat(e.getMessage(), containsString(exceptionMsg));
+        }
     }
 
     /**

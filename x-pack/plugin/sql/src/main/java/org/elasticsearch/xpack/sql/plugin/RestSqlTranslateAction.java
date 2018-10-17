@@ -12,6 +12,8 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xpack.sql.action.SqlTranslateAction;
+import org.elasticsearch.xpack.sql.action.SqlTranslateRequest;
 import org.elasticsearch.xpack.sql.proto.Mode;
 
 import java.io.IOException;

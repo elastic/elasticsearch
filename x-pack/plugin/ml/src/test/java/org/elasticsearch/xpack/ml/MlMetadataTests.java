@@ -17,9 +17,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
-import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests;
@@ -27,7 +26,6 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
@@ -81,7 +79,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
 
     @Override
     protected MlMetadata doParseInstance(XContentParser parser) {
-        return MlMetadata.METADATA_PARSER.apply(parser, null).build();
+        return MlMetadata.LENIENT_PARSER.apply(parser, null).build();
     }
 
     @Override
@@ -126,7 +124,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
 
     public void testRemoveJob() {
         Job.Builder jobBuilder = buildJobBuilder("1");
-        jobBuilder.setDeleted(true);
+        jobBuilder.setDeleting(true);
         Job job1 = jobBuilder.build();
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(job1, false);
@@ -208,7 +206,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
     }
 
     public void testPutDatafeed_failBecauseJobIsBeingDeleted() {
-        Job job1 = createDatafeedJob().setDeleted(true).build(new Date());
+        Job job1 = createDatafeedJob().setDeleting(true).build(new Date());
         DatafeedConfig datafeedConfig1 = createDatafeedConfig("datafeed1", job1.getId()).build();
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(job1, false);
@@ -305,7 +303,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams(datafeedConfig1.getId(), 0L);
-        tasksBuilder.addTask(MLMetadataField.datafeedTaskId("datafeed1"), StartDatafeedAction.TASK_NAME, params, INITIAL_ASSIGNMENT);
+        tasksBuilder.addTask(MlTasks.datafeedTaskId("datafeed1"), StartDatafeedAction.TASK_NAME, params, INITIAL_ASSIGNMENT);
         PersistentTasksCustomMetaData tasksInProgress = tasksBuilder.build();
 
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeedConfig1.getId());
@@ -387,26 +385,13 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams("datafeed1", 0L);
-        tasksBuilder.addTask(MLMetadataField.datafeedTaskId("datafeed1"), StartDatafeedAction.TASK_NAME, params, INITIAL_ASSIGNMENT);
+        tasksBuilder.addTask(MlTasks.datafeedTaskId("datafeed1"), StartDatafeedAction.TASK_NAME, params, INITIAL_ASSIGNMENT);
         PersistentTasksCustomMetaData tasksInProgress = tasksBuilder.build();
 
         MlMetadata.Builder builder2 = new MlMetadata.Builder(result);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
                 () -> builder2.removeDatafeed("datafeed1", tasksInProgress));
         assertThat(e.status(), equalTo(RestStatus.CONFLICT));
-    }
-
-    public void testGetJobState() {
-        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
-        // A missing task is a closed job
-        assertEquals(JobState.CLOSED, MlMetadata.getJobState("foo", tasksBuilder.build()));
-        // A task with no status is opening
-        tasksBuilder.addTask(MlMetadata.jobTaskId("foo"), OpenJobAction.TASK_NAME, new OpenJobAction.JobParams("foo"),
-                new PersistentTasksCustomMetaData.Assignment("bar", "test assignment"));
-        assertEquals(JobState.OPENING, MlMetadata.getJobState("foo", tasksBuilder.build()));
-
-        tasksBuilder.updateTaskState(MlMetadata.jobTaskId("foo"), new JobTaskState(JobState.OPENED, tasksBuilder.getLastAllocationId()));
-        assertEquals(JobState.OPENED, MlMetadata.getJobState("foo", tasksBuilder.build()));
     }
 
     public void testExpandJobIds() {

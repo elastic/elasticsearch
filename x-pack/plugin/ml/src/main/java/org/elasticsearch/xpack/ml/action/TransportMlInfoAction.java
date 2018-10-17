@@ -13,6 +13,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
@@ -37,7 +38,7 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
     }
 
     @Override
-    protected void doExecute(MlInfoAction.Request request, ActionListener<MlInfoAction.Response> listener) {
+    protected void doExecute(Task task, MlInfoAction.Request request, ActionListener<MlInfoAction.Response> listener) {
         Map<String, Object> info = new HashMap<>();
         info.put("defaults", defaults());
         info.put("limits", limits());

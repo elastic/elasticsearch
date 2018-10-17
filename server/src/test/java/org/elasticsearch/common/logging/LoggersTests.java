@@ -46,7 +46,7 @@ public class LoggersTests extends ESTestCase {
 
         @Override
         public void append(LogEvent event) {
-            lastEvent = event;
+            lastEvent = event.toImmutable();
         }
 
         ParameterizedMessage lastParameterizedMessage() {

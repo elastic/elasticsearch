@@ -6,7 +6,10 @@
         wait_for_active_shards: all
         body:
           settings:
-            number_of_replicas: 0
+# we use 1 replica to make sure we don't have shards relocating. Relocating a shard with
+# a scroll on it prevents shards from moving back into a where a scroll is running (it holds the shard lock)
+# see https://github.com/elastic/elasticsearch/issues/31827
+            number_of_replicas: 1
             index.routing.allocation.include.upgraded: true
 
   - do:

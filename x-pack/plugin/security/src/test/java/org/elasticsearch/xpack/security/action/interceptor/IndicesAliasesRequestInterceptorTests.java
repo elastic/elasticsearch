@@ -35,7 +35,8 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
 
     public void testInterceptorThrowsWhenFLSDLSEnabled() {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
+        when(licenseState.isAuthAllowed()).thenReturn(true);
         when(licenseState.isAuditingAllowed()).thenReturn(true);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -81,7 +82,8 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
 
     public void testInterceptorThrowsWhenTargetHasGreaterPermissions() throws Exception {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
+        when(licenseState.isAuthAllowed()).thenReturn(true);
         when(licenseState.isAuditingAllowed()).thenReturn(true);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);

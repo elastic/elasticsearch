@@ -13,7 +13,8 @@ esplugin {
 archivesBaseName = 'x-pack-monitoring'
 
 dependencies {
-    compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
+    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    compileOnly project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 
     // monitoring deps
@@ -62,11 +63,11 @@ task internalClusterTest(type: RandomizedTestingTask,
                          dependsOn: test.dependsOn) {
   configure(BuildPlugin.commonTestConfig(project))
   classpath = project.test.classpath
-  testClassesDir = project.test.testClassesDir
+  testClassesDirs = project.test.testClassesDirs
   include '**/*IT.class'
   systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }
-check.dependsOn internalClusterTest 
+check.dependsOn internalClusterTest
 internalClusterTest.mustRunAfter test
 
 // also add an "alias" task to make typing on the command line easier task icTest {

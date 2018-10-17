@@ -22,7 +22,6 @@ package org.elasticsearch.action.support.nodes;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.NoSuchNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -75,12 +74,6 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
 
         transportService.registerRequestHandler(
             transportNodeAction, nodeRequest, nodeExecutor, new NodeTransportHandler());
-    }
-
-    @Override
-    protected final void doExecute(NodesRequest request, ActionListener<NodesResponse> listener) {
-        logger.warn("attempt to execute a transport nodes operation without a task");
-        throw new UnsupportedOperationException("task parameter is required for this operation");
     }
 
     @Override
@@ -185,37 +178,33 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                 final DiscoveryNode node = nodes[i];
                 final String nodeId = node.getId();
                 try {
-                    if (node == null) {
-                        onFailure(idx, nodeId, new NoSuchNodeException(nodeId));
-                    } else {
-                        TransportRequest nodeRequest = newNodeRequest(nodeId, request);
-                        if (task != null) {
-                            nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-                        }
-
-                        transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(),
-                                                     new TransportResponseHandler<NodeResponse>() {
-                            @Override
-                            public NodeResponse newInstance() {
-                                return newNodeResponse();
-                            }
-
-                            @Override
-                            public void handleResponse(NodeResponse response) {
-                                onOperation(idx, response);
-                            }
-
-                            @Override
-                            public void handleException(TransportException exp) {
-                                onFailure(idx, node.getId(), exp);
-                            }
-
-                            @Override
-                            public String executor() {
-                                return ThreadPool.Names.SAME;
-                            }
-                        });
+                    TransportRequest nodeRequest = newNodeRequest(nodeId, request);
+                    if (task != null) {
+                        nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                     }
+
+                    transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(),
+                            new TransportResponseHandler<NodeResponse>() {
+                                @Override
+                                public NodeResponse newInstance() {
+                                    return newNodeResponse();
+                                }
+
+                                @Override
+                                public void handleResponse(NodeResponse response) {
+                                    onOperation(idx, response);
+                                }
+
+                                @Override
+                                public void handleException(TransportException exp) {
+                                    onFailure(idx, node.getId(), exp);
+                                }
+
+                                @Override
+                                public String executor() {
+                                    return ThreadPool.Names.SAME;
+                                }
+                            });
                 } catch (Exception e) {
                     onFailure(idx, nodeId, e);
                 }
@@ -258,12 +247,6 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
         public void messageReceived(NodeRequest request, TransportChannel channel, Task task) throws Exception {
             channel.sendResponse(nodeOperation(request, task));
         }
-
-        @Override
-        public void messageReceived(NodeRequest request, TransportChannel channel) throws Exception {
-            channel.sendResponse(nodeOperation(request));
-        }
-
     }
 
 }

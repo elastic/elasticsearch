@@ -158,10 +158,6 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
         // https://cloud.google.com/storage/docs/json_api/v1/objects/insert
         handlers.insert("POST /upload/storage/v1/b/{bucket}/o", (request) -> {
             final String ifGenerationMatch = request.getParam("ifGenerationMatch");
-            if ("0".equals(ifGenerationMatch) == false) {
-                return newError(RestStatus.PRECONDITION_FAILED, "object already exist");
-            }
-
             final String uploadType = request.getParam("uploadType");
             if ("resumable".equals(uploadType)) {
                 final String objectName = request.getParam("name");
@@ -172,12 +168,19 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
                 if (bucket == null) {
                     return newError(RestStatus.NOT_FOUND, "bucket not found");
                 }
-                if (bucket.objects.putIfAbsent(objectName, EMPTY_BYTE) == null) {
-                    final String location = /*endpoint +*/ "/upload/storage/v1/b/" + bucket.name + "/o?uploadType=resumable&upload_id="
+                if ("0".equals(ifGenerationMatch)) {
+                    if (bucket.objects.putIfAbsent(objectName, EMPTY_BYTE) == null) {
+                        final String location = /*endpoint +*/ "/upload/storage/v1/b/" + bucket.name + "/o?uploadType=resumable&upload_id="
                             + objectName;
-                    return newResponse(RestStatus.CREATED, singletonMap("Location", location), jsonBuilder());
+                        return newResponse(RestStatus.CREATED, singletonMap("Location", location), jsonBuilder());
+                    } else {
+                        return newError(RestStatus.PRECONDITION_FAILED, "object already exist");
+                    }
                 } else {
-                    return newError(RestStatus.CONFLICT, "object already exist");
+                    bucket.objects.put(objectName, EMPTY_BYTE);
+                    final String location = /*endpoint +*/ "/upload/storage/v1/b/" + bucket.name + "/o?uploadType=resumable&upload_id="
+                        + objectName;
+                    return newResponse(RestStatus.CREATED, singletonMap("Location", location), jsonBuilder());
                 }
             } else if ("multipart".equals(uploadType)) {
                 /*

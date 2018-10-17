@@ -11,32 +11,34 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 import java.util.function.Supplier;
 
 public class TransportGetBucketsAction extends HandledTransportAction<GetBucketsAction.Request, GetBucketsAction.Response> {
 
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final JobManager jobManager;
     private final Client client;
 
     @Inject
     public TransportGetBucketsAction(Settings settings, TransportService transportService,
-                                     ActionFilters actionFilters, JobProvider jobProvider, JobManager jobManager, Client client) {
+                                     ActionFilters actionFilters, JobResultsProvider jobResultsProvider,
+                                     JobManager jobManager, Client client) {
         super(settings, GetBucketsAction.NAME, transportService, actionFilters,
             (Supplier<GetBucketsAction.Request>) GetBucketsAction.Request::new);
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
         this.client = client;
     }
 
     @Override
-    protected void doExecute(GetBucketsAction.Request request, ActionListener<GetBucketsAction.Response> listener) {
+    protected void doExecute(Task task, GetBucketsAction.Request request, ActionListener<GetBucketsAction.Response> listener) {
         jobManager.getJobOrThrowIfUnknown(request.getJobId());
 
         BucketsQueryBuilder query =
@@ -58,7 +60,7 @@ public class TransportGetBucketsAction extends HandledTransportAction<GetBuckets
             query.start(request.getStart());
             query.end(request.getEnd());
         }
-        jobProvider.buckets(request.getJobId(), query, q ->
+        jobResultsProvider.buckets(request.getJobId(), query, q ->
                 listener.onResponse(new GetBucketsAction.Response(q)), listener::onFailure, client);
     }
 }

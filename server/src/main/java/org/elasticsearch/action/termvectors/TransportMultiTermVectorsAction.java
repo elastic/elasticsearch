@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.HashMap;
@@ -54,7 +55,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
     }
 
     @Override
-    protected void doExecute(final MultiTermVectorsRequest request, final ActionListener<MultiTermVectorsResponse> listener) {
+    protected void doExecute(Task task, final MultiTermVectorsRequest request, final ActionListener<MultiTermVectorsResponse> listener) {
         ClusterState clusterState = clusterService.state();
 
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);

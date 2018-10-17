@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction.Request;
@@ -14,11 +13,7 @@ public class OpenJobActionRequestTests extends AbstractStreamableXContentTestCas
 
     @Override
     protected Request createTestInstance() {
-        OpenJobAction.JobParams params = new OpenJobAction.JobParams(randomAlphaOfLengthBetween(1, 20));
-        if (randomBoolean()) {
-            params.setTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
-        }
-        return new Request(params);
+        return new Request(JobParamsTests.createJobParams());
     }
 
     @Override

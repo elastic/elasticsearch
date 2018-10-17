@@ -61,8 +61,6 @@ import org.elasticsearch.xpack.watcher.actions.webhook.WebhookActionFactory;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.condition.AlwaysConditionTests;
@@ -160,7 +158,6 @@ public class WatchTests extends ESTestCase {
     private EmailService emailService;
     private TextTemplateEngine templateEngine;
     private HtmlSanitizer htmlSanitizer;
-    private HttpAuthRegistry authRegistry;
     private XPackLicenseState licenseState;
     private Logger logger;
     private Settings settings = Settings.EMPTY;
@@ -175,7 +172,6 @@ public class WatchTests extends ESTestCase {
         templateEngine = mock(TextTemplateEngine.class);
         htmlSanitizer = mock(HtmlSanitizer.class);
         licenseState = mock(XPackLicenseState.class);
-        authRegistry = new HttpAuthRegistry(singletonMap("basic", new BasicAuthFactory(null)));
         logger = Loggers.getLogger(WatchTests.class);
         searchTemplateService = mock(WatcherSearchTemplateService.class);
     }
@@ -240,8 +236,7 @@ public class WatchTests extends ESTestCase {
         TriggerService triggerService = new TriggerService(Settings.EMPTY, Collections.emptySet()) {
             @Override
             public Trigger parseTrigger(String jobName, XContentParser parser) throws IOException {
-                XContentParser.Token token;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 }
 
                 return new ScheduleTrigger(randomSchedule());
@@ -303,7 +298,7 @@ public class WatchTests extends ESTestCase {
         TriggerService triggerService = new TriggerService(Settings.EMPTY, singleton(triggerEngine));
 
         ConditionRegistry conditionRegistry = conditionRegistry();
-        InputRegistry inputRegistry = registry(new ExecutableNoneInput(logger).type());
+        InputRegistry inputRegistry = registry(new ExecutableNoneInput().type());
         TransformRegistry transformRegistry = transformRegistry();
         ActionRegistry actionRegistry = registry(Collections.emptyList(), conditionRegistry, transformRegistry);
 
@@ -442,7 +437,7 @@ public class WatchTests extends ESTestCase {
     private WatchParser createWatchparser() throws Exception {
         LoggingAction loggingAction = new LoggingAction(new TextTemplate("foo"), null, null);
         List<ActionWrapper> actions = Collections.singletonList(new ActionWrapper("_logging_", randomThrottler(), null, null,
-                new ExecutableLoggingAction(loggingAction, logger, settings, new MockTextTemplateEngine())));
+                new ExecutableLoggingAction(loggingAction, logger, new MockTextTemplateEngine())));
 
         ScheduleRegistry scheduleRegistry = registry(new IntervalSchedule(new IntervalSchedule.Interval(1,
                 IntervalSchedule.Interval.Unit.SECONDS)));
@@ -514,10 +509,10 @@ public class WatchTests extends ESTestCase {
                 SearchInput searchInput = searchInput(WatcherTestUtils.templateRequest(searchSource(), "idx"))
                         .timeout(randomBoolean() ? null : timeValueSeconds(between(1, 10000)))
                         .build();
-                return new ExecutableSearchInput(searchInput, logger, client, searchTemplateService, null);
+                return new ExecutableSearchInput(searchInput, client, searchTemplateService, null);
             default:
                 SimpleInput simpleInput = InputBuilders.simpleInput(singletonMap("_key", "_val")).build();
-                return new ExecutableSimpleInput(simpleInput, logger);
+                return new ExecutableSimpleInput(simpleInput);
         }
     }
 
@@ -526,10 +521,10 @@ public class WatchTests extends ESTestCase {
         switch (inputType) {
             case SearchInput.TYPE:
                 parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client, xContentRegistry(), scriptService));
-                return new InputRegistry(Settings.EMPTY, parsers);
+                return new InputRegistry(parsers);
             default:
-                parsers.put(SimpleInput.TYPE, new SimpleInputFactory(settings));
-                return new InputRegistry(Settings.EMPTY, parsers);
+                parsers.put(SimpleInput.TYPE, new SimpleInputFactory());
+                return new InputRegistry(parsers);
         }
     }
 
@@ -573,9 +568,9 @@ public class WatchTests extends ESTestCase {
 
     private TransformRegistry transformRegistry() {
         Map<String, TransformFactory> factories = new HashMap<>();
-        factories.put(ScriptTransform.TYPE, new ScriptTransformFactory(settings, scriptService));
+        factories.put(ScriptTransform.TYPE, new ScriptTransformFactory(scriptService));
         factories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, xContentRegistry(), scriptService));
-        return new TransformRegistry(Settings.EMPTY, unmodifiableMap(factories));
+        return new TransformRegistry(unmodifiableMap(factories));
     }
 
     private List<ActionWrapper> randomActions() {
@@ -623,11 +618,10 @@ public class WatchTests extends ESTestCase {
                     parsers.put(IndexAction.TYPE, new IndexActionFactory(settings, client));
                     break;
                 case WebhookAction.TYPE:
-                    parsers.put(WebhookAction.TYPE, new WebhookActionFactory(settings,  httpClient,
-                            new HttpRequestTemplate.Parser(authRegistry), templateEngine));
+                    parsers.put(WebhookAction.TYPE, new WebhookActionFactory(httpClient, templateEngine));
                     break;
                 case LoggingAction.TYPE:
-                    parsers.put(LoggingAction.TYPE, new LoggingActionFactory(settings, new MockTextTemplateEngine()));
+                    parsers.put(LoggingAction.TYPE, new LoggingActionFactory(new MockTextTemplateEngine()));
                     break;
             }
         }

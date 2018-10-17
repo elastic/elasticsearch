@@ -47,6 +47,7 @@ import java.util.Collections;
 import java.util.HashSet;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.equalTo;
 
 public class TransportResizeActionTests extends ESTestCase {
 
@@ -91,6 +92,16 @@ public class TransportResizeActionTests extends ESTestCase {
                 }
             ).getMessage().startsWith("Can't merge index with more than [2147483519] docs - too many documents in shards "));
 
+
+        IllegalArgumentException softDeletesError = expectThrows(IllegalArgumentException.class, () -> {
+            ResizeRequest req = new ResizeRequest("target", "source");
+            req.getTargetIndexRequest().settings(Settings.builder().put("index.soft_deletes.enabled", false));
+            ClusterState clusterState = createClusterState("source", 8, 1,
+                Settings.builder().put("index.blocks.write", true).put("index.soft_deletes.enabled", true).build());
+            TransportResizeAction.prepareCreateIndexRequest(req, clusterState,
+                (i) -> new DocsStats(between(10, 1000), between(1, 10), between(1, 10000)), "source", "target");
+        });
+        assertThat(softDeletesError.getMessage(), equalTo("Can't disable [index.soft_deletes.enabled] setting on resize"));
 
         // create one that won't fail
         ClusterState clusterState = ClusterState.builder(createClusterState("source", randomIntBetween(2, 10), 0,

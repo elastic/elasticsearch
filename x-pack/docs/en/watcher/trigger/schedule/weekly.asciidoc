@@ -32,6 +32,7 @@ triggers once a week on Friday at 5:00 PM:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 NOTE: You can also specify the day and time with the `day` and `time` attributes,
       they are interchangeable with `on` and `at`.
@@ -55,6 +56,7 @@ schedule triggers every Tuesday at 12:00 PM and every Friday at 5:00 PM:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 Alternatively, you can specify days and times in an object that has `on` and
 `minute` attributes that contain an array of values. For example, the following
@@ -73,3 +75,4 @@ Alternatively, you can specify days and times in an object that has `on` and
   }
 }
 --------------------------------------------------
+// NOTCONSOLE

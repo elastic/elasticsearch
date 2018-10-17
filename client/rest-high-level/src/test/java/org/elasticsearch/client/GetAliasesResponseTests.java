@@ -59,7 +59,7 @@ public class GetAliasesResponseTests extends AbstractXContentTestCase<GetAliases
         return map;
     }
 
-    private static AliasMetaData createAliasMetaData() {
+    public static AliasMetaData createAliasMetaData() {
         AliasMetaData.Builder builder = AliasMetaData.builder(randomAlphaOfLengthBetween(3, 10));
         if (randomBoolean()) {
             builder.routing(randomAlphaOfLengthBetween(3, 10));

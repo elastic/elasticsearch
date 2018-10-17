@@ -29,21 +29,17 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.ingest.PipelineStore;
-import org.elasticsearch.node.NodeService;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class GetPipelineTransportAction extends TransportMasterNodeReadAction<GetPipelineRequest, GetPipelineResponse> {
-
-    private final PipelineStore pipelineStore;
-
+    
     @Inject
     public GetPipelineTransportAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                       TransportService transportService, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver, NodeService nodeService) {
+                                      IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, GetPipelineAction.NAME, transportService, clusterService, threadPool, actionFilters, GetPipelineRequest::new, indexNameExpressionResolver);
-        this.pipelineStore = nodeService.getIngestService().getPipelineStore();
     }
 
     @Override
@@ -58,7 +54,7 @@ public class GetPipelineTransportAction extends TransportMasterNodeReadAction<Ge
 
     @Override
     protected void masterOperation(GetPipelineRequest request, ClusterState state, ActionListener<GetPipelineResponse> listener) throws Exception {
-        listener.onResponse(new GetPipelineResponse(pipelineStore.getPipelines(state, request.getIds())));
+        listener.onResponse(new GetPipelineResponse(IngestService.getPipelines(state, request.getIds())));
     }
 
     @Override

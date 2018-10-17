@@ -460,7 +460,6 @@ public class HttpExporterTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix (bugUrl = "https://github.com/elastic/elasticsearch/issues/31433" )
     public void testHttpExporterShutdown() throws Exception {
         final Config config = createConfig(Settings.EMPTY);
         final RestClient client = mock(RestClient.class);
@@ -469,7 +468,7 @@ public class HttpExporterTests extends ESTestCase {
         final MultiHttpResource resource = mock(MultiHttpResource.class);
 
         if (sniffer != null && rarely()) {
-            doThrow(randomFrom(new IOException("expected"), new RuntimeException("expected"))).when(sniffer).close();
+            doThrow(new RuntimeException("expected")).when(sniffer).close();
         }
 
         if (rarely()) {

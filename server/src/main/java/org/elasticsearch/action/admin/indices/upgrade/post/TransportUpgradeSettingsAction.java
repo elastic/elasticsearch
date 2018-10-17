@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.upgrade.post;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
@@ -35,7 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<UpgradeSettingsRequest, UpgradeSettingsResponse> {
+public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<UpgradeSettingsRequest, AcknowledgedResponse> {
 
     private final MetaDataUpdateSettingsService updateSettingsService;
 
@@ -58,12 +59,12 @@ public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<Up
     }
 
     @Override
-    protected UpgradeSettingsResponse newResponse() {
-        return new UpgradeSettingsResponse();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
-    protected void masterOperation(final UpgradeSettingsRequest request, final ClusterState state, final ActionListener<UpgradeSettingsResponse> listener) {
+    protected void masterOperation(final UpgradeSettingsRequest request, final ClusterState state, final ActionListener<AcknowledgedResponse> listener) {
         UpgradeSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpgradeSettingsClusterStateUpdateRequest()
                 .ackTimeout(request.timeout())
                 .versions(request.versions())
@@ -72,7 +73,7 @@ public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<Up
         updateSettingsService.upgradeIndexSettings(clusterStateUpdateRequest, new ActionListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new UpgradeSettingsResponse(response.isAcknowledged()));
+                listener.onResponse(new AcknowledgedResponse(response.isAcknowledged()));
             }
 
             @Override

@@ -443,4 +443,22 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         }
     }
 
+    public void testIllegalFormatField() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", "date_range")
+                            .array("format", "test_format")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject());
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> parser.parse("type", new CompressedXContent(mapping)));
+        assertEquals("Invalid format: [[test_format]]: expected string value", e.getMessage());
+    }
+
 }

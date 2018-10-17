@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -51,7 +52,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     }
 
     @Override
-    protected void doExecute(PreviewDatafeedAction.Request request, ActionListener<PreviewDatafeedAction.Response> listener) {
+    protected void doExecute(Task task, PreviewDatafeedAction.Request request, ActionListener<PreviewDatafeedAction.Response> listener) {
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterService.state());
         DatafeedConfig datafeed = mlMetadata.getDatafeed(request.getDatafeedId());
         if (datafeed == null) {

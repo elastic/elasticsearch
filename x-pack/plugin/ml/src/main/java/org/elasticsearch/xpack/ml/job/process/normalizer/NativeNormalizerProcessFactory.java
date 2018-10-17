@@ -9,10 +9,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.ml.job.process.NativeController;
-import org.elasticsearch.xpack.ml.job.process.ProcessCtrl;
-import org.elasticsearch.xpack.ml.job.process.ProcessPipes;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.job.process.NativeController;
+import org.elasticsearch.xpack.ml.job.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
 import java.io.IOException;
@@ -39,20 +38,19 @@ public class NativeNormalizerProcessFactory implements NormalizerProcessFactory 
 
     @Override
     public NormalizerProcess createNormalizerProcess(String jobId, String quantilesState, Integer bucketSpan,
-                                                     boolean perPartitionNormalization, ExecutorService executorService) {
-        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, ProcessCtrl.NORMALIZE, jobId,
+                                                     ExecutorService executorService) {
+        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, NormalizerBuilder.NORMALIZE, jobId,
                 true, false, true, true, false, false);
-        createNativeProcess(jobId, quantilesState, processPipes, bucketSpan, perPartitionNormalization);
+        createNativeProcess(jobId, quantilesState, processPipes, bucketSpan);
 
         return new NativeNormalizerProcess(jobId, settings, processPipes.getLogStream().get(),
                 processPipes.getProcessInStream().get(), processPipes.getProcessOutStream().get(), executorService);
     }
 
-    private void createNativeProcess(String jobId, String quantilesState, ProcessPipes processPipes, Integer bucketSpan,
-                                     boolean perPartitionNormalization) {
+    private void createNativeProcess(String jobId, String quantilesState, ProcessPipes processPipes, Integer bucketSpan) {
 
         try {
-            List<String> command = ProcessCtrl.buildNormalizerCommand(env, jobId, quantilesState, bucketSpan, perPartitionNormalization);
+            List<String> command = new NormalizerBuilder(env, jobId, quantilesState, bucketSpan).build();
             processPipes.addArgs(command);
             nativeController.startProcess(command);
             processPipes.connectStreams(PROCESS_STARTUP_TIMEOUT);

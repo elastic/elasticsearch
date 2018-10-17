@@ -164,11 +164,6 @@ public abstract class TransportReplicationAction<
     }
 
     @Override
-    protected final void doExecute(Request request, ActionListener<Response> listener) {
-        throw new UnsupportedOperationException("the task parameter is required for this operation");
-    }
-
-    @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         new ReroutePhase((ReplicationTask) task, request, listener).run();
     }
@@ -205,7 +200,7 @@ public abstract class TransportReplicationAction<
 
     /**
      * Synchronously execute the specified replica operation. This is done under a permit from
-     * {@link IndexShard#acquireReplicaOperationPermit(long, long, ActionListener, String, Object)}.
+     * {@link IndexShard#acquireReplicaOperationPermit(long, long, long, ActionListener, String, Object)}.
      *
      * @param shardRequest the request to the replica shard
      * @param replica      the replica shard to perform the operation on
@@ -273,22 +268,12 @@ public abstract class TransportReplicationAction<
                 }
             });
         }
-
-        @Override
-        public void messageReceived(Request request, TransportChannel channel) throws Exception {
-            throw new UnsupportedOperationException("the task parameter is required for this operation");
-        }
     }
 
     protected class PrimaryOperationTransportHandler implements TransportRequestHandler<ConcreteShardRequest<Request>> {
 
         public PrimaryOperationTransportHandler() {
 
-        }
-
-        @Override
-        public void messageReceived(final ConcreteShardRequest<Request> request, final TransportChannel channel) throws Exception {
-            throw new UnsupportedOperationException("the task parameter is required for this operation");
         }
 
         @Override
@@ -495,12 +480,6 @@ public abstract class TransportReplicationAction<
 
         @Override
         public void messageReceived(
-                final ConcreteReplicaRequest<ReplicaRequest> replicaRequest, final TransportChannel channel) throws Exception {
-            throw new UnsupportedOperationException("the task parameter is required for this operation");
-        }
-
-        @Override
-        public void messageReceived(
                 final ConcreteReplicaRequest<ReplicaRequest> replicaRequest,
                 final TransportChannel channel,
                 final Task task)
@@ -510,6 +489,7 @@ public abstract class TransportReplicationAction<
                     replicaRequest.getTargetAllocationID(),
                     replicaRequest.getPrimaryTerm(),
                     replicaRequest.getGlobalCheckpoint(),
+                    replicaRequest.getMaxSeqNoOfUpdatesOrDeletes(),
                     channel,
                     (ReplicationTask) task).run();
         }
@@ -534,6 +514,7 @@ public abstract class TransportReplicationAction<
         private final String targetAllocationID;
         private final long primaryTerm;
         private final long globalCheckpoint;
+        private final long maxSeqNoOfUpdatesOrDeletes;
         private final TransportChannel channel;
         private final IndexShard replica;
         /**
@@ -549,6 +530,7 @@ public abstract class TransportReplicationAction<
                 String targetAllocationID,
                 long primaryTerm,
                 long globalCheckpoint,
+                long maxSeqNoOfUpdatesOrDeletes,
                 TransportChannel channel,
                 ReplicationTask task) {
             this.request = request;
@@ -557,6 +539,7 @@ public abstract class TransportReplicationAction<
             this.targetAllocationID = targetAllocationID;
             this.primaryTerm = primaryTerm;
             this.globalCheckpoint = globalCheckpoint;
+            this.maxSeqNoOfUpdatesOrDeletes = maxSeqNoOfUpdatesOrDeletes;
             final ShardId shardId = request.shardId();
             assert shardId != null : "request shardId must be set";
             this.replica = getIndexShard(shardId);
@@ -596,7 +579,8 @@ public abstract class TransportReplicationAction<
                             new TransportChannelResponseHandler<>(logger, channel, extraMessage,
                                 () -> TransportResponse.Empty.INSTANCE);
                         transportService.sendRequest(clusterService.localNode(), transportReplicaAction,
-                            new ConcreteReplicaRequest<>(request, targetAllocationID, primaryTerm, globalCheckpoint),
+                            new ConcreteReplicaRequest<>(request, targetAllocationID, primaryTerm,
+                                globalCheckpoint, maxSeqNoOfUpdatesOrDeletes),
                             handler);
                     }
 
@@ -634,7 +618,7 @@ public abstract class TransportReplicationAction<
                 throw new ShardNotFoundException(this.replica.shardId(), "expected aID [{}] but found [{}]", targetAllocationID,
                     actualAllocationId);
             }
-            replica.acquireReplicaOperationPermit(primaryTerm, globalCheckpoint, this, executor, request);
+            replica.acquireReplicaOperationPermit(primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, this, executor, request);
         }
 
         /**
@@ -950,7 +934,7 @@ public abstract class TransportReplicationAction<
         if (actualAllocationId.equals(allocationId) == false) {
             throw new ShardNotFoundException(shardId, "expected aID [{}] but found [{}]", allocationId, actualAllocationId);
         }
-        final long actualTerm = indexShard.getPrimaryTerm();
+        final long actualTerm = indexShard.getPendingPrimaryTerm();
         if (actualTerm != primaryTerm) {
             throw new ShardNotFoundException(shardId, "expected aID [{}] with term [{}] but found [{}]", allocationId,
                 primaryTerm, actualTerm);
@@ -1004,7 +988,7 @@ public abstract class TransportReplicationAction<
         }
 
         public boolean isRelocated() {
-            return indexShard.isPrimaryMode() == false;
+            return indexShard.isRelocatedPrimary();
         }
 
         @Override
@@ -1042,6 +1026,11 @@ public abstract class TransportReplicationAction<
         @Override
         public long globalCheckpoint() {
             return indexShard.getGlobalCheckpoint();
+        }
+
+        @Override
+        public long maxSeqNoOfUpdatesOrDeletes() {
+            return indexShard.getMaxSeqNoOfUpdatesOrDeletes();
         }
 
         @Override
@@ -1128,6 +1117,7 @@ public abstract class TransportReplicationAction<
                 final ShardRouting replica,
                 final ReplicaRequest request,
                 final long globalCheckpoint,
+                final long maxSeqNoOfUpdatesOrDeletes,
                 final ActionListener<ReplicationOperation.ReplicaResponse> listener) {
             String nodeId = replica.currentNodeId();
             final DiscoveryNode node = clusterService.state().nodes().get(nodeId);
@@ -1135,8 +1125,8 @@ public abstract class TransportReplicationAction<
                 listener.onFailure(new NoNodeAvailableException("unknown node [" + nodeId + "]"));
                 return;
             }
-            final ConcreteReplicaRequest<ReplicaRequest> replicaRequest =
-                    new ConcreteReplicaRequest<>(request, replica.allocationId().getId(), primaryTerm, globalCheckpoint);
+            final ConcreteReplicaRequest<ReplicaRequest> replicaRequest = new ConcreteReplicaRequest<>(
+                request, replica.allocationId().getId(), primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes);
             sendReplicaRequest(replicaRequest, node, listener);
         }
 
@@ -1284,15 +1274,17 @@ public abstract class TransportReplicationAction<
     protected static final class ConcreteReplicaRequest<R extends TransportRequest> extends ConcreteShardRequest<R> {
 
         private long globalCheckpoint;
+        private long maxSeqNoOfUpdatesOrDeletes;
 
         public ConcreteReplicaRequest(final Supplier<R> requestSupplier) {
             super(requestSupplier);
         }
 
         public ConcreteReplicaRequest(final R request, final String targetAllocationID, final long primaryTerm,
-                                      final long globalCheckpoint) {
+                                      final long globalCheckpoint, final long maxSeqNoOfUpdatesOrDeletes) {
             super(request, targetAllocationID, primaryTerm);
             this.globalCheckpoint = globalCheckpoint;
+            this.maxSeqNoOfUpdatesOrDeletes = maxSeqNoOfUpdatesOrDeletes;
         }
 
         @Override
@@ -1303,6 +1295,13 @@ public abstract class TransportReplicationAction<
             } else {
                 globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
             }
+            if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
+                maxSeqNoOfUpdatesOrDeletes = in.readZLong();
+            } else {
+                // UNASSIGNED_SEQ_NO (-2) means uninitialized, and replicas will disable
+                // optimization using seq_no if its max_seq_no_of_updates is still uninitialized
+                maxSeqNoOfUpdatesOrDeletes = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            }
         }
 
         @Override
@@ -1311,10 +1310,17 @@ public abstract class TransportReplicationAction<
             if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
                 out.writeZLong(globalCheckpoint);
             }
+            if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
+                out.writeZLong(maxSeqNoOfUpdatesOrDeletes);
+            }
         }
 
         public long getGlobalCheckpoint() {
             return globalCheckpoint;
+        }
+
+        public long getMaxSeqNoOfUpdatesOrDeletes() {
+            return maxSeqNoOfUpdatesOrDeletes;
         }
 
         @Override
@@ -1324,6 +1330,7 @@ public abstract class TransportReplicationAction<
                     ", primaryTerm='" + getPrimaryTerm() + '\'' +
                     ", request=" + getRequest() +
                     ", globalCheckpoint=" + globalCheckpoint +
+                    ", maxSeqNoOfUpdatesOrDeletes=" + maxSeqNoOfUpdatesOrDeletes +
                     '}';
         }
     }

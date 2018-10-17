@@ -59,7 +59,7 @@ public class NodeSelectorTests extends RestClientTestCase {
         Collections.shuffle(nodes, getRandom());
         List<Node> expected = new ArrayList<>(nodes);
         expected.remove(masterOnly);
-        NodeSelector.NOT_MASTER_ONLY.select(nodes);
+        NodeSelector.SKIP_DEDICATED_MASTERS.select(nodes);
         assertEquals(expected, nodes);
     }
 

@@ -16,11 +16,11 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.xpack.core.rollup.RollupField;
-import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
@@ -208,7 +208,7 @@ public class RollupRequestTranslator {
     private static List<AggregationBuilder> translateDateHistogram(DateHistogramAggregationBuilder source,
                                                                    List<QueryBuilder> filterConditions,
                                                                    NamedWriteableRegistry registry) {
-        
+
         return translateVSAggBuilder(source, filterConditions, registry, () -> {
             DateHistogramAggregationBuilder rolledDateHisto
                     = new DateHistogramAggregationBuilder(source.getName());
@@ -221,7 +221,7 @@ public class RollupRequestTranslator {
 
             String timezone = source.timeZone() == null ? DateTimeZone.UTC.toString() : source.timeZone().toString();
             filterConditions.add(new TermQueryBuilder(RollupField.formatFieldName(source,
-                    DateHistoGroupConfig.TIME_ZONE.getPreferredName()), timezone));
+                DateHistogramGroupConfig.TIME_ZONE), timezone));
 
             rolledDateHisto.offset(source.offset());
             if (source.extendedBounds() != null) {

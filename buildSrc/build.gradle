@@ -16,17 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 import java.nio.file.Files
-
 import org.gradle.util.GradleVersion
 
-apply plugin: 'groovy'
+plugins {
+  id 'java-gradle-plugin'
+  id 'groovy'
+}
 
 group = 'org.elasticsearch.gradle'
 
-if (GradleVersion.current() < GradleVersion.version('3.3')) {
-  throw new GradleException('Gradle 3.3+ is required to build elasticsearch')
+String minimumGradleVersion = file('src/main/resources/minimumGradleVersion').text.trim()
+if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion)) {
+    throw new GradleException("Gradle ${minimumGradleVersion}+ is required to build elasticsearch")
 }
 
 if (JavaVersion.current() < JavaVersion.VERSION_1_8) {
@@ -38,6 +40,12 @@ if (project == rootProject) {
   // won't wipe out the buildscript jar
   buildDir = 'build-bootstrap'
 }
+
+// Make sure :buildSrc: doesn't generate classes incompatible with RUNTIME_JAVA_HOME
+// We can't use BuildPlugin here, so read from file
+String minimumRuntimeVersion = file('src/main/resources/minimumRuntimeVersion').text.trim()
+targetCompatibility = minimumRuntimeVersion
+sourceCompatibility = minimumRuntimeVersion
 
 /*****************************************************************************
  *         Propagating version.properties to the rest of the build           *
@@ -83,9 +91,10 @@ repositories {
 }
 
 dependencies {
-  compile gradleApi()
   compile localGroovy()
   compile "com.carrotsearch.randomizedtesting:junit4-ant:${props.getProperty('randomizedrunner')}"
+  compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
+
   compile("junit:junit:${props.getProperty('junit')}") {
     transitive = false
   }
@@ -94,10 +103,12 @@ dependencies {
   compile 'com.netflix.nebula:gradle-info-plugin:3.0.3'
   compile 'org.eclipse.jgit:org.eclipse.jgit:3.2.0.201312181205-r'
   compile 'com.perforce:p4java:2012.3.551082' // THIS IS SUPPOSED TO BE OPTIONAL IN THE FUTURE....
-  compile 'de.thetaphi:forbiddenapis:2.5'
   compile 'org.apache.rat:apache-rat:0.11'
   compile "org.elasticsearch:jna:4.5.1"
+  compile 'com.github.jengelman.gradle.plugins:shadow:2.0.4'
+  testCompile "junit:junit:${props.getProperty('junit')}"
 }
+
 
 // Gradle 2.14+ removed ProgressLogger(-Factory) classes from the public APIs
 // Use logging dependency instead
@@ -106,7 +117,6 @@ GradleVersion logVersion = GradleVersion.current() > GradleVersion.version('4.3'
 
 dependencies {
   compileOnly "org.gradle:gradle-logging:${logVersion.getVersion()}"
-  compile 'ru.vyarus:gradle-animalsniffer-plugin:1.2.0' // Gradle 2.14 requires a version > 1.0.1
 }
 
 /*****************************************************************************
@@ -114,14 +124,16 @@ dependencies {
  *****************************************************************************/
 // this will only happen when buildSrc is built on its own during build init
 if (project == rootProject) {
-
   repositories {
     if (System.getProperty("repos.mavenLocal") != null) {
       mavenLocal()
     }
     mavenCentral()
   }
-  test.exclude 'org/elasticsearch/test/NamingConventionsCheckBadClasses*'
+  test {
+    include "**/*Tests.class"
+    exclude "**/*IT.class"
+  }
 }
 
 /*****************************************************************************
@@ -146,8 +158,29 @@ if (project != rootProject) {
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
 
-  // test for elasticsearch.build tries to run with ES...
+  // tests can't  be run with randomized test runner
+  // it's fine as we run them as part of :buildSrc
   test.enabled = false
+  task integTest(type: Test) {
+    // integration test requires the local testing repo for example plugin builds
+    dependsOn project.rootProject.allprojects.collect {
+      it.tasks.matching { it.name == 'publishNebulaPublicationToLocalTestRepository'}
+    }
+    exclude "**/*Tests.class"
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    inputs.dir(file("src/testKit"))
+    // tell BuildExamplePluginsIT where to find the example plugins
+    systemProperty (
+            'test.build-tools.plugin.examples',
+            files(
+                    project(':example-plugins').subprojects.collect { it.projectDir }
+            ).asPath,
+    )
+    systemProperty 'test.local-test-repo-path', "${rootProject.buildDir}/local-test-repo"
+    systemProperty 'test.lucene-snapshot-revision', (versions.lucene =~ /\w+-snapshot-([a-z0-9]+)/)[0][1]
+  }
+  check.dependsOn(integTest)
 
   // TODO: re-enable once randomizedtesting gradle code is published and removed from here
   licenseHeaders.enabled = false
@@ -159,14 +192,15 @@ if (project != rootProject) {
   }
 
   namingConventions {
-    testClass = 'org.elasticsearch.test.NamingConventionsCheckBadClasses$UnitTestCase'
-    integTestClass = 'org.elasticsearch.test.NamingConventionsCheckBadClasses$IntegTestCase'
+    testClass = 'org.elasticsearch.gradle.test.GradleUnitTestCase'
+    integTestClass = 'org.elasticsearch.gradle.test.GradleIntegrationTestCase'
   }
 
-  task namingConventionsMain(type: org.elasticsearch.gradle.precommit.NamingConventionsTask) {
-    checkForTestsInMain = true
-    testClass = namingConventions.testClass
-    integTestClass = namingConventions.integTestClass
+  /*
+   * We alread configure publication and we don't need or want this one that
+   * comes from the java-gradle-plugin.
+   */
+  afterEvaluate {
+    generatePomFileForPluginMavenPublication.enabled = false
   }
-  precommit.dependsOn namingConventionsMain
 }

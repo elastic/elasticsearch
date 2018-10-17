@@ -17,9 +17,9 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -254,6 +254,23 @@ public class SecurityIndexManager extends AbstractComponent implements ClusterSt
     }
 
     /**
+     * Validates the security index is up to date and does not need to migrated. If it is not, the
+     * consumer is called with an exception. If the security index is up to date, the runnable will
+     * be executed. <b>NOTE:</b> this method does not check the availability of the index; this check
+     * is left to the caller so that this condition can be handled appropriately.
+     */
+    public void checkIndexVersionThenExecute(final Consumer<Exception> consumer, final Runnable andThen) {
+        final State indexState = this.indexState; // use a local copy so all checks execute against the same state!
+        if (indexState.indexExists && indexState.isIndexUpToDate == false) {
+            consumer.accept(new IllegalStateException(
+                "Security index is not on the current version. Security features relying on the index will not be available until " +
+                    "the upgrade API is run on the security index"));
+        } else {
+            andThen.run();
+        }
+    }
+
+    /**
      * Prepares the index by creating it if it doesn't exist or updating the mappings if the mappings are
      * out of date. After any tasks have been executed, the runnable is then executed.
      */
@@ -299,7 +316,7 @@ public class SecurityIndexManager extends AbstractComponent implements ClusterSt
                     .source(loadMappingAndSettingsSourceFromTemplate().v1(), XContentType.JSON)
                     .type("doc");
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
-                    ActionListener.<PutMappingResponse>wrap(putMappingResponse -> {
+                    ActionListener.<AcknowledgedResponse>wrap(putMappingResponse -> {
                         if (putMappingResponse.isAcknowledged()) {
                             andThen.run();
                         } else {

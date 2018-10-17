@@ -1,8 +1,13 @@
 ---
 "Refresh":
 
+ - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
  - do:
       indices.create:
+          include_type_name: false
           index:    test_1
           body:
               settings:
@@ -11,8 +16,8 @@
 
  - do:
       update:
+          include_type_name: false
           index:   test_1
-          type:    test
           id:      1
           body:
             doc:        { foo: baz }
@@ -20,6 +25,7 @@
 
  - do:
       search:
+          include_type_name: false
           index:   test_1
           body:
             query:   { term: { _id: 1 }}
@@ -28,8 +34,8 @@
 
  - do:
       update:
+          include_type_name: false
           index:   test_1
-          type:    test
           id:      2
           refresh: true
           body:
@@ -39,6 +45,7 @@
 
  - do:
       search:
+          include_type_name: false
           index:   test_1
           body:
             query:   { term: { _id: 2 }}
@@ -47,10 +54,15 @@
 
 ---
 "When refresh url parameter is an empty string that means \"refresh immediately\"":
+
+ - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
  - do:
       index:
+          include_type_name: false
           index:   test_1
-          type:    test
           id:      1
           refresh: true
           body:    { foo: bar }
@@ -58,8 +70,8 @@
 
  - do:
      update:
+         include_type_name: false
          index:   test_1
-         type:    test
          id:      1
          refresh: ""
          body:
@@ -68,6 +80,7 @@
 
  - do:
       search:
+          include_type_name: false
           index:   test_1
           body:
             query:   { term: { cat: dog }}
@@ -76,10 +89,15 @@
 
 ---
 "refresh=wait_for waits until changes are visible in search":
+
+ - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
  - do:
       index:
+          include_type_name: false
           index:   update_60_refresh_1
-          type:    test
           id:      update_60_refresh_id1
           body:    { foo: bar }
           refresh: true
@@ -87,6 +105,7 @@
 
  - do:
       search:
+          include_type_name: false
           index:   update_60_refresh_1
           body:
             query:   { term: { _id: update_60_refresh_id1 }}
@@ -94,8 +113,8 @@
 
  - do:
      update:
+         include_type_name: false
          index:   update_60_refresh_1
-         type:    test
          id:      update_60_refresh_id1
          refresh: wait_for
          body:
@@ -104,6 +123,7 @@
 
  - do:
       search:
+          include_type_name: false
           index:   update_60_refresh_1
           body:
             query:   { match: { test: asdf } }

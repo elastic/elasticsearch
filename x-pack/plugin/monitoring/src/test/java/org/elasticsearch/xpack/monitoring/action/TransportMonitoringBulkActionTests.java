@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.monitoring.action;
 
-import java.util.concurrent.ExecutorService;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.ActionFilter;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
@@ -51,6 +51,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.Version.CURRENT;
 import static org.hamcrest.Matchers.containsString;
@@ -98,7 +99,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         filters = mock(ActionFilters.class);
 
         when(transportService.getTaskManager()).thenReturn(taskManager);
-        when(taskManager.register(anyString(), eq(MonitoringBulkAction.NAME), any(TaskAwareRequest.class))).thenReturn(null);
+        when(taskManager.register(anyString(), eq(MonitoringBulkAction.NAME), any(TaskAwareRequest.class))).thenReturn(mock(Task.class));
         when(filters.filters()).thenReturn(new ActionFilter[0]);
         when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(executor);
 

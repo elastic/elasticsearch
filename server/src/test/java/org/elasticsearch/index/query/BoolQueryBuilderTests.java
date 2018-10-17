@@ -28,6 +28,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -169,8 +170,10 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
     public void testEmptyBooleanQuery() throws Exception {
         XContentBuilder contentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         contentBuilder.startObject().startObject("bool").endObject().endObject();
-        Query parsedQuery = parseQuery(createParser(contentBuilder)).toQuery(createShardContext());
-        assertThat(parsedQuery, Matchers.instanceOf(MatchAllDocsQuery.class));
+        try (XContentParser xParser = createParser(contentBuilder)) {
+            Query parsedQuery = parseQuery(xParser).toQuery(createShardContext());
+            assertThat(parsedQuery, Matchers.instanceOf(MatchAllDocsQuery.class));
+        }
     }
 
     public void testDefaultMinShouldMatch() throws Exception {

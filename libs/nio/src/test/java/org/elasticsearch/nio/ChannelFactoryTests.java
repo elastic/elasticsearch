@@ -137,7 +137,6 @@ public class ChannelFactoryTests extends ESTestCase {
             super(rawChannelFactory);
         }
 
-        @SuppressWarnings("unchecked")
         @Override
         public NioSocketChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
             NioSocketChannel nioSocketChannel = new NioSocketChannel(channel);

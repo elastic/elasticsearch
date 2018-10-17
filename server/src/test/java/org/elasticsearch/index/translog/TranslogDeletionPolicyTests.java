@@ -171,7 +171,7 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
             }
             writer = TranslogWriter.create(new ShardId("index", "uuid", 0), translogUUID, gen,
                 tempDir.resolve(Translog.getFilename(gen)), FileChannel::open, TranslogConfig.DEFAULT_BUFFER_SIZE, 1L, 1L, () -> 1L,
-                () -> 1L, randomNonNegativeLong());
+                () -> 1L, randomNonNegativeLong(), new TragicExceptionHolder());
             writer = Mockito.spy(writer);
             Mockito.doReturn(now - (numberOfReaders - gen + 1) * 1000).when(writer).getLastModifiedTime();
 

@@ -136,8 +136,7 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
         ClusterState after = service.innerExecute(before, Arrays.asList(
             new AliasAction.Add("test", "alias", null, null, null, false)));
         assertFalse(after.metaData().index("test").getAliases().get("alias").writeIndex());
-        assertThat(((AliasOrIndex.Alias) after.metaData().getAliasAndIndexLookup().get("alias")).getWriteIndex(),
-            equalTo(after.metaData().index("test")));
+        assertNull(((AliasOrIndex.Alias) after.metaData().getAliasAndIndexLookup().get("alias")).getWriteIndex());
 
         after = service.innerExecute(before, Arrays.asList(
             new AliasAction.Add("test", "alias", null, null, null, null)));

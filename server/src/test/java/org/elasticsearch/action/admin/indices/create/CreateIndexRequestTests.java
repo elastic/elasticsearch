@@ -134,11 +134,12 @@ public class CreateIndexRequestTests extends ESTestCase {
         for (Map.Entry<String, String> expectedEntry : expected.entrySet()) {
             String expectedValue = expectedEntry.getValue();
             String actualValue = actual.get(expectedEntry.getKey());
-            XContentParser expectedJson = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
+            try (XContentParser expectedJson = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
                     LoggingDeprecationHandler.INSTANCE, expectedValue);
-            XContentParser actualJson = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE, actualValue);
-            assertEquals(expectedJson.map(), actualJson.map());
+                 XContentParser actualJson = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE, actualValue)){
+                assertEquals(expectedJson.map(), actualJson.map());
+            }
         }
     }
 

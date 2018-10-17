@@ -70,6 +70,7 @@ setup:
             trigger_count: 0
           status:
             job_state: "stopped"
+            upgraded_doc_id: true
 
   - do:
       xpack.rollup.delete_job:
@@ -116,6 +117,7 @@ setup:
             trigger_count: 0
           status:
             job_state: "stopped"
+            upgraded_doc_id: true
 
   - do:
       xpack.rollup.delete_job:
@@ -162,6 +164,7 @@ setup:
             trigger_count: 0
           status:
             job_state: "stopped"
+            upgraded_doc_id: true
 
   - do:
       xpack.rollup.start_job:
@@ -174,7 +177,7 @@ setup:
   - is_true: acknowledged
 
 ---
-"Test delete non-existant job":
+"Test delete non-existent job":
 
   - do:
       catch: /the task with id does_not_exist doesn't exist/

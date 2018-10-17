@@ -17,3 +17,4 @@ you specify the condition type and associate it with an empty object:
   "never" : {}
 }
 --------------------------------------------------
+// NOTCONSOLE

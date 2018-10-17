@@ -40,7 +40,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggre
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 
 import java.io.IOException;
@@ -98,7 +98,6 @@ public class MovFnUnitTests extends AggregatorTestCase {
     }
 
 
-    @SuppressWarnings("unchecked")
     private void executeTestCase(Query query,
                                  DateHistogramAggregationBuilder aggBuilder,
                                  Consumer<Histogram> verify,

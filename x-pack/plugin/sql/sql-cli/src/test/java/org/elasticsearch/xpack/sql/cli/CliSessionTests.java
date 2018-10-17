@@ -10,8 +10,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.cli.command.CliSession;
 import org.elasticsearch.xpack.sql.client.HttpClient;
-import org.elasticsearch.xpack.sql.client.shared.ClientException;
-import org.elasticsearch.xpack.sql.client.shared.Version;
+import org.elasticsearch.xpack.sql.client.ClientException;
+import org.elasticsearch.xpack.sql.client.Version;
 import org.elasticsearch.xpack.sql.proto.MainResponse;
 
 import java.sql.SQLException;

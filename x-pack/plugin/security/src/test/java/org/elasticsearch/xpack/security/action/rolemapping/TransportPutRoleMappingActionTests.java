@@ -9,7 +9,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
@@ -39,7 +41,7 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
     @Before
     public void setupMocks() {
         store = mock(NativeRoleMappingStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, null, null,
+        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         action = new TransportPutRoleMappingAction(Settings.EMPTY, mock(ActionFilters.class), transportService, store);
 
@@ -84,7 +86,7 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
         request.setMetadata(metadata);
         request.setEnabled(true);
         final PlainActionFuture<PutRoleMappingResponse> future = new PlainActionFuture<>();
-        action.doExecute(request, future);
+        action.doExecute(mock(Task.class), request, future);
         return future.get();
     }
 }

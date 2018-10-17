@@ -37,7 +37,6 @@ import org.elasticsearch.transport.NodeDisconnectedException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -74,9 +73,10 @@ public class IndicesShardStoreResponseTests extends ESTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
             Map<String, Object> map = parser.map();
-            List failureList = (List) map.get("failures");
+            List<?> failureList = (List<?>) map.get("failures");
             assertThat(failureList.size(), equalTo(1));
-            HashMap failureMap = (HashMap) failureList.get(0);
+            @SuppressWarnings("unchecked")
+            Map<String, ?> failureMap =  (Map<String, ?>) failureList.get(0);
             assertThat(failureMap.containsKey("index"), equalTo(true));
             assertThat(((String) failureMap.get("index")), equalTo("test"));
             assertThat(failureMap.containsKey("shard"), equalTo(true));
@@ -84,18 +84,22 @@ public class IndicesShardStoreResponseTests extends ESTestCase {
             assertThat(failureMap.containsKey("node"), equalTo(true));
             assertThat(((String) failureMap.get("node")), equalTo("node1"));
 
+            @SuppressWarnings("unchecked")
             Map<String, Object> indices = (Map<String, Object>) map.get("indices");
             for (String index : new String[] {"test", "test2"}) {
                 assertThat(indices.containsKey(index), equalTo(true));
+                @SuppressWarnings("unchecked")
                 Map<String, Object> shards = ((Map<String, Object>) ((Map<String, Object>) indices.get(index)).get("shards"));
                 assertThat(shards.size(), equalTo(2));
                 for (String shardId : shards.keySet()) {
-                    HashMap shardStoresStatus = (HashMap) shards.get(shardId);
+                    @SuppressWarnings("unchecked")
+                    Map<String, ?> shardStoresStatus = (Map<String, ?>) shards.get(shardId);
                     assertThat(shardStoresStatus.containsKey("stores"), equalTo(true));
-                    List stores = (ArrayList) shardStoresStatus.get("stores");
+                    List<?> stores = (List<?>) shardStoresStatus.get("stores");
                     assertThat(stores.size(), equalTo(storeStatusList.size()));
                     for (int i = 0; i < stores.size(); i++) {
-                        HashMap storeInfo = ((HashMap) stores.get(i));
+                        @SuppressWarnings("unchecked")
+                        Map<String, ?> storeInfo = ((Map<String, ?>) stores.get(i));
                         IndicesShardStoresResponse.StoreStatus storeStatus = storeStatusList.get(i);
                         assertThat(((String) storeInfo.get("allocation_id")), equalTo((storeStatus.getAllocationId())));
                         assertThat(storeInfo.containsKey("allocation"), equalTo(true));

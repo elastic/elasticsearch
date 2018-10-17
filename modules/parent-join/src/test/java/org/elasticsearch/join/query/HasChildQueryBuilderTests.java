@@ -88,9 +88,9 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
 
     @Override
-    protected Settings indexSettings() {
+    protected Settings createTestIndexSettings() {
         return Settings.builder()
-            .put(super.indexSettings())
+            .put(super.createTestIndexSettings())
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build();
     }
@@ -196,10 +196,6 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     public void testSerializationBWC() throws IOException {
         for (Version version : VersionUtils.allReleasedVersions()) {
             HasChildQueryBuilder testQuery = createTestQueryBuilder();
-            if (version.before(Version.V_5_2_0) && testQuery.innerHit() != null) {
-                // ignore unmapped for inner_hits has been added on 5.2
-                testQuery.innerHit().setIgnoreUnmapped(false);
-            }
             assertSerialization(testQuery, version);
         }
     }

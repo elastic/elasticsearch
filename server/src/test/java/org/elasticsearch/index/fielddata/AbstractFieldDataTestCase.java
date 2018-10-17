@@ -161,7 +161,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
 
     protected Nested createNested(IndexSearcher searcher, Query parentFilter, Query childFilter) throws IOException {
         BitsetFilterCache s = indexService.cache().bitsetFilterCache();
-        return new Nested(s.getBitSetProducer(parentFilter), childFilter);
+        return new Nested(s.getBitSetProducer(parentFilter), childFilter, null);
     }
 
     public void testEmpty() throws Exception {
@@ -170,7 +170,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         writer.addDocument(d);
         refreshReader();
 
-        IndexFieldData fieldData = getForField("non_existing_field");
+        IndexFieldData<?> fieldData = getForField("non_existing_field");
         int max = randomInt(7);
         for (LeafReaderContext readerContext : readerContexts) {
             AtomicFieldData previous = null;

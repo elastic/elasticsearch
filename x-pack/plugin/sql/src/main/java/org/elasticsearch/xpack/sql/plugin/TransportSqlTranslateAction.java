@@ -11,7 +11,11 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.sql.action.SqlTranslateAction;
+import org.elasticsearch.xpack.sql.action.SqlTranslateRequest;
+import org.elasticsearch.xpack.sql.action.SqlTranslateResponse;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.session.Configuration;
 
@@ -33,7 +37,7 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
     }
 
     @Override
-    protected void doExecute(SqlTranslateRequest request, ActionListener<SqlTranslateResponse> listener) {
+    protected void doExecute(Task task, SqlTranslateRequest request, ActionListener<SqlTranslateResponse> listener) {
         sqlLicenseChecker.checkIfSqlAllowed(request.mode());
 
         Configuration cfg = new Configuration(request.timeZone(), request.fetchSize(),

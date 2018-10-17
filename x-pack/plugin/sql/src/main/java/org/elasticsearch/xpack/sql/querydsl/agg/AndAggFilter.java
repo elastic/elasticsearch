@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.Params;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.gen.script.Params;
+import org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Locale;

@@ -93,7 +93,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
     protected List<TransportAddress> buildDynamicHosts(Settings nodeSettings, int nodes, List<List<Tag>> tagsList) {
         try (Ec2DiscoveryPluginMock plugin = new Ec2DiscoveryPluginMock(Settings.EMPTY, nodes, tagsList)) {
             AwsEc2UnicastHostsProvider provider = new AwsEc2UnicastHostsProvider(nodeSettings, transportService, plugin.ec2Service);
-            List<TransportAddress> dynamicHosts = provider.buildDynamicHosts();
+            List<TransportAddress> dynamicHosts = provider.buildDynamicHosts(null);
             logger.debug("--> addresses found: {}", dynamicHosts);
             return dynamicHosts;
         } catch (IOException e) {
@@ -307,7 +307,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
             }
         };
         for (int i=0; i<3; i++) {
-            provider.buildDynamicHosts();
+            provider.buildDynamicHosts(null);
         }
         assertThat(provider.fetchCount, is(3));
     }
@@ -324,12 +324,12 @@ public class Ec2DiscoveryTests extends ESTestCase {
                 }
             };
             for (int i=0; i<3; i++) {
-                provider.buildDynamicHosts();
+                provider.buildDynamicHosts(null);
             }
             assertThat(provider.fetchCount, is(1));
             Thread.sleep(1_000L); // wait for cache to expire
             for (int i=0; i<3; i++) {
-                provider.buildDynamicHosts();
+                provider.buildDynamicHosts(null);
             }
             assertThat(provider.fetchCount, is(2));
         }

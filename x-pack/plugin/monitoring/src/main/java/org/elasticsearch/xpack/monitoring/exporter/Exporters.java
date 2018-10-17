@@ -55,6 +55,7 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
         this.licenseState = Objects.requireNonNull(licenseState);
 
         clusterService.getClusterSettings().addSettingsUpdateConsumer(this::setExportersSetting, getSettings());
+        HttpExporter.registerSettingValidators(clusterService);
         // this ensures, that logging is happening by adding an empty consumer per affix setting
         for (Setting.AffixSetting<?> affixSetting : getSettings()) {
             clusterService.getClusterSettings().addAffixUpdateConsumer(affixSetting, (s, o) -> {}, (s, o) -> {});

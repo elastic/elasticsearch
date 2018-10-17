@@ -38,6 +38,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.tasks.Task.X_OPAQUE_ID;
+
 /**
  * The default rest channel for incoming requests. This class implements the basic logic for sending a rest
  * response. It will set necessary headers nad ensure that bytes are released after the response is sent.
@@ -50,7 +52,6 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     static final String CONTENT_TYPE = "content-type";
     static final String CONTENT_LENGTH = "content-length";
     static final String SET_COOKIE = "set-cookie";
-    static final String X_OPAQUE_ID = "X-Opaque-Id";
 
     private final HttpRequest httpRequest;
     private final BigArrays bigArrays;

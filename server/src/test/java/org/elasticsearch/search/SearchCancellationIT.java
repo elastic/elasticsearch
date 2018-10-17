@@ -69,7 +69,10 @@ public class SearchCancellationIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         boolean lowLevelCancellation = randomBoolean();
         logger.info("Using lowLevelCancellation: {}", lowLevelCancellation);
-        return Settings.builder().put(SearchService.LOW_LEVEL_CANCELLATION_SETTING.getKey(), lowLevelCancellation).build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(SearchService.LOW_LEVEL_CANCELLATION_SETTING.getKey(), lowLevelCancellation)
+            .build();
     }
 
     private void indexTestData() {

@@ -80,8 +80,8 @@ public class TransportBulkActionTests extends ESTestCase {
         threadPool = new TestThreadPool("TransportBulkActionTookTests");
         clusterService = createClusterService(threadPool);
         CapturingTransport capturingTransport = new CapturingTransport();
-        transportService = new TransportService(clusterService.getSettings(), capturingTransport, threadPool,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+        transportService = capturingTransport.createCapturingTransportService(clusterService.getSettings(), threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();

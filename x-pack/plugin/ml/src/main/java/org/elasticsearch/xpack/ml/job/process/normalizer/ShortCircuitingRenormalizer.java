@@ -26,7 +26,6 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
     private final String jobId;
     private final ScoresUpdater scoresUpdater;
     private final ExecutorService executorService;
-    private final boolean isPerPartitionNormalization;
     private final Deque<QuantilesWithLatch> quantilesDeque = new ConcurrentLinkedDeque<>();
     private final Deque<CountDownLatch> latchDeque = new ConcurrentLinkedDeque<>();
     /**
@@ -34,12 +33,10 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
      */
     private final Semaphore semaphore = new Semaphore(1);
 
-    public ShortCircuitingRenormalizer(String jobId, ScoresUpdater scoresUpdater, ExecutorService executorService,
-                                       boolean isPerPartitionNormalization) {
+    public ShortCircuitingRenormalizer(String jobId, ScoresUpdater scoresUpdater, ExecutorService executorService) {
         this.jobId = jobId;
         this.scoresUpdater = scoresUpdater;
         this.executorService = executorService;
-        this.isPerPartitionNormalization = isPerPartitionNormalization;
     }
 
     @Override
@@ -161,8 +158,7 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
                                 jobId, latestBucketTimeMs, earliestBucketTimeMs);
                         windowExtensionMs = 0;
                     }
-                    scoresUpdater.update(latestQuantiles.getQuantileState(), latestBucketTimeMs, windowExtensionMs,
-                            isPerPartitionNormalization);
+                    scoresUpdater.update(latestQuantiles.getQuantileState(), latestBucketTimeMs, windowExtensionMs);
                     latch.countDown();
                     latch = null;
                 }

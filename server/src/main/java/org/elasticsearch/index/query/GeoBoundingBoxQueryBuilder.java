@@ -389,7 +389,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         GeoValidationMethod validationMethod = null;
         boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
-        Rectangle bbox = null;
+        // bottom (minLat), top (maxLat), left (minLon), right (maxLon)
+        double[] bbox = null;
         String type = "memory";
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -424,8 +425,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             throw new ElasticsearchParseException("failed to parse [{}] query. bounding box not provided", NAME);
         }
 
-        final GeoPoint topLeft = new GeoPoint(bbox.maxLat, bbox.minLon);  //just keep the object
-        final GeoPoint bottomRight = new GeoPoint(bbox.minLat, bbox.maxLon);
+        final GeoPoint topLeft = new GeoPoint(bbox[1], bbox[2]);
+        final GeoPoint bottomRight = new GeoPoint(bbox[0], bbox[3]);
 
         GeoBoundingBoxQueryBuilder builder = new GeoBoundingBoxQueryBuilder(fieldName);
         builder.setCorners(topLeft, bottomRight);
@@ -460,7 +461,10 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         return NAME;
     }
 
-    public static Rectangle parseBoundingBox(XContentParser parser) throws IOException, ElasticsearchParseException {
+    /**
+     * Parses the bounding box and returns bottom, top, left, right coordinates
+     */
+    public static double[] parseBoundingBox(XContentParser parser) throws IOException, ElasticsearchParseException {
         XContentParser.Token token = parser.currentToken();
         if (token != XContentParser.Token.START_OBJECT) {
             throw new ElasticsearchParseException("failed to parse bounding box. Expected start object but found [{}]", token);
@@ -521,8 +525,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                     + "using well-known text and explicit corners.");
             }
             org.locationtech.spatial4j.shape.Rectangle r = envelope.build();
-            return new Rectangle(r.getMinY(), r.getMaxY(), r.getMinX(), r.getMaxX());
+            return new double[]{r.getMinY(), r.getMaxY(), r.getMinX(), r.getMaxX()};
         }
-        return new Rectangle(bottom, top, left, right);
+        return new double[]{bottom, top, left, right};
     }
 }

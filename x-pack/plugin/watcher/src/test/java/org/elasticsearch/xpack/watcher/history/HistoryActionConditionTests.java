@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.history;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -18,12 +19,12 @@ import org.elasticsearch.xpack.core.watcher.condition.Condition;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.input.Input;
-import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
+import org.elasticsearch.xpack.watcher.test.WatcherMockScriptPlugin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -66,7 +67,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
         return types;
     }
 
-    public static class CustomScriptPlugin extends MockScriptPlugin {
+    public static class CustomScriptPlugin extends WatcherMockScriptPlugin {
 
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {

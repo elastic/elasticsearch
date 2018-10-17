@@ -19,9 +19,6 @@ import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -34,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContextBuilder;
 import static org.hamcrest.Matchers.hasSize;
@@ -45,20 +41,17 @@ import static org.mockito.Mockito.when;
 
 public class HttpEmailAttachementParserTests extends ESTestCase {
 
-    private HttpRequestTemplate.Parser httpRequestTemplateParser;
     private HttpClient httpClient;
     private EmailAttachmentsParser emailAttachmentsParser;
     private Map<String, EmailAttachmentParser> attachmentParsers;
 
     @Before
     public void init() throws Exception {
-        HttpAuthRegistry authRegistry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(null)));
-        httpRequestTemplateParser = new HttpRequestTemplate.Parser(authRegistry);
         httpClient = mock(HttpClient.class);
 
         attachmentParsers = new HashMap<>();
         attachmentParsers.put(HttpEmailAttachementParser.TYPE,
-                new HttpEmailAttachementParser(httpClient, httpRequestTemplateParser, new MockTextTemplateEngine()));
+                new HttpEmailAttachementParser(httpClient, new MockTextTemplateEngine()));
         emailAttachmentsParser = new EmailAttachmentsParser(attachmentParsers);
     }
 

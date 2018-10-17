@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.shards;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
@@ -248,7 +247,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
             return nodeId;
         }
 
-        public static Failure readFailure(StreamInput in) throws IOException {
+        static Failure readFailure(StreamInput in) throws IOException {
             Failure failure = new Failure();
             failure.readFrom(in);
             return failure;

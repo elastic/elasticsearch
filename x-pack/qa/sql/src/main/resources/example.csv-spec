@@ -12,7 +12,7 @@ SELECT COUNT(*) FROM "emp";
 
 // list of <ColumnName:ColumnType*>
 // type might be missing in which case it will be autodetected or can be one of the following
-// d - double, f - float, i - int, b - byte, l - long, t - timestamp, date
+// d - double, f - float, i - int, bt - byte, b - boolean, l - long, t - timestamp, date
 A,B:d,C:i
 // actual values
 foo,2.5,3

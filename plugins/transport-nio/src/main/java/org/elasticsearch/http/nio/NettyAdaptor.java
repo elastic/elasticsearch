@@ -73,7 +73,7 @@ public class NettyAdaptor implements AutoCloseable {
         closeFuture.await();
         if (closeFuture.isSuccess() == false) {
             Throwable cause = closeFuture.cause();
-            ExceptionsHelper.dieOnError(cause);
+            ExceptionsHelper.maybeDieOnAnotherThread(cause);
             throw (Exception) cause;
         }
     }
@@ -84,7 +84,7 @@ public class NettyAdaptor implements AutoCloseable {
                 listener.accept(null, null);
             } else {
                 final Throwable cause = f.cause();
-                ExceptionsHelper.dieOnError(cause);
+                ExceptionsHelper.maybeDieOnAnotherThread(cause);
                 assert cause instanceof Exception;
                 listener.accept(null, (Exception) cause);
             }

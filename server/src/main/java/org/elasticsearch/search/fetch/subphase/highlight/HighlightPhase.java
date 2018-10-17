@@ -100,7 +100,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                 if (highlightQuery == null) {
                     highlightQuery = context.parsedQuery().query();
                 }
-                HighlighterContext highlighterContext = new HighlighterContext(fieldName,
+                HighlighterContext highlighterContext = new HighlighterContext(fieldType.name(),
                     field, fieldType, context, hitContext, highlightQuery);
 
                 if ((highlighter.canHighlight(fieldType) == false) && fieldNameContainsWildcards) {
@@ -109,7 +109,11 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                 }
                 HighlightField highlightField = highlighter.highlight(highlighterContext);
                 if (highlightField != null) {
-                    highlightFields.put(highlightField.name(), highlightField);
+                    // Note that we make sure to use the original field name in the response. This is because the
+                    // original field could be an alias, and highlighter implementations may instead reference the
+                    // concrete field it points to.
+                    highlightFields.put(fieldName,
+                        new HighlightField(fieldName, highlightField.fragments()));
                 }
             }
         }

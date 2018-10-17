@@ -44,12 +44,11 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -58,6 +57,7 @@ import java.util.concurrent.ExecutionException;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
@@ -78,7 +78,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class SimpleQueryStringIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockAnalysisPlugin.class, InternalSettingsPlugin.class); // uses index.version.created
+        return Collections.singletonList(MockAnalysisPlugin.class);
     }
 
     public void testSimpleQueryString() throws ExecutionException, InterruptedException {
@@ -583,6 +583,67 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 });
         assertThat(ExceptionsHelper.detailedMessage(e),
                 containsString("field expansion matches too many fields, limit: 1024, got: 1025"));
+    }
+
+    public void testFieldAlias() throws Exception {
+        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
+        assertAcked(prepareCreate("test").setSource(indexBody, XContentType.JSON));
+        ensureGreen("test");
+
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
+        indexRequests.add(client().prepareIndex("test", "_doc", "1").setSource("f3", "text", "f2", "one"));
+        indexRequests.add(client().prepareIndex("test", "_doc", "2").setSource("f3", "value", "f2", "two"));
+        indexRequests.add(client().prepareIndex("test", "_doc", "3").setSource("f3", "another value", "f2", "three"));
+        indexRandom(true, false, indexRequests);
+
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(simpleQueryStringQuery("value").field("f3_alias"))
+            .execute().actionGet();
+
+        assertNoFailures(response);
+        assertHitCount(response, 2);
+        assertHits(response.getHits(), "2", "3");
+    }
+
+    public void testFieldAliasWithWildcardField() throws Exception {
+        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
+        assertAcked(prepareCreate("test").setSource(indexBody, XContentType.JSON));
+        ensureGreen("test");
+
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
+        indexRequests.add(client().prepareIndex("test", "_doc", "1").setSource("f3", "text", "f2", "one"));
+        indexRequests.add(client().prepareIndex("test", "_doc", "2").setSource("f3", "value", "f2", "two"));
+        indexRequests.add(client().prepareIndex("test", "_doc", "3").setSource("f3", "another value", "f2", "three"));
+        indexRandom(true, false, indexRequests);
+
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(simpleQueryStringQuery("value").field("f3_*"))
+            .execute().actionGet();
+
+        assertNoFailures(response);
+        assertHitCount(response, 2);
+        assertHits(response.getHits(), "2", "3");
+    }
+
+
+    public void testFieldAliasOnDisallowedFieldType() throws Exception {
+        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
+        assertAcked(prepareCreate("test").setSource(indexBody, XContentType.JSON));
+        ensureGreen("test");
+
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
+        indexRequests.add(client().prepareIndex("test", "_doc", "1").setSource("f3", "text", "f2", "one"));
+        indexRandom(true, false, indexRequests);
+
+        // The wildcard field matches aliases for both a text and boolean field.
+        // By default, the boolean field should be ignored when building the query.
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(queryStringQuery("text").field("f*_alias"))
+            .execute().actionGet();
+
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+        assertHits(response.getHits(), "1");
     }
 
     private void assertHits(SearchHits hits, String... ids) {

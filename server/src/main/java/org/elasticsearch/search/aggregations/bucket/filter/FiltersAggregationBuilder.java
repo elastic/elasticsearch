@@ -209,7 +209,10 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
             }
         }
         if (changed) {
-            return new FiltersAggregationBuilder(getName(), rewrittenFilters, this.keyed);
+            FiltersAggregationBuilder rewritten = new FiltersAggregationBuilder(getName(), rewrittenFilters, this.keyed);
+            rewritten.otherBucket(otherBucket);
+            rewritten.otherBucketKey(otherBucketKey);
+            return rewritten;
         } else {
             return this;
         }

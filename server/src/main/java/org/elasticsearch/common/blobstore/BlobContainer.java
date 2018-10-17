@@ -69,16 +69,18 @@ public interface BlobContainer {
      * @param   blobSize
      *          The size of the blob to be written, in bytes.  It is implementation dependent whether
      *          this value is used in writing the blob to the repository.
-     * @throws  FileAlreadyExistsException if a blob by the same name already exists
+     * @param   failIfAlreadyExists
+     *          whether to throw a FileAlreadyExistsException if the given blob already exists
+     * @throws  FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
      * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
      */
-    void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException;
+    void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException;
 
     /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name,
      * using an atomic write operation if the implementation supports it. When the BlobContainer implementation
      * does not provide a specific implementation of writeBlobAtomic(String, InputStream, long), then
-     * the {@link #writeBlob(String, InputStream, long)} method is used.
+     * the {@link #writeBlob(String, InputStream, long, boolean)} method is used.
      *
      * This method assumes the container does not already contain a blob of the same blobName.  If a blob by the
      * same name already exists, the operation will fail and an {@link IOException} will be thrown.
@@ -90,11 +92,14 @@ public interface BlobContainer {
      * @param   blobSize
      *          The size of the blob to be written, in bytes.  It is implementation dependent whether
      *          this value is used in writing the blob to the repository.
-     * @throws  FileAlreadyExistsException if a blob by the same name already exists
+     * @param   failIfAlreadyExists
+     *          whether to throw a FileAlreadyExistsException if the given blob already exists
+     * @throws  FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
      * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
      */
-    default void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize) throws IOException {
-        writeBlob(blobName, inputStream, blobSize);
+    default void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize, boolean failIfAlreadyExists)
+        throws IOException {
+        writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
     }
 
     /**

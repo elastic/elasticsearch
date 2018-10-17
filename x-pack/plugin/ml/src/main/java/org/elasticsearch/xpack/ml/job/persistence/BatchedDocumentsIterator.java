@@ -16,7 +16,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
-import org.elasticsearch.xpack.core.ml.utils.MlIndicesUtils;
+import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.util.ArrayDeque;
 import java.util.Collections;

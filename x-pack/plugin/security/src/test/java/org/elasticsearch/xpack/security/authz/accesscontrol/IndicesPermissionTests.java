@@ -195,7 +195,7 @@ public class IndicesPermissionTests extends ESTestCase {
         assertEquals(readIndicesPrivileges, indicesPrivileges.build());
 
         out = new BytesStreamOutput();
-        out.setVersion(Version.V_5_0_0);
+        out.setVersion(Version.V_6_0_0);
         indicesPrivileges = RoleDescriptor.IndicesPrivileges.builder();
         indicesPrivileges.grantedFields(allowed);
         indicesPrivileges.deniedFields(denied);
@@ -205,7 +205,7 @@ public class IndicesPermissionTests extends ESTestCase {
         indicesPrivileges.build().writeTo(out);
         out.close();
         in = out.bytes().streamInput();
-        in.setVersion(Version.V_5_0_0);
+        in.setVersion(Version.V_6_0_0);
         RoleDescriptor.IndicesPrivileges readIndicesPrivileges2 = RoleDescriptor.IndicesPrivileges.createFrom(in);
         assertEquals(readIndicesPrivileges, readIndicesPrivileges2);
     }

@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.job.JobManager;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
 
@@ -40,15 +40,15 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
 
     private static final ByteSizeValue FORECAST_LOCAL_STORAGE_LIMIT = new ByteSizeValue(500, ByteSizeUnit.MB);
 
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     @Inject
     public TransportForecastJobAction(Settings settings, TransportService transportService,
                                       ClusterService clusterService, ActionFilters actionFilters,
-                                      JobProvider jobProvider, AutodetectProcessManager processManager) {
+                                      JobResultsProvider jobResultsProvider, AutodetectProcessManager processManager) {
         super(settings, ForecastJobAction.NAME, clusterService, transportService, actionFilters,
             ForecastJobAction.Request::new, ForecastJobAction.Response::new,
                 ThreadPool.Names.SAME, processManager);
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
         // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
     }
 
@@ -107,7 +107,7 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
                     }
                 };
 
-                jobProvider.getForecastRequestStats(request.getJobId(), params.getForecastId(),
+                jobResultsProvider.getForecastRequestStats(request.getJobId(), params.getForecastId(),
                         forecastRequestStatsHandler, listener::onFailure);
             } else {
                 listener.onFailure(e);

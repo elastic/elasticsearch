@@ -79,6 +79,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
+import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -91,6 +92,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -98,6 +100,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -179,6 +182,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndicesQueryCache indicesQueryCache;
     private final MetaStateService metaStateService;
     private final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders;
+    private final Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories;
 
     @Override
     protected void doStart() {
@@ -191,7 +195,8 @@ public class IndicesService extends AbstractLifecycleComponent
                           MapperRegistry mapperRegistry, NamedWriteableRegistry namedWriteableRegistry, ThreadPool threadPool,
                           IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService, BigArrays bigArrays,
                           ScriptService scriptService, Client client, MetaStateService metaStateService,
-                          Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders) {
+                          Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
+                          Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories) {
         super(settings);
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
@@ -223,11 +228,20 @@ public class IndicesService extends AbstractLifecycleComponent
         this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, indicesRequestCache,  logger, threadPool, this.cleanInterval);
         this.metaStateService = metaStateService;
         this.engineFactoryProviders = engineFactoryProviders;
+
+        // do not allow any plugin-provided index store type to conflict with a built-in type
+        for (final String indexStoreType : indexStoreFactories.keySet()) {
+            if (IndexModule.isBuiltinType(indexStoreType)) {
+                throw new IllegalStateException("registered index store type [" + indexStoreType + "] conflicts with a built-in type");
+            }
+        }
+
+        this.indexStoreFactories = indexStoreFactories;
     }
 
     @Override
     protected void doStop() {
-        ExecutorService indicesStopExecutor = Executors.newFixedThreadPool(5, EsExecutors.daemonThreadFactory("indices_shutdown"));
+        ExecutorService indicesStopExecutor = Executors.newFixedThreadPool(5, EsExecutors.daemonThreadFactory(settings, "indices_shutdown"));
 
         // Copy indices because we modify it asynchronously in the body of the loop
         final Set<Index> indices = this.indices.values().stream().map(s -> s.index()).collect(Collectors.toSet());
@@ -333,13 +347,24 @@ public class IndicesService extends AbstractLifecycleComponent
             return null;
         }
 
+        CommitStats commitStats;
+        SeqNoStats seqNoStats;
+        try {
+            commitStats = indexShard.commitStats();
+            seqNoStats = indexShard.seqNoStats();
+        } catch (AlreadyClosedException e) {
+            // shard is closed - no stats is fine
+            commitStats = null;
+            seqNoStats = null;
+        }
+
         return new IndexShardStats(indexShard.shardId(),
                                    new ShardStats[] {
                                        new ShardStats(indexShard.routingEntry(),
                                                       indexShard.shardPath(),
                                                       new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags),
-                                                      indexShard.commitStats(),
-                                                      indexShard.seqNoStats())
+                                                      commitStats,
+                                                      seqNoStats)
                                    });
     }
 
@@ -371,7 +396,6 @@ public class IndicesService extends AbstractLifecycleComponent
     public IndexService indexService(Index index) {
         return indices.get(index.getUUID());
     }
-
     /**
      * Returns an IndexService for the specified index if exists otherwise a {@link IndexNotFoundException} is thrown.
      */
@@ -451,7 +475,7 @@ public class IndicesService extends AbstractLifecycleComponent
             idxSettings.getNumberOfReplicas(),
             reason);
 
-        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings));
+        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings), indexStoreFactories);
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
         }
@@ -511,7 +535,7 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public synchronized MapperService createIndexMapperService(IndexMetaData indexMetaData) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexScopedSettings);
-        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings));
+        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings), indexStoreFactories);
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
     }
@@ -535,7 +559,7 @@ public class IndicesService extends AbstractLifecycleComponent
             closeables.add(() -> service.close("metadata verification", false));
             service.mapperService().merge(metaData, MapperService.MergeReason.MAPPING_RECOVERY);
             if (metaData.equals(metaDataUpdate) == false) {
-                service.updateMetaData(metaDataUpdate);
+                service.updateMetaData(metaData, metaDataUpdate);
             }
         } finally {
             IOUtils.close(closeables);
@@ -1142,10 +1166,9 @@ public class IndicesService extends AbstractLifecycleComponent
         } else if (request.requestCache() == false) {
             return false;
         }
-        // if the reader is not a directory reader, we can't get the version from it
-        if ((context.searcher().getIndexReader() instanceof DirectoryReader) == false) {
-            return false;
-        }
+        // We use the cacheKey of the index reader as a part of a key of the IndicesRequestCache.
+        assert context.searcher().getIndexReader().getReaderCacheHelper() != null;
+
         // if now in millis is used (or in the future, a more generic "isDeterministic" flag
         // then we can't cache based on "now" key within the search request, as it is not deterministic
         if (context.getQueryShardContext().isCachable() == false) {
@@ -1167,7 +1190,9 @@ public class IndicesService extends AbstractLifecycleComponent
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
 
         boolean[] loadedFromCache = new boolean[] { true };
-        BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(), out -> {
+        BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(), () -> {
+            return "Shard: " + request.shardId() + "\nSource:\n" + request.source();
+        }, out -> {
             queryPhase.execute(context);
             try {
                 context.queryResult().writeToNoId(out);
@@ -1193,6 +1218,10 @@ public class IndicesService extends AbstractLifecycleComponent
             // running a search that times out concurrently will likely timeout again if it's run while we have this `stale` result in the
             // cache. One other option is to not cache requests with a timeout at all...
             indicesRequestCache.invalidate(new IndexShardCacheEntity(context.indexShard()), directoryReader, request.cacheKey());
+            if (logger.isTraceEnabled()) {
+                logger.trace("Query timed out, invalidating cache entry for request on shard [{}]:\n {}", request.shardId(),
+                        request.source());
+            }
         }
     }
 
@@ -1208,8 +1237,8 @@ public class IndicesService extends AbstractLifecycleComponent
      * @param loader loads the data into the cache if needed
      * @return the contents of the cache or the result of calling the loader
      */
-    private BytesReference cacheShardLevelResult(IndexShard shard, DirectoryReader reader, BytesReference cacheKey, Consumer<StreamOutput> loader)
-            throws Exception {
+    private BytesReference cacheShardLevelResult(IndexShard shard, DirectoryReader reader, BytesReference cacheKey,
+            Supplier<String> cacheKeyRenderer, Consumer<StreamOutput> loader) throws Exception {
         IndexShardCacheEntity cacheEntity = new IndexShardCacheEntity(shard);
         Supplier<BytesReference> supplier = () -> {
             /* BytesStreamOutput allows to pass the expected size but by default uses
@@ -1227,7 +1256,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 return out.bytes();
             }
         };
-        return indicesRequestCache.getOrCompute(cacheEntity, supplier, reader, cacheKey);
+        return indicesRequestCache.getOrCompute(cacheEntity, supplier, reader, cacheKey, cacheKeyRenderer);
     }
 
     static final class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {

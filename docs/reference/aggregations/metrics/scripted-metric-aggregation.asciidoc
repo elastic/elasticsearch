@@ -15,10 +15,10 @@ POST ledger/_search?size=0
     "aggs": {
         "profit": {
             "scripted_metric": {
-                "init_script" : "params._agg.transactions = []",
-                "map_script" : "params._agg.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)", <1>
-                "combine_script" : "double profit = 0; for (t in params._agg.transactions) { profit += t } return profit",
-                "reduce_script" : "double profit = 0; for (a in params._aggs) { profit += a } return profit"
+                "init_script" : "state.transactions = []",
+                "map_script" : "state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)", <1>
+                "combine_script" : "double profit = 0; for (t in state.transactions) { profit += t } return profit",
+                "reduce_script" : "double profit = 0; for (a in states) { profit += a } return profit"
             }
         }
     }
@@ -67,8 +67,7 @@ POST ledger/_search?size=0
                     "id": "my_combine_script"
                 },
                 "params": {
-                    "field": "amount", <1>
-                    "_agg": {}        <2>
+                    "field": "amount" <1>
                 },
                 "reduce_script" : {
                     "id": "my_reduce_script"
@@ -82,8 +81,7 @@ POST ledger/_search?size=0
 // TEST[setup:ledger,stored_scripted_metric_script]
 
 <1> script parameters for `init`, `map` and `combine` scripts must be specified
-in a global `params` object so that it can be share between the scripts.
-<2> if you specify script parameters then you must specify `"_agg": {}`.
+in a global `params` object so that it can be shared between the scripts.
 
 ////
 Verify this response as well but in a hidden block.
@@ -108,7 +106,7 @@ For more details on specifying scripts see <<modules-scripting, script documenta
 
 ==== Allowed return types
 
-Whilst any valid script object can be used within a single script, the scripts must return or store in the `_agg` object only the following types:
+Whilst any valid script object can be used within a single script, the scripts must return or store in the `state` object only the following types:
 
 * primitive types
 * String
@@ -121,10 +119,10 @@ The scripted metric aggregation uses scripts at 4 stages of its execution:
 
 init_script::       Executed prior to any collection of documents. Allows the aggregation to set up any initial state.
 +
-In the above example, the `init_script` creates an array `transactions` in the `_agg` object.
+In the above example, the `init_script` creates an array `transactions` in the `state` object.
 
 map_script::        Executed once per document collected. This is the only required script. If no combine_script is specified, the resulting state
-                    needs to be stored in an object named `_agg`.
+                    needs to be stored in the `state` object.
 +
 In the above example, the `map_script` checks the value of the type field. If the value is 'sale' the value of the amount field
 is added to the transactions array. If the value of the type field is not 'sale' the negated value of the amount field is added
@@ -137,8 +135,8 @@ In the above example, the `combine_script` iterates through all the stored trans
 and finally returns `profit`.
 
 reduce_script::     Executed once on the coordinating node after all shards have returned their results. The script is provided with access to a
-                    variable `_aggs` which is an array of the result of the combine_script on each shard. If a reduce_script is not provided
-                    the reduce phase will return the `_aggs` variable.
+                    variable `states` which is an array of the result of the combine_script on each shard. If a reduce_script is not provided
+                    the reduce phase will return the `states` variable.
 +
 In the above example, the `reduce_script` iterates through the `profit` returned by each shard summing the values before returning the
 final combined profit which will be returned in the response of the aggregation.
@@ -166,13 +164,11 @@ at each stage of the example above.
 
 ===== Before init_script
 
-No params object was specified so the default params object is used:
+`state` is initialized as a new empty object.
 
 [source,js]
 --------------------------------------------------
-"params" : {
-    "_agg" : {}
-}
+"state" : {}
 --------------------------------------------------
 // NOTCONSOLE
 
@@ -184,10 +180,8 @@ Shard A::
 +
 [source,js]
 --------------------------------------------------
-"params" : {
-    "_agg" : {
-        "transactions" : []
-    }
+"state" : {
+    "transactions" : []
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -196,10 +190,8 @@ Shard B::
 +
 [source,js]
 --------------------------------------------------
-"params" : {
-    "_agg" : {
-        "transactions" : []
-    }
+"state" : {
+    "transactions" : []
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -212,10 +204,8 @@ Shard A::
 +
 [source,js]
 --------------------------------------------------
-"params" : {
-    "_agg" : {
-        "transactions" : [ 80, -30 ]
-    }
+"state" : {
+    "transactions" : [ 80, -30 ]
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -224,10 +214,8 @@ Shard B::
 +
 [source,js]
 --------------------------------------------------
-"params" : {
-    "_agg" : {
-        "transactions" : [ -10, 130 ]
-    }
+"state" : {
+    "transactions" : [ -10, 130 ]
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -242,11 +230,11 @@ Shard B::        120
 
 ===== After reduce_script
 
-The reduce_script receives an `_aggs` array containing the result of the combine script for each shard:
+The reduce_script receives a `states` array containing the result of the combine script for each shard:
 
 [source,js]
 --------------------------------------------------
-"_aggs" : [
+"states" : [
     50,
     120
 ]
@@ -279,14 +267,12 @@ params::           Optional. An object whose contents will be passed as variable
 +
 [source,js]
 --------------------------------------------------
-"params" : {
-    "_agg" : {}
-}
+"params" : {}
 --------------------------------------------------
 // NOTCONSOLE
 
 ==== Empty Buckets
 
 If a parent bucket of the scripted metric aggregation does not collect any documents an empty aggregation response will be returned from the
-shard with a `null` value. In this case the `reduce_script`'s `_aggs` variable will contain `null` as a response from that shard.  
+shard with a `null` value. In this case the `reduce_script`'s `states` variable will contain `null` as a response from that shard.
 `reduce_script`'s should therefore expect and deal with `null` responses from shards.  

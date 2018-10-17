@@ -12,14 +12,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
+import org.elasticsearch.protocol.xpack.graph.Hop;
+import org.elasticsearch.protocol.xpack.graph.VertexRequest;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest.TermBoost;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.XPackClient;
-import org.elasticsearch.xpack.core.graph.action.GraphExploreRequest;
-import org.elasticsearch.xpack.core.graph.action.GraphExploreRequest.TermBoost;
-import org.elasticsearch.xpack.core.graph.action.Hop;
-import org.elasticsearch.xpack.core.graph.action.VertexRequest;
 import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
 import java.io.IOException;

@@ -13,7 +13,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
 import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.core.security.authc.support.CharArrays;
+import org.elasticsearch.common.CharArrays;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;

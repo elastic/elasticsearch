@@ -20,7 +20,6 @@ import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.elasticsearch.xpack.test.rest.XPackRestIT;
 import org.junit.After;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -58,8 +57,8 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
             final RestClient restClient,
             final List<HttpHost> hosts,
             final Version esVersion,
-            final Version masterVersion) throws IOException {
-        return new ClientYamlDocsTestClient(restSpec, restClient, hosts, esVersion, masterVersion);
+            final Version masterVersion) {
+        return new ClientYamlDocsTestClient(restSpec, restClient, hosts, esVersion, masterVersion, this::getClientBuilderWithSniffedHosts);
     }
 
     /**
@@ -107,7 +106,7 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
     @Override
     protected boolean isWatcherTest() {
         String testName = getTestName();
-        return testName != null && testName.contains("watcher/");
+        return testName != null && (testName.contains("watcher/") || testName.contains("watcher\\"));
     }
 
     @Override
@@ -118,13 +117,13 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
     @Override
     protected boolean isMachineLearningTest() {
         String testName = getTestName();
-        return testName != null && testName.contains("ml/");
+        return testName != null && (testName.contains("ml/") || testName.contains("ml\\"));
     }
 
     @Override
     protected boolean isRollupTest() {
         String testName = getTestName();
-        return testName != null && testName.contains("rollup/");
+        return testName != null && (testName.contains("rollup/") || testName.contains("rollup\\"));
     }
 
     /**

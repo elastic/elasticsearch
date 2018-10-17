@@ -31,6 +31,7 @@ import java.util.Map;
 public class Globals {
     private final Map<String,SFunction> syntheticMethods = new HashMap<>();
     private final Map<String,Constant> constantInitializers = new HashMap<>();
+    private final Map<String,Class<?>> bindings = new HashMap<>();
     private final BitSet statements;
     
     /** Create a new Globals from the set of statement boundaries */
@@ -54,7 +55,15 @@ public class Globals {
             throw new IllegalStateException("constant initializer: " + constant.name + " already exists");
         }
     }
-    
+
+    /** Adds a new binding to be written as a local variable */
+    public String addBinding(Class<?> type) {
+        String name = "$binding$" + bindings.size();
+        bindings.put(name, type);
+
+        return name;
+    }
+
     /** Returns the current synthetic methods */
     public Map<String,SFunction> getSyntheticMethods() {
         return syntheticMethods;
@@ -64,7 +73,12 @@ public class Globals {
     public Map<String,Constant> getConstantInitializers() {
         return constantInitializers;
     }
-    
+
+    /** Returns the current bindings */
+    public Map<String,Class<?>> getBindings() {
+        return bindings;
+    }
+
     /** Returns the set of statement boundaries */
     public BitSet getStatements() {
         return statements;

@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public class FinalizeJobExecutionAction extends Action<FinalizeJobExecutionAction.Response> {
+public class FinalizeJobExecutionAction extends Action<AcknowledgedResponse> {
 
     public static final FinalizeJobExecutionAction INSTANCE = new FinalizeJobExecutionAction();
     public static final String NAME = "cluster:internal/xpack/ml/job/finalize_job_execution";
@@ -26,8 +26,8 @@ public class FinalizeJobExecutionAction extends Action<FinalizeJobExecutionActio
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -64,21 +64,10 @@ public class FinalizeJobExecutionAction extends Action<FinalizeJobExecutionActio
     }
 
     public static class RequestBuilder
-            extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
+            extends MasterNodeOperationRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
 
         public RequestBuilder(ElasticsearchClient client, FinalizeJobExecutionAction action) {
             super(client, action, new Request());
         }
     }
-
-    public static class Response extends AcknowledgedResponse {
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-
-        public Response() {
-        }
-    }
-
 }

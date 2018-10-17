@@ -129,7 +129,7 @@ public class GrokProcessorTests extends ESTestCase {
     public void testMissingFieldWithIgnoreMissing() throws Exception {
         String fieldName = "foo.bar";
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         GrokProcessor processor = new GrokProcessor(randomAlphaOfLength(10), Collections.singletonMap("ONE", "1"),
             Collections.singletonList("%{ONE:one}"), fieldName, false, true, ThreadWatchdog.noop());
         processor.execute(ingestDocument);

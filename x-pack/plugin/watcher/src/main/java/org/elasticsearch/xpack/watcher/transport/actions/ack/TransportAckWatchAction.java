@@ -25,13 +25,13 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
-import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionSnapshot;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
+import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequest;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
-import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.joda.time.DateTime;
@@ -49,83 +49,86 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
 
     private final Clock clock;
     private final WatchParser parser;
-    private ExecutionService executionService;
     private final Client client;
 
     @Inject
     public TransportAckWatchAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
-                                   Clock clock, XPackLicenseState licenseState, WatchParser parser, ExecutionService executionService,
+                                   Clock clock, XPackLicenseState licenseState, WatchParser parser,
                                    Client client) {
         super(settings, AckWatchAction.NAME, transportService, actionFilters, licenseState, AckWatchRequest::new);
         this.clock = clock;
         this.parser = parser;
-        this.executionService = executionService;
         this.client = client;
     }
 
     @Override
     protected void doExecute(AckWatchRequest request, ActionListener<AckWatchResponse> listener) {
-        // if the watch to be acked is running currently, reject this request
-        List<WatchExecutionSnapshot> snapshots = executionService.currentExecutions();
-        boolean isWatchRunning = snapshots.stream().anyMatch(s -> s.watchId().equals(request.getWatchId()));
-        if (isWatchRunning) {
-            listener.onFailure(new ElasticsearchStatusException("watch[{}] is running currently, cannot ack until finished",
+        WatcherStatsRequest watcherStatsRequest = new WatcherStatsRequest();
+        watcherStatsRequest.includeCurrentWatches(true);
+
+        executeAsyncWithOrigin(client, WATCHER_ORIGIN, WatcherStatsAction.INSTANCE, watcherStatsRequest, ActionListener.wrap(response -> {
+            boolean isWatchRunning = response.getNodes().stream()
+                .anyMatch(node -> node.getSnapshots().stream().anyMatch(snapshot -> snapshot.watchId().equals(request.getWatchId())));
+            if (isWatchRunning) {
+                listener.onFailure(new ElasticsearchStatusException("watch[{}] is running currently, cannot ack until finished",
                     RestStatus.CONFLICT, request.getWatchId()));
-            return;
-        }
+            } else {
+                GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, request.getWatchId())
+                    .preference(Preference.LOCAL.type()).realtime(true);
 
-        GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, request.getWatchId())
-                .preference(Preference.LOCAL.type()).realtime(true);
-
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, getRequest,
-                ActionListener.<GetResponse>wrap((response) -> {
-                    if (response.isExists() == false) {
-                        listener.onFailure(new ResourceNotFoundException("Watch with id [{}] does not exist", request.getWatchId()));
-                    } else {
-                        DateTime now = new DateTime(clock.millis(), UTC);
-                        Watch watch = parser.parseWithSecrets(request.getWatchId(), true, response.getSourceAsBytesRef(),
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, getRequest,
+                    ActionListener.<GetResponse>wrap(getResponse -> {
+                        if (getResponse.isExists() == false) {
+                            listener.onFailure(new ResourceNotFoundException("Watch with id [{}] does not exist", request.getWatchId()));
+                        } else {
+                            DateTime now = new DateTime(clock.millis(), UTC);
+                            Watch watch = parser.parseWithSecrets(request.getWatchId(), true, getResponse.getSourceAsBytesRef(),
                                 now, XContentType.JSON);
-                        watch.version(response.getVersion());
-                        watch.status().version(response.getVersion());
-                        String[] actionIds = request.getActionIds();
-                        if (actionIds == null || actionIds.length == 0) {
-                            actionIds = new String[]{WatchField.ALL_ACTIONS_ID};
-                        }
+                            watch.version(getResponse.getVersion());
+                            watch.status().version(getResponse.getVersion());
+                            String[] actionIds = request.getActionIds();
+                            if (actionIds == null || actionIds.length == 0) {
+                                actionIds = new String[]{WatchField.ALL_ACTIONS_ID};
+                            }
 
-                        // exit early in case nothing changes
-                        boolean isChanged = watch.ack(now, actionIds);
-                        if (isChanged == false) {
-                            listener.onResponse(new AckWatchResponse(watch.status()));
-                            return;
-                        }
+                            // exit early in case nothing changes
+                            boolean isChanged = watch.ack(now, actionIds);
+                            if (isChanged == false) {
+                                listener.onResponse(new AckWatchResponse(watch.status()));
+                                return;
+                            }
 
-                        UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, request.getWatchId());
-                        // this may reject this action, but prevents concurrent updates from a watch execution
-                        updateRequest.version(response.getVersion());
-                        updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-                        XContentBuilder builder = jsonBuilder();
-                        builder.startObject()
+                            UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, request.getWatchId());
+                            // this may reject this action, but prevents concurrent updates from a watch execution
+                            updateRequest.version(getResponse.getVersion());
+                            updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                            XContentBuilder builder = jsonBuilder();
+                            builder.startObject()
                                 .startObject(WatchField.STATUS.getPreferredName())
                                 .startObject("actions");
 
-                        List<String> actionIdsAsList = Arrays.asList(actionIds);
-                        boolean updateAll = actionIdsAsList.contains("_all");
-                        for (ActionWrapper actionWrapper : watch.actions()) {
-                            if (updateAll || actionIdsAsList.contains(actionWrapper.id())) {
-                                builder.startObject(actionWrapper.id())
+                            List<String> actionIdsAsList = Arrays.asList(actionIds);
+                            boolean updateAll = actionIdsAsList.contains("_all");
+                            for (ActionWrapper actionWrapper : watch.actions()) {
+                                if (updateAll || actionIdsAsList.contains(actionWrapper.id())) {
+                                    builder.startObject(actionWrapper.id())
                                         .field("ack", watch.status().actionStatus(actionWrapper.id()).ackStatus(), ToXContent.EMPTY_PARAMS)
                                         .endObject();
+                                }
                             }
-                        }
 
-                        builder.endObject().endObject().endObject();
-                        updateRequest.doc(builder);
+                            builder.endObject().endObject().endObject();
+                            updateRequest.doc(builder);
 
-                        executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, updateRequest,
+                            executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, updateRequest,
                                 ActionListener.<UpdateResponse>wrap(
-                                        (updateResponse) -> listener.onResponse(new AckWatchResponse(watch.status())),
-                                        listener::onFailure), client::update);
-                    }
-                }, listener::onFailure), client::get);
+                                    (updateResponse) -> listener.onResponse(new AckWatchResponse(watch.status())),
+                                    listener::onFailure), client::update);
+                        }
+                    }, listener::onFailure), client::get);
+
+            }
+
+        }, listener::onFailure));
     }
 }

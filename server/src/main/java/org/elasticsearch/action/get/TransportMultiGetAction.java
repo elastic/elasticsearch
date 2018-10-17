@@ -30,6 +30,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.HashMap;
@@ -53,7 +54,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
     }
 
     @Override
-    protected void doExecute(final MultiGetRequest request, final ActionListener<MultiGetResponse> listener) {
+    protected void doExecute(Task task, final MultiGetRequest request, final ActionListener<MultiGetResponse> listener) {
         ClusterState clusterState = clusterService.state();
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
 

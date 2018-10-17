@@ -15,6 +15,9 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -25,6 +28,15 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 public class MlFilter implements ToXContentObject, Writeable {
+
+    /**
+     * The max number of items allowed per filter.
+     * Limiting the number of items protects users
+     * from running into excessive overhead due to
+     * filters using too much memory and lookups
+     * becoming too expensive.
+     */
+    private static final int MAX_ITEMS = 10000;
 
     public static final String DOCUMENT_ID_PREFIX = "filter_";
 
@@ -56,10 +68,10 @@ public class MlFilter implements ToXContentObject, Writeable {
     private final String description;
     private final SortedSet<String> items;
 
-    public MlFilter(String id, String description, SortedSet<String> items) {
-        this.id = Objects.requireNonNull(id, ID.getPreferredName() + " must not be null");
+    private MlFilter(String id, String description, SortedSet<String> items) {
+        this.id = Objects.requireNonNull(id);
         this.description = description;
-        this.items = Objects.requireNonNull(items, ITEMS.getPreferredName() + " must not be null");
+        this.items = Objects.requireNonNull(items);
     }
 
     public MlFilter(StreamInput in) throws IOException {
@@ -69,8 +81,7 @@ public class MlFilter implements ToXContentObject, Writeable {
         } else {
             description = null;
         }
-        items = new TreeSet<>();
-        items.addAll(Arrays.asList(in.readStringArray()));
+        items = new TreeSet<>(Arrays.asList(in.readStringArray()));
     }
 
     @Override
@@ -163,9 +174,13 @@ public class MlFilter implements ToXContentObject, Writeable {
             return this;
         }
 
+        public Builder setItems(SortedSet<String> items) {
+            this.items = items;
+            return this;
+        }
+
         public Builder setItems(List<String> items) {
-            this.items = new TreeSet<>();
-            this.items.addAll(items);
+            this.items = new TreeSet<>(items);
             return this;
         }
 
@@ -175,6 +190,14 @@ public class MlFilter implements ToXContentObject, Writeable {
         }
 
         public MlFilter build() {
+            ExceptionsHelper.requireNonNull(id, MlFilter.ID.getPreferredName());
+            ExceptionsHelper.requireNonNull(items, MlFilter.ITEMS.getPreferredName());
+            if (!MlStrings.isValidId(id)) {
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), id));
+            }
+            if (items.size() > MAX_ITEMS) {
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.FILTER_CONTAINS_TOO_MANY_ITEMS, id, MAX_ITEMS));
+            }
             return new MlFilter(id, description, items);
         }
     }

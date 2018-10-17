@@ -1,15 +1,3 @@
-
-buildscript {
-    repositories {
-        maven {
-            url 'https://plugins.gradle.org/m2/'
-        }
-    }
-    dependencies {
-        classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.2'
-    }
-}
-
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
@@ -20,14 +8,14 @@ archivesBaseName = "x-pack-sql-jdbc"
 
 forbiddenApisMain {
     // does not depend on core, so only jdk and http signatures should be checked
-    signaturesURLs = [this.class.getResource('/forbidden/jdk-signatures.txt')]
+    replaceSignatureFiles 'jdk-signatures'
 }
 
 dependencies {
-    compile (xpackProject('plugin:sql:sql-shared-client')) {
+    compile (xpackProject('plugin:sql:sql-client')) {
         transitive = false
     }
-    compile (xpackProject('plugin:sql:sql-shared-proto')) {
+    compile (xpackProject('plugin:sql:sql-proto')) {
         transitive = false
     }
     compile (project(':libs:x-content')) {
@@ -39,17 +27,16 @@ dependencies {
 }
 
 dependencyLicenses {
-    mapping from: /sql-shared-proto.*/, to: 'elasticsearch'
-    mapping from: /sql-shared-client.*/, to: 'elasticsearch'
+    mapping from: /sql-proto.*/, to: 'elasticsearch'
+    mapping from: /sql-client.*/, to: 'elasticsearch'
     mapping from: /jackson-.*/, to: 'jackson'
     mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
-    ignoreSha 'sql-shared-proto'
-    ignoreSha 'sql-shared-client'
+    ignoreSha 'sql-proto'
+    ignoreSha 'sql-client'
     ignoreSha 'elasticsearch'
 }
 
 shadowJar {
-    classifier = null
     relocate 'com.fasterxml', 'org.elasticsearch.fasterxml'
 }
 
@@ -73,23 +60,8 @@ artifacts  {
 
 publishing {
     publications {
-        nebula(MavenPublication) {
-            artifact shadowJar
-            pom.withXml {
-                // Nebula is mistakenly including all dependencies that are already shadowed into the shadow jar
-                asNode().remove(asNode().dependencies)
-            }
+        nebula {
+            artifactId = archivesBaseName
         }
     }
-}
-
-assemble.dependsOn shadowJar
-
-// Use the jar for testing so the tests are more "real"
-test {
-    classpath -= compileJava.outputs.files
-    classpath -= configurations.compile
-    classpath -= configurations.runtime
-    classpath += shadowJar.outputs.files
-    dependsOn shadowJar
 }

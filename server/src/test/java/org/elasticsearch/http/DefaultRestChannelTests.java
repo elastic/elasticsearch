@@ -36,6 +36,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -91,7 +92,7 @@ public class DefaultRestChannelTests extends ESTestCase {
     // TODO: Enable these Cors tests when the Cors logic lives in :server
 
 //    public void testCorsEnabledWithoutAllowOrigins() {
-//        // Set up a HTTP transport with only the CORS enabled setting
+//        // Set up an HTTP transport with only the CORS enabled setting
 //        Settings settings = Settings.builder()
 //            .put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true)
 //            .build();
@@ -102,7 +103,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 //
 //    public void testCorsEnabledWithAllowOrigins() {
 //        final String originValue = "remote-host";
-//        // create a http transport with CORS enabled and allow origin configured
+//        // create an HTTP transport with CORS enabled and allow origin configured
 //        Settings settings = Settings.builder()
 //            .put(SETTING_CORS_ENABLED.getKey(), true)
 //            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), originValue)
@@ -117,7 +118,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 //    public void testCorsAllowOriginWithSameHost() {
 //        String originValue = "remote-host";
 //        String host = "remote-host";
-//        // create a http transport with CORS enabled
+//        // create an HTTP transport with CORS enabled
 //        Settings settings = Settings.builder()
 //            .put(SETTING_CORS_ENABLED.getKey(), true)
 //            .build();
@@ -180,7 +181,7 @@ public class DefaultRestChannelTests extends ESTestCase {
     public void testHeadersSet() {
         Settings settings = Settings.builder().build();
         final TestRequest httpRequest = new TestRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
-        httpRequest.getHeaders().put(DefaultRestChannel.X_OPAQUE_ID, Collections.singletonList("abc"));
+        httpRequest.getHeaders().put(Task.X_OPAQUE_ID, Collections.singletonList("abc"));
         final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel);
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
@@ -200,7 +201,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         Map<String, List<String>> headers = httpResponse.headers;
         assertNull(headers.get("non-existent-header"));
         assertEquals(customHeaderValue, headers.get(customHeader).get(0));
-        assertEquals("abc", headers.get(DefaultRestChannel.X_OPAQUE_ID).get(0));
+        assertEquals("abc", headers.get(Task.X_OPAQUE_ID).get(0));
         assertEquals(Integer.toString(resp.content().length()), headers.get(DefaultRestChannel.CONTENT_LENGTH).get(0));
         assertEquals(resp.contentType(), headers.get(DefaultRestChannel.CONTENT_TYPE).get(0));
     }
@@ -208,7 +209,7 @@ public class DefaultRestChannelTests extends ESTestCase {
     public void testCookiesSet() {
         Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_RESET_COOKIES.getKey(), true).build();
         final TestRequest httpRequest = new TestRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
-        httpRequest.getHeaders().put(DefaultRestChannel.X_OPAQUE_ID, Collections.singletonList("abc"));
+        httpRequest.getHeaders().put(Task.X_OPAQUE_ID, Collections.singletonList("abc"));
         final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel);
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
 

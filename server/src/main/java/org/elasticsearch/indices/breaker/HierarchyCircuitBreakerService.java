@@ -30,11 +30,14 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 /**
  * CircuitBreakerService that attempts to redistribute space between breakers
@@ -44,10 +47,21 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     private static final String CHILD_LOGGER_PREFIX = "org.elasticsearch.indices.breaker.";
 
+    private static final MemoryMXBean MEMORY_MX_BEAN = ManagementFactory.getMemoryMXBean();
+
     private final ConcurrentMap<String, CircuitBreaker> breakers = new ConcurrentHashMap<>();
 
+    public static final Setting<Boolean> USE_REAL_MEMORY_USAGE_SETTING =
+        Setting.boolSetting("indices.breaker.total.use_real_memory", true, Property.NodeScope);
+
     public static final Setting<ByteSizeValue> TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING =
-        Setting.memorySizeSetting("indices.breaker.total.limit", "70%", Property.Dynamic, Property.NodeScope);
+        Setting.memorySizeSetting("indices.breaker.total.limit", settings -> {
+            if (USE_REAL_MEMORY_USAGE_SETTING.get(settings)) {
+                return "95%";
+            } else {
+                return "70%";
+            }
+        }, Property.Dynamic, Property.NodeScope);
 
     public static final Setting<ByteSizeValue> FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING =
         Setting.memorySizeSetting("indices.breaker.fielddata.limit", "60%", Property.Dynamic, Property.NodeScope);
@@ -73,10 +87,11 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     public static final Setting<ByteSizeValue> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING =
         Setting.memorySizeSetting("network.breaker.inflight_requests.limit", "100%", Property.Dynamic, Property.NodeScope);
     public static final Setting<Double> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING =
-        Setting.doubleSetting("network.breaker.inflight_requests.overhead", 1.0d, 0.0d, Property.Dynamic, Property.NodeScope);
+        Setting.doubleSetting("network.breaker.inflight_requests.overhead", 2.0d, 0.0d, Property.Dynamic, Property.NodeScope);
     public static final Setting<CircuitBreaker.Type> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_TYPE_SETTING =
         new Setting<>("network.breaker.inflight_requests.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
 
+    private final boolean trackRealMemoryUsage;
     private volatile BreakerSettings parentSettings;
     private volatile BreakerSettings fielddataSettings;
     private volatile BreakerSettings inFlightRequestsSettings;
@@ -119,6 +134,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         if (logger.isTraceEnabled()) {
             logger.trace("parent circuit breaker with settings {}", this.parentSettings);
         }
+
+        this.trackRealMemoryUsage = USE_REAL_MEMORY_USAGE_SETTING.get(settings);
 
         registerBreaker(this.requestSettings);
         registerBreaker(this.fielddataSettings);
@@ -191,17 +208,15 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     @Override
     public AllCircuitBreakerStats stats() {
-        long parentEstimated = 0;
         List<CircuitBreakerStats> allStats = new ArrayList<>(this.breakers.size());
         // Gather the "estimated" count for the parent breaker by adding the
         // estimations for each individual breaker
         for (CircuitBreaker breaker : this.breakers.values()) {
             allStats.add(stats(breaker.getName()));
-            parentEstimated += breaker.getUsed();
         }
         // Manually add the parent breaker settings since they aren't part of the breaker map
         allStats.add(new CircuitBreakerStats(CircuitBreaker.PARENT, parentSettings.getLimit(),
-                        parentEstimated, 1.0, parentTripCount.get()));
+            parentUsed(0L).totalUsage, 1.0, parentTripCount.get()));
         return new AllCircuitBreakerStats(allStats.toArray(new CircuitBreakerStats[allStats.size()]));
     }
 
@@ -211,23 +226,78 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         return new CircuitBreakerStats(breaker.getName(), breaker.getLimit(), breaker.getUsed(), breaker.getOverhead(), breaker.getTrippedCount());
     }
 
+    private static class ParentMemoryUsage {
+        final long baseUsage;
+        final long totalUsage;
+
+        ParentMemoryUsage(final long baseUsage, final long totalUsage) {
+            this.baseUsage = baseUsage;
+            this.totalUsage = totalUsage;
+        }
+    }
+
+    private ParentMemoryUsage parentUsed(long newBytesReserved) {
+        if (this.trackRealMemoryUsage) {
+            final long current = currentMemoryUsage();
+            return new ParentMemoryUsage(current, current + newBytesReserved);
+        } else {
+            long parentEstimated = 0;
+            for (CircuitBreaker breaker : this.breakers.values()) {
+                parentEstimated += breaker.getUsed() * breaker.getOverhead();
+            }
+            return new ParentMemoryUsage(parentEstimated, parentEstimated);
+        }
+    }
+
+    //package private to allow overriding it in tests
+    long currentMemoryUsage() {
+        try {
+            return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
+        } catch (IllegalArgumentException ex) {
+            // This exception can happen (rarely) due to a race condition in the JVM when determining usage of memory pools. We do not want
+            // to fail requests because of this and thus return zero memory usage in this case. While we could also return the most
+            // recently determined memory usage, we would overestimate memory usage immediately after a garbage collection event.
+            assert ex.getMessage().matches("committed = \\d+ should be < max = \\d+");
+            logger.info("Cannot determine current memory usage due to JDK-8207200.", ex);
+            return 0;
+        }
+    }
+
     /**
      * Checks whether the parent breaker has been tripped
      */
-    public void checkParentLimit(String label) throws CircuitBreakingException {
-        long totalUsed = 0;
-        for (CircuitBreaker breaker : this.breakers.values()) {
-            totalUsed += (breaker.getUsed() * breaker.getOverhead());
-        }
-
+    public void checkParentLimit(long newBytesReserved, String label) throws CircuitBreakingException {
+        final ParentMemoryUsage parentUsed = parentUsed(newBytesReserved);
         long parentLimit = this.parentSettings.getLimit();
-        if (totalUsed > parentLimit) {
+        if (parentUsed.totalUsage > parentLimit) {
             this.parentTripCount.incrementAndGet();
-            final String message = "[parent] Data too large, data for [" + label + "]" +
-                    " would be [" + totalUsed + "/" + new ByteSizeValue(totalUsed) + "]" +
+            final StringBuilder message = new StringBuilder("[parent] Data too large, data for [" + label + "]" +
+                    " would be [" + parentUsed.totalUsage + "/" + new ByteSizeValue(parentUsed.totalUsage) + "]" +
                     ", which is larger than the limit of [" +
-                    parentLimit + "/" + new ByteSizeValue(parentLimit) + "]";
-            throw new CircuitBreakingException(message, totalUsed, parentLimit);
+                    parentLimit + "/" + new ByteSizeValue(parentLimit) + "]");
+            if (this.trackRealMemoryUsage) {
+                final long realUsage = parentUsed.baseUsage;
+                message.append(", real usage: [");
+                message.append(realUsage);
+                message.append("/");
+                message.append(new ByteSizeValue(realUsage));
+                message.append("], new bytes reserved: [");
+                message.append(newBytesReserved);
+                message.append("/");
+                message.append(new ByteSizeValue(newBytesReserved));
+                message.append("]");
+            } else {
+                message.append(", usages [");
+                message.append(String.join(", ",
+                    this.breakers.entrySet().stream().map(e -> {
+                        final CircuitBreaker breaker = e.getValue();
+                        final long breakerUsed = (long)(breaker.getUsed() * breaker.getOverhead());
+                        return e.getKey() + "=" + breakerUsed + "/" + new ByteSizeValue(breakerUsed);
+                    })
+                        .collect(Collectors.toList())));
+                message.append("]");
+            }
+            throw new CircuitBreakingException(message.toString(), parentUsed.totalUsage, parentLimit);
         }
     }
 

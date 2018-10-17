@@ -1,0 +1,16 @@
+==== Running Elasticsearch from the command line
+
+Once installed, Elasticsearch can be started from the command line, if not installed as a service
+and configured to start when installation completes, as follows:
+
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------
+.\bin\elasticsearch.exe
+--------------------------------------------
+
+The command line terminal will display output similar to the following:
+
+image::images/msi_installer/elasticsearch_exe.png[]
+
+By default, Elasticsearch runs in the foreground, prints its logs to `STDOUT` in addition
+to the `<cluster name>.log` file within `LOGSDIRECTORY`, and can be stopped by pressing `Ctrl-C`.

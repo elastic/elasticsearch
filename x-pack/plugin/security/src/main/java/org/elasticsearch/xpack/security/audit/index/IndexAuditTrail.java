@@ -47,6 +47,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
@@ -882,6 +883,12 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         builder.field(Field.NODE_HOST_ADDRESS, nodeHostAddress);
         builder.field(Field.LAYER, layer);
         builder.field(Field.TYPE, type);
+
+        String opaqueId = threadPool.getThreadContext().getHeader(Task.X_OPAQUE_ID);
+        if (opaqueId != null) {
+            builder.field("opaque_id", opaqueId);
+        }
+
         return builder;
     }
 

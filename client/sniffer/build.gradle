@@ -16,9 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-import org.elasticsearch.gradle.precommit.PrecommitTasks
-
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
@@ -55,7 +52,7 @@ dependencies {
 
 forbiddenApisMain {
   //client does not depend on server, so only jdk signatures should be checked
-  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+  replaceSignatureFiles 'jdk-signatures'
 }
 
 forbiddenApisTest {
@@ -63,7 +60,7 @@ forbiddenApisTest {
   bundledSignatures -= 'jdk-non-portable'
   bundledSignatures += 'jdk-internal'
   //client does not depend on server, so only jdk signatures should be checked
-  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+  replaceSignatureFiles 'jdk-signatures'
 }
 
 dependencyLicenses {

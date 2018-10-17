@@ -83,7 +83,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
             new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, actionFilters,
                 new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())) {
             @Override
-            protected void doExecute(TestRequest request, ActionListener<TestResponse> listener) {
+            protected void doExecute(Task task, TestRequest request, ActionListener<TestResponse> listener) {
                 listener.onResponse(new TestResponse());
             }
         };
@@ -160,7 +160,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY,
             actionName, actionFilters, new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())) {
             @Override
-            protected void doExecute(TestRequest request, ActionListener<TestResponse> listener) {
+            protected void doExecute(Task task, TestRequest request, ActionListener<TestResponse> listener) {
                 listener.onResponse(new TestResponse());
             }
         };

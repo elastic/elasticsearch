@@ -130,12 +130,11 @@ include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[rest-high-level-cl
 --------------------------------------------------
 
 The high-level client will internally create the low-level client used to
-perform requests based on the provided builder, and manage its lifecycle.
-
-The high-level client instance needs to be closed when no longer needed so that
-all the resources used by it get properly released, as well as the underlying
-http client instance and its threads. This can be done through the `close`
-method, which will close the internal `RestClient` instance.
+perform requests based on the provided builder. That low-level client
+maintains a pool of connections and starts some threads so you should
+close the high-level client when you are well and truly done with
+it and it will in turn close the internal low-level client to free those
+resources. This can be done through the `close`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

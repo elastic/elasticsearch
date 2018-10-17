@@ -30,6 +30,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -103,7 +104,7 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
 
     class StartRecoveryTransportRequestHandler implements TransportRequestHandler<StartRecoveryRequest> {
         @Override
-        public void messageReceived(final StartRecoveryRequest request, final TransportChannel channel) throws Exception {
+        public void messageReceived(final StartRecoveryRequest request, final TransportChannel channel, Task task) throws Exception {
             RecoveryResponse response = recover(request);
             channel.sendResponse(response);
         }
@@ -172,10 +173,9 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
                 final RemoteRecoveryTargetHandler recoveryTarget =
                     new RemoteRecoveryTargetHandler(request.recoveryId(), request.shardId(), transportService,
                         request.targetNode(), recoverySettings, throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime));
-                handler = new RecoverySourceHandler(shard, recoveryTarget, request, recoverySettings.getChunkSize().bytesAsInt(), settings);
+                handler = new RecoverySourceHandler(shard, recoveryTarget, request, recoverySettings.getChunkSize().bytesAsInt());
                 return handler;
             }
         }
     }
 }
-

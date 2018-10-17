@@ -35,7 +35,10 @@ import java.util.Locale;
 import java.util.Objects;
 
 public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXContentFragment {
+
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(ByteSizeValue.class));
+
+    public static final ByteSizeValue ZERO = new ByteSizeValue(0, ByteSizeUnit.BYTES);
 
     private final long size;
     private final ByteSizeUnit unit;

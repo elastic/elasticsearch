@@ -31,8 +31,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.painless.spi.PainlessExtension;
 import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.painless.spi.WhitelistLoader;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -105,8 +105,8 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         }
     }
 
-    @SuppressWarnings("rawtypes")
-    public List<ScriptContext> getContexts() {
+    @Override
+    public List<ScriptContext<?>> getContexts() {
         return Collections.singletonList(PainlessExecuteAction.PainlessTestScript.CONTEXT);
     }
 

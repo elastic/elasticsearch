@@ -20,7 +20,7 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -83,7 +83,7 @@ public class MinThreadsSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
         String blockedNode = internalCluster().getMasterName();
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, blockedNode).repository(repo)).blockOnDataFiles(true);
         logger.info("--> start deletion of first snapshot");
-        ActionFuture<DeleteSnapshotResponse> future =
+        ActionFuture<AcknowledgedResponse> future =
             client().admin().cluster().prepareDeleteSnapshot(repo, snapshot2).execute();
         logger.info("--> waiting for block to kick in on node [{}]", blockedNode);
         waitForBlock(blockedNode, repo, TimeValue.timeValueSeconds(10));
@@ -129,7 +129,7 @@ public class MinThreadsSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
         String blockedNode = internalCluster().getMasterName();
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, blockedNode).repository(repo)).blockOnDataFiles(true);
         logger.info("--> start deletion of snapshot");
-        ActionFuture<DeleteSnapshotResponse> future = client().admin().cluster().prepareDeleteSnapshot(repo, snapshot1).execute();
+        ActionFuture<AcknowledgedResponse> future = client().admin().cluster().prepareDeleteSnapshot(repo, snapshot1).execute();
         logger.info("--> waiting for block to kick in on node [{}]", blockedNode);
         waitForBlock(blockedNode, repo, TimeValue.timeValueSeconds(10));
 
@@ -184,7 +184,7 @@ public class MinThreadsSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
         String blockedNode = internalCluster().getMasterName();
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, blockedNode).repository(repo)).blockOnDataFiles(true);
         logger.info("--> start deletion of snapshot");
-        ActionFuture<DeleteSnapshotResponse> future = client().admin().cluster().prepareDeleteSnapshot(repo, snapshot2).execute();
+        ActionFuture<AcknowledgedResponse> future = client().admin().cluster().prepareDeleteSnapshot(repo, snapshot2).execute();
         logger.info("--> waiting for block to kick in on node [{}]", blockedNode);
         waitForBlock(blockedNode, repo, TimeValue.timeValueSeconds(10));
 

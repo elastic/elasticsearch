@@ -38,6 +38,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -63,7 +64,7 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
     }
 
     @Override
-    protected void doExecute(SearchTemplateRequest request, ActionListener<SearchTemplateResponse> listener) {
+    protected void doExecute(Task task, SearchTemplateRequest request, ActionListener<SearchTemplateResponse> listener) {
         final SearchTemplateResponse response = new SearchTemplateResponse();
         try {
             SearchRequest searchRequest = convert(request, response, scriptService, xContentRegistry);

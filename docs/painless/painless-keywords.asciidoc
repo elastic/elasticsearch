@@ -5,7 +5,7 @@ Keywords are reserved tokens for built-in language features.
 
 *Errors*
 
-If a keyword is used as an <<painless-identifiers, identifier>>.
+* If a keyword is used as an <<painless-identifiers, identifier>>.
 
 *Keywords*
 

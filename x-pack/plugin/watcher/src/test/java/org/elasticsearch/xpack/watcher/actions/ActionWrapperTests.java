@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.actions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
+import org.elasticsearch.xpack.core.watcher.actions.ActionStatus.AckStatus.State;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
 import org.elasticsearch.xpack.core.watcher.actions.ExecutableAction;
@@ -22,7 +23,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.watcher.actions.ActionStatus.AckStatus.State;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -32,7 +32,8 @@ public class ActionWrapperTests extends ESTestCase {
 
     private DateTime now = DateTime.now(DateTimeZone.UTC);
     private Watch watch = mock(Watch.class);
-    private ExecutableAction executableAction = mock(ExecutableAction.class);
+    @SuppressWarnings("unchecked")
+    private ExecutableAction<Action> executableAction = mock(ExecutableAction.class);
     private ActionWrapper actionWrapper = new ActionWrapper("_action", null, NeverCondition.INSTANCE, null, executableAction);
 
     public void testThatUnmetActionConditionResetsAckStatus() throws Exception {

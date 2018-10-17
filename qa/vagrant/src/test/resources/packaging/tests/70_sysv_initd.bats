@@ -178,8 +178,7 @@ setup() {
 }
 
 # Ensures that if $MAX_MAP_COUNT is greater than the set vaule on the OS
-# we do not attempt to update it this should cover equality as well as I think
-# we can trust that equality operators work as intended.
+# we do not attempt to update it.
 @test "[INIT.D] sysctl is not run when it already has a larger or equal value set" {
   # intentionally set to the default +1
   sysctl -q -w vm.max_map_count=262145

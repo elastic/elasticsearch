@@ -56,7 +56,7 @@ public class CircleBuilder extends ShapeBuilder<Circle, CircleBuilder> {
      */
     public CircleBuilder(StreamInput in) throws IOException {
         center(readFromStream(in));
-        radius(in.readDouble(), DistanceUnit.readFromStream(in));;
+        radius(in.readDouble(), DistanceUnit.readFromStream(in));
     }
 
     @Override

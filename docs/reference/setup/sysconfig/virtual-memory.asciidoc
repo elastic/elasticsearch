@@ -1,7 +1,7 @@
 [[vm-max-map-count]]
 === Virtual memory
 
-Elasticsearch uses a <<default_fs,`mmapfs`>> directory by
+Elasticsearch uses a <<mmapfs,`mmapfs`>> directory by
 default to store its indices.  The default operating system limits on mmap
 counts is likely to be too low, which may result in out of memory exceptions.
 

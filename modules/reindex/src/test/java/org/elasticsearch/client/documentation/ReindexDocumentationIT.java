@@ -45,6 +45,7 @@ import java.util.Collections;
 
 public class ReindexDocumentationIT extends ESIntegTestCase {
 
+    @SuppressWarnings("unused")
     public void reindex() {
         Client client = client();
         // tag::reindex1
@@ -55,6 +56,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         // end::reindex1
     }
 
+    @SuppressWarnings("unused")
     public void updateByQuery() {
         Client client = client();
         {
@@ -96,7 +98,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
             updateByQuery.source("source_index")
                 .script(new Script(
                     ScriptType.INLINE,
-                    "if (ctx._source.awesome == 'absolutely) {"
+                    "if (ctx._source.awesome == 'absolutely') {"
                         + "  ctx.op='noop'"
                         + "} else if (ctx._source.awesome == 'lame') {"
                         + "  ctx.op='delete'"
@@ -165,6 +167,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void deleteByQuery() {
         Client client = client();
         // tag::delete-by-query-sync

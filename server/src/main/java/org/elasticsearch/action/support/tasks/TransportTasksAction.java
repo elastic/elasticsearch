@@ -91,12 +91,6 @@ public abstract class TransportTasksAction<
     }
 
     @Override
-    protected final void doExecute(TasksRequest request, ActionListener<TasksResponse> listener) {
-        logger.warn("attempt to execute a transport tasks operation without a task");
-        throw new UnsupportedOperationException("task parameter is required for this operation");
-    }
-
-    @Override
     protected void doExecute(Task task, TasksRequest request, ActionListener<TasksResponse> listener) {
         new AsyncAction(task, request, listener).start();
     }
@@ -338,7 +332,7 @@ public abstract class TransportTasksAction<
     class NodeTransportHandler implements TransportRequestHandler<NodeTaskRequest> {
 
         @Override
-        public void messageReceived(final NodeTaskRequest request, final TransportChannel channel) throws Exception {
+        public void messageReceived(final NodeTaskRequest request, final TransportChannel channel, Task task) throws Exception {
             nodeOperation(request, new ActionListener<NodeTasksResponse>() {
                 @Override
                 public void onResponse(

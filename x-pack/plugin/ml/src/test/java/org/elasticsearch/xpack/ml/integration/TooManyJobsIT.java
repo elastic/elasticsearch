@@ -13,7 +13,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
@@ -57,7 +57,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         assertEquals(1, tasks.taskMap().size());
         // now just double check that the first job is still opened:
-        PersistentTasksCustomMetaData.PersistentTask task = tasks.getTask(MlMetadata.jobTaskId("close-failed-job-1"));
+        PersistentTasksCustomMetaData.PersistentTask task = tasks.getTask(MlTasks.jobTaskId("close-failed-job-1"));
         assertEquals(JobState.OPENED, ((JobTaskState) task.getState()).getState());
     }
 
@@ -92,18 +92,22 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                 });
                 logger.info("Opened {}th job", i);
             } catch (ElasticsearchStatusException e) {
-                assertTrue(e.getMessage(),
-                        e.getMessage().startsWith("Could not open job because no suitable nodes were found, allocation explanation"));
+                assertEquals("Could not open job because no ML nodes with sufficient capacity were found", e.getMessage());
+                IllegalStateException detail = (IllegalStateException) e.getCause();
+                assertNotNull(detail);
+                String detailedMessage = detail.getMessage();
+                assertTrue(detailedMessage,
+                    detailedMessage.startsWith("Could not open job because no suitable nodes were found, allocation explanation"));
                 if (expectMemoryLimitBeforeCountLimit) {
                     int expectedJobsAlreadyOpenOnNode = (i - 1) / numNodes;
-                    assertTrue(e.getMessage(),
-                            e.getMessage().endsWith("because this node has insufficient available memory. Available memory for ML [" +
-                                    maxMlMemoryPerNode + "], memory required by existing jobs [" +
-                                    (expectedJobsAlreadyOpenOnNode * memoryFootprintPerJob) +
-                                    "], estimated memory required for this job [" + memoryFootprintPerJob + "]]"));
+                    assertTrue(detailedMessage,
+                        detailedMessage.endsWith("because this node has insufficient available memory. Available memory for ML [" +
+                            maxMlMemoryPerNode + "], memory required by existing jobs [" +
+                            (expectedJobsAlreadyOpenOnNode * memoryFootprintPerJob) + "], estimated memory required for this job [" +
+                            memoryFootprintPerJob + "]]"));
                 } else {
-                    assertTrue(e.getMessage(), e.getMessage().endsWith("because this node is full. Number of opened jobs [" +
-                            maxNumberOfJobsPerNode + "], xpack.ml.max_open_jobs [" + maxNumberOfJobsPerNode + "]]"));
+                    assertTrue(detailedMessage, detailedMessage.endsWith("because this node is full. Number of opened jobs [" +
+                        maxNumberOfJobsPerNode + "], xpack.ml.max_open_jobs [" + maxNumberOfJobsPerNode + "]]"));
                 }
                 logger.info("good news everybody --> reached maximum number of allowed opened jobs, after trying to open the {}th job", i);
 
@@ -117,7 +121,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                     for (Client client : clients()) {
                         PersistentTasksCustomMetaData tasks = client.admin().cluster().prepareState().get().getState()
                                 .getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-                        assertEquals(MlMetadata.getJobState(job.getId(), tasks), JobState.OPENED);
+                        assertEquals(MlTasks.getJobState(job.getId(), tasks), JobState.OPENED);
                     }
                 });
                 return;

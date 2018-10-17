@@ -493,10 +493,8 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                         boolean success = false;
                         try {
                             try {
-
                                 handshakeResponse = transportService.handshake(connection, remoteProfile.getHandshakeTimeout().millis(),
                                     (c) -> remoteClusterName.get() == null ? true : c.equals(remoteClusterName.get()));
-
                             } catch (IllegalStateException ex) {
                                 logger.warn(() -> new ParameterizedMessage("seed node {} cluster name mismatch expected " +
                                     "cluster name {}", connection.getNode(), remoteClusterName.get()), ex);

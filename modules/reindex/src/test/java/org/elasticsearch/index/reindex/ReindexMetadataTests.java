@@ -21,7 +21,6 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.settings.Settings;
 
 /**
  * Index-by-search test for ttl, timestamp, and routing.
@@ -78,7 +77,7 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
     private class TestAction extends TransportReindexAction.AsyncIndexBySearchAction {
         TestAction() {
             super(ReindexMetadataTests.this.task, ReindexMetadataTests.this.logger, null, ReindexMetadataTests.this.threadPool, request(),
-                    null, null, listener(), Settings.EMPTY);
+                    null, null, listener());
         }
 
         public ReindexRequest mainRequest() {

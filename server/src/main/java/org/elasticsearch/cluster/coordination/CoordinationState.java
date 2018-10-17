@@ -132,17 +132,17 @@ public class CoordinationState extends AbstractComponent {
             throw new CoordinationStateRejectedException("initial state already set: last-accepted version now " + lastAcceptedVersion);
         }
 
-        assert getLastAcceptedTerm() == 0;
-        assert getLastAcceptedConfiguration().isEmpty();
-        assert getLastCommittedConfiguration().isEmpty();
-        assert lastPublishedVersion == 0;
-        assert lastPublishedConfiguration.isEmpty();
+        assert getLastAcceptedTerm() == 0 : getLastAcceptedTerm();
+        assert getLastAcceptedConfiguration().isEmpty() : getLastAcceptedConfiguration();
+        assert getLastCommittedConfiguration().isEmpty() : getLastCommittedConfiguration();
+        assert lastPublishedVersion == 0 : lastAcceptedVersion;
+        assert lastPublishedConfiguration.isEmpty() : lastPublishedConfiguration;
         assert electionWon == false;
-        assert joinVotes.isEmpty();
-        assert publishVotes.isEmpty();
+        assert joinVotes.isEmpty() : joinVotes;
+        assert publishVotes.isEmpty() : publishVotes;
 
-        assert initialState.term() == 0;
-        assert initialState.version() == 1;
+        assert initialState.term() == 0 : initialState;
+        assert initialState.version() == 1 : initialState;
         assert initialState.getLastAcceptedConfiguration().isEmpty() == false;
         assert initialState.getLastCommittedConfiguration().isEmpty() == false;
 
@@ -158,13 +158,25 @@ public class CoordinationState extends AbstractComponent {
      */
     public Join handleStartJoin(StartJoinRequest startJoinRequest) {
         if (startJoinRequest.getTerm() <= getCurrentTerm()) {
-            logger.debug("handleStartJoin: ignored as term provided [{}] not greater than current term [{}]",
-                startJoinRequest.getTerm(), getCurrentTerm());
+            logger.debug("handleStartJoin: ignoring [{}] as term provided is not greater than current term [{}]",
+                startJoinRequest, getCurrentTerm());
             throw new CoordinationStateRejectedException("incoming term " + startJoinRequest.getTerm() +
                 " not greater than current term " + getCurrentTerm());
         }
 
-        logger.debug("handleStartJoin: updating term from [{}] to [{}]", getCurrentTerm(), startJoinRequest.getTerm());
+        logger.debug("handleStartJoin: leaving term [{}] due to {}", getCurrentTerm(), startJoinRequest);
+
+        if (joinVotes.isEmpty() == false) {
+            final String reason;
+            if (electionWon == false) {
+                reason = "failed election";
+            } else if (startJoinRequest.getSourceNode().equals(localNode)) {
+                reason = "bumping term";
+            } else {
+                reason = "standing down as leader";
+            }
+            logger.debug("handleStartJoin: discarding {}: {}", joinVotes, reason);
+        }
 
         persistedState.setCurrentTerm(startJoinRequest.getTerm());
         assert getCurrentTerm() == startJoinRequest.getTerm();
@@ -232,6 +244,7 @@ public class CoordinationState extends AbstractComponent {
             join.getSourceNode(), electionWon, lastAcceptedTerm, getLastAcceptedVersion());
 
         if (electionWon && prevElectionWon == false) {
+            logger.debug("handleJoin: election won in term [{}] with {}", getCurrentTerm(), joinVotes);
             lastPublishedVersion = getLastAcceptedVersion();
         }
         return added;

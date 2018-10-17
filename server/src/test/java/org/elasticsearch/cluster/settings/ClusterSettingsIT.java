@@ -20,12 +20,12 @@
 package org.elasticsearch.cluster.settings;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.discovery.Discovery;
@@ -355,7 +355,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
     public void testLoggerLevelUpdate() {
         assertAcked(prepareCreate("test"));
 
-        final Level level = ESLoggerFactory.getRootLogger().getLevel();
+        final Level level = LogManager.getRootLogger().getLevel();
 
         final IllegalArgumentException e =
             expectThrows(
@@ -366,8 +366,8 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         try {
             final Settings.Builder testSettings = Settings.builder().put("logger.test", "TRACE").put("logger._root", "trace");
             client().admin().cluster().prepareUpdateSettings().setTransientSettings(testSettings).execute().actionGet();
-            assertEquals(Level.TRACE, ESLoggerFactory.getLogger("test").getLevel());
-            assertEquals(Level.TRACE, ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(Level.TRACE, LogManager.getLogger("test").getLevel());
+            assertEquals(Level.TRACE, LogManager.getRootLogger().getLevel());
         } finally {
             if (randomBoolean()) {
                 final Settings.Builder defaultSettings = Settings.builder().putNull("logger.test").putNull("logger._root");
@@ -376,8 +376,8 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                 final Settings.Builder defaultSettings = Settings.builder().putNull("logger.*");
                 client().admin().cluster().prepareUpdateSettings().setTransientSettings(defaultSettings).execute().actionGet();
             }
-            assertEquals(level, ESLoggerFactory.getLogger("test").getLevel());
-            assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(level, LogManager.getLogger("test").getLevel());
+            assertEquals(level, LogManager.getRootLogger().getLevel());
         }
     }
 

@@ -23,7 +23,7 @@ public class MinTests extends AbstractNumericMetricTestCase<MinAggregationBuilde
 
     @Override
     protected MinAggregationBuilder doCreateTestAggregatorFactory() {
-        return new MinAggregationBuilder("foo");
+        return new MinAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
     }
 
 }

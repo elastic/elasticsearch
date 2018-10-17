@@ -370,7 +370,7 @@ SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_
 aggHavingWithMultipleScalarFunctionsBasedOnAliasFromGroupBy
 SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_emp GROUP BY languages HAVING d - ma % mi > 0 AND AVG(salary) > 30000 ORDER BY languages;
 aggHavingWithMultipleScalarFunctionsBasedOnAliasFromGroupByAndAggNotInGroupBy
-SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_emp GROUP BY languages HAVING ROUND(d - ABS(ma % mi)) + AVG(salary) > 0 AND AVG(salary) > 30000 ORDER BY languages;
+SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_emp GROUP BY languages HAVING ROUND((d - ABS(ma % mi))) + AVG(salary) > 0 AND AVG(salary) > 30000 ORDER BY languages;
 aggHavingScalarOnAggFunctionsWithoutAliasesInAndNotInGroupBy
 SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_emp GROUP BY languages HAVING MAX(salary) % MIN(salary) + AVG(salary) > 3000 ORDER BY languages;
 
@@ -385,7 +385,7 @@ SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_
 aggMultiGroupByHavingWithMultipleScalarFunctionsBasedOnAliasFromGroupBy
 SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_emp GROUP BY gender, languages HAVING d - ma % mi > 0 AND AVG(salary) > 30000 ORDER BY gender, languages;
 aggMultiGroupByHavingWithMultipleScalarFunctionsBasedOnAliasFromGroupByAndAggNotInGroupBy
-SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_emp GROUP BY gender, languages HAVING ROUND(d - ABS(ma % mi)) + AVG(salary) > 0 AND AVG(salary) > 30000 ORDER BY gender, languages;
+SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_emp GROUP BY gender, languages HAVING ROUND((d - ABS(ma % mi))) + AVG(salary) > 0 AND AVG(salary) > 30000 ORDER BY gender, languages;
 aggMultiGroupByHavingScalarOnAggFunctionsWithoutAliasesInAndNotInGroupBy
 SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_emp GROUP BY gender, languages HAVING MAX(salary) % MIN(salary) + AVG(salary) > 3000 ORDER BY gender, languages;
 

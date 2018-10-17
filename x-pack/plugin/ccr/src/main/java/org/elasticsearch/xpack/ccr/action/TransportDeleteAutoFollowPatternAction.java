@@ -85,10 +85,12 @@ public class TransportDeleteAutoFollowPatternAction extends
         final Map<String, AutoFollowPattern> patternsCopy = new HashMap<>(patterns);
         final Map<String, List<String>> followedLeaderIndexUUIDSCopy =
             new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
+        final Map<String, Map<String, String>> headers = new HashMap<>(currentAutoFollowMetadata.getHeaders());
         patternsCopy.remove(request.getLeaderClusterAlias());
         followedLeaderIndexUUIDSCopy.remove(request.getLeaderClusterAlias());
+        headers.remove(request.getLeaderClusterAlias());
 
-        AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(patternsCopy, followedLeaderIndexUUIDSCopy);
+        AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(patternsCopy, followedLeaderIndexUUIDSCopy, headers);
         ClusterState.Builder newState = ClusterState.builder(currentState);
         newState.metaData(MetaData.builder(currentState.getMetaData())
             .putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata)

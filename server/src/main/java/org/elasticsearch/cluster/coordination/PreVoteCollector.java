@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -33,6 +34,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
@@ -77,19 +79,33 @@ public class PreVoteCollector extends AbstractComponent {
         return preVotingRound;
     }
 
+    // only for testing
+    PreVoteResponse getPreVoteResponse() {
+        return state.v2();
+    }
+
+    // only for testing
+    @Nullable
+    DiscoveryNode getLeader() {
+        return state.v1();
+    }
+
     public void update(final PreVoteResponse preVoteResponse, @Nullable final DiscoveryNode leader) {
         logger.trace("updating with preVoteResponse={}, leader={}", preVoteResponse, leader);
         state = new Tuple<>(leader, preVoteResponse);
     }
 
     private PreVoteResponse handlePreVoteRequest(final PreVoteRequest request) {
-        // TODO if we are a leader and the max term seen exceeds our term then we need to bump our term
+        updateMaxTermSeen.accept(request.getCurrentTerm());
 
         Tuple<DiscoveryNode, PreVoteResponse> state = this.state;
+        assert state != null : "received pre-vote request before fully initialised";
+
         final DiscoveryNode leader = state.v1();
+        final PreVoteResponse response = state.v2();
 
         if (leader == null) {
-            return state.v2();
+            return response;
         }
 
         if (leader.equals(request.getSourceNode())) {
@@ -98,7 +114,7 @@ public class PreVoteCollector extends AbstractComponent {
             // major drawback in offering a join to our old leader. The advantage of this is that it makes it slightly more likely that the
             // leader won't change, and also that its re-election will happen more quickly than if it had to wait for a quorum of followers
             // to also detect its failure.
-            return state.v2();
+            return response;
         }
 
         throw new CoordinationStateRejectedException("rejecting " + request + " as there is already a leader");
@@ -128,17 +144,18 @@ public class PreVoteCollector extends AbstractComponent {
             broadcastNodes.forEach(n -> transportService.sendRequest(n, REQUEST_PRE_VOTE_ACTION_NAME, preVoteRequest,
                 new TransportResponseHandler<PreVoteResponse>() {
                     @Override
+                    public PreVoteResponse read(StreamInput in) throws IOException {
+                        return new PreVoteResponse(in);
+                    }
+
+                    @Override
                     public void handleResponse(PreVoteResponse response) {
                         handlePreVoteResponse(response, n);
                     }
 
                     @Override
                     public void handleException(TransportException exp) {
-                        if (exp.getRootCause() instanceof CoordinationStateRejectedException) {
-                            logger.debug("{} failed: {}", this, exp.getRootCause().getMessage());
-                        } else {
-                            logger.debug(new ParameterizedMessage("{} failed", this), exp);
-                        }
+                        logger.debug(new ParameterizedMessage("{} failed", this), exp);
                     }
 
                     @Override

@@ -10,8 +10,6 @@ import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.AttributeMap;
 import org.elasticsearch.xpack.sql.expression.AttributeSet;
-import org.elasticsearch.xpack.sql.expression.BinaryExpression;
-import org.elasticsearch.xpack.sql.expression.BinaryOperator.Negateable;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.ExpressionId;
 import org.elasticsearch.xpack.sql.expression.ExpressionSet;
@@ -39,16 +37,19 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.predicate.And;
-import org.elasticsearch.xpack.sql.expression.predicate.BinaryComparison;
-import org.elasticsearch.xpack.sql.expression.predicate.Equals;
-import org.elasticsearch.xpack.sql.expression.predicate.GreaterThan;
-import org.elasticsearch.xpack.sql.expression.predicate.GreaterThanOrEqual;
-import org.elasticsearch.xpack.sql.expression.predicate.LessThan;
-import org.elasticsearch.xpack.sql.expression.predicate.LessThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator.Negateable;
+import org.elasticsearch.xpack.sql.expression.predicate.BinaryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.Or;
 import org.elasticsearch.xpack.sql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.Limit;
@@ -1135,8 +1136,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected Expression rule(Expression e) {
-            if (e instanceof BinaryExpression) {
-                return simplifyAndOr((BinaryExpression) e);
+            if (e instanceof BinaryPredicate) {
+                return simplifyAndOr((BinaryPredicate) e);
             }
             if (e instanceof Not) {
                 return simplifyNot((Not) e);
@@ -1145,7 +1146,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return e;
         }
 
-        private Expression simplifyAndOr(BinaryExpression bc) {
+        private Expression simplifyAndOr(BinaryPredicate bc) {
             Expression l = bc.left();
             Expression r = bc.right();
 
@@ -1229,12 +1230,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
 
         private Expression simplifyNot(Not n) {
-            Expression c = n.child();
+            Expression c = n.field();
 
-            if (TRUE.equals(c)) {
+            if (TRUE.semanticEquals(c)) {
                 return FALSE;
             }
-            if (FALSE.equals(c)) {
+            if (FALSE.semanticEquals(c)) {
                 return TRUE;
             }
 
@@ -1243,7 +1244,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             }
 
             if (c instanceof Not) {
-                return ((Not) c).child();
+                return ((Not) c).field();
             }
 
             return n;
@@ -1291,10 +1292,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected Expression rule(Expression e) {
-            return e instanceof BinaryExpression ? literalToTheRight((BinaryExpression) e) : e;
+            return e instanceof BinaryOperator ? literalToTheRight((BinaryOperator) e) : e;
         }
 
-        private Expression literalToTheRight(BinaryExpression be) {
+        private Expression literalToTheRight(BinaryOperator be) {
             return be.left() instanceof Literal && !(be.right() instanceof Literal) ? be.swapLeftAndRight() : be;
         }
     }

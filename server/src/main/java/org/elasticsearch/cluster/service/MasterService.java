@@ -329,7 +329,7 @@ public class MasterService extends AbstractLifecycleComponent {
         return newClusterState;
     }
 
-    protected Builder incrementVersion(ClusterState clusterState) {
+    public Builder incrementVersion(ClusterState clusterState) {
         return ClusterState.builder(clusterState).incrementVersion();
     }
 

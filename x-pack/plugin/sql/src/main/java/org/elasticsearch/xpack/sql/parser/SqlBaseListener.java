@@ -670,18 +670,6 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitSubqueryExpression(SqlBaseParser.SubqueryExpressionContext ctx);
   /**
-   * Enter a parse tree produced by the {@code columnReference}
-   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
-   * @param ctx the parse tree
-   */
-  void enterColumnReference(SqlBaseParser.ColumnReferenceContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code columnReference}
-   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
-   * @param ctx the parse tree
-   */
-  void exitColumnReference(SqlBaseParser.ColumnReferenceContext ctx);
-  /**
    * Enter a parse tree produced by the {@code dereference}
    * labeled alternative in {@link SqlBaseParser#primaryExpression}.
    * @param ctx the parse tree

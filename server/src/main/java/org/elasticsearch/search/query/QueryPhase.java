@@ -232,7 +232,10 @@ public class QueryPhase implements SearchPhase {
 
             final Runnable checkCancelled;
             if (timeoutRunnable != null && cancellationRunnable != null) {
-                checkCancelled = () -> { timeoutRunnable.run(); cancellationRunnable.run(); };
+                checkCancelled = () -> {
+                    timeoutRunnable.run();
+                    cancellationRunnable.run();
+                };
             } else if (timeoutRunnable != null) {
                 checkCancelled = timeoutRunnable;
             } else if (cancellationRunnable != null) {

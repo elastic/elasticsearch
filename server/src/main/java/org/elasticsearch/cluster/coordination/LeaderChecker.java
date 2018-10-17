@@ -60,12 +60,12 @@ public class LeaderChecker extends AbstractComponent {
     // the time between checks sent to the leader
     public static final Setting<TimeValue> LEADER_CHECK_INTERVAL_SETTING =
         Setting.timeSetting("cluster.fault_detection.leader_check.interval",
-            TimeValue.timeValueMillis(10000), TimeValue.timeValueMillis(100), Setting.Property.NodeScope);
+            TimeValue.timeValueMillis(1000), TimeValue.timeValueMillis(100), Setting.Property.NodeScope);
 
     // the timeout for each check sent to the leader
     public static final Setting<TimeValue> LEADER_CHECK_TIMEOUT_SETTING =
         Setting.timeSetting("cluster.fault_detection.leader_check.timeout",
-            TimeValue.timeValueMillis(10000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+            TimeValue.timeValueMillis(30000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
 
     // the number of failed checks that must happen before the leader is considered to have failed.
     public static final Setting<Integer> LEADER_CHECK_RETRY_COUNT_SETTING =
@@ -77,7 +77,7 @@ public class LeaderChecker extends AbstractComponent {
     private final TransportService transportService;
     private final Runnable onLeaderFailure;
 
-    private volatile DiscoveryNodes lastPublishedDiscoveryNodes;
+    private volatile DiscoveryNodes discoveryNodes;
 
     public LeaderChecker(final Settings settings, final TransportService transportService, final Runnable onLeaderFailure) {
         super(settings);
@@ -111,19 +111,24 @@ public class LeaderChecker extends AbstractComponent {
      * isLocalNodeElectedMaster() should reflect whether this node is a leader, and nodeExists()
      * should indicate whether nodes are known publication targets or not.
      */
-    public void setLastPublishedDiscoveryNodes(DiscoveryNodes discoveryNodes) {
-        logger.trace("updating last-published nodes: {}", discoveryNodes);
-        lastPublishedDiscoveryNodes = discoveryNodes;
+    public void setCurrentNodes(DiscoveryNodes discoveryNodes) {
+        logger.trace("setCurrentNodes: {}", discoveryNodes);
+        this.discoveryNodes = discoveryNodes;
+    }
+
+    // For assertions
+    boolean currentNodeIsMaster() {
+        return discoveryNodes.isLocalNodeElectedMaster();
     }
 
     private void handleLeaderCheck(LeaderCheckRequest request, TransportChannel transportChannel, Task task) throws IOException {
-        final DiscoveryNodes lastPublishedDiscoveryNodes = this.lastPublishedDiscoveryNodes;
-        assert lastPublishedDiscoveryNodes != null;
+        final DiscoveryNodes discoveryNodes = this.discoveryNodes;
+        assert discoveryNodes != null;
 
-        if (lastPublishedDiscoveryNodes.isLocalNodeElectedMaster() == false) {
+        if (discoveryNodes.isLocalNodeElectedMaster() == false) {
             logger.debug("non-master handling {}", request);
             transportChannel.sendResponse(new CoordinationStateRejectedException("non-leader rejecting leader check"));
-        } else if (lastPublishedDiscoveryNodes.nodeExists(request.getSender()) == false) {
+        } else if (discoveryNodes.nodeExists(request.getSender()) == false) {
             logger.debug("leader check from unknown node: {}", request);
             transportChannel.sendResponse(new CoordinationStateRejectedException("leader check from unknown node"));
         } else {
@@ -167,6 +172,12 @@ public class LeaderChecker extends AbstractComponent {
                 TransportRequestOptions.builder().withTimeout(leaderCheckTimeout).withType(Type.PING).build(),
 
                 new TransportResponseHandler<TransportResponse.Empty>() {
+
+                    @Override
+                    public Empty read(StreamInput in) {
+                        return Empty.INSTANCE;
+                    }
+
                     @Override
                     public void handleResponse(Empty response) {
                         if (isClosed.get()) {

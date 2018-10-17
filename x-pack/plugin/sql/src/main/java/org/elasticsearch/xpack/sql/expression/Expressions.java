@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -110,6 +112,13 @@ public abstract class Expressions {
             return (l != null && l.semanticEquals(attribute(right)));
         }
         return true;
+    }
+
+    public static Pipe pipe(Expression e) {
+        if (e instanceof NamedExpression) {
+            return ((NamedExpression) e).asPipe();
+        }
+        throw new SqlIllegalArgumentException("Cannot create pipe for {}", e);
     }
 
     public static TypeResolution typeMustBe(Expression e, Predicate<Expression> predicate, String message) {

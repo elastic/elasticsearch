@@ -218,7 +218,6 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         }
         assertThat(tracker.getMaxSeqNo(), equalTo(maxOps - 1L));
         assertThat(tracker.getCheckpoint(), equalTo(unFinishedSeq - 1L));
-        assertThat(tracker.contains(randomValueOtherThan(unFinishedSeq, () -> (long) randomFrom(seqNos))), equalTo(true));
         assertThat(tracker.contains(unFinishedSeq), equalTo(false));
         tracker.markSeqNoAsCompleted(unFinishedSeq);
         assertThat(tracker.getCheckpoint(), equalTo(maxOps - 1L));

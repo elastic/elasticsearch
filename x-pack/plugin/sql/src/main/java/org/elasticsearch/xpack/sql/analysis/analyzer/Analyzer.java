@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.ArithmeticFunction;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.EsRelation;
@@ -112,10 +112,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 new ResolveAggsInHaving()
                 //new ImplicitCasting()
                 );
-        // TODO: this might be removed since the deduplication happens already in ResolveFunctions
-        Batch deduplication = new Batch("Deduplication",
-                new PruneDuplicateFunctions());
-
         return Arrays.asList(substitution, resolution);
     }
 
@@ -196,7 +192,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                  .collect(toList())
                 );
     }
-    
+
     private static boolean hasStar(List<? extends Expression> exprs) {
         for (Expression expression : exprs) {
             if (expression instanceof UnresolvedStar) {
@@ -775,9 +771,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         return uf;
                     }
 
-                    String normalizedName = functionRegistry.concreteFunctionName(name);
+                    String functionName = functionRegistry.resolveAlias(name);
 
-                    List<Function> list = getList(seen, normalizedName);
+                    List<Function> list = getList(seen, functionName);
                     // first try to resolve from seen functions
                     if (!list.isEmpty()) {
                         for (Function seenFunction : list) {
@@ -788,11 +784,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     }
 
                     // not seen before, use the registry
-                    if (!functionRegistry.functionExists(name)) {
-                        return uf.missing(normalizedName, functionRegistry.listFunctions());
+                    if (!functionRegistry.functionExists(functionName)) {
+                        return uf.missing(functionName, functionRegistry.listFunctions());
                     }
                     // TODO: look into Generator for significant terms, etc..
-                    FunctionDefinition def = functionRegistry.resolveFunction(normalizedName);
+                    FunctionDefinition def = functionRegistry.resolveFunction(functionName);
                     Function f = uf.buildResolved(timeZone, def);
 
                     list.add(f);
@@ -1011,8 +1007,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             // BinaryOperations are ignored as they are pushed down to ES
             // and casting (and thus Aliasing when folding) gets in the way
 
-            if (e instanceof ArithmeticFunction) {
-                ArithmeticFunction f = (ArithmeticFunction) e;
+            if (e instanceof ArithmeticOperation) {
+                ArithmeticOperation f = (ArithmeticOperation) e;
                 left = f.left();
                 right = f.right();
             }

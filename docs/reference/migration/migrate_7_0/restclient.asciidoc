@@ -1,6 +1,8 @@
+[float]
 [[breaking_70_restclient_changes]]
 === High-level REST client changes
 
+[float]
 ==== API methods accepting `Header` argument have been removed
 
 All API methods accepting headers as a `Header` varargs argument, deprecated
@@ -12,6 +14,7 @@ In case you are specifying headers
 e.g. `client.index(indexRequest, new Header("name" "value"))` becomes
 `client.index(indexRequest, RequestOptions.DEFAULT.toBuilder().addHeader("name", "value").build());`
 
+[float]
 ==== Cluster Health API default to `cluster` level
 
 The Cluster Health API used to default to `shards` level to ease migration

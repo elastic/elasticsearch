@@ -22,6 +22,7 @@ package org.elasticsearch.painless.lookup;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Objects;
 
 public class PainlessClassBinding {
 
@@ -37,5 +38,29 @@ public class PainlessClassBinding {
 
         this.returnType = returnType;
         this.typeParameters = typeParameters;
+    }
+
+    @Override
+    public boolean equals(Object object) {
+        if (this == object) {
+            return true;
+        }
+
+        if (object == null || getClass() != object.getClass()) {
+            return false;
+        }
+
+        PainlessClassBinding that = (PainlessClassBinding)object;
+
+        return Objects.equals(javaConstructor, that.javaConstructor) &&
+                Objects.equals(javaMethod, that.javaMethod) &&
+                Objects.equals(returnType, that.returnType) &&
+                Objects.equals(typeParameters, that.typeParameters);
+    }
+
+    @Override
+    public int hashCode() {
+
+        return Objects.hash(javaConstructor, javaMethod, returnType, typeParameters);
     }
 }

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -40,12 +41,15 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     private final Environment env;
     private final Settings settings;
     private final NativeController nativeController;
+    private final ClusterService clusterService;
 
-    public NativeAutodetectProcessFactory(Environment env, Settings settings, NativeController nativeController, Client client) {
+    public NativeAutodetectProcessFactory(Environment env, Settings settings, NativeController nativeController, Client client,
+                                          ClusterService clusterService) {
         this.env = Objects.requireNonNull(env);
         this.settings = Objects.requireNonNull(settings);
         this.nativeController = Objects.requireNonNull(nativeController);
         this.client = client;
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -85,8 +89,15 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     private void createNativeProcess(Job job, AutodetectParams autodetectParams, ProcessPipes processPipes,
                                      List<Path> filesToDelete) {
         try {
+
+            Settings updatedSettings = Settings.builder()
+                .put(settings)
+                .put(AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC.getKey(),
+                    clusterService.getClusterSettings().get(AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC))
+                .build();
+
             AutodetectBuilder autodetectBuilder = new AutodetectBuilder(job, filesToDelete, LOGGER, env,
-                    settings, nativeController, processPipes)
+                updatedSettings, nativeController, processPipes)
                     .referencedFilters(autodetectParams.filters())
                     .scheduledEvents(autodetectParams.scheduledEvents());
 
@@ -95,7 +106,6 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
             if (autodetectParams.quantiles() != null) {
                 autodetectBuilder.quantiles(autodetectParams.quantiles());
             }
-
             autodetectBuilder.build();
             processPipes.connectStreams(PROCESS_STARTUP_TIMEOUT);
         } catch (IOException e) {
@@ -104,5 +114,6 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
             throw ExceptionsHelper.serverError(msg, e);
         }
     }
+
 }
 

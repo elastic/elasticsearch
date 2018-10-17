@@ -115,7 +115,7 @@ public class LdapSessionFactory extends SessionFactory {
      * Securely escapes the username and inserts it into the template using MessageFormat
      *
      * @param username username to insert into the DN template.  Any commas, equals or plus will be escaped.
-     * @return DN (distinquished name) build from the template.
+     * @return DN (distinguished name) build from the template.
      */
     String buildDnFromTemplate(String username, String template) {
         //this value must be escaped to avoid manipulation of the template DN.

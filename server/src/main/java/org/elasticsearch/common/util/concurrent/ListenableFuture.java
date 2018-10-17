@@ -20,6 +20,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
@@ -47,7 +48,7 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
      * If the future has completed, the listener will be notified immediately without forking to
      * a different thread.
      */
-    public void addListener(ActionListener<V> listener, ExecutorService executor) {
+    public void addListener(ActionListener<V> listener, ExecutorService executor, ThreadContext threadContext) {
         if (done) {
             // run the callback directly, we don't hold the lock and don't need to fork!
             notifyListener(listener, EsExecutors.newDirectExecutorService());
@@ -59,7 +60,7 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
                 if (done) {
                     run = true;
                 } else {
-                    listeners.add(new Tuple<>(listener, executor));
+                    listeners.add(new Tuple<>(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext), executor));
                     run = false;
                 }
             }
@@ -82,14 +83,22 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
 
     private void notifyListener(ActionListener<V> listener, ExecutorService executorService) {
         try {
-            executorService.submit(() -> {
-                try {
-                    // call get in a non-blocking fashion as we could be on a network thread
-                    // or another thread like the scheduler, which we should never block!
-                    V value = FutureUtils.get(this, 0L, TimeUnit.NANOSECONDS);
-                    listener.onResponse(value);
-                } catch (Exception e) {
-                    listener.onFailure(e);
+            executorService.execute(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        // call get in a non-blocking fashion as we could be on a network thread
+                        // or another thread like the scheduler, which we should never block!
+                        V value = FutureUtils.get(ListenableFuture.this, 0L, TimeUnit.NANOSECONDS);
+                        listener.onResponse(value);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return "ListenableFuture notification";
                 }
             });
         } catch (Exception e) {

@@ -36,12 +36,16 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -181,12 +185,36 @@ public abstract class RemoteClusterAware extends AbstractComponent {
      * {@link TransportAddress#META_ADDRESS} and their configured address will be used as the hostname for the generated discovery node.
      */
     protected static Map<String, Tuple<String, List<Supplier<DiscoveryNode>>>> buildRemoteClustersDynamicConfig(Settings settings) {
-        Stream<Setting<List<String>>> allConcreteSettings = REMOTE_CLUSTERS_SEEDS.getAllConcreteSettings(settings);
+        final Map<String, Tuple<String, List<Supplier<DiscoveryNode>>>> remoteSeeds =
+                buildRemoteClustersDynamicConfig(settings, REMOTE_CLUSTERS_SEEDS);
+        final Map<String, Tuple<String, List<Supplier<DiscoveryNode>>>> searchRemoteSeeds =
+                buildRemoteClustersDynamicConfig(settings, SEARCH_REMOTE_CLUSTERS_SEEDS);
+        // sort the intersection for predictable output order
+        final NavigableSet<String> intersection =
+                new TreeSet<>(Arrays.asList(
+                        searchRemoteSeeds.keySet().stream().filter(s -> remoteSeeds.keySet().contains(s)).sorted().toArray(String[]::new)));
+        if (intersection.isEmpty() == false) {
+            final String message = String.format(
+                    Locale.ROOT,
+                    "found duplicate remote cluster configurations for cluster alias%s [%s]",
+                    intersection.size() == 1 ? "" : "es",
+                    String.join(",", intersection));
+            throw new IllegalArgumentException(message);
+        }
+        return Stream
+                .concat(remoteSeeds.entrySet().stream(), searchRemoteSeeds.entrySet().stream())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    private static Map<String, Tuple<String, List<Supplier<DiscoveryNode>>>> buildRemoteClustersDynamicConfig(
+            final Settings settings, final Setting.AffixSetting<List<String>> seedsSetting) {
+        final Stream<Setting<List<String>>> allConcreteSettings = seedsSetting.getAllConcreteSettings(settings);
         return allConcreteSettings.collect(
-                Collectors.toMap(REMOTE_CLUSTERS_SEEDS::getNamespace, concreteSetting -> {
-                    String clusterName = REMOTE_CLUSTERS_SEEDS.getNamespace(concreteSetting);
+                Collectors.toMap(seedsSetting::getNamespace, concreteSetting -> {
+                    String clusterName = seedsSetting.getNamespace(concreteSetting);
                     List<String> addresses = concreteSetting.get(settings);
-                    final boolean proxyMode = REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterName).exists(settings);
+                    final boolean proxyMode =
+                            REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterName).existsOrFallbackExists(settings);
                     List<Supplier<DiscoveryNode>> nodes = new ArrayList<>(addresses.size());
                     for (String address : addresses) {
                         nodes.add(() -> buildSeedNode(clusterName, address, proxyMode));
@@ -231,9 +259,10 @@ public abstract class RemoteClusterAware extends AbstractComponent {
                 List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusterNames, remoteClusterName);
                 if (clusters.isEmpty() == false) {
                     if (indexExists.test(index)) {
-                        // we use : as a separator for remote clusters. might conflict if there is an index that is actually named
-                        // remote_cluster_alias:index_name - for this case we fail the request. the user can easily change the cluster alias
-                        // if that happens
+                        //We use ":" as a separator for remote clusters. There may be a conflict if there is an index that is named
+                        //remote_cluster_alias:index_name - for this case we fail the request. The user can easily change the cluster alias
+                        //if that happens. Note that indices and aliases can be created with ":" in their names names up to 6.last, which
+                        //means such names need to be supported until 7.last. It will be possible to remove this check from 8.0 on.
                         throw new IllegalArgumentException("Can not filter indices; index " + index +
                                 " exists but there is also a remote cluster named: " + remoteClusterName);
                     }
@@ -242,6 +271,9 @@ public abstract class RemoteClusterAware extends AbstractComponent {
                         perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<>()).add(indexName);
                     }
                 } else {
+                    //Indices and aliases can be created with ":" in their names up to 6.last (although deprecated), and still be
+                    //around in 7.x. That's why we need to be lenient here and treat the index as local although it contains ":".
+                    //It will be possible to remove such leniency and assume that no local indices contain ":" only from 8.0 on.
                     perClusterIndices.computeIfAbsent(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, k -> new ArrayList<>()).add(index);
                 }
             } else {

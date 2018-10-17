@@ -5,8 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions.hipchat;
 
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
@@ -20,8 +19,8 @@ public class HipChatActionFactory extends ActionFactory {
     private final TextTemplateEngine templateEngine;
     private final HipChatService hipchatService;
 
-    public HipChatActionFactory(Settings settings, TextTemplateEngine templateEngine, HipChatService hipchatService) {
-        super(Loggers.getLogger(ExecutableHipChatAction.class, settings));
+    public HipChatActionFactory(TextTemplateEngine templateEngine, HipChatService hipchatService) {
+        super(LogManager.getLogger(ExecutableHipChatAction.class));
         this.templateEngine = templateEngine;
         this.hipchatService = hipchatService;
     }

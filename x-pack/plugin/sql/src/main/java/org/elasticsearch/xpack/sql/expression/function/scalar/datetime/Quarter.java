@@ -7,12 +7,11 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.UnaryProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -22,8 +21,7 @@ import java.util.Objects;
 import java.util.TimeZone;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor.quarter;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
+import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 public class Quarter extends BaseDateTimeFunction {
 
@@ -44,15 +42,13 @@ public class Quarter extends BaseDateTimeFunction {
     }
 
     @Override
-    protected ScriptTemplate asScriptFrom(FieldAttribute field) {
-        ParamsBuilder params = paramsBuilder();
-
-        String template = null;
-        template = formatTemplate("{sql}.quarter(doc[{}].value.millis, {})");
-        params.variable(field.name())
-              .variable(timeZone().getID());
-        
-        return new ScriptTemplate(template, params.build(), dataType());
+    public ScriptTemplate scriptWithField(FieldAttribute field) {
+        return new ScriptTemplate(formatTemplate("{sql}.quarter(doc[{}].value.millis, {})"),
+                paramsBuilder()
+                  .variable(field.name())
+                  .variable(timeZone().getID())
+                  .build(),
+                dataType());
     }
 
     @Override
@@ -66,9 +62,8 @@ public class Quarter extends BaseDateTimeFunction {
     }
 
     @Override
-    protected ProcessorDefinition makeProcessorDefinition() {
-        return new UnaryProcessorDefinition(location(), this, ProcessorDefinitions.toProcessorDefinition(field()),
-                new QuarterProcessor(timeZone()));
+    protected Pipe makePipe() {
+        return new UnaryPipe(location(), this, Expressions.pipe(field()), new QuarterProcessor(timeZone()));
     }
 
     @Override
@@ -90,5 +85,4 @@ public class Quarter extends BaseDateTimeFunction {
     public int hashCode() {
         return Objects.hash(field(), timeZone());
     }
-
 }

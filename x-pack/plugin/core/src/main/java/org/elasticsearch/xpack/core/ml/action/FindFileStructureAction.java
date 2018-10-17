@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
@@ -112,6 +113,7 @@ public class FindFileStructureAction extends Action<FindFileStructureAction.Resp
     public static class Request extends ActionRequest {
 
         public static final ParseField LINES_TO_SAMPLE = new ParseField("lines_to_sample");
+        public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField CHARSET = FileStructure.CHARSET;
         public static final ParseField FORMAT = FileStructure.FORMAT;
         public static final ParseField COLUMN_NAMES = FileStructure.COLUMN_NAMES;
@@ -128,6 +130,7 @@ public class FindFileStructureAction extends Action<FindFileStructureAction.Resp
             "[%s] may only be specified if [" + FORMAT.getPreferredName() + "] is [%s]";
 
         private Integer linesToSample;
+        private TimeValue timeout;
         private String charset;
         private FileStructure.Format format;
         private List<String> columnNames;
@@ -149,6 +152,14 @@ public class FindFileStructureAction extends Action<FindFileStructureAction.Resp
 
         public void setLinesToSample(Integer linesToSample) {
             this.linesToSample = linesToSample;
+        }
+
+        public TimeValue getTimeout() {
+            return timeout;
+        }
+
+        public void setTimeout(TimeValue timeout) {
+            this.timeout = timeout;
         }
 
         public String getCharset() {
@@ -313,6 +324,7 @@ public class FindFileStructureAction extends Action<FindFileStructureAction.Resp
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             linesToSample = in.readOptionalVInt();
+            timeout = in.readOptionalTimeValue();
             charset = in.readOptionalString();
             format = in.readBoolean() ? in.readEnum(FileStructure.Format.class) : null;
             columnNames = in.readBoolean() ? in.readList(StreamInput::readString) : null;
@@ -330,6 +342,7 @@ public class FindFileStructureAction extends Action<FindFileStructureAction.Resp
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalVInt(linesToSample);
+            out.writeOptionalTimeValue(timeout);
             out.writeOptionalString(charset);
             if (format == null) {
                 out.writeBoolean(false);
@@ -365,7 +378,7 @@ public class FindFileStructureAction extends Action<FindFileStructureAction.Resp
 
         @Override
         public int hashCode() {
-            return Objects.hash(linesToSample, charset, format, columnNames, hasHeaderRow, delimiter, grokPattern, timestampFormat,
+            return Objects.hash(linesToSample, timeout, charset, format, columnNames, hasHeaderRow, delimiter, grokPattern, timestampFormat,
                 timestampField, sample);
         }
 
@@ -382,6 +395,7 @@ public class FindFileStructureAction extends Action<FindFileStructureAction.Resp
 
             Request that = (Request) other;
             return Objects.equals(this.linesToSample, that.linesToSample) &&
+                Objects.equals(this.timeout, that.timeout) &&
                 Objects.equals(this.charset, that.charset) &&
                 Objects.equals(this.format, that.format) &&
                 Objects.equals(this.columnNames, that.columnNames) &&

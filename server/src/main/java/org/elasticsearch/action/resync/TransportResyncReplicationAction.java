@@ -119,6 +119,12 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
 
     public static Translog.Location performOnReplica(ResyncReplicationRequest request, IndexShard replica) throws Exception {
         Translog.Location location = null;
+        /*
+         * Operations received from resync do not have auto_id_timestamp individually, we need to bootstrap this max_seen_timestamp
+         * (at least the highest timestamp from any of these operations) to make sure that we will disable optimization for the same
+         * append-only requests with timestamp (sources of these operations) that are replicated; otherwise we may have duplicates.
+         */
+        replica.updateMaxUnsafeAutoIdTimestamp(request.getMaxSeenAutoIdTimestampOnPrimary());
         for (Translog.Operation operation : request.getOperations()) {
             final Engine.Result operationResult = replica.applyTranslogOperation(operation, Engine.Operation.Origin.REPLICA);
             if (operationResult.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {

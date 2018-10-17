@@ -22,6 +22,8 @@ package org.elasticsearch.discovery;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -69,7 +71,9 @@ public class HandshakingTransportAddressConnector extends AbstractComponent impl
 
                 // TODO if transportService is already connected to this address then skip the handshaking
 
-                final DiscoveryNode targetNode = new DiscoveryNode(transportAddress.toString(), transportAddress, emptyMap(),
+                final DiscoveryNode targetNode = new DiscoveryNode("", transportAddress.toString(),
+                    UUIDs.randomBase64UUID(Randomness.get()), // generated deterministically for reproducible tests
+                    transportAddress.address().getHostString(), transportAddress.getAddress(), transportAddress, emptyMap(),
                     emptySet(), Version.CURRENT.minimumCompatibilityVersion());
 
                 logger.trace("[{}] opening probe connection", this);

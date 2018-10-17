@@ -61,7 +61,7 @@ configuring the `http` attachment type, you must specify the request URL. The
 `reporting` attachment type is a special type to include PDF rendered dashboards
 from kibana. This type is consistently polling the kibana app if the dashboard
 rendering is done, preventing long running HTTP connections, that are potentially
-killed by firewalls or load balancers inbetween.
+killed by firewalls or load balancers in-between.
 
 [source,js]
 --------------------------------------------------

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -27,7 +28,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -45,7 +45,7 @@ import java.util.Locale;
 import java.util.Map;
 
 public class ObjectMapper extends Mapper implements Cloneable {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(ObjectMapper.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ObjectMapper.class));
 
     public static final String CONTENT_TYPE = "object";
     public static final String NESTED_CONTENT_TYPE = "nested";

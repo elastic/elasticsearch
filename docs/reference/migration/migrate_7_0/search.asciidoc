@@ -61,6 +61,7 @@ Scroll queries are not meant to be cached.
 
 [float]
 ==== Scroll queries cannot use `rescore`  anymore
+
 Including a rescore clause on a query that creates a scroll (`scroll=1m`) has
 been deprecated in 6.5 and will now return a `400 - Bad request`.  Allowing
 rescore on scroll queries would break the scroll sort.  In the 6.x line, the
@@ -123,3 +124,9 @@ max number of concurrent shard requests per node. The default is now `5`.
 
 `max_score` used to be set to `0` whenever scores are not tracked. `null` is now used
 instead which is a more appropriate value for a scenario where scores are not available.
+
+[float]
+==== Negative boosts are not allowed
+
+Setting a negative `boost` in a query, deprecated in 6x, are not allowed in this version.
+To deboost a specific query you can use a `boost` comprise between 0 and 1.

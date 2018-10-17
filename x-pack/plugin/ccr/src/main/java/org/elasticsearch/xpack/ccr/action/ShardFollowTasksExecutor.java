@@ -17,12 +17,15 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -47,16 +50,19 @@ import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 
 import static org.elasticsearch.xpack.ccr.CcrLicenseChecker.wrapClient;
+import static org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction.extractLeaderShardHistoryUUIDs;
 
 public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollowTask> {
 
     private final Client client;
     private final ThreadPool threadPool;
+    private final ClusterService clusterService;
 
-    public ShardFollowTasksExecutor(Settings settings, Client client, ThreadPool threadPool) {
+    public ShardFollowTasksExecutor(Settings settings, Client client, ThreadPool threadPool, ClusterService clusterService) {
         super(settings, ShardFollowTask.NAME, Ccr.CCR_THREAD_POOL_NAME);
         this.client = client;
         this.threadPool = threadPool;
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -99,8 +105,10 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 }
             }
         };
-        return new ShardFollowNodeTask(
-                id, type, action, getDescription(taskInProgress), parentTaskId, headers, params, scheduler, System::nanoTime) {
+
+        final String recordedLeaderShardHistoryUUID = getLeaderShardHistoryUUID(params);
+        return new ShardFollowNodeTask(id, type, action, getDescription(taskInProgress), parentTaskId, headers, params,
+            scheduler, System::nanoTime) {
 
             @Override
             protected void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler) {
@@ -135,12 +143,14 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
             @Override
             protected void innerSendBulkShardOperationsRequest(
-                    final List<Translog.Operation> operations,
-                    final long maxSeqNoOfUpdatesOrDeletes,
-                    final Consumer<BulkShardOperationsResponse> handler,
-                    final Consumer<Exception> errorHandler) {
-                final BulkShardOperationsRequest request = new BulkShardOperationsRequest(
-                    params.getFollowShardId(), operations, maxSeqNoOfUpdatesOrDeletes);
+                final String followerHistoryUUID,
+                final List<Translog.Operation> operations,
+                final long maxSeqNoOfUpdatesOrDeletes,
+                final Consumer<BulkShardOperationsResponse> handler,
+                final Consumer<Exception> errorHandler) {
+
+                final BulkShardOperationsRequest request = new BulkShardOperationsRequest(params.getFollowShardId(),
+                    followerHistoryUUID, operations, maxSeqNoOfUpdatesOrDeletes);
                 followerClient.execute(BulkShardOperationsAction.INSTANCE, request,
                     ActionListener.wrap(response -> handler.accept(response), errorHandler));
             }
@@ -149,7 +159,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             protected void innerSendShardChangesRequest(long from, int maxOperationCount, Consumer<ShardChangesAction.Response> handler,
                                                         Consumer<Exception> errorHandler) {
                 ShardChangesAction.Request request =
-                    new ShardChangesAction.Request(params.getLeaderShardId(), params.getRecordedLeaderIndexHistoryUUID());
+                    new ShardChangesAction.Request(params.getLeaderShardId(), recordedLeaderShardHistoryUUID);
                 request.setFromSeqNo(from);
                 request.setMaxOperationCount(maxOperationCount);
                 request.setMaxBatchSize(params.getMaxBatchSize());
@@ -159,8 +169,15 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         };
     }
 
-    interface BiLongConsumer {
-        void accept(long x, long y);
+    private String getLeaderShardHistoryUUID(ShardFollowTask params) {
+        IndexMetaData followIndexMetaData = clusterService.state().metaData().index(params.getFollowShardId().getIndex());
+        Map<String, String> ccrIndexMetadata = followIndexMetaData.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
+        String[] recordedLeaderShardHistoryUUIDs = extractLeaderShardHistoryUUIDs(ccrIndexMetadata);
+        return recordedLeaderShardHistoryUUIDs[params.getLeaderShardId().id()];
+    }
+
+    interface FollowerStatsInfoHandler {
+        void accept(String followerHistoryUUID, long globalCheckpoint, long maxSeqNo);
     }
 
     @Override
@@ -169,7 +186,9 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         ShardFollowNodeTask shardFollowNodeTask = (ShardFollowNodeTask) task;
         logger.info("{} Starting to track leader shard {}", params.getFollowShardId(), params.getLeaderShardId());
 
-        BiLongConsumer handler = (followerGCP, maxSeqNo) -> shardFollowNodeTask.start(followerGCP, maxSeqNo, followerGCP, maxSeqNo);
+        FollowerStatsInfoHandler handler = (followerHistoryUUID, followerGCP, maxSeqNo) -> {
+            shardFollowNodeTask.start(followerHistoryUUID, followerGCP, maxSeqNo, followerGCP, maxSeqNo);
+        };
         Consumer<Exception> errorHandler = e -> {
             if (shardFollowNodeTask.isStopped()) {
                 return;
@@ -184,13 +203,13 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             }
         };
 
-        fetchGlobalCheckpoint(followerClient, params.getFollowShardId(), handler, errorHandler);
+        fetchFollowerShardInfo(followerClient, params.getFollowShardId(), handler, errorHandler);
     }
 
-    private void fetchGlobalCheckpoint(
+    private void fetchFollowerShardInfo(
             final Client client,
             final ShardId shardId,
-            final BiLongConsumer handler,
+            final FollowerStatsInfoHandler handler,
             final Consumer<Exception> errorHandler) {
         client.admin().indices().stats(new IndicesStatsRequest().indices(shardId.getIndexName()), ActionListener.wrap(r -> {
             IndexStats indexStats = r.getIndex(shardId.getIndexName());
@@ -204,10 +223,14 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     .filter(shardStats -> shardStats.getShardRouting().primary())
                     .findAny();
             if (filteredShardStats.isPresent()) {
-                final SeqNoStats seqNoStats = filteredShardStats.get().getSeqNoStats();
+                final ShardStats shardStats = filteredShardStats.get();
+                final CommitStats commitStats = shardStats.getCommitStats();
+                final String historyUUID = commitStats.getUserData().get(Engine.HISTORY_UUID_KEY);
+
+                final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
                 final long globalCheckpoint = seqNoStats.getGlobalCheckpoint();
                 final long maxSeqNo = seqNoStats.getMaxSeqNo();
-                handler.accept(globalCheckpoint, maxSeqNo);
+                handler.accept(historyUUID, globalCheckpoint, maxSeqNo);
             } else {
                 errorHandler.accept(new ShardNotFoundException(shardId));
             }

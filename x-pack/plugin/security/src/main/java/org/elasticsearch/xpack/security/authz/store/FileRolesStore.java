@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.support.Validation;
 
@@ -42,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -49,7 +52,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
-public class FileRolesStore extends AbstractComponent {
+public class FileRolesStore extends AbstractComponent implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
 
     private static final Pattern IN_SEGMENT_LINE = Pattern.compile("^\\s+.+");
     private static final Pattern SKIP_LINE = Pattern.compile("(^#.*|^\\s*)");
@@ -79,7 +82,13 @@ public class FileRolesStore extends AbstractComponent {
         permissions = parseFile(file, logger, settings, licenseState);
     }
 
-    public Set<RoleDescriptor> roleDescriptors(Set<String> roleNames) {
+
+    @Override
+    public void accept(Set<String> names, ActionListener<RoleRetrievalResult> listener) {
+        listener.onResponse(RoleRetrievalResult.success(roleDescriptors(names)));
+    }
+
+    Set<RoleDescriptor> roleDescriptors(Set<String> roleNames) {
         final Map<String, RoleDescriptor> localPermissions = permissions;
         Set<RoleDescriptor> descriptors = new HashSet<>();
         roleNames.forEach((name) -> {
@@ -127,6 +136,11 @@ public class FileRolesStore extends AbstractComponent {
     // package private for testing
     Set<String> getAllRoleNames() {
         return permissions.keySet();
+    }
+
+    @Override
+    public String toString() {
+        return "file roles store (" + file + ")";
     }
 
     public static Path resolveFile(Environment env) {

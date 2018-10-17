@@ -530,8 +530,20 @@ final class RequestConverters {
         return request;
     }
 
-    static Request rethrottle(RethrottleRequest rethrottleRequest) throws IOException {
-        String endpoint = new EndpointBuilder().addPathPart("_reindex").addPathPart(rethrottleRequest.getTaskId().toString())
+    static Request rethrottleReindex(RethrottleRequest rethrottleRequest) {
+        return rethrottle(rethrottleRequest, "_reindex");
+    }
+
+    static Request rethrottleUpdateByQuery(RethrottleRequest rethrottleRequest) {
+        return rethrottle(rethrottleRequest, "_update_by_query");
+    }
+
+    static Request rethrottleDeleteByQuery(RethrottleRequest rethrottleRequest) {
+        return rethrottle(rethrottleRequest, "_delete_by_query");
+    }
+
+    private static Request rethrottle(RethrottleRequest rethrottleRequest, String firstPathPart) {
+        String endpoint = new EndpointBuilder().addPathPart(firstPathPart).addPathPart(rethrottleRequest.getTaskId().toString())
                 .addPathPart("_rethrottle").build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         Params params = new Params(request)
@@ -968,9 +980,11 @@ final class RequestConverters {
             return this;
         }
 
-        EndpointBuilder addPathPartAsIs(String part) {
-            if (Strings.hasLength(part)) {
-                joiner.add(part);
+        EndpointBuilder addPathPartAsIs(String ... parts) {
+            for (String part : parts) {
+                if (Strings.hasLength(part)) {
+                    joiner.add(part);
+                }
             }
             return this;
         }

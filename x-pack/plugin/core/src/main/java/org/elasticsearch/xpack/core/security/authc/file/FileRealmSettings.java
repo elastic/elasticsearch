@@ -19,6 +19,6 @@ public final class FileRealmSettings {
      * @return The {@link Setting setting configuration} for this realm type
      */
     public static Set<Setting<?>> getSettings() {
-        return CachingUsernamePasswordRealmSettings.getCachingSettings();
+        return CachingUsernamePasswordRealmSettings.getSettings();
     }
 }

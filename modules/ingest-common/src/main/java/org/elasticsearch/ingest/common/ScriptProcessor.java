@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -73,6 +74,7 @@ public final class ScriptProcessor extends AbstractProcessor {
     public void execute(IngestDocument document) {
         IngestScript.Factory factory = scriptService.compile(script, IngestScript.CONTEXT);
         factory.newInstance(script.getParams()).execute(document.getSourceAndMetadata());
+        CollectionUtils.ensureNoSelfReferences(document.getSourceAndMetadata());
     }
 
     @Override

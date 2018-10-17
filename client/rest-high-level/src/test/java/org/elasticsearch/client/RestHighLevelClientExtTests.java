@@ -52,14 +52,16 @@ public class RestHighLevelClientExtTests extends ESTestCase {
     public void testParseEntityCustomResponseSection() throws IOException {
         {
             HttpEntity jsonEntity = new StringEntity("{\"custom1\":{ \"field\":\"value\"}}", ContentType.APPLICATION_JSON);
-            BaseCustomResponseSection customSection = restHighLevelClient.parseEntity(jsonEntity, BaseCustomResponseSection::fromXContent);
+            BaseCustomResponseSection customSection = restHighLevelClient.getRequestActions().parseEntity(jsonEntity,
+                BaseCustomResponseSection::fromXContent);
             assertThat(customSection, instanceOf(CustomResponseSection1.class));
             CustomResponseSection1 customResponseSection1 = (CustomResponseSection1) customSection;
             assertEquals("value", customResponseSection1.value);
         }
         {
             HttpEntity jsonEntity = new StringEntity("{\"custom2\":{ \"array\": [\"item1\", \"item2\"]}}", ContentType.APPLICATION_JSON);
-            BaseCustomResponseSection customSection = restHighLevelClient.parseEntity(jsonEntity, BaseCustomResponseSection::fromXContent);
+            BaseCustomResponseSection customSection = restHighLevelClient.getRequestActions().parseEntity(jsonEntity,
+                BaseCustomResponseSection::fromXContent);
             assertThat(customSection, instanceOf(CustomResponseSection2.class));
             CustomResponseSection2 customResponseSection2 = (CustomResponseSection2) customSection;
             assertArrayEquals(new String[]{"item1", "item2"}, customResponseSection2.values);

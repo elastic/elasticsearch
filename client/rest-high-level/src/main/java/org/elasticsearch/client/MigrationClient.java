@@ -34,10 +34,10 @@ import java.util.Collections;
  */
 public final class MigrationClient {
 
-    private final RestHighLevelClient restHighLevelClient;
+    private final RestRequestActions requestActions;
 
-    MigrationClient(RestHighLevelClient restHighLevelClient) {
-        this.restHighLevelClient = restHighLevelClient;
+    MigrationClient(RestRequestActions requestActions) {
+        this.requestActions = requestActions;
     }
 
     /**
@@ -49,7 +49,7 @@ public final class MigrationClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public IndexUpgradeInfoResponse getAssistance(IndexUpgradeInfoRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, MigrationRequestConverters::getMigrationAssistance, options,
+        return requestActions.performRequestAndParseEntity(request, MigrationRequestConverters::getMigrationAssistance, options,
             IndexUpgradeInfoResponse::fromXContent, Collections.emptySet());
     }
 }

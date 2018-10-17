@@ -35,10 +35,10 @@ import java.util.Collections;
  */
 public class RollupClient {
 
-    private final RestHighLevelClient restHighLevelClient;
+    private final RestRequestActions requestActions;
 
-    RollupClient(final RestHighLevelClient restHighLevelClient) {
-        this.restHighLevelClient = restHighLevelClient;
+    RollupClient(final RestRequestActions requestActions) {
+        this.requestActions = requestActions;
     }
 
     /**
@@ -51,7 +51,7 @@ public class RollupClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public PutRollupJobResponse putRollupJob(PutRollupJobRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return requestActions.performRequestAndParseEntity(request,
             RollupRequestConverters::putJob,
             options,
             PutRollupJobResponse::fromXContent,
@@ -67,7 +67,7 @@ public class RollupClient {
      * @param listener the listener to be notified upon request completion
      */
     public void putRollupJobAsync(PutRollupJobRequest request, RequestOptions options, ActionListener<PutRollupJobResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        requestActions.performRequestAsyncAndParseEntity(request,
             RollupRequestConverters::putJob,
             options,
             PutRollupJobResponse::fromXContent,

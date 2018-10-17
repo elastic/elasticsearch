@@ -37,10 +37,10 @@ import static java.util.Collections.emptySet;
  */
 public final class SecurityClient {
 
-    private final RestHighLevelClient restHighLevelClient;
+    private final RestRequestActions requestActions;
 
-    SecurityClient(RestHighLevelClient restHighLevelClient) {
-        this.restHighLevelClient = restHighLevelClient;
+    SecurityClient(RestRequestActions requestActions) {
+        this.requestActions = requestActions;
     }
 
     /**
@@ -53,7 +53,7 @@ public final class SecurityClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public PutUserResponse putUser(PutUserRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::putUser, options,
+        return requestActions.performRequestAndParseEntity(request, SecurityRequestConverters::putUser, options,
             PutUserResponse::fromXContent, emptySet());
     }
 
@@ -66,7 +66,7 @@ public final class SecurityClient {
      * @param listener the listener to be notified upon request completion
      */
     public void putUserAsync(PutUserRequest request, RequestOptions options, ActionListener<PutUserResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::putUser, options,
+        requestActions.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::putUser, options,
             PutUserResponse::fromXContent, listener, emptySet());
     }
 
@@ -80,7 +80,7 @@ public final class SecurityClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public EmptyResponse enableUser(EnableUserRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::enableUser, options,
+        return requestActions.performRequestAndParseEntity(request, SecurityRequestConverters::enableUser, options,
             EmptyResponse::fromXContent, emptySet());
     }
 
@@ -94,7 +94,7 @@ public final class SecurityClient {
      */
     public void enableUserAsync(EnableUserRequest request, RequestOptions options,
                                     ActionListener<EmptyResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::enableUser, options,
+        requestActions.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::enableUser, options,
             EmptyResponse::fromXContent, listener, emptySet());
     }
 
@@ -108,7 +108,7 @@ public final class SecurityClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public EmptyResponse disableUser(DisableUserRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::disableUser, options,
+        return requestActions.performRequestAndParseEntity(request, SecurityRequestConverters::disableUser, options,
             EmptyResponse::fromXContent, emptySet());
     }
 
@@ -122,7 +122,7 @@ public final class SecurityClient {
      */
     public void disableUserAsync(DisableUserRequest request, RequestOptions options,
                                 ActionListener<EmptyResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::disableUser, options,
+        requestActions.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::disableUser, options,
             EmptyResponse::fromXContent, listener, emptySet());
     }
 }

@@ -73,10 +73,10 @@ import java.util.Collections;
  */
 public final class MachineLearningClient {
 
-    private final RestHighLevelClient restHighLevelClient;
+    private final RestRequestActions requestActions;
 
-    MachineLearningClient(RestHighLevelClient restHighLevelClient) {
-        this.restHighLevelClient = restHighLevelClient;
+    MachineLearningClient(RestRequestActions requestActions) {
+        this.requestActions = requestActions;
     }
 
     /**
@@ -91,7 +91,7 @@ public final class MachineLearningClient {
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public PutJobResponse putJob(PutJobRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return requestActions.performRequestAndParseEntity(request,
                 MLRequestConverters::putJob,
                 options,
                 PutJobResponse::fromXContent,
@@ -109,7 +109,7 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      */
     public void putJobAsync(PutJobRequest request, RequestOptions options, ActionListener<PutJobResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        requestActions.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::putJob,
                 options,
                 PutJobResponse::fromXContent,
@@ -130,7 +130,7 @@ public final class MachineLearningClient {
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public GetJobResponse getJob(GetJobRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return requestActions.performRequestAndParseEntity(request,
                 MLRequestConverters::getJob,
                 options,
                 GetJobResponse::fromXContent,
@@ -148,7 +148,7 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified with {@link GetJobResponse} upon request completion
      */
     public void getJobAsync(GetJobRequest request, RequestOptions options, ActionListener<GetJobResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        requestActions.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::getJob,
                 options,
                 GetJobResponse::fromXContent,
@@ -169,7 +169,7 @@ public final class MachineLearningClient {
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public GetJobStatsResponse getJobStats(GetJobStatsRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return requestActions.performRequestAndParseEntity(request,
                 MLRequestConverters::getJobStats,
                 options,
                 GetJobStatsResponse::fromXContent,
@@ -187,7 +187,7 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified with {@link GetJobStatsResponse} upon request completion
      */
     public void getJobStatsAsync(GetJobStatsRequest request, RequestOptions options, ActionListener<GetJobStatsResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        requestActions.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::getJobStats,
                 options,
                 GetJobStatsResponse::fromXContent,
@@ -207,7 +207,7 @@ public final class MachineLearningClient {
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public AcknowledgedResponse deleteJob(DeleteJobRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return requestActions.performRequestAndParseEntity(request,
             MLRequestConverters::deleteJob,
             options,
             AcknowledgedResponse::fromXContent,
@@ -225,7 +225,7 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      */
     public void deleteJobAsync(DeleteJobRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        requestActions.performRequestAsyncAndParseEntity(request,
             MLRequestConverters::deleteJob,
             options,
             AcknowledgedResponse::fromXContent,
@@ -248,7 +248,7 @@ public final class MachineLearningClient {
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public OpenJobResponse openJob(OpenJobRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return requestActions.performRequestAndParseEntity(request,
                 MLRequestConverters::openJob,
                 options,
                 OpenJobResponse::fromXContent,
@@ -269,7 +269,7 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      */
     public void openJobAsync(OpenJobRequest request, RequestOptions options, ActionListener<OpenJobResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        requestActions.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::openJob,
                 options,
                 OpenJobResponse::fromXContent,
@@ -290,7 +290,7 @@ public final class MachineLearningClient {
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public CloseJobResponse closeJob(CloseJobRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return requestActions.performRequestAndParseEntity(request,
                 MLRequestConverters::closeJob,
                 options,
                 CloseJobResponse::fromXContent,
@@ -309,7 +309,7 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      */
     public void closeJobAsync(CloseJobRequest request, RequestOptions options, ActionListener<CloseJobResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        requestActions.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::closeJob,
                 options,
                 CloseJobResponse::fromXContent,
@@ -334,7 +334,7 @@ public final class MachineLearningClient {
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public FlushJobResponse flushJob(FlushJobRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return requestActions.performRequestAndParseEntity(request,
                 MLRequestConverters::flushJob,
                 options,
                 FlushJobResponse::fromXContent,
@@ -358,7 +358,7 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      */
     public void flushJobAsync(FlushJobRequest request, RequestOptions options, ActionListener<FlushJobResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        requestActions.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::flushJob,
                 options,
                 FlushJobResponse::fromXContent,
@@ -379,7 +379,7 @@ public final class MachineLearningClient {
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public ForecastJobResponse forecastJob(ForecastJobRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return requestActions.performRequestAndParseEntity(request,
                 MLRequestConverters::forecastJob,
                 options,
                 ForecastJobResponse::fromXContent,
@@ -398,7 +398,7 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      */
     public void forecastJobAsync(ForecastJobRequest request, RequestOptions options, ActionListener<ForecastJobResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        requestActions.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::forecastJob,
                 options,
                 ForecastJobResponse::fromXContent,
@@ -419,7 +419,7 @@ public final class MachineLearningClient {
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public AcknowledgedResponse deleteForecast(DeleteForecastRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return requestActions.performRequestAndParseEntity(request,
                 MLRequestConverters::deleteForecast,
                 options,
                 AcknowledgedResponse::fromXContent,
@@ -438,7 +438,7 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      */
     public void deleteForecastAsync(DeleteForecastRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        requestActions.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::deleteForecast,
                 options,
                 AcknowledgedResponse::fromXContent,
@@ -458,7 +458,7 @@ public final class MachineLearningClient {
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public PutDatafeedResponse putDatafeed(PutDatafeedRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return requestActions.performRequestAndParseEntity(request,
                 MLRequestConverters::putDatafeed,
                 options,
                 PutDatafeedResponse::fromXContent,
@@ -476,7 +476,7 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      */
     public void putDatafeedAsync(PutDatafeedRequest request, RequestOptions options, ActionListener<PutDatafeedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        requestActions.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::putDatafeed,
                 options,
                 PutDatafeedResponse::fromXContent,
@@ -498,7 +498,7 @@ public final class MachineLearningClient {
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public GetDatafeedResponse getDatafeed(GetDatafeedRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return requestActions.performRequestAndParseEntity(request,
                 MLRequestConverters::getDatafeed,
                 options,
                 GetDatafeedResponse::fromXContent,
@@ -517,7 +517,7 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified with {@link GetDatafeedResponse} upon request completion
      */
     public void getDatafeedAsync(GetDatafeedRequest request, RequestOptions options, ActionListener<GetDatafeedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        requestActions.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::getDatafeed,
                 options,
                 GetDatafeedResponse::fromXContent,
@@ -538,7 +538,7 @@ public final class MachineLearningClient {
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public AcknowledgedResponse deleteDatafeed(DeleteDatafeedRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return requestActions.performRequestAndParseEntity(request,
                 MLRequestConverters::deleteDatafeed,
                 options,
                 AcknowledgedResponse::fromXContent,
@@ -557,7 +557,7 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      */
     public void deleteDatafeedAsync(DeleteDatafeedRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        requestActions.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::deleteDatafeed,
                 options,
                 AcknowledgedResponse::fromXContent,
@@ -577,7 +577,7 @@ public final class MachineLearningClient {
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public PutJobResponse updateJob(UpdateJobRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return requestActions.performRequestAndParseEntity(request,
                 MLRequestConverters::updateJob,
                 options,
                 PutJobResponse::fromXContent,
@@ -595,7 +595,7 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      */
     public void updateJobAsync(UpdateJobRequest request, RequestOptions options, ActionListener<PutJobResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        requestActions.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::updateJob,
                 options,
                 PutJobResponse::fromXContent,
@@ -613,7 +613,7 @@ public final class MachineLearningClient {
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      */
     public GetBucketsResponse getBuckets(GetBucketsRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return requestActions.performRequestAndParseEntity(request,
                 MLRequestConverters::getBuckets,
                 options,
                 GetBucketsResponse::fromXContent,
@@ -631,7 +631,7 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      */
     public void getBucketsAsync(GetBucketsRequest request, RequestOptions options, ActionListener<GetBucketsResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        requestActions.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::getBuckets,
                 options,
                 GetBucketsResponse::fromXContent,
@@ -651,7 +651,7 @@ public final class MachineLearningClient {
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public GetCategoriesResponse getCategories(GetCategoriesRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return requestActions.performRequestAndParseEntity(request,
                 MLRequestConverters::getCategories,
                 options,
                 GetCategoriesResponse::fromXContent,
@@ -670,7 +670,7 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      */
     public void getCategoriesAsync(GetCategoriesRequest request, RequestOptions options, ActionListener<GetCategoriesResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        requestActions.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::getCategories,
                 options,
                 GetCategoriesResponse::fromXContent,
@@ -689,7 +689,7 @@ public final class MachineLearningClient {
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      */
     public GetOverallBucketsResponse getOverallBuckets(GetOverallBucketsRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return requestActions.performRequestAndParseEntity(request,
                 MLRequestConverters::getOverallBuckets,
                 options,
                 GetOverallBucketsResponse::fromXContent,
@@ -709,7 +709,7 @@ public final class MachineLearningClient {
      */
     public void getOverallBucketsAsync(GetOverallBucketsRequest request, RequestOptions options,
                                        ActionListener<GetOverallBucketsResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        requestActions.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::getOverallBuckets,
                 options,
                 GetOverallBucketsResponse::fromXContent,
@@ -727,7 +727,7 @@ public final class MachineLearningClient {
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      */
     public GetRecordsResponse getRecords(GetRecordsRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return requestActions.performRequestAndParseEntity(request,
                 MLRequestConverters::getRecords,
                 options,
                 GetRecordsResponse::fromXContent,
@@ -745,7 +745,7 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      */
     public void getRecordsAsync(GetRecordsRequest request, RequestOptions options, ActionListener<GetRecordsResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        requestActions.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::getRecords,
                 options,
                 GetRecordsResponse::fromXContent,
@@ -767,7 +767,7 @@ public final class MachineLearningClient {
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public PostDataResponse postData(PostDataRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return requestActions.performRequestAndParseEntity(request,
                 MLRequestConverters::postData,
                 options,
                 PostDataResponse::fromXContent,
@@ -787,7 +787,7 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      */
     public void postDataAsync(PostDataRequest request, RequestOptions options, ActionListener<PostDataResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        requestActions.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::postData,
                 options,
                 PostDataResponse::fromXContent,
@@ -807,7 +807,7 @@ public final class MachineLearningClient {
      * objects and the number of calendars found
      */
     public GetCalendarsResponse getCalendars(GetCalendarsRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return requestActions.performRequestAndParseEntity(request,
                 MLRequestConverters::getCalendars,
                 options,
                 GetCalendarsResponse::fromXContent,
@@ -825,7 +825,7 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      */
     public void getCalendarsAsync(GetCalendarsRequest request, RequestOptions options, ActionListener<GetCalendarsResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        requestActions.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::getCalendars,
                 options,
                 GetCalendarsResponse::fromXContent,
@@ -844,7 +844,7 @@ public final class MachineLearningClient {
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      */
     public GetInfluencersResponse getInfluencers(GetInfluencersRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return requestActions.performRequestAndParseEntity(request,
                 MLRequestConverters::getInfluencers,
                 options,
                 GetInfluencersResponse::fromXContent,
@@ -864,7 +864,7 @@ public final class MachineLearningClient {
      */
     public void getInfluencersAsync(GetInfluencersRequest request, RequestOptions options,
                                     ActionListener<GetInfluencersResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        requestActions.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::getInfluencers,
                 options,
                 GetInfluencersResponse::fromXContent,
@@ -885,7 +885,7 @@ public final class MachineLearningClient {
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public PutCalendarResponse putCalendar(PutCalendarRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return requestActions.performRequestAndParseEntity(request,
                 MLRequestConverters::putCalendar,
                 options,
                 PutCalendarResponse::fromXContent,
@@ -904,7 +904,7 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      */
     public void putCalendarAsync(PutCalendarRequest request, RequestOptions options, ActionListener<PutCalendarResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        requestActions.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::putCalendar,
                 options,
                 PutCalendarResponse::fromXContent,
@@ -925,7 +925,7 @@ public final class MachineLearningClient {
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public AcknowledgedResponse deleteCalendar(DeleteCalendarRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return requestActions.performRequestAndParseEntity(request,
                 MLRequestConverters::deleteCalendar,
                 options,
                 AcknowledgedResponse::fromXContent,
@@ -944,7 +944,7 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      */
     public void deleteCalendarAsync(DeleteCalendarRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        requestActions.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::deleteCalendar,
                 options,
                 AcknowledgedResponse::fromXContent,

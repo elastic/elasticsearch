@@ -129,7 +129,7 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
                                                   "performRequestAsync",
                                                   "performRequestAsyncAndParseEntity"};
 
-        final Set<String> protectedMethods =  Arrays.stream(RestHighLevelClient.class.getDeclaredMethods())
+        final Set<String> protectedMethods =  Arrays.stream(RestRequestActions.class.getDeclaredMethods())
                                                      .filter(method -> Modifier.isProtected(method.getModifiers()))
                                                      .map(Method::getName)
                                                      .collect(Collectors.toCollection(TreeSet::new));
@@ -181,19 +181,21 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
         }
 
         MainResponse custom(MainRequest mainRequest, RequestOptions options) throws IOException {
-            return performRequest(mainRequest, this::toRequest, options, this::toResponse, emptySet());
+            return getRequestActions().performRequest(mainRequest, this::toRequest, options, this::toResponse, emptySet());
         }
 
         MainResponse customAndParse(MainRequest mainRequest, RequestOptions options) throws IOException {
-            return performRequestAndParseEntity(mainRequest, this::toRequest, options, MainResponse::fromXContent, emptySet());
+            return getRequestActions().performRequestAndParseEntity(mainRequest, this::toRequest, options, MainResponse::fromXContent,
+                emptySet());
         }
 
         void customAsync(MainRequest mainRequest, RequestOptions options, ActionListener<MainResponse> listener) {
-            performRequestAsync(mainRequest, this::toRequest, options, this::toResponse, listener, emptySet());
+            getRequestActions().performRequestAsync(mainRequest, this::toRequest, options, this::toResponse, listener, emptySet());
         }
 
         void customAndParseAsync(MainRequest mainRequest, RequestOptions options, ActionListener<MainResponse> listener) {
-            performRequestAsyncAndParseEntity(mainRequest, this::toRequest, options, MainResponse::fromXContent, listener, emptySet());
+            getRequestActions().performRequestAsyncAndParseEntity(mainRequest, this::toRequest, options, MainResponse::fromXContent,
+                listener, emptySet());
         }
 
         Request toRequest(MainRequest mainRequest) throws IOException {
@@ -201,7 +203,7 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
         }
 
         MainResponse toResponse(Response response) throws IOException {
-            return parseEntity(response.getEntity(), MainResponse::fromXContent);
+            return getRequestActions().parseEntity(response.getEntity(), MainResponse::fromXContent);
         }
     }
 }

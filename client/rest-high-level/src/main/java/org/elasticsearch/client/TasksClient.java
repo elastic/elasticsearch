@@ -35,10 +35,10 @@ import static java.util.Collections.emptySet;
  * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html">Task Management API on elastic.co</a>
  */
 public final class TasksClient {
-    private final RestHighLevelClient restHighLevelClient;
+    private final RestRequestActions requestActions;
 
-    TasksClient(RestHighLevelClient restHighLevelClient) {
-        this.restHighLevelClient = restHighLevelClient;
+    TasksClient(RestRequestActions requestActions) {
+        this.requestActions = requestActions;
     }
 
     /**
@@ -51,7 +51,7 @@ public final class TasksClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public ListTasksResponse list(ListTasksRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, TasksRequestConverters::listTasks, options,
+        return requestActions.performRequestAndParseEntity(request, TasksRequestConverters::listTasks, options,
                 ListTasksResponse::fromXContent, emptySet());
     }
 
@@ -64,7 +64,7 @@ public final class TasksClient {
      * @param listener the listener to be notified upon request completion
      */
     public void listAsync(ListTasksRequest request, RequestOptions options, ActionListener<ListTasksResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, TasksRequestConverters::listTasks, options,
+        requestActions.performRequestAsyncAndParseEntity(request, TasksRequestConverters::listTasks, options,
                 ListTasksResponse::fromXContent, listener, emptySet());
     }
 
@@ -80,7 +80,7 @@ public final class TasksClient {
      *
      */
     public CancelTasksResponse cancel(CancelTasksRequest cancelTasksRequest, RequestOptions options ) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(
+        return requestActions.performRequestAndParseEntity(
             cancelTasksRequest,
             TasksRequestConverters::cancelTasks,
             options,
@@ -99,7 +99,7 @@ public final class TasksClient {
      * @param listener the listener to be notified upon request completion
      */
     public void cancelAsync(CancelTasksRequest cancelTasksRequest, RequestOptions options, ActionListener<CancelTasksResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(
+        requestActions.performRequestAsyncAndParseEntity(
             cancelTasksRequest,
             TasksRequestConverters::cancelTasks,
             options,

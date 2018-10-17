@@ -307,8 +307,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 if (recoveryFuture == null && (randomInt(100) < 10 || operations.isEmpty())) {
                     group.getPrimary().sync();
                     IndexShard newReplica = group.addReplica();
-                    // We need to recover async to release the main thread for the following task to continue
-                    // to fill ops up to the current max_seq_no which the recovering replica is waiting for.
+                    // We need to recover the replica async to release the main thread for the following task to fill missing
+                    // operations between the local checkpoint and max_seq_no which the recovering replica is waiting for.
                     recoveryFuture = group.asyncRecoverReplica(newReplica,
                         (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, recoveryListener, l -> {}) {});
                 }

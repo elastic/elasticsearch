@@ -78,22 +78,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     @Before
     public void setIndex() throws IOException {
         index = getTestName().toLowerCase(Locale.ROOT);
-        // TODO prevents 6.x warnings; remove in 8.0
-        if (isRunningAgainstOldCluster()) {
-            XContentBuilder template = jsonBuilder();
-            template.startObject();
-            {
-                template.field("index_patterns", "*");
-                template.field("order", "0");
-                template.startObject("settings");
-                template.field("number_of_shards", 5);
-                template.endObject();
-            }
-            template.endObject();
-            Request createTemplate = new Request("PUT", "/_template/template");
-            createTemplate.setJsonEntity(Strings.toString(template));
-            client().performRequest(createTemplate);
-        }
     }
 
     public void testSearch() throws Exception {

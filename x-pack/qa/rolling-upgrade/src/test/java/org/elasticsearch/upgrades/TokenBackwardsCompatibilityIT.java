@@ -23,24 +23,31 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.equalTo;
 
 public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testGeneratingTokenInOldCluster() throws Exception {
         assumeTrue("this test should only run against the old cluster", CLUSTER_TYPE == ClusterType.OLD);
-
-        XContentBuilder template = jsonBuilder();
-        template.startObject();
         {
-            template.field("index_patterns", "*");
-            template.startObject("settings");
-            template.field("number_of_shards", 5);
-            template.endObject();
+            Version minimumIndexCompatibilityVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
+            assertThat("this branch is not needed if we aren't compatible with 6.0",
+                    minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
+            if (minimumIndexCompatibilityVersion.before(Version.V_7_0_0_alpha1)) {
+                XContentBuilder template = jsonBuilder();
+                template.startObject();
+                {
+                    template.field("index_patterns", "*");
+                    template.startObject("settings");
+                    template.field("number_of_shards", 5);
+                    template.endObject();
+                }
+                template.endObject();
+                Request createTemplate = new Request("PUT", "/_template/template");
+                createTemplate.setJsonEntity(Strings.toString(template));
+                client().performRequest(createTemplate);
+            }
         }
-        template.endObject();
-        Request createTemplate = new Request("PUT", "/_template/template");
-        createTemplate.setJsonEntity(Strings.toString(template));
-        client().performRequest(createTemplate);
 
         Request createTokenRequest = new Request("POST", "_xpack/security/oauth2/token");
         createTokenRequest.setJsonEntity(

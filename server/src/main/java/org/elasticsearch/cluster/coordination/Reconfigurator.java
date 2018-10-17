@@ -51,7 +51,7 @@ public class Reconfigurator extends AbstractComponent {
     public static final Setting<Integer> CLUSTER_MASTER_NODES_FAILURE_TOLERANCE =
         Setting.intSetting("cluster.master_nodes_failure_tolerance", 0, 0, Property.NodeScope, Property.Dynamic);
 
-    private int masterNodesFailureTolerance;
+    private volatile int masterNodesFailureTolerance;
 
     public Reconfigurator(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
@@ -91,7 +91,7 @@ public class Reconfigurator extends AbstractComponent {
 
         final int safeConfigurationSize = 2 * masterNodesFailureTolerance + 1;
         if (currentConfig.getNodeIds().size() < safeConfigurationSize) {
-            throw new AssertionError(currentConfig + " does not satisfy masterNodesFailureTolerance of " + masterNodesFailureTolerance);
+            throw new AssertionError(currentConfig + " is smaller than expected " + safeConfigurationSize);
         }
 
         /*

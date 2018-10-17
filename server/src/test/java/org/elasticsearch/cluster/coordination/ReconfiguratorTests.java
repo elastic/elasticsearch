@@ -44,35 +44,34 @@ import static org.hamcrest.Matchers.sameInstance;
 public class ReconfiguratorTests extends ESTestCase {
 
     public void testReconfigurationExamples() {
-        for (int masterNodesFailureTolerance = 0; masterNodesFailureTolerance <= 2; masterNodesFailureTolerance++) {
-            check(nodes("a"), conf("a"), masterNodesFailureTolerance, conf("a"));
-            check(nodes("a", "b"), conf("a"), masterNodesFailureTolerance, conf("a"));
-            check(nodes("a", "b", "c"), conf("a"), masterNodesFailureTolerance, conf("a", "b", "c"));
-            check(nodes("a", "b", "c"), conf("a", "b"), masterNodesFailureTolerance, conf("a", "b", "c"));
+
+        check(nodes("a"), conf("a"), 0, conf("a"));
+        check(nodes("a", "b"), conf("a"), 0, conf("a"));
+        check(nodes("a", "b", "c"), conf("a"), 0, conf("a", "b", "c"));
+        check(nodes("a", "b", "c"), conf("a", "b"), 0, conf("a", "b", "c"));
+        check(nodes("a", "b"), conf("a", "b", "e"), 0, conf("a"));
+        check(nodes("a", "b"), conf("a", "b", "e"), 1, conf("a", "b", "e"));
+
+        for (int masterNodesFailureTolerance = 0; masterNodesFailureTolerance <= 1; masterNodesFailureTolerance++) {
             check(nodes("a", "b", "c"), conf("a", "b", "c"), masterNodesFailureTolerance, conf("a", "b", "c"));
             check(nodes("a", "b", "c", "d"), conf("a", "b", "c"), masterNodesFailureTolerance, conf("a", "b", "c"));
             check(nodes("a", "b", "c", "d", "e"), conf("a", "b", "c"), masterNodesFailureTolerance, conf("a", "b", "c", "d", "e"));
-            check(nodes("a", "b"), conf("a", "b", "e"), masterNodesFailureTolerance,
-                masterNodesFailureTolerance == 1 ? conf("a", "b", "e") : conf("a"));
             check(nodes("a", "b", "c"), conf("a", "b", "e"), masterNodesFailureTolerance, conf("a", "b", "c"));
             check(nodes("a", "b", "c", "d"), conf("a", "b", "e"), masterNodesFailureTolerance, conf("a", "b", "c"));
             check(nodes("a", "b", "c", "d", "e"), conf("a", "f", "g"), masterNodesFailureTolerance, conf("a", "b", "c", "d", "e"));
-            check(nodes("a", "b", "c", "d"), conf("a", "b", "c", "d", "e"), masterNodesFailureTolerance,
-                masterNodesFailureTolerance == 2 ? conf("a", "b", "c", "d", "e") : conf("a", "b", "c"));
+            check(nodes("a", "b", "c", "d"), conf("a", "b", "c", "d", "e"), masterNodesFailureTolerance, conf("a", "b", "c"));
         }
+
+        check(nodes("a", "b", "c", "d"), conf("a", "b", "c", "d", "e"), 2, conf("a", "b", "c", "d", "e"));
 
         // Retiring a single node shifts the votes elsewhere if possible.
         check(nodes("a", "b"), retired("a"), conf("a"), 0, conf("b"));
 
-        // If the safety level was never reached then retirement can take place
-        check(nodes("a", "b"), retired("a"), conf("a"), 1, conf("b"));
-        check(nodes("a", "b"), retired("a"), conf("b"), 1, conf("b"));
-
-        // Retiring a node from a three-node cluster drops down to a one-node configuration if "fragile"
+        // Retiring a node from a three-node cluster drops down to a one-node configuration if failure tolerance is 0
         check(nodes("a", "b", "c"), retired("a"), conf("a"), 0, conf("b"));
         check(nodes("a", "b", "c"), retired("a"), conf("a", "b", "c"), 0, conf("b"));
 
-        // Retiring is prevented in a three-node cluster if "recommended"
+        // Retiring is prevented in a three-node cluster if failure tolerance is 1
         check(nodes("a", "b", "c"), retired("a"), conf("a", "b", "c"), 1, conf("a", "b", "c"));
 
         // 7 nodes, one for each combination of live/retired/current. Ideally we want the config to be the non-retired live nodes.
@@ -80,8 +79,8 @@ public class ReconfiguratorTests extends ESTestCase {
         check(nodes("a", "b", "c", "f"), retired("c", "e", "f", "g"), conf("a", "c", "d", "e"), 0, conf("a"));
         // If we want the config to be at least 3 nodes then we don't retire "c" just yet.
         check(nodes("a", "b", "c", "f"), retired("c", "e", "f", "g"), conf("a", "c", "d", "e"), 1, conf("a", "b", "c"));
-        // The current config never reached 5 nodes so retirement is allowed
-        check(nodes("a", "b", "c", "f"), retired("c", "e", "f", "g"), conf("a", "c", "d", "e"), 2, conf("a"));
+        // If we want the config to be at least 5 nodes then we keep "d" and "h".
+        check(nodes("a", "b", "c", "f"), retired("c", "e", "f", "g"), conf("a", "c", "d", "e", "h"), 2, conf("a", "b", "c", "d", "h"));
     }
 
     public void testReconfigurationProperty() {
@@ -93,8 +92,7 @@ public class ReconfiguratorTests extends ESTestCase {
         final String[] initialVotingNodes = new String[randomIntBetween(1, allNodes.length)];
         randomSubsetOf(initialVotingNodes.length, allNodes).toArray(initialVotingNodes);
 
-        final int masterNodesFailureTolerance
-            = randomFrom(0, 1, 2);
+        final int masterNodesFailureTolerance = randomIntBetween(0, 2);
 
         final Reconfigurator reconfigurator = makeReconfigurator(
             Settings.builder().put(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.getKey(), masterNodesFailureTolerance).build());
@@ -121,7 +119,7 @@ public class ReconfiguratorTests extends ESTestCase {
         } else {
             assertThat(expectThrows(AssertionError.class,
                 () -> reconfigurator.reconfigure(liveNodesSet, emptySet(), initialConfig)).getMessage(),
-                containsString("does not satisfy masterNodesFailureTolerance"));
+                containsString("is smaller than expected"));
         }
     }
 
@@ -152,15 +150,10 @@ public class ReconfiguratorTests extends ESTestCase {
             .put(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.getKey(), masterNodesFailureTolerance)
             .build());
 
-        if (config.getNodeIds().size() < 2 * masterNodesFailureTolerance + 1) {
-            assertThat(expectThrows(AssertionError.class, () -> reconfigurator.reconfigure(liveNodes, retired, config)).getMessage(),
-                containsString("does not satisfy masterNodesFailureTolerance"));
-        } else {
-            final ClusterState.VotingConfiguration adaptedConfig = reconfigurator.reconfigure(liveNodes, retired, config);
-            assertEquals(new ParameterizedMessage("[liveNodes={}, retired={}, config={}, masterNodesFailureTolerance={}]",
-                    liveNodes, retired, config, masterNodesFailureTolerance).getFormattedMessage(),
-                expectedConfig, adaptedConfig);
-        }
+        final ClusterState.VotingConfiguration adaptedConfig = reconfigurator.reconfigure(liveNodes, retired, config);
+        assertEquals(new ParameterizedMessage("[liveNodes={}, retired={}, config={}, masterNodesFailureTolerance={}]",
+                liveNodes, retired, config, masterNodesFailureTolerance).getFormattedMessage(),
+            expectedConfig, adaptedConfig);
     }
 
     private Reconfigurator makeReconfigurator(Settings settings) {

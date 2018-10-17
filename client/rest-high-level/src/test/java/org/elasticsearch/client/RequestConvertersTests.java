@@ -1572,6 +1572,12 @@ public class RequestConvertersTests extends ESTestCase {
         setRandomLocal(request::local, expectedParams);
     }
 
+    static void setRandomTimeout(TimedRequest request, TimeValue defaultTimeout, Map<String, String> expectedParams) {
+        setRandomTimeout(s ->
+                request.setTimeout(TimeValue.parseTimeValue(s, request.getClass().getName() + ".timeout")),
+            defaultTimeout, expectedParams);
+    }
+
     static void setRandomTimeout(Consumer<String> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             String timeout = randomTimeValue();
@@ -1583,9 +1589,19 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     static void setRandomMasterTimeout(MasterNodeRequest<?> request, Map<String, String> expectedParams) {
+        setRandomMasterTimeout(request::masterNodeTimeout, expectedParams);
+    }
+
+    static void setRandomMasterTimeout(TimedRequest request, Map<String, String> expectedParams) {
+        setRandomMasterTimeout(s ->
+                request.setMasterTimeout(TimeValue.parseTimeValue(s, request.getClass().getName() + ".masterNodeTimeout")),
+            expectedParams);
+    }
+
+    static void setRandomMasterTimeout(Consumer<String> setter, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             String masterTimeout = randomTimeValue();
-            request.masterNodeTimeout(masterTimeout);
+            setter.accept(masterTimeout);
             expectedParams.put("master_timeout", masterTimeout);
         } else {
             expectedParams.put("master_timeout", MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT.getStringRep());

@@ -188,7 +188,7 @@ public class RollupJobCaps implements ToXContentObject {
             }
 
             RollupFieldCaps that = (RollupFieldCaps) other;
-            return Objects.deepEquals(this.aggs, that.aggs);
+            return Objects.equals(this.aggs, that.aggs);
         }
 
         @Override

@@ -81,7 +81,7 @@ public class RollableIndexCaps implements Writeable, ToXContentObject {
 
         RollableIndexCaps that = (RollableIndexCaps) other;
 
-        return Objects.deepEquals(this.jobCaps, that.jobCaps)
+        return Objects.equals(this.jobCaps, that.jobCaps)
             && Objects.equals(this.indexName, that.indexName);
     }
 

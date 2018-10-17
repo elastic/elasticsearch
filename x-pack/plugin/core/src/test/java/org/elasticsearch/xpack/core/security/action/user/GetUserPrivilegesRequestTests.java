@@ -31,10 +31,9 @@ public class GetUserPrivilegesRequestTests extends ESTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
 
-        final GetUserPrivilegesRequest copy = new GetUserPrivilegesRequest();
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
         StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
-        copy.readFrom(in);
+        final GetUserPrivilegesRequest copy = new GetUserPrivilegesRequest(in);
 
         assertThat(copy.username(), equalTo(original.username()));
         assertThat(copy.usernames(), equalTo(original.usernames()));

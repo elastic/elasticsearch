@@ -12,10 +12,10 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class LicenseStatusTests extends ESTestCase {
     public void testCompatibility() {
         final LicenseStatus[] values = LicenseStatus.values();
-        final org.elasticsearch.client.license.LicenseStatus[] ossValues =
+        final org.elasticsearch.client.license.LicenseStatus[] hlrcValues =
             org.elasticsearch.client.license.LicenseStatus.values();
 
-        assertThat(values.length, equalTo(ossValues.length));
+        assertThat(values.length, equalTo(hlrcValues.length));
 
         for (LicenseStatus value : values) {
             final org.elasticsearch.client.license.LicenseStatus licenseStatus =

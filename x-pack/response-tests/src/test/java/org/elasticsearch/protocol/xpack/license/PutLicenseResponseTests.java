@@ -6,7 +6,6 @@
 package org.elasticsearch.protocol.xpack.license;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -15,15 +14,23 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-public class PutLicenseResponseTests extends AbstractStreamableXContentTestCase<PutLicenseResponse> {
+public class PutLicenseResponseTests extends AbstractHLRCStreamableXContentTestCase<PutLicenseResponse,
+    org.elasticsearch.client.license.PutLicenseResponse> {
 
     @Override
     protected PutLicenseResponse doParseInstance(XContentParser parser) throws IOException {
-        // the key point - is to read by OSS version of class
-        final org.elasticsearch.client.license.PutLicenseResponse response =
-            org.elasticsearch.client.license.PutLicenseResponse.fromXContent(parser);
-        return new PutLicenseResponse(response.isAcknowledged(), LicensesStatus.valueOf(response.status().name()),
-            response.acknowledgeHeader(), response.acknowledgeMessages());
+        return PutLicenseResponse.fromXContent(parser);
+    }
+
+    @Override
+    public org.elasticsearch.client.license.PutLicenseResponse doHLRCParseInstance(XContentParser parser) throws IOException {
+        return org.elasticsearch.client.license.PutLicenseResponse.fromXContent(parser);
+    }
+
+    @Override
+    public PutLicenseResponse convert(org.elasticsearch.client.license.PutLicenseResponse instance) {
+        return new PutLicenseResponse(instance.isAcknowledged(), LicensesStatus.valueOf(instance.status().name()),
+            instance.acknowledgeHeader(), instance.acknowledgeMessages());
     }
 
     @Override

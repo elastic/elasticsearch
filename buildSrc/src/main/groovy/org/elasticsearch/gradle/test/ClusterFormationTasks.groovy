@@ -347,9 +347,13 @@ class ClusterFormationTasks {
 
         Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
         writeConfig.doFirst {
-            String unicastTransportUri = node.config.unicastTransportUri(seedNode, node, project.ant)
-            if (unicastTransportUri != null) {
-                esConfig['discovery.zen.ping.unicast.hosts'] = "\"${unicastTransportUri}\""
+            if (node.nodeVersion.onOrAfter("7.0.0-SNAPSHOT")) {
+                esConfig['discovery.zen.hosts_provider'] = 'file'
+            } else {
+                String unicastTransportUri = node.config.unicastTransportUri(seedNode, node, project.ant)
+                if (unicastTransportUri != null) {
+                    esConfig['discovery.zen.ping.unicast.hosts'] = "\"${unicastTransportUri}\""
+                }
             }
             File configFile = new File(node.pathConf, 'elasticsearch.yml')
             logger.info("Configuring ${configFile}")
@@ -703,6 +707,22 @@ class ClusterFormationTasks {
                     }
                 }
             }
+
+            nodes.forEach {node ->
+                if (node.nodeVersion.onOrAfter("7.0.0-SNAPSHOT")) {
+                    Collection<String> unicastHosts = new HashSet<>()
+                    nodes.forEach { otherNode ->
+                        String unicastHost = node.config.unicastTransportUri(otherNode, node, project.ant)
+                        if (unicastHost != null) {
+                            unicastHosts.add(unicastHost)
+                        }
+                    }
+                    node.pathConf.toPath().resolve("unicast_hosts.txt").setText(
+                      String.join("\n", unicastHosts)
+                    )
+                }
+            }
+
             if (ant.properties.containsKey("failed${name}".toString())) {
                 waitFailed(project, nodes, logger, "Failed to start elasticsearch: timed out after ${waitSeconds} seconds")
             }

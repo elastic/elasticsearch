@@ -62,4 +62,8 @@ public abstract class AbstractFullClusterRestartTestCase extends ESRestTestCase 
         return true;
     }
 
+    @Override
+    protected boolean preserveRollupJobsUponCompletion() {
+        return true;
+    }
 }

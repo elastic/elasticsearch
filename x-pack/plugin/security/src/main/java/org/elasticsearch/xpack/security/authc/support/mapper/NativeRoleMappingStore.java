@@ -220,32 +220,32 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
         });
     }
 
-    private void innerDeleteMapping(DeleteRoleMappingRequest request, ActionListener<Boolean> listener) throws IOException {
-        if (securityIndex.isIndexUpToDate() == false) {
-            listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - the native realm will not be operational until " +
-                "the upgrade API is run on the security index"));
-            return;
-        }
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                client.prepareDelete(SECURITY_INDEX_NAME, SECURITY_GENERIC_TYPE, getIdForName(request.getName()))
+    private void innerDeleteMapping(DeleteRoleMappingRequest request, ActionListener<Boolean> listener) {
+        if (securityIndex.isAvailable() == false) {
+            listener.onResponse(false);
+        } else {
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                    client.prepareDelete(SECURITY_INDEX_NAME, SECURITY_GENERIC_TYPE, getIdForName(request.getName()))
                         .setRefreshPolicy(request.getRefreshPolicy())
                         .request(),
-                new ActionListener<DeleteResponse>() {
+                    new ActionListener<DeleteResponse>() {
 
-                    @Override
-                    public void onResponse(DeleteResponse deleteResponse) {
-                        boolean deleted = deleteResponse.getResult() == DELETED;
-                        listener.onResponse(deleted);
-                    }
+                        @Override
+                        public void onResponse(DeleteResponse deleteResponse) {
+                            boolean deleted = deleteResponse.getResult() == DELETED;
+                            listener.onResponse(deleted);
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.error(new ParameterizedMessage("failed to delete role-mapping [{}]", request.getName()), e);
-                        listener.onFailure(e);
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.error(new ParameterizedMessage("failed to delete role-mapping [{}]", request.getName()), e);
+                            listener.onFailure(e);
 
-                    }
-                }, client::delete);
+                        }
+                    }, client::delete);
+            });
+        }
     }
 
     /**
@@ -301,7 +301,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
      * </ul>
      */
     public void usageStats(ActionListener<Map<String, Object>> listener) {
-        if (securityIndex.indexExists() == false) {
+        if (securityIndex.isAvailable() == false) {
             reportStats(listener, Collections.emptyList());
         } else {
             getMappings(ActionListener.wrap(mappings -> reportStats(listener, mappings), listener::onFailure));

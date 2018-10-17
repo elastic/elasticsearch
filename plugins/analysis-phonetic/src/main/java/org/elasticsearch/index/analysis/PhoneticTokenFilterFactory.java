@@ -61,7 +61,8 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         this.nametype = null;
         this.ruletype = null;
         this.maxcodelength = 0;
-        this.replace = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "replace", true, deprecationLogger);
+        this.replace = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(),
+                "replace", true, deprecationLogger);
         this.isDaitchMokotoff = false;
         // weird, encoder is null at last step in SimplePhoneticAnalysisTests, so we set it to metaphone as default
         String encodername = settings.get("encoder", "metaphone");
@@ -82,7 +83,9 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         } else if ("double_metaphone".equalsIgnoreCase(encodername) || "doubleMetaphone".equalsIgnoreCase(encodername)) {
             this.encoder = null;
             this.maxcodelength = settings.getAsInt("max_code_len", 4);
-        } else if ("bm".equalsIgnoreCase(encodername) || "beider_morse".equalsIgnoreCase(encodername) || "beidermorse".equalsIgnoreCase(encodername)) {
+        } else if ("bm".equalsIgnoreCase(encodername)
+                || "beider_morse".equalsIgnoreCase(encodername)
+                || "beidermorse".equalsIgnoreCase(encodername)) {
             this.encoder = null;
             this.languageset = settings.getAsList("languageset");
             String ruleType = settings.get("rule_type", "approx");

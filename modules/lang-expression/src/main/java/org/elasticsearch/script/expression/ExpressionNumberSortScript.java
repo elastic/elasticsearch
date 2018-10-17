@@ -38,14 +38,12 @@ class ExpressionNumberSortScript implements NumberSortScript.LeafFactory {
     final Expression exprScript;
     final SimpleBindings bindings;
     final DoubleValuesSource source;
-    final ReplaceableConstDoubleValueSource specialValue; // _value
     final boolean needsScores;
 
-    ExpressionNumberSortScript(Expression e, SimpleBindings b, ReplaceableConstDoubleValueSource v, boolean needsScores) {
+    ExpressionNumberSortScript(Expression e, SimpleBindings b, boolean needsScores) {
         exprScript = e;
         bindings = b;
         source = exprScript.getDoubleValuesSource(bindings);
-        specialValue = v;
         this.needsScores = needsScores;
     }
 

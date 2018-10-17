@@ -138,7 +138,7 @@ public class MockScriptEngine implements ScriptEngine {
                 }
             };
             return context.factoryClazz.cast(factory);
-        } if (context.instanceClazz.equals(IngestScript.class)) {
+        } else if (context.instanceClazz.equals(IngestScript.class)) {
             IngestScript.Factory factory = vars -> new IngestScript(vars) {
                 @Override
                 public void execute(Map<String, Object> ctx) {

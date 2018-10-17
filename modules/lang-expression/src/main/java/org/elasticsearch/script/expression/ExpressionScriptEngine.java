@@ -212,19 +212,12 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
         // NOTE: if we need to do anything complicated with bindings in the future, we can just extend Bindings,
         // instead of complicating SimpleBindings (which should stay simple)
         SimpleBindings bindings = new SimpleBindings();
-        ReplaceableConstDoubleValueSource specialValue = null;
         boolean needsScores = false;
         for (String variable : expr.variables) {
             try {
                 if (variable.equals("_score")) {
                     bindings.add(new SortField("_score", SortField.Type.SCORE));
                     needsScores = true;
-                } else if (variable.equals("_value")) {
-                    specialValue = new ReplaceableConstDoubleValueSource();
-                    bindings.add("_value", specialValue);
-                    // noop: _value is special for aggregations, and is handled in ExpressionScriptBindings
-                    // TODO: if some uses it in a scoring expression, they will get a nasty failure when evaluating...need a
-                    // way to know this is for aggregations and so _value is ok to have...
                 } else if (vars != null && vars.containsKey(variable)) {
                     bindFromParams(vars, bindings, variable);
                 } else {
@@ -239,7 +232,7 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
                 throw convertToScriptException("link error", expr.sourceText, variable, e);
             }
         }
-        return new ExpressionNumberSortScript(expr, bindings, specialValue, needsScores);
+        return new ExpressionNumberSortScript(expr, bindings, needsScores);
     }
 
     private TermsSetQueryScript.LeafFactory newTermsSetQueryScript(Expression expr, SearchLookup lookup,

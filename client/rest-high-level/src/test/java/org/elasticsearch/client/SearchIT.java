@@ -1236,7 +1236,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(SearchResponse.Clusters.EMPTY, searchResponse.getClusters());
     }
 
-    //Count API IT tests start
     public void testCountOneIndexNoQuery() throws IOException {
         CountRequest countRequest = new CountRequest("index");
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
@@ -1301,5 +1300,4 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(countResponse.getTotalShards(), countResponse.getSuccessfulShards());
         assertEquals(0, countResponse.getShardFailures().length);
     }
-    //Count API IT tests end
 }

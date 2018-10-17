@@ -235,8 +235,9 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             final IndexMetaData followIndex,
             final String[] leaderIndexHistoryUUID,
             final MapperService followerMapperService) {
+        String leaderIndexName = request.getLeaderCluster() + ":" + request.getLeaderIndex();
         if (leaderIndex == null) {
-            throw new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist");
+            throw new IllegalArgumentException("leader index [" + leaderIndexName + "] does not exist");
         }
         if (followIndex == null) {
             throw new IllegalArgumentException("follow index [" + request.getFollowerIndex() + "] does not exist");
@@ -265,7 +266,7 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         }
 
         if (leaderIndex.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
-            throw new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not have soft deletes enabled");
+            throw new IllegalArgumentException("leader index [" + leaderIndexName + "] does not have soft deletes enabled");
         }
         if (leaderIndex.getNumberOfShards() != followIndex.getNumberOfShards()) {
             throw new IllegalArgumentException("leader index primary shards [" + leaderIndex.getNumberOfShards() +

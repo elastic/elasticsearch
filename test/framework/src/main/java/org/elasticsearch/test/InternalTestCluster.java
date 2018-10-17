@@ -231,6 +231,9 @@ public final class InternalTestCluster extends TestCluster {
     private ServiceDisruptionScheme activeDisruptionScheme;
     private Function<Client, Client> clientWrapper;
 
+    // If set to true only the first node in the cluster will be made a unicast node
+    private boolean hostsListContainsOnlyFirstNode;
+
     public InternalTestCluster(
             final long clusterSeed,
             final Path baseDir,
@@ -1605,12 +1608,17 @@ public final class InternalTestCluster extends TestCluster {
 
     private final Object discoveryFileMutex = new Object();
 
-    private void rebuildUnicastHostFiles(Collection<NodeAndClient> newNodes) {
+    private void rebuildUnicastHostFiles(List<NodeAndClient> newNodes) {
         // cannot be a synchronized method since it's called on other threads from within synchronized startAndPublishNodesAndClients()
         synchronized (discoveryFileMutex) {
             try {
-                List<String> discoveryFileContents = Stream.concat(nodes.values().stream(), newNodes.stream())
-                    .map(nac -> nac.node.injector().getInstance(TransportService.class)).filter(Objects::nonNull)
+                Stream<NodeAndClient> unicastHosts = Stream.concat(nodes.values().stream(), newNodes.stream());
+                if (hostsListContainsOnlyFirstNode) {
+                    unicastHosts = unicastHosts.limit(1L);
+                }
+                List<String> discoveryFileContents = unicastHosts.map(
+                        nac -> nac.node.injector().getInstance(TransportService.class)
+                    ).filter(Objects::nonNull)
                     .map(TransportService::getLocalNode).filter(Objects::nonNull).filter(DiscoveryNode::isMasterNode)
                     .map(n -> n.getAddress().toString())
                     .distinct().collect(Collectors.toList());
@@ -2038,6 +2046,9 @@ public final class InternalTestCluster extends TestCluster {
       return filterNodes(nodes, NodeAndClient::isMasterEligible).size();
     }
 
+    public void setHostsListContainsOnlyFirstNode(boolean hostsListContainsOnlyFirstNode) {
+        this.hostsListContainsOnlyFirstNode = hostsListContainsOnlyFirstNode;
+    }
 
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
         assert activeDisruptionScheme == null :

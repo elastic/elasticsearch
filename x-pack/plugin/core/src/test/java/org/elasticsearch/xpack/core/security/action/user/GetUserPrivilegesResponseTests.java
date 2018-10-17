@@ -17,11 +17,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges.ManageApplicationPrivileges;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,31 +34,16 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GetUserPrivilegesResponseTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
-        final Set<String> cluster = randomStringSet(5);
-        final Set<ConditionalClusterPrivilege> conditionalCluster = Sets.newHashSet(randomArray(3, ConditionalClusterPrivilege[]::new,
-            () -> new ConditionalClusterPrivileges.ManageApplicationPrivileges(
-                randomStringSet(3)
-            )));
-        final Set<GetUserPrivilegesResponse.Indices> index = Sets.newHashSet(randomArray(5, GetUserPrivilegesResponse.Indices[]::new,
-            () -> new GetUserPrivilegesResponse.Indices(randomStringSet(6), randomStringSet(8),
-                Sets.newHashSet(randomArray(3, FieldGrantExcludeGroup[]::new, () -> new FieldGrantExcludeGroup(
-                    generateRandomStringArray(3, 5, false, false), generateRandomStringArray(3, 5, false, false)))),
-                randomStringSet(3).stream().map(BytesArray::new).collect(Collectors.toSet())
-            ))
-        );
-        final Set<ApplicationResourcePrivileges> application = Sets.newHashSet(randomArray(5, ApplicationResourcePrivileges[]::new,
-            () -> ApplicationResourcePrivileges.builder().resources(generateRandomStringArray(3, 3, false, false))
-                .application(randomAlphaOfLength(5)).privileges(generateRandomStringArray(3, 5, false, false)).build()
-        ));
-        final Set<String> runAs = randomStringSet(3);
-        final GetUserPrivilegesResponse original = new GetUserPrivilegesResponse(cluster, conditionalCluster, index, application, runAs);
+        final GetUserPrivilegesResponse original = randomResponse();
 
         final BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
@@ -72,6 +58,67 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
         assertThat(sorted(copy.getIndexPrivileges()), equalTo(sorted(original.getIndexPrivileges())));
         assertThat(copy.getApplicationPrivileges(), equalTo(original.getApplicationPrivileges()));
         assertThat(copy.getRunAs(), equalTo(original.getRunAs()));
+    }
+
+    public void testEqualsAndHashCode() throws IOException {
+        final GetUserPrivilegesResponse response = randomResponse();
+        final EqualsHashCodeTestUtils.CopyFunction<GetUserPrivilegesResponse> copy = original -> new GetUserPrivilegesResponse(
+            original.getClusterPrivileges(),
+            original.getConditionalClusterPrivileges(),
+            original.getIndexPrivileges(),
+            original.getApplicationPrivileges(),
+            original.getRunAs()
+        );
+        final EqualsHashCodeTestUtils.MutateFunction<GetUserPrivilegesResponse> mutate =
+            new EqualsHashCodeTestUtils.MutateFunction<GetUserPrivilegesResponse>() {
+                @Override
+                public GetUserPrivilegesResponse mutate(GetUserPrivilegesResponse original) {
+                    final int random = randomIntBetween(1, 0b11111);
+                    final Set<String> cluster = maybeMutate(random, 1, original.getClusterPrivileges(), () -> randomAlphaOfLength(5));
+                    final Set<ConditionalClusterPrivilege> conditionalCluster = maybeMutate(random, 2,
+                        original.getConditionalClusterPrivileges(), () -> new ManageApplicationPrivileges(randomStringSet(3)));
+                    final Set<GetUserPrivilegesResponse.Indices> index = maybeMutate(random, 3, original.getIndexPrivileges(),
+                        () -> new GetUserPrivilegesResponse.Indices(randomStringSet(1), randomStringSet(1), emptySet(), emptySet()));
+                    final Set<ApplicationResourcePrivileges> application = maybeMutate(random, 4, original.getApplicationPrivileges(),
+                        () -> ApplicationResourcePrivileges.builder().resources(generateRandomStringArray(3, 3, false, false))
+                            .application(randomAlphaOfLength(5)).privileges(generateRandomStringArray(3, 5, false, false)).build());
+                    final Set<String> runAs = maybeMutate(random, 5, original.getRunAs(), () -> randomAlphaOfLength(8));
+                    return new GetUserPrivilegesResponse(cluster, conditionalCluster, index, application, runAs);
+                }
+
+                private <T> Set<T> maybeMutate(int random, int index, Set<T> original, Supplier<T> supplier) {
+                    if ((random & (1 << index)) == 0) {
+                        return original;
+                    }
+                    if (original.isEmpty()) {
+                        return Collections.singleton(supplier.get());
+                    } else {
+                        return emptySet();
+                    }
+                }
+            };
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(response, copy, mutate);
+    }
+
+    private GetUserPrivilegesResponse randomResponse() {
+        final Set<String> cluster = randomStringSet(5);
+        final Set<ConditionalClusterPrivilege> conditionalCluster = Sets.newHashSet(randomArray(3, ConditionalClusterPrivilege[]::new,
+            () -> new ManageApplicationPrivileges(
+                randomStringSet(3)
+            )));
+        final Set<GetUserPrivilegesResponse.Indices> index = Sets.newHashSet(randomArray(5, GetUserPrivilegesResponse.Indices[]::new,
+            () -> new GetUserPrivilegesResponse.Indices(randomStringSet(6), randomStringSet(8),
+                Sets.newHashSet(randomArray(3, FieldGrantExcludeGroup[]::new, () -> new FieldGrantExcludeGroup(
+                    generateRandomStringArray(3, 5, false, false), generateRandomStringArray(3, 5, false, false)))),
+                randomStringSet(3).stream().map(BytesArray::new).collect(Collectors.toSet())
+            ))
+        );
+        final Set<ApplicationResourcePrivileges> application = Sets.newHashSet(randomArray(5, ApplicationResourcePrivileges[]::new,
+            () -> ApplicationResourcePrivileges.builder().resources(generateRandomStringArray(3, 3, false, false))
+                .application(randomAlphaOfLength(5)).privileges(generateRandomStringArray(3, 5, false, false)).build()
+        ));
+        final Set<String> runAs = randomStringSet(3);
+        return new GetUserPrivilegesResponse(cluster, conditionalCluster, index, application, runAs);
     }
 
     private List<GetUserPrivilegesResponse.Indices> sorted(Collection<GetUserPrivilegesResponse.Indices> indices) {

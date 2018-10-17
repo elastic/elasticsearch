@@ -91,6 +91,27 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         out.writeCollection(runAs, StreamOutput::writeString);
     }
 
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (other == null || getClass() != other.getClass()) {
+            return false;
+        }
+        final GetUserPrivilegesResponse that = (GetUserPrivilegesResponse) other;
+        return Objects.equals(cluster, that.cluster) &&
+            Objects.equals(conditionalCluster, that.conditionalCluster) &&
+            Objects.equals(index, that.index) &&
+            Objects.equals(application, that.application) &&
+            Objects.equals(runAs, that.runAs);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(cluster, conditionalCluster, index, application, runAs);
+    }
+
     /**
      * This is modelled on {@link RoleDescriptor.IndicesPrivileges}, with support for multiple DLS and FLS field sets.
      */

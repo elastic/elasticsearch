@@ -19,6 +19,17 @@ public final class GetUserPrivilegesRequest extends ActionRequest implements Use
 
     private String username;
 
+    /**
+     * Package level access for {@link GetUserPrivilegesRequestBuilder}.
+     */
+    GetUserPrivilegesRequest() {
+    }
+
+    public GetUserPrivilegesRequest(StreamInput in) throws IOException {
+        super(in);
+        this.username = in.readString();
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         return null;
@@ -43,10 +54,14 @@ public final class GetUserPrivilegesRequest extends ActionRequest implements Use
         return new String[] { username };
     }
 
+    /**
+     * Always throws {@link UnsupportedOperationException} as this object should be deserialized using
+     * the {@link #GetUserPrivilegesRequest(StreamInput)} constructor instead.
+     */
     @Override
+    @Deprecated
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.username = in.readString();
+        throw new UnsupportedOperationException("Use " + getClass() + " as Writeable not Streamable");
     }
 
     @Override

@@ -76,8 +76,9 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
     GetUserPrivilegesResponse buildResponseObject(Role userRole) {
         logger.trace(() -> new ParameterizedMessage("List privileges for role [{}]", arrayToCommaDelimitedString(userRole.names())));
 
-        // We use sorted sets because they will typically be very small, and having a predictable order allows for simpler testing
+        // We use sorted sets for Strings because they will typically be small, and having a predictable order allows for simpler testing
         final Set<String> cluster = new TreeSet<>();
+        // But we don't have a meaningful ordering for objects like ConditionalClusterPrivilege, so the tests work with "random" ordering
         final Set<ConditionalClusterPrivilege> conditionalCluster = new HashSet<>();
         for (Tuple<ClusterPrivilege, ConditionalClusterPrivilege> tup : userRole.cluster().privileges()) {
             if (tup.v2() == null) {

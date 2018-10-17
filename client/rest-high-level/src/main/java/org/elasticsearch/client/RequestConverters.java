@@ -1117,7 +1117,6 @@ final class RequestConverters {
             return this;
         }
 
-<<<<<<< HEAD
         EndpointBuilder addCommaSeparatedPathParts(List<String> parts) {
             addPathPart(String.join(",", parts));
             return this;
@@ -1126,13 +1125,15 @@ final class RequestConverters {
         EndpointBuilder addPathPartAsIs(String part) {
             if (Strings.hasLength(part)) {
                 joiner.add(part);
-=======
+            }
+            return this;
+        }
+
         EndpointBuilder addPathPartAsIs(String ... parts) {
             for (String part : parts) {
                 if (Strings.hasLength(part)) {
                     joiner.add(part);
                 }
->>>>>>> elastic/index-lifecycle
             }
             return this;
         }

@@ -1598,8 +1598,8 @@ public class RequestConvertersTests extends ESTestCase {
         String[] indices = randomIndicesNames(1, 10);
         RetryLifecyclePolicyRequest req = new RetryLifecyclePolicyRequest(indices);
         Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_TIMEOUT, expectedParams);
-        setRandomTimeoutTimeValue(req::setTimeout, TimedRequest.DEFAULT_MASTER_TIMEOUT, expectedParams);
+        setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT, expectedParams);
+        setRandomTimeoutTimeValue(req::setTimeout, TimedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         Request request = RequestConverters.retryLifecycle(req);
         assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
         String idxString = Strings.arrayToCommaDelimitedString(indices);

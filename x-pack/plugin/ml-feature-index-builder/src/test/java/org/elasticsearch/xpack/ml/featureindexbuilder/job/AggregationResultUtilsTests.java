@@ -48,6 +48,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -91,13 +92,13 @@ public class AggregationResultUtilsTests extends ESTestCase {
     public void testExtractCompositeAggregationResults() throws IOException {
         String targetField = randomAlphaOfLengthBetween(5, 10);
 
-        List<CompositeValuesSourceBuilder<?>> sources = asList(
+        List<CompositeValuesSourceBuilder<?>> sources = Collections.singletonList(
                 new TermsValuesSourceBuilder(targetField).field("doesn't_matter_for_this_test")
                 );
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;
-        Collection<AggregationBuilder> aggregationBuilders = asList(AggregationBuilders.avg(aggName));
+        Collection<AggregationBuilder> aggregationBuilders = Collections.singletonList(AggregationBuilders.avg(aggName));
 
         Map<String, Object> input = asMap(
                 "buckets",
@@ -148,7 +149,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;
-        Collection<AggregationBuilder> aggregationBuilders = asList(AggregationBuilders.avg(aggName));
+        Collection<AggregationBuilder> aggregationBuilders = Collections.singletonList(AggregationBuilders.avg(aggName));
 
         Map<String, Object> input = asMap(
                 "buckets",
@@ -210,7 +211,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
     public void testExtractCompositeAggregationResultsMultiAggregations() throws IOException {
         String targetField = randomAlphaOfLengthBetween(5, 10);
-        List<CompositeValuesSourceBuilder<?>> sources = asList(
+        List<CompositeValuesSourceBuilder<?>> sources = Collections.singletonList(
                 new TermsValuesSourceBuilder(targetField).field("doesn't_matter_for_this_test")
                 );
 

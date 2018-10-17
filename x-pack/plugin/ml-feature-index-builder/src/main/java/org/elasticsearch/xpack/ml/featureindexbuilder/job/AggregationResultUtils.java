@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
-public class AggregationResultUtils {
+final class AggregationResultUtils {
     private static final Logger logger = Logger.getLogger(AggregationResultUtils.class.getName());
 
     /**
@@ -34,8 +34,7 @@ public class AggregationResultUtils {
     public static Stream<Map<String, Object>> extractCompositeAggregationResults(CompositeAggregation agg,
             List<CompositeValuesSourceBuilder<?>> sources, Collection<AggregationBuilder> aggregationBuilders) {
         return agg.getBuckets().stream().map(bucket -> {
-            Map<String, Object> document;
-            document = new HashMap<>();
+            Map<String, Object> document = new HashMap<>();
             for (CompositeValuesSourceBuilder<?> source : sources) {
                 String destinationFieldName = source.name();
                 document.put(destinationFieldName, bucket.getKey().get(destinationFieldName));
@@ -50,9 +49,10 @@ public class AggregationResultUtils {
                     NumericMetricsAggregation.SingleValue aggResultSingleValue = (SingleValue) aggResult;
                     document.put(aggName, aggResultSingleValue.value());
                 } else {
-                    // should never be reached as we should prevent creating
-                    // jobs with unsupported aggregations
-                    logger.error("Unsupported aggregation, ignoring");
+                    // Execution should never reach this point!
+                    // Creating jobs with unsupported aggregations shall not be possible
+                    logger.error("Dataframe Internal Error: unsupported aggregation ["+ aggResult.getName() +"], ignoring");
+                    assert false;
                 }
             }
             return document;

@@ -16,7 +16,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrSettings;
-import org.elasticsearch.xpack.ccr.ShardChangesIT;
+import org.elasticsearch.xpack.ccr.IndexFollowingIT;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
@@ -35,12 +35,12 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         customMetaData.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, "uuid");
         customMetaData.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, "_na_");
 
-        ResumeFollowAction.Request request = ShardChangesIT.resumeFollow("index1", "index2");
+        ResumeFollowAction.Request request = IndexFollowingIT.resumeFollow("index1", "index2");
         String[] UUIDs = new String[]{"uuid"};
         {
             // should fail, because leader index does not exist
             Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, null, null, null, null));
-            assertThat(e.getMessage(), equalTo("leader index [index1] does not exist"));
+            assertThat(e.getMessage(), equalTo("leader index [leader_cluster:index1] does not exist"));
         }
         {
             // should fail, because follow index does not exist
@@ -83,7 +83,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             IndexMetaData leaderIMD = createIMD("index1", 5, Settings.EMPTY, null);
             IndexMetaData followIMD = createIMD("index2", 5, Settings.EMPTY, customMetaData);
             Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
-            assertThat(e.getMessage(), equalTo("leader index [index1] does not have soft deletes enabled"));
+            assertThat(e.getMessage(), equalTo("leader index [leader_cluster:index1] does not have soft deletes enabled"));
         }
         {
             // should fail because the number of primary shards between leader and follow index are not equal

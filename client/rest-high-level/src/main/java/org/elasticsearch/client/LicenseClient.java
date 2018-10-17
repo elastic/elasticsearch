@@ -22,6 +22,8 @@ package org.elasticsearch.client;
 import org.apache.http.HttpEntity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.license.StartTrialRequest;
+import org.elasticsearch.client.license.StartTrialResponse;
 import org.elasticsearch.client.license.StartBasicRequest;
 import org.elasticsearch.client.license.StartBasicResponse;
 import org.elasticsearch.common.Strings;
@@ -44,6 +46,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 
 import static java.util.Collections.emptySet;
+import static java.util.Collections.singleton;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for
@@ -121,6 +124,30 @@ public final class LicenseClient {
     public void deleteLicenseAsync(DeleteLicenseRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, LicenseRequestConverters::deleteLicense, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Starts a trial license on the cluster.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public StartTrialResponse startTrial(StartTrialRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, LicenseRequestConverters::startTrial, options,
+            StartTrialResponse::fromXContent, singleton(403));
+    }
+
+    /**
+     * Asynchronously starts a trial license on the cluster.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void startTrialAsync(StartTrialRequest request,
+                                RequestOptions options,
+                                ActionListener<StartTrialResponse> listener) {
+
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, LicenseRequestConverters::startTrial, options,
+            StartTrialResponse::fromXContent, listener, singleton(403));
     }
 
     /**

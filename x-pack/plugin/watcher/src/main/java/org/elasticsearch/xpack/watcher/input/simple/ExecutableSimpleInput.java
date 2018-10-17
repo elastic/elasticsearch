@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.input.simple;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -15,8 +14,8 @@ import org.elasticsearch.xpack.core.watcher.watch.Payload;
  */
 public class ExecutableSimpleInput extends ExecutableInput<SimpleInput, SimpleInput.Result> {
 
-    public ExecutableSimpleInput(SimpleInput input, Logger logger) {
-        super(input, logger);
+    public ExecutableSimpleInput(SimpleInput input) {
+        super(input);
     }
 
     @Override

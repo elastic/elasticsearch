@@ -14,6 +14,7 @@ import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
@@ -73,6 +74,14 @@ public class FileStructureTests extends AbstractSerializingTestCase<FileStructur
             mappings.put(field, Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(10)));
         }
         builder.setMappings(mappings);
+
+        if (randomBoolean()) {
+            Map<String, Object> ingestPipeline = new LinkedHashMap<>();
+            for (String field : generateRandomStringArray(5, 20, false, false)) {
+                ingestPipeline.put(field, Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(10)));
+            }
+            builder.setMappings(ingestPipeline);
+        }
 
         if (randomBoolean()) {
             Map<String, FieldStats> fieldStats = new TreeMap<>();

@@ -40,7 +40,7 @@ public class LdapMetaDataResolverTests extends ESTestCase {
                 new Attribute("cn", "Clint Barton"),
                 new Attribute("uid", "hawkeye"),
                 new Attribute("email", "clint.barton@shield.gov"),
-                new Attribute("memberOf", "cn=staff,ou=groups,dc=exmaple,dc=com", "cn=admin,ou=groups,dc=exmaple,dc=com")
+                new Attribute("memberOf", "cn=staff,ou=groups,dc=example,dc=com", "cn=admin,ou=groups,dc=example,dc=com")
         );
         final Map<String, Object> map = resolve(attributes);
         assertThat(map.size(), equalTo(2));

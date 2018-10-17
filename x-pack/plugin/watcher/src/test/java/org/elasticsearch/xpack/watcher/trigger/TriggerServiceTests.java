@@ -144,7 +144,7 @@ public class TriggerServiceTests extends ESTestCase {
     }
 
     private void setInput(Watch watch) {
-        ExecutableNoneInput noneInput = new ExecutableNoneInput(logger);
+        ExecutableNoneInput noneInput = new ExecutableNoneInput();
         when(watch.input()).thenReturn(noneInput);
     }
 

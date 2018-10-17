@@ -35,7 +35,7 @@ import java.util.List;
  * <p>
  * Optionally, each hop can contain a "guiding query" that further limits the set of documents considered.
  * In our weblog example above we might choose to constrain the second hop to only look at log records that
- * had a reponse code of 404.
+ * had a response code of 404.
  * </p>
  * <p>
  * If absent, the list of {@link VertexRequest}s is inherited from the prior Hop's list to avoid repeating

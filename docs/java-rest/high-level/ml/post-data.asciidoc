@@ -1,27 +1,32 @@
-[[java-rest-high-x-pack-ml-post-data]]
+--
+:api: post-data
+:request: PostDataRequest
+:response: PostDataResponse
+--
+[id="{upid}-{api}"]
 === Post Data API
 
 The Post Data API provides the ability to post data to an open
  {ml} job in the cluster.
-It accepts a `PostDataRequest` object and responds
-with a `PostDataResponse` object.
+It accepts a +{request}+ object and responds
+with a +{response}+ object.
 
-[[java-rest-high-x-pack-ml-post-data-request]]
+[id="{upid}-{api}-request"]
 ==== Post Data Request
 
-A `PostDataRequest` object gets created with an existing non-null `jobId`
+A +{request}+ object gets created with an existing non-null `jobId`
 and the `XContentType` being sent. Individual docs can be added
 incrementally via the `PostDataRequest.JsonBuilder#addDoc` method.
-These are then serialized and sent in bulk when passed to the `PostDataRequest`.
+These are then serialized and sent in bulk when passed to the +{request}+.
 
 Alternatively, the serialized bulk content can be set manually, along with its `XContentType`
-through one of the other `PostDataRequest` constructors.
+through one of the other +{request}+ constructors.
 
 Only `XContentType.JSON` and `XContentType.SMILE` are supported.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-post-data-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Create a new `PostDataRequest.JsonBuilder` object for incrementally adding documents
 <2> Add a new document as a `Map<String, Object>` object
@@ -34,53 +39,21 @@ The following arguments are optional.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-post-data-request-options]
+include-tagged::{doc-tests-file}[{api}-request-options]
 --------------------------------------------------
 <1> Set the start of the bucket resetting time
 <2> Set the end of the bucket resetting time
 
-[[java-rest-high-x-pack-ml-post-data-execution]]
-==== Execution
+include::../execution.asciidoc[]
 
-The request can be executed through the `MachineLearningClient` contained
-in the `RestHighLevelClient` object, accessed via the `machineLearningClient()` method.
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-post-data-execute]
---------------------------------------------------
-
-[[java-rest-high-x-pack-ml-post-data-execution-async]]
-==== Asynchronous Execution
-
-The request can also be executed asynchronously:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-post-data-execute-async]
---------------------------------------------------
-<1> The `PostDataRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The method does not block and returns immediately. The passed `ActionListener` is used
-to notify the caller of completion. A typical `ActionListener` for `PostDataResponse` may
-look like
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-post-data-listener]
---------------------------------------------------
-<1> `onResponse` is called back when the action is completed successfully
-<2> `onFailure` is called back when some unexpected error occurs
-
-[[java-rest-high-x-pack-ml-post-data-response]]
+[id="{upid}-{api}-response"]
 ==== Post Data Response
 
-A `PostDataResponse` contains current data processing statistics.
+A +{response}+ contains current data processing statistics.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-post-data-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> `getDataCounts()` a `DataCounts` object containing the current
 data processing counts.

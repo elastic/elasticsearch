@@ -267,7 +267,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     }
 
     /**
-     * Test that the sort builder mode gets transfered correctly to the SortField
+     * Test that the sort builder mode gets transferred correctly to the SortField
      */
     public void testMultiValueMode() throws IOException {
         QueryShardContext shardContextMock = createMockShardContext();

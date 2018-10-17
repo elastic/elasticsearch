@@ -213,7 +213,8 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
                         } else if (parts[2].type == VariableContext.Type.MEMBER) {
                             variablename = parts[2].text;
                         } else {
-                            throw new IllegalArgumentException("Only member variables or member methods may be accessed on a field when not accessing the field directly");
+                            throw new IllegalArgumentException("Only member variables or member methods may be accessed on a "
+                                    + "field when not accessing the field directly");
                         }
                     }
                     if (parts.length > 3) {
@@ -228,7 +229,8 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
                             }
                         }
                         if (!dateAccessor) {
-                            throw new IllegalArgumentException("Variable [" + variable + "] does not follow an allowed format of either doc['field'] or doc['field'].method()");
+                            throw new IllegalArgumentException("Variable [" + variable + "] does not follow an allowed format of "
+                                    + "either doc['field'] or doc['field'].method()");
                         }
                     }
 

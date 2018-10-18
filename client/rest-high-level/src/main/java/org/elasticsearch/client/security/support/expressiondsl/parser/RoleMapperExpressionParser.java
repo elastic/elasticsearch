@@ -46,6 +46,14 @@ public final class RoleMapperExpressionParser {
     public static final ParseField FIELD = new ParseField("field");
 
     /**
+     * This function exists to be compatible with
+     * {@link org.elasticsearch.common.xcontent.ContextParser#parse(XContentParser, Object)}
+     */
+    public static RoleMapperExpression parseObject(XContentParser parser, String id) throws IOException {
+        return new RoleMapperExpressionParser().parse(id, parser);
+    }
+
+    /**
      * @param name The name of the expression tree within its containing object.
      * Used to provide descriptive error messages.
      * @param parser A parser over the XContent (typically JSON) DSL

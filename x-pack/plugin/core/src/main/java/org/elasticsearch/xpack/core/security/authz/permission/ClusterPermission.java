@@ -5,11 +5,14 @@
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -30,6 +33,8 @@ public abstract class ClusterPermission {
 
     public abstract boolean check(String action, TransportRequest request);
 
+    public abstract List<Tuple<ClusterPrivilege, ConditionalClusterPrivilege>> privileges();
+
     /**
      * A permission that is based solely on cluster privileges and does not consider request state
      */
@@ -48,28 +53,32 @@ public abstract class ClusterPermission {
         public boolean check(String action, TransportRequest request) {
             return predicate.test(action);
         }
+
+        @Override
+        public List<Tuple<ClusterPrivilege, ConditionalClusterPrivilege>> privileges() {
+            return Collections.singletonList(new Tuple<>(super.privilege, null));
+        }
     }
 
     /**
      * A permission that makes use of both cluster privileges and request inspection
      */
     public static class ConditionalClusterPermission extends ClusterPermission {
-        private final Predicate<String> actionPredicate;
-        private final Predicate<TransportRequest> requestPredicate;
+        private final ConditionalClusterPrivilege conditionalPrivilege;
 
         public ConditionalClusterPermission(ConditionalClusterPrivilege conditionalPrivilege) {
-            this(conditionalPrivilege.getPrivilege(), conditionalPrivilege.getRequestPredicate());
-        }
-
-        public ConditionalClusterPermission(ClusterPrivilege privilege, Predicate<TransportRequest> requestPredicate) {
-            super(privilege);
-            this.actionPredicate = privilege.predicate();
-            this.requestPredicate = requestPredicate;
+            super(conditionalPrivilege.getPrivilege());
+            this.conditionalPrivilege = conditionalPrivilege;
         }
 
         @Override
         public boolean check(String action, TransportRequest request) {
-            return actionPredicate.test(action) && requestPredicate.test(request);
+            return super.privilege.predicate().test(action) && conditionalPrivilege.getRequestPredicate().test(request);
+        }
+
+        @Override
+        public List<Tuple<ClusterPrivilege, ConditionalClusterPrivilege>> privileges() {
+            return Collections.singletonList(new Tuple<>(super.privilege, conditionalPrivilege));
         }
     }
 
@@ -91,6 +100,11 @@ public abstract class ClusterPermission {
                 .flatMap(Set::stream)
                 .collect(Collectors.toSet());
             return ClusterPrivilege.get(names);
+        }
+
+        @Override
+        public List<Tuple<ClusterPrivilege, ConditionalClusterPrivilege>> privileges() {
+            return children.stream().map(ClusterPermission::privileges).flatMap(List::stream).collect(Collectors.toList());
         }
 
         @Override

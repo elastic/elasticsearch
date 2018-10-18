@@ -1096,6 +1096,7 @@ public class CoordinatorTests extends ESTestCase {
             void submitSetMasterNodesFailureTolerance(final int masterNodesFaultTolerance) {
                 submitUpdateTask("set master nodes failure tolerance [" + masterNodesFaultTolerance + "]", cs ->
                     cs.getLastAcceptedConfiguration().getNodeIds().size() < 2 * masterNodesFaultTolerance + 1 ? cs :
+                        // TODO this rejects invalid updates, but in fact this should be validated elsewhere. Where?
                         ClusterState.builder(cs).metaData(
                             MetaData.builder(cs.metaData())
                                 .persistentSettings(Settings.builder()

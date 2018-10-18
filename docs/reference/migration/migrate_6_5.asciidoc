@@ -81,3 +81,25 @@ type of `Set<RoleDescriptor>`, but in 6.5.0 the role provider requires an
 `RoleRetrievalResult` object accepts a `Set<RoleDescriptor>` if the provider
 was successful; if the provider was not successful the `RoleRetrievalResult`
 should be populated with the error.
+
+[float]
+[[breaking_65_settings_changes]]
+=== Settings changes
+
+[float]
+==== Audit logfile local node info
+
+In 6.5.0 a new format for the logfile auditing has been introduced.
+The new file format prints audit entries as JSON documents.
+Entries in the previous format contained positional fields.
+These fields are no longer positional in the new format, as they are part of the
+structured log entry (the JSON document).
+Consequently, the following settings, which toggled some of the prefix
+positional fields, have be renamed ("prefix" was spliced out):
+- `xpack.security.audit.logfile.prefix.emit_node_host_address` to
+  `xpack.security.audit.logfile.emit_node_host_address`
+- `xpack.security.audit.logfile.prefix.emit_node_host_name` to
+  `xpack.security.audit.logfile.emit_node_host_name`
+- `xpack.security.audit.logfile.prefix.emit_node_name` to
+  `xpack.security.audit.logfile.emit_node_name`
+In 7.0.0 the `prefix` variant will be removed.

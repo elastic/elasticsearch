@@ -205,8 +205,8 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                     "        \"domain_split\" : {\n" +
                     "            \"script\" : {\n" +
                     "                \"lang\": \"painless\",\n" +
-                    "                \"source\": \"" + DomainSplitFunction.function +
-                    " return domainSplit(params['host'], params); \",\n" +
+                    "                \"source\": \"" +
+                    " return domainSplit(params['host']); \",\n" +
                     "                \"params\": " + mapAsJson + "\n" +
                     "            }\n" +
                     "        }\n" +

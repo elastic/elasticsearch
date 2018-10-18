@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -330,28 +329,6 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
         ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query));
         assertEquals("no [query] registered for [unknown_query]", ex.getMessage());
-    }
-
-    /**
-     * test that two queries in object throws error
-     */
-    public void testTooManyQueriesInObject() throws IOException {
-        String clauseType = randomFrom("must", "should", "must_not", "filter");
-        // should also throw error if invalid query is preceded by a valid one
-        String query = "{\n" +
-                "  \"bool\": {\n" +
-                "    \"" + clauseType + "\": {\n" +
-                "      \"match\": {\n" +
-                "        \"foo\": \"bar\"\n" +
-                "      },\n" +
-                "      \"match\": {\n" +
-                "        \"baz\": \"buzz\"\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
-        JsonParseException ex = expectThrows(JsonParseException.class, () -> parseQuery(query));
-        assertTrue(ex.getMessage().contains("Duplicate field 'match'"));
     }
 
     public void testRewrite() throws IOException {

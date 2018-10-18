@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.settings;
 
-import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -550,20 +549,6 @@ public class SettingsTests extends ESTestCase {
         assertThat(settings.getAsList("test1.test3").size(), equalTo(2));
         assertThat(settings.getAsList("test1.test3").get(0), equalTo("test3-1"));
         assertThat(settings.getAsList("test1.test3").get(1), equalTo("test3-2"));
-    }
-
-    public void testDuplicateKeysThrowsException() {
-        final String json = "{\"foo\":\"bar\",\"foo\":\"baz\"}";
-        final SettingsException e = expectThrows(SettingsException.class,
-            () -> Settings.builder().loadFromSource(json, XContentType.JSON).build());
-        assertThat(e.toString(), containsString("Duplicate field 'foo'"));
-
-        String yaml = "foo: bar\nfoo: baz";
-        SettingsException e1 = expectThrows(SettingsException.class, () -> {
-            Settings.builder().loadFromSource(yaml, XContentType.YAML);
-        });
-        assertEquals(e1.getCause().getClass(), JsonParseException.class);
-        assertThat(e1.getCause().getMessage(), containsString("Duplicate field 'foo'"));
     }
 
     public void testToXContent() throws IOException {

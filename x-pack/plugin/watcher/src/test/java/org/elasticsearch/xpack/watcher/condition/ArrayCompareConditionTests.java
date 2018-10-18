@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
-import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -195,34 +194,6 @@ public class ArrayCompareConditionTests extends ESTestCase {
         assertThat(condition.getQuantifier(), is(quantifier));
     }
 
-    public void testParseContainsDuplicateOperator() throws IOException {
-        ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
-        ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.values());
-        Object value = randomFrom("value", 1, null);
-        XContentBuilder builder =
-                jsonBuilder().startObject()
-                    .startObject("key1.key2")
-                        .field("path", "key3.key4")
-                        .startObject(op.id())
-                            .field("value", value)
-                            .field("quantifier", quantifier.id())
-                        .endObject()
-                        .startObject(op.id())
-                            .field("value", value)
-                            .field("quantifier", quantifier.id())
-                        .endObject()
-                    .endObject()
-                .endObject();
-
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        parser.nextToken();
-
-        expectedException.expect(JsonParseException.class);
-        expectedException.expectMessage("Duplicate field '" + op.id() + "'");
-
-        ArrayCompareCondition.parse(ClockMock.frozen(), "_id", parser);
-    }
-
     public void testParseContainsUnknownOperator() throws IOException {
         ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.values());
         Object value = randomFrom("value", 1, null);
@@ -242,56 +213,6 @@ public class ArrayCompareConditionTests extends ESTestCase {
 
         expectedException.expect(ElasticsearchParseException.class);
         expectedException.expectMessage("unknown comparison operator");
-
-        ArrayCompareCondition.parse(ClockMock.frozen(), "_id", parser);
-    }
-
-    public void testParseContainsDuplicateValue() throws IOException {
-        ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
-        ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.values());
-        Object value = randomFrom("value", 1, null);
-        XContentBuilder builder =
-                jsonBuilder().startObject()
-                    .startObject("key1.key2")
-                        .field("path", "key3.key4")
-                        .startObject(op.id())
-                            .field("value", value)
-                            .field("value", value)
-                            .field("quantifier", quantifier.id())
-                        .endObject()
-                    .endObject()
-                .endObject();
-
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        parser.nextToken();
-
-        expectedException.expect(JsonParseException.class);
-        expectedException.expectMessage("Duplicate field 'value'");
-
-        ArrayCompareCondition.parse(ClockMock.frozen(), "_id", parser);
-    }
-
-    public void testParseContainsDuplicateQuantifier() throws IOException {
-        ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
-        ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.values());
-        Object value = randomFrom("value", 1, null);
-        XContentBuilder builder =
-                jsonBuilder().startObject()
-                    .startObject("key1.key2")
-                        .field("path", "key3.key4")
-                        .startObject(op.id())
-                            .field("value", value)
-                            .field("quantifier", quantifier.id())
-                            .field("quantifier", quantifier.id())
-                        .endObject()
-                    .endObject()
-                .endObject();
-
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        parser.nextToken();
-
-        expectedException.expect(JsonParseException.class);
-        expectedException.expectMessage("Duplicate field 'quantifier'");
 
         ArrayCompareCondition.parse(ClockMock.frozen(), "_id", parser);
     }

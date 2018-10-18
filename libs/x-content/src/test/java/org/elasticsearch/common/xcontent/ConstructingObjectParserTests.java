@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -40,7 +39,6 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ConstructingObjectParserTests extends ESTestCase {
@@ -163,19 +161,6 @@ public class ConstructingObjectParserTests extends ESTestCase {
         HasCtorArguments parsed = HasCtorArguments.PARSER_ALL_OPTIONAL.apply(parser, null);
         assertEquals(1, parsed.mineral);
         assertEquals((Integer) 2, parsed.vegetable);
-    }
-
-    public void testRepeatedConstructorParam() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent,
-                  "{\n"
-                + "  \"vegetable\": 1,\n"
-                + "  \"vegetable\": 2\n"
-                + "}");
-        Throwable e = expectThrows(XContentParseException.class, () -> randomFrom(HasCtorArguments.ALL_PARSERS).apply(parser, null));
-        assertEquals("[2:16] [has_required_arguments] failed to parse object", e.getMessage());
-        e = e.getCause();
-        assertThat(e, instanceOf(JsonParseException.class));
-        assertThat(e.getMessage(), containsString("Duplicate field 'vegetable'"));
     }
 
     public void testBadParam() throws IOException {

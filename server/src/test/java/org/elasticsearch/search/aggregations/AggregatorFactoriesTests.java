@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -110,36 +109,6 @@ public class AggregatorFactoriesTests extends ESTestCase {
         assertThat(e.toString(), containsString("Found two aggregation type definitions in [in_stock]: [filter] and [terms]"));
     }
 
-    public void testTwoAggs() throws Exception {
-        XContentBuilder source = JsonXContent.contentBuilder()
-                .startObject()
-                    .startObject("by_date")
-                        .startObject("date_histogram")
-                            .field("field", "timestamp")
-                            .field("interval", "month")
-                        .endObject()
-                        .startObject("aggs")
-                            .startObject("tag_count")
-                                .startObject("cardinality")
-                                    .field("field", "tag")
-                                .endObject()
-                            .endObject()
-                        .endObject()
-                        .startObject("aggs") // 2nd "aggs": illegal
-                            .startObject("tag_count2")
-                                .startObject("cardinality")
-                                    .field("field", "tag")
-                                .endObject()
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject();
-        XContentParser parser = createParser(source);
-        assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        Exception e = expectThrows(JsonParseException.class, () -> AggregatorFactories.parseAggregators(parser));
-        assertThat(e.toString(), containsString("Duplicate field 'aggs'"));
-    }
-
     public void testInvalidAggregationName() throws Exception {
         Matcher matcher = Pattern.compile("[^\\[\\]>]+").matcher("");
         String name;
@@ -172,27 +141,6 @@ public class AggregatorFactoriesTests extends ESTestCase {
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
         Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parser));
         assertThat(e.toString(), containsString("Invalid aggregation name [" + name + "]"));
-    }
-
-    public void testSameAggregationName() throws Exception {
-        final String name = randomAlphaOfLengthBetween(1, 10);
-        XContentBuilder source = JsonXContent.contentBuilder()
-                .startObject()
-                    .startObject(name)
-                        .startObject("terms")
-                            .field("field", "a")
-                        .endObject()
-                    .endObject()
-                    .startObject(name)
-                        .startObject("terms")
-                            .field("field", "b")
-                        .endObject()
-                    .endObject()
-                .endObject();
-        XContentParser parser = createParser(source);
-        assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        Exception e = expectThrows(JsonParseException.class, () -> AggregatorFactories.parseAggregators(parser));
-        assertThat(e.toString(), containsString("Duplicate field '" + name + "'"));
     }
 
     public void testMissingName() throws Exception {

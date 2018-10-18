@@ -725,26 +725,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         expectParsingException(json, equalTo("[bool] malformed query, expected [END_OBJECT] but found [FIELD_NAME]"));
     }
 
-    public void testMalformedQueryMultipleQueryElements() throws IOException {
-        String json = "{\n" +
-                "    \"function_score\":{\n" +
-                "        \"query\":{\n" +
-                "            \"bool\":{\n" +
-                "                \"must\":{\"match\":{\"field\":\"value\"}}" +
-                "             }\n" +
-                "            },\n" +
-                "        \"query\":{\n" +
-                "            \"bool\":{\n" +
-                "                \"must\":{\"match\":{\"field\":\"value\"}}" +
-                "             }\n" +
-                "            }\n" +
-                "        }\n" +
-                "    }\n" +
-                "}";
-        JsonParseException e = expectThrows(JsonParseException.class, () -> parseQuery(json));
-        assertThat(e.getMessage(), containsString("Duplicate field 'query'"));
-    }
-
     private void expectParsingException(String json, Matcher<String> messageMatcher) {
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertThat(e.getMessage(), messageMatcher);

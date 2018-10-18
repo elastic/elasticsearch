@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
@@ -60,18 +59,6 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
         String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : {} }";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(queryString));
         assertThat(e.getMessage(), containsString("requires a 'filter' element"));
-    }
-
-    /**
-     * test that multiple "filter" elements causes {@link ParsingException}
-     */
-    public void testMultipleFilterElements() throws IOException {
-        String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : {\n" +
-                                    "\"filter\" : { \"term\": { \"foo\": \"a\" } },\n" +
-                                    "\"filter\" : { \"term\": { \"foo\": \"x\" } },\n" +
-                            "} }";
-        JsonParseException e = expectThrows(JsonParseException.class, () -> parseQuery(queryString));
-        assertThat(e.getMessage(), containsString("Duplicate field 'filter'"));
     }
 
     /**

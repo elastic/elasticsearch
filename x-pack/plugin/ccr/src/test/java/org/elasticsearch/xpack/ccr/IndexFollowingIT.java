@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction.StatsRequest;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction.StatsResponses;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
@@ -126,7 +127,7 @@ public class IndexFollowingIT extends CCRIntegTestCase {
             assertBusy(assertExpectedDocumentRunnable(i));
         }
         assertTotalNumberOfOptimizedIndexing(resolveFollowerIndex("index2"), numberOfPrimaryShards, firstBatchNumDocs);
-        unfollowIndex("index2");
+        pauseFollow("index2");
         followerClient().execute(ResumeFollowAction.INSTANCE, followRequest.getFollowRequest()).get();
         final int secondBatchNumDocs = randomIntBetween(2, 64);
         logger.info("Indexing [{}] docs as second batch", secondBatchNumDocs);
@@ -152,7 +153,7 @@ public class IndexFollowingIT extends CCRIntegTestCase {
         }
         assertTotalNumberOfOptimizedIndexing(resolveFollowerIndex("index2"), numberOfPrimaryShards,
             firstBatchNumDocs + secondBatchNumDocs);
-        unfollowIndex("index2");
+        pauseFollow("index2");
         assertMaxSeqNoOfUpdatesIsTransferred(resolveLeaderIndex("index1"), resolveFollowerIndex("index2"), numberOfPrimaryShards);
     }
 
@@ -189,7 +190,7 @@ public class IndexFollowingIT extends CCRIntegTestCase {
             .get("index2").get("doc");
         assertThat(XContentMapValues.extractValue("properties.f.type", mappingMetaData.sourceAsMap()), equalTo("integer"));
         assertThat(XContentMapValues.extractValue("properties.k.type", mappingMetaData.sourceAsMap()), equalTo("long"));
-        unfollowIndex("index2");
+        pauseFollow("index2");
         assertMaxSeqNoOfUpdatesIsTransferred(resolveLeaderIndex("index1"), resolveFollowerIndex("index2"), 2);
     }
 
@@ -207,7 +208,7 @@ public class IndexFollowingIT extends CCRIntegTestCase {
 
         leaderClient().prepareIndex("index1", "doc", "1").setSource("{\"f\":1}", XContentType.JSON).get();
         assertBusy(() -> assertThat(followerClient().prepareSearch("index2").get().getHits().totalHits, equalTo(1L)));
-        unfollowIndex("index2");
+        pauseFollow("index2");
 
         MappingMetaData mappingMetaData = followerClient().admin().indices().prepareGetMappings("index2").get().getMappings()
             .get("index2").get("doc");
@@ -267,7 +268,7 @@ public class IndexFollowingIT extends CCRIntegTestCase {
         assertSameDocCount("index1", "index2");
         assertTotalNumberOfOptimizedIndexing(resolveFollowerIndex("index2"), numberOfShards,
             leaderClient().prepareSearch("index1").get().getHits().totalHits);
-        unfollowIndex("index2");
+        pauseFollow("index2");
         assertMaxSeqNoOfUpdatesIsTransferred(resolveLeaderIndex("index1"), resolveFollowerIndex("index2"), numberOfShards);
     }
 
@@ -313,7 +314,7 @@ public class IndexFollowingIT extends CCRIntegTestCase {
         thread.join();
 
         assertSameDocCount("index1", "index2");
-        unfollowIndex("index2");
+        pauseFollow("index2");
         assertMaxSeqNoOfUpdatesIsTransferred(resolveLeaderIndex("index1"), resolveFollowerIndex("index2"), 3);
     }
 
@@ -353,7 +354,7 @@ public class IndexFollowingIT extends CCRIntegTestCase {
                     equalTo(Collections.singletonList(value)));
             });
         }
-        unfollowIndex("index2");
+        pauseFollow("index2");
         assertMaxSeqNoOfUpdatesIsTransferred(resolveLeaderIndex("index1"), resolveFollowerIndex("index2"), 1);
         assertTotalNumberOfOptimizedIndexing(resolveFollowerIndex("index2"), 1, numDocs);
     }
@@ -422,7 +423,7 @@ public class IndexFollowingIT extends CCRIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             assertBusy(assertExpectedDocumentRunnable(i));
         }
-        unfollowIndex("index2");
+        pauseFollow("index2");
         assertMaxSeqNoOfUpdatesIsTransferred(resolveLeaderIndex("index1"), resolveFollowerIndex("index2"), 1);
         assertTotalNumberOfOptimizedIndexing(resolveFollowerIndex("index2"), 1, numDocs);
     }
@@ -440,7 +441,7 @@ public class IndexFollowingIT extends CCRIntegTestCase {
 
         followRequest = follow("index3", "index4");
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
-        unfollowIndex("index2", "index4");
+        pauseFollow("index2", "index4");
 
         ResumeFollowAction.Request wrongRequest1 = resumeFollow("index1", "index4");
         Exception e = expectThrows(IllegalArgumentException.class,
@@ -459,7 +460,7 @@ public class IndexFollowingIT extends CCRIntegTestCase {
         ensureLeaderYellow("index1");
         PutFollowAction.Request followRequest = follow("index1", "index2");
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
-        unfollowIndex("index2");
+        pauseFollow("index2");
         followerClient().admin().indices().close(new CloseIndexRequest("index2")).actionGet();
 
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest("index2");
@@ -501,7 +502,7 @@ public class IndexFollowingIT extends CCRIntegTestCase {
         leaderClient().prepareIndex("index1", "doc", "2").setSource("{}", XContentType.JSON).get();
         assertBusy(() -> assertThat(followerClient().prepareSearch("index2").get().getHits().totalHits, equalTo(2L)));
 
-        unfollowIndex("index2");
+        pauseFollow("index2");
     }
 
     public void testCloseFollowIndex() throws Exception {
@@ -530,7 +531,7 @@ public class IndexFollowingIT extends CCRIntegTestCase {
         followerClient().admin().indices().open(new OpenIndexRequest("index2").waitForActiveShards(ActiveShardCount.DEFAULT)).actionGet();
         assertBusy(() -> assertThat(followerClient().prepareSearch("index2").get().getHits().totalHits, equalTo(2L)));
 
-        unfollowIndex("index2");
+        pauseFollow("index2");
     }
 
     public void testDeleteLeaderIndex() throws Exception {
@@ -558,7 +559,7 @@ public class IndexFollowingIT extends CCRIntegTestCase {
             assertThat(fatalException, notNullValue());
             assertThat(fatalException.getRootCause().getMessage(), equalTo("no such index"));
         });
-        unfollowIndex("index2");
+        pauseFollow("index2");
         ensureNoCcrTasks();
     }
 
@@ -588,7 +589,7 @@ public class IndexFollowingIT extends CCRIntegTestCase {
             assertThat(fatalException, notNullValue());
             assertThat(fatalException.getMessage(), equalTo("no such index"));
         });
-        unfollowIndex("index2");
+        pauseFollow("index2");
         ensureNoCcrTasks();
     }
 
@@ -606,7 +607,7 @@ public class IndexFollowingIT extends CCRIntegTestCase {
         // We can't test this here because an assertion trips before an actual error is thrown and then index call hangs.
 
         // Turn follow index into a regular index by: pausing shard follow, close index, unfollow index and then open index:
-        unfollowIndex("index2");
+        pauseFollow("index2");
         followerClient().admin().indices().close(new CloseIndexRequest("index2")).actionGet();
         assertAcked(followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request("index2")).actionGet());
         followerClient().admin().indices().open(new OpenIndexRequest("index2")).actionGet();
@@ -667,7 +668,28 @@ public class IndexFollowingIT extends CCRIntegTestCase {
             thread.join();
         }
         assertSameDocCount("leader-index", "follower-index");
-        unfollowIndex("follower-index");
+        pauseFollow("follower-index");
+    }
+
+    public void testUnknownClusterAlias() throws Exception {
+        String leaderIndexSettings = getIndexSettings(1, 0,
+            Collections.singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureLeaderGreen("index1");
+        PutFollowAction.Request followRequest = follow("index1", "index2");
+        followRequest.getFollowRequest().setLeaderCluster("another_cluster");
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> followerClient().execute(PutFollowAction.INSTANCE, followRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("unknown cluster alias [another_cluster]"));
+        e = expectThrows(IllegalArgumentException.class,
+            () -> followerClient().execute(ResumeFollowAction.INSTANCE, followRequest.getFollowRequest()).actionGet());
+        assertThat(e.getMessage(), equalTo("unknown cluster alias [another_cluster]"));
+        PutAutoFollowPatternAction.Request putAutoFollowRequest = new PutAutoFollowPatternAction.Request();
+        putAutoFollowRequest.setLeaderCluster("another_cluster");
+        putAutoFollowRequest.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+        e = expectThrows(IllegalArgumentException.class,
+            () -> followerClient().execute(PutAutoFollowPatternAction.INSTANCE, putAutoFollowRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("unknown cluster alias [another_cluster]"));
     }
 
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {
@@ -706,7 +728,7 @@ public class IndexFollowingIT extends CCRIntegTestCase {
         };
     }
 
-    private void unfollowIndex(String... indices) throws Exception {
+    private void pauseFollow(String... indices) throws Exception {
         for (String index : indices) {
             final PauseFollowAction.Request unfollowRequest = new PauseFollowAction.Request();
             unfollowRequest.setFollowIndex(index);
@@ -925,7 +947,8 @@ public class IndexFollowingIT extends CCRIntegTestCase {
 
     public static ResumeFollowAction.Request resumeFollow(String leaderIndex, String followerIndex) {
         ResumeFollowAction.Request request = new ResumeFollowAction.Request();
-        request.setLeaderIndex("leader_cluster:" + leaderIndex);
+        request.setLeaderCluster("leader_cluster");
+        request.setLeaderIndex(leaderIndex);
         request.setFollowerIndex(followerIndex);
         request.setMaxRetryDelay(TimeValue.timeValueMillis(10));
         request.setPollTimeout(TimeValue.timeValueMillis(10));

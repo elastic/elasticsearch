@@ -109,6 +109,16 @@ teardown:
                 "application" : "app02",
                 "resources" : [ "thing/1" ],
                 "privileges" : [ "data:write/thing" ]
+              },
+              {
+                "application" : "app01",
+                "resources" : [ "foo" ],
+                "privileges" : [ "dne", "data:dne" ]
+              },
+              {
+                "application" : "app-dne",
+                "resources" : [ "bar" ],
+                "privileges" : [ "anything", "action:anything" ]
               }
             ]
           }
@@ -120,12 +130,22 @@ teardown:
         "*" : {
           "action:login" : true,
           "data:read/secrets" : true
+        },
+        "foo" : {
+          "dne" : true,
+          "data:dne" : true
         }
       },
       "app02" : {
         "thing/1" : {
           "data:write/thing" : true
         }
+      },
+      "app-dne" : {
+        "bar" : {
+          "anything" : true,
+          "action:anything" : true
+        }
       }
-    } }
-
+    }
+  }

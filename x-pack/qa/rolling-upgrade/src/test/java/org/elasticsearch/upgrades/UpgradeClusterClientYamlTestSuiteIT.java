@@ -42,6 +42,11 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
         return true;
     }
 
+    @Override
+    protected boolean preserveRollupJobsUponCompletion() {
+        return true;
+    }
+
     public UpgradeClusterClientYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }

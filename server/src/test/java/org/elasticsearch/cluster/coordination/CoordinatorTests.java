@@ -649,8 +649,9 @@ public class CoordinatorTests extends ESTestCase {
                 defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING)
                     // One message delay to send a join
                     + DEFAULT_DELAY_VARIABILITY
-                    // Commit a new cluster state with the new node(s). Might be split into multiple commits
-                    + newNodesCount * DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+                    // Commit a new cluster state with the new node(s). Might be split into multiple commits, and each might need a
+                    // followup reconfiguration
+                    + newNodesCount * 2 * DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
         }
 
         void addNodes(int newNodesCount) {

@@ -1,4 +1,9 @@
-[[java-rest-high-watcher-stop-watch-service]]
+--
+:api: stop-watch-service
+:request: StopWatchServiceRequest
+:response: StopWatchServiceResponse
+--
+[id="{upid}-{api}"]
 === Stop Watch Service API
 
 [[java-rest-high-watcher-stop-watch-service-execution]]
@@ -10,7 +15,7 @@ to stop the watch service:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/WatcherDocumentationIT.java[stop-watch-service-execute]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 
 [[java-rest-high-watcher-stop-watch-service-response]]
@@ -21,33 +26,8 @@ was received:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/WatcherDocumentationIT.java[stop-watch-service-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> A boolean value of `true` if successfully received, `false` otherwise.
 
-[[java-rest-high-watcher-stop-watch-service-async]]
-==== Asynchronous Execution
-
-This request can be executed asynchronously:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/WatcherDocumentationIT.java[stop-watch-service-execute-async]
---------------------------------------------------
-<1> The `StopWatchRequest` to execute and the `ActionListener` to use when
-the execution completes.
-
-The asynchronous method does not block and returns immediately. Once the request
-completes, the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A listener for `AcknowledgedResponse` can be constructed as follows:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/WatcherDocumentationIT.java[stop-watch-service-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument.
-<2> Called in case of failure. The raised exception is provided as an argument.
+include::../execution.asciidoc[]

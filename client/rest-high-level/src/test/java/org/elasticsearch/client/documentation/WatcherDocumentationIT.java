@@ -53,8 +53,11 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            //tag::start-watch-service-execute
+            //tag::start-watch-service-request
             StartWatchServiceRequest request = new StartWatchServiceRequest();
+            //end::start-watch-service-request
+
+            //tag::start-watch-service-execute
             AcknowledgedResponse response = client.watcher().startWatchService(request, RequestOptions.DEFAULT);
             //end::start-watch-service-execute
 
@@ -64,8 +67,11 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            //tag::stop-watch-service-execute
+            //tag::stop-watch-service-request
             StopWatchServiceRequest request = new StopWatchServiceRequest();
+            //end::stop-watch-service-request
+
+            //tag::stop-watch-service-execute
             AcknowledgedResponse response = client.watcher().stopWatchService(request, RequestOptions.DEFAULT);
             //end::stop-watch-service-execute
 

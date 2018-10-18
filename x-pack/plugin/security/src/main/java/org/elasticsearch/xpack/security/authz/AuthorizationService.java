@@ -41,6 +41,7 @@ import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -86,7 +87,7 @@ public class AuthorizationService extends AbstractComponent {
 
     private static final Predicate<String> MONITOR_INDEX_PREDICATE = IndexPrivilege.MONITOR.predicate();
     private static final Predicate<String> SAME_USER_PRIVILEGE = Automatons.predicate(
-            ChangePasswordAction.NAME, AuthenticateAction.NAME, HasPrivilegesAction.NAME);
+            ChangePasswordAction.NAME, AuthenticateAction.NAME, HasPrivilegesAction.NAME, GetUserPrivilegesAction.NAME);
 
     private static final String INDEX_SUB_REQUEST_PRIMARY = IndexAction.NAME + "[p]";
     private static final String INDEX_SUB_REQUEST_REPLICA = IndexAction.NAME + "[r]";
@@ -522,7 +523,8 @@ public class AuthorizationService extends AbstractComponent {
                 return checkChangePasswordAction(authentication);
             }
 
-            assert AuthenticateAction.NAME.equals(action) || HasPrivilegesAction.NAME.equals(action) || sameUsername == false
+            assert AuthenticateAction.NAME.equals(action) || HasPrivilegesAction.NAME.equals(action)
+                || GetUserPrivilegesAction.NAME.equals(action) || sameUsername == false
                     : "Action '" + action + "' should not be possible when sameUsername=" + sameUsername;
             return sameUsername;
         }

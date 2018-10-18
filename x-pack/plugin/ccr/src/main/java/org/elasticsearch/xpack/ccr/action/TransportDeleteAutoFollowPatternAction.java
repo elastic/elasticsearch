@@ -54,7 +54,7 @@ public class TransportDeleteAutoFollowPatternAction extends
     protected void masterOperation(DeleteAutoFollowPatternAction.Request request,
                                    ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) throws Exception {
-        clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getLeaderClusterAlias(),
+        clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getLeaderCluster(),
             new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
 
             @Override
@@ -73,22 +73,22 @@ public class TransportDeleteAutoFollowPatternAction extends
         AutoFollowMetadata currentAutoFollowMetadata = currentState.metaData().custom(AutoFollowMetadata.TYPE);
         if (currentAutoFollowMetadata == null) {
             throw new ResourceNotFoundException("no auto-follow patterns for cluster alias [{}] found",
-                request.getLeaderClusterAlias());
+                request.getLeaderCluster());
         }
         Map<String, AutoFollowPattern> patterns = currentAutoFollowMetadata.getPatterns();
-        AutoFollowPattern autoFollowPatternToRemove = patterns.get(request.getLeaderClusterAlias());
+        AutoFollowPattern autoFollowPatternToRemove = patterns.get(request.getLeaderCluster());
         if (autoFollowPatternToRemove == null) {
             throw new ResourceNotFoundException("no auto-follow patterns for cluster alias [{}] found",
-                request.getLeaderClusterAlias());
+                request.getLeaderCluster());
         }
 
         final Map<String, AutoFollowPattern> patternsCopy = new HashMap<>(patterns);
         final Map<String, List<String>> followedLeaderIndexUUIDSCopy =
             new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
         final Map<String, Map<String, String>> headers = new HashMap<>(currentAutoFollowMetadata.getHeaders());
-        patternsCopy.remove(request.getLeaderClusterAlias());
-        followedLeaderIndexUUIDSCopy.remove(request.getLeaderClusterAlias());
-        headers.remove(request.getLeaderClusterAlias());
+        patternsCopy.remove(request.getLeaderCluster());
+        followedLeaderIndexUUIDSCopy.remove(request.getLeaderCluster());
+        headers.remove(request.getLeaderCluster());
 
         AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(patternsCopy, followedLeaderIndexUUIDSCopy, headers);
         ClusterState.Builder newState = ClusterState.builder(currentState);

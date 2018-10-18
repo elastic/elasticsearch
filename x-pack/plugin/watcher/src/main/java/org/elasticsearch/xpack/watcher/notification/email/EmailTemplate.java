@@ -342,6 +342,7 @@ public class EmailTemplate implements ToXContentObject {
         public boolean handle(String fieldName, XContentParser parser) throws IOException {
             if (Email.Field.FROM.match(fieldName, parser.getDeprecationHandler())) {
                 builder.from(TextTemplate.parse(parser));
+                validateEmailAddresses(builder.from);
             } else if (Email.Field.REPLY_TO.match(fieldName, parser.getDeprecationHandler())) {
                 if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                     List<TextTemplate> templates = new ArrayList<>();
@@ -352,6 +353,7 @@ public class EmailTemplate implements ToXContentObject {
                 } else {
                     builder.replyTo(TextTemplate.parse(parser));
                 }
+                validateEmailAddresses(builder.replyTo);
             } else if (Email.Field.TO.match(fieldName, parser.getDeprecationHandler())) {
                 if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                     List<TextTemplate> templates = new ArrayList<>();
@@ -362,6 +364,7 @@ public class EmailTemplate implements ToXContentObject {
                 } else {
                     builder.to(TextTemplate.parse(parser));
                 }
+                validateEmailAddresses(builder.to);
             } else if (Email.Field.CC.match(fieldName, parser.getDeprecationHandler())) {
                 if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                     List<TextTemplate> templates = new ArrayList<>();
@@ -372,6 +375,7 @@ public class EmailTemplate implements ToXContentObject {
                 } else {
                     builder.cc(TextTemplate.parse(parser));
                 }
+                validateEmailAddresses(builder.cc);
             } else if (Email.Field.BCC.match(fieldName, parser.getDeprecationHandler())) {
                 if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                     List<TextTemplate> templates = new ArrayList<>();
@@ -382,6 +386,7 @@ public class EmailTemplate implements ToXContentObject {
                 } else {
                     builder.bcc(TextTemplate.parse(parser));
                 }
+                validateEmailAddresses(builder.bcc);
             } else if (Email.Field.PRIORITY.match(fieldName, parser.getDeprecationHandler())) {
                 builder.priority(TextTemplate.parse(parser));
             } else if (Email.Field.SUBJECT.match(fieldName, parser.getDeprecationHandler())) {
@@ -411,6 +416,26 @@ public class EmailTemplate implements ToXContentObject {
                 return false;
             }
             return true;
+        }
+
+        /**
+         * If this is a text template not using mustache
+         * @param emails The list of email addresses to parse
+         */
+        static void validateEmailAddresses(TextTemplate ... emails) {
+            for (TextTemplate emailTemplate : emails) {
+                // no mustache, do validation
+                if (emailTemplate.isUsingMustache() == false) {
+                    String email = emailTemplate.getTemplate();
+                    try {
+                        for (Email.Address address : Email.AddressList.parse(email)) {
+                            address.validate();
+                        }
+                    } catch (AddressException e) {
+                        throw new ElasticsearchParseException("invalid email address [{}]", e, email);
+                    }
+                }
+            }
         }
 
         public EmailTemplate parsedTemplate() {

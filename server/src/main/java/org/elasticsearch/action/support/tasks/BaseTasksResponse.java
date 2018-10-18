@@ -25,6 +25,8 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
@@ -41,6 +43,9 @@ import static org.elasticsearch.ExceptionsHelper.rethrowAndSuppress;
  * Base class for responses of task-related operations
  */
 public class BaseTasksResponse extends ActionResponse {
+    protected static final String TASK_FAILURES = "task_failures";
+    protected static final String NODE_FAILURES = "node_failures";
+
     private List<TaskOperationFailure> taskFailures;
     private List<ElasticsearchException> nodeFailures;
 
@@ -101,6 +106,28 @@ public class BaseTasksResponse extends ActionResponse {
         out.writeVInt(nodeFailures.size());
         for (ElasticsearchException exp : nodeFailures) {
             exp.writeTo(out);
+        }
+    }
+
+    protected void toXContentCommon(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        if (getTaskFailures() != null && getTaskFailures().size() > 0) {
+            builder.startArray(TASK_FAILURES);
+            for (TaskOperationFailure ex : getTaskFailures()){
+                builder.startObject();
+                builder.value(ex);
+                builder.endObject();
+            }
+            builder.endArray();
+        }
+
+        if (getNodeFailures() != null && getNodeFailures().size() > 0) {
+            builder.startArray(NODE_FAILURES);
+            for (ElasticsearchException ex : getNodeFailures()) {
+                builder.startObject();
+                ex.toXContent(builder, params);
+                builder.endObject();
+            }
+            builder.endArray();
         }
     }
 }

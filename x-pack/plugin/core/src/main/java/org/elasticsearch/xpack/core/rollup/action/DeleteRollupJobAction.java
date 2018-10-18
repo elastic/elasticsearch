@@ -151,7 +151,10 @@ public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Response
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("acknowledged", acknowledged);
+            {
+                toXContentCommon(builder, params);
+                builder.field("acknowledged", acknowledged);
+            }
             builder.endObject();
             return builder;
         }

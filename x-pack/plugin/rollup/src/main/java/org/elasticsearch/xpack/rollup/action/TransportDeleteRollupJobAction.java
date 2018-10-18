@@ -23,7 +23,9 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.rollup.action.DeleteRollupJobAction;
+import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 import org.elasticsearch.xpack.rollup.job.RollupJobTask;
 
 import java.io.IOException;
@@ -72,11 +74,14 @@ public class TransportDeleteRollupJobAction extends TransportTasksAction<RollupJ
                                  ActionListener<DeleteRollupJobAction.Response> listener) {
 
         assert jobTask.getConfig().getId().equals(request.getId());
-
-        // Tell the task to shut down.  TODO if the indexer is running this just signals to shutdown.
-        // The actual shutdown may be delayed, which we can fix with an await in a followup PR
-        jobTask.onCancelled();
-        listener.onResponse(new DeleteRollupJobAction.Response(true));
+        IndexerState state = ((RollupJobStatus) jobTask.getStatus()).getIndexerState();
+        if (state.equals(IndexerState.STOPPED) ) {
+            jobTask.onCancelled();
+            listener.onResponse(new DeleteRollupJobAction.Response(true));
+        } else {
+            listener.onFailure(new IllegalStateException("Could not delete job [" + request.getId() + "] because " +
+                "indexer state is [" + state + "].  Job must be [" + IndexerState.STOPPED + "] before deletion."));
+        }
     }
 
     @Override
@@ -86,8 +91,8 @@ public class TransportDeleteRollupJobAction extends TransportTasksAction<RollupJ
         // There should theoretically only be one task running the rollup job
         // If there are more, in production it should be ok as long as they are acknowledge shutting down.
         // But in testing we'd like to know there were more than one hence the assert
-        assert tasks.size() == 1;
-        boolean cancelled = tasks.stream().anyMatch(DeleteRollupJobAction.Response::isDeleted);
+        assert tasks.size() + taskOperationFailures.size() == 1;
+        boolean cancelled = tasks.size() > 0 && tasks.stream().allMatch(DeleteRollupJobAction.Response::isDeleted);
         return new DeleteRollupJobAction.Response(cancelled, taskOperationFailures, failedNodeExceptions);
     }
 

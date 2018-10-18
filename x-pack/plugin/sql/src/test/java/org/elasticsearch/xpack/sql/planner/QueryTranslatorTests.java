@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.sql.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 import org.joda.time.DateTime;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -47,6 +48,12 @@ public class QueryTranslatorTests extends AbstractBuilderTestCase {
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
         analyzer = new Analyzer(new FunctionRegistry(), getIndexResult, TimeZone.getTimeZone("UTC"));
+    }
+
+    @AfterClass
+    public static void destroy() {
+        parser = null;
+        analyzer = null;
     }
 
     private LogicalPlan plan(String sql) {

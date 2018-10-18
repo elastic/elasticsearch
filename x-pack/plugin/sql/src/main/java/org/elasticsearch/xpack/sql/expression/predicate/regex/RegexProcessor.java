@@ -38,7 +38,7 @@ public class RegexProcessor extends BinaryProcessor {
         }
 
         public static Boolean match(Object value, Object pattern) {
-            if (value == null && pattern == null) {
+            if (value == null || pattern == null) {
                 return null;
             }
 

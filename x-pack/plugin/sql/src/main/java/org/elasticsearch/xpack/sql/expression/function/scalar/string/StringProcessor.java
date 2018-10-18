@@ -71,11 +71,11 @@ public class StringProcessor implements Processor {
         private final Function<Object, Object> apply;
 
         StringOperation(StringFunction<Object> apply) {
-            this.apply = l -> l == null ? null : apply.apply((l));
+            this.apply = l -> l == null ? null : apply.apply(l);
         }
 
         StringOperation(NumericFunction<Object> apply) {
-            this.apply = l -> l == null ? null : apply.apply((l));
+            this.apply = l -> l == null ? null : apply.apply(l);
         }
 
         public final Object apply(Object l) {

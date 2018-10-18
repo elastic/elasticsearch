@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Bina
 import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexProcessor.RegexOperation;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
+import java.time.ZonedDateTime;
 import java.util.Map;
 
 /**
@@ -242,34 +243,35 @@ public final class InternalSqlScriptUtils {
         if (dateTime == null || tzId == null || chronoName == null) {
             return null;
         }
-        // use dedicated method
+        return DateTimeFunction.dateTimeChrono(asDateTime(dateTime), tzId, chronoName);
+    }
+    
+    public static String dayName(Object dateTime, String tzId) {
+        if (dateTime == null || tzId == null) {
+            return null;
+        }
+        return NameExtractor.DAY_NAME.extract(asDateTime(dateTime), tzId);
+    }
+    
+    public static String monthName(Object dateTime, String tzId) {
+        if (dateTime == null || tzId == null) {
+            return null;
+        }
+        return NameExtractor.MONTH_NAME.extract(asDateTime(dateTime), tzId);
+    }
+    
+    public static Integer quarter(Object dateTime, String tzId) {
+        if (dateTime == null || tzId == null) {
+            return null;
+        }
+        return QuarterProcessor.quarter(asDateTime(dateTime), tzId);
+    }
+
+    private static ZonedDateTime asDateTime(Object dateTime) {
         if (dateTime instanceof JodaCompatibleZonedDateTime) {
-            return DateTimeFunction.dateTimeChrono(((JodaCompatibleZonedDateTime) dateTime).getZonedDateTime(), tzId, chronoName);
+            return ((JodaCompatibleZonedDateTime) dateTime).getZonedDateTime();
         }
         throw new SqlIllegalArgumentException("Invalid date encountered [{}]", dateTime);
-    }
-    
-    public static String dayName(Long millis, String tzId) {
-        if (millis == null || tzId == null) {
-            return null;
-        }
-        return NameExtractor.DAY_NAME.extract(millis, tzId);
-    }
-    
-    public static String monthName(Long millis, String tzId) {
-        if (millis == null || tzId == null) {
-            return null;
-        }
-
-        return NameExtractor.MONTH_NAME.extract(millis, tzId);
-    }
-    
-    public static Integer quarter(Long millis, String tzId) {
-        if (millis == null || tzId == null) {
-            return null;
-        }
-
-        return QuarterProcessor.quarter(millis, tzId);
     }
     
     //

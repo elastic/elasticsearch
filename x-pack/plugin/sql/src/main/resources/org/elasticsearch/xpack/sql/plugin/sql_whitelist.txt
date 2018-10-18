@@ -76,9 +76,9 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
 # Date/Time functions 
 #
   Integer dateTimeChrono(Object, String, String)
-  String  dayName(Long, String)
-  String  monthName(Long, String)
-  Integer quarter(Long, String)
+  String  dayName(Object, String)
+  String  monthName(Object, String)
+  Integer quarter(Object, String)
 
 #
 # ASCII Functions

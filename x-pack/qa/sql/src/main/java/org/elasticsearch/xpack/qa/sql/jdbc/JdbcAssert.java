@@ -179,7 +179,7 @@ public class JdbcAssert {
                     // handle nulls first
                     if (expectedObject == null || actualObject == null) {
                         // hack for JDBC CSV nulls
-                        if ("null".equals(expectedObject)) {
+                        if (expectedObject != null && "null".equals(expectedObject.toString().toLowerCase(Locale.ROOT))) {
                             assertNull(msg, actualObject);
                         } else {
                             assertEquals(msg, expectedObject, actualObject);

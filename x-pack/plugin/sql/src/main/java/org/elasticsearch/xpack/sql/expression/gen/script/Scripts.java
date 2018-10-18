@@ -9,33 +9,28 @@ package org.elasticsearch.xpack.sql.expression.gen.script;
 import org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils;
 import org.elasticsearch.xpack.sql.type.DataType;
 
+import java.util.AbstractMap.SimpleEntry;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import static java.lang.String.format;
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 public final class Scripts {
 
     private Scripts() {}
 
-    private static final Map<Pattern, String> FORMATTING_PATTERNS;
-
-    static {
-        Map<String, String> patterns = new LinkedHashMap<>();
-        patterns.put("doc[{}].value", "{sql}.docValue(doc,{})");
-        patterns.put("{sql}", InternalSqlScriptUtils.class.getSimpleName());
-        patterns.put("{}", "params.%s");
-
-        FORMATTING_PATTERNS = new LinkedHashMap<>();
-
-        for (Entry<String, String> entry : patterns.entrySet()) {
-            FORMATTING_PATTERNS.put(Pattern.compile(entry.getKey(), Pattern.LITERAL), entry.getValue());
-        }
-    }
+    private static final Map<Pattern, String> FORMATTING_PATTERNS = Collections.unmodifiableMap(Stream.of(
+            new SimpleEntry<>("doc[{}].value", "{sql}.docValue(doc,{})"),
+            new SimpleEntry<>("{sql}", InternalSqlScriptUtils.class.getSimpleName()),
+            new SimpleEntry<>("{}", "params.%s"))
+            .collect(toMap(e -> Pattern.compile(e.getKey(), Pattern.LITERAL), Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new)));
 
     /**
      * Expands common tokens inside the script:

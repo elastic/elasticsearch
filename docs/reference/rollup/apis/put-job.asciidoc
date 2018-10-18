@@ -100,7 +100,7 @@ When the job is created, you receive the following results:
 ----
 // TESTRESPONSE
 
-By default the metrics `min`/`max`/`value_count` are added
+By default the metrics `min`/`max` are added
 for the fields in the `date_histogram` and `histogram` configurations
 unless metrics for those fields are provided in the payload.
 
@@ -139,7 +139,7 @@ The actual config when created in the cluster will look as follows.
 Notice the new default metrics gathered for `voltage` and `timestamp`.
 Since these fields were referenced in `groups.histogram` and `groups.date_histogram` configurations
 respectively and no metrics were requested for them,
-they both got the default metrics of `["min", "max", "value_count"]`.
+they both got the default metrics of `["min", "max"]`.
 
 [source,js]
 --------------------------------------------------
@@ -166,11 +166,11 @@ they both got the default metrics of `["min", "max", "value_count"]`.
        },
        {
            "field": "voltage",
-           "metrics": ["min", "max", "value_count"]
+           "metrics": ["min", "max"]
        },
        {
            "field": "timestamp",
-           "metrics": ["min", "max", "value_count"]
+           "metrics": ["min", "max"]
        }
    ]
 }

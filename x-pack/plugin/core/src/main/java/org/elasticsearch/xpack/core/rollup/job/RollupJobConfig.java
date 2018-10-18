@@ -22,7 +22,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.xpack.core.scheduler.Cron;
 
 import java.io.IOException;
@@ -53,9 +52,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
     private static final String PAGE_SIZE = "page_size";
     private static final String INDEX_PATTERN = "index_pattern";
     private static final String ROLLUP_INDEX = "rollup_index";
-    private static final List<String> DEFAULT_HISTO_METRICS = Arrays.asList(MaxAggregationBuilder.NAME,
-        MinAggregationBuilder.NAME,
-        ValueCountAggregationBuilder.NAME);
+    private static final List<String> DEFAULT_HISTO_METRICS = Arrays.asList(MaxAggregationBuilder.NAME, MinAggregationBuilder.NAME);
 
     private final String id;
     private final String indexPattern;

@@ -67,7 +67,6 @@ setup:
                 metrics:
                  - "max"
                  - "min"
-                 - "value_count"
             timeout: "20s"
           stats:
             pages_processed: 0

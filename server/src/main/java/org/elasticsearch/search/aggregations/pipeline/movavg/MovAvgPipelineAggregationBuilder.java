@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.aggregations.pipeline.movavg;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -62,7 +62,7 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
     private static final ParseField PREDICT = new ParseField("predict");
     private static final ParseField MINIMIZE = new ParseField("minimize");
     private static final DeprecationLogger DEPRECATION_LOGGER
-        = new DeprecationLogger(Loggers.getLogger(MovAvgPipelineAggregationBuilder.class));
+        = new DeprecationLogger(LogManager.getLogger(MovAvgPipelineAggregationBuilder.class));
 
     private String format;
     private GapPolicy gapPolicy = GapPolicy.SKIP;

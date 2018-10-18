@@ -72,7 +72,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
     private static BulkProcessor.Builder initBulkProcessorBuilder(BulkProcessor.Listener listener) {
         return BulkProcessor.builder(
-            (request, bulkListener) -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT, bulkListener), listener);
+                (request, bulkListener) -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT, bulkListener), listener);
     }
 
     public void testThatBulkProcessorCountIsCorrect() throws Exception {
@@ -81,10 +81,10 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
         int numDocs = randomIntBetween(10, 100);
         try (BulkProcessor processor = initBulkProcessorBuilder(listener)
-            //let's make sure that the bulk action limit trips, one single execution will index all the documents
-            .setConcurrentRequests(randomIntBetween(0, 1)).setBulkActions(numDocs)
-            .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
-            .build()) {
+                //let's make sure that the bulk action limit trips, one single execution will index all the documents
+                .setConcurrentRequests(randomIntBetween(0, 1)).setBulkActions(numDocs)
+                .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+                .build()) {
 
             MultiGetRequest multiGetRequest = indexDocs(processor, numDocs);
 
@@ -105,9 +105,9 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         int numDocs = randomIntBetween(10, 100);
 
         try (BulkProcessor processor = initBulkProcessorBuilder(listener)
-            //let's make sure that this bulk won't be automatically flushed
-            .setConcurrentRequests(randomIntBetween(0, 10)).setBulkActions(numDocs + randomIntBetween(1, 100))
-            .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
+                //let's make sure that this bulk won't be automatically flushed
+                .setConcurrentRequests(randomIntBetween(0, 10)).setBulkActions(numDocs + randomIntBetween(1, 100))
+                .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
 
             MultiGetRequest multiGetRequest = indexDocs(processor, numDocs);
 
@@ -140,9 +140,9 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         MultiGetRequest multiGetRequest;
 
         try (BulkProcessor processor = initBulkProcessorBuilder(listener)
-            .setConcurrentRequests(concurrentRequests).setBulkActions(bulkActions)
-            //set interval and size to high values
-            .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
+                .setConcurrentRequests(concurrentRequests).setBulkActions(bulkActions)
+                //set interval and size to high values
+                .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
 
             multiGetRequest = indexDocs(processor, numDocs);
 
@@ -180,11 +180,11 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
         int numDocs = randomIntBetween(10, 100);
         BulkProcessor processor = initBulkProcessorBuilder(listener)
-            //let's make sure that the bulk action limit trips, one single execution will index all the documents
-            .setConcurrentRequests(randomIntBetween(0, 1)).setBulkActions(numDocs)
-            .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(randomIntBetween(1, 10),
-                RandomPicks.randomFrom(random(), ByteSizeUnit.values())))
-            .build();
+                //let's make sure that the bulk action limit trips, one single execution will index all the documents
+                .setConcurrentRequests(randomIntBetween(0, 1)).setBulkActions(numDocs)
+                .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(randomIntBetween(1, 10),
+                        RandomPicks.randomFrom(random(), ByteSizeUnit.values())))
+                .build();
 
         MultiGetRequest multiGetRequest = indexDocs(processor, numDocs);
         assertThat(processor.awaitClose(1, TimeUnit.MINUTES), is(true));
@@ -235,20 +235,20 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         BulkProcessorTestListener listener = new BulkProcessorTestListener(latch, closeLatch);
 
         try (BulkProcessor processor = initBulkProcessorBuilder(listener)
-            .setConcurrentRequests(concurrentRequests).setBulkActions(bulkActions)
-            //set interval and size to high values
-            .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
+                .setConcurrentRequests(concurrentRequests).setBulkActions(bulkActions)
+                //set interval and size to high values
+                .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
 
             for (int i = 1; i <= numDocs; i++) {
                 if (randomBoolean()) {
                     testDocs++;
                     processor.add(new IndexRequest("test", "test", Integer.toString(testDocs))
-                        .source(XContentType.JSON, "field", "value"));
+                            .source(XContentType.JSON, "field", "value"));
                     multiGetRequest.add("test", "test", Integer.toString(testDocs));
                 } else {
                     testReadOnlyDocs++;
                     processor.add(new IndexRequest("test-ro", "test", Integer.toString(testReadOnlyDocs))
-                        .source(XContentType.JSON, "field", "value"));
+                            .source(XContentType.JSON, "field", "value"));
                 }
             }
         }
@@ -283,6 +283,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         assertMultiGetResponse(highLevelClient().mget(multiGetRequest, RequestOptions.DEFAULT), testDocs);
     }
 
+    @SuppressWarnings("unchecked")
     public void testGlobalParametersAndBulkProcessor() throws Exception {
         createIndexWithShards("test", 2);
 
@@ -373,7 +374,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
             assertThat(bulkItemResponse.getType(), equalTo("test"));
             assertThat(bulkItemResponse.getId(), equalTo(Integer.toString(i++)));
             assertThat("item " + i + " failed with cause: " + bulkItemResponse.getFailureMessage(),
-                bulkItemResponse.isFailed(), equalTo(false));
+                    bulkItemResponse.isFailed(), equalTo(false));
         }
     }
 

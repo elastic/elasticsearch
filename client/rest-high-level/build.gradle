@@ -70,8 +70,6 @@ dependencyLicenses {
   }
 }
 
-compileTestJava.options.compilerArgs << "-Xlint:-unchecked"
-
 forbiddenApisMain {
   // core does not depend on the httpclient for compile so we add the signatures here. We don't add them for test as they are already
   // specified

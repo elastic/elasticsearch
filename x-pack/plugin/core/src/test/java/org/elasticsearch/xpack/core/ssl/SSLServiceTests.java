@@ -466,8 +466,8 @@ public class SSLServiceTests extends ESTestCase {
     public void testEmptyTrustManager() throws Exception {
         Settings settings = Settings.builder().build();
         final SSLService sslService = new SSLService(settings, env);
-        X509ExtendedTrustManager trustManager = sslService.sslContextHolder(sslService.getSSLConfiguration("xpack.ssl"))
-            .getEmptyTrustManager();
+        SSLConfiguration sslConfig = new SSLConfiguration(settings);
+        X509ExtendedTrustManager trustManager = sslService.sslContextHolder(sslConfig).getEmptyTrustManager();
         assertThat(trustManager.getAcceptedIssuers(), emptyArray());
     }
 

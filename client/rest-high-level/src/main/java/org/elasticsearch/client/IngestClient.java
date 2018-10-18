@@ -29,7 +29,6 @@ import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.ingest.WritePipelineResponse;
 
 import java.io.IOException;
-import java.util.Collections;
 
 import static java.util.Collections.emptySet;
 
@@ -84,7 +83,7 @@ public final class IngestClient {
      */
     public GetPipelineResponse getPipeline(GetPipelineRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::getPipeline, options,
-            GetPipelineResponse::fromXContent, Collections.singleton(404));
+            GetPipelineResponse::fromXContent, emptySet());
     }
 
     /**
@@ -97,7 +96,7 @@ public final class IngestClient {
      */
     public void getPipelineAsync(GetPipelineRequest request, RequestOptions options, ActionListener<GetPipelineResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::getPipeline, options,
-            GetPipelineResponse::fromXContent, listener, Collections.singleton(404));
+            GetPipelineResponse::fromXContent, listener, emptySet());
     }
 
     /**

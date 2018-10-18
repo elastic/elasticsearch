@@ -21,12 +21,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.argThat;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -42,7 +39,6 @@ public class SchedulerEngineTests extends ESTestCase {
             final int numberOfListeners = randomIntBetween(1, 32);
             int numberOfFailingListeners = 0;
             final CountDownLatch latch = new CountDownLatch(numberOfListeners);
-
             for (int i = 0; i < numberOfListeners; i++) {
                 final AtomicBoolean trigger = new AtomicBoolean();
                 final SchedulerEngine.Listener listener;
@@ -58,17 +54,12 @@ public class SchedulerEngineTests extends ESTestCase {
                     numberOfFailingListeners++;
                     listener = event -> {
                         if (trigger.compareAndSet(false, true)) {
-                            // we count down the latch after this exception is caught and mock logged in SchedulerEngine#notifyListeners
+                            latch.countDown();
                             throw new RuntimeException(getTestName());
                         } else {
                             fail("listener invoked twice");
                         }
                     };
-                    doAnswer(invocationOnMock -> {
-                        // this happens after the listener has been notified, threw an exception, and then mock logged the exception
-                        latch.countDown();
-                        return null;
-                    }).when(mockLogger).warn(argThat(any(ParameterizedMessage.class)), argThat(any(RuntimeException.class)));
                 }
                 listeners.add(Tuple.tuple(listener, trigger));
             }
@@ -143,7 +134,7 @@ public class SchedulerEngineTests extends ESTestCase {
             listenersLatch.await();
             assertTrue(listeners.stream().map(Tuple::v2).allMatch(count -> count.get() == numberOfSchedules));
             latch.await();
-            assertFailedListenerLogMessage(mockLogger, numberOfSchedules * numberOfListeners);
+            assertFailedListenerLogMessage(mockLogger, numberOfListeners * numberOfSchedules);
             verifyNoMoreInteractions(mockLogger);
         } finally {
             engine.stop();

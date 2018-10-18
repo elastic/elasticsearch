@@ -28,7 +28,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
@@ -51,7 +50,7 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
     @AfterClass
     public static void cleanupClient() throws IOException {
-        IOUtils.close(restHighLevelClient);
+        restHighLevelClient.close();
         restHighLevelClient = null;
     }
 

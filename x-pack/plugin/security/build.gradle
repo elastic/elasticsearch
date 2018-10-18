@@ -135,13 +135,6 @@ artifacts {
     archives jar
     testArtifacts testJar
 }
-
-processResources {
-    from('src/main/config') {
-        into 'config'
-    }
-}
-
 sourceSets.test.resources {
     srcDir '../core/src/test/resources'
 }

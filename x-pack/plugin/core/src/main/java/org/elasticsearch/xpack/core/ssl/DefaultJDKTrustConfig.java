@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 
@@ -17,10 +16,6 @@ import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
-import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.cert.CertificateException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -31,20 +26,15 @@ import java.util.List;
  */
 class DefaultJDKTrustConfig extends TrustConfig {
 
-    private SecureString trustStorePassword;
+    static final DefaultJDKTrustConfig INSTANCE = new DefaultJDKTrustConfig();
 
-    /**
-     * @param trustStorePassword the password for the default jdk truststore defined either as a system property or in the Elasticsearch
-     *                           configuration. It applies only when PKCS#11 tokens are user, is null otherwise
-     */
-    DefaultJDKTrustConfig(@Nullable SecureString trustStorePassword) {
-        this.trustStorePassword = trustStorePassword;
+    private DefaultJDKTrustConfig() {
     }
 
     @Override
     X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
         try {
-            return CertParsingUtils.trustManager(getSystemTrustStore(), TrustManagerFactory.getDefaultAlgorithm());
+            return CertParsingUtils.trustManager(null, TrustManagerFactory.getDefaultAlgorithm());
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
         }
@@ -82,31 +72,13 @@ class DefaultJDKTrustConfig extends TrustConfig {
     /**
      * Merges the default trust configuration with the provided {@link TrustConfig}
      * @param trustConfig the trust configuration to merge with
-     * @param trustStorePassword the password for the default jdk truststore. It applies only to PKCS#11 tokens
      * @return a {@link TrustConfig} that represents a combination of both trust configurations
      */
-    static TrustConfig merge(TrustConfig trustConfig, SecureString trustStorePassword) {
+    static TrustConfig merge(TrustConfig trustConfig) {
         if (trustConfig == null) {
-            return new DefaultJDKTrustConfig(trustStorePassword);
+            return INSTANCE;
         } else {
-            return new CombiningTrustConfig(Arrays.asList(new DefaultJDKTrustConfig(trustStorePassword), trustConfig));
+            return new CombiningTrustConfig(Arrays.asList(INSTANCE, trustConfig));
         }
-    }
-
-    /**
-     * When a PKCS#11 token is used as the system default keystore/truststore, we need to pass the keystore
-     * password when loading, even for reading certificates only ( as opposed to i.e. JKS keystores where
-     * we only need to pass the password for reading Private Key entries ).
-     *
-     * @return the KeyStore used as truststore for PKCS#11 initialized with the password, null otherwise
-     */
-    private KeyStore getSystemTrustStore() throws KeyStoreException, CertificateException, NoSuchAlgorithmException, IOException {
-        if (System.getProperty("javax.net.ssl.trustStoreType", "").equalsIgnoreCase("PKCS11")
-            && trustStorePassword != null) {
-            KeyStore keyStore = KeyStore.getInstance("PKCS11");
-            keyStore.load(null, trustStorePassword.getChars());
-            return keyStore;
-        }
-        return null;
     }
 }

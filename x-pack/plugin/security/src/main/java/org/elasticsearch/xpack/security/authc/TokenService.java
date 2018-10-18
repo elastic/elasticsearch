@@ -118,7 +118,6 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
-import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -858,7 +857,7 @@ public final class TokenService extends AbstractComponent {
                 );
 
         final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
-                .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
+                .setScroll(TimeValue.timeValueSeconds(10L))
                 .setQuery(boolQuery)
                 .setVersion(false)
                 .setSize(1000)

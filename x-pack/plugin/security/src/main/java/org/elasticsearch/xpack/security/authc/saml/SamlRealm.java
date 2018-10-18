@@ -433,10 +433,8 @@ public final class SamlRealm extends Realm implements Releasable {
         UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, dn, groups, userMeta, config);
         roleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
             final User user = new User(principal, roles.toArray(new String[roles.size()]), name, mail, userMeta, true);
-            // Add the SAML token details as metadata on the authentication
-            Map<String, Object> authMetadata = new HashMap<>();
-            authMetadata.put(CONTEXT_TOKEN_DATA, tokenMetadata);
-            listener.onResponse(AuthenticationResult.success(user, authMetadata));
+            config.threadContext().putTransient(CONTEXT_TOKEN_DATA, tokenMetadata);
+            listener.onResponse(AuthenticationResult.success(user));
         }, listener::onFailure));
     }
 

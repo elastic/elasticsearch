@@ -30,8 +30,4 @@ public class TestsSSLService extends SSLService {
     public SSLContext sslContext(Settings settings) {
         return sslContextHolder(super.sslConfiguration(settings)).sslContext();
     }
-
-    public SSLContext sslContext(String context) {
-        return sslContextHolder(super.getSSLConfiguration(context)).sslContext();
-    }
 }

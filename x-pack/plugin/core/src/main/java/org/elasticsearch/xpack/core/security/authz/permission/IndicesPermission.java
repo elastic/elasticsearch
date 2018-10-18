@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
@@ -15,6 +16,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -116,6 +118,40 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
             }
         }
         return automatonList.isEmpty() ? Automatons.EMPTY : Automatons.unionAndMinimize(automatonList);
+    }
+
+    /**
+     * Determines if this {@link IndicesPermission} is a subset of other indices
+     * permission. This iteratively determines if all of the
+     * {@link IndicesPermission.Group} for this IndicesPermission is a subset of
+     * some group in the given indices permission.
+     *
+     * @param other indices permission
+     * @return in case it is not a subset then returns
+     * {@link SubsetResult.Result#NO} and if it is clearly a subset will return
+     * {@link SubsetResult.Result#YES}. It will return
+     * {@link SubsetResult.Result#MAYBE} when the role is a subset in every
+     * other aspect except DLS queries.
+     */
+    public SubsetResult isSubsetOf(final IndicesPermission other) {
+        SubsetResult finalResult = null;
+        for (Group thisGroup : this.groups()) {
+            SubsetResult resultForThisGroup = null;
+            for (Group otherGroup : other.groups()) {
+                SubsetResult result = thisGroup.isSubsetOf(otherGroup);
+                if (result.result() == SubsetResult.Result.YES
+                        || result.result() == SubsetResult.Result.MAYBE) {
+                    resultForThisGroup = SubsetResult.merge(resultForThisGroup, result);
+                }
+            }
+            if (resultForThisGroup == null || resultForThisGroup.result() == SubsetResult.Result.NO) {
+                finalResult = SubsetResult.isNotASubset();
+                break;
+            } else {
+                finalResult = SubsetResult.merge(finalResult, resultForThisGroup);
+            }
+        }
+        return finalResult;
     }
 
     /**
@@ -244,6 +280,32 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
 
         boolean hasQuery() {
             return query != null;
+        }
+
+        public SubsetResult isSubsetOf(Group other) {
+            SubsetResult result = SubsetResult.isNotASubset();
+            if (Operations.subsetOf(Automatons.patterns(this.indices()), Automatons.patterns(other.indices()))) {
+                if (Operations.subsetOf(this.privilege().getAutomaton(), other.privilege().getAutomaton())) {
+                    final Automaton thisFieldsPermissionAutomaton = FieldPermissions
+                            .initializePermittedFieldsAutomaton(this.getFieldPermissions().getFieldPermissionsDefinition());
+                    final Automaton otherFieldsPermissionAutomaton = FieldPermissions
+                            .initializePermittedFieldsAutomaton(other.getFieldPermissions().getFieldPermissionsDefinition());
+                    boolean isSubset = Operations.subsetOf(thisFieldsPermissionAutomaton, otherFieldsPermissionAutomaton);
+
+                    if (isSubset == true) {
+                        if (this.getQuery() == null || other.getQuery() == null) {
+                            result = SubsetResult.isASubset();
+                        } else {
+                            if (Sets.difference(this.getQuery(), other.getQuery()).isEmpty()) {
+                                result = SubsetResult.isASubset();
+                            } else {
+                                result = SubsetResult.mayBeASubset(Sets.newHashSet(this.indices()));
+                            }
+                        }
+                    }
+                }
+            }
+            return result;
         }
     }
 

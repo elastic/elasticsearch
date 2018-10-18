@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCa
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.permission.SubsetResult;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
 import java.io.IOException;
@@ -37,6 +38,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -123,7 +125,6 @@ public class IndicesPermissionTests extends ESTestCase {
                 )
                 .putAlias(AliasMetaData.builder("_alias"));
         md = MetaData.builder(md).put(imbBuilder1).build();
-
 
         // match all fields with more than one permission
         Set<BytesReference> fooQuery = Collections.singleton(new BytesArray("{foo}"));
@@ -267,7 +268,98 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("too complex to evaluate"));
     }
 
+    public void testSubsetOf_IndexPrivilege() {
+        final IndicesPermission permissionBase = indicesPermission(group(IndexPrivilege.ALL, "index-1-*"),
+                group(IndexPrivilege.READ, "index-2-*"));
+        final IndicesPermission permissionForSubsetSuccess_WhenPrivilegeIsSubset = indicesPermission(
+                group(IndexPrivilege.READ, "index-1-*"), group(IndexPrivilege.READ, "index-2-*"));
+        final IndicesPermission permissionForSubsetFail_WhenPrivilegeIsDenied = indicesPermission(group(IndexPrivilege.READ, "index-1-*"),
+                group(IndexPrivilege.WRITE, "index-2-*"));
+
+        assertThat(permissionForSubsetSuccess_WhenPrivilegeIsSubset.isSubsetOf(permissionBase), equalTo(SubsetResult.isASubset()));
+        assertThat(permissionForSubsetFail_WhenPrivilegeIsDenied.isSubsetOf(permissionBase), equalTo(SubsetResult.isNotASubset()));
+    }
+
+    public void testSubsetOf_IndicesPatterns() {
+        final IndicesPermission permissionBase = indicesPermission(group(IndexPrivilege.ALL, "index-1-*"),
+                group(IndexPrivilege.READ, "index-2-*"));
+        final IndicesPermission permissionForSubsetSuccess_WhenIndexMatchesPatternDefinedInBase = indicesPermission(
+                group(IndexPrivilege.ALL, "index-1-1-*"), group(IndexPrivilege.READ, "index-2-1-*"));
+        final IndicesPermission permissionForSubsetFails_WhenIndexDoesNotMatchPatternDefinedInBase = indicesPermission(
+                group(IndexPrivilege.READ, "index--1-1-*"));
+
+        assertThat(permissionForSubsetSuccess_WhenIndexMatchesPatternDefinedInBase.isSubsetOf(permissionBase),
+                equalTo(SubsetResult.isASubset()));
+        assertThat(permissionForSubsetFails_WhenIndexDoesNotMatchPatternDefinedInBase.isSubsetOf(permissionBase),
+                equalTo(SubsetResult.isNotASubset()));
+    }
+
+    public void testSubsetOf_IndexPrivilegeAndIndicesPatterns() {
+        final IndicesPermission permissionBase = indicesPermission(group(IndexPrivilege.ALL, "index-1-*"),
+                group(IndexPrivilege.READ, "index-2-*"));
+        final IndicesPermission permissionForSubsetSuccess_WhenPrivilegeIsSubsetAndIndexMatchesPatternDefinedInBase = indicesPermission(
+                group(IndexPrivilege.WRITE, "index-1-1-*"));
+
+        assertThat(permissionForSubsetSuccess_WhenPrivilegeIsSubsetAndIndexMatchesPatternDefinedInBase.isSubsetOf(permissionBase),
+                is(SubsetResult.isASubset()));
+    }
+
+    public void testSubsetOf_WithFieldPermissions() {
+        final IndicesPermission permissionBase = indicesPermission(
+                group(fieldPermissions(new String[] { "f1", "f2" }, null), Collections.emptySet(), IndexPrivilege.ALL, "index-1-*"),
+                group(IndexPrivilege.READ, "index-2-*"));
+
+        final IndicesPermission permissionForSubsetSuccess_WhenFieldsAreSubset = indicesPermission(
+                group(fieldPermissions(new String[] { "f1" }, null), Collections.emptySet(), IndexPrivilege.ALL, "index-1-*"));
+        assertThat(permissionForSubsetSuccess_WhenFieldsAreSubset.isSubsetOf(permissionBase), equalTo(SubsetResult.isASubset()));
+
+        final IndicesPermission permissionForSubsetSuccess_WhenFieldsAreNotSubset = indicesPermission(
+                group(fieldPermissions(new String[] { "f3" }, null), Collections.emptySet(), IndexPrivilege.ALL, "index-1-*"));
+        assertThat(permissionForSubsetSuccess_WhenFieldsAreNotSubset.isSubsetOf(permissionBase), equalTo(SubsetResult.isNotASubset()));
+
+        final IndicesPermission permissionForSubsetSuccess_WhenDeniedFieldsAreNotSubset = indicesPermission(
+                group(fieldPermissions(null, new String[] { "f3" }), Collections.emptySet(), IndexPrivilege.ALL, "index-1-*"));
+        assertThat(permissionForSubsetSuccess_WhenDeniedFieldsAreNotSubset.isSubsetOf(permissionBase),
+                equalTo(SubsetResult.isNotASubset()));
+    }
+
+    public void testSubsetOf_WithQuery() {
+        final IndicesPermission permissionBase = indicesPermission(
+                group(fieldPermissions(new String[] { "f1", "f2" }, null), Collections.singleton(new BytesArray("{foo}")),
+                        IndexPrivilege.ALL, "index-1-*"),
+                group(fieldPermissions(new String[] { "f1", "f2" }, null),
+                        Sets.newHashSet(new BytesArray("{foo}"), new BytesArray("{bar}")), IndexPrivilege.READ, "index-2-*"));
+
+        final IndicesPermission permissionForSubsetSuccess_WhenQueryIsASubset = indicesPermission(group(
+                fieldPermissions(new String[] { "f1", "f2" }, null),
+                randomFrom(Collections.emptySet(), Collections.singleton(new BytesArray("{foo}"))), IndexPrivilege.READ, "index-2-*"));
+        assertThat(permissionForSubsetSuccess_WhenQueryIsASubset.isSubsetOf(permissionBase), equalTo(SubsetResult.isASubset()));
+
+        final IndicesPermission permissionForSubsetSuccess_QueryIsNotASubset = indicesPermission(
+                group(fieldPermissions(new String[] { "f1", "f2" }, null), Collections.singleton(new BytesArray("{diff}")),
+                        IndexPrivilege.ALL, "index-1-*"));
+        assertThat(permissionForSubsetSuccess_QueryIsNotASubset.isSubsetOf(permissionBase),
+                equalTo(SubsetResult.mayBeASubset(Sets.newHashSet("index-1-*"))));
+    }
+
     private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {
         return new FieldPermissionsDefinition(granted, denied);
+    }
+
+    private static IndicesPermission.Group group(IndexPrivilege privilege, String... indices) {
+        return new IndicesPermission.Group(privilege, FieldPermissions.DEFAULT, null, indices);
+    }
+
+    private static IndicesPermission.Group group(FieldPermissions fieldPermissions, Set<BytesReference> query, IndexPrivilege privilege,
+            String... indices) {
+        return new IndicesPermission.Group(privilege, fieldPermissions, query, indices);
+    }
+
+    private static FieldPermissions fieldPermissions(String[] granted, String[] denied) {
+        return new FieldPermissions(fieldPermissionDef(granted, denied));
+    }
+
+    private static IndicesPermission indicesPermission(IndicesPermission.Group... groups) {
+        return new IndicesPermission(groups);
     }
 }

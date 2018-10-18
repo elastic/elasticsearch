@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
@@ -32,6 +33,17 @@ public abstract class ClusterPermission {
     }
 
     public abstract boolean check(String action, TransportRequest request);
+
+    /**
+     * Determines if this {@link ClusterPermission} is a subset of other cluster
+     * permission.
+     *
+     * @param other cluster permission
+     * @return {@code true} if this is subset of other else it is {@code false}
+     */
+    public boolean isSubsetOf(final ClusterPermission other) {
+        return Operations.subsetOf(this.privilege().getAutomaton(), other.privilege().getAutomaton());
+    }
 
     public abstract List<Tuple<ClusterPrivilege, ConditionalClusterPrivilege>> privileges();
 

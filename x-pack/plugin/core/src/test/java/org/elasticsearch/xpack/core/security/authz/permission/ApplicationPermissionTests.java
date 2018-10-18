@@ -22,6 +22,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class ApplicationPermissionTests extends ESTestCase {
 
@@ -135,6 +136,29 @@ public class ApplicationPermissionTests extends ESTestCase {
         assertThat(perm.getResourcePatterns(app1ReadWrite), containsInAnyOrder("obj/5", "obj/6", "obj/7"));
         assertThat(perm.getResourcePatterns(app1All), containsInAnyOrder("obj/6", "obj/7"));
         assertThat(perm.getResourcePatterns(app2Read), containsInAnyOrder("obj/1", "obj/8"));
+    }
+
+    public void testIsSubsetOf() {
+        final ApplicationPermission permBase = new ApplicationPermission(Arrays.asList(
+                new Tuple<>(app1Read, Sets.newHashSet("obj/1", "obj/2")),
+                new Tuple<>(app1Write, Sets.newHashSet("obj/3", "obj/4")),
+                new Tuple<>(app1All, Sets.newHashSet("obj/6", "obj/7")),
+                new Tuple<>(app2Read, Sets.newHashSet("obj/1", "obj/8"))));
+
+        final ApplicationPermission emptyApplicationPermission = new ApplicationPermission(Collections.emptyList());
+        assertThat(emptyApplicationPermission.isSubsetOf(permBase), is(true));
+
+        final ApplicationPermission permIsSubset_basedOnResources = new ApplicationPermission(
+                Arrays.asList(new Tuple<>(app1Read, Sets.newHashSet("obj/1"))));
+        assertThat(permIsSubset_basedOnResources.isSubsetOf(permBase), is(true));
+
+        final ApplicationPermission permIsSubset_basedOnPrivilege = new ApplicationPermission(Arrays.asList(new Tuple<>(
+                new ApplicationPrivilege("app1", "read", "read/*"), Sets.newHashSet("obj/6"))));
+        assertThat(permIsSubset_basedOnPrivilege.isSubsetOf(permBase), is(true));
+
+        final ApplicationPermission permIsSubsetFails_basedOnResources = new ApplicationPermission(Arrays.asList(new Tuple<>(
+                new ApplicationPrivilege("app1", "write", "write/*"), Sets.newHashSet("obj/1"))));
+        assertThat(permIsSubsetFails_basedOnResources.isSubsetOf(permBase), is(false));
     }
 
     private ApplicationPrivilege actionPrivilege(String appName, String... actions) {

@@ -64,6 +64,31 @@ public final class Role {
         return runAs;
     }
 
+    /**
+     * Determines if this {@link Role} is a subset of other role. It does this
+     * by checking whether the {@link ClusterPermission},
+     * {@link ApplicationPermission}, {@link RunAsPermission} and
+     * {@link IndicesPermission} is a subset of corresponding permissions from
+     * other role.
+     *
+     * @param other role
+     * @return in case it is not a subset then returns
+     * {@link SubsetResult.Result#NO} and if it is clearly a subset will return
+     * {@link SubsetResult.Result#YES}. It will return
+     * {@link SubsetResult.Result#MAYBE} when the role is a subset in every
+     * other aspect except DLS queries.
+     */
+    public SubsetResult isSubsetOf(final Role other) {
+        SubsetResult result = SubsetResult.isNotASubset();
+        boolean isSubset = this.cluster().isSubsetOf(other.cluster())
+                && this.application().isSubsetOf(other.application())
+                && this.runAs().isSubsetOf(other.runAs());
+        if (isSubset) {
+            result = this.indices().isSubsetOf(other.indices());
+        }
+        return result;
+    }
+
     public static Builder builder(String... names) {
         return new Builder(names);
     }

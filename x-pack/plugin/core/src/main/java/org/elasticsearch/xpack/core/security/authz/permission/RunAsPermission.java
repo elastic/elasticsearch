@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 
 import java.util.function.Predicate;
@@ -34,5 +35,16 @@ public final class RunAsPermission {
      */
     public boolean check(String username) {
         return predicate.test(username);
+    }
+
+    /**
+     * Determines if this {@link RunAsPermission} is a subset of other run as
+     * permission.
+     *
+     * @param other run as permission
+     * @return {@code true} if this is a subset of other else it is {@code false}
+     */
+    public boolean isSubsetOf(final RunAsPermission other) {
+        return Operations.subsetOf(this.privilege.getAutomaton(), other.privilege.getAutomaton());
     }
 }

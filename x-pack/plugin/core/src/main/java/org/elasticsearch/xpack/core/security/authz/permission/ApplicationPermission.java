@@ -83,6 +83,28 @@ public final class ApplicationPermission {
         return matched;
     }
 
+    /**
+     * Determines if this {@link ApplicationPermission} is a subset of other
+     * application permission. It does this by checking whether each of the
+     * permissions for this is granted by the other application permissions.
+     *
+     * @param other application permission
+     * @return {@code true} if this is subset of other else it is {@code false}
+     */
+    public boolean isSubsetOf(final ApplicationPermission other) {
+        if (permissions.isEmpty()) {
+            return true;
+        }
+        boolean isSubset = false;
+        for (ApplicationPermission.PermissionEntry permEntry : permissions) {
+            isSubset = other.permissions.stream().anyMatch(e -> e.grants(permEntry.privilege, permEntry.resourceAutomaton));
+            if (isSubset == false) {
+                break;
+            }
+        }
+        return isSubset;
+    }
+
     @Override
     public String toString() {
         return getClass().getSimpleName() + "{privileges=" + permissions + "}";

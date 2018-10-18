@@ -87,7 +87,7 @@ import java.io.IOException;
 
 public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private final static TokenStream EMPTY_TOKEN_STREAM = new EmptyTokenStream();
+    private static final TokenStream EMPTY_TOKEN_STREAM = new EmptyTokenStream();
 
     private String language;
 

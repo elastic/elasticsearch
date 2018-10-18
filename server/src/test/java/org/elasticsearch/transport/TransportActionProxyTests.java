@@ -69,11 +69,7 @@ public class TransportActionProxyTests extends ESTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         IOUtils.close(serviceA, serviceB, serviceC, () -> {
-            try {
-                terminate(threadPool);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+            terminate(threadPool);
         });
     }
 

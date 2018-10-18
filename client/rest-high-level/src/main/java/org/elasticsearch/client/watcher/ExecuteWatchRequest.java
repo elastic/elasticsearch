@@ -1,5 +1,6 @@
 package org.elasticsearch.client.watcher;
 
+import org.apache.http.HttpEntity;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
@@ -21,7 +22,11 @@ import java.util.Optional;
 /**
  * An execute watch request to execute a watch by id
  */
-public class ExecuteWatchRequest {
+public class ExecuteWatchRequest implements Validatable {
+
+    public HttpEntity toHttpEntity() {
+        return null;
+    }
 
     public enum ActionExecutionMode {
         SIMULATE, FORCE_SIMULATE, EXECUTE, FORCE_EXECUTE, SKIP

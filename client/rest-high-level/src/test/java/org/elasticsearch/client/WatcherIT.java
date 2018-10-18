@@ -25,6 +25,8 @@ import org.elasticsearch.client.watcher.AckWatchRequest;
 import org.elasticsearch.client.watcher.AckWatchResponse;
 import org.elasticsearch.client.watcher.ActionStatus;
 import org.elasticsearch.client.watcher.ActionStatus.AckStatus;
+import org.elasticsearch.client.watcher.ExecuteWatchRequest;
+import org.elasticsearch.client.watcher.ExecuteWatchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -132,5 +134,14 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
         ElasticsearchStatusException exception =  expectThrows(ElasticsearchStatusException.class, () ->
             highLevelClient().watcher().activateWatch(new ActivateWatchRequest(watchId), RequestOptions.DEFAULT));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
+    }
+
+    public void testExecuteWatchById() throws Exception {
+        String watchId = randomAlphaOfLength(10);
+        createWatch(watchId);
+
+        ExecuteWatchResponse response = highLevelClient().watcher().executeWatch(new ExecuteWatchRequest(watchId),
+            RequestOptions.DEFAULT);
+
     }
 }

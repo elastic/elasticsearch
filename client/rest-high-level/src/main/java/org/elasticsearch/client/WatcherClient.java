@@ -23,6 +23,8 @@ import org.elasticsearch.client.watcher.ActivateWatchRequest;
 import org.elasticsearch.client.watcher.ActivateWatchResponse;
 import org.elasticsearch.client.watcher.AckWatchRequest;
 import org.elasticsearch.client.watcher.AckWatchResponse;
+import org.elasticsearch.client.watcher.ExecuteWatchRequest;
+import org.elasticsearch.client.watcher.ExecuteWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
@@ -148,6 +150,16 @@ public final class WatcherClient {
     public void activateWatchAsync(ActivateWatchRequest request, RequestOptions options, ActionListener<ActivateWatchResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, WatcherRequestConverters::activateWatch, options,
             ActivateWatchResponse::fromXContent, listener, singleton(404));
+    }
+
+    public ExecuteWatchResponse executeWatch(ExecuteWatchRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, WatcherRequestConverters::executeWatch, options,
+            ExecuteWatchResponse::fromXContent, singleton(404));
+    }
+
+    public void executeWatchAsync(ExecuteWatchRequest request, RequestOptions options, ActionListener<ExecuteWatchResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, WatcherRequestConverters::executeWatch, options,
+            ExecuteWatchResponse::fromXContent, listener, singleton(404));
     }
 
 }

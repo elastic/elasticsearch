@@ -213,32 +213,6 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(apiCallSection.getBodies().size(), equalTo(4));
     }
 
-    public void testParseDoSectionWithJsonMultipleBodiesRepeatedProperty() throws Exception {
-        String[] bodies = new String[] {
-                "{ \"index\": { \"_index\":\"test_index\", \"_type\":\"test_type\", \"_id\":\"test_id\" } }",
-                "{ \"f1\":\"v1\", \"f2\":42 }",
-        };
-        parser = createParser(YamlXContent.yamlXContent,
-                "bulk:\n" +
-                "    refresh: true\n" +
-                "    body: \n" +
-                "        " + bodies[0]
-        );
-
-        DoSection doSection = DoSection.parse(parser);
-        ApiCallSection apiCallSection = doSection.getApiCallSection();
-
-        assertThat(apiCallSection, notNullValue());
-        assertThat(apiCallSection.getApi(), equalTo("bulk"));
-        assertThat(apiCallSection.getParams().size(), equalTo(1));
-        assertThat(apiCallSection.getParams().get("refresh"), equalTo("true"));
-        assertThat(apiCallSection.hasBody(), equalTo(true));
-        assertThat(apiCallSection.getBodies().size(), equalTo(bodies.length));
-        for (int i = 0; i < bodies.length; i++) {
-            assertJsonEquals(apiCallSection.getBodies().get(i), bodies[i]);
-        }
-    }
-
     public void testParseDoSectionWithYamlBody() throws Exception {
         parser = createParser(YamlXContent.yamlXContent,
                 "search:\n" +
@@ -282,34 +256,6 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         bodies[1] = "{ \"f1\":\"v1\", \"f2\": 42 }";
         bodies[2] = "{\"index\": {\"_index\": \"test_index2\", \"_type\":  \"test_type2\", \"_id\": \"test_id2\"}}";
         bodies[3] = "{ \"f1\":\"v2\", \"f2\": 47 }";
-
-        DoSection doSection = DoSection.parse(parser);
-        ApiCallSection apiCallSection = doSection.getApiCallSection();
-
-        assertThat(apiCallSection, notNullValue());
-        assertThat(apiCallSection.getApi(), equalTo("bulk"));
-        assertThat(apiCallSection.getParams().size(), equalTo(1));
-        assertThat(apiCallSection.getParams().get("refresh"), equalTo("true"));
-        assertThat(apiCallSection.hasBody(), equalTo(true));
-        assertThat(apiCallSection.getBodies().size(), equalTo(bodies.length));
-
-        for (int i = 0; i < bodies.length; i++) {
-            assertJsonEquals(apiCallSection.getBodies().get(i), bodies[i]);
-        }
-    }
-
-    public void testParseDoSectionWithYamlMultipleBodiesRepeatedProperty() throws Exception {
-        parser = createParser(YamlXContent.yamlXContent,
-                "bulk:\n" +
-                "    refresh: true\n" +
-                "    body:\n" +
-                "        index:\n" +
-                "            _index: test_index\n" +
-                "            _type:  test_type\n" +
-                "            _id:    test_id\n"
-        );
-        String[] bodies = new String[1];
-        bodies[0] = "{\"index\": {\"_index\": \"test_index\", \"_type\":  \"test_type\", \"_id\": \"test_id\"}}";
 
         DoSection doSection = DoSection.parse(parser);
         ApiCallSection apiCallSection = doSection.getApiCallSection();

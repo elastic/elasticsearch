@@ -145,8 +145,23 @@ public class CoordinatorTests extends ESTestCase {
         cluster.runRandomly();
         cluster.stabilise();
 
+        final ClusterNode leader = cluster.getAnyLeader();
+
         cluster.addNodesAndStabilise(2);
+        {
+            assertThat(leader.coordinator.getMode(), is(Mode.LEADER));
+            final VotingConfiguration lastCommittedConfiguration = leader.getLastAppliedClusterState().getLastCommittedConfiguration();
+            assertThat(lastCommittedConfiguration + " should be all nodes", lastCommittedConfiguration.getNodeIds(),
+                equalTo(cluster.clusterNodes.stream().map(ClusterNode::getId).collect(Collectors.toSet())));
+        }
+
         cluster.addNodesAndStabilise(2);
+        {
+            assertThat(leader.coordinator.getMode(), is(Mode.LEADER));
+            final VotingConfiguration lastCommittedConfiguration = leader.getLastAppliedClusterState().getLastCommittedConfiguration();
+            assertThat(lastCommittedConfiguration + " should be all nodes", lastCommittedConfiguration.getNodeIds(),
+                equalTo(cluster.clusterNodes.stream().map(ClusterNode::getId).collect(Collectors.toSet())));
+        }
 
         final ClusterNode disconnect1 = cluster.getAnyNode();
         final ClusterNode disconnect2 = cluster.getAnyNodeExcept(disconnect1);
@@ -156,13 +171,27 @@ public class CoordinatorTests extends ESTestCase {
         disconnect2.disconnect();
         cluster.stabilise();
 
+        {
+            final ClusterNode newLeader = cluster.getAnyLeader();
+            final VotingConfiguration lastCommittedConfiguration = newLeader.getLastAppliedClusterState().getLastCommittedConfiguration();
+            assertThat(lastCommittedConfiguration + " should be 3 nodes", lastCommittedConfiguration.getNodeIds().size(), equalTo(3));
+            assertFalse(lastCommittedConfiguration.getNodeIds().contains(disconnect1.getId()));
+            assertFalse(lastCommittedConfiguration.getNodeIds().contains(disconnect2.getId()));
+        }
+
         final ClusterNode disconnect3 = cluster.getAnyNodeExcept(disconnect1, disconnect2);
         logger.info("--> disconnecting {}", disconnect3);
         disconnect3.disconnect();
         cluster.stabilise();
 
-        VotingConfiguration lastCommittedConfiguration = cluster.getAnyLeader().getLastAppliedClusterState().getLastCommittedConfiguration();
-        assertThat(lastCommittedConfiguration + " should be a single node", lastCommittedConfiguration.getNodeIds().size(), equalTo(1));
+        {
+            final ClusterNode newLeader = cluster.getAnyLeader();
+            final VotingConfiguration lastCommittedConfiguration = newLeader.getLastAppliedClusterState().getLastCommittedConfiguration();
+            assertThat(lastCommittedConfiguration + " should be 1 node", lastCommittedConfiguration.getNodeIds().size(), equalTo(1));
+            assertFalse(lastCommittedConfiguration.getNodeIds().contains(disconnect1.getId()));
+            assertFalse(lastCommittedConfiguration.getNodeIds().contains(disconnect2.getId()));
+            assertFalse(lastCommittedConfiguration.getNodeIds().contains(disconnect3.getId()));
+        }
     }
 
     public void testDoesNotShrinkConfigurationDueToLossToleranceConfigurationWithThreeNodes() {

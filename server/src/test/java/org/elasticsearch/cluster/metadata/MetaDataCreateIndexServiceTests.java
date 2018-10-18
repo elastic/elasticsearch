@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.shards.ClusterShardLimitIT;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -487,6 +488,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             .put(SETTING_NUMBER_OF_REPLICAS, counts.getFailingIndexReplicas())
             .build();
 
+        DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
         MetaDataCreateIndexService.checkShardLimit(indexSettings, state, deprecationLogger);
         int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
         int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());

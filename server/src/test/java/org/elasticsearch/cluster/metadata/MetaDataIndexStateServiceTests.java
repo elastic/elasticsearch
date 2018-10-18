@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.shards.ClusterShardLimitIT;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
@@ -53,6 +54,7 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
             .collect(Collectors.toList())
             .toArray(new Index[2]);
 
+        DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
         MetaDataIndexStateService.validateShardLimit(state, indices, deprecationLogger);
         int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
         int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());

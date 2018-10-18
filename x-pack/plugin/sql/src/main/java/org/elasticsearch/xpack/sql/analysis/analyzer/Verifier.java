@@ -511,10 +511,16 @@ final class Verifier {
             for (Expression rightValue : in.list()) {
                 if (dt == null) {
                     dt = rightValue.dataType();
+                    if (!in.value().dataType().isCompatibleWith(dt)) {
+                        localFailures.add(fail(in.list().get(0), "expected data type [%s], value provided is of type [%s]",
+                            in.value().dataType(), dt));
+                        return;
+                    }
                 } else {
-                    if (rightValue.dataType() != dt) {
+                    if (!rightValue.dataType().isCompatibleWith(dt)) {
                         localFailures.add(fail(rightValue, "expected data type [%s], value provided is of type [%s]",
                             dt, rightValue.dataType()));
+                        return;
                     }
                 }
             }

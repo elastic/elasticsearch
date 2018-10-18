@@ -182,7 +182,7 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testAllowSomeScriptContextSettings() throws IOException {
         Settings.Builder builder = Settings.builder();
-        builder.put("script.allowed_contexts", "search, field, aggs");
+        builder.put("script.allowed_contexts", "field, aggs");
         buildScriptService(builder.build());
 
         assertCompileAccepted("painless", "script", ScriptType.INLINE, FieldScript.CONTEXT);

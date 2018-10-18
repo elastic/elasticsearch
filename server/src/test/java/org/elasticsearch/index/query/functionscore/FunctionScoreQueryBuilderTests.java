@@ -35,7 +35,6 @@ import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -727,8 +726,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testMalformedQueryMultipleQueryElements() throws IOException {
-        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
-            XContent.isStrictDuplicateDetectionEnabled());
         String json = "{\n" +
                 "    \"function_score\":{\n" +
                 "        \"query\":{\n" +
@@ -744,7 +741,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 "        }\n" +
                 "    }\n" +
                 "}";
-        expectParsingException(json, "[query] is already defined.");
+        JsonParseException e = expectThrows(JsonParseException.class, () -> parseQuery(json));
+        assertThat(e.getMessage(), containsString("Duplicate field 'query'"));
     }
 
     private void expectParsingException(String json, Matcher<String> messageMatcher) {

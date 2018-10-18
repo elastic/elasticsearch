@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.settings;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -26,13 +27,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.hamcrest.CoreMatchers;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -554,29 +553,17 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testDuplicateKeysThrowsException() {
-        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
-            XContent.isStrictDuplicateDetectionEnabled());
         final String json = "{\"foo\":\"bar\",\"foo\":\"baz\"}";
         final SettingsException e = expectThrows(SettingsException.class,
             () -> Settings.builder().loadFromSource(json, XContentType.JSON).build());
-        assertThat(
-            e.toString(),
-            CoreMatchers.containsString("duplicate settings key [foo] " +
-                "found at line number [1], " +
-                "column number [20], " +
-                "previous value [bar], " +
-                "current value [baz]"));
+        assertThat(e.toString(), containsString("Duplicate field 'foo'"));
 
         String yaml = "foo: bar\nfoo: baz";
         SettingsException e1 = expectThrows(SettingsException.class, () -> {
             Settings.builder().loadFromSource(yaml, XContentType.YAML);
         });
-        assertEquals(e1.getCause().getClass(), ElasticsearchParseException.class);
-        String msg = e1.getCause().getMessage();
-        assertTrue(
-            msg,
-            msg.contains("duplicate settings key [foo] found at line number [2], column number [6], " +
-                "previous value [bar], current value [baz]"));
+        assertEquals(e1.getCause().getClass(), JsonParseException.class);
+        assertThat(e1.getCause().getMessage(), containsString("Duplicate field 'foo'"));
     }
 
     public void testToXContent() throws IOException {

@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -111,8 +111,6 @@ public class AggregatorFactoriesTests extends ESTestCase {
     }
 
     public void testTwoAggs() throws Exception {
-        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
-            XContent.isStrictDuplicateDetectionEnabled());
         XContentBuilder source = JsonXContent.contentBuilder()
                 .startObject()
                     .startObject("by_date")
@@ -138,8 +136,8 @@ public class AggregatorFactoriesTests extends ESTestCase {
                 .endObject();
         XContentParser parser = createParser(source);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parser));
-        assertThat(e.toString(), containsString("Found two sub aggregation definitions under [by_date]"));
+        Exception e = expectThrows(JsonParseException.class, () -> AggregatorFactories.parseAggregators(parser));
+        assertThat(e.toString(), containsString("Duplicate field 'aggs'"));
     }
 
     public void testInvalidAggregationName() throws Exception {
@@ -177,8 +175,6 @@ public class AggregatorFactoriesTests extends ESTestCase {
     }
 
     public void testSameAggregationName() throws Exception {
-        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
-            XContent.isStrictDuplicateDetectionEnabled());
         final String name = randomAlphaOfLengthBetween(1, 10);
         XContentBuilder source = JsonXContent.contentBuilder()
                 .startObject()
@@ -195,8 +191,8 @@ public class AggregatorFactoriesTests extends ESTestCase {
                 .endObject();
         XContentParser parser = createParser(source);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parser));
-        assertThat(e.toString(), containsString("Two sibling aggregations cannot have the same name: [" + name + "]"));
+        Exception e = expectThrows(JsonParseException.class, () -> AggregatorFactories.parseAggregators(parser));
+        assertThat(e.toString(), containsString("Duplicate field '" + name + "'"));
     }
 
     public void testMissingName() throws Exception {

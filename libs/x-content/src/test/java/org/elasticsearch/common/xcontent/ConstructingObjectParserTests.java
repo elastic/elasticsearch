@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.xcontent;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -165,18 +166,16 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testRepeatedConstructorParam() throws IOException {
-        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
-            XContent.isStrictDuplicateDetectionEnabled());
         XContentParser parser = createParser(JsonXContent.jsonXContent,
                   "{\n"
                 + "  \"vegetable\": 1,\n"
                 + "  \"vegetable\": 2\n"
                 + "}");
         Throwable e = expectThrows(XContentParseException.class, () -> randomFrom(HasCtorArguments.ALL_PARSERS).apply(parser, null));
-        assertEquals("[has_required_arguments] failed to parse field [vegetable]", e.getMessage());
+        assertEquals("[2:16] [has_required_arguments] failed to parse object", e.getMessage());
         e = e.getCause();
-        assertThat(e, instanceOf(IllegalArgumentException.class));
-        assertEquals("Can't repeat param [vegetable]", e.getMessage());
+        assertThat(e, instanceOf(JsonParseException.class));
+        assertThat(e.getMessage(), containsString("Duplicate field 'vegetable'"));
     }
 
     public void testBadParam() throws IOException {

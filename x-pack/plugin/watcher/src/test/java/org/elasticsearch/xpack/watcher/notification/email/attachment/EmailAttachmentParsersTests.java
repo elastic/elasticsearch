@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
@@ -116,8 +116,6 @@ public class EmailAttachmentParsersTests extends ESTestCase {
     }
 
     public void testThatTwoAttachmentsWithTheSameIdThrowError() throws Exception {
-        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
-                XContent.isStrictDuplicateDetectionEnabled());
         Map<String, EmailAttachmentParser> parsers = new HashMap<>();
         parsers.put("test", new TestEmailAttachmentParser());
         EmailAttachmentsParser parser = new EmailAttachmentsParser(parsers);
@@ -146,8 +144,8 @@ public class EmailAttachmentParsersTests extends ESTestCase {
 
             parser.parse(xContentParser);
             fail("Expected parser to fail but did not happen");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), is("Attachment with id [my-name.json] has already been created, must be renamed"));
+        } catch (JsonParseException e) {
+            assertThat(e.getMessage(), containsString("Duplicate field 'my-name.json'"));
         }
     }
 

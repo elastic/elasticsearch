@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.query;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -336,8 +336,6 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
      * test that two queries in object throws error
      */
     public void testTooManyQueriesInObject() throws IOException {
-        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
-            XContent.isStrictDuplicateDetectionEnabled());
         String clauseType = randomFrom("must", "should", "must_not", "filter");
         // should also throw error if invalid query is preceded by a valid one
         String query = "{\n" +
@@ -352,8 +350,8 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 "    }\n" +
                 "  }\n" +
                 "}";
-        ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query));
-        assertEquals("[match] malformed query, expected [END_OBJECT] but found [FIELD_NAME]", ex.getMessage());
+        JsonParseException ex = expectThrows(JsonParseException.class, () -> parseQuery(query));
+        assertTrue(ex.getMessage().contains("Duplicate field 'match'"));
     }
 
     public void testRewrite() throws IOException {

@@ -24,7 +24,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
@@ -215,9 +214,6 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
     }
 
     public void testParseDoSectionWithJsonMultipleBodiesRepeatedProperty() throws Exception {
-        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
-            XContent.isStrictDuplicateDetectionEnabled());
-
         String[] bodies = new String[] {
                 "{ \"index\": { \"_index\":\"test_index\", \"_type\":\"test_type\", \"_id\":\"test_id\" } }",
                 "{ \"f1\":\"v1\", \"f2\":42 }",
@@ -226,9 +222,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 "bulk:\n" +
                 "    refresh: true\n" +
                 "    body: \n" +
-                "        " + bodies[0] + "\n" +
-                "    body: \n" +
-                "        " + bodies[1]
+                "        " + bodies[0]
         );
 
         DoSection doSection = DoSection.parse(parser);
@@ -305,9 +299,6 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
     }
 
     public void testParseDoSectionWithYamlMultipleBodiesRepeatedProperty() throws Exception {
-        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
-            XContent.isStrictDuplicateDetectionEnabled());
-
         parser = createParser(YamlXContent.yamlXContent,
                 "bulk:\n" +
                 "    refresh: true\n" +
@@ -315,14 +306,10 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 "        index:\n" +
                 "            _index: test_index\n" +
                 "            _type:  test_type\n" +
-                "            _id:    test_id\n" +
-                "    body:\n" +
-                "        f1: v1\n" +
-                "        f2: 42\n"
+                "            _id:    test_id\n"
         );
-        String[] bodies = new String[2];
+        String[] bodies = new String[1];
         bodies[0] = "{\"index\": {\"_index\": \"test_index\", \"_type\":  \"test_type\", \"_id\": \"test_id\"}}";
-        bodies[1] = "{ \"f1\":\"v1\", \"f2\": 42 }";
 
         DoSection doSection = DoSection.parse(parser);
         ApiCallSection apiCallSection = doSection.getApiCallSection();

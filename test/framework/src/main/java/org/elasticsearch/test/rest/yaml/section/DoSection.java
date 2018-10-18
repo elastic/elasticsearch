@@ -150,7 +150,10 @@ public class DoSection implements ExecutableSection {
                                 String body = parser.text();
                                 XContentParser bodyParser = JsonXContent.jsonXContent
                                     .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, body);
-                                apiCallSection.addBody(bodyParser.mapOrdered());
+                                //multiple bodies are supported e.g. in case of bulk provided as a whole string
+                                while(bodyParser.nextToken() != null) {
+                                    apiCallSection.addBody(bodyParser.mapOrdered());
+                                }
                             } else {
                                 apiCallSection.addParam(paramName, parser.text());
                             }

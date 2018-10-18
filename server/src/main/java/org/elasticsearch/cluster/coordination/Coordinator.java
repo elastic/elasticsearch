@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.Builder;
 import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
 import org.elasticsearch.cluster.coordination.JoinHelper.InitialJoinAccumulator;
@@ -42,6 +43,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -64,9 +66,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
+import static java.util.Collections.emptySet;
+import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_MASTER_NODES_FAILURE_TOLERANCE;
 import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_WRITES;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
@@ -104,6 +110,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     @Nullable
     private Releasable leaderCheckScheduler;
     private long maxTermSeen;
+    private final Reconfigurator reconfigurator;
 
     private Mode mode;
     private Optional<DiscoveryNode> lastKnownLeader;
@@ -111,9 +118,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private JoinHelper.JoinAccumulator joinAccumulator;
     private Optional<CoordinatorPublication> currentPublication = Optional.empty();
 
-    public Coordinator(Settings settings, TransportService transportService, AllocationService allocationService,
-                       MasterService masterService, Supplier<CoordinationState.PersistedState> persistedStateSupplier,
-                       UnicastHostsProvider unicastHostsProvider, ClusterApplier clusterApplier, Random random) {
+    public Coordinator(Settings settings, ClusterSettings clusterSettings, TransportService transportService,
+                       AllocationService allocationService, MasterService masterService,
+                       Supplier<CoordinationState.PersistedState> persistedStateSupplier, UnicastHostsProvider unicastHostsProvider,
+                       ClusterApplier clusterApplier, Random random) {
         super(settings);
         this.transportService = transportService;
         this.masterService = masterService;
@@ -136,6 +144,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         this.clusterApplier = clusterApplier;
         masterService.setClusterStateSupplier(this::getStateForMasterService);
+        this.reconfigurator = new Reconfigurator(settings, clusterSettings);
     }
 
     private Runnable getOnLeaderFailure() {
@@ -582,10 +591,56 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             MetaData.Builder metaDataBuilder = MetaData.builder();
             // automatically generate a UID for the metadata if we need to
             metaDataBuilder.generateClusterUuidIfNeeded(); // TODO generate UUID in bootstrapping tool?
+            metaDataBuilder.persistentSettings(Settings.builder().put(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.getKey(),
+                (votingConfiguration.getNodeIds().size() - 1) / 2).build()); // TODO set this in bootstrapping tool?
             builder.metaData(metaDataBuilder);
             coordinationState.get().setInitialState(builder.build());
             preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version
             startElectionScheduler();
+        }
+    }
+
+    // Package-private for testing
+    ClusterState reconfigureIfPossible(ClusterState clusterState) {
+        synchronized (mutex) {
+            if (mode == Mode.LEADER) {
+                final Set<DiscoveryNode> liveNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false)
+                    .filter(coordinationState.get()::containsJoinVoteFor).collect(Collectors.toSet());
+                final ClusterState.VotingConfiguration newConfig = reconfigurator.reconfigure(
+                    liveNodes, emptySet(), clusterState.getLastAcceptedConfiguration());
+                if (newConfig.equals(clusterState.getLastAcceptedConfiguration()) == false) {
+                    assert coordinationState.get().joinVotesHaveQuorumFor(newConfig);
+                    return ClusterState.builder(clusterState).lastAcceptedConfiguration(newConfig).build();
+                }
+            }
+        }
+
+        return clusterState;
+    }
+
+    private AtomicBoolean reconfigurationTaskScheduled = new AtomicBoolean();
+
+    private void scheduleReconfigurationIfNeeded() {
+        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+        assert mode == Mode.LEADER : mode;
+        assert currentPublication.isPresent() == false : "Expected no publication in progress";
+
+        final ClusterState state = getLastAcceptedState();
+        if (reconfigureIfPossible(state) != state && reconfigurationTaskScheduled.compareAndSet(false, true)) {
+            logger.trace("scheduling reconfiguration");
+            masterService.submitStateUpdateTask("reconfigure", new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    reconfigurationTaskScheduled.set(false);
+                    return reconfigureIfPossible(currentState);
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    reconfigurationTaskScheduled.set(false);
+                    logger.debug("reconfiguration failed", e);
+                }
+            });
         }
     }
 
@@ -599,16 +654,26 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             ensureTermAtLeast(getLocalNode(), join.getTerm()).ifPresent(this::handleJoin);
 
             if (coordinationState.get().electionWon()) {
-                // if we have already won the election then the actual join does not matter for election purposes,
-                // so swallow any exception
-                try {
-                    coordinationState.get().handleJoin(join);
-                } catch (CoordinationStateRejectedException e) {
-                    logger.debug(new ParameterizedMessage("failed to add {} - ignoring", join), e);
+                // if we have already won the election then the actual join does not matter for election purposes, so swallow any exception
+                final boolean isNewJoin = handleJoinIgnoringExceptions(join);
+                if (isNewJoin && mode == Mode.LEADER && publicationInProgress() == false) {
+                    scheduleReconfigurationIfNeeded();
                 }
             } else {
                 coordinationState.get().handleJoin(join); // this might fail and bubble up the exception
             }
+        }
+    }
+
+    /**
+     * @return true iff the join was from a new node and was successfully added
+     */
+    private boolean handleJoinIgnoringExceptions(Join join) {
+        try {
+            return coordinationState.get().handleJoin(join);
+        } catch (CoordinationStateRejectedException e) {
+            logger.debug(new ParameterizedMessage("failed to add {} - ignoring", join), e);
+            return false;
         }
     }
 
@@ -904,6 +969,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                     logger.debug("publication ended successfully: {}", CoordinatorPublication.this);
                                     // trigger term bump if new term was found during publication
                                     updateMaxTermSeen(getCurrentTerm());
+
+                                    if (mode == Mode.LEADER) {
+                                        scheduleReconfigurationIfNeeded();
+                                    }
                                 }
                                 ackListener.onNodeAck(getLocalNode(), null);
                                 publishListener.onResponse(null);
@@ -916,8 +985,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
                     removePublicationAndPossiblyBecomeCandidate("Publication.onCompletion(false)");
 
-                    FailedToCommitClusterStateException exception = new FailedToCommitClusterStateException(
-                        "publication failed", e);
+                    final FailedToCommitClusterStateException exception = new FailedToCommitClusterStateException("publication failed", e);
                     ackListener.onNodeAck(getLocalNode(), exception); // other nodes have acked, but not the master.
                     publishListener.onFailure(exception);
                 }

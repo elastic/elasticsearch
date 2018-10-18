@@ -602,6 +602,15 @@ public class RoleDescriptor implements ToXContentObject {
             this.query = in.readOptionalBytesReference();
         }
 
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeStringArray(indices);
+            out.writeOptionalStringArray(grantedFields);
+            out.writeOptionalStringArray(deniedFields);
+            out.writeStringArray(privileges);
+            out.writeOptionalBytesReference(query);
+        }
+
         public static Builder builder() {
             return new Builder();
         }
@@ -730,15 +739,6 @@ public class RoleDescriptor implements ToXContentObject {
             return builder.endObject();
         }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringArray(indices);
-            out.writeOptionalStringArray(grantedFields);
-            out.writeOptionalStringArray(deniedFields);
-            out.writeStringArray(privileges);
-            out.writeOptionalBytesReference(query);
-        }
-
         public static class Builder {
 
             private IndicesPrivileges indicesPrivileges = new IndicesPrivileges();
@@ -816,6 +816,13 @@ public class RoleDescriptor implements ToXContentObject {
             this.resources = in.readStringArray();
         }
 
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(application);
+            out.writeStringArray(privileges);
+            out.writeStringArray(resources);
+        }
+
         public static Builder builder() {
             return new Builder();
         }
@@ -875,13 +882,6 @@ public class RoleDescriptor implements ToXContentObject {
             builder.array(Fields.PRIVILEGES.getPreferredName(), privileges);
             builder.array(Fields.RESOURCES.getPreferredName(), resources);
             return builder.endObject();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(application);
-            out.writeStringArray(privileges);
-            out.writeStringArray(resources);
         }
 
         public static void write(StreamOutput out, ApplicationResourcePrivileges privileges) throws IOException {

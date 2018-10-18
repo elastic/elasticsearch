@@ -1244,7 +1244,7 @@ Reference key modifier example
 
 [[drop-processor]]
 === Drop Processor
-Drops the document without raising any an errors. This is useful to prevent the document from
+Drops the document without raising any errors. This is useful to prevent the document from
 getting indexed based on some condition.
 
 [source,js]

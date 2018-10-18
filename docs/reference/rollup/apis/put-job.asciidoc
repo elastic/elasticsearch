@@ -101,14 +101,15 @@ When the job is created, you receive the following results:
 // TESTRESPONSE
 
 By default the metrics `min`/`max` are added
-for the fields in the `date_histogram` and `histogram` configurations
-unless metrics for those fields are provided in the payload.
+for the fields in the `date_histogram` and `histogram` configurations.
+If this behavior is not desired, explicitly configure metrics
+for those fields. This will override the defaults.
 
 If the following is provided
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/rollup/job/sensor
+PUT _xpack/rollup/job/sensor2
 {
     "index_pattern": "sensor-*",
     "rollup_index": "sensor_rollup",
@@ -117,7 +118,7 @@ PUT _xpack/rollup/job/sensor
     "groups" : {
       "date_histogram": {
         "field": "timestamp",
-        "interval": "1h",
+        "interval": "60m",
         "delay": "7d"
       },
       "histogram": {
@@ -134,12 +135,9 @@ PUT _xpack/rollup/job/sensor
 }
 --------------------------------------------------
 // NOTCONSOLE
+// TEST[setup:sensor_index]
 
 The actual config when created in the cluster will look as follows.
-Notice the new default metrics gathered for `voltage` and `timestamp`.
-Since these fields were referenced in `groups.histogram` and `groups.date_histogram` configurations
-respectively and no metrics were requested for them,
-they both got the default metrics of `["min", "max"]`.
 
 [source,js]
 --------------------------------------------------
@@ -151,7 +149,7 @@ they both got the default metrics of `["min", "max"]`.
    "groups" : {
       "date_histogram": {
          "field": "timestamp",
-         "interval": "1h",
+         "interval": "60m",
          "delay": "7d"
       },
       "histogram": {
@@ -165,14 +163,19 @@ they both got the default metrics of `["min", "max"]`.
            "metrics": ["min", "max", "sum"]
        },
        {
-           "field": "voltage",
+           "field": "voltage", <1>
            "metrics": ["min", "max"]
        },
        {
-           "field": "timestamp",
+           "field": "timestamp", <1>
            "metrics": ["min", "max"]
        }
    ]
 }
 --------------------------------------------------
 // NOTCONSOLE
+<1> Notice the new default metrics gathered for `voltage` and `timestamp`.
+    Since these fields were referenced in `groups.histogram` and
+    `groups.date_histogram` configurations
+    respectively and no metrics were requested for them,
+    they both got the default metrics of `["min", "max"]`.

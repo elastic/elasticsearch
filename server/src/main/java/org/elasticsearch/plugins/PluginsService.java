@@ -20,6 +20,7 @@
 package org.elasticsearch.plugins;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.analysis.util.TokenizerFactory;
@@ -36,7 +37,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -475,7 +475,7 @@ public class PluginsService extends AbstractComponent {
         List<String> exts = bundle.plugin.getExtendedPlugins();
 
         try {
-            final Logger logger = ESLoggerFactory.getLogger(JarHell.class);
+            final Logger logger = LogManager.getLogger(JarHell.class);
             Set<URL> urls = new HashSet<>();
             for (String extendedPlugin : exts) {
                 Set<URL> pluginUrls = transitiveUrls.get(extendedPlugin);

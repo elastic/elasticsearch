@@ -314,7 +314,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
     private void assertClusterStatsMonitoringDoc(final Map<String, Object> document,
                                                  final boolean apmIndicesExist) {
         final Map<String, Object> source = (Map<String, Object>) document.get("_source");
-        assertEquals(11, source.size());
+        assertEquals(12, source.size());
 
         assertThat((String) source.get("cluster_name"), not(isEmptyOrNullString()));
         assertThat(source.get("version"), equalTo(Version.CURRENT.toString()));

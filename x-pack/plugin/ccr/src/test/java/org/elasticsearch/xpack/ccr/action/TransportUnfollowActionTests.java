@@ -83,7 +83,6 @@ public class TransportUnfollowActionTests extends ESTestCase {
             10240,
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueMillis(10),
-            "uuid",
             Collections.emptyMap()
         );
         PersistentTasksCustomMetaData.PersistentTask<?> task =

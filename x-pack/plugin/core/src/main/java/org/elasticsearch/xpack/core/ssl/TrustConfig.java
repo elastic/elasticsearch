@@ -7,14 +7,21 @@ package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 
 import javax.net.ssl.X509ExtendedTrustManager;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -57,6 +64,38 @@ abstract class TrustConfig {
      * {@inheritDoc}. Declared as abstract to force implementors to provide a custom implementation
      */
     public abstract int hashCode();
+
+    /**
+     * Loads and returns the appropriate {@link KeyStore} for the given configuration. The KeyStore can be backed by a file
+     * in any format that the Security Provider might support, or a cryptographic software or hardware token in the case
+     * of a PKCS#11 Provider.
+     *
+     * @param environment   the environment to resolve files against or null in the case of running in a transport client
+     * @param storePath     the path to the {@link KeyStore} to load, or null if a PKCS11 token is configured as the keystore/truststore
+     *                      of the JVM
+     * @param storeType     the type of the {@link KeyStore}
+     * @param storePassword the password to be used for decrypting the {@link KeyStore}
+     * @return the loaded KeyStore to be used as a keystore or a truststore
+     * @throws KeyStoreException        if an instance of the specified type cannot be loaded
+     * @throws CertificateException     if any of the certificates in the keystore could not be loaded
+     * @throws NoSuchAlgorithmException if the algorithm used to check the integrity of the keystore cannot be found
+     * @throws IOException              if there is an I/O issue with the KeyStore data or the password is incorrect
+     */
+    KeyStore getStore(@Nullable Environment environment, @Nullable String storePath, String storeType, SecureString storePassword)
+        throws KeyStoreException, CertificateException, NoSuchAlgorithmException, IOException {
+        if (null != storePath) {
+            try (InputStream in = Files.newInputStream(CertParsingUtils.resolvePath(storePath, environment))) {
+                KeyStore ks = KeyStore.getInstance(storeType);
+                ks.load(in, storePassword.getChars());
+                return ks;
+            }
+        } else if (storeType.equalsIgnoreCase("pkcs11")) {
+            KeyStore ks = KeyStore.getInstance(storeType);
+            ks.load(null, storePassword.getChars());
+            return ks;
+        }
+        throw new IllegalArgumentException("keystore.path or truststore.path can only be empty when using a PKCS#11 token");
+    }
 
     /**
      * A trust configuration that is a combination of a trust configuration with the default JDK trust configuration. This trust

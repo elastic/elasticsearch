@@ -34,6 +34,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
 
     public static final String STATUS_PARSER_NAME = "shard-follow-node-task-status";
 
+    private static final ParseField LEADER_CLUSTER = new ParseField("leader_cluster");
     private static final ParseField LEADER_INDEX = new ParseField("leader_index");
     private static final ParseField FOLLOWER_INDEX = new ParseField("follower_index");
     private static final ParseField SHARD_ID = new ParseField("shard_id");
@@ -66,16 +67,16 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                     args -> new ShardFollowNodeTaskStatus(
                             (String) args[0],
                             (String) args[1],
-                            (int) args[2],
-                            (long) args[3],
+                            (String) args[2],
+                            (int) args[3],
                             (long) args[4],
                             (long) args[5],
                             (long) args[6],
                             (long) args[7],
-                            (int) args[8],
+                            (long) args[8],
                             (int) args[9],
                             (int) args[10],
-                            (long) args[11],
+                            (int) args[11],
                             (long) args[12],
                             (long) args[13],
                             (long) args[14],
@@ -85,12 +86,13 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                             (long) args[18],
                             (long) args[19],
                             (long) args[20],
+                            (long) args[21],
                             new TreeMap<>(
-                                    ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[21])
+                                    ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[22])
                                             .stream()
                                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
-                            (long) args[22],
-                            (ElasticsearchException) args[23]));
+                            (long) args[23],
+                            (ElasticsearchException) args[24]));
 
     public static final String FETCH_EXCEPTIONS_ENTRY_PARSER_NAME = "shard-follow-node-task-status-fetch-exceptions-entry";
 
@@ -100,6 +102,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                     args -> new AbstractMap.SimpleEntry<>((long) args[0], Tuple.tuple((Integer)args[1], (ElasticsearchException)args[2])));
 
     static {
+        STATUS_PARSER.declareString(ConstructingObjectParser.constructorArg(), LEADER_CLUSTER);
         STATUS_PARSER.declareString(ConstructingObjectParser.constructorArg(), LEADER_INDEX);
         STATUS_PARSER.declareString(ConstructingObjectParser.constructorArg(), FOLLOWER_INDEX);
         STATUS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), SHARD_ID);
@@ -139,6 +142,12 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                 ConstructingObjectParser.constructorArg(),
                 (p, c) -> ElasticsearchException.fromXContent(p),
                 FETCH_EXCEPTIONS_ENTRY_EXCEPTION);
+    }
+
+    private final String leaderCluster;
+
+    public String getLeaderCluster() {
+        return leaderCluster;
     }
 
     private final String leaderIndex;
@@ -286,6 +295,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     }
 
     public ShardFollowNodeTaskStatus(
+            final String leaderCluster,
             final String leaderIndex,
             final String followerIndex,
             final int shardId,
@@ -310,6 +320,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
             final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> fetchExceptions,
             final long timeSinceLastFetchMillis,
             final ElasticsearchException fatalException) {
+        this.leaderCluster = leaderCluster;
         this.leaderIndex = leaderIndex;
         this.followerIndex = followerIndex;
         this.shardId = shardId;
@@ -337,6 +348,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     }
 
     public ShardFollowNodeTaskStatus(final StreamInput in) throws IOException {
+        this.leaderCluster = in.readOptionalString();
         this.leaderIndex = in.readString();
         this.followerIndex = in.readString();
         this.shardId = in.readVInt();
@@ -371,6 +383,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
+        out.writeOptionalString(leaderCluster);
         out.writeString(leaderIndex);
         out.writeString(followerIndex);
         out.writeVInt(shardId);
@@ -414,6 +427,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     }
 
     public XContentBuilder toXContentFragment(final XContentBuilder builder, final Params params) throws IOException {
+        builder.field(LEADER_CLUSTER.getPreferredName(), leaderCluster);
         builder.field(LEADER_INDEX.getPreferredName(), leaderIndex);
         builder.field(FOLLOWER_INDEX.getPreferredName(), followerIndex);
         builder.field(SHARD_ID.getPreferredName(), shardId);
@@ -488,7 +502,8 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         final ShardFollowNodeTaskStatus that = (ShardFollowNodeTaskStatus) o;
         String fatalExceptionMessage = fatalException != null ? fatalException.getMessage() : null;
         String otherFatalExceptionMessage = that.fatalException != null ? that.fatalException.getMessage() : null;
-        return leaderIndex.equals(that.leaderIndex) &&
+        return leaderCluster.equals(that.leaderCluster) &&
+                leaderIndex.equals(that.leaderIndex) &&
                 followerIndex.equals(that.followerIndex) &&
                 shardId == that.shardId &&
                 leaderGlobalCheckpoint == that.leaderGlobalCheckpoint &&
@@ -523,6 +538,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     public int hashCode() {
         String fatalExceptionMessage = fatalException != null ? fatalException.getMessage() : null;
         return Objects.hash(
+            leaderCluster,
                 leaderIndex,
                 followerIndex,
                 shardId,

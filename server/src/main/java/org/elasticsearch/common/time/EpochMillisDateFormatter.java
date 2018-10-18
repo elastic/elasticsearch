@@ -62,7 +62,7 @@ class EpochMillisDateFormatter implements DateFormatter {
                     return Instant.ofEpochMilli(Double.valueOf(input).longValue()).atZone(ZoneOffset.UTC);
                 }
 
-                if (inputs[1].length() > 9) {
+                if (inputs[1].length() > 6) {
                     throw new DateTimeParseException("too much granularity after dot [" + input + "]", input, 0);
                 }
                 Long nanos = new BigDecimal(inputs[1]).movePointRight(6 - inputs[1].length()).longValueExact();

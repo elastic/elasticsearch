@@ -90,10 +90,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
     private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
-    private String defaultPipelineId;
-    private String defaultRouting;
-    private String defaultIndex;
-    private String defaultType;
+    private String defaultPipelineId = "";
+    private String defaultRouting = "";
+    private String defaultIndex = "";
+    private String defaultType = "";
 
     private long sizeInBytes = 0;
 

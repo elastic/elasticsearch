@@ -189,7 +189,7 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         return search.getHits();
     }
 
-    private void refreshIndexes(String... indices) throws IOException {
+    protected void refreshIndexes(String... indices) throws IOException {
         String joinedIndices = Arrays.stream(indices)
             .collect(Collectors.joining(","));
         Response refreshResponse = client().performRequest(new Request("POST", "/" + joinedIndices + "/_refresh"));

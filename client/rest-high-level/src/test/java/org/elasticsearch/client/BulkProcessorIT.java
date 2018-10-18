@@ -284,7 +284,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testGlobalParametersAndBulkProcessor() throws Exception {
-        createIndexWithTwoShards();
+        createIndexWithShards("test", 2);
 
         final CountDownLatch latch = new CountDownLatch(1);
         BulkProcessorTestListener listener = new BulkProcessorTestListener(latch);
@@ -424,11 +424,11 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
     }
 
 
-    private void createIndexWithTwoShards() throws IOException {
-        CreateIndexRequest indexRequest = new CreateIndexRequest("test");
+    private void createIndexWithShards(String index, int shards) throws IOException {
+        CreateIndexRequest indexRequest = new CreateIndexRequest(index);
         indexRequest.settings(Settings.builder()
-            .put("index.number_of_shards", 2)
-            .put("index.number_of_replicas", 1)
+            .put("index.number_of_shards", shards)
+            .put("index.number_of_replicas", 0)
         );
         highLevelClient().indices().create(indexRequest, RequestOptions.DEFAULT);
     }

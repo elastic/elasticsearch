@@ -168,10 +168,10 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
     }
 
     public void testGlobalRouting() throws IOException {
-        createIndexWithTwoShards();
+        createIndexWithShards("index",10);
 
         BulkRequest request = new BulkRequest(null, null);
-        request.routing("routing");
+        request.routing("1");
         request.add(new IndexRequest("index", "type", "1")
             .source(XContentType.JSON, "field", "bulk1"));
         request.add(new IndexRequest("index", "type", "2")
@@ -179,10 +179,10 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
 
         bulk(request);
         
-        Iterable<SearchHit> emptyHits = searchAll(new SearchRequest("index").routing("wrongRouting"));
+        Iterable<SearchHit> emptyHits = searchAll(new SearchRequest("index").routing("2"));
         assertThat(emptyHits, is(emptyIterable()));
 
-        Iterable<SearchHit> hits = searchAll(new SearchRequest("index").routing("routing"));
+        Iterable<SearchHit> hits = searchAll(new SearchRequest("index").routing("1"));
         assertThat(hits, containsInAnyOrder(hasId("1"), hasId("2")));
     }
 
@@ -212,11 +212,11 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
         return (response) -> (T) response.getSourceAsMap().get(fieldName);
     }
 
-    private void createIndexWithTwoShards() throws IOException {
-        CreateIndexRequest indexRequest = new CreateIndexRequest("index");
+    private void createIndexWithShards(String index, int shards) throws IOException {
+        CreateIndexRequest indexRequest = new CreateIndexRequest(index);
         indexRequest.settings(Settings.builder()
-            .put("index.number_of_shards", 2)
-            .put("index.number_of_replicas", 1)
+            .put("index.number_of_shards", shards)
+            .put("index.number_of_replicas", 0)
         );
         highLevelClient().indices().create(indexRequest, RequestOptions.DEFAULT);
     }

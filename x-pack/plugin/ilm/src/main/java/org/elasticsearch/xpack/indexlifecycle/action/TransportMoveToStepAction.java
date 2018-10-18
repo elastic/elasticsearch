@@ -63,6 +63,16 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
                 }
 
                 @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    IndexMetaData newIndexMetaData = newState.metaData().index(indexMetaData.getIndex());
+                    if (newIndexMetaData == null) {
+                        // Index must have been deleted
+                        return;
+                    }
+                    indexLifecycleService.maybeRunAsyncAction(newState, newIndexMetaData, request.getNextStepKey());
+                }
+
+                @Override
                 protected Response newResponse(boolean acknowledged) {
                     return new Response(acknowledged);
                 }

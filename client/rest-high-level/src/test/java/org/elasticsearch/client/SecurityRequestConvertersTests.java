@@ -177,5 +177,4 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertNull(request.getEntity());
     }
 
-
 }

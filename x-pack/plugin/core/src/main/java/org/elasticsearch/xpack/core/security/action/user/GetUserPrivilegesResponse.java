@@ -77,7 +77,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         cluster = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
         conditionalCluster = Collections.unmodifiableSet(in.readSet(ConditionalClusterPrivileges.READER));
         index = Collections.unmodifiableSet(in.readSet(Indices::new));
-        application = Collections.unmodifiableSet(in.readSet(RoleDescriptor.ApplicationResourcePrivileges::createFrom));
+        application = Collections.unmodifiableSet(in.readSet(RoleDescriptor.ApplicationResourcePrivileges::new));
         runAs = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
     }
 

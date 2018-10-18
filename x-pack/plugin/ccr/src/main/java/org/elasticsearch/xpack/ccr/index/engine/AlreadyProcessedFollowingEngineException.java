@@ -11,6 +11,10 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.util.OptionalLong;
 
+/**
+ * An exception represents that an operation was processed before on the {@link FollowingEngine} of the primary of a follower.
+ * The field {@code existingPrimaryTerm} is empty only if the operation is below the global checkpoint; otherwise it should be non-empty.
+ */
 public final class AlreadyProcessedFollowingEngineException extends VersionConflictEngineException {
     private final long seqNo;
     private final OptionalLong existingPrimaryTerm;

@@ -70,6 +70,7 @@ public class FollowingEngineTests extends ESTestCase {
     private Index index;
     private ShardId shardId;
     private AtomicLong primaryTerm = new AtomicLong();
+    private AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
 
     public void setUp() throws Exception {
         super.setUp();
@@ -263,7 +264,7 @@ public class FollowingEngineTests extends ESTestCase {
                 Collections.emptyList(),
                 null,
                 new NoneCircuitBreakerService(),
-                () -> SequenceNumbers.NO_OPS_PERFORMED,
+                globalCheckpoint::longValue,
                 () -> primaryTerm.get(),
                 EngineTestCase.tombstoneDocSupplier()
         );
@@ -594,13 +595,19 @@ public class FollowingEngineTests extends ESTestCase {
                     }
                 }
                 // Primary should reject duplicates
+                globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), followingEngine.getLocalCheckpoint()));
                 final long newTerm = randomLongBetween(oldTerm + 1, Long.MAX_VALUE);
                 for (Engine.Operation op : operations) {
                     Engine.Result result = applyOperation(followingEngine, op, newTerm, Engine.Operation.Origin.PRIMARY);
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
                     assertThat(result.getFailure(), instanceOf(AlreadyProcessedFollowingEngineException.class));
                     AlreadyProcessedFollowingEngineException failure = (AlreadyProcessedFollowingEngineException) result.getFailure();
-                    assertThat(failure.getExistingPrimaryTerm().getAsLong(), equalTo(operationWithTerms.get(op.seqNo())));
+                    if (op.seqNo() <= globalCheckpoint.get()) {
+                        assertThat("should not look-up term for operations at most the global checkpoint",
+                            failure.getExistingPrimaryTerm().isPresent(), equalTo(false));
+                    } else {
+                        assertThat(failure.getExistingPrimaryTerm().getAsLong(), equalTo(operationWithTerms.get(op.seqNo())));
+                    }
                 }
                 for (DocIdSeqNoAndTerm docId : getDocIds(followingEngine, true)) {
                     assertThat(docId.getPrimaryTerm(), equalTo(operationWithTerms.get(docId.getSeqNo())));

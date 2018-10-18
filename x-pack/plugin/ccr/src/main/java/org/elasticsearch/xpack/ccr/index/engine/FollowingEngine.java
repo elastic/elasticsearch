@@ -168,8 +168,8 @@ public final class FollowingEngine extends InternalEngine {
                         return OptionalLong.of(primaryTermDV.longValue());
                     }
                 }
-                assert false : "seq_no[" + seqNo + "] does not have primary_term";
-                throw new IllegalStateException("seq_no[" + seqNo + "] does not have primary_term");
+                assert false : "seq_no[" + seqNo + "] does not have primary_term, total_hits=[" + topDocs.totalHits + "]";
+                throw new IllegalStateException("seq_no[" + seqNo + "] does not have primary_term (total_hits=" + topDocs.totalHits + ")");
             }
         } catch (IOException e) {
             try {

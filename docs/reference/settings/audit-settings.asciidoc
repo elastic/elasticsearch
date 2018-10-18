@@ -24,10 +24,10 @@ that is prefixed with `.security_audit_log`. The index can reside on the same
 cluster or a separate cluster.
 
 For backwards compatibility reasons, the logfile contents are duplicated to
-another `<clustername>_access.log` file with an improved format.
-It is recommended that you disable this backwards compatible output file. To do
-that, change its logger level to `off` in the `log4j2.properties` file from
-`ES_PATH_CONF`.
+the `<clustername>_access.log` file with the format for versions prior to 6.5.0.
+If the backwards compatible format is not required, it should be disabled.
+To do that, change its logger level to `off` in the `log4j2.properties` file
+from `ES_PATH_CONF`.
 
 +
 --

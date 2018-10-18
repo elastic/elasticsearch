@@ -6,8 +6,8 @@ The `logfile` audit output is the default output for auditing. It writes data to
 the `<clustername>_audit.log` file in the logs directory. To maintain
 compatibility with releases prior to 6.5.0, another file `<clustername>_access.log`
 is also generated next to it. They differ in the output format but the contents
-are similar. For systems that had not automatically ingesting the audit file
-for search or analytics it is strongly recommended to only keep the newer format.
+are similar. For systems that are not ingesting the audit file for search or
+analytics it is strongly recommended to only keep the newer format.
 Turning off the deprecated output format can be achieved by disabling the logger
 in the `log4j2.properties` file in `ES_PATH_CONF` (hint: there is a config comment
 about it).

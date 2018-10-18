@@ -51,7 +51,7 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
         }
         Job job = jobIterator.next();
         if (job == null) {
-            // maybe null of the batched iterator search return no results
+            // maybe null if the batched iterator search return no results
             listener.onResponse(true);
             return;
         }
@@ -97,7 +97,7 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
      */
     private class WrappedBatchedJobsIterator implements Iterator<Job> {
         private final BatchedJobsIterator batchedIterator;
-        private VolatileCursorIterator<Job> batch;
+        private VolatileCursorIterator<Job> currentBatch;
 
         WrappedBatchedJobsIterator(BatchedJobsIterator batchedIterator) {
             this.batchedIterator = batchedIterator;
@@ -105,7 +105,7 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
 
         @Override
         public boolean hasNext() {
-            return (batch != null && batch.hasNext()) || batchedIterator.hasNext();
+            return (currentBatch != null && currentBatch.hasNext()) || batchedIterator.hasNext();
         }
 
         /**
@@ -115,17 +115,17 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
          */
         @Override
         public Job next() {
-            if (batch != null && batch.hasNext()) {
-                return batch.next();
+            if (currentBatch != null && currentBatch.hasNext()) {
+                return currentBatch.next();
             }
 
-            // batch is either null or all its elements have been iterated.
-            // get the next batch
-            batch = createBatchIteratorFromBatch(batchedIterator.next());
+            // currentBatch is either null or all its elements have been iterated.
+            // get the next currentBatch
+            currentBatch = createBatchIteratorFromBatch(batchedIterator.next());
 
             // BatchedJobsIterator.hasNext maybe true if searching the first time
             // but no results are returned.
-            return batch.hasNext() ? batch.next() : null;
+            return currentBatch.hasNext() ? currentBatch.next() : null;
         }
 
         private VolatileCursorIterator<Job> createBatchIteratorFromBatch(Deque<Job.Builder> builders) {

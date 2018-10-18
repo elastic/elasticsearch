@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.Order;
+import org.elasticsearch.xpack.sql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.sql.expression.ScalarSubquery;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
@@ -348,13 +349,9 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Order visitOrderBy(OrderByContext ctx) {
-        if (ctx.NULLS() != null && ctx.nullOrdering.getType() != SqlBaseParser.LAST) {
-            throw new ParsingException(source(ctx.nullOrdering), "Null ordering can only be [LAST], found [{}]",
-                    ctx.nullOrdering.getText());
-        }
-
         return new Order(source(ctx), expression(ctx.expression()),
-                ctx.DESC() != null ? Order.OrderDirection.DESC : Order.OrderDirection.ASC);
+                ctx.DESC() != null ? Order.OrderDirection.DESC : Order.OrderDirection.ASC,
+                ctx.NULLS() != null ? (ctx.FIRST() != null ? NullsPosition.FIRST : NullsPosition.LAST) : null);
     }
 
     @Override

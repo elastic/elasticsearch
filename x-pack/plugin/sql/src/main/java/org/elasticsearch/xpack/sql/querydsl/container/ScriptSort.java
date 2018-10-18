@@ -14,9 +14,8 @@ public class ScriptSort extends Sort {
 
     private final ScriptTemplate script;
 
-    public ScriptSort(ScriptTemplate script, Direction direction) {
-        super(direction);
-        //
+    public ScriptSort(ScriptTemplate script, Direction direction, Missing missing) {
+        super(direction, missing);
         this.script = Scripts.nullSafeSort(script);
     }
 
@@ -26,7 +25,7 @@ public class ScriptSort extends Sort {
 
     @Override
     public int hashCode() {
-        return Objects.hash(direction(), script);
+        return Objects.hash(direction(), missing(), script);
     }
     
     @Override
@@ -41,6 +40,7 @@ public class ScriptSort extends Sort {
         
         ScriptSort other = (ScriptSort) obj;
         return Objects.equals(direction(), other.direction())
+                && Objects.equals(missing(), other.missing())
                 && Objects.equals(script, other.script);
     }
 }

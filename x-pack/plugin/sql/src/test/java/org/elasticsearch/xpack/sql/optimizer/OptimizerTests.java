@@ -204,7 +204,7 @@ public class OptimizerTests extends ESTestCase {
         // SELECT
         p = new Project(EMPTY, p, Arrays.asList(a, b));
         // ORDER BY
-        p = new OrderBy(EMPTY, p, singletonList(new Order(EMPTY, b, OrderDirection.ASC)));
+        p = new OrderBy(EMPTY, p, singletonList(new Order(EMPTY, b, OrderDirection.ASC, null)));
 
         LogicalPlan result = new ReplaceFoldableAttributes().apply(p);
         assertNotSame(p, result);

@@ -1,3 +1,5 @@
+[role="xpack"]
+[testenv="basic"]
 [[using-policies-rollover]]
 == Using policies to manage index rollover
 

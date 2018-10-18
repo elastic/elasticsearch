@@ -1,3 +1,5 @@
+[role="xpack"]
+[testenv="basic"]
 [[pause-resume-ilm]]
 == Pause and resume {ilm}
 ILM can be skipped on a per-index basis

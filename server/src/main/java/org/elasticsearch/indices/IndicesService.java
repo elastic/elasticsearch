@@ -559,7 +559,7 @@ public class IndicesService extends AbstractLifecycleComponent
             closeables.add(() -> service.close("metadata verification", false));
             service.mapperService().merge(metaData, MapperService.MergeReason.MAPPING_RECOVERY);
             if (metaData.equals(metaDataUpdate) == false) {
-                service.updateMetaData(metaDataUpdate);
+                service.updateMetaData(metaData, metaDataUpdate);
             }
         } finally {
             IOUtils.close(closeables);

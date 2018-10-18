@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 
@@ -52,8 +51,6 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
                     wrappedListener.onFailure(e);
                 }
             } else {
-                assert throwable instanceof Exception : "Expected exception but was: " + throwable.getClass();
-                ExceptionsHelper.maybeDieOnAnotherThread(throwable);
                 wrappedListener.onFailure((Exception) throwable);
             }
         }, executor);

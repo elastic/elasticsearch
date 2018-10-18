@@ -23,6 +23,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 
 import java.util.concurrent.BrokenBarrierException;
@@ -56,6 +57,16 @@ public class ListenableFutureTests extends ESTestCase {
         future.onResponse("");
         assertEquals(numberOfListeners, notifications.get());
         assertTrue(future.isDone());
+    }
+
+    public void testThrowableListener() {
+        executorService = EsExecutors.newFixed("testThrowableListener", 1, 1000,
+            EsExecutors.daemonThreadFactory("listener"), threadContext);
+        ListenableFuture<Object> context = new ListenableFuture<>();
+        context.addListener(ActionListener.wrap(() -> {
+            assert false : "Should not fail";
+        }), executorService, threadContext);
+        context.onResponse(null);
     }
 
     public void testListenableFutureNotifiesListenersOnException() {

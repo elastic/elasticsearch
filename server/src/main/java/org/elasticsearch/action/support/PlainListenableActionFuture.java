@@ -63,7 +63,7 @@ public class PlainListenableActionFuture<T> extends AdapterActionFuture<T, T> im
                 }
             } else {
                 assert throwable instanceof Exception : "Expected exception but was: " + throwable.getClass();
-                ExceptionsHelper.dieOnError(throwable);
+                ExceptionsHelper.maybeDieOnAnotherThread(throwable);
                 listener.onFailure((Exception) throwable);
             }
         });

@@ -24,6 +24,11 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         return true;
     }
 
+    @Override
+    protected boolean preserveRollupJobsUponCompletion() {
+        return true;
+    }
+
     enum CLUSTER_TYPE {
         OLD,
         MIXED,

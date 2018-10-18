@@ -68,7 +68,7 @@ PUT _xpack/rollup/job/sensor
     "groups" : {
       "date_histogram": {
         "field": "timestamp",
-        "interval": "1h",
+        "interval": "60m",
         "delay": "7d"
       },
       "terms": {

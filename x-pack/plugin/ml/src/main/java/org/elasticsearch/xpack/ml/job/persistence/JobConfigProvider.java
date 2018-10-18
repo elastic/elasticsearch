@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -25,6 +26,9 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -40,6 +44,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -64,6 +69,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -211,23 +217,7 @@ public class JobConfigProvider extends AbstractComponent {
         DeleteRequest request = new DeleteRequest(AnomalyDetectorsIndex.configIndexName(),
                 ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId));
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, request, new ActionListener<DeleteResponse>() {
-            @Override
-            public void onResponse(DeleteResponse deleteResponse) {
-                if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                    actionListener.onFailure(ExceptionsHelper.missingJobException(jobId));
-                    return;
-                }
-
-                assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
-                actionListener.onResponse(deleteResponse);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                actionListener.onFailure(e);
-            }
-        });
+        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, request, actionListener);
     }
 
     /**
@@ -421,6 +411,35 @@ public class JobConfigProvider extends AbstractComponent {
                 }
             }
         });
+    }
+
+    /**
+     * Sets the job's {@code deleting} field to true
+     * @param jobId     The job to mark as deleting
+     * @param listener  Responds with true if successful else an error
+     */
+    public void markJobAsDeleting(String jobId, ActionListener<Boolean> listener) {
+        UpdateRequest updateRequest = new UpdateRequest(AnomalyDetectorsIndex.configIndexName(),
+                ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId));
+        updateRequest.retryOnConflict(3);
+        updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        updateRequest.doc(Collections.singletonMap(Job.DELETING.getPreferredName(), Boolean.TRUE));
+
+        executeAsyncWithOrigin(client, ML_ORIGIN, UpdateAction.INSTANCE, updateRequest, ActionListener.wrap(
+               response -> {
+                   assert (response.getResult() == DocWriteResponse.Result.UPDATED) ||
+                           (response.getResult() == DocWriteResponse.Result.NOOP);
+                   listener.onResponse(Boolean.TRUE);
+               },
+               e -> {
+                   ElasticsearchException[] causes = ElasticsearchException.guessRootCauses(e);
+                   if (causes[0] instanceof DocumentMissingException) {
+                       listener.onFailure(ExceptionsHelper.missingJobException(jobId));
+                   } else {
+                       listener.onFailure(e);
+                   }
+               }
+        ));
     }
 
     /**

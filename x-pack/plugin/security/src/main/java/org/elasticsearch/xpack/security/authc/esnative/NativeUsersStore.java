@@ -153,7 +153,9 @@ public class NativeUsersStore extends AbstractComponent {
 
     void getUserCount(final ActionListener<Long> listener) {
         final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
-        if (frozenSecurityIndex.isAvailable() == false) {
+        if (frozenSecurityIndex.indexExists() == false) {
+            listener.onResponse(0L);
+        } else if (frozenSecurityIndex.isAvailable() == false) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->

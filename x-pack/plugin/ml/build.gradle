@@ -9,9 +9,8 @@ esplugin {
     description 'Elasticsearch Expanded Pack Plugin - Machine Learning'
     classname 'org.elasticsearch.xpack.ml.MachineLearning'
     hasNativeController true
-    extendedPlugins = ['x-pack-core']
+    extendedPlugins = ['x-pack-core', 'lang-painless']
 }
-archivesBaseName = 'x-pack-ml'
 
 configurations {
     nativeBundle {
@@ -42,6 +41,7 @@ compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-
 dependencies {
     // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
     compileOnly project(path: xpackModule('core'), configuration: 'default')
+    compileOnly "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${versions.elasticsearch}"
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     // This should not be here
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')

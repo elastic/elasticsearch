@@ -108,6 +108,7 @@ import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
@@ -164,6 +165,7 @@ import org.elasticsearch.xpack.security.action.user.TransportChangePasswordActio
 import org.elasticsearch.xpack.security.action.user.TransportDeleteUserAction;
 import org.elasticsearch.xpack.security.action.user.TransportGetUsersAction;
 import org.elasticsearch.xpack.security.action.user.TransportHasPrivilegesAction;
+import org.elasticsearch.xpack.security.action.user.TransportGetUserPrivilegesAction;
 import org.elasticsearch.xpack.security.action.user.TransportPutUserAction;
 import org.elasticsearch.xpack.security.action.user.TransportSetEnabledAction;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
@@ -208,6 +210,7 @@ import org.elasticsearch.xpack.security.rest.action.saml.RestSamlLogoutAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestChangePasswordAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestDeleteUserAction;
+import org.elasticsearch.xpack.security.rest.action.user.RestGetUserPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestGetUsersAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestHasPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
@@ -706,6 +709,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new ActionHandler<>(AuthenticateAction.INSTANCE, TransportAuthenticateAction.class),
                 new ActionHandler<>(SetEnabledAction.INSTANCE, TransportSetEnabledAction.class),
                 new ActionHandler<>(HasPrivilegesAction.INSTANCE, TransportHasPrivilegesAction.class),
+                new ActionHandler<>(GetUserPrivilegesAction.INSTANCE, TransportGetUserPrivilegesAction.class),
                 new ActionHandler<>(GetRoleMappingsAction.INSTANCE, TransportGetRoleMappingsAction.class),
                 new ActionHandler<>(PutRoleMappingAction.INSTANCE, TransportPutRoleMappingAction.class),
                 new ActionHandler<>(DeleteRoleMappingAction.INSTANCE, TransportDeleteRoleMappingAction.class),
@@ -756,6 +760,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new RestChangePasswordAction(settings, restController, securityContext.get(), getLicenseState()),
                 new RestSetEnabledAction(settings, restController, getLicenseState()),
                 new RestHasPrivilegesAction(settings, restController, securityContext.get(), getLicenseState()),
+                new RestGetUserPrivilegesAction(settings, restController, securityContext.get(), getLicenseState()),
                 new RestGetRoleMappingsAction(settings, restController, getLicenseState()),
                 new RestPutRoleMappingAction(settings, restController, getLicenseState()),
                 new RestDeleteRoleMappingAction(settings, restController, getLicenseState()),

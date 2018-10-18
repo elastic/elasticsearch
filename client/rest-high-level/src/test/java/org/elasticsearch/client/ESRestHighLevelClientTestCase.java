@@ -154,9 +154,4 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
             .put(ThreadContext.PREFIX + ".Authorization", token)
             .build();
     }
-
-    @Override
-    protected boolean getStrictDeprecationMode() {
-        return false;
-    }
 }

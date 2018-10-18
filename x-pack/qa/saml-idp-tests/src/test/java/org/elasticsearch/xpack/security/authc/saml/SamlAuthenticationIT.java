@@ -125,11 +125,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     public static void shutdownHttpServer() {
         final Executor executor = httpServer.getExecutor();
         if (executor instanceof ExecutorService) {
-            try {
-                terminate((ExecutorService) executor);
-            } catch (InterruptedException e) {
-                // oh well
-            }
+            terminate((ExecutorService) executor);
         }
         httpServer.stop(0);
         httpServer = null;

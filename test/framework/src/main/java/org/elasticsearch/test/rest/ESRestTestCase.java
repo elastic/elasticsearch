@@ -210,7 +210,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Returns whether to preserve the state of the cluster upon completion of this test. Defaults to false. If true, overrides the value of
      * {@link #preserveIndicesUponCompletion()}, {@link #preserveTemplatesUponCompletion()}, {@link #preserveReposUponCompletion()},
-     * {@link #preserveSnapshotsUponCompletion()}, and {@link #preserveRollupJobsUponCompletion()}.
+     * {@link #preserveSnapshotsUponCompletion()},{@link #preserveRollupJobsUponCompletion()},
+     * and {@link #preserveILMPoliciesUponCompletion()}.
      *
      * @return true if the state of the cluster should be preserved
      */
@@ -275,6 +276,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         return false;
     }
 
+    /**
+     * Returns whether to preserve ILM Policies of this test. Defaults to not
+     * preserviing them. Only runs at all if xpack is installed on the cluster
+     * being tested.
+     */
+    protected boolean preserveILMPoliciesUponCompletion() {
+        return false;
+    }
+
     private void wipeCluster() throws Exception {
         boolean hasXPack = hasXPack();
 
@@ -328,6 +338,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (hasXPack && false == preserveRollupJobsUponCompletion()) {
             wipeRollupJobs();
             waitForPendingRollupTasks();
+        }
+
+        if (hasXPack && false == preserveILMPoliciesUponCompletion()) {
+            removePoliciesFromAllIndexes();
+            deleteAllPolicies();
         }
     }
 
@@ -439,6 +454,46 @@ public abstract class ESRestTestCase extends ESTestCase {
                 throw new AssertionError("Error getting active tasks list", e);
             }
         });
+    }
+
+    private static void removePoliciesFromAllIndexes() throws IOException {
+        Response response = adminClient().performRequest(new Request("GET", "/_all"));
+        Map<String, Object> indexes = ESRestTestCase.entityAsMap(response);
+
+        if (indexes == null || indexes.isEmpty()) {
+            return;
+        }
+
+        for (String indexName : indexes.keySet()) {
+            try {
+                adminClient().performRequest(new Request("DELETE", indexName + "/_ilm/"));
+            } catch (Exception e) {
+                // ok
+            }
+        }
+    }
+
+    private static void deleteAllPolicies() throws Exception {
+        Map<String, Object> policies;
+
+        try {
+            Response response = adminClient().performRequest(new Request("GET", "/_ilm"));
+            policies = ESRestTestCase.entityAsMap(response);
+        } catch (Exception e) {
+            return;
+        }
+
+        if (policies == null || policies.isEmpty()) {
+            return;
+        }
+
+        for (String policyName : policies.keySet()) {
+            try {
+                adminClient().performRequest(new Request("DELETE", "/_ilm/" + policyName));
+            } catch (Exception e) {
+                // ok
+            }
+        }
     }
 
     /**

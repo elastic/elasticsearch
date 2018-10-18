@@ -302,6 +302,8 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     private void assertGeoDistanceRangeQuery(String query, double lat, double lon, double distance, DistanceUnit distanceUnit)
             throws IOException {
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        // The parsedQuery contains IndexOrDocValuesQuery, which wraps LatLonPointDistanceQuery which in turn has default visibility,
+        // so we cannot access its fields directly to check and have to use toString() here instead.
         assertEquals(parsedQuery.toString(),
             "mapped_geo_point:" + lat + "," + lon + " +/- " + distanceUnit.toMeters(distance) + " meters");
     }

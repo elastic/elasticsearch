@@ -1,6 +1,8 @@
+[float]
 [[breaking_60_rest_changes]]
 === REST changes
 
+[float]
 ==== Unquoted JSON
 
 In previous versions of Elasticsearch, JSON documents were allowed to contain unquoted field names.
@@ -8,11 +10,13 @@ This feature was removed in the 5.x series, but a backwards-compatibility layer 
 system property `elasticsearch.json.allow_unquoted_field_names`. This backwards-compatibility layer
 has been removed in Elasticsearch 6.0.0.
 
+[float]
 ==== Duplicate Keys in JSON, CBOR, Yaml and Smile
 
 In previous versions of Elasticsearch, documents were allowed to contain duplicate keys. Elasticsearch 6.0.0
  enforces that all keys are unique. This applies to all content types: JSON, CBOR, Yaml and Smile.
 
+[float]
 ==== Content-Type Auto-detection
 
 In previous versions of Elasticsearch, having a proper Content-Type for the data in a request was not enforced.
@@ -22,15 +26,18 @@ be used when parsing the data.
 When using the `source` query string parameter, the `source_content_type` parameter must also be specified with
 the media type of the source.
 
+[float]
 ==== Boolean API parameters
 
 All REST APIs parameters (both request parameters and JSON body) support providing boolean "false" as the
 value `false` and boolean "true" as the value `true`. All other values will raise an error.
 
+[float]
 ==== Analyze API changes
 
 The deprecated request parameters and plain text in request body has been removed. Define parameters in request body.
 
+[float]
 ==== Support custom normalizer in Analyze API
 
 Analyze API can analyze normalizer and custom normalizer.
@@ -38,28 +45,33 @@ In previous versions of Elasticsearch, Analyze API is requiring a `tokenizer` or
 In Elasticsearch 6.0.0, Analyze API can analyze a text as a keyword field with custom normalizer
 or if `char_filter`/`filter` is set and `tokenizer`/`analyzer` is not set.
 
+[float]
 ==== `timestamp` and `ttl` in index requests
 
 `timestamp` and `ttl` are not accepted anymore as parameters of index/update
 requests.
 
+[float]
 ==== Refresh requests with one or more shard failures return HTTP 500 response instead of 200
 
 Refresh requests that are broadcast to multiple shards that can have one or more
 shards fail during the request now return a 500 response instead of a 200
 response in the event there is at least one failure.
 
+[float]
 ==== Delete by Query API requires an explicit query
 
 In previous versions of Elasticsearch, delete by query requests without an explicit query
 were accepted, match_all was used as the default query and all documents were deleted
 as a result. From version 6.0.0, delete by query requests require an explicit query.
 
+[float]
 ==== DELETE document calls now implicitly create the type
 
 Running `DELETE index/type/id` now implicitly creates `type` with a default
 mapping if it did not exist yet.
 
+[float]
 ==== Indices information APIs
 
 Previously it was possible to execute `GET /_aliases,_mappings` or `GET
@@ -72,6 +84,7 @@ mappings for all indices.
 In order to retrieve only the mapping for an index use:
 `GET /myindex/_mapping` (or `_alias` for a list of aliases, or `_settings` for the settings).
 
+[float]
 ==== Requests to existing endpoints with incorrect HTTP verb now return 405 responses
 
 Issuing a request to an endpoint that exists, but with an incorrect HTTP verb
@@ -103,12 +116,14 @@ $ curl -v -XPOST 'localhost:9200/my_index/_settings'
 * Connection #0 to host localhost left intact
 --------------------------------------------
 
+[float]
 ==== Disallow using `_cache` and `_cache_key`
 
 The `_cache` and `_cache_key` options in queries have been deprecated since version 2.0.0 and
 have been ignored since then, issuing a deprecation warning. These options have now been completely
 removed, so using them now will throw an error.
 
+[float]
 ==== IndexClosedException to return 400 status code
 
 An `IndexClosedException` is returned whenever an api that doesn't support

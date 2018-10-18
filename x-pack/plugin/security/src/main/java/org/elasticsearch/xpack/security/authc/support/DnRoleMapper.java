@@ -30,10 +30,10 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings;
+import org.elasticsearch.xpack.security.Security;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -80,7 +80,7 @@ public class DnRoleMapper implements UserRoleMapper {
 
     public static Path resolveFile(Settings settings, Environment env) {
         String location = DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING.get(settings);
-        return XPackPlugin.resolveConfigFile(env, location);
+        return Security.resolveConfigFile(env, location);
     }
 
     /**

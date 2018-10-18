@@ -86,8 +86,8 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
             final String base64KerbToken = spnegoClient.getBase64EncodedTokenForSpnegoHeader();
             assertThat(base64KerbToken, is(notNullValue()));
 
-            final Path ktabPath = writeKeyTab(workDir.resolve("invalid.keytab"), "not - a - valid - key - tab");
-            settings = buildKerberosRealmSettings(ktabPath.toString());
+            final Path ktabPath = KerberosRealmTestCase.writeKeyTab(workDir.resolve("invalid.keytab"), "not - a - valid - key - tab");
+            settings = KerberosRealmTestCase.buildKerberosRealmSettings(ktabPath.toString());
             final Environment env = TestEnvironment.newEnvironment(globalSettings);
             final Path keytabPath = env.configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(settings));
             final PlainActionFuture<Tuple<String, String>> future = new PlainActionFuture<>();

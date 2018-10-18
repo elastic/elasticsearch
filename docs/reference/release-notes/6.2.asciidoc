@@ -141,10 +141,9 @@ analysis module.  ({pull}30397[#30397])
 === Enhancements
 
 Highlighting::
-* Limit analyzed text for highlighting (improvements) {pull}28808[#28808] (issues: {issue}16764[#16764], {issue}27934[#27934])
-{ref-64}/breaking_64_api_changes.html#copy-source-settings-on-resize[Allow copying source settings on index resize operations] ({pull}30255[#30255])
-{ref-64}/breaking_64_api_changes.html#copy-source-settings-on-resize[Allow
-copying source settings on index resize operations] ({pull}30255[#30255], {pull}30404[#30404])
+* Limit analyzed text for highlighting (improvements) {pull}28808[#28808] (issues: {issue}16764[#16764], {issue}27934[#27934]) 
+
+<<copy-source-settings-on-resize,Allow copying source settings on index resize operations>> ({pull}30255[#30255],{pull}30404[#30404])
 
 Added new "Request" object flavored request methods in the RestClient. Prefer
 these instead of the multi-argument versions. ({pull}29623[#29623])

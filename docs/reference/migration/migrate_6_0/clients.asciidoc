@@ -1,6 +1,8 @@
+[float]
 [[breaking_60_clients_changes]]
 === Clients changes
 
+[float]
 ==== Java High Level REST Client
 
 Starting from version 5.6.0 a new Java client has been released: the Java High Level REST Client.

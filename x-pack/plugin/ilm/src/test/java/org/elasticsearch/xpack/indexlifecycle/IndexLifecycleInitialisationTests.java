@@ -72,7 +72,7 @@ import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
+public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
     private Settings settings;
     private LifecyclePolicy lifecyclePolicy;
     private Phase mockPhase;

@@ -54,6 +54,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -93,22 +94,28 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
     public void testTieBreak() throws Exception {
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
+        mapping.indexAnalyzer("keyword");
         createIndexAndMapping(mapping);
+
         int numDocs = randomIntBetween(3, 50);
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
-        String[] entries = new String[numDocs];
+        Set<String> entrySet = new HashSet<>();
         for (int i = 0; i < numDocs; i++) {
-            entries[i] = "a" + randomAlphaOfLengthBetween(1, 10);
+            String value = "a" + randomValueOtherThanMany(v -> entrySet.contains(v),
+                () -> randomAlphaOfLengthBetween(1, 10));
+            entrySet.add(value);
             indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
                 .setSource(jsonBuilder()
                     .startObject()
                     .startObject(FIELD)
-                    .field("input", entries[i])
+                    .field("input", value)
                     .field("weight", 10)
                     .endObject()
                     .endObject()
                 ));
         }
+        String[] entries = entrySet.stream()
+            .toArray(String[]::new);
         Arrays.sort(entries);
         indexRandom(true, indexRequestBuilders);
         for (int i = 1; i < numDocs; i++) {

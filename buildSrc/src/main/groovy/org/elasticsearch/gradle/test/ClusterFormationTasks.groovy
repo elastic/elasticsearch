@@ -347,7 +347,10 @@ class ClusterFormationTasks {
 
         Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
         writeConfig.doFirst {
-            esConfig['discovery.zen.hosts_provider'] = 'file'
+            // Don't force discovery provider if one is set by the test cluster specs already
+            if (esConfig.containsKey('discovery.zen.hosts_provider') == false) {
+                esConfig['discovery.zen.hosts_provider'] = 'file'
+            }
             File configFile = new File(node.pathConf, 'elasticsearch.yml')
             logger.info("Configuring ${configFile}")
             configFile.setText(esConfig.collect { key, value -> "${key}: ${value}" }.join('\n'), 'UTF-8')

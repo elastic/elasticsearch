@@ -893,21 +893,7 @@ public class SettingTests extends ESTestCase {
         }
     }
 
-    public void testAffixMapUpdateWithNullSettingValueAndOmitDefaults() {
-        final boolean omitDefaults = true;
-        final int expectedChangeCount = 0;
-
-        testAffixMapUpdateWithNullSettingValue(omitDefaults, expectedChangeCount);
-    }
-
-    public void testAffixMapUpdateWithNullSettingValueAndNotOmitDefaults() {
-        final boolean omitDefaults = false;
-        final int expectedChangeCount = 1;
-
-        testAffixMapUpdateWithNullSettingValue(omitDefaults, expectedChangeCount);
-    }
-
-    private void testAffixMapUpdateWithNullSettingValue(boolean omitDefaults, int expectedChangeCount) {
+    public void testAffixMapUpdateWithNullSettingValue() {
         // GIVEN an affix setting changed from "prefix._foo"="bar" to "prefix._foo"=null
         final Settings current = Settings.builder()
             .put("prefix._foo", (String) null)
@@ -925,7 +911,7 @@ public class SettingTests extends ESTestCase {
         final BiConsumer<String, String> validator = (s1, s2) -> {};
 
         // WHEN creating an affix updater
-        final SettingUpdater<Map<String, String>> updater = affixSetting.newAffixMapUpdater(consumer, logger, validator, omitDefaults);
+        final SettingUpdater<Map<String, String>> updater = affixSetting.newAffixMapUpdater(consumer, logger, validator);
 
         // THEN affix updater is always expected to have changed (even when defaults are omitted)
         assertTrue(updater.hasChanged(current, previous));
@@ -933,15 +919,13 @@ public class SettingTests extends ESTestCase {
         // THEN changes are expected when defaults aren't omitted
         final Map<String, String> updatedSettings = updater.getValue(current, previous);
         assertNotNull(updatedSettings);
-        assertEquals(expectedChangeCount, updatedSettings.size());
+        assertEquals(1, updatedSettings.size());
 
         // THEN changes are reported when defaults aren't omitted
-        if (expectedChangeCount == 1) {
-            final String key = updatedSettings.keySet().iterator().next();
-            final String value = updatedSettings.get(key);
-            assertEquals("_foo", key);
-            assertEquals("", value);
-        }
+        final String key = updatedSettings.keySet().iterator().next();
+        final String value = updatedSettings.get(key);
+        assertEquals("_foo", key);
+        assertEquals("", value);
     }
 
 }

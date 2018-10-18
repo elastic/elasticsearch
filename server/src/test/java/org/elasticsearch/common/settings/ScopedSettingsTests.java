@@ -372,8 +372,8 @@ public class ScopedSettingsTests extends ESTestCase {
             listResults.putAll(map);
         };
         boolean omitDefaults = randomBoolean();
-        service.addAffixMapUpdateConsumer(listSetting, listConsumer, (s, k) -> {}, omitDefaults);
-        service.addAffixMapUpdateConsumer(intSetting, intConsumer, (s, k) -> {}, omitDefaults);
+        service.addAffixMapUpdateConsumer(listSetting, listConsumer, (s, k) -> {});
+        service.addAffixMapUpdateConsumer(intSetting, intConsumer, (s, k) -> {});
         assertEquals(0, listResults.size());
         assertEquals(0, intResults.size());
         service.applySettings(Settings.builder()
@@ -442,7 +442,7 @@ public class ScopedSettingsTests extends ESTestCase {
             affixResults.clear();
             affixResults.putAll(map);
         };
-        service.addAffixMapUpdateConsumer(prefixSetting, consumer, (s, k) -> {}, randomBoolean());
+        service.addAffixMapUpdateConsumer(prefixSetting, consumer, (s, k) -> {});
         assertEquals(0, affixResults.size());
         service.applySettings(Settings.builder()
                 .put("eggplant._name", 2)

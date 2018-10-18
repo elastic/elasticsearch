@@ -50,7 +50,6 @@ import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
@@ -183,7 +182,6 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -382,8 +380,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             case TEST:
                 currentCluster = buildAndPutCluster(currentClusterScope, randomLong());
                 break;
-            default:
-                fail("Unknown Scope: [" + currentClusterScope + "]");
         }
         cluster().beforeTest(random(), getPerTestTransportClientRatio());
         cluster().wipe(excludeTemplates());
@@ -402,7 +398,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Creates a randomized index template. This template is used to pass in randomized settings on a
      * per index basis. Allows to enable/disable the randomization for number of shards and replicas
      */
-    public void randomIndexTemplate() throws IOException {
+    public void randomIndexTemplate() {
 
         // TODO move settings for random directory etc here into the index based randomized settings.
         if (cluster().size() > 0) {
@@ -798,12 +794,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
         if (numNodes > 0) {
             internalCluster().ensureAtLeastNumDataNodes(numNodes);
-            getExcludeSettings(index, numNodes, builder);
+            getExcludeSettings(numNodes, builder);
         }
         return client().admin().indices().prepareCreate(index).setSettings(builder.build());
     }
 
-    private Settings.Builder getExcludeSettings(String index, int num, Settings.Builder builder) {
+    private Settings.Builder getExcludeSettings(int num, Settings.Builder builder) {
         String exclude = String.join(",", internalCluster().allDataNodesButN(num));
         builder.put("index.routing.allocation.exclude._name", exclude);
         return builder;
@@ -896,7 +892,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         internalCluster().ensureAtLeastNumDataNodes(n);
         Settings.Builder builder = Settings.builder();
         if (n > 0) {
-            getExcludeSettings(index, n, builder);
+            getExcludeSettings(n, builder);
         }
         Settings build = builder.build();
         if (!build.isEmpty()) {
@@ -1299,16 +1295,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Syntactic sugar for:
      * <pre>
-     *   client().prepareGet(index, type, id).execute().actionGet();
-     * </pre>
-     */
-    protected final GetResponse get(String index, String type, String id) {
-        return client().prepareGet(index, type, id).execute().actionGet();
-    }
-
-    /**
-     * Syntactic sugar for:
-     * <pre>
      *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
      * </pre>
      */
@@ -1418,12 +1404,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Convenience method that forwards to {@link #indexRandom(boolean, List)}.
      */
-    public void indexRandom(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException, ExecutionException {
+    public void indexRandom(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException {
         indexRandom(forceRefresh, Arrays.asList(builders));
     }
 
     public void indexRandom(boolean forceRefresh, boolean dummyDocuments, IndexRequestBuilder... builders)
-            throws InterruptedException, ExecutionException {
+            throws InterruptedException {
         indexRandom(forceRefresh, dummyDocuments, Arrays.asList(builders));
     }
 
@@ -1442,7 +1428,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @param builders     the documents to index.
      * @see #indexRandom(boolean, boolean, java.util.List)
      */
-    public void indexRandom(boolean forceRefresh, List<IndexRequestBuilder> builders) throws InterruptedException, ExecutionException {
+    public void indexRandom(boolean forceRefresh, List<IndexRequestBuilder> builders) throws InterruptedException {
         indexRandom(forceRefresh, forceRefresh, builders);
     }
 
@@ -1459,7 +1445,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @param builders       the documents to index.
      */
     public void indexRandom(boolean forceRefresh, boolean dummyDocuments, List<IndexRequestBuilder> builders)
-            throws InterruptedException, ExecutionException {
+            throws InterruptedException {
         indexRandom(forceRefresh, dummyDocuments, true, builders);
     }
 
@@ -1477,7 +1463,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @param builders       the documents to index.
      */
     public void indexRandom(boolean forceRefresh, boolean dummyDocuments, boolean maybeFlush, List<IndexRequestBuilder> builders)
-            throws InterruptedException, ExecutionException {
+            throws InterruptedException {
         Random random = random();
         Map<String, Set<String>> indicesAndTypes = new HashMap<>();
         for (IndexRequestBuilder builder : builders) {

@@ -1,5 +1,8 @@
 [[breaking-changes-6.1]]
 == Breaking changes in 6.1
+++++
+<titleabbrev>6.1</titleabbrev>
+++++
 
 This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 6.1.

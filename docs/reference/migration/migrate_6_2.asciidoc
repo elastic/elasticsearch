@@ -1,5 +1,8 @@
 [[breaking-changes-6.2]]
 == Breaking changes in 6.2
+++++
+<titleabbrev>6.2</titleabbrev>
+++++
 
 This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 6.2
@@ -16,6 +19,7 @@ and one permission that can be added to this policy is
 manager. As such, granting this permission in production mode is now forbidden
 via the <<all-permission-check, all permission bootstrap check>>.
 
+[float]
 === Private temporary directory
 
 On Linux, previous versions of Elasticsearch defaulted to using `/tmp` as the
@@ -27,6 +31,7 @@ existing <<jvm-options,`jvm.options`>>, you should add the line
 using a private temporary directory on non-Linux systems with the same
 mechanism.
 
+[float]
 === GC logging
 
 Starting in Elasticsearch 6.2.0, JVM <<gc-logging,GC logging>> is enabled out of
@@ -55,6 +60,7 @@ otherwise if you have installed from the `tar.gz` or `zip` archive distributions
 and use the default logging location use `logs/gc.log`; otherwise, set the
 location to the absolute path to your log files.
 
+[float]
 === Rollover alias
 A rollover request in Elasticsearch 6.2.0 or later will be aborted if the same
 alias is found in the matching index templates. This change is to prevent the alias

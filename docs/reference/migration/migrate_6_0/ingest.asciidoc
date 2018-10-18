@@ -1,10 +1,13 @@
+[float]
 [[breaking_60_ingest_changes]]
 === Ingest changes
 
+[float]
 ==== Timestamp meta-data field type has changed
 
 The type of the "timestamp" meta-data field has changed from `java.lang.String` to `java.util.Date`.
 
+[float]
 ==== The format of the string-formatted ingest.timestamp field has changed
 
 Previously, since Elasticsearch 5.4.0, you needed to use `ingest.new_date_format` to have the

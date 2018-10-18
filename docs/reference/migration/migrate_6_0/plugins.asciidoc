@@ -1,11 +1,14 @@
+[float]
 [[breaking_60_plugins_changes]]
 === Plugins changes
 
+[float]
 ==== Mapper attachments plugin
 
 * The mapper attachments plugin has been deprecated in elasticsearch 5.0 and is now removed.
 You can use {plugins}/ingest-attachment.html[ingest attachment plugin] instead.
 
+[float]
 ==== S3 Repository plugin
 
 * The bucket an s3 repository is configured with will no longer be created automatically.
@@ -44,6 +47,7 @@ Instead, use the new named client settings under `s3.client.CLIENT_NAME.*`.
 
 * The `path_style_access` setting has been removed. The repository will use the appropriate path style access based on the configured endpoint.
 
+[float]
 ==== Azure Repository plugin
 
 * The container an azure repository is configured with will no longer be created automatically.
@@ -57,11 +61,13 @@ You must set those settings per repository instead. Respectively `account`, `con
 `location_mode`, `chunk_size` and `compress`.
 See {plugins}/repository-azure-repository-settings.html#repository-azure-repository-settings[Azure Repository settings].
 
+[float]
 ==== GCS Repository plugin
 
 * The `service_account` setting has been removed. A service account json credential file must now be
 specified in the <<secure-settings, elasticsearch keystore>>.
 
+[float]
 ==== EC2 Discovery plugin
 
 * Specifying ec2 signer type has been removed, including `cloud.aws.signer` and `cloud.aws.ec2.signer`.
@@ -71,11 +77,13 @@ and `cloud.aws.ec2.region`. Instead, specify the full endpoint.
 
 * All `cloud.aws.*` and `cloud.aws.ec2.*` settings have been removed. Use `discovery.ec2.*` settings instead.
 
+[float]
 ==== Ignoring hidden folders
 
 Previous versions of Elasticsearch would skip hidden files and directories when
 scanning the plugins folder. This leniency has been removed.
 
+[float]
 ==== ICU Analysis plugin
 
 The icu4j library has been upgraded to 59.1,
@@ -83,6 +91,7 @@ Indices created in the previous major version will need to be reindexed
 in order to return correct (and correctly ordered) results,
 and to take advantage of new characters.
 
+[float]
 ==== Plugins should not construct `Environment` instances from `Settings`
 
 Previously, plugins could construct an `Environment` instance from `Settings` to

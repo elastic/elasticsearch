@@ -566,7 +566,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         remoteClusterService.collectSearchShards(IndicesOptions.lenientExpandOpen(), "index_not_found",
                                 null, remoteIndicesByCluster,
                                 new LatchedActionListener<>(ActionListener.wrap(response::set, failure::set), latch));
-                        assertTrue(latch.await(1, TimeUnit.SECONDS));
+                        assertTrue(latch.await(2, TimeUnit.SECONDS));
                         assertNull(response.get());
                         assertNotNull(failure.get());
                         assertThat(failure.get(), instanceOf(RemoteTransportException.class));

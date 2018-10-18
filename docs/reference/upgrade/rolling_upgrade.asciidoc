@@ -44,6 +44,10 @@ include::shut-down-node.asciidoc[]
 . *Upgrade the node you shut down.*
 +
 --
+include::remove-xpack.asciidoc[]
+--
++
+--
 include::upgrade-node.asciidoc[]
 include::set-paths-tip.asciidoc[]
 --
@@ -144,7 +148,7 @@ for each node that needs to be updated.
 
 --
 
-. *Restart machine learning jobs.* 
+. *Restart machine learning jobs.*
 
 [IMPORTANT]
 ====================================================

@@ -122,7 +122,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                         listener);
                 }
             }, e -> handleFailure(future, createdAndStartedFuture.get(), token, e, listener)),
-                threadPool.executor(ThreadPool.Names.GENERIC));
+                threadPool.executor(ThreadPool.Names.GENERIC), threadPool.getThreadContext());
         } catch (ExecutionException e) {
             listener.onResponse(AuthenticationResult.unsuccessful("", e));
         }
@@ -220,7 +220,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                     } else {
                         listener.onResponse(null);
                     }
-                }, listener::onFailure), threadPool.executor(ThreadPool.Names.GENERIC));
+                }, listener::onFailure), threadPool.executor(ThreadPool.Names.GENERIC), threadPool.getThreadContext());
             } catch (ExecutionException e) {
                 listener.onFailure(e);
             }

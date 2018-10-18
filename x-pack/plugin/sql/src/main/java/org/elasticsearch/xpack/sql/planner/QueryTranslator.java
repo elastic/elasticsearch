@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeH
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.expression.predicate.And;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryPredicate;
+import org.elasticsearch.xpack.sql.expression.predicate.In;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
 import org.elasticsearch.xpack.sql.expression.predicate.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.Or;
@@ -80,26 +81,32 @@ import org.elasticsearch.xpack.sql.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.RegexQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.TermQuery;
+import org.elasticsearch.xpack.sql.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.util.Check;
 import org.elasticsearch.xpack.sql.util.ReflectionUtils;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.expression.Foldables.doubleValuesOf;
 import static org.elasticsearch.xpack.sql.expression.Foldables.stringValueOf;
 import static org.elasticsearch.xpack.sql.expression.Foldables.valueOf;
 
-abstract class QueryTranslator {
+final class QueryTranslator {
 
-    static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = Arrays.asList(
+    private QueryTranslator(){}
+
+    private static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = Arrays.asList(
             new BinaryComparisons(),
+            new InComparisons(),
             new Ranges(),
             new BinaryLogic(),
             new Nots(),
@@ -110,7 +117,7 @@ abstract class QueryTranslator {
             new MultiMatches()
             );
 
-    static final List<AggTranslator<?>> AGG_TRANSLATORS = Arrays.asList(
+    private static final List<AggTranslator<?>> AGG_TRANSLATORS = Arrays.asList(
             new Maxes(),
             new Mins(),
             new Avgs(),
@@ -144,7 +151,7 @@ abstract class QueryTranslator {
     }
 
     static QueryTranslation toQuery(Expression e, boolean onAggs) {
-        QueryTranslation translation = null;
+        QueryTranslation translation;
         for (ExpressionTranslator<?> translator : QUERY_TRANSLATORS) {
             translation = translator.translate(e, onAggs);
             if (translation != null) {
@@ -235,7 +242,7 @@ abstract class QueryTranslator {
                 }
                 aggId = ne.id().toString();
 
-                GroupByKey key = null;
+                GroupByKey key;
 
                 // handle functions differently
                 if (exp instanceof Function) {
@@ -281,7 +288,7 @@ abstract class QueryTranslator {
             newQ = and(loc, left.query, right.query);
         }
 
-        AggFilter aggFilter = null;
+        AggFilter aggFilter;
 
         if (left.aggFilter == null) {
             aggFilter = right.aggFilter;
@@ -569,6 +576,55 @@ abstract class QueryTranslator {
 
             throw new SqlIllegalArgumentException("Don't know how to translate binary comparison [{}] in [{}]", bc.right().nodeString(),
                     bc);
+        }
+    }
+
+    // assume the Optimizer properly orders the predicates to ease the translation
+    static class InComparisons extends ExpressionTranslator<In> {
+
+        @Override
+        protected QueryTranslation asQuery(In in, boolean onAggs) {
+            Optional<Expression> firstNotFoldable = in.list().stream().filter(expression -> !expression.foldable()).findFirst();
+
+            if (firstNotFoldable.isPresent()) {
+                throw new SqlIllegalArgumentException(
+                    "Line {}:{}: Comparisons against variables are not (currently) supported; offender [{}] in [{}]",
+                    firstNotFoldable.get().location().getLineNumber(),
+                    firstNotFoldable.get().location().getColumnNumber(),
+                    Expressions.name(firstNotFoldable.get()),
+                    in.name());
+            }
+
+            if (in.value() instanceof NamedExpression) {
+                NamedExpression ne = (NamedExpression) in.value();
+
+                Query query = null;
+                AggFilter aggFilter = null;
+
+                Attribute at = ne.toAttribute();
+                //
+                // Agg context means HAVING -> PipelineAggs
+                //
+                ScriptTemplate script = in.asScript();
+                if (onAggs) {
+                    aggFilter = new AggFilter(at.id().toString(), script);
+                }
+                else {
+                    // query directly on the field
+                    if (at instanceof FieldAttribute) {
+                        query = wrapIfNested(new TermsQuery(in.location(), ne.name(), new ArrayList<>(in.foldedList())), ne);
+                    } else {
+                        query = new ScriptQuery(at.location(), script);
+                    }
+                }
+                return new QueryTranslation(query, aggFilter);
+            }
+            //
+            // if the code gets here it's a bug
+            //
+            else {
+                throw new UnsupportedOperationException("No idea how to translate " + in.value());
+            }
         }
     }
 

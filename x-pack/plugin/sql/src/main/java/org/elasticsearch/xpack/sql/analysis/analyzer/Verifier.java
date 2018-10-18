@@ -12,17 +12,20 @@ import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
+import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.sql.expression.predicate.In;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
@@ -40,7 +43,9 @@ import java.util.function.Consumer;
 
 import static java.lang.String.format;
 
-abstract class Verifier {
+final class Verifier {
+
+    private Verifier() {}
 
     static class Failure {
         private final Node<?> source;
@@ -187,6 +192,16 @@ abstract class Verifier {
                 }
 
                 Set<Failure> localFailures = new LinkedHashSet<>();
+
+                if (p instanceof Filter) {
+                    Filter filterPlan = (Filter) p;
+                    validateInExpression(filterPlan.condition(), localFailures);
+                } else if (p instanceof Project) {
+                    Project projectPlan = (Project) p;
+                    for (NamedExpression ne : projectPlan.projections()) {
+                        validateInExpression(ne, localFailures);
+                    }
+                }
 
                 if (!groupingFailures.contains(p)) {
                     checkGroupBy(p, localFailures, resolvedFunctions, groupingFailures);
@@ -486,6 +501,27 @@ abstract class Verifier {
         if (!nested.isEmpty()) {
             localFailures.add(
                     fail(nested.get(0), "HAVING isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
+        }
+    }
+
+    private static void validateInExpression(Expression e, Set<Failure> localFailures) {
+        if (e instanceof In) {
+            In in = (In) e;
+            DataType dt = null;
+            for (Expression rightValue : in.list()) {
+                if (dt == null) {
+                    dt = rightValue.dataType();
+                } else {
+                    if (rightValue.dataType() != dt) {
+                        localFailures.add(fail(rightValue, "expected data type [%s], value provided is of type [%s]",
+                            dt, rightValue.dataType()));
+                    }
+                }
+            }
+        } else {
+            for (Expression child : e.children()) {
+                validateInExpression(child, localFailures);
+            }
         }
     }
 }

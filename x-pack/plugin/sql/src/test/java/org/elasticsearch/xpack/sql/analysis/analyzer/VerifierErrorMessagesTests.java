@@ -169,4 +169,24 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:42: Cannot filter HAVING on non-aggregate [int]; consider using WHERE instead",
                 verify("SELECT int FROM test GROUP BY int HAVING 2 < ABS(int)"));
     }
+
+    public void testInWithDifferentDataTypes_SelectClause() {
+        assertEquals("1:17: expected data type [INTEGER], value provided is of type [KEYWORD]",
+            verify("SELECT 1 IN (2, '3', 4)"));
+    }
+
+    public void testInNestedWithDifferentDataTypes_SelectClause() {
+        assertEquals("1:27: expected data type [INTEGER], value provided is of type [KEYWORD]",
+            verify("SELECT 1 = 1  OR 1 IN (2, '3', 4)"));
+    }
+
+    public void testInWithDifferentDataTypes_WhereClause() {
+        assertEquals("1:49: expected data type [KEYWORD], value provided is of type [INTEGER]",
+            verify("SELECT * FROM test WHERE text IN ('foo', 'bar', 4)"));
+    }
+
+    public void testInNestedWithDifferentDataTypes_WhereClause() {
+        assertEquals("1:60: expected data type [KEYWORD], value provided is of type [INTEGER]",
+            verify("SELECT * FROM test WHERE int = 1 OR text IN ('foo', 'bar', 2)"));
+    }
 }

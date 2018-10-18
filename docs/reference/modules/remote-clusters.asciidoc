@@ -1,8 +1,16 @@
 [[modules-remote-clusters]]
 == Remote clusters
 
+ifndef::include-xpack[]
 The _remote clusters_ module allows establishing uni-directional connections to
-a remote cluster.
+a remote cluster. This functionality is used in
+<<modules-cross-cluster-search,cross-cluster search>>.
+endif::[]
+ifdef::include-xpack[]
+The _remote clusters_ module allows establishing uni-directional connections to
+a remote cluster. This functionality is used in cross-cluster replication,
+<<modules-cross-cluster-search,cross-cluster search>>.
+endif::[]
 
 Remote cluster connections work by configuring a remote cluster and connecting
 only to a limited number of nodes in the remote cluster. Each remote cluster is
@@ -16,17 +24,6 @@ possible to tag which nodes should be selected through node attributes (see
 
 Each node in a cluster that has remote clusters configured connects to one or
 more _gateway nodes_ and uses them to federate requests to the remote cluster.
-
-ifndef::include-xpack[]
-This functionality is used in
-<<modules-cross-cluster-search,cross-cluster search>>, and possibly other
-features.
-endif::[]
-ifdef::include-xpack[]
-This functionality is used in cross-cluster replication,
-<<modules-cross-cluster-search,cross-cluster search>>, and posssibly other
-features.
-endif::[]
 
 [float]
 [[configuring-remote-clusters]]

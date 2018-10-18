@@ -24,6 +24,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -90,7 +91,7 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
         RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
         optionsBuilder.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, reservedPassword));
         RequestOptions options = optionsBuilder.build();
-        final String[] usernames = Arrays.asList(KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME,
+        final List<String> usernames = Arrays.asList(KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME,
             RemoteMonitoringUser.NAME);
         for (String username : usernames) {
             Request request = new Request("PUT", "/_xpack/security/user/" + username + "/_password");

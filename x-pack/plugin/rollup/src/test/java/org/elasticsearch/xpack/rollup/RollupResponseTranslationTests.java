@@ -512,7 +512,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         ClassCastException e = expectThrows(ClassCastException.class,
                 () -> RollupResponseTranslator.combineResponses(msearch, reduceContext));
         assertThat(e.getMessage(),
-            containsString("org.elasticsearch.search.aggregations.metrics.geobounds.InternalGeoBounds"));
+            containsString("org.elasticsearch.search.aggregations.metrics.InternalGeoBounds"));
         assertThat(e.getMessage(),
             containsString("org.elasticsearch.search.aggregations.InternalMultiBucketAggregation"));
     }
